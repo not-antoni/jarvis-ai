@@ -131,6 +131,7 @@ class AIProviderManager {
                 model: "llama-3.1-8b-instant",
                 type: "openai-chat",
             });
+        }
         if (process.env.GOOGLE_AI_API_KEY) {
             this.providers.push({
                 name: "Google AI",
