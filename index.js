@@ -15,6 +15,7 @@ const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { MongoClient } = require("mongodb");
 const cron = require("node-cron");
+const { createOpenAI } = require("@ai-sdk/openai");
 
 // ------------------------ MongoDB Setup ------------------------
 const mongoUri = `mongodb+srv://aiusr:${process.env.MONGO_PW}@cluster0ai.tmsdg3r.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ai`;
@@ -194,6 +195,20 @@ class AIProviderManager {
             model: "llama3.2:3b",
             type: "openai-chat",
         });`
+
+        // Add Vercel AI SDK OpenAI provider
+        if (process.env.OPENAI_API_KEY) {
+            const vercelOpenAI = createOpenAI({
+                apiKey: process.env.OPENAI_API_KEY,
+            });
+            this.providers.push({
+                name: "VercelOpenAI",
+                client: vercelOpenAI,
+                model: "gpt-5-nano",
+                type: "openai-chat",
+            });
+        }
+
         console.log(`Initialized ${this.providers.length} AI providers`);
     }
 
