@@ -1048,6 +1048,10 @@ client.login(process.env.DISCORD_TOKEN).catch((error) => {
     console.error("Failed to login:", error);
     process.exit(1);
 });
+client.once("ready", () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+});
+
 
 // ------------------------ Uptime Server ------------------------
 const express = require("express");
