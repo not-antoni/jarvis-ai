@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: jarvis-discord-bot
+    runtime: node
+    repo: https://github.com/HustleSynth/jarvis-ai # Replace with your repo
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: MONGO_PW
+        sync: false
+      - key: GOOGLE_AI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_API_KEY2
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY2
+        sync: false
+      - key: OPENROUTER_API_KEY3
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: HF_TOKEN2
+        sync: false
+      - key: MIXTRAL_API_KEY
+        sync: false
+      - key: MIXTRAL_API_KEY2
+        sync: false
+      - key: PORT
+        generateValue: true

@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-transformers
-accelerate
-safetensors
-huggingface_hub
-torch
