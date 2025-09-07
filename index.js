@@ -106,7 +106,7 @@ class AIProviderManager {
                     apiKey: process.env.GROQ_API_KEY,
                     baseURL: "https://api.groq.com/openai/v1",
                 }),
-                model: "openai/gpt-oss-20b",
+                model: "llama-3.1-8b-instant",
                 type: "openai-chat",
             });
         }
@@ -117,10 +117,20 @@ class AIProviderManager {
                     apiKey: process.env.GROQ_API_KEY,
                     baseURL: "https://api.groq.com/openai/v1",
                 }),
-                model: "openai/gpt-oss-20b",
+                model: "llama-3.1-8b-instant",
                 type: "openai-chat",
             });
         }
+		if (process.env.GROQ_API_KEY3) {
+            this.providers.push({
+                name: "Groq",
+                client: new OpenAI({
+                    apiKey: process.env.GROQ_API_KEY,
+                    baseURL: "https://api.groq.com/openai/v1",
+                }),
+                model: "llama-3.1-8b-instant",
+                type: "openai-chat",
+            });
         if (process.env.GOOGLE_AI_API_KEY) {
             this.providers.push({
                 name: "Google AI",
