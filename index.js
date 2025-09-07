@@ -448,19 +448,54 @@ class JarvisAI {
     }
 
     // ---------- Utility Commands ----------
-    async handleUtilityCommand(input, userName, isSlash = false) {
+    async handleUtilityCommand(input, userName, isSlash = false, interaction = null) {
         const cmd = input.toLowerCase().trim();
+
         if (cmd === "status" || cmd === "health") {
             const status = aiManager.getProviderStatus();
             const working = status.filter((p) => !p.hasError).length;
             return `All systems operational, sir. ${working} of ${status.length} AI providers active.`;
         }
-        if (cmd === "time")
-            return `Current time is ${new Date().toLocaleTimeString()}, sir.`;
+
+        if (cmd === "time" || cmd.startsWith("time")) {
+            // For slash command with Discord timestamp formatting
+            if (isSlash && interaction) {
+                const format = interaction.options?.getString("format") || "f";
+                const now = Math.floor(Date.now() / 1000);
+
+                // Discord timestamp formats:
+                // t - Short time (4:20 PM)
+                // T - Long time (4:20:30 PM)
+                // d - Short date (11/28/2018)
+                // D - Long date (November 28, 2018)
+                // f - Short date/time (November 28, 2018 4:20 PM)
+                // F - Long date/time (Wednesday, November 28, 2018 4:20 PM)
+                // R - Relative time (2 hours ago)
+
+                const formatDescriptions = {
+                    't': 'time',
+                    'T': 'precise time',
+                    'd': 'date',
+                    'D': 'full date',
+                    'f': 'date and time',
+                    'F': 'complete timestamp',
+                    'R': 'relative time'
+                };
+
+                return `The current ${formatDescriptions[format] || 'time'} is <t:${now}:${format}>, sir.\n`;
+            }
+            // For regular message command (non-slash)
+            else {
+                const now = Math.floor(Date.now() / 1000);
+                return `Current time: <t:${now}:f> (shows in your timezone), sir.`;
+            }
+        }
+
         if (cmd === "providers") {
             const status = aiManager.getProviderStatus();
             return `I have ${status.length} AI providers configured, sir: ${status.map((p) => p.name).join(", ")}.`;
         }
+
         if (cmd.startsWith("roll")) {
             const sides = parseInt(cmd.split(" ")[1]) || 6;
             if (sides < 1) return "Sides must be at least 1, sir.";
@@ -469,6 +504,7 @@ class JarvisAI {
                 ? `You rolled a ${result}! 🎲`
                 : `Quite right, sir, you rolled a ${result}! 🎲`;
         }
+
         return null;
     }
 
@@ -718,7 +754,22 @@ const commands = [
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("time")
-        .setDescription("Get the current time")
+        .setDescription("Get the current time in your timezone")
+        .addStringOption((option) =>
+            option
+                .setName("format")
+                .setDescription("Time format to display")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Time only", value: "t" },
+                    { name: "Time with seconds", value: "T" },
+                    { name: "Short date", value: "d" },
+                    { name: "Long date", value: "D" },
+                    { name: "Short date/time", value: "f" },
+                    { name: "Long date/time", value: "F" },
+                    { name: "Relative time", value: "R" }
+                )
+        )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("providers")
@@ -908,7 +959,7 @@ client.on("interactionCreate", async (interaction) => {
         return;
     }
 
-    await interaction.deferReply({ ephemeral: false }); // Non-ephemeral by default
+    await interaction.deferReply({ ephemeral: false });
 
     try {
         let response;
@@ -941,12 +992,21 @@ client.on("interactionCreate", async (interaction) => {
                 `roll ${sides}`,
                 interaction.user.username,
                 true,
+                interaction
+            );
+        } else if (interaction.commandName === "time") {
+            response = await jarvis.handleUtilityCommand(
+                "time",
+                interaction.user.username,
+                true,
+                interaction
             );
         } else {
             response = await jarvis.handleUtilityCommand(
                 interaction.commandName,
                 interaction.user.username,
                 true,
+                interaction
             );
         }
 
