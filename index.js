@@ -285,12 +285,12 @@ class AIProviderManager {
                 console.error(`Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`);
                 lastError = error;
 
-                `if (error.message.includes("free-models-per-day")) {
+                if (error.message.includes("free-models-per-day")) {
                     this.disabledProviders.set(
                         provider.name,
-                        Date.now() + 24 * 60 * 60 * 1000,
-                    );`
-                    console.log(`${provider.name} this doesnt work try again later bruh`);
+                        Date.now() + 5 * 60 * 60 * 1000,
+                    );
+                    console.log(`${provider.name} model disabled cuz doesnt work`);
                 } else if (error.status === 429) {
                     console.log(`Rate limited by ${provider.name}, waiting ${backoff}ms`);
                     await new Promise((r) => setTimeout(r, backoff));
