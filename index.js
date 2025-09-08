@@ -565,7 +565,7 @@ class JarvisAI {
         return profile;
     }
 
-    async getRecentConversations(userId, limit = 10) {
+    async getRecentConversations(userId, limit = 100) {
         if (!db) return [];
         const conversations = await db
             .collection("conversations")
@@ -917,14 +917,14 @@ client.on("messageCreate", async (message) => {
         if (!cleanContent) cleanContent = "jarvis";
         message.channel.sendTyping();
 
-        if (cleanContent.length > 250) {
+        if (cleanContent.length > 125) {
             const responses = [
                 "Rather verbose, sir. A concise version, perhaps?",
                 "Too many words, sir. Brevity, please.",
                 "TL;DR, sir.",
                 "Really, sir?",
                 "Saving your creativity for later, sir.",
-                "250 characters is the limit, sir.",
+                "200 characters is the limit, sir.",
                 "Stop yapping, sir.",
                 "Quite the novella, sir. Abridged edition?",
                 "Brevity is the soul of wit, sir.",
