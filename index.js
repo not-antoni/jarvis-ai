@@ -479,10 +479,18 @@ class JarvisAI {
         const cmd = input.toLowerCase().trim();
 
         if (cmd === "status" || cmd === "health") {
-            const status = aiManager.getProviderStatus();
-            const working = status.filter((p) => !p.hasError).length;
-            return `All systems operational, sir. ${working} of ${status.length} AI providers active.`;
-        }
+    const status = aiManager.getProviderStatus();
+    const working = status.filter((p) => !p.hasError).length;
+
+    if (working === 0) {
+        return `sir, total outage. No AI providers active.`;
+    } else if (working === status.length) {
+        return `All systems operational, sir. ${working} of ${status.length} AI providers active.`;
+    } else {
+        return `sir!!! services are disrupted, ${working} of ${status.length} AI providers active.`;
+    }
+}
+
 
         if (cmd === "time" || cmd.startsWith("time")) {
             // For slash command with Discord timestamp formatting
