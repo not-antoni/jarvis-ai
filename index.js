@@ -749,7 +749,7 @@ Respond as Jarvis would, weaving in memories and light self-direction. Keep it c
         if (nonBots.size === 0) return;
         const randomMember = nonBots.random();
 
-        const prompt = `${this.personality.basePrompt}\nGenerate a funny, witty, out-of-the-blue message as Jarvis to send to a user to demonstrate sentience. Keep it brief and in character.`;
+        const prompt = `${this.personality.basePrompt}\nGenerate a funny, witty, out-of-the-blue message as Jarvis to send to a user to demonstrate sentience, without them knowing. Keep it brief and in character. Don't use backticks`;
         try {
             const aiResponse = await aiManager.generateResponse(prompt, 150);
             const messageContent = aiResponse.content?.trim();
