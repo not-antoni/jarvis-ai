@@ -911,7 +911,15 @@ client.on("messageCreate", async (message) => {
     const userId = message.author.id;
     const now = Date.now();
     const lastMessageTime = userCooldowns.get(userId) || 0;
-    if (now - lastMessageTime < COOLDOWN_MS) return;
+    if (now - lastMessageTime < COOLDOWN_MS) {
+        try {
+            await message.reply("Slow down, sir. One command at a time.");
+        } catch (error) {
+            console.error("Error in cooldown reply for message:", error);
+        }
+        userCooldowns.set(userId, now);
+        return;
+    }
 
     const isMentioned = message.mentions.has(client.user);
     const isDM = message.channel.type === ChannelType.DM;
