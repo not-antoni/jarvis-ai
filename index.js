@@ -989,14 +989,31 @@ client.on("interactionCreate", async (interaction) => {
     const now = Date.now();
     const lastCommandTime = userCooldowns.get(userId) || 0;
     if (now - lastCommandTime < COOLDOWN_MS) {
-        await interaction.reply({
-            content: "Slow down, sir. One command at a time.",
-            ephemeral: true,
-        });
+        try {
+            await interaction.reply({
+                content: "Slow down, sir. One command at a time.",
+                ephemeral: true,
+            });
+        } catch (error) {
+            if (error.code === 10062) {
+                console.warn("Ignored unknown interaction during cooldown reply.");
+                return;
+            }
+            console.error("Error in cooldown reply:", error);
+        }
         return;
     }
 
-    await interaction.deferReply({ ephemeral: false });
+    try {
+        await interaction.deferReply({ ephemeral: false });
+    } catch (error) {
+        if (error.code === 10062) {
+            console.warn("Ignored unknown interaction during deferReply.");
+            return;
+        }
+        console.error("Failed to defer reply:", error);
+        return;
+    }
 
     try {
         let response;
@@ -1057,9 +1074,17 @@ client.on("interactionCreate", async (interaction) => {
         userCooldowns.set(userId, now);
     } catch (error) {
         console.error("Error processing interaction:", error);
-        await interaction.editReply(
-            "Technical difficulties, sir. One moment, please.",
-        );
+        try {
+            await interaction.editReply(
+                "Technical difficulties, sir. One moment, please.",
+            );
+        } catch (editError) {
+            if (editError.code === 10062) {
+                console.warn("Ignored unknown interaction during error reply.");
+                return;
+            }
+            console.error("Failed to send error reply:", editError);
+        }
         userCooldowns.set(userId, now);
     }
 });
