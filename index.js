@@ -906,7 +906,7 @@ client.on("messageCreate", async (message) => {
     if (now - lastMessageTime < COOLDOWN_MS) return;
 
     const isMentioned = message.mentions.has(client.user);
-    const isDM = message.channel.type === ChannelType.DM || message.channel.type === ChannelType.GroupDM;
+    const isDM = message.channel.type === ChannelType.DM;
     const containsJarvis = message.content.toLowerCase().includes("jarvis");
     const isTargetBot = message.author.id === "1391010888915484672";
 
