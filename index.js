@@ -141,6 +141,14 @@ class AIProviderManager {
                 type: "google",
             });
         }
+		if (process.env.GOOGLE_AI_API_KEY2) {
+            this.providers.push({
+                name: "Google AI",
+                client: new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY),
+                model: "gemini-1.5-flash",
+                type: "google",
+            });
+        }
         if (process.env.MIXTRAL_API_KEY) {
             this.providers.push({
                 name: "Mixtral",
