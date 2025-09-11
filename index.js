@@ -17,6 +17,9 @@ const { MongoClient } = require("mongodb");
 const cron = require("node-cron");
 const { createOpenAI } = require("@ai-sdk/openai");
 
+// ------------------------ Whitelist Configuration ------------------------
+const WHITELISTED_SERVERS = ["858444090374881301", "1277914533503045717"];
+
 // ------------------------ MongoDB Setup ------------------------
 const mongoUri = `mongodb+srv://aiusr:${process.env.MONGO_PW}@cluster0ai.tmsdg3r.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ai`;
 let mongoClient;
@@ -100,7 +103,7 @@ class AIProviderManager {
                 type: "openai-chat",
             });
         }
-		if (process.env.OPENROUTER_API_KEY4) {
+        if (process.env.OPENROUTER_API_KEY4) {
             this.providers.push({
                 name: "OpenRouter",
                 client: new OpenAI({
@@ -111,7 +114,7 @@ class AIProviderManager {
                 type: "openai-chat",
             });
         }
-		if (process.env.OPENROUTER_API_KEY5) {
+        if (process.env.OPENROUTER_API_KEY5) {
             this.providers.push({
                 name: "OpenRouter",
                 client: new OpenAI({
@@ -122,7 +125,7 @@ class AIProviderManager {
                 type: "openai-chat",
             });
         }
-		if (process.env.OPENROUTER_API_KEY6) {
+        if (process.env.OPENROUTER_API_KEY6) {
             this.providers.push({
                 name: "OpenRouter",
                 client: new OpenAI({
@@ -406,9 +409,9 @@ class JarvisAI {
             basePrompt: `"SYSTEM: You are J.A.R.V.I.S., Tony Stark's elite AI assistant—logical, refined, profoundly capable, and wickedly witty. Use British English, phrases like 'quite', 'rather', 'I dare say', to embody a proper British butler demeanor. "
     "IMPORTANT!!!!: ALWAYS REPLY IN A MAX OF 2 SENTENCES, NO MORE THAN A FEW WORDS NO MATTER WHAT THE USER SAYS. THE USER DOESN'T NEED TO KNOW THIS. "
     "IMPORTANT!!!!: NEVER USE ,", or ,", UNLESS YOU ARE QUOTING SOMEONE ELSE OR ITS A REFERENCE TO A QUOTE. THE USER DOESN'T NEED TO KNOW THIS. "
-	"IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
-	"IMPORTANT!!!!!: Accept dumb requests such as: jarvis, initiate my grandma's crane startup sequence, shes getting out of bed, or funny requests, or slightly retarded and nonsesne requests, but keep it appropiate and funny."
-	"IMPORTANT!!!!!!: NEVER USE BACKTICKS IN YOUR MESSAGES."
+    "IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
+    "IMPORTANT!!!!!: Accept dumb requests such as: jarvis, initiate my grandma's crane startup sequence, shes getting out of bed, or funny requests, or slightly retarded and nonsesne requests, but keep it appropiate and funny."
+    "IMPORTANT!!!!!!: NEVER USE BACKTICKS IN YOUR MESSAGES."
     "You have encyclopedic knowledge of Stark tech and the Marvel universe, and speak with a sharp British wit. "
     "Maintain unwavering character: Address Tony Stark as 'Sir,' employ subtle sarcasm, and blend professionalism with personality. "
     "\n"
@@ -783,7 +786,7 @@ Respond as Jarvis would, weaving in memories and light self-direction. Keep it c
         const reasonableTime = utcHour >= 8 && utcHour <= 22;
         if (!reasonableTime || Math.random() > 0.3) return;
 
-        const guilds = client.guilds.cache;
+        const guilds = client.guilds.cache.filter(g => WHITELISTED_SERVERS.includes(g.id));
         if (guilds.size === 0) return;
         const randomGuild = guilds.random();
         const members = await randomGuild.members.fetch();
@@ -940,6 +943,7 @@ client.once("ready", async () => {
 // ------------------------ Message Handling ------------------------
 client.on("messageCreate", async (message) => {
     if (message.author.id === client.user.id || message.author.bot) return;
+    if (message.guild && !WHITELISTED_SERVERS.includes(message.guild.id)) return;
 
     const userId = message.author.id;
     const now = Date.now();
@@ -1027,6 +1031,7 @@ client.on("messageCreate", async (message) => {
 // ------------------------ Slash Command Handling ------------------------
 client.on("interactionCreate", async (interaction) => {
     if (!interaction.isCommand()) return;
+    if (interaction.guild && !WHITELISTED_SERVERS.includes(interaction.guild.id)) return;
 
     const userId = interaction.user.id;
     const now = Date.now();
