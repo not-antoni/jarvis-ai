@@ -122,7 +122,7 @@ class AIProviderManager {
                 type: "openai-chat",
             });
         }
-		if (process.env.GROQ_API_KEY3) {
+        if (process.env.GROQ_API_KEY3) {
             this.providers.push({
                 name: "Groq",
                 client: new OpenAI({
@@ -141,7 +141,7 @@ class AIProviderManager {
                 type: "google",
             });
         }
-		if (process.env.GOOGLE_AI_API_KEY2) {
+        if (process.env.GOOGLE_AI_API_KEY2) {
             this.providers.push({
                 name: "Google AI",
                 client: new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY),
@@ -912,11 +912,6 @@ client.on("messageCreate", async (message) => {
     const now = Date.now();
     const lastMessageTime = userCooldowns.get(userId) || 0;
     if (now - lastMessageTime < COOLDOWN_MS) {
-        try {
-            await message.reply("Slow down, sir. One command at a time.");
-        } catch (error) {
-            console.error("Error in cooldown reply for message:", error);
-        }
         userCooldowns.set(userId, now);
         return;
     }
@@ -924,7 +919,7 @@ client.on("messageCreate", async (message) => {
     const isMentioned = message.mentions.has(client.user);
     const isDM = message.channel.type === ChannelType.DM;
     const containsJarvis = message.content.toLowerCase().includes("jarvis");
-    const isTargetBot = message.author.id === "1391010888915484672";
+    const isTargetBot = message.author.id === "1391010888915484672" || message.author.id === "984734399310467112";
 
     if (isDM || isMentioned || containsJarvis || isTargetBot) {
         let cleanContent = message.content
@@ -1005,18 +1000,7 @@ client.on("interactionCreate", async (interaction) => {
     const now = Date.now();
     const lastCommandTime = userCooldowns.get(userId) || 0;
     if (now - lastCommandTime < COOLDOWN_MS) {
-        try {
-            await interaction.reply({
-                content: "Slow down, sir. One command at a time.",
-                ephemeral: true,
-            });
-        } catch (error) {
-            if (error.code === 10062) {
-                console.warn("Ignored unknown interaction during cooldown reply.");
-                return;
-            }
-            console.error("Error in cooldown reply:", error);
-        }
+        userCooldowns.set(userId, now);
         return;
     }
 
