@@ -100,6 +100,39 @@ class AIProviderManager {
                 type: "openai-chat",
             });
         }
+		if (process.env.OPENROUTER_API_KEY4) {
+            this.providers.push({
+                name: "OpenRouter",
+                client: new OpenAI({
+                    apiKey: process.env.OPENROUTER_API_KEY,
+                    baseURL: "https://openrouter.ai/api/v1",
+                }),
+                model: "deepseek/deepseek-chat-v3.1:free",
+                type: "openai-chat",
+            });
+        }
+		if (process.env.OPENROUTER_API_KEY5) {
+            this.providers.push({
+                name: "OpenRouter",
+                client: new OpenAI({
+                    apiKey: process.env.OPENROUTER_API_KEY,
+                    baseURL: "https://openrouter.ai/api/v1",
+                }),
+                model: "deepseek/deepseek-chat-v3.1:free",
+                type: "openai-chat",
+            });
+        }
+		if (process.env.OPENROUTER_API_KEY6) {
+            this.providers.push({
+                name: "OpenRouter",
+                client: new OpenAI({
+                    apiKey: process.env.OPENROUTER_API_KEY,
+                    baseURL: "https://openrouter.ai/api/v1",
+                }),
+                model: "deepseek/deepseek-chat-v3.1:free",
+                type: "openai-chat",
+            });
+        }
         if (process.env.GROQ_API_KEY) {
             this.providers.push({
                 name: "Groq",
