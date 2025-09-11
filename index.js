@@ -906,7 +906,7 @@ client.once("ready", async () => {
 
 // ------------------------ Message Handling ------------------------
 client.on("messageCreate", async (message) => {
-    if (message.author.id === client.user.id) return;
+    if (message.author.id === client.user.id || message.author.bot) return;
 
     const userId = message.author.id;
     const now = Date.now();
@@ -919,9 +919,8 @@ client.on("messageCreate", async (message) => {
     const isMentioned = message.mentions.has(client.user);
     const isDM = message.channel.type === ChannelType.DM;
     const containsJarvis = message.content.toLowerCase().includes("jarvis");
-    const isTargetBot = message.author.id === "1391010888915484672" || message.author.id === "984734399310467112";
 
-    if (isDM || isMentioned || containsJarvis || isTargetBot) {
+    if (isDM || isMentioned || containsJarvis) {
         let cleanContent = message.content
             .replace(/<@!?\d+>/g, "")
             .replace(/jarvis/gi, "")
