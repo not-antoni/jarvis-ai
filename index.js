@@ -607,7 +607,7 @@ class JarvisAI {
         return profile;
     }
 
-    async getRecentConversations(userId, limit = 80) {
+    async getRecentConversations(userId, limit = 100) {
         if (!db) return [];
         const conversations = await db
             .collection("conversations")
