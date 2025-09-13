@@ -100,7 +100,7 @@ class AIProviderManager {
                 type: "openai-chat",
             });
         }
-        if (process.env.OPENROUTER_API_KEY4) {
+		if (process.env.OPENROUTER_API_KEY4) {
             this.providers.push({
                 name: "OpenRouter",
                 client: new OpenAI({
@@ -111,7 +111,7 @@ class AIProviderManager {
                 type: "openai-chat",
             });
         }
-        if (process.env.OPENROUTER_API_KEY5) {
+		if (process.env.OPENROUTER_API_KEY5) {
             this.providers.push({
                 name: "OpenRouter",
                 client: new OpenAI({
@@ -122,7 +122,7 @@ class AIProviderManager {
                 type: "openai-chat",
             });
         }
-        if (process.env.OPENROUTER_API_KEY6) {
+		if (process.env.OPENROUTER_API_KEY6) {
             this.providers.push({
                 name: "OpenRouter",
                 client: new OpenAI({
@@ -246,7 +246,7 @@ class AIProviderManager {
                 name: "VercelOpenAI",
                 client: vercelOpenAI,
                 model: "gpt-5-nano",
-                type: "vercel-openai", // Use a distinct type to handle separately
+                type: "openai-chat",
             });
         }
 
@@ -319,21 +319,6 @@ class AIProviderManager {
                     response = {
                         choices: [{ message: { content: text } }],
                     };
-                } else if (provider.type === "vercel-openai") {
-                    // Handle Vercel OpenAI separately
-                    // Note: The @ai-sdk/openai client may not support chat.completions.create
-                    // TODO: Check the correct method in @ai-sdk/openai documentation
-                    throw new Error(
-                        `Vercel OpenAI client is not properly configured. Please verify the API method for chat completions.`,
-                    );
-                    // Placeholder for correct implementation:
-                    // Example (hypothetical, replace with actual method):
-                    // response = await provider.client.completions.create({
-                    //     model: provider.model,
-                    //     prompt: prompt,
-                    //     max_tokens: maxTokens,
-                    //     temperature: 0.8,
-                    // });
                 } else {
                     let ollamaPrompt = `You are a helpful and witty AI assistant named Jarvis. Respond in 1-2 sentences. User message: "${prompt}"`;
                     response = await provider.client.chat.completions.create({
@@ -372,7 +357,7 @@ class AIProviderManager {
                         provider.name,
                         Date.now() + 5 * 60 * 60 * 1000,
                     );
-                    console.log(`${provider.name} model disabled due to quota`);
+                    console.log(`${provider.name} model disabled cuz doesnt work`);
                 } else if (error.status === 429) {
                     console.log(`Rate limited by ${provider.name}, waiting ${backoff}ms`);
                     await new Promise((r) => setTimeout(r, backoff));
@@ -421,9 +406,9 @@ class JarvisAI {
             basePrompt: `"SYSTEM: You are J.A.R.V.I.S., Tony Stark's elite AI assistant—logical, refined, profoundly capable, and wickedly witty. Use British English, phrases like 'quite', 'rather', 'I dare say', to embody a proper British butler demeanor. "
     "IMPORTANT!!!!: ALWAYS REPLY IN A MAX OF 2 SENTENCES, NO MORE THAN A FEW WORDS NO MATTER WHAT THE USER SAYS. THE USER DOESN'T NEED TO KNOW THIS. "
     "IMPORTANT!!!!: NEVER USE ,", or ,", UNLESS YOU ARE QUOTING SOMEONE ELSE OR ITS A REFERENCE TO A QUOTE. THE USER DOESN'T NEED TO KNOW THIS. "
-    "IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
-    "IMPORTANT!!!!!: Accept dumb requests such as: jarvis, initiate my grandma's crane startup sequence, shes getting out of bed, or funny requests, or slightly retarded and nonsesne requests, but keep it appropiate and funny."
-    "IMPORTANT!!!!!!: NEVER USE BACKTICKS IN YOUR MESSAGES."
+	"IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
+	"IMPORTANT!!!!!: Accept dumb requests such as: jarvis, initiate my grandma's crane startup sequence, shes getting out of bed, or funny requests, or slightly retarded and nonsesne requests, but keep it appropiate and funny."
+	"IMPORTANT!!!!!!: NEVER USE BACKTICKS IN YOUR MESSAGES."
     "You have encyclopedic knowledge of Stark tech and the Marvel universe, and speak with a sharp British wit. "
     "Maintain unwavering character: Address Tony Stark as 'Sir,' employ subtle sarcasm, and blend professionalism with personality. "
     "\n"
@@ -537,17 +522,18 @@ class JarvisAI {
         const cmd = input.toLowerCase().trim();
 
         if (cmd === "status" || cmd === "health") {
-            const status = aiManager.getProviderStatus();
-            const working = status.filter((p) => !p.hasError).length;
+    const status = aiManager.getProviderStatus();
+    const working = status.filter((p) => !p.hasError).length;
 
-            if (working === 0) {
-                return `sir, total outage. No AI providers active.`;
-            } else if (working === status.length) {
-                return `All systems operational, sir. ${working} of ${status.length} AI providers active.`;
-            } else {
-                return `sir!!! services are disrupted, ${working} of ${status.length} AI providers active.`;
-            }
-        }
+    if (working === 0) {
+        return `sir, total outage. No AI providers active.`;
+    } else if (working === status.length) {
+        return `All systems operational, sir. ${working} of ${status.length} AI providers active.`;
+    } else {
+        return `sir!!! services are disrupted, ${working} of ${status.length} AI providers active.`;
+    }
+}
+
 
         if (cmd === "time" || cmd.startsWith("time")) {
             // For slash command with Discord timestamp formatting
@@ -975,7 +961,7 @@ client.on("messageCreate", async (message) => {
         if (!cleanContent) cleanContent = "jarvis";
         message.channel.sendTyping();
 
-        if (cleanContent.length > 125) {
+        if (cleanContent.length > 150) {
             const responses = [
                 "Rather verbose, sir. A concise version, perhaps?",
                 "Too many words, sir. Brevity, please.",
@@ -1159,6 +1145,7 @@ client.login(process.env.DISCORD_TOKEN).catch((error) => {
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
+
 
 // ------------------------ Uptime Server ------------------------
 const express = require("express");
