@@ -961,7 +961,7 @@ client.on("messageCreate", async (message) => {
         if (!cleanContent) cleanContent = "jarvis";
         message.channel.sendTyping();
 
-        if (cleanContent.length > 150) {
+        if (cleanContent.length > 200) {
             const responses = [
                 "Rather verbose, sir. A concise version, perhaps?",
                 "Too many words, sir. Brevity, please.",
