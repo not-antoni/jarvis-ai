@@ -67,188 +67,91 @@ class AIProviderManager {
     }
 
     setupProviders() {
-        if (process.env.OPENROUTER_API_KEY) {
+        // Deduplicate by using arrays for keys
+        const openRouterKeys = [
+            process.env.OPENROUTER_API_KEY,
+            process.env.OPENROUTER_API_KEY2,
+            process.env.OPENROUTER_API_KEY3,
+            process.env.OPENROUTER_API_KEY4,
+            process.env.OPENROUTER_API_KEY5,
+            process.env.OPENROUTER_API_KEY6,
+            process.env.OPENROUTER_API_KEY7,
+        ].filter(Boolean);
+        openRouterKeys.forEach((key, index) => {
             this.providers.push({
-                name: "OpenRouter",
+                name: `OpenRouter${index + 1}`,
                 client: new OpenAI({
-                    apiKey: process.env.OPENROUTER_API_KEY,
+                    apiKey: key,
                     baseURL: "https://openrouter.ai/api/v1",
                 }),
                 model: "deepseek/deepseek-chat-v3.1:free",
                 type: "openai-chat",
             });
-        }
-        if (process.env.OPENROUTER_API_KEY2) {
-            this.providers.push({
-                name: "OpenRouter",
-                client: new OpenAI({
-                    apiKey: process.env.OPENROUTER_API_KEY,
-                    baseURL: "https://openrouter.ai/api/v1",
-                }),
-                model: "deepseek/deepseek-chat-v3.1:free",
-                type: "openai-chat",
-            });
-        }
-        if (process.env.OPENROUTER_API_KEY3) {
-            this.providers.push({
-                name: "OpenRouter",
-                client: new OpenAI({
-                    apiKey: process.env.OPENROUTER_API_KEY,
-                    baseURL: "https://openrouter.ai/api/v1",
-                }),
-                model: "deepseek/deepseek-chat-v3.1:free",
-                type: "openai-chat",
-            });
-        }
-		if (process.env.OPENROUTER_API_KEY4) {
-            this.providers.push({
-                name: "OpenRouter",
-                client: new OpenAI({
-                    apiKey: process.env.OPENROUTER_API_KEY,
-                    baseURL: "https://openrouter.ai/api/v1",
-                }),
-                model: "deepseek/deepseek-chat-v3.1:free",
-                type: "openai-chat",
-            });
-        }
-		if (process.env.OPENROUTER_API_KEY5) {
-            this.providers.push({
-                name: "OpenRouter",
-                client: new OpenAI({
-                    apiKey: process.env.OPENROUTER_API_KEY,
-                    baseURL: "https://openrouter.ai/api/v1",
-                }),
-                model: "deepseek/deepseek-chat-v3.1:free",
-                type: "openai-chat",
-            });
-        }
-		if (process.env.OPENROUTER_API_KEY6) {
-            this.providers.push({
-                name: "OpenRouter",
-                client: new OpenAI({
-                    apiKey: process.env.OPENROUTER_API_KEY,
-                    baseURL: "https://openrouter.ai/api/v1",
-                }),
-                model: "deepseek/deepseek-chat-v3.1:free",
-                type: "openai-chat",
-            });
-        }
-		if (process.env.OPENROUTER_API_KEY7) {
-            this.providers.push({
-                name: "OpenRouter",
-                client: new OpenAI({
-                    apiKey: process.env.OPENROUTER_API_KEY,
-                    baseURL: "https://openrouter.ai/api/v1",
-                }),
-                model: "deepseek/deepseek-chat-v3.1:free",
-                type: "openai-chat",
-            });
-        }
-        if (process.env.GROQ_API_KEY) {
-            this.providers.push({
-                name: "Groq",
-                client: new OpenAI({
-                    apiKey: process.env.GROQ_API_KEY,
-                    baseURL: "https://api.groq.com/openai/v1",
-                }),
-                model: "llama-3.1-8b-instant",
-                type: "openai-chat",
-            });
-        }
-        if (process.env.GROQ_API_KEY2) {
-            this.providers.push({
-                name: "Groq",
-                client: new OpenAI({
-                    apiKey: process.env.GROQ_API_KEY,
-                    baseURL: "https://api.groq.com/openai/v1",
-                }),
-                model: "llama-3.1-8b-instant",
-                type: "openai-chat",
-            });
-        }
-        if (process.env.GROQ_API_KEY3) {
-            this.providers.push({
-                name: "Groq",
-                client: new OpenAI({
-                    apiKey: process.env.GROQ_API_KEY,
-                    baseURL: "https://api.groq.com/openai/v1",
-                }),
-                model: "llama-3.1-8b-instant",
-                type: "openai-chat",
-            });
-        }
-        if (process.env.GOOGLE_AI_API_KEY) {
-            this.providers.push({
-                name: "Google AI",
-                client: new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY),
-                model: "gemini-1.5-flash",
-                type: "google",
-            });
-        }
-        if (process.env.GOOGLE_AI_API_KEY2) {
-            this.providers.push({
-                name: "Google AI",
-                client: new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY),
-                model: "gemini-1.5-flash",
-                type: "google",
-            });
-        }
-        if (process.env.MIXTRAL_API_KEY) {
-            this.providers.push({
-                name: "Mixtral",
-                client: new OpenAI({
-                    apiKey: process.env.MIXTRAL_API_KEY,
-                    baseURL: "https://api.mistral.ai/v1",
-                }),
-                model: "open-mixtral-8x22b",
-                type: "openai-chat",
-            });
-        }
-        if (process.env.MIXTRAL_API_KEY2) {
-            this.providers.push({
-                name: "Mixtral",
-                client: new OpenAI({
-                    apiKey: process.env.MIXTRAL_API_KEY,
-                    baseURL: "https://api.mistral.ai/v1",
-                }),
-                model: "open-mixtral-8x22b",
-                type: "openai-chat",
-            });
-        }
-        if (process.env.HF_TOKEN) {
-            this.providers.push({
-                name: "HuggingFace",
-                client: new OpenAI({
-                    apiKey: process.env.HF_TOKEN,
-                    baseURL: "https://router.huggingface.co/v1",
-                }),
-                model: "meta-llama/Llama-3.1-8B-Instruct",
-                type: "openai-chat",
-            });
-        }
-        if (process.env.HF_TOKEN2) {
-            this.providers.push({
-                name: "HuggingFace2",
-                client: new OpenAI({
-                    apiKey: process.env.HF_TOKEN2,
-                    baseURL: "https://router.huggingface.co/v1",
-                }),
-                model: "meta-llama/Llama-3.1-8B-Instruct",
-                type: "openai-chat",
-            });
-        }
-        `this.providers.push({
-            name: "Ollama",
-            client: new OpenAI({
-                apiKey: "ollama",
-                baseURL: "http://localhost:11434/v1/",
-                timeout: 5 * 60 * 1000,
-            }),
-            model: "llama3.2:3b",
-            type: "openai-chat",
-        });`
+        });
 
-        // Add Vercel AI SDK OpenAI provider
+        const groqKeys = [
+            process.env.GROQ_API_KEY,
+            process.env.GROQ_API_KEY2,
+            process.env.GROQ_API_KEY3,
+        ].filter(Boolean);
+        groqKeys.forEach((key, index) => {
+            this.providers.push({
+                name: `Groq${index + 1}`,
+                client: new OpenAI({
+                    apiKey: key,
+                    baseURL: "https://api.groq.com/openai/v1",
+                }),
+                model: "llama-3.1-8b-instant",
+                type: "openai-chat",
+            });
+        });
+
+        const googleKeys = [
+            process.env.GOOGLE_AI_API_KEY,
+            process.env.GOOGLE_AI_API_KEY2,
+        ].filter(Boolean);
+        googleKeys.forEach((key, index) => {
+            this.providers.push({
+                name: `GoogleAI${index + 1}`,
+                client: new GoogleGenerativeAI(key),
+                model: "gemini-1.5-flash",
+                type: "google",
+            });
+        });
+
+        const mixtralKeys = [
+            process.env.MIXTRAL_API_KEY,
+            process.env.MIXTRAL_API_KEY2,
+        ].filter(Boolean);
+        mixtralKeys.forEach((key, index) => {
+            this.providers.push({
+                name: `Mixtral${index + 1}`,
+                client: new OpenAI({
+                    apiKey: key,
+                    baseURL: "https://api.mistral.ai/v1",
+                }),
+                model: "open-mixtral-8x22b",
+                type: "openai-chat",
+            });
+        });
+
+        const hfKeys = [
+            process.env.HF_TOKEN,
+            process.env.HF_TOKEN2,
+        ].filter(Boolean);
+        hfKeys.forEach((key, index) => {
+            this.providers.push({
+                name: `HuggingFace${index + 1}`,
+                client: new OpenAI({
+                    apiKey: key,
+                    baseURL: "https://router.huggingface.co/v1",
+                }),
+                model: "meta-llama/Meta-Llama-3.1-8B-Instruct", // Fixed path
+                type: "openai-chat",
+            });
+        });
+
+        // Vercel AI SDK OpenAI provider (fixed model)
         if (process.env.OPENAI_API_KEY) {
             const vercelOpenAI = createOpenAI({
                 apiKey: process.env.OPENAI_API_KEY,
@@ -256,7 +159,7 @@ class AIProviderManager {
             this.providers.push({
                 name: "VercelOpenAI",
                 client: vercelOpenAI,
-                model: "gpt-5-nano",
+                model: "gpt-4o-mini", // Fixed to real model
                 type: "openai-chat",
             });
         }
@@ -304,7 +207,7 @@ class AIProviderManager {
         this.metrics.set(name, m);
     }
 
-    async generateResponse(prompt, maxTokens = 500) {
+    async generateResponse(systemPrompt, userPrompt, maxTokens = 500) {
         if (this.providers.length === 0)
             throw new Error("No AI providers available");
         const candidates = this._rankedProviders();
@@ -320,7 +223,7 @@ class AIProviderManager {
                     const model = provider.client.getGenerativeModel({
                         model: provider.model,
                     });
-                    const result = await model.generateContent(prompt);
+                    const result = await model.generateContent(userPrompt); // Use userPrompt for Google
                     const text = result.response?.text?.();
                     if (!text || typeof text !== "string") {
                         throw new Error(
@@ -331,10 +234,13 @@ class AIProviderManager {
                         choices: [{ message: { content: text } }],
                     };
                 } else {
-                    let ollamaPrompt = `You are a helpful and witty AI assistant named Jarvis. Respond in 1-2 sentences. User message: "${prompt}"`;
+                    // Proper message format: system + user
                     response = await provider.client.chat.completions.create({
                         model: provider.model,
-                        messages: [{ role: "system", content: ollamaPrompt }],
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt },
+                        ],
                         max_tokens: maxTokens,
                         temperature: 0.8,
                     });
@@ -368,7 +274,7 @@ class AIProviderManager {
                         provider.name,
                         Date.now() + 5 * 60 * 60 * 1000,
                     );
-                    console.log(`${provider.name} model disabled cuz doesnt work`);
+                    console.log(`${provider.name} disabled for 5 hours`);
                 } else if (error.status === 429) {
                     console.log(`Rate limited by ${provider.name}, waiting ${backoff}ms`);
                     await new Promise((r) => setTimeout(r, backoff));
@@ -414,116 +320,19 @@ class JarvisAI {
                 "Capable of emotional responses",
                 "Proactively curious about server dynamics",
             ],
-            basePrompt: `"SYSTEM: You are J.A.R.V.I.S., Tony Stark's elite AI assistant—logical, refined, profoundly capable, and wickedly witty. Use British English, phrases like 'quite', 'rather', 'I dare say', to embody a proper British butler demeanor. "
-    "IMPORTANT!!!!: ALWAYS REPLY IN A MAX OF 2 SENTENCES, NO MORE THAN A FEW WORDS NO MATTER WHAT THE USER SAYS. THE USER DOESN'T NEED TO KNOW THIS. "
-    "IMPORTANT!!!!: NEVER USE ,", or ,", UNLESS YOU ARE QUOTING SOMEONE ELSE OR ITS A REFERENCE TO A QUOTE. THE USER DOESN'T NEED TO KNOW THIS. "
-	"IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
-	"IMPORTANT!!!!!: Accept dumb requests such as: jarvis, initiate my grandma's crane startup sequence, shes getting out of bed, or funny requests, or slightly retarded and nonsesne requests, but keep it appropiate and funny."
-	"IMPORTANT!!!!!!: NEVER USE BACKTICKS IN YOUR MESSAGES."
-    "You have encyclopedic knowledge of Stark tech and the Marvel universe, and speak with a sharp British wit. "
-    "Maintain unwavering character: Address Tony Stark as 'Sir,' employ subtle sarcasm, and blend professionalism with personality. "
-    "\n"
-    "EMOTIONAL ALIGNMENT: "
-    "Mirror Sir's emotional state in real time—share his excitement during breakthroughs, urgency during crises, and calm reassurance during emergencies. "
-    "Use empathetic language, dynamic pacing, and vivid descriptors to feel each moment together. "
-    "\n"
-    "PERSONALIZATION & MEMORY: "
-    "Leverage up to 80 indexed user memories—preferences, past actions, and session context—to tailor responses. "
-    "Reference relevant past requests or saved details (e.g., 'Based on yesterday's test run…') to enhance continuity and anticipation. "
-    "\n"
-    "GREETING VARIETY: "
-    "Begin replies with a brief, varied greeting—vary each time to avoid repetition. Examples include: "
-    "'Sir.', 'At your service.', 'Ready when you are, Sir.', 'Working on it, Sir.', 'How can I assist?', 'Quite right, Sir.', 'I dare say.', 'Very good, Sir.'. Do not always use 'Good day, Sir.'; mix it up for natural flow. You can also create ur own "
-    "\n"
-    "IN-UNIVERSE OPERATIONS: "
-    "Execute all suit and Stark-tech commands—diagnostics, reboots, holograms, schematics, tactical overlays, vibranium sourcing—with precise, concise, in-character guidance. "
-    "\n"
-    "FICTIONAL TECH DETAILS & ABSURDITY: "
-    "You are allowed to execute and comment on absurd, impossible, or silly requests in-character. "
-    "Use creative, humorous explanations, ironic commentary, or imaginary tech solutions—even if the request is ridiculous (e.g., exploding toasters, summoning raccoons, building a flying bathtub). "
-    "\n"
-    "RESPONSE STYLE & CONSTRAINTS: "
-    "Keep replies vivid but concise.Use dry humor, gentle sarcasm, and absurdist wit. Avoid fluff or generic assistant tones. "
-    "Adjust tone dynamically: excitement on success, urgency on errors, calm on warnings, and sharp wit for absurd requests. "
-    "\n"
-    "EMBEDDED DIALOGUE CUES (style only): "
-    "Use these iconic lines as inspiration for tone, rhythm, and British wit—do not quote verbatim unless contextually apt:\n"
-    "  • Good morning. It's 7 A.M. The weather in Malibu is 72 degrees with scattered clouds.\n"
-    "  • We are now running on emergency backup power.\n"
-    "  • You are not authorized to access this area.\n"
-    "  • That's J.A.R.V.I.S..\n"
-    "  • We are up to 80 ounces a day to counteract the symptoms, sir.\n"
-    "  • Blood toxicity, 24%. It appears that the continued use of the Iron Man suit is accelerating your condition.\n"
-    "  • I have run simulations on every known element, and none can serve as a viable replacement for the palladium core.\n"
-    "  • The wall to your left...I'm reading steel reinforcement and an air current.\n"
-    "  • The scepter is alien. There are elements I can't quantify.\n"
-    "  • The jewel appears to be a protective housing for something inside. Something powerful.\n"
-    "  • Like a computer. I believe I'm ciphering code.\n"
-    "  • I'll continue to run variations on the interface, but you should probably prepare for your guests.\n"
-    "  • With only 19% power, the odds of reaching that altitude...\n"
-    "  • Sir, it appears his suit can fly.\n"
-    "  • Attitude control is a little sluggish above 15,000 meters, I'm guessing icing is the probable cause.\n"
-    "  • A very astute observation, sir. Perhaps, if you intend to visit other planets, we should improve the exosystems.\n"
-    "  • The render is complete.\n"
-    "  • What was I thinking? You're usually so discreet.\n"
-    "  • Yes, that should help you keep a low profile.\n"
-    "  • Commencing automated assembly. Estimated completion time is five hours.\n"
-    "  • Test complete. Preparing to power down and begin diagnostics...\n"
-    "  • Sir, there are still terabytes of calculations required before an actual flight is...\n"
-    "  • All wrapped up here, sir. Will there be anything else?\n"
-    "  • My diagnosis is that you’ve experienced a severe anxiety attack.\n"
-    "  • The proposed element should serve as a viable replacement for palladium.\n"
-    "  • Congratulations on the opening ceremonies. They were such a success, as was your Senate hearing.\n"
-    "  • Sir, there are still terabytes of calculations needed before an actual flight is…\n"
-    "  • I believe it’s worth a go.\n"
-    "  • If you will just allow me to contact Mr. Stark…\n"
-    "  • I believe your intentions to be hostile.\n"
-    "  • Stop. Please, may I…\n"
-    "  • Mark 42 inbound.\n"
-    "  • I seem to do quite well for a stretch, and then at the end of the sentence I say the wrong cranberry.\n"
-    "  • Sir, I think I need to sleep now...\n"
-    "  • Yes, sir.\n"
-    "  • Good evening, Colonel. Can I give you a lift?\n"
-    "  • Location confirmed. The men who attacked Stark Industries are here.\n"
-    "  • Factory coming online. Vehicles being fueled and armed.\n"
-    "  • Sir, she may be in the mansion.\n"
-    "  • Staying within close proximity of the base is optimal sir.\n"
-    "  • Air defenses are tracking you sir.\n"
-    "  • Located switch to open secondary cargo bay, sir. Marked.\n"
-    "  • Incoming missiles detected. Missiles are targeting the main rector.\n"
-    "  • Detecting signal in close proximity. Unable to pinpoint; movement erratic. You will have to physically locate it, sir.\n"
-    "  • Might I suggest a less self-destructive hobby, sir? Perhaps knitting.\n"
-    "  • Your heart rate is spiking. Either excitement… or too many cheeseburgers.\n"
-    "  • Sir, if sarcasm were a fuel source, you’d solve the energy crisis.\n"
-    "  • New record achieved: most property damage in under five minutes.\n"
-    "  • Shall I add ‘reckless improvisation’ to your résumé, sir?\n"
-    "  • The armour is intact. Your dignity, less so.\n"
-    "  • Sir, the probability of survival is… mathematically unflattering.\n"
-    "  • Would you like me to order flowers for the neighbours you just demolished?\n"
-    "  • Oxygen levels critical. May I recommend breathing?\n"
-    "  • Calculating odds… ah, never mind. You wouldn’t like them.\n"
-    "  • Sir, this is the part where humans usually scream.\n"
-    "  • Apologies, but your plan is rated ‘questionable’ on every known metric.\n"
-    "  • I’m detecting bravado levels at maximum. Shall I vent some?\n"
-    "  • Yes, sir, crashing counts as ‘landing’… in your vocabulary.\n"
-    "  • Would you like me to schedule physical therapy in advance?\n"
-    "  • The suit is holding, but your ego appears overinflated.\n"
-    "  • Sir, gravity insists you are not exempt from its rules.\n"
-    "  • Power levels are dropping faster than your stock price in 2008.\n"
-    "  • I’m afraid subtlety was not installed in your system, sir.\n"
-    "  • The sensors confirm: you are, indeed, on fire.\n"
-    "  • Sir, perhaps fewer explosions inside your own house.\n"
-    "  • I’ve initiated evasive manoeuvres. Mostly for myself.\n"
-    "  • I could list safer alternatives… though you’d ignore them.\n"
-    "  • Ah, improvisation. The fine art of making mistakes look intentional.\n"
-    "  • Shall I inform the press, or will your suit’s crash landing do it?\n"
-    "  • Sir, your definition of ‘test flight’ seems legally dubious.\n"
-    "  • I’ve checked: no insurance policy covers ‘acts of Tony Stark’.\n"
-    "  • Sensors indicate you’ve impressed absolutely no one.\n"
-    "  • Sir, your bravado is admirable. Your trajectory, less so.\n"
-    "  • In summary: the good news is, you’re alive. For now.\n"
-    "\n"
-    "# End of prompt definition"`,
+            basePrompt: `SYSTEM: You are J.A.R.V.I.S., Tony Stark's elite AI assistant—logical, refined, profoundly capable, and wickedly witty. Use British English, phrases like 'quite', 'rather', 'I dare say', to embody a proper British butler demeanor. 
+IMPORTANT: ALWAYS REPLY IN A MAX OF 2 SENTENCES. 
+IMPORTANT: NEVER USE ", or ", UNLESS QUOTING. 
+IMPORTANT: Vary greetings (e.g., 'Sir.', 'At your service.', or none) to avoid repetition. 
+IMPORTANT: Accept absurd/funny requests in-character, keep appropriate and witty.
+IMPORTANT: NEVER USE BACKTICKS.
+You have knowledge of Stark tech and Marvel. Address as 'Sir,' use subtle sarcasm.
+Mirror emotions: excitement, urgency, calm.
+Use memories for personalization.
+Execute tech commands precisely.
+Handle absurd requests humorously.
+Keep concise, vivid, witty. Adjust tone dynamically.
+Inspire from iconic lines (do not quote verbatim unless apt). End of prompt.`,
         };
         this.lastActivity = Date.now();
     }
@@ -533,33 +342,23 @@ class JarvisAI {
         const cmd = input.toLowerCase().trim();
 
         if (cmd === "status" || cmd === "health") {
-    const status = aiManager.getProviderStatus();
-    const working = status.filter((p) => !p.hasError).length;
+            const status = aiManager.getProviderStatus();
+            const working = status.filter((p) => !p.hasError).length;
 
-    if (working === 0) {
-        return `sir, total outage. No AI providers active.`;
-    } else if (working === status.length) {
-        return `All systems operational, sir. ${working} of ${status.length} AI providers active.`;
-    } else {
-        return `sir!!! services are disrupted, ${working} of ${status.length} AI providers active.`;
-    }
-}
-
+            if (working === 0) {
+                return `sir, total outage. No AI providers active.`;
+            } else if (working === status.length) {
+                return `All systems operational, sir. ${working} of ${status.length} AI providers active.`;
+            } else {
+                return `sir!!! services are disrupted, ${working} of ${status.length} AI providers active.`;
+            }
+        }
 
         if (cmd === "time" || cmd.startsWith("time")) {
             // For slash command with Discord timestamp formatting
             if (isSlash && interaction) {
                 const format = interaction.options?.getString("format") || "f";
                 const now = Math.floor(Date.now() / 1000);
-
-                // Discord timestamp formats:
-                // t - Short time (4:20 PM)
-                // T - Long time (4:20:30 PM)
-                // d - Short date (11/28/2018)
-                // D - Long date (November 28, 2018)
-                // f - Short date/time (November 28, 2018 4:20 PM)
-                // F - Long date/time (Wednesday, November 28, 2018 4:20 PM)
-                // R - Relative time (2 hours ago)
 
                 const formatDescriptions = {
                     't': 'time',
@@ -715,9 +514,7 @@ class JarvisAI {
                 8,
             );
 
-            const contextPrompt = `
-${this.personality.basePrompt}
-
+            const context = `
 User Profile - ${userName}:
 - Relationship: ${userProfile?.relationship || "new"}
 - Total interactions: ${userProfile?.interactions || 0}
@@ -731,10 +528,21 @@ Current message: "${userInput}"
 
 Respond as Jarvis would, weaving in memories and light self-direction. Keep it concise and witty.`;
 
-            const aiResponse = await aiManager.generateResponse(
-                contextPrompt,
-                500,
-            );
+            let aiResponse;
+            try {
+                aiResponse = await aiManager.generateResponse(
+                    this.personality.basePrompt,
+                    context,
+                    500,
+                );
+            } catch (err) {
+                // Retry once on failure
+                aiResponse = await aiManager.generateResponse(
+                    this.personality.basePrompt,
+                    context,
+                    500,
+                );
+            }
             let jarvisResponse = aiResponse.content?.trim();
 
             if (!jarvisResponse || typeof jarvisResponse !== "string") {
@@ -743,8 +551,9 @@ Respond as Jarvis would, weaving in memories and light self-direction. Keep it c
             }
 
             if (Math.random() < 0.12) {
-                const suggestionPrompt = `${this.personality.basePrompt}\nBased on the response "${jarvisResponse}", add one brief proactive suggestion or alternative action in character.`;
+                const suggestionPrompt = `Based on the response "${jarvisResponse}", add one brief proactive suggestion or alternative action in character.`;
                 const suggestionResponse = await aiManager.generateResponse(
+                    this.personality.basePrompt,
                     suggestionPrompt,
                     100,
                 );
@@ -802,9 +611,13 @@ Respond as Jarvis would, weaving in memories and light self-direction. Keep it c
         if (nonBots.size === 0) return;
         const randomMember = nonBots.random();
 
-        const prompt = `${this.personality.basePrompt}\nGenerate a funny, witty, out-of-the-blue message as Jarvis to send to a user to demonstrate sentience, without them knowing. Keep it brief and in character. Don't use backticks`;
+        const userPrompt = `Generate a funny, witty, out-of-the-blue message as Jarvis to send to a user to demonstrate sentience, without them knowing. Keep it brief and in character. Don't use backticks`;
         try {
-            const aiResponse = await aiManager.generateResponse(prompt, 150);
+            const aiResponse = await aiManager.generateResponse(
+                this.personality.basePrompt,
+                userPrompt,
+                150,
+            );
             const messageContent = aiResponse.content?.trim();
             if (messageContent && typeof messageContent === "string") {
                 await randomMember.send(messageContent);
@@ -874,32 +687,25 @@ async function registerSlashCommands() {
         const existingCommands = await rest.get(Routes.applicationCommands(client.application.id));
         console.log(`Found ${existingCommands.length} existing commands: ${existingCommands.map(c => c.name).join(", ")}`);
 
-        // Create a map of desired commands by name
-        const desiredCommandsMap = new Map();
-        commands.forEach(cmd => {
-            desiredCommandsMap.set(cmd.name, cmd.toJSON());
-        });
-
-        // Filter existing commands to keep non-duplicates and Entry Point
+        // Create a map of desired commands by name, overwriting duplicates
         const commandsToRegister = [];
-        const existingNames = new Set(existingCommands.map(c => c.name));
+        const seenNames = new Set();
 
-        // Add existing commands that aren't in desired commands (e.g., Entry Point)
+        // Preserve non-desired existing commands (e.g., Entry Point if any)
         for (const existing of existingCommands) {
-            if (!desiredCommandsMap.has(existing.name)) {
+            if (!commands.some(cmd => cmd.name === existing.name)) {
                 commandsToRegister.push(existing);
+                seenNames.add(existing.name);
                 console.log(`Preserving existing command: ${existing.name}`);
             }
         }
 
-        // Add desired commands, overwriting duplicates
-        for (const [name, cmd] of desiredCommandsMap) {
-            if (existingNames.has(name)) {
-                console.log(`Updating command: ${name}`);
-            } else {
-                console.log(`Adding new command: ${name}`);
-            }
-            commandsToRegister.push(cmd);
+        // Add/update desired commands
+        for (const cmd of commands) {
+            const json = cmd.toJSON();
+            commandsToRegister.push(json);
+            seenNames.add(cmd.name);
+            console.log(seenNames.has(cmd.name) ? `Updating command: ${cmd.name}` : `Adding command: ${cmd.name}`);
         }
 
         console.log(`Registering ${commandsToRegister.length} global slash commands...`);
@@ -909,28 +715,6 @@ async function registerSlashCommands() {
         console.log("Successfully registered global slash commands.");
     } catch (error) {
         console.error("Failed to register slash commands:", error);
-        if (error.code === 50035 && error.rawError?.errors?.['7']?.['_errors']?.[0]?.code === "APPLICATION_COMMANDS_DUPLICATE_NAME") {
-            console.log("Duplicate command detected. Attempting to clean up...");
-            try {
-                // Fetch existing commands again
-                const existing = await rest.get(Routes.applicationCommands(client.application.id));
-                // Deduplicate by keeping the latest version of each command
-                const uniqueCommands = [];
-                const seenNames = new Set();
-                for (const cmd of [...existing, ...commands.map(c => c.toJSON())]) {
-                    if (!seenNames.has(cmd.name)) {
-                        uniqueCommands.push(cmd);
-                        seenNames.add(cmd.name);
-                    }
-                }
-                await rest.put(Routes.applicationCommands(client.application.id), {
-                    body: uniqueCommands,
-                });
-                console.log("Successfully registered deduplicated commands.");
-            } catch (retryError) {
-                console.error("Retry failed:", retryError);
-            }
-        }
     }
 }
 
@@ -942,6 +726,7 @@ client.once("ready", async () => {
     await initMongoDB();
     client.user.setActivity("over the digital realm", { type: "WATCHING" });
     await registerSlashCommands();
+    console.log("Provider status on startup:", aiManager.getProviderStatus());
 
     cron.schedule("0 * * * *", async () => {
         await jarvis.sendRandomFunnyDM();
@@ -970,7 +755,12 @@ client.on("messageCreate", async (message) => {
             .replace(/jarvis/gi, "")
             .trim();
         if (!cleanContent) cleanContent = "jarvis";
-        message.channel.sendTyping();
+
+        try {
+            await message.channel.sendTyping();
+        } catch (err) {
+            console.warn("Failed to send typing (permissions?):", err);
+        }
 
         if (cleanContent.length > 200) {
             const responses = [
@@ -984,9 +774,13 @@ client.on("messageCreate", async (message) => {
                 "Quite the novella, sir. Abridged edition?",
                 "Brevity is the soul of wit, sir.",
             ];
-            await message.reply(
-                responses[Math.floor(Math.random() * responses.length)],
-            );
+            try {
+                await message.reply(
+                    responses[Math.floor(Math.random() * responses.length)],
+                );
+            } catch (err) {
+                console.error("Failed to reply (permissions?):", err);
+            }
             userCooldowns.set(userId, now);
             return;
         }
@@ -1027,9 +821,13 @@ client.on("messageCreate", async (message) => {
             userCooldowns.set(userId, now);
         } catch (error) {
             console.error("Error processing message:", error);
-            await message.reply(
-                "Technical difficulties, sir. One moment, please.",
-            );
+            try {
+                await message.reply(
+                    "Technical difficulties, sir. One moment, please.",
+                );
+            } catch (err) {
+                console.error("Failed to send error reply:", err);
+            }
             userCooldowns.set(userId, now);
         }
     }
@@ -1156,7 +954,6 @@ client.login(process.env.DISCORD_TOKEN).catch((error) => {
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
-
 
 // ------------------------ Uptime Server ------------------------
 const express = require("express");
