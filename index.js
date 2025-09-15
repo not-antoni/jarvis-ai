@@ -679,7 +679,7 @@ Respond as Jarvis would, weaving in memories and light self-direction. Keep it c
         return responses[Math.floor(Math.random() * responses.length)];
     }
 
-    async sendRandomFunnyDM() {
+    /*async sendRandomFunnyDM() {
         const utcHour = new Date().getUTCHours();
         const reasonableTime = utcHour >= 8 && utcHour <= 22;
         if (!reasonableTime || Math.random() > 0.3) return;
@@ -707,7 +707,7 @@ Respond as Jarvis would, weaving in memories and light self-direction. Keep it c
             console.error("Failed to send random DM:", error);
         }
     }
-}
+}*/
 
 // ------------------------ Slash Command Registration ------------------------
 const commands = [
