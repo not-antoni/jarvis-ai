@@ -30,5 +30,23 @@ services:
         sync: false
       - key: MIXTRAL_API_KEY2
         sync: false
+      - key: OPENROUTER_API_KEY4
+        sync: false
+      - key: OPENROUTER_API_KEY5
+        sync: false
+      - key: OPENROUTER_API_KEY6
+        sync: false
+      - key: OPENROUTER_API_KEY7
+        sync: false
+      - key: OPENROUTER_API_KEY8
+        sync: false
+      - key: GROQ_API_KEY3
+        sync: false
+      - key: GOOGLE_AI_API_KEY2
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ADMIN_USER_ID
+        sync: false
       - key: PORT
         generateValue: true
