@@ -428,6 +428,17 @@ class JarvisAI {
         };
     }
 
+    // ---------- Clear Entire Database ----------
+    async clearDatabase() {
+        if (!db) throw new Error("Database not connected");
+        const convResult = await db.collection("conversations").deleteMany({});
+        const profileResult = await db.collection("userProfiles").deleteMany({});
+        return {
+            conv: convResult.deletedCount,
+            prof: profileResult.deletedCount
+        };
+    }
+
     // ---------- Utility Commands ----------
     async handleUtilityCommand(input, userName, userId = null, isSlash = false, interaction = null) {
         const cmd = input.toLowerCase().trim();
@@ -813,6 +824,23 @@ client.on("messageCreate", async (message) => {
     const now = Date.now();
     const lastMessageTime = userCooldowns.get(userId) || 0;
     if (now - lastMessageTime < COOLDOWN_MS) {
+        userCooldowns.set(userId, now);
+        return;
+    }
+
+    // Handle !cleardbsecret admin command
+    if (message.content.trim().toLowerCase() === "!cleardbsecret") {
+        if (message.author.id !== "809010595545874432") {
+            return; // Ignore completely if not admin
+        }
+        try {
+            await message.channel.sendTyping();
+            const { conv, prof } = await jarvis.clearDatabase();
+            await message.reply(`Database cleared, sir. Deleted ${conv} conversations and ${prof} profiles.`);
+        } catch (error) {
+            console.error("Clear DB error:", error);
+            await message.reply("Unable to clear database, sir. Technical issue.");
+        }
         userCooldowns.set(userId, now);
         return;
     }
