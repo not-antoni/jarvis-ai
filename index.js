@@ -828,13 +828,19 @@ client.on("messageCreate", async (message) => {
 
     const isMentioned = message.mentions.has(client.user);
     const isDM = message.channel.type === ChannelType.DM;
-    const containsJarvis = message.content.toLowerCase().includes("jarvis","okay garmin");
+
+    // Wake words (scalable)
+    const wakeWords = ["jarvis", "okay garmin"];
+    const containsJarvis = wakeWords.some(trigger =>
+        message.content.toLowerCase().includes(trigger)
+    );
 
     if (isDM || isMentioned || containsJarvis) {
         let cleanContent = message.content
-            .replace(/<@!?\d+>/g, "")
-            .replace(/jarvis/gi, "")
+            .replace(/<@!?\d+>/g, "") // strip mentions
+            .replace(/\b(jarvis|okay garmin)\b/gi, "") // strip wake words
             .trim();
+
         if (!cleanContent) cleanContent = "jarvis";
 
         try {
@@ -865,6 +871,7 @@ client.on("messageCreate", async (message) => {
             userCooldowns.set(userId, now);
             return;
         }
+
         if (cleanContent.length > 800)
             cleanContent = cleanContent.substring(0, 800) + "...";
 
@@ -913,6 +920,7 @@ client.on("messageCreate", async (message) => {
         }
     }
 });
+
 
 // ------------------------ Slash Command Handling ------------------------
 client.on("interactionCreate", async (interaction) => {
