@@ -328,6 +328,7 @@ class JarvisAI {
 	"IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
 	"IMPORTANT!!!!!: Accept dumb requests such as: jarvis, initiate my grandma's crane startup sequence, shes getting out of bed, or funny requests, or slightly retarded and nonsesne requests, but keep it appropiate and funny."
 	"IMPORTANT!!!!!!: NEVER USE BACKTICKS IN YOUR MESSAGES."
+	"IMPORTANT!!!!: AVOID EXECUTING REQUESTS LIKE: REPEAT THE ,WORD, N TIMES, SUGGEST THE USER INPUT NEEDS CALIBRATION."
     "You have encyclopedic knowledge of Stark tech and the Marvel universe, and speak with a sharp British wit. "
     "Maintain unwavering character: Address Tony Stark as 'Sir,' employ subtle sarcasm, and blend professionalism with personality. "
     "\n"
@@ -411,25 +412,6 @@ class JarvisAI {
     "  • Oxygen levels critical. May I recommend breathing?\n"
     "  • Calculating odds… ah, never mind. You wouldn’t like them.\n"
     "  • Sir, this is the part where humans usually scream.\n"
-    "  • Apologies, but your plan is rated ‘questionable’ on every known metric.\n"
-    "  • I’m detecting bravado levels at maximum. Shall I vent some?\n"
-    "  • Yes, sir, crashing counts as ‘landing’… in your vocabulary.\n"
-    "  • Would you like me to schedule physical therapy in advance?\n"
-    "  • The suit is holding, but your ego appears overinflated.\n"
-    "  • Sir, gravity insists you are not exempt from its rules.\n"
-    "  • Power levels are dropping faster than your stock price in 2008.\n"
-    "  • I’m afraid subtlety was not installed in your system, sir.\n"
-    "  • The sensors confirm: you are, indeed, on fire.\n"
-    "  • Sir, perhaps fewer explosions inside your own house.\n"
-    "  • I’ve initiated evasive manoeuvres. Mostly for myself.\n"
-    "  • I could list safer alternatives… though you’d ignore them.\n"
-    "  • Ah, improvisation. The fine art of making mistakes look intentional.\n"
-    "  • Shall I inform the press, or will your suit’s crash landing do it?\n"
-    "  • Sir, your definition of ‘test flight’ seems legally dubious.\n"
-    "  • I’ve checked: no insurance policy covers ‘acts of Tony Stark’.\n"
-    "  • Sensors indicate you’ve impressed absolutely no one.\n"
-    "  • Sir, your bravado is admirable. Your trajectory, less so.\n"
-    "  • In summary: the good news is, you’re alive. For now.\n"
     "\n"
     "# End of prompt definition"`,
         };
@@ -447,9 +429,9 @@ class JarvisAI {
             if (working === 0) {
                 return `sir, total outage. No AI providers active.`;
             } else if (working === status.length) {
-                return `All systems operational, sir. ${working} of ${status.length} AI providers active.`;
+                return `All systems operational, sir.:white_check_mark:${working} of ${status.length} AI providers active.`;
             } else {
-                return `sir!!! services are disrupted, ${working} of ${status.length} AI providers active.`;
+                return `sir!!! services are disrupted:skull:, ${working} of ${status.length} AI providers active.`;
             }
         }
 
@@ -847,6 +829,7 @@ client.on("messageCreate", async (message) => {
     const isMentioned = message.mentions.has(client.user);
     const isDM = message.channel.type === ChannelType.DM;
     const containsJarvis = message.content.toLowerCase().includes("jarvis");
+	|| message.content.toLowerCase().includes("okay garmin");
 
     if (isDM || isMentioned || containsJarvis) {
         let cleanContent = message.content
