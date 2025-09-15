@@ -44,13 +44,14 @@
 ├── discord-handlers.js   # Discord event handling
 ├── deploy.js             # Deployment verification
 ├── package.json          # Dependencies and scripts
-└── render.yaml           # Render configuration
+├── render.yaml           # Render configuration
+└── DEPLOYMENT.md         # This file
 ```
 
 ### Health Checks
 
-- **Main endpoint**: `https://your-app.onrender.com/` - Basic status
-- **Health endpoint**: `https://your-app.onrender.com/health` - Detailed status
+- **Main endpoint**: `https://your-app.onrender.com/` - ASCII Animation Status Page
+- **Health endpoint**: `https://your-app.onrender.com/health` - Detailed status (JSON)
 
 ### Verification
 
