@@ -417,9 +417,30 @@ class JarvisAI {
         this.lastActivity = Date.now();
     }
 
+    // ---------- Reset User Data ----------
+    async resetUserData(userId) {
+        if (!db) throw new Error("Database not connected");
+        const convResult = await db.collection("conversations").deleteMany({ userId });
+        const profileResult = await db.collection("userProfiles").deleteOne({ userId });
+        return {
+            conv: convResult.deletedCount,
+            prof: profileResult.deletedCount
+        };
+    }
+
     // ---------- Utility Commands ----------
-    async handleUtilityCommand(input, userName, isSlash = false, interaction = null) {
+    async handleUtilityCommand(input, userName, userId = null, isSlash = false, interaction = null) {
         const cmd = input.toLowerCase().trim();
+
+        if (cmd === "reset") {
+            try {
+                const { conv, prof } = await this.resetUserData(userId);
+                return `Reset complete, sir. Erased ${conv} conversations and ${prof} profile${prof === 1 ? '' : 's'}.`;
+            } catch (error) {
+                console.error("Reset error:", error);
+                return "Unable to reset memories, sir. Technical issue.";
+            }
+        }
 
         if (cmd === "status" || cmd === "health") {
             const status = aiManager.getProviderStatus();
@@ -728,6 +749,10 @@ const commands = [
         .setName("providers")
         .setDescription("List available AI providers")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("reset")
+        .setDescription("Delete your conversation history and profile with Jarvis")
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
 ];
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
@@ -792,6 +817,25 @@ client.on("messageCreate", async (message) => {
         return;
     }
 
+    // Handle !reset prefix command even without wake word
+    if (message.content.trim().toLowerCase() === "!reset") {
+        try {
+            await message.channel.sendTyping();
+        } catch (err) {
+            console.warn("Failed to send typing (permissions?):", err);
+        }
+
+        try {
+            const { conv, prof } = await jarvis.resetUserData(userId);
+            await message.reply(`Memories wiped, sir. Deleted ${conv} conversations and ${prof} profile${prof === 1 ? '' : 's'}.`);
+        } catch (error) {
+            console.error("Reset error:", error);
+            await message.reply("Unable to reset memories, sir. Technical issue.");
+        }
+        userCooldowns.set(userId, now);
+        return;
+    }
+
     const isMentioned = message.mentions.has(client.user);
     const isDM = message.channel.type === ChannelType.DM;
 
@@ -845,6 +889,7 @@ client.on("messageCreate", async (message) => {
             const utilityResponse = await jarvis.handleUtilityCommand(
                 cleanContent,
                 message.author.username,
+                message.author.id
             );
             if (utilityResponse) {
                 if (
@@ -941,6 +986,7 @@ client.on("interactionCreate", async (interaction) => {
             response = await jarvis.handleUtilityCommand(
                 `roll ${sides}`,
                 interaction.user.username,
+                interaction.user.id,
                 true,
                 interaction
             );
@@ -948,6 +994,15 @@ client.on("interactionCreate", async (interaction) => {
             response = await jarvis.handleUtilityCommand(
                 "time",
                 interaction.user.username,
+                interaction.user.id,
+                true,
+                interaction
+            );
+        } else if (interaction.commandName === "reset") {
+            response = await jarvis.handleUtilityCommand(
+                "reset",
+                interaction.user.username,
+                interaction.user.id,
                 true,
                 interaction
             );
@@ -955,6 +1010,7 @@ client.on("interactionCreate", async (interaction) => {
             response = await jarvis.handleUtilityCommand(
                 interaction.commandName,
                 interaction.user.username,
+                interaction.user.id,
                 true,
                 interaction
             );
