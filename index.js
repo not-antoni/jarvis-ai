@@ -830,7 +830,7 @@ client.on("messageCreate", async (message) => {
     const isDM = message.channel.type === ChannelType.DM;
 
     // Wake words (scalable)
-    const wakeWords = ["jarvis", "okay garmin"];
+    const wakeWords = ["jarvis", "okay garmin", "ok garmin", "garmin"];
     const containsJarvis = wakeWords.some(trigger =>
         message.content.toLowerCase().includes(trigger)
     );
@@ -838,7 +838,7 @@ client.on("messageCreate", async (message) => {
     if (isDM || isMentioned || containsJarvis) {
         let cleanContent = message.content
             .replace(/<@!?\d+>/g, "") // strip mentions
-            .replace(/\b(jarvis|okay garmin)\b/gi, "") // strip wake words
+            .replace(/\b(jarvis|okay garmin|ok garmin|garmin)\b/gi, "") // strip wake words
             .trim();
 
         if (!cleanContent) cleanContent = "jarvis";
