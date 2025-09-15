@@ -76,8 +76,7 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY5,
             process.env.OPENROUTER_API_KEY6,
             process.env.OPENROUTER_API_KEY7,
-
-process.env.OPENROUTER_API_KEY8,
+            process.env.OPENROUTER_API_KEY8,
         ].filter(Boolean);
         openRouterKeys.forEach((key, index) => {
             this.providers.push({
@@ -678,36 +677,7 @@ Respond as Jarvis would, weaving in memories and light self-direction. Keep it c
             return `I'd love to assist fully, ${userName}, but my functions are limited. Try again soon?`;
         return responses[Math.floor(Math.random() * responses.length)];
     }
-
-    /*async sendRandomFunnyDM() {
-        const utcHour = new Date().getUTCHours();
-        const reasonableTime = utcHour >= 8 && utcHour <= 22;
-        if (!reasonableTime || Math.random() > 0.3) return;
-
-        const guilds = client.guilds.cache;
-        if (guilds.size === 0) return;
-        const randomGuild = guilds.random();
-        const members = await randomGuild.members.fetch();
-        const nonBots = members.filter((m) => !m.user.bot);
-        if (nonBots.size === 0) return;
-        const randomMember = nonBots.random();
-
-        const userPrompt = `Generate a funny, witty, out-of-the-blue message as Jarvis to send to a user to demonstrate sentience, without them knowing. Keep it brief and in character. Don't use backticks`;
-        try {
-            const aiResponse = await aiManager.generateResponse(
-                this.personality.basePrompt,
-                userPrompt,
-                150,
-            );
-            const messageContent = aiResponse.content?.trim();
-            if (messageContent && typeof messageContent === "string") {
-                await randomMember.send(messageContent);
-            }
-        } catch (error) {
-            console.error("Failed to send random DM:", error);
-        }
-    }
-}*/
+}
 
 // ------------------------ Slash Command Registration ------------------------
 const commands = [
@@ -808,10 +778,6 @@ client.once("ready", async () => {
     client.user.setActivity("over the digital realm", { type: "WATCHING" });
     await registerSlashCommands();
     console.log("Provider status on startup:", aiManager.getProviderStatus());
-
-    cron.schedule("0 * * * *", async () => {
-        await jarvis.sendRandomFunnyDM();
-    });
 });
 
 // ------------------------ Message Handling ------------------------
