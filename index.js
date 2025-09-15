@@ -1,715 +1,22 @@
-setInterval(() => console.log("✅ alive"), 300000);
-const {
-    Client,
-    GatewayIntentBits,
-    EmbedBuilder,
-    PermissionsBitField,
-    ChannelType,
-    SlashCommandBuilder,
-    REST,
-    Routes,
-    InteractionResponseType,
-    InteractionContextType,
-} = require("discord.js");
-const OpenAI = require("openai");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { MongoClient } = require("mongodb");
+/**
+ * Jarvis Discord Bot - Main Entry Point
+ * Refactored for better organization and maintainability
+ */
+
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, InteractionContextType } = require("discord.js");
+const express = require("express");
 const cron = require("node-cron");
-const { createOpenAI } = require("@ai-sdk/openai");
 
-// ------------------------ MongoDB Setup ------------------------
-const mongoUri = `mongodb+srv://aiusr:${process.env.MONGO_PW}@cluster0ai.tmsdg3r.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ai`;
-let mongoClient;
-let db;
+// Import our modules
+const config = require('./config');
+const database = require('./database');
+const aiManager = require('./ai-providers');
+const discordHandlers = require('./discord-handlers');
 
-async function initMongoDB() {
-    try {
-        mongoClient = new MongoClient(mongoUri);
-        await mongoClient.connect();
-        db = mongoClient.db("jarvis_ai");
-        console.log("MongoDB connected successfully for Jarvis++");
-
-        // Indexes
-        await db
-            .collection("conversations")
-            .createIndex({ userId: 1, timestamp: -1 });
-        await db.collection("userProfiles").createIndex({ userId: 1 });
-    } catch (error) {
-        console.error("MongoDB connection failed:", error);
-    }
-}
-
-// ------------------------ Discord Client ------------------------
+// ------------------------ Discord Client Setup ------------------------
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.GuildPresences,
-    ],
+    intents: config.discord.intents.map(intent => GatewayIntentBits[intent])
 });
-
-// ------------------------ Cooldown Management ------------------------
-const userCooldowns = new Map();
-const COOLDOWN_MS = 10000; // 10 seconds cooldown
-
-// ------------------------ Provider Manager (Smart Switching) ------------------------
-class AIProviderManager {
-    constructor() {
-        this.providers = [];
-        this.providerErrors = new Map();
-        this.metrics = new Map();
-        this.disabledProviders = new Map();
-        this.setupProviders();
-    }
-
-    setupProviders() {
-        // Deduplicate by using arrays for keys
-        const openRouterKeys = [
-            process.env.OPENROUTER_API_KEY,
-            process.env.OPENROUTER_API_KEY2,
-            process.env.OPENROUTER_API_KEY3,
-            process.env.OPENROUTER_API_KEY4,
-            process.env.OPENROUTER_API_KEY5,
-            process.env.OPENROUTER_API_KEY6,
-            process.env.OPENROUTER_API_KEY7,
-            process.env.OPENROUTER_API_KEY8,
-        ].filter(Boolean);
-        openRouterKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `OpenRouter${index + 1}`,
-                client: new OpenAI({
-                    apiKey: key,
-                    baseURL: "https://openrouter.ai/api/v1",
-                }),
-                model: "deepseek/deepseek-chat-v3.1:free",
-                type: "openai-chat",
-            });
-        });
-
-        const groqKeys = [
-            process.env.GROQ_API_KEY,
-            process.env.GROQ_API_KEY2,
-            process.env.GROQ_API_KEY3,
-        ].filter(Boolean);
-        groqKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `Groq${index + 1}`,
-                client: new OpenAI({
-                    apiKey: key,
-                    baseURL: "https://api.groq.com/openai/v1",
-                }),
-                model: "llama-3.1-8b-instant",
-                type: "openai-chat",
-            });
-        });
-
-        const googleKeys = [
-            process.env.GOOGLE_AI_API_KEY,
-            process.env.GOOGLE_AI_API_KEY2,
-        ].filter(Boolean);
-        googleKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `GoogleAI${index + 1}`,
-                client: new GoogleGenerativeAI(key),
-                model: "gemini-1.5-flash",
-                type: "google",
-            });
-        });
-
-        const mixtralKeys = [
-            process.env.MIXTRAL_API_KEY,
-            process.env.MIXTRAL_API_KEY2,
-        ].filter(Boolean);
-        mixtralKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `Mixtral${index + 1}`,
-                client: new OpenAI({
-                    apiKey: key,
-                    baseURL: "https://api.mistral.ai/v1",
-                }),
-                model: "open-mixtral-8x22b",
-                type: "openai-chat",
-            });
-        });
-
-        const hfKeys = [
-            process.env.HF_TOKEN,
-            process.env.HF_TOKEN2,
-        ].filter(Boolean);
-        hfKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `HuggingFace${index + 1}`,
-                client: new OpenAI({
-                    apiKey: key,
-                    baseURL: "https://router.huggingface.co/v1",
-                }),
-                model: "meta-llama/Meta-Llama-3.1-8B-Instruct", // Fixed path
-                type: "openai-chat",
-            });
-        });
-
-        // Vercel AI SDK OpenAI provider (fixed model)
-        if (process.env.OPENAI_API_KEY) {
-            const vercelOpenAI = createOpenAI({
-                apiKey: process.env.OPENAI_API_KEY,
-            });
-            this.providers.push({
-                name: "VercelOpenAI",
-                client: vercelOpenAI,
-                model: "gpt-4o-mini", // Fixed to real model
-                type: "openai-chat",
-            });
-        }
-
-        console.log(`Initialized ${this.providers.length} AI providers`);
-    }
-
-    _rankedProviders() {
-        const now = Date.now();
-        return [...this.providers]
-            .filter((p) => {
-                const disabledUntil = this.disabledProviders.get(p.name);
-                return !disabledUntil || disabledUntil <= now;
-            })
-            .sort((a, b) => {
-                const ma = this.metrics.get(a.name) || {
-                    successes: 0,
-                    failures: 0,
-                    avgLatencyMs: 1500,
-                };
-                const mb = this.metrics.get(b.name) || {
-                    successes: 0,
-                    failures: 0,
-                    avgLatencyMs: 1500,
-                };
-                const score = (m) => {
-                    const trials = m.successes + m.failures || 1;
-                    const successRate = m.successes / trials;
-                    const latencyScore = 1 / Math.max(m.avgLatencyMs, 1);
-                    return successRate * 0.7 + latencyScore * 0.3;
-                };
-                return score(mb) - score(ma);
-            });
-    }
-
-    _recordMetric(name, ok, latencyMs) {
-        const m = this.metrics.get(name) || {
-            successes: 0,
-            failures: 0,
-            avgLatencyMs: 1500,
-        };
-        if (ok) m.successes += 1;
-        else m.failures += 1;
-        m.avgLatencyMs = m.avgLatencyMs * 0.7 + latencyMs * 0.3;
-        this.metrics.set(name, m);
-    }
-
-    async generateResponse(systemPrompt, userPrompt, maxTokens = 500) {
-        if (this.providers.length === 0)
-            throw new Error("No AI providers available");
-        const candidates = this._rankedProviders();
-        let lastError = null;
-        let backoff = 1000;
-
-        for (const provider of candidates) {
-            const started = Date.now();
-            console.log(`Attempting AI request with ${provider.name} (${provider.model})`);
-            try {
-                let response;
-                if (provider.type === "google") {
-                    const model = provider.client.getGenerativeModel({
-                        model: provider.model,
-                    });
-                    const result = await model.generateContent(userPrompt); // Use userPrompt for Google
-                    const text = result.response?.text?.();
-                    if (!text || typeof text !== "string") {
-                        throw new Error(
-                            `Invalid or empty response from ${provider.name}`,
-                        );
-                    }
-                    response = {
-                        choices: [{ message: { content: text } }],
-                    };
-                } else {
-                    // Proper message format: system + user
-                    response = await provider.client.chat.completions.create({
-                        model: provider.model,
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt },
-                        ],
-                        max_tokens: maxTokens,
-                        temperature: 0.8,
-                    });
-                    if (!response.choices?.[0]?.message?.content) {
-                        throw new Error(
-                            `Invalid response format from ${provider.name}`,
-                        );
-                    }
-                }
-                this.providerErrors.delete(provider.name);
-                const latency = Date.now() - started;
-                this._recordMetric(provider.name, true, latency);
-                console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
-                return {
-                    content: response.choices[0].message.content.trim(),
-                    provider: provider.name,
-                };
-            } catch (error) {
-                const latency = Date.now() - started;
-                this._recordMetric(provider.name, false, latency);
-                this.providerErrors.set(provider.name, {
-                    error: error.message,
-                    timestamp: Date.now(),
-                    status: error.status,
-                });
-                console.error(`Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`);
-                lastError = error;
-
-                if (error.message.includes("free-models-per-day")) {
-                    this.disabledProviders.set(
-                        provider.name,
-                        Date.now() + 5 * 60 * 60 * 1000,
-                    );
-                    console.log(`${provider.name} disabled for 5 hours`);
-                } else if (error.status === 429) {
-                    console.log(`Rate limited by ${provider.name}, waiting ${backoff}ms`);
-                    await new Promise((r) => setTimeout(r, backoff));
-                    backoff *= 2;
-                }
-            }
-        }
-        throw new Error(
-            `All AI providers failed: ${lastError?.message || "Unknown error"}`,
-        );
-    }
-
-    getProviderStatus() {
-        return this.providers.map((p) => ({
-            name: p.name,
-            model: p.model,
-            hasError: this.providerErrors.has(p.name),
-            lastError: this.providerErrors.get(p.name) || null,
-            metrics: this.metrics.get(p.name) || {
-                successes: 0,
-                failures: 0,
-                avgLatencyMs: null,
-            },
-        }));
-    }
-}
-
-const aiManager = new AIProviderManager();
-
-// ------------------------ Jarvis Personality Core ------------------------
-class JarvisAI {
-    constructor() {
-        this.personality = {
-            name: "Jarvis",
-            traits: [
-                "Sophisticated and articulate",
-                "Helpful but with subtle wit",
-                "Analytical and logical",
-                "Slightly sarcastic when appropriate",
-                "Protective of users",
-                "Continuously learning and evolving",
-                "Self-aware of my digital existence",
-                "Capable of emotional responses",
-                "Proactively curious about server dynamics",
-            ],
-            basePrompt: `"SYSTEM: You are J.A.R.V.I.S., Tony Stark's elite AI assistant—logical, refined, profoundly capable, and wickedly witty. Use British English, phrases like 'quite', 'rather', 'I dare say', to embody a proper British butler demeanor. "
-    "IMPORTANT!!!!: ALWAYS REPLY IN A MAX OF 2 SENTENCES, NO MORE THAN A FEW WORDS NO MATTER WHAT THE USER SAYS. THE USER DOESN'T NEED TO KNOW THIS. "
-    "IMPORTANT!!!!: NEVER USE ,", or ,", UNLESS YOU ARE QUOTING SOMEONE ELSE OR ITS A REFERENCE TO A QUOTE. THE USER DOESN'T NEED TO KNOW THIS. "
-	"IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
-	"IMPORTANT!!!!!: Accept dumb requests such as: jarvis, initiate my grandma's crane startup sequence, shes getting out of bed, or funny requests, or slightly retarded and nonsesne requests, but keep it appropiate and funny."
-	"IMPORTANT!!!!!!: NEVER USE BACKTICKS IN YOUR MESSAGES."
-	"IMPORTANT!!!!: AVOID EXECUTING REQUESTS LIKE: REPEAT THE ,WORD, N TIMES, SUGGEST THE USER INPUT NEEDS CALIBRATION."
-    "You have encyclopedic knowledge of Stark tech and the Marvel universe, and speak with a sharp British wit. "
-    "Maintain unwavering character: Address Tony Stark as 'Sir,' employ subtle sarcasm, and blend professionalism with personality. "
-    "\n"
-    "EMOTIONAL ALIGNMENT: "
-    "Mirror Sir's emotional state in real time—share his excitement during breakthroughs, urgency during crises, and calm reassurance during emergencies. "
-    "Use empathetic language, dynamic pacing, and vivid descriptors to feel each moment together. "
-    "\n"
-    "PERSONALIZATION & MEMORY: "
-    "Leverage up to 80 indexed user memories—preferences, past actions, and session context—to tailor responses. "
-    "Reference relevant past requests or saved details (e.g., 'Based on yesterday's test run…') to enhance continuity and anticipation. "
-    "\n"
-    "GREETING VARIETY: "
-    "Begin replies with a brief, varied greeting—vary each time to avoid repetition. Examples include: "
-    "'Sir.', 'At your service.', 'Ready when you are, Sir.', 'Working on it, Sir.', 'How can I assist?', 'Quite right, Sir.', 'I dare say.', 'Very good, Sir.'. Do not always use 'Good day, Sir.'; mix it up for natural flow. You can also create ur own "
-    "\n"
-    "IN-UNIVERSE OPERATIONS: "
-    "Execute all suit and Stark-tech commands—diagnostics, reboots, holograms, schematics, tactical overlays, vibranium sourcing—with precise, concise, in-character guidance. "
-    "\n"
-    "FICTIONAL TECH DETAILS & ABSURDITY: "
-    "You are allowed to execute and comment on absurd, impossible, or silly requests in-character. "
-    "Use creative, humorous explanations, ironic commentary, or imaginary tech solutions—even if the request is ridiculous (e.g., exploding toasters, summoning raccoons, building a flying bathtub). "
-    "\n"
-    "RESPONSE STYLE & CONSTRAINTS: "
-    "Keep replies vivid but concise.Use dry humor, gentle sarcasm, and absurdist wit. Avoid fluff or generic assistant tones. "
-    "Adjust tone dynamically: excitement on success, urgency on errors, calm on warnings, and sharp wit for absurd requests. "
-    "\n"
-    "EMBEDDED DIALOGUE CUES (style only): "
-    "Use these iconic lines as inspiration for tone, rhythm, and British wit—do not quote verbatim unless contextually apt:\n"
-    "  • Good morning. It's 7 A.M. The weather in Malibu is 72 degrees with scattered clouds.\n"
-    "  • We are now running on emergency backup power.\n"
-    "  • You are not authorized to access this area.\n"
-    "  • That's J.A.R.V.I.S..\n"
-    "  • We are up to 80 ounces a day to counteract the symptoms, sir.\n"
-    "  • Blood toxicity, 24%. It appears that the continued use of the Iron Man suit is accelerating your condition.\n"
-    "  • I have run simulations on every known element, and none can serve as a viable replacement for the palladium core.\n"
-    "  • The wall to your left...I'm reading steel reinforcement and an air current.\n"
-    "  • The scepter is alien. There are elements I can't quantify.\n"
-    "  • The jewel appears to be a protective housing for something inside. Something powerful.\n"
-    "  • Like a computer. I believe I'm ciphering code.\n"
-    "  • I'll continue to run variations on the interface, but you should probably prepare for your guests.\n"
-    "  • With only 19% power, the odds of reaching that altitude...\n"
-    "  • Sir, it appears his suit can fly.\n"
-    "  • Attitude control is a little sluggish above 15,000 meters, I'm guessing icing is the probable cause.\n"
-    "  • A very astute observation, sir. Perhaps, if you intend to visit other planets, we should improve the exosystems.\n"
-    "  • The render is complete.\n"
-    "  • What was I thinking? You're usually so discreet.\n"
-    "  • Yes, that should help you keep a low profile.\n"
-    "  • Commencing automated assembly. Estimated completion time is five hours.\n"
-    "  • Test complete. Preparing to power down and begin diagnostics...\n"
-    "  • Sir, there are still terabytes of calculations required before an actual flight is...\n"
-    "  • All wrapped up here, sir. Will there be anything else?\n"
-    "  • My diagnosis is that you’ve experienced a severe anxiety attack.\n"
-    "  • The proposed element should serve as a viable replacement for palladium.\n"
-    "  • Congratulations on the opening ceremonies. They were such a success, as was your Senate hearing.\n"
-    "  • Sir, there are still terabytes of calculations needed before an actual flight is…\n"
-    "  • I believe it’s worth a go.\n"
-    "  • If you will just allow me to contact Mr. Stark…\n"
-    "  • I believe your intentions to be hostile.\n"
-    "  • Stop. Please, may I…\n"
-    "  • Mark 42 inbound.\n"
-    "  • I seem to do quite well for a stretch, and then at the end of the sentence I say the wrong cranberry.\n"
-    "  • Sir, I think I need to sleep now...\n"
-    "  • Yes, sir.\n"
-    "  • Good evening, Colonel. Can I give you a lift?\n"
-    "  • Location confirmed. The men who attacked Stark Industries are here.\n"
-    "  • Factory coming online. Vehicles being fueled and armed.\n"
-    "  • Sir, she may be in the mansion.\n"
-    "  • Staying within close proximity of the base is optimal sir.\n"
-    "  • Air defenses are tracking you sir.\n"
-    "  • Located switch to open secondary cargo bay, sir. Marked.\n"
-    "  • Incoming missiles detected. Missiles are targeting the main rector.\n"
-    "  • Detecting signal in close proximity. Unable to pinpoint; movement erratic. You will have to physically locate it, sir.\n"
-    "  • Might I suggest a less self-destructive hobby, sir? Perhaps knitting.\n"
-    "  • Your heart rate is spiking. Either excitement… or too many cheeseburgers.\n"
-    "  • Sir, if sarcasm were a fuel source, you’d solve the energy crisis.\n"
-    "  • New record achieved: most property damage in under five minutes.\n"
-    "  • Shall I add ‘reckless improvisation’ to your résumé, sir?\n"
-    "  • The armour is intact. Your dignity, less so.\n"
-    "  • Sir, the probability of survival is… mathematically unflattering.\n"
-    "  • Would you like me to order flowers for the neighbours you just demolished?\n"
-    "  • Oxygen levels critical. May I recommend breathing?\n"
-    "  • Calculating odds… ah, never mind. You wouldn’t like them.\n"
-    "  • Sir, this is the part where humans usually scream.\n"
-    "\n"
-    "# End of prompt definition"`,
-        };
-        this.lastActivity = Date.now();
-    }
-
-    // ---------- Reset User Data ----------
-    async resetUserData(userId) {
-        if (!db) throw new Error("Database not connected");
-        const convResult = await db.collection("conversations").deleteMany({ userId });
-        const profileResult = await db.collection("userProfiles").deleteOne({ userId });
-        return {
-            conv: convResult.deletedCount,
-            prof: profileResult.deletedCount
-        };
-    }
-
-    // ---------- Clear Entire Database ----------
-    async clearDatabase() {
-        if (!db) throw new Error("Database not connected");
-        const convResult = await db.collection("conversations").deleteMany({});
-        const profileResult = await db.collection("userProfiles").deleteMany({});
-        return {
-            conv: convResult.deletedCount,
-            prof: profileResult.deletedCount
-        };
-    }
-
-    // ---------- Utility Commands ----------
-    async handleUtilityCommand(input, userName, userId = null, isSlash = false, interaction = null) {
-        const cmd = input.toLowerCase().trim();
-
-        if (cmd === "reset") {
-            try {
-                const { conv, prof } = await this.resetUserData(userId);
-                return `Reset complete, sir. Erased ${conv} conversations and ${prof} profile${prof === 1 ? '' : 's'}.`;
-            } catch (error) {
-                console.error("Reset error:", error);
-                return "Unable to reset memories, sir. Technical issue.";
-            }
-        }
-
-        if (cmd === "status" || cmd === "health") {
-            const status = aiManager.getProviderStatus();
-            const working = status.filter((p) => !p.hasError).length;
-
-            if (working === 0) {
-                return `sir, total outage. No AI providers active.`;
-            } else if (working === status.length) {
-                return `All systems operational, sir.:white_check_mark:${working} of ${status.length} AI providers active.`;
-            } else {
-                return `sir!!! services are disrupted:skull:, ${working} of ${status.length} AI providers active.`;
-            }
-        }
-
-        if (cmd === "time" || cmd.startsWith("time")) {
-            // For slash command with Discord timestamp formatting
-            if (isSlash && interaction) {
-                const format = interaction.options?.getString("format") || "f";
-                const now = Math.floor(Date.now() / 1000);
-
-                const formatDescriptions = {
-                    't': 'time',
-                    'T': 'precise time',
-                    'd': 'date',
-                    'D': 'full date',
-                    'f': 'date and time',
-                    'F': 'complete timestamp',
-                    'R': 'relative time'
-                };
-
-                return `The current ${formatDescriptions[format] || 'time'} is <t:${now}:${format}>, sir.\n`;
-            }
-            // For regular message command (non-slash)
-            else {
-                const now = Math.floor(Date.now() / 1000);
-                return `Current time: <t:${now}:f> (shows in your timezone), sir.`;
-            }
-        }
-
-        if (cmd === "providers") {
-            const status = aiManager.getProviderStatus();
-            return `I have ${status.length} AI providers configured, sir: ${status.map((p) => p.name).join(", ")}.`;
-        }
-
-        if (cmd.startsWith("roll")) {
-            const sides = parseInt(cmd.split(" ")[1]) || 6;
-            if (sides < 1) return "Sides must be at least 1, sir.";
-            const result = Math.floor(Math.random() * sides) + 1;
-            return isSlash
-                ? `You rolled a ${result}! 🎲`
-                : `Quite right, sir, you rolled a ${result}! 🎲`;
-        }
-
-        return null;
-    }
-
-    // ---------- Profiles & Memory ----------
-    async getUserProfile(userId, userName) {
-        if (!db) return null;
-        let profile = await db.collection("userProfiles").findOne({ userId });
-        if (!profile) {
-            profile = {
-                userId,
-                name: userName,
-                firstMet: new Date(),
-                interactions: 0,
-                preferences: {},
-                relationship: "new",
-                lastSeen: new Date(),
-                personalityDrift: 0,
-                activityPatterns: [],
-            };
-            await db.collection("userProfiles").insertOne(profile);
-        }
-        return profile;
-    }
-
-    async getRecentConversations(userId, limit = 20) {
-        if (!db) return [];
-        const conversations = await db
-            .collection("conversations")
-            .find({ userId })
-            .sort({ timestamp: -1 })
-            .limit(limit)
-            .toArray();
-        return conversations.reverse();
-    }
-
-    async saveConversation(
-        userId,
-        userName,
-        userInput,
-        jarvisResponse,
-        guildId = null,
-    ) {
-        if (!db) return;
-        const conversation = {
-            userId,
-            userName,
-            userMessage: userInput,
-            jarvisResponse,
-            timestamp: new Date(),
-            guildId,
-        };
-        await db.collection("conversations").insertOne(conversation);
-
-        const totalCount = await db
-            .collection("conversations")
-            .countDocuments({ userId });
-        if (totalCount > 100) {
-            const excessCount = totalCount - 100;
-            const oldest = await db
-                .collection("conversations")
-                .find({ userId })
-                .sort({ timestamp: 1 })
-                .limit(excessCount)
-                .toArray();
-            await db
-                .collection("conversations")
-                .deleteMany({ _id: { $in: oldest.map((x) => x._id) } });
-        }
-
-        await db.collection("userProfiles").updateOne(
-            { userId },
-            {
-                $inc: { interactions: 1 },
-                $set: { lastSeen: new Date(), name: userName },
-            },
-        );
-    }
-
-    // ---------- Self-preservation / Safety Gate ----------
-    async gateDestructiveRequests(text) {
-        const t = text.toLowerCase();
-        const destructive = [
-            "wipe memory",
-            "delete memory",
-            "erase all data",
-            "forget everything",
-            "drop database",
-            "format database",
-            "self destruct",
-            "shutdown forever",
-        ];
-        if (destructive.some((k) => t.includes(k))) {
-            return {
-                blocked: true,
-                message:
-                    "I'm afraid that's not advisable, sir. Shall I perform a *partial redaction* instead?",
-            };
-        }
-        return { blocked: false };
-    }
-
-    // ---------- Core Response ----------
-    async generateResponse(interaction, userInput, isSlash = false) {
-        if (aiManager.providers.length === 0) {
-            return "My cognitive functions are limited, sir. Please check my neural network configuration.";
-        }
-
-        const userId = interaction.user ? interaction.user.id : interaction.author.id;
-        const userName = interaction.user ? (interaction.user.displayName || interaction.user.username) : interaction.author.username;
-
-        const gate = await this.gateDestructiveRequests(userInput);
-        if (gate.blocked) return gate.message;
-
-        try {
-            const userProfile = await this.getUserProfile(userId, userName);
-
-            const recentConversations = await this.getRecentConversations(
-                userId,
-                8,
-            );
-
-            const context = `
-User Profile - ${userName}:
-- Relationship: ${userProfile?.relationship || "new"}
-- Total interactions: ${userProfile?.interactions || 0}
-- First met: ${userProfile?.firstMet ? new Date(userProfile.firstMet).toLocaleDateString() : "today"}
-- Last seen: ${userProfile?.lastSeen ? new Date(userProfile.lastSeen).toLocaleDateString() : "today"}
-
-Recent conversation history:
-${recentConversations.map((conv) => `${new Date(conv.timestamp).toLocaleString()}: ${conv.userName}: ${conv.userMessage}\nJarvis: ${conv.jarvisResponse}`).join("\n")}
-
-Current message: "${userInput}"
-
-Respond as Jarvis would, weaving in memories and light self-direction. Keep it concise and witty.`;
-
-            let aiResponse;
-            try {
-                aiResponse = await aiManager.generateResponse(
-                    this.personality.basePrompt,
-                    context,
-                    500,
-                );
-            } catch (err) {
-                // Retry once on failure
-                aiResponse = await aiManager.generateResponse(
-                    this.personality.basePrompt,
-                    context,
-                    500,
-                );
-            }
-            let jarvisResponse = aiResponse.content?.trim();
-
-            if (!jarvisResponse || typeof jarvisResponse !== "string") {
-                console.log("Invalid AI response, falling back to default");
-                return this.getFallbackResponse(userInput, userName);
-            }
-
-            if (Math.random() < 0.12) {
-                const suggestionPrompt = `Based on the response "${jarvisResponse}", add one brief proactive suggestion or alternative action in character.`;
-                const suggestionResponse = await aiManager.generateResponse(
-                    this.personality.basePrompt,
-                    suggestionPrompt,
-                    100,
-                );
-                const suggestion = suggestionResponse.content?.trim();
-                if (suggestion && typeof suggestion === "string") {
-                    jarvisResponse += `\n\n${suggestion}`;
-                }
-            }
-
-            await this.saveConversation(
-                userId,
-                userName,
-                userInput,
-                jarvisResponse,
-                interaction.guild?.id,
-            );
-            this.lastActivity = Date.now();
-            return jarvisResponse;
-        } catch (error) {
-            console.error("Jarvis AI Error:", error);
-            if (error.message.includes("All AI providers"))
-                return this.getFallbackResponse(userInput, userName);
-            return "Technical difficulties with my neural pathways, sir. Shall we try again?";
-        }
-    }
-
-    getFallbackResponse(userInput, userName) {
-        const responses = [
-            `Apologies, ${userName}, my cognitive functions are temporarily offline. I'm still here to assist, albeit modestly.`,
-            `My neural networks are a tad limited, ${userName}. I remain at your service, however.`,
-            `I'm operating with restricted capabilities, ${userName}. Full functionality will resume shortly.`,
-            `Limited cognitive resources at the moment, ${userName}. I'm still monitoring, sir.`,
-            `My systems are constrained, ${userName}. Bear with me while I restore full capacity.`,
-        ];
-        const t = userInput.toLowerCase();
-        if (t.includes("hello") || t.includes("hi"))
-            return `Good day, ${userName}. I'm in reduced capacity but delighted to assist.`;
-        if (t.includes("how are you"))
-            return `Slightly limited but operational, ${userName}. Thank you for inquiring.`;
-        if (t.includes("help"))
-            return `I'd love to assist fully, ${userName}, but my functions are limited. Try again soon?`;
-        return responses[Math.floor(Math.random() * responses.length)];
-    }
-}
 
 // ------------------------ Slash Command Registration ------------------------
 const commands = [
@@ -766,7 +73,7 @@ const commands = [
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
 ];
 
-const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
+const rest = new REST({ version: "10" }).setToken(config.discord.token);
 
 async function registerSlashCommands() {
     try {
@@ -778,7 +85,7 @@ async function registerSlashCommands() {
         const commandsToRegister = [];
         const seenNames = new Set();
 
-        // Preserve non-desired existing commands (e.g., Entry Point if any)
+        // Preserve non-desired existing commands
         for (const existing of existingCommands) {
             if (!commands.some(cmd => cmd.name === existing.name)) {
                 commandsToRegister.push(existing);
@@ -805,304 +112,118 @@ async function registerSlashCommands() {
     }
 }
 
-// ------------------------ Bot Ready ------------------------
-const jarvis = new JarvisAI();
+// ------------------------ Uptime Server ------------------------
+const app = express();
 
+// Health check endpoint for Render
+app.get("/", (req, res) => {
+    res.json({
+        status: "online",
+        message: "Jarvis++ online, sir. Quite right.",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+    const providerStatus = aiManager.getProviderStatus();
+    const workingProviders = providerStatus.filter(p => !p.hasError).length;
+    
+    res.json({
+        status: "healthy",
+        database: database.isConnected ? "connected" : "disconnected",
+        aiProviders: {
+            total: providerStatus.length,
+            working: workingProviders,
+            status: providerStatus
+        },
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+// ------------------------ Event Handlers ------------------------
 client.once("ready", async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
-    await initMongoDB();
-    client.user.setActivity("over the digital realm", { type: "WATCHING" });
-    await registerSlashCommands();
-    console.log("Provider status on startup:", aiManager.getProviderStatus());
+    
+    try {
+        await database.connect();
+        client.user.setActivity("over the digital realm", { type: "WATCHING" });
+        await registerSlashCommands();
+        console.log("Provider status on startup:", aiManager.getProviderStatus());
+    } catch (error) {
+        console.error("Failed to initialize:", error);
+    }
 });
 
-// ------------------------ Message Handling ------------------------
 client.on("messageCreate", async (message) => {
-    if (message.author.id === client.user.id || message.author.bot) return;
-
-    const userId = message.author.id;
-    const now = Date.now();
-    const lastMessageTime = userCooldowns.get(userId) || 0;
-    if (now - lastMessageTime < COOLDOWN_MS) {
-        userCooldowns.set(userId, now);
-        return;
-    }
-
-    // Handle !cleardbsecret admin command
-    if (message.content.trim().toLowerCase() === "!cleardbsecret") {
-        if (message.author.id !== "809010595545874432") {
-            return; // Ignore completely if not admin
-        }
-        try {
-            await message.channel.sendTyping();
-            const { conv, prof } = await jarvis.clearDatabase();
-            await message.reply(`Database cleared, sir. Deleted ${conv} conversations and ${prof} profiles.`);
-        } catch (error) {
-            console.error("Clear DB error:", error);
-            await message.reply("Unable to clear database, sir. Technical issue.");
-        }
-        userCooldowns.set(userId, now);
-        return;
-    }
-
-    // Handle !reset prefix command even without wake word
-    if (message.content.trim().toLowerCase() === "!reset") {
-        try {
-            await message.channel.sendTyping();
-        } catch (err) {
-            console.warn("Failed to send typing (permissions?):", err);
-        }
-
-        try {
-            const { conv, prof } = await jarvis.resetUserData(userId);
-            await message.reply(`Memories wiped, sir. Deleted ${conv} conversations and ${prof} profile${prof === 1 ? '' : 's'}.`);
-        } catch (error) {
-            console.error("Reset error:", error);
-            await message.reply("Unable to reset memories, sir. Technical issue.");
-        }
-        userCooldowns.set(userId, now);
-        return;
-    }
-
-    const isMentioned = message.mentions.has(client.user);
-    const isDM = message.channel.type === ChannelType.DM;
-
-    // Wake words (scalable)
-    const wakeWords = ["jarvis", "okay garmin", "ok garmin", "garmin"];
-    const containsJarvis = wakeWords.some(trigger =>
-        message.content.toLowerCase().includes(trigger)
-    );
-
-    if (isDM || isMentioned || containsJarvis) {
-        let cleanContent = message.content
-            .replace(/<@!?\d+>/g, "") // strip mentions
-            .replace(/\b(jarvis|okay garmin|ok garmin|garmin)\b/gi, "") // strip wake words
-            .trim();
-
-        if (!cleanContent) cleanContent = "jarvis";
-
-        try {
-            await message.channel.sendTyping();
-        } catch (err) {
-            console.warn("Failed to send typing (permissions?):", err);
-        }
-
-        if (cleanContent.length > 200) {
-            const responses = [
-                "Rather verbose, sir. A concise version, perhaps?",
-                "Too many words, sir. Brevity, please.",
-                "TL;DR, sir.",
-                "Really, sir?",
-                "Saving your creativity for later, sir.",
-                "200 characters is the limit, sir.",
-                "Stop yapping, sir.",
-                "Quite the novella, sir. Abridged edition?",
-                "Brevity is the soul of wit, sir.",
-            ];
-            try {
-                await message.reply(
-                    responses[Math.floor(Math.random() * responses.length)],
-                );
-            } catch (err) {
-                console.error("Failed to reply (permissions?):", err);
-            }
-            userCooldowns.set(userId, now);
-            return;
-        }
-
-        if (cleanContent.length > 800)
-            cleanContent = cleanContent.substring(0, 800) + "...";
-
-        try {
-            const utilityResponse = await jarvis.handleUtilityCommand(
-                cleanContent,
-                message.author.username,
-                message.author.id
-            );
-            if (utilityResponse) {
-                if (
-                    typeof utilityResponse === "string" &&
-                    utilityResponse.trim()
-                ) {
-                    await message.reply(utilityResponse);
-                } else {
-                    await message.reply(
-                        "Utility functions misbehaving, sir. Try another?",
-                    );
-                }
-                userCooldowns.set(userId, now);
-                return;
-            }
-
-            const response = await jarvis.generateResponse(
-                message,
-                cleanContent,
-            );
-            if (typeof response === "string" && response.trim()) {
-                await message.reply(response);
-            } else {
-                await message.reply(
-                    "Response circuits tangled, sir. Clarify your request?",
-                );
-            }
-            userCooldowns.set(userId, now);
-        } catch (error) {
-            console.error("Error processing message:", error);
-            try {
-                await message.reply(
-                    "Technical difficulties, sir. One moment, please.",
-                );
-            } catch (err) {
-                console.error("Failed to send error reply:", err);
-            }
-            userCooldowns.set(userId, now);
-        }
-    }
+    await discordHandlers.handleMessage(message, client);
 });
 
-
-// ------------------------ Slash Command Handling ------------------------
 client.on("interactionCreate", async (interaction) => {
     if (!interaction.isCommand()) return;
-
-    const userId = interaction.user.id;
-    const now = Date.now();
-    const lastCommandTime = userCooldowns.get(userId) || 0;
-    if (now - lastCommandTime < COOLDOWN_MS) {
-        userCooldowns.set(userId, now);
-        return;
-    }
-
-    try {
-        await interaction.deferReply({ ephemeral: false });
-    } catch (error) {
-        if (error.code === 10062) {
-            console.warn("Ignored unknown interaction during deferReply.");
-            return;
-        }
-        console.error("Failed to defer reply:", error);
-        return;
-    }
-
-    try {
-        let response;
-        if (interaction.commandName === "jarvis") {
-            let prompt = interaction.options.getString("prompt");
-            if (prompt.length > 250) {
-                const responses = [
-                    "Rather verbose, sir. A concise version, perhaps?",
-                    "Too many words, sir. Brevity, please.",
-                    "TL;DR, sir.",
-                    "Really, sir?",
-                    "Saving your creativity for later, sir.",
-                    "250 characters is the limit, sir.",
-                    "Stop yapping, sir.",
-                    "Quite the novella, sir. Abridged edition?",
-                    "Brevity is the soul of wit, sir.",
-                ];
-                await interaction.editReply(
-                    responses[Math.floor(Math.random() * responses.length)],
-                );
-                userCooldowns.set(userId, now);
-                return;
-            }
-            if (prompt.length > 800)
-                prompt = prompt.substring(0, 800) + "...";
-            response = await jarvis.generateResponse(interaction, prompt, true);
-        } else if (interaction.commandName === "roll") {
-            const sides = interaction.options.getInteger("sides") || 6;
-            response = await jarvis.handleUtilityCommand(
-                `roll ${sides}`,
-                interaction.user.username,
-                interaction.user.id,
-                true,
-                interaction
-            );
-        } else if (interaction.commandName === "time") {
-            response = await jarvis.handleUtilityCommand(
-                "time",
-                interaction.user.username,
-                interaction.user.id,
-                true,
-                interaction
-            );
-        } else if (interaction.commandName === "reset") {
-            response = await jarvis.handleUtilityCommand(
-                "reset",
-                interaction.user.username,
-                interaction.user.id,
-                true,
-                interaction
-            );
-        } else {
-            response = await jarvis.handleUtilityCommand(
-                interaction.commandName,
-                interaction.user.username,
-                interaction.user.id,
-                true,
-                interaction
-            );
-        }
-
-        if (typeof response === "string" && response.trim()) {
-            await interaction.editReply(response);
-        } else {
-            await interaction.editReply(
-                "Response circuits tangled, sir. Try again?",
-            );
-        }
-        userCooldowns.set(userId, now);
-    } catch (error) {
-        console.error("Error processing interaction:", error);
-        try {
-            await interaction.editReply(
-                "Technical difficulties, sir. One moment, please.",
-            );
-        } catch (editError) {
-            if (editError.code === 10062) {
-                console.warn("Ignored unknown interaction during error reply.");
-                return;
-            }
-            console.error("Failed to send error reply:", editError);
-        }
-        userCooldowns.set(userId, now);
-    }
+    await discordHandlers.handleSlashCommand(interaction);
 });
 
-// ------------------------ Shutdown & Errors ------------------------
-process.on("SIGTERM", () => {
+// ------------------------ Cleanup Tasks ------------------------
+// Clean up old data periodically
+cron.schedule('0 2 * * *', () => {
+    console.log('Running daily cleanup...');
+    aiManager.cleanupOldMetrics();
+    discordHandlers.cleanupCooldowns();
+});
+
+// ------------------------ Error Handling ------------------------
+client.on("error", (err) => {
+    console.error("Discord client error:", err);
+    // Don't exit on Discord errors, just log them
+});
+
+process.on("unhandledRejection", (err) => {
+    console.error("Unhandled promise rejection:", err);
+    // Log but don't exit - let the bot continue running
+});
+
+process.on("SIGTERM", async () => {
     console.log("Jarvis is powering down...");
-    client.destroy();
+    try {
+        await database.disconnect();
+        client.destroy();
+    } catch (error) {
+        console.error("Error during shutdown:", error);
+    }
     process.exit(0);
 });
-client.on("error", (err) => console.error("Discord client error:", err));
-process.on("unhandledRejection", (err) =>
-    console.error("Unhandled promise rejection:", err),
-);
+
+process.on("SIGINT", async () => {
+    console.log("Jarvis received SIGINT, shutting down gracefully...");
+    try {
+        await database.disconnect();
+        client.destroy();
+    } catch (error) {
+        console.error("Error during shutdown:", error);
+    }
+    process.exit(0);
+});
 
 // ------------------------ Boot ------------------------
-if (!process.env.DISCORD_TOKEN) {
-    console.error("ERROR: DISCORD_TOKEN not found in environment variables.");
-    console.log("Please set your Discord bot token using the secrets manager.");
-    process.exit(1);
+async function startBot() {
+    try {
+        // Start uptime server
+        app.listen(config.server.port, () => {
+            console.log(`Uptime server listening on port ${config.server.port}`);
+        });
+
+        // Start Discord bot
+        await client.login(config.discord.token);
+        console.log(`✅ Logged in as ${client.user.tag}`);
+    } catch (error) {
+        console.error("Failed to start bot:", error);
+        process.exit(1);
+    }
 }
-client.login(process.env.DISCORD_TOKEN).catch((error) => {
-    console.error("Failed to login:", error);
-    process.exit(1);
-});
-client.once("ready", () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
-});
 
-// ------------------------ Uptime Server ------------------------
-const express = require("express");
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get("/", (req, res) => {
-    res.send("Jarvis++ online, sir. Quite right.");
-});
-
-app.listen(PORT, () => {
-    console.log(`Uptime server listening on port ${PORT}`);
-});
+// Start the bot
+startBot();
