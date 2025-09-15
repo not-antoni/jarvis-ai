@@ -76,6 +76,8 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY5,
             process.env.OPENROUTER_API_KEY6,
             process.env.OPENROUTER_API_KEY7,
+
+process.env.OPENROUTER_API_KEY8,
         ].filter(Boolean);
         openRouterKeys.forEach((key, index) => {
             this.providers.push({
