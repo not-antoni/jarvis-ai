@@ -76,7 +76,8 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY5,
             process.env.OPENROUTER_API_KEY6,
             process.env.OPENROUTER_API_KEY7,
-            process.env.OPENROUTER_API_KEY8,
+
+process.env.OPENROUTER_API_KEY8,
         ].filter(Boolean);
         openRouterKeys.forEach((key, index) => {
             this.providers.push({
@@ -829,64 +830,24 @@ client.on("messageCreate", async (message) => {
     const isDM = message.channel.type === ChannelType.DM;
 
     // Wake words (scalable)
-    const wakeWords = ["jarvis", "okay garmin", "vision"];
+    const wakeWords = ["jarvis", "okay garmin"];
     const containsJarvis = wakeWords.some(trigger =>
         message.content.toLowerCase().includes(trigger)
     );
 
     if (isDM || isMentioned || containsJarvis) {
+        let cleanContent = message.content
+            .replace(/<@!?\d+>/g, "") // strip mentions
+            .replace(/\b(jarvis|okay garmin)\b/gi, "") // strip wake words
+            .trim();
+
+        if (!cleanContent) cleanContent = "jarvis";
+
         try {
             await message.channel.sendTyping();
         } catch (err) {
             console.warn("Failed to send typing (permissions?):", err);
         }
-
-        const lowerContent = message.content.toLowerCase();
-        if (lowerContent.startsWith("vision ")) {
-            const prompt = message.content.slice(7).trim();
-            if (!prompt) {
-                await message.reply("Please provide a description for the image, sir.");
-                userCooldowns.set(userId, now);
-                return;
-            }
-
-            try {
-                const resp = await fetch('https://api.deepai.org/api/text2img', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'api-key': '9abdc2b7-3b0f-4cdd-a1a1-2d91a2a01342'
-                    },
-                    body: JSON.stringify({
-                        text: prompt,
-                    })
-                });
-
-                if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
-                const data = await resp.json();
-                if (!data.output_url) throw new Error("No image generated.");
-
-                const embed = new EmbedBuilder()
-                    .setTitle("Vision Generated Image")
-                    .setDescription(`Prompt: ${prompt}`)
-                    .setImage(data.output_url)
-                    .setColor("Random");
-
-                await message.reply({ embeds: [embed] });
-            } catch (error) {
-                console.error("Image gen error:", error);
-                await message.reply("Failed to generate image, sir. Perhaps try a different description?");
-            }
-            userCooldowns.set(userId, now);
-            return;
-        }
-
-        let cleanContent = message.content
-            .replace(/<@!?\d+>/g, "") // strip mentions
-            .replace(/\b(jarvis|okay garmin|vision)\b/gi, "") // strip wake words
-            .trim();
-
-        if (!cleanContent) cleanContent = "jarvis";
 
         if (cleanContent.length > 200) {
             const responses = [
