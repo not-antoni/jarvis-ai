@@ -828,8 +828,7 @@ client.on("messageCreate", async (message) => {
 
     const isMentioned = message.mentions.has(client.user);
     const isDM = message.channel.type === ChannelType.DM;
-    const containsJarvis = message.content.toLowerCase().includes("jarvis");
-	|| message.content.toLowerCase().includes("okay garmin");
+    const containsJarvis = message.content.toLowerCase().includes("jarvis","okay garmin");
 
     if (isDM || isMentioned || containsJarvis) {
         let cleanContent = message.content
