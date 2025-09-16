@@ -13,31 +13,41 @@ Puter has been added as a new AI provider that can be used alongside your existi
 Add your Puter tokens to your environment variables:
 
 ```bash
-# Primary Puter token
+# Primary Puter token (for ai-23 app)
 export PUTER_TOKEN=your_puter_token_here
 
-# Optional: Secondary Puter token for load balancing
-export PUTER_TOKEN2=your_secondary_puter_token_here
+# Secondary Puter token (for jarvis-2 app)
+export PUTER_TOKEN2=your_jarvis2_token_here
 ```
 
-### 2. Getting Your Puter Token
+### 2. Getting Your Puter Tokens
 
+**For PUTER_TOKEN (ai-23 app):**
 1. Visit your Puter app at: https://puter.com/app/ai-23
 2. Sign in to your Puter account
 3. Navigate to your account settings or API section
 4. Generate or copy your API token
-5. Set it as an environment variable
+5. Set it as `PUTER_TOKEN`
+
+**For PUTER_TOKEN2 (jarvis-2 app):**
+1. Visit your Puter app at: https://puter.com/app/jarvis-2
+2. Sign in to your Puter account
+3. Navigate to your account settings or API section
+4. Generate or copy your API token
+5. Set it as `PUTER_TOKEN2`
 
 ## How It Works
 
 ### Provider Configuration
 
-The Puter provider is automatically initialized when you start the bot if `PUTER_TOKEN` is available. It supports:
+The Puter providers are automatically initialized when you start the bot if tokens are available. It supports:
 
-- **Multiple tokens**: Up to 2 Puter tokens for load balancing
+- **Multiple apps**: Up to 2 Puter apps with their specific tokens
+  - `PUTER_TOKEN` → https://ai-23-wafrt.puter.site
+  - `PUTER_TOKEN2` → https://jarvis-2.puter.site
 - **Model**: Uses `gpt-4.1-nano` by default (as per Puter documentation)
 - **API Endpoint**: `https://api.puter.com/drivers/call`
-- **Authentication**: Bearer token authentication
+- **Authentication**: Bearer token authentication with app-specific headers
 
 ### Request Format
 
@@ -159,8 +169,8 @@ The integration uses the following Puter API endpoint:
 - **Headers**: 
   - `Content-Type: application/json;charset=UTF-8`
   - `Authorization: Bearer {token}`
-  - `Origin: https://ai-23-wafrt.puter.site`
-  - `Referer: https://ai-23-wafrt.puter.site/`
+  - `Origin: {app-specific-url}` (e.g., https://ai-23-wafrt.puter.site or https://jarvis-2.puter.site)
+  - `Referer: {app-specific-url}/`
   - `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)`
 
 ## Notes
