@@ -31,9 +31,9 @@ const config = {
     ai: {
         cooldownMs: 10000, // 10 seconds
         maxTokens: 500,
-        maxInputLength: 800,
+        maxInputLength: 250,
         maxSlashInputLength: 250,
-        temperature: 0.8,
+        temperature: 0.6,
         retryAttempts: 2,
         fallbackChance: 0.12
     },
