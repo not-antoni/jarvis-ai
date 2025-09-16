@@ -143,13 +143,13 @@ class JarvisAI {
         }
 
         if (cmd === "status" || cmd === "health") {
-            const status = aiManager.getProviderStatus();
+            const status = aiManager.getRedactedProviderStatus();
             const working = status.filter((p) => !p.hasError).length;
 
             if (working === 0) {
                 return `sir, total outage. No AI providers active.`;
             } else if (working === status.length) {
-                return `All systems operational, sir.:white_check_mark:${working} of ${status.length} AI providers active.`;
+                return `All systems operational, sir.:white_check_mark: ${working} of ${status.length} AI providers active.`;
             } else {
                 return `sir!!! services are disrupted:skull:, ${working} of ${status.length} AI providers active.`;
             }
@@ -178,8 +178,9 @@ class JarvisAI {
         }
 
         if (cmd === "providers") {
-            const status = aiManager.getProviderStatus();
-            return `I have ${status.length} AI providers configured, sir: ${status.map((p) => p.name).join(", ")}.`;
+            const status = aiManager.getRedactedProviderStatus();
+            const workingCount = status.filter(p => !p.hasError).length;
+            return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
         }
 
         if (cmd.startsWith("roll")) {

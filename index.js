@@ -117,7 +117,7 @@ const app = express();
 
 // Main endpoint - ASCII Animation Page
 app.get("/", (req, res) => {
-    const providerStatus = aiManager.getProviderStatus();
+    const providerStatus = aiManager.getRedactedProviderStatus();
     const workingProviders = providerStatus.filter(p => !p.hasError).length;
     const uptime = Math.floor(process.uptime());
     const memory = process.memoryUsage();
@@ -305,7 +305,7 @@ Status: <span class="online">OPERATIONAL</span>
     ╔══════════════════════════════════════════════════════════════╗
     ║  🔗 Health Check: /health                                   ║
     ║  🎯 Discord Bot: Active                                     ║
-    ║  🚀 Render: Deployed                                        ║
+    ║  🚀 Render: [REDACTED]                                      ║
     ╚══════════════════════════════════════════════════════════════╝
         </div>
         
@@ -351,7 +351,7 @@ Status: <span class="online">OPERATIONAL</span>
 
 // Health check endpoint (for monitoring)
 app.get("/health", (req, res) => {
-    const providerStatus = aiManager.getProviderStatus();
+    const providerStatus = aiManager.getRedactedProviderStatus();
     const workingProviders = providerStatus.filter(p => !p.hasError).length;
     
     res.json({
