@@ -124,18 +124,27 @@ class AIProviderManager {
             });
         }
 
-        // Puter providers
-        const puterTokens = [
-            process.env.PUTER_TOKEN,
-            process.env.PUTER_TOKEN2,
-        ].filter(Boolean);
+        // Puter providers - each with their specific app configuration
+        const puterApps = [
+            {
+                token: process.env.PUTER_TOKEN,
+                appUrl: "https://ai-23-wafrt.puter.site",
+                name: "Puter1"
+            },
+            {
+                token: process.env.PUTER_TOKEN2,
+                appUrl: "https://jarvis-2.puter.site",
+                name: "Puter2"
+            }
+        ].filter(app => app.token);
         
-        puterTokens.forEach((token, index) => {
+        puterApps.forEach((app, index) => {
             this.providers.push({
-                name: `Puter${index + 1}`,
+                name: app.name,
                 client: {
-                    token: token,
+                    token: app.token,
                     baseURL: "https://api.puter.com",
+                    appUrl: app.appUrl,
                 },
                 model: "gpt-4.1-nano", // Default model based on Puter docs
                 type: "puter",
@@ -245,8 +254,8 @@ class AIProviderManager {
                         headers: {
                             'Content-Type': 'application/json;charset=UTF-8',
                             'Authorization': `Bearer ${provider.client.token}`,
-                            'Origin': 'https://ai-23-wafrt.puter.site',
-                            'Referer': 'https://ai-23-wafrt.puter.site/',
+                            'Origin': provider.client.appUrl,
+                            'Referer': `${provider.client.appUrl}/`,
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
                         },
                         body: JSON.stringify(requestBody)
