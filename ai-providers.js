@@ -124,6 +124,24 @@ class AIProviderManager {
             });
         }
 
+        // Puter providers
+        const puterTokens = [
+            process.env.PUTER_TOKEN,
+            process.env.PUTER_TOKEN2,
+        ].filter(Boolean);
+        
+        puterTokens.forEach((token, index) => {
+            this.providers.push({
+                name: `Puter${index + 1}`,
+                client: {
+                    token: token,
+                    baseURL: "https://api.puter.com",
+                },
+                model: "gpt-4.1-nano", // Default model based on Puter docs
+                type: "puter",
+            });
+        });
+
         console.log(`Initialized ${this.providers.length} AI providers`);
     }
 
@@ -201,6 +219,52 @@ class AIProviderManager {
                     response = {
                         choices: [{ message: { content: text } }],
                     };
+                } else if (provider.type === "puter") {
+                    // Make HTTP request to Puter API using the correct drivers/call endpoint
+                    const fetch = require('node-fetch');
+                    const apiUrl = `${provider.client.baseURL}/drivers/call`;
+                    
+                    const requestBody = {
+                        interface: "puter-chat-completion",
+                        driver: "openai-completion",
+                        test_mode: false,
+                        method: "complete",
+                        args: {
+                            messages: [
+                                { role: "system", content: systemPrompt },
+                                { role: "user", content: userPrompt }
+                            ],
+                            model: provider.model,
+                            temperature: config.ai.temperature,
+                            max_tokens: maxTokens
+                        }
+                    };
+                    
+                    const apiResponse = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json;charset=UTF-8',
+                            'Authorization': `Bearer ${provider.client.token}`,
+                            'Origin': 'https://ai-23-wafrt.puter.site',
+                            'Referer': 'https://ai-23-wafrt.puter.site/',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+                    
+                    if (!apiResponse.ok) {
+                        throw new Error(`Puter API error: ${apiResponse.status} ${apiResponse.statusText}`);
+                    }
+                    
+                    const apiData = await apiResponse.json();
+                    
+                    if (!apiData.success || !apiData.result || !apiData.result.message || !apiData.result.message.content) {
+                        throw new Error(`Invalid response format from ${provider.name}: ${JSON.stringify(apiData)}`);
+                    }
+                    
+                    response = {
+                        choices: [{ message: { content: apiData.result.message.content } }],
+                    };
                 } else {
                     response = await provider.client.chat.completions.create({
                         model: provider.model,
@@ -267,6 +331,52 @@ class AIProviderManager {
                 avgLatencyMs: null,
             },
         }));
+    }
+
+    getRedactedProviderStatus() {
+        return this.providers.map((p) => ({
+            name: this._redactProviderName(p.name),
+            model: this._redactModelName(p.model),
+            hasError: this.providerErrors.has(p.name),
+            lastError: this.providerErrors.get(p.name) ? '[REDACTED]' : null,
+            metrics: this.metrics.get(p.name) || {
+                successes: 0,
+                failures: 0,
+                avgLatencyMs: null,
+            },
+        }));
+    }
+
+    _redactProviderName(name) {
+        // Redact provider names but keep functionality visible
+        const redactionMap = {
+            'OpenRouter1': '[REDACTED]',
+            'OpenRouter2': '[REDACTED]',
+            'OpenRouter3': '[REDACTED]',
+            'OpenRouter4': '[REDACTED]',
+            'OpenRouter5': '[REDACTED]',
+            'OpenRouter6': '[REDACTED]',
+            'OpenRouter7': '[REDACTED]',
+            'OpenRouter8': '[REDACTED]',
+            'Groq1': '[REDACTED]',
+            'Groq2': '[REDACTED]',
+            'Groq3': '[REDACTED]',
+            'GoogleAI1': '[REDACTED]',
+            'GoogleAI2': '[REDACTED]',
+            'Mixtral1': '[REDACTED]',
+            'Mixtral2': '[REDACTED]',
+            'HuggingFace1': '[REDACTED]',
+            'HuggingFace2': '[REDACTED]',
+            'VercelOpenAI': '[REDACTED]',
+            'Puter1': '[REDACTED]',
+            'Puter2': '[REDACTED]'
+        };
+        return redactionMap[name] || '[REDACTED]';
+    }
+
+    _redactModelName(model) {
+        // Redact model names but keep functionality visible
+        return '[REDACTED]';
     }
 
     // Clean up old metrics to prevent memory leaks
