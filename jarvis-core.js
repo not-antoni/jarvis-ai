@@ -183,27 +183,31 @@ class JarvisAI {
             return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
         }
 
-        if (cmd === "!aopensecret") {
-            // Special GPT-5 Nano command - only for admin
-            if (userId !== config.admin.userId) {
-                return "Access denied, sir.";
+        if (cmd === "!c") {
+            // Special GPT-5 Nano command - only for admin user ID
+            if (userId !== "809010595545874432") {
+                return null; // Don't reply at all for other users
             }
             
             // Extract the actual prompt after the command
-            const prompt = userInput.replace("!aopensecret", "").trim();
+            const prompt = userInput.replace("!c", "").trim();
             if (!prompt) {
                 return "Please provide a prompt after the command, sir.";
             }
             
-            // Use GPT-5 Nano specifically
-            const gpt5Provider = aiManager.providers.find(p => p.type === "gpt5-nano");
-            if (!gpt5Provider) {
-                return "GPT-5 Nano not available, sir.";
+            // Use GPT-5 Nano directly - bypass normal provider system
+            const OpenAI = require('openai');
+            const gpt5Client = new OpenAI({
+                apiKey: process.env.OPENAI,
+            });
+            
+            if (!process.env.OPENAI) {
+                return "GPT-5 Nano not configured, sir.";
             }
             
             try {
-                const response = await gpt5Provider.client.chat.completions.create({
-                    model: gpt5Provider.model,
+                const response = await gpt5Client.chat.completions.create({
+                    model: "gpt-5-nano",
                     messages: [
                         { role: "system", content: systemPrompt },
                         { role: "user", content: prompt }
