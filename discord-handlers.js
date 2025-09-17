@@ -112,11 +112,19 @@ class DiscordHandlers {
         }
 
         let cleanContent = message.content
-            .replace(/<@!?\d+>/g, "") // strip mentions
-            .replace(new RegExp(`\\b(${config.wakeWords.join('|')})\\b`, 'gi'), "") // strip wake words
+            .replace(/<@!?\d+>/g, "") // strip mentions only
             .trim();
 
-        if (!cleanContent) cleanContent = "jarvis";
+        // If content is empty or only contains punctuation/whitespace, treat as a greeting
+        if (!cleanContent || /^[,\s.!?]*$/.test(cleanContent)) {
+            cleanContent = "jarvis";
+        } else {
+            // Check if content starts with a wake word followed by only punctuation/whitespace
+            const wakeWordPattern = new RegExp(`^(${config.wakeWords.join('|')})[,\s.!?]*$`, 'i');
+            if (wakeWordPattern.test(cleanContent)) {
+                cleanContent = "jarvis";
+            }
+        }
 
         try {
             await message.channel.sendTyping();
