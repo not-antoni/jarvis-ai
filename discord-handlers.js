@@ -115,15 +115,16 @@ class DiscordHandlers {
             .replace(/<@!?\d+>/g, "") // strip mentions only
             .trim();
 
-        // If content is empty or only contains punctuation/whitespace, treat as a greeting
-        if (!cleanContent || /^[,\s.!?]*$/.test(cleanContent)) {
+        // If content is empty, treat as a greeting
+        if (!cleanContent) {
             cleanContent = "jarvis";
         } else {
-            // Check if content starts with a wake word followed by only punctuation/whitespace
-            const wakeWordPattern = new RegExp(`^(${config.wakeWords.join('|')})[,\s.!?]*$`, 'i');
+            // Check if content is ONLY a wake word followed by punctuation (no actual content)
+            const wakeWordPattern = new RegExp(`^(${config.wakeWords.join('|')})[,.!?]*$`, 'i');
             if (wakeWordPattern.test(cleanContent)) {
                 cleanContent = "jarvis";
             }
+            // If it has a wake word + comma + space + actual content, keep it as is
         }
 
         try {
