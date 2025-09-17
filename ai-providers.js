@@ -137,7 +137,7 @@ class AIProviderManager {
                 name: "Puter2"
             }
         ].filter(app => app.token);
-        
+
         puterApps.forEach((app, index) => {
             this.providers.push({
                 name: app.name,
@@ -150,6 +150,18 @@ class AIProviderManager {
                 type: "puter",
             });
         });
+
+        // GPT-5 Nano provider
+        if (process.env.OPENAI) {
+            this.providers.push({
+                name: "GPT5Nano",
+                client: new OpenAI({
+                    apiKey: process.env.OPENAI,
+                }),
+                model: "gpt-5-nano",
+                type: "gpt5-nano",
+            });
+        }
 
 
         console.log(`Initialized ${this.providers.length} AI providers`);
@@ -275,6 +287,22 @@ class AIProviderManager {
                     response = {
                         choices: [{ message: { content: apiData.result.message.content } }],
                     };
+                } else if (provider.type === "gpt5-nano") {
+                    // GPT-5 Nano with low reasoning and fixed temperature of 1
+                    response = await provider.client.chat.completions.create({
+                        model: provider.model,
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt }
+                        ],
+                        max_completion_tokens: maxTokens,
+                        temperature: 1, // Fixed temperature - GPT-5 nano doesn't support below 1
+                        reasoning_effort: "low",
+                    });
+                    
+                    if (!response.choices?.[0]?.message?.content) {
+                        throw new Error(`Invalid response format from ${provider.name}`);
+                    }
                 } else {
                     response = await provider.client.chat.completions.create({
                         model: provider.model,
@@ -379,7 +407,8 @@ class AIProviderManager {
             'HuggingFace2': '[REDACTED]',
             'VercelOpenAI': '[REDACTED]',
             'Puter1': '[REDACTED]',
-            'Puter2': '[REDACTED]'
+            'Puter2': '[REDACTED]',
+            'GPT5Nano': '[REDACTED]'
         };
         return redactionMap[name] || '[REDACTED]';
     }
