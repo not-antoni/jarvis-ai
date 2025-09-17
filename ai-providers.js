@@ -151,17 +151,6 @@ class AIProviderManager {
             });
         });
 
-        // GPT-5 Nano provider (special secret command)
-        if (process.env.OPENAI) {
-            this.providers.push({
-                name: "GPT5Nano",
-                client: new OpenAI({
-                    apiKey: process.env.OPENAI,
-                }),
-                model: "gpt-5-nano",
-                type: "gpt5-nano",
-            });
-        }
 
         console.log(`Initialized ${this.providers.length} AI providers`);
     }
@@ -286,22 +275,6 @@ class AIProviderManager {
                     response = {
                         choices: [{ message: { content: apiData.result.message.content } }],
                     };
-                } else if (provider.type === "gpt5-nano") {
-                    // GPT-5 Nano with reasoning disabled
-                    response = await provider.client.chat.completions.create({
-                        model: provider.model,
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt }
-                        ],
-                        max_completion_tokens: maxTokens,
-                        temperature: config.ai.temperature,
-                        reasoning_effort: "minimal",
-                    });
-                    
-                    if (!response.choices?.[0]?.message?.content) {
-                        throw new Error(`Invalid response format from ${provider.name}`);
-                    }
                 } else {
                     response = await provider.client.chat.completions.create({
                         model: provider.model,
@@ -406,8 +379,7 @@ class AIProviderManager {
             'HuggingFace2': '[REDACTED]',
             'VercelOpenAI': '[REDACTED]',
             'Puter1': '[REDACTED]',
-            'Puter2': '[REDACTED]',
-            'GPT5Nano': '[REDACTED]'
+            'Puter2': '[REDACTED]'
         };
         return redactionMap[name] || '[REDACTED]';
     }
