@@ -183,6 +183,47 @@ class JarvisAI {
             return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
         }
 
+        if (cmd === "!aopensecret") {
+            // Special GPT-5 Nano command - only for admin
+            if (userId !== config.admin.userId) {
+                return "Access denied, sir.";
+            }
+            
+            // Extract the actual prompt after the command
+            const prompt = userInput.replace("!aopensecret", "").trim();
+            if (!prompt) {
+                return "Please provide a prompt after the command, sir.";
+            }
+            
+            // Use GPT-5 Nano specifically
+            const gpt5Provider = aiManager.providers.find(p => p.type === "gpt5-nano");
+            if (!gpt5Provider) {
+                return "GPT-5 Nano not available, sir.";
+            }
+            
+            try {
+                const response = await gpt5Provider.client.chat.completions.create({
+                    model: gpt5Provider.model,
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: prompt }
+                    ],
+                    max_completion_tokens: 1000,
+                    temperature: 1,
+                    reasoning_effort: "minimal",
+                });
+                
+                const content = response.choices?.[0]?.message?.content;
+                if (!content) {
+                    return "No response from GPT-5 Nano, sir.";
+                }
+                
+                return `[GPT-5 Nano] ${content}`;
+            } catch (error) {
+                return `GPT-5 Nano error: ${error.message}`;
+            }
+        }
+
         if (cmd.startsWith("roll")) {
             const sides = parseInt(cmd.split(" ")[1]) || 6;
             if (sides < 1) return "Sides must be at least 1, sir.";
