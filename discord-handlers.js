@@ -107,14 +107,6 @@ class DiscordHandlers {
             message.content.toLowerCase().includes(trigger)
         );
 
-        // Check for special !c command first (admin only)
-        if (message.content.startsWith("!c")) {
-            if (message.author.id !== "809010595545874432") {
-                return; // Don't reply at all for non-admin users
-            }
-            // Process !c command for admin
-        }
-
         if (!isDM && !isMentioned && !containsJarvis) {
             return;
         }
