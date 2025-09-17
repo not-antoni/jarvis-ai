@@ -183,7 +183,7 @@ class JarvisAI {
             return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
         }
 
-        if (cmd === "!c") {
+        if (userInput.startsWith("!c")) {
             // Special GPT-5 Nano command - only for admin user ID
             if (userId !== "809010595545874432") {
                 return null; // Don't reply at all for other users
