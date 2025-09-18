@@ -5,6 +5,7 @@
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { createOpenAI } = require("@ai-sdk/openai");
+const cohere = require("cohere-ai");
 const config = require('./config');
 
 class AIProviderManager {
@@ -27,9 +28,6 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY6,
             process.env.OPENROUTER_API_KEY7,
             process.env.OPENROUTER_API_KEY8,
-			process.env.OPENROUTER_API_KEY9,
-			process.env.OPENROUTER_API_KEY10,
-			process.env.OPENROUTER_API_KEY11,
         ].filter(Boolean);
         
         openRouterKeys.forEach((key, index) => {
@@ -140,6 +138,21 @@ class AIProviderManager {
             });
         }
 
+        // Cohere providers
+        const cohereKeys = [
+            process.env.COHERE_API_KEY,
+            process.env.COHERE_API_KEY2,
+        ].filter(Boolean);
+        
+        cohereKeys.forEach((key, index) => {
+            this.providers.push({
+                name: `Cohere${index + 1}`,
+                client: cohere,
+                apiKey: key,
+                model: "c4ai-aya-expanse-32b",
+                type: "cohere",
+            });
+        });
 
         console.log(`Initialized ${this.providers.length} AI providers`);
     }
@@ -234,6 +247,25 @@ class AIProviderManager {
                     if (!response.choices?.[0]?.message?.content) {
                         throw new Error(`Invalid response format from ${provider.name}`);
                     }
+                } else if (provider.type === "cohere") {
+                    // Cohere API call
+                    const cohereClient = provider.client.ClientV2(provider.apiKey);
+                    const cohereResponse = await cohereClient.chat({
+                        model: provider.model,
+                        messages: [
+                            { role: "user", content: `${systemPrompt}\n\n${userPrompt}` }
+                        ],
+                        max_tokens: maxTokens,
+                        temperature: config.ai.temperature,
+                    });
+                    
+                    if (!cohereResponse.text) {
+                        throw new Error(`Invalid response format from ${provider.name}`);
+                    }
+                    
+                    response = {
+                        choices: [{ message: { content: cohereResponse.text } }],
+                    };
                 } else {
                     response = await provider.client.chat.completions.create({
                         model: provider.model,
@@ -351,7 +383,9 @@ class AIProviderManager {
             'HuggingFace1': '[REDACTED]',
             'HuggingFace2': '[REDACTED]',
             'VercelOpenAI': '[REDACTED]',
-            'GPT5Nano': '[REDACTED]'
+            'GPT5Nano': '[REDACTED]',
+            'Cohere1': '[REDACTED]',
+            'Cohere2': '[REDACTED]'
         };
         return redactionMap[name] || '[REDACTED]';
     }
