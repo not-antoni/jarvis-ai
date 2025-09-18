@@ -192,23 +192,6 @@ class DiscordHandlers {
             .replace(/<@!?\d+>/g, "") // strip mentions only
             .trim();
 
-        // Handle image attachments
-        if (message.attachments && message.attachments.size > 0) {
-            const imageAttachments = message.attachments.filter(attachment => 
-                attachment.contentType && attachment.contentType.startsWith('image/')
-            );
-            
-            if (imageAttachments.size > 0) {
-                // Add image URLs to the content
-                const imageUrls = imageAttachments.map(attachment => attachment.url);
-                if (cleanContent) {
-                    cleanContent += '\n\n' + imageUrls.join('\n');
-                } else {
-                    cleanContent = imageUrls.join('\n');
-                }
-            }
-        }
-
         // If content is empty, treat as a greeting
         if (!cleanContent) {
             cleanContent = "jarvis";
