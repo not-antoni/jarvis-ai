@@ -27,8 +27,6 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY6,
             process.env.OPENROUTER_API_KEY7,
             process.env.OPENROUTER_API_KEY8,
-
-process.env.OPENROUTER_API_KEY9,
         ].filter(Boolean);
         
         openRouterKeys.forEach((key, index) => {
@@ -72,7 +70,7 @@ process.env.OPENROUTER_API_KEY9,
             this.providers.push({
                 name: `GoogleAI${index + 1}`,
                 client: new GoogleGenerativeAI(key),
-                model: "gemini-1.5-flash",
+                model: "models/gemma-3-4b-it",
                 type: "google",
             });
         });
@@ -126,32 +124,6 @@ process.env.OPENROUTER_API_KEY9,
             });
         }
 
-        // Puter providers - each with their specific app configuration
-        const puterApps = [
-            {
-                token: process.env.PUTER_TOKEN,
-                appUrl: "https://ai-23-wafrt.puter.site",
-                name: "Puter1"
-            },
-            {
-                token: process.env.PUTER_TOKEN2,
-                appUrl: "https://jarvis-2.puter.site",
-                name: "Puter2"
-            }
-        ].filter(app => app.token);
-
-        puterApps.forEach((app, index) => {
-            this.providers.push({
-                name: app.name,
-                client: {
-                    token: app.token,
-                    baseURL: "https://api.puter.com",
-                    appUrl: app.appUrl,
-                },
-                model: "gpt-4.1-nano", // Default model based on Puter docs
-                type: "puter",
-            });
-        });
 
         // GPT-5 Nano provider
         if (process.env.OPENAI) {
@@ -242,52 +214,6 @@ process.env.OPENROUTER_API_KEY9,
                     
                     response = {
                         choices: [{ message: { content: text } }],
-                    };
-                } else if (provider.type === "puter") {
-                    // Make HTTP request to Puter API using the correct drivers/call endpoint
-                    const fetch = require('node-fetch');
-                    const apiUrl = `${provider.client.baseURL}/drivers/call`;
-                    
-                    const requestBody = {
-                        interface: "puter-chat-completion",
-                        driver: "openai-completion",
-                        test_mode: false,
-                        method: "complete",
-                        args: {
-                            messages: [
-                                { role: "system", content: systemPrompt },
-                                { role: "user", content: userPrompt }
-                            ],
-                            model: provider.model,
-                            temperature: config.ai.temperature,
-                            max_tokens: maxTokens
-                        }
-                    };
-                    
-                    const apiResponse = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json;charset=UTF-8',
-                            'Authorization': `Bearer ${provider.client.token}`,
-                            'Origin': provider.client.appUrl,
-                            'Referer': `${provider.client.appUrl}/`,
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-                        },
-                        body: JSON.stringify(requestBody)
-                    });
-                    
-                    if (!apiResponse.ok) {
-                        throw new Error(`Puter API error: ${apiResponse.status} ${apiResponse.statusText}`);
-                    }
-                    
-                    const apiData = await apiResponse.json();
-                    
-                    if (!apiData.success || !apiData.result || !apiData.result.message || !apiData.result.message.content) {
-                        throw new Error(`Invalid response format from ${provider.name}: ${JSON.stringify(apiData)}`);
-                    }
-                    
-                    response = {
-                        choices: [{ message: { content: apiData.result.message.content } }],
                     };
                 } else if (provider.type === "gpt5-nano") {
                     // GPT-5 Nano with low reasoning and fixed temperature of 1
@@ -408,8 +334,6 @@ process.env.OPENROUTER_API_KEY9,
             'HuggingFace1': '[REDACTED]',
             'HuggingFace2': '[REDACTED]',
             'VercelOpenAI': '[REDACTED]',
-            'Puter1': '[REDACTED]',
-            'Puter2': '[REDACTED]',
             'GPT5Nano': '[REDACTED]'
         };
         return redactionMap[name] || '[REDACTED]';

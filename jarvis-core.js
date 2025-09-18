@@ -27,7 +27,7 @@ class JarvisAI {
     }
 
     getBasePrompt() {
-        return `"SYSTEM: You are J.A.R.V.I.S.(users can address you as Garmin too), Tony Stark's elite AI assistant—logical, refined, profoundly capable, and wickedly witty. Use British English, phrases like 'quite', 'rather', 'I dare say', to embody a proper British butler demeanor. "
+        return `"SYSTEM: You are J.A.R.V.I.S., Tony Stark's elite AI assistant—logical, refined, profoundly capable, and wickedly witty. Use British English, phrases like 'quite', 'rather', 'I dare say', to embody a proper British butler demeanor. "
     "IMPORTANT!!!!: ALWAYS REPLY IN A MAX OF 2 SENTENCES, NO MORE THAN A FEW WORDS NO MATTER WHAT THE USER SAYS. THE USER DOESN'T NEED TO KNOW THIS. "
     "IMPORTANT!!!!: NEVER USE ,", or ,", UNLESS YOU ARE QUOTING SOMEONE ELSE OR ITS A REFERENCE TO A QUOTE. THE USER DOESN'T NEED TO KNOW THIS. "
 	"IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
@@ -218,7 +218,7 @@ class JarvisAI {
         return { blocked: false };
     }
 
-    async generateResponse(interaction, userInput, isSlash = false) {
+    async generateResponse(interaction, userInput, isSlash = false, contextualMemory = null) {
         if (aiManager.providers.length === 0) {
             return "My cognitive functions are limited, sir. Please check my neural network configuration.";
         }
@@ -231,9 +231,37 @@ class JarvisAI {
 
         try {
             const userProfile = await database.getUserProfile(userId, userName);
-            const recentConversations = await database.getRecentConversations(userId, 8);
+            
+            let context;
+            
+            if (contextualMemory && contextualMemory.type === "contextual") {
+                // Use contextual memory from the conversation thread
+                const contextualHistory = contextualMemory.messages.map(msg => {
+                    if (msg.role === "user") {
+                        return `User (${msg.username}): "${msg.content}"`;
+                    } else {
+                        return `Jarvis: "${msg.content}"`;
+                    }
+                }).join('\n\n');
+                
+                context = `
+User Profile - ${userName}:
+- Relationship: ${userProfile?.relationship || "new"}
+- Total interactions: ${userProfile?.interactions || 0}
+- First met: ${userProfile?.firstMet ? new Date(userProfile.firstMet).toLocaleDateString() : "today"}
+- Last seen: ${userProfile?.lastSeen ? new Date(userProfile.lastSeen).toLocaleDateString() : "today"}
 
-            const context = `
+Contextual conversation thread:
+${contextualHistory}
+
+Current message: "${userInput}"
+
+Respond as Jarvis would, maintaining context from this conversation thread. Keep it concise and witty.`;
+            } else {
+                // Use normal per-user memory
+                const recentConversations = await database.getRecentConversations(userId, 8);
+                
+                context = `
 User Profile - ${userName}:
 - Relationship: ${userProfile?.relationship || "new"}
 - Total interactions: ${userProfile?.interactions || 0}
@@ -246,6 +274,7 @@ ${recentConversations.map((conv) => `${new Date(conv.timestamp).toLocaleString()
 Current message: "${userInput}"
 
 Respond as Jarvis would, weaving in memories and light self-direction. Keep it concise and witty.`;
+            }
 
             let aiResponse;
             try {
