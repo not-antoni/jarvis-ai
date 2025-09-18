@@ -34,6 +34,66 @@ class DiscordHandlers {
         this.userCooldowns.set(userId, Date.now());
     }
 
+    async getContextualMemory(message, client) {
+        try {
+            // Get recent messages in the channel to build context
+            const messages = await message.channel.messages.fetch({ limit: 20 });
+            const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+            
+            // Find the conversation thread starting from the referenced Jarvis message
+            const referencedMessageId = message.reference.messageId;
+            let conversationStart = -1;
+            
+            for (let i = 0; i < sortedMessages.size; i++) {
+                const msg = Array.from(sortedMessages.values())[i];
+                if (msg.id === referencedMessageId) {
+                    conversationStart = i;
+                    break;
+                }
+            }
+            
+            if (conversationStart === -1) {
+                return null; // Couldn't find the referenced message
+            }
+            
+            // Build contextual conversation from the thread
+            const contextualMessages = [];
+            const threadMessages = Array.from(sortedMessages.values()).slice(conversationStart);
+            
+            for (const msg of threadMessages) {
+                if (msg.author.bot && msg.author.id === client.user.id) {
+                    // This is a Jarvis message
+                    contextualMessages.push({
+                        role: "assistant",
+                        content: msg.content,
+                        timestamp: msg.createdTimestamp
+                    });
+                } else if (!msg.author.bot) {
+                    // This is a user message
+                    contextualMessages.push({
+                        role: "user",
+                        content: msg.content,
+                        username: msg.author.username,
+                        timestamp: msg.createdTimestamp
+                    });
+                }
+            }
+            
+            // Limit to last 10 messages to avoid token limits
+            const recentContext = contextualMessages.slice(-10);
+            
+            return {
+                type: "contextual",
+                messages: recentContext,
+                threadStart: referencedMessageId
+            };
+            
+        } catch (error) {
+            console.warn("Failed to build contextual memory:", error);
+            return null;
+        }
+    }
+
     async handleMessage(message, client) {
         if (message.author.id === client.user.id || message.author.bot) return;
 
@@ -106,8 +166,25 @@ class DiscordHandlers {
         const containsJarvis = config.wakeWords.some(trigger =>
             message.content.toLowerCase().includes(trigger)
         );
+        
+        // Check if this is a reply to a Jarvis message
+        let isReplyToJarvis = false;
+        let contextualMemory = null;
+        
+        if (message.reference && message.reference.messageId) {
+            try {
+                const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
+                if (referencedMessage.author.id === client.user.id) {
+                    isReplyToJarvis = true;
+                    // Get contextual memory from the conversation thread
+                    contextualMemory = await this.getContextualMemory(message, client);
+                }
+            } catch (error) {
+                console.warn("Failed to fetch referenced message:", error);
+            }
+        }
 
-        if (!isDM && !isMentioned && !containsJarvis) {
+        if (!isDM && !isMentioned && !containsJarvis && !isReplyToJarvis) {
             return;
         }
 
@@ -179,8 +256,8 @@ class DiscordHandlers {
                 return;
             }
 
-            // Generate AI response
-            const response = await this.jarvis.generateResponse(message, cleanContent);
+            // Generate AI response with contextual memory if replying to Jarvis
+            const response = await this.jarvis.generateResponse(message, cleanContent, false, contextualMemory);
             
             if (typeof response === "string" && response.trim()) {
                 await message.reply(response);
