@@ -36,7 +36,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://openrouter.ai/api/v1",
                 }),
-                model: "deepseek/deepseek-chat-v3.1:free",
+                model: "openrouter/sonoma-sky-alpha",
                 type: "openai-chat",
             });
         });
