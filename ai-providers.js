@@ -7,13 +7,6 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { createOpenAI } = require("@ai-sdk/openai");
 const config = require('./config');
 
-// Helper function to extract image URLs from text
-function extractImageUrls(text) {
-    const urlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
-    const matches = text.match(urlRegex) || [];
-    return matches.map(url => url.trim());
-}
-
 class AIProviderManager {
     constructor() {
         this.providers = [];
@@ -77,7 +70,7 @@ class AIProviderManager {
             this.providers.push({
                 name: `GoogleAI${index + 1}`,
                 client: new GoogleGenerativeAI(key),
-                model: "models/gemma-3-4b-it",
+                model: "models/gemma-3-12b-it",
                 type: "google",
             });
         });
@@ -239,52 +232,15 @@ class AIProviderManager {
                         throw new Error(`Invalid response format from ${provider.name}`);
                     }
                 } else {
-                    // Check if userPrompt contains image URLs
-                    const imageUrls = extractImageUrls(userPrompt);
-                    let messages;
-                    
-                    if (imageUrls.length > 0) {
-                        // Handle image + text messages
-                        const content = [
-                            { type: "text", text: userPrompt }
-                        ];
-                        
-                        // Add image URLs to content
-                        imageUrls.forEach(url => {
-                            content.push({
-                                type: "image_url",
-                                image_url: { url: url }
-                            });
-                        });
-                        
-                        messages = [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: content }
-                        ];
-                    } else {
-                        // Regular text-only messages
-                        messages = [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt }
-                        ];
-                    }
-                    
-                    const requestOptions = {
+                    response = await provider.client.chat.completions.create({
                         model: provider.model,
-                        messages: messages,
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt },
+                        ],
                         max_tokens: maxTokens,
                         temperature: config.ai.temperature,
-                    };
-                    
-                    // Add OpenRouter-specific headers for image recognition
-                    if (provider.name.includes('OpenRouter')) {
-                        requestOptions.extra_headers = {
-                            "HTTP-Referer": "https://jarvis-ai-27y2.onrender.com", // Your actual site URL
-                            "X-Title": "Jarvis AI Bot" // Your site name
-                        };
-                    }
-                    
-                    response = await provider.client.chat.completions.create(requestOptions);
+                    });
                     
                     // More robust response validation
                     if (!response || !response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
