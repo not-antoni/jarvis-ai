@@ -242,8 +242,22 @@ class AIProviderManager {
                         temperature: config.ai.temperature,
                     });
                     
-                    if (!response.choices?.[0]?.message?.content) {
-                        throw new Error(`Invalid response format from ${provider.name}`);
+                    // More robust response validation
+                    if (!response || !response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
+                        console.error(`Debug - ${provider.name} invalid response structure:`, JSON.stringify(response, null, 2));
+                        throw new Error(`Invalid response format from ${provider.name} - no choices array`);
+                    }
+                    
+                    const choice = response.choices[0];
+                    if (!choice || !choice.message || typeof choice.message.content !== 'string') {
+                        console.error(`Debug - ${provider.name} invalid choice structure:`, JSON.stringify(choice, null, 2));
+                        throw new Error(`Invalid response format from ${provider.name} - no message content`);
+                    }
+                    
+                    // Check if content is empty or just whitespace
+                    if (!choice.message.content.trim()) {
+                        console.error(`Debug - ${provider.name} empty content:`, JSON.stringify(choice, null, 2));
+                        throw new Error(`Empty response content from ${provider.name}`);
                     }
                 }
                 
