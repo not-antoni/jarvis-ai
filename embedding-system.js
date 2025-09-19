@@ -9,6 +9,12 @@ const OpenAI = require('openai');
 
 class EmbeddingSystem {
     constructor() {
+        if (!process.env.OPENAI) {
+            console.error('OPENAI environment variable not set. Embedding system will not work.');
+            this.isLoaded = false;
+            return;
+        }
+        
         this.openai = new OpenAI({
             apiKey: process.env.OPENAI,
         });
@@ -81,7 +87,7 @@ class EmbeddingSystem {
 
     async search(query, topK = 3) {
         if (!this.isLoaded) {
-            return { error: 'Embedding system not loaded' };
+            return { error: 'Embedding system not loaded - check OPENAI environment variable' };
         }
 
         try {

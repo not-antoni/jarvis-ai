@@ -54,7 +54,7 @@ const config = {
 };
 
 // Validation
-const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_PW'];
+const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_PW', 'OPENAI'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
