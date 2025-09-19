@@ -50,7 +50,7 @@ class EmbeddingSystem {
             const batchSize = 10;
             for (let i = 0; i < this.data.length; i += batchSize) {
                 const batch = this.data.slice(i, i + batchSize);
-                const texts = batch.map(item => item.text);
+                const texts = batch.map(item => item.content);
                 
                 const response = await this.openai.embeddings.create({
                     model: "text-embedding-3-large", // More powerful embedding model
@@ -61,8 +61,8 @@ class EmbeddingSystem {
                 batch.forEach((item, index) => {
                     this.embeddings.push({
                         embedding: response.data[index].embedding,
-                        text: item.text,
-                        metadata: item.metadata,
+                        text: item.content,
+                        metadata: { title: item.title },
                         index: i + index
                     });
                 });
