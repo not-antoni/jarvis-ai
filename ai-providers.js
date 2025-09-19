@@ -34,6 +34,11 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY9,
             process.env.OPENROUTER_API_KEY10,
             process.env.OPENROUTER_API_KEY11,
+            process.env.OPENROUTER_API_KEY12,
+            process.env.OPENROUTER_API_KEY13,
+            process.env.OPENROUTER_API_KEY14,
+            process.env.OPENROUTER_API_KEY15,
+            process.env.OPENROUTER_API_KEY16,
         ].filter(Boolean);
         
         openRouterKeys.forEach((key, index) => {
@@ -532,6 +537,11 @@ class AIProviderManager {
             'OpenRouter9': '[REDACTED]',
             'OpenRouter10': '[REDACTED]',
             'OpenRouter11': '[REDACTED]',
+            'OpenRouter12': '[REDACTED]',
+            'OpenRouter13': '[REDACTED]',
+            'OpenRouter14': '[REDACTED]',
+            'OpenRouter15': '[REDACTED]',
+            'OpenRouter16': '[REDACTED]',
             'Groq1': '[REDACTED]',
             'Groq2': '[REDACTED]',
             'Groq3': '[REDACTED]',
