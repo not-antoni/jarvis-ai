@@ -15,6 +15,8 @@ class AIProviderManager {
         this.metrics = new Map();
         this.disabledProviders = new Map();
         this.useRandomSelection = true; // Default to random selection
+        this.openRouterGlobalFailure = false; // Track if OpenRouter is globally failing
+        this.openRouterFailureCount = 0; // Count consecutive OpenRouter failures
         this.setupProviders();
     }
 
@@ -111,19 +113,18 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://router.huggingface.co/v1",
                 }),
-                model: "google/gemma-3-12b-it",
+                model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
                 type: "openai-chat",
             });
         });
 
         // Vercel AI SDK OpenAI provider
         if (process.env.OPENAI_API_KEY) {
-            const vercelOpenAI = createOpenAI({
-                apiKey: process.env.OPENAI_API_KEY,
-            });
             this.providers.push({
                 name: "VercelOpenAI",
-                client: vercelOpenAI,
+                client: new OpenAI({
+                    apiKey: process.env.OPENAI_API_KEY,
+                }),
                 model: "gpt-4o-mini",
                 type: "openai-chat",
             });
@@ -167,7 +168,14 @@ class AIProviderManager {
         return [...this.providers]
             .filter((p) => {
                 const disabledUntil = this.disabledProviders.get(p.name);
-                return !disabledUntil || disabledUntil <= now;
+                const isDisabled = disabledUntil && disabledUntil > now;
+                
+                // Skip OpenRouter providers if there's a global failure
+                if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {
+                    return false;
+                }
+                
+                return !isDisabled;
             })
             .sort((a, b) => {
                 const ma = this.metrics.get(a.name) || {
@@ -196,7 +204,14 @@ class AIProviderManager {
         const now = Date.now();
         const availableProviders = this.providers.filter((p) => {
             const disabledUntil = this.disabledProviders.get(p.name);
-            return !disabledUntil || disabledUntil <= now;
+            const isDisabled = disabledUntil && disabledUntil > now;
+            
+            // Skip OpenRouter providers if there's a global failure
+            if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {
+                return false;
+            }
+            
+            return !isDisabled;
         });
         
         if (availableProviders.length === 0) {
@@ -209,7 +224,7 @@ class AIProviderManager {
     }
 
     async _retryOpenRouterRequest(provider, systemPrompt, userPrompt, maxTokens, retryCount = 0) {
-        const maxRetries = 2;
+        const maxRetries = 1; // Reduced from 2 to 1 for faster fallback
         
         try {
             const baseParams = {
@@ -244,7 +259,7 @@ class AIProviderManager {
             if (retryCount < maxRetries && error.message.includes('Empty response content')) {
                 console.log(`OpenRouter retry ${retryCount + 1}/${maxRetries} for ${provider.name} - ${error.message}`);
                 // Add a small delay before retry
-                await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
+                await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay
                 return this._retryOpenRouterRequest(provider, systemPrompt, userPrompt, maxTokens, retryCount + 1);
             }
             console.log(`OpenRouter ${provider.name} failed after ${retryCount + 1} attempts: ${error.message}`);
@@ -302,7 +317,12 @@ class AIProviderManager {
                     const model = provider.client.getGenerativeModel({
                         model: provider.model,
                     });
-                    const result = await model.generateContent(userPrompt);
+                    const result = await model.generateContent({
+                        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+                        generationConfig: {
+                            reasoning_effort: "none"
+                        }
+                    });
                     const text = result.response?.text?.();
                     
                     if (!text || typeof text !== "string") {
@@ -393,6 +413,12 @@ class AIProviderManager {
                 this.providerErrors.delete(provider.name);
                 const latency = Date.now() - started;
                 this._recordMetric(provider.name, true, latency);
+                
+                // Reset OpenRouter failure counter on success
+                if (provider.name.startsWith('OpenRouter')) {
+                    this.openRouterFailureCount = 0;
+                }
+                
                 console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
                 
                 return {
@@ -418,7 +444,22 @@ class AIProviderManager {
                     );
                     console.log(`${provider.name} disabled for 5 hours`);
                 } else if (error.message.includes("Empty response content") && provider.name.startsWith('OpenRouter')) {
-                    // Temporarily disable OpenRouter providers that consistently return empty responses
+                    // Track OpenRouter failures
+                    this.openRouterFailureCount++;
+                    
+                    // If 3+ OpenRouter providers fail with empty responses, disable all OpenRouter
+                    if (this.openRouterFailureCount >= 3) {
+                        this.openRouterGlobalFailure = true;
+                        console.log(`OpenRouter global failure detected - disabling all OpenRouter providers for 5 minutes`);
+                        // Reset the counter and set a timer to re-enable
+                        this.openRouterFailureCount = 0;
+                        setTimeout(() => {
+                            this.openRouterGlobalFailure = false;
+                            console.log(`OpenRouter global failure cleared - re-enabling OpenRouter providers`);
+                        }, 5 * 60 * 1000); // 5 minutes
+                    }
+                    
+                    // Temporarily disable this specific OpenRouter provider
                     this.disabledProviders.set(
                         provider.name,
                         Date.now() + 2 * 60 * 1000, // 2 minutes
