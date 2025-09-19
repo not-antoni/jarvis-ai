@@ -10,7 +10,7 @@ const OpenAI = require('openai');
 class EmbeddingSystem {
     constructor() {
         this.openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
+            apiKey: process.env.OPENAI,
         });
         this.embeddings = [];
         this.data = [];
