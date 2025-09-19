@@ -141,13 +141,24 @@ class EmbeddingSystem {
 
         console.log(`Found ${searchResult.results.length} results for: "${query}"`);
         
-        // Format the results for Jarvis
+        // Format the results for Jarvis with length limits
         let formattedResults = `Found ${searchResult.results.length} relevant entries from the knowledge base:\n\n`;
         
         searchResult.results.forEach((result, index) => {
+            // Truncate text to prevent Discord message limits (2000 char max)
+            const maxTextLength = 400; // Leave room for formatting
+            const truncatedText = result.text.length > maxTextLength 
+                ? result.text.substring(0, maxTextLength) + "..."
+                : result.text;
+                
             formattedResults += `**Entry ${index + 1}: ${result.metadata.title}** (relevance: ${(result.similarity * 100).toFixed(1)}%)\n`;
-            formattedResults += `${result.text}\n\n`;
+            formattedResults += `${truncatedText}\n\n`;
         });
+
+        // Ensure total length doesn't exceed Discord's 2000 character limit
+        if (formattedResults.length > 1900) {
+            formattedResults = formattedResults.substring(0, 1900) + "...";
+        }
 
         return formattedResults;
     }
