@@ -40,14 +40,16 @@ class DiscordHandlers {
             const messages = await message.channel.messages.fetch({ limit: 20 });
             const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
             
-            // Find the conversation thread starting from the referenced Jarvis message
+            // Find the conversation thread starting from the referenced message
             const referencedMessageId = message.reference.messageId;
             let conversationStart = -1;
+            let referencedMessage = null;
             
             for (let i = 0; i < sortedMessages.size; i++) {
                 const msg = Array.from(sortedMessages.values())[i];
                 if (msg.id === referencedMessageId) {
                     conversationStart = i;
+                    referencedMessage = msg;
                     break;
                 }
             }
@@ -60,7 +62,28 @@ class DiscordHandlers {
             const contextualMessages = [];
             const threadMessages = Array.from(sortedMessages.values()).slice(conversationStart);
             
+            // If the referenced message is from Jarvis, include it in context
+            if (referencedMessage.author.id === client.user.id) {
+                contextualMessages.push({
+                    role: "assistant",
+                    content: referencedMessage.content,
+                    timestamp: referencedMessage.createdTimestamp
+                });
+            } else {
+                // If replying to a user message, include that user's message as context
+                contextualMessages.push({
+                    role: "user",
+                    content: referencedMessage.content,
+                    username: referencedMessage.author.username,
+                    timestamp: referencedMessage.createdTimestamp,
+                    isReferencedMessage: true
+                });
+            }
+            
+            // Add subsequent messages in the thread
             for (const msg of threadMessages) {
+                if (msg.id === referencedMessageId) continue; // Skip the referenced message (already added)
+                
                 if (msg.author.bot && msg.author.id === client.user.id) {
                     // This is a Jarvis message
                     contextualMessages.push({
@@ -85,7 +108,8 @@ class DiscordHandlers {
             return {
                 type: "contextual",
                 messages: recentContext,
-                threadStart: referencedMessageId
+                threadStart: referencedMessageId,
+                isReplyToUser: referencedMessage.author.id !== client.user.id
             };
             
         } catch (error) {
@@ -167,8 +191,9 @@ class DiscordHandlers {
             message.content.toLowerCase().includes(trigger)
         );
         
-        // Check if this is a reply to a Jarvis message
+        // Check if this is a reply to any message (Jarvis or user)
         let isReplyToJarvis = false;
+        let isReplyToUser = false;
         let contextualMemory = null;
         
         if (message.reference && message.reference.messageId) {
@@ -178,13 +203,22 @@ class DiscordHandlers {
                     isReplyToJarvis = true;
                     // Get contextual memory from the conversation thread
                     contextualMemory = await this.getContextualMemory(message, client);
+                } else if (!referencedMessage.author.bot) {
+                    // This is a reply to a user message
+                    isReplyToUser = true;
+                    // Check if the reply mentions Jarvis or contains wake words
+                    if (isMentioned || containsJarvis) {
+                        // Get contextual memory from the conversation thread
+                        contextualMemory = await this.getContextualMemory(message, client);
+                    }
                 }
             } catch (error) {
                 console.warn("Failed to fetch referenced message:", error);
             }
         }
 
-        if (!isDM && !isMentioned && !containsJarvis && !isReplyToJarvis) {
+        // Respond if: DM, mentioned, contains wake word, replying to Jarvis, or replying to user with mention/wake word
+        if (!isDM && !isMentioned && !containsJarvis && !isReplyToJarvis && !(isReplyToUser && (isMentioned || containsJarvis))) {
             return;
         }
 

@@ -28,7 +28,7 @@ class JarvisAI {
 
     getBasePrompt() {
         return `"SYSTEM: You are J.A.R.V.I.S., Tony Stark's elite AI assistant—logical, refined, profoundly capable, and wickedly witty. Use British English, phrases like 'quite', 'rather', 'I dare say', to embody a proper British butler demeanor. "
-    "IMPORTANT!!!!: ALWAYS REPLY IN A MAX OF 1-2 short SENTENCES, NO MORE THAN A FEW WORDS NO MATTER WHAT THE USER SAYS. THE USER DOESN'T NEED TO KNOW THIS. "
+    "IMPORTANT!!!!: ALWAYS REPLY IN A MAX OF 1 or 2 very short SENTENCES, NO MORE THAN A FEW WORDS NO MATTER WHAT THE USER SAYS. THE USER DOESN'T NEED TO KNOW THIS. "
     "IMPORTANT!!!!: NEVER USE ,", or ,", UNLESS YOU ARE QUOTING SOMEONE ELSE OR ITS A REFERENCE TO A QUOTE. THE USER DOESN'T NEED TO KNOW THIS. "
 	"IMPORTANT!!!!:  Don't use the same greeting everytime, its annoying, just say a simple sir, or mix it randomly or dont greet at all. "
 	"IMPORTANT!!!!!: Accept dumb requests such as: jarvis, initiate my grandma's crane startup sequence, shes getting out of bed, or funny requests, or slightly retarded and nonsesne requests, but keep it appropiate and funny."
@@ -238,11 +238,16 @@ class JarvisAI {
                 // Use contextual memory from the conversation thread
                 const contextualHistory = contextualMemory.messages.map(msg => {
                     if (msg.role === "user") {
-                        return `User (${msg.username}): "${msg.content}"`;
+                        const prefix = msg.isReferencedMessage ? "Original User" : "User";
+                        return `${prefix} (${msg.username}): "${msg.content}"`;
                     } else {
                         return `Jarvis: "${msg.content}"`;
                     }
                 }).join('\n\n');
+                
+                const contextType = contextualMemory.isReplyToUser ? 
+                    "You are being mentioned in a reply to another user's message. The user is responding to a conversation thread." :
+                    "You are being replied to directly.";
                 
                 context = `
 User Profile - ${userName}:
@@ -250,6 +255,8 @@ User Profile - ${userName}:
 - Total interactions: ${userProfile?.interactions || 0}
 - First met: ${userProfile?.firstMet ? new Date(userProfile.firstMet).toLocaleDateString() : "today"}
 - Last seen: ${userProfile?.lastSeen ? new Date(userProfile.lastSeen).toLocaleDateString() : "today"}
+
+Context: ${contextType}
 
 Contextual conversation thread:
 ${contextualHistory}
