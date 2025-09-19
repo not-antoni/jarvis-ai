@@ -95,7 +95,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://api.mistral.ai/v1",
                 }),
-                model: "open-mixtral-8x22b",
+                model: "mistral-medium-2508",
                 type: "openai-chat",
             });
         });
