@@ -208,6 +208,50 @@ class AIProviderManager {
         return availableProviders[randomIndex];
     }
 
+    async _retryOpenRouterRequest(provider, systemPrompt, userPrompt, maxTokens, retryCount = 0) {
+        const maxRetries = 2;
+        
+        try {
+            const baseParams = {
+                model: provider.model,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt },
+                ],
+                max_tokens: maxTokens,
+                temperature: config.ai.temperature,
+            };
+
+            const response = await provider.client.chat.completions.create(baseParams);
+            
+            // Validate response
+            if (!response || !response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
+                throw new Error(`Invalid response structure from ${provider.name}`);
+            }
+            
+            const choice = response.choices[0];
+            if (!choice || !choice.message || typeof choice.message.content !== 'string') {
+                throw new Error(`Invalid choice structure from ${provider.name}`);
+            }
+            
+            if (!choice.message.content.trim()) {
+                throw new Error(`Empty response content from ${provider.name}`);
+            }
+            
+            return response;
+            
+        } catch (error) {
+            if (retryCount < maxRetries && error.message.includes('Empty response content')) {
+                console.log(`OpenRouter retry ${retryCount + 1}/${maxRetries} for ${provider.name} - ${error.message}`);
+                // Add a small delay before retry
+                await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
+                return this._retryOpenRouterRequest(provider, systemPrompt, userPrompt, maxTokens, retryCount + 1);
+            }
+            console.log(`OpenRouter ${provider.name} failed after ${retryCount + 1} attempts: ${error.message}`);
+            throw error;
+        }
+    }
+
     _recordMetric(name, ok, latencyMs) {
         const m = this.metrics.get(name) || {
             successes: 0,
@@ -304,40 +348,45 @@ class AIProviderManager {
                         choices: [{ message: { content: cohereResponse.text } }],
                     };
                 } else {
-                    // Prepare base parameters
-                    const baseParams = {
-                        model: provider.model,
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt },
-                        ],
-                        max_tokens: maxTokens,
-                        temperature: config.ai.temperature,
-                    };
+                    // Use retry logic for OpenRouter providers
+                    if (provider.name.startsWith('OpenRouter')) {
+                        response = await this._retryOpenRouterRequest(provider, systemPrompt, userPrompt, maxTokens);
+                    } else {
+                        // Prepare base parameters for other providers
+                        const baseParams = {
+                            model: provider.model,
+                            messages: [
+                                { role: "system", content: systemPrompt },
+                                { role: "user", content: userPrompt },
+                            ],
+                            max_tokens: maxTokens,
+                            temperature: config.ai.temperature,
+                        };
 
-                    // Add reasoning_effort for Groq providers
-                    if (provider.name.startsWith('Groq')) {
-                        baseParams.reasoning_effort = "none";
-                    }
+                        // Add reasoning_effort for Groq providers
+                        if (provider.name.startsWith('Groq')) {
+                            baseParams.reasoning_effort = "none";
+                        }
 
-                    response = await provider.client.chat.completions.create(baseParams);
-                    
-                    // More robust response validation
-                    if (!response || !response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
-                        console.error(`Debug - ${provider.name} invalid response structure:`, JSON.stringify(response, null, 2));
-                        throw new Error(`Invalid response format from ${provider.name} - no choices array`);
-                    }
-                    
-                    const choice = response.choices[0];
-                    if (!choice || !choice.message || typeof choice.message.content !== 'string') {
-                        console.error(`Debug - ${provider.name} invalid choice structure:`, JSON.stringify(choice, null, 2));
-                        throw new Error(`Invalid response format from ${provider.name} - no message content`);
-                    }
-                    
-                    // Check if content is empty or just whitespace
-                    if (!choice.message.content.trim()) {
-                        console.error(`Debug - ${provider.name} empty content:`, JSON.stringify(choice, null, 2));
-                        throw new Error(`Empty response content from ${provider.name}`);
+                        response = await provider.client.chat.completions.create(baseParams);
+                        
+                        // More robust response validation
+                        if (!response || !response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
+                            console.error(`Debug - ${provider.name} invalid response structure:`, JSON.stringify(response, null, 2));
+                            throw new Error(`Invalid response format from ${provider.name} - no choices array`);
+                        }
+                        
+                        const choice = response.choices[0];
+                        if (!choice || !choice.message || typeof choice.message.content !== 'string') {
+                            console.error(`Debug - ${provider.name} invalid choice structure:`, JSON.stringify(choice, null, 2));
+                            throw new Error(`Invalid response format from ${provider.name} - no message content`);
+                        }
+                        
+                        // Check if content is empty or just whitespace
+                        if (!choice.message.content.trim()) {
+                            console.error(`Debug - ${provider.name} empty content:`, JSON.stringify(choice, null, 2));
+                            throw new Error(`Empty response content from ${provider.name}`);
+                        }
                     }
                 }
                 
@@ -368,6 +417,13 @@ class AIProviderManager {
                         Date.now() + 5 * 60 * 60 * 1000,
                     );
                     console.log(`${provider.name} disabled for 5 hours`);
+                } else if (error.message.includes("Empty response content") && provider.name.startsWith('OpenRouter')) {
+                    // Temporarily disable OpenRouter providers that consistently return empty responses
+                    this.disabledProviders.set(
+                        provider.name,
+                        Date.now() + 2 * 60 * 1000, // 2 minutes
+                    );
+                    console.log(`${provider.name} temporarily disabled for 2 minutes due to empty responses`);
                 } else if (error.status === 429) {
                     console.log(`Rate limited by ${provider.name}, waiting ${backoff}ms`);
                     await new Promise((r) => setTimeout(r, backoff));
