@@ -5,7 +5,7 @@
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { createOpenAI } = require("@ai-sdk/openai");
-const cohere = require("cohere-ai");
+const { CohereClientV2 } = require("cohere-ai");
 const config = require('./config');
 
 class AIProviderManager {
@@ -150,9 +150,14 @@ class AIProviderManager {
         ].filter(Boolean);
         
         cohereKeys.forEach((key, index) => {
+            // Initialize Cohere client using the correct API
+            const cohereClient = new CohereClientV2({
+                token: key,
+            });
+            
             this.providers.push({
                 name: `Cohere${index + 1}`,
-                client: cohere.ClientV2(key),
+                client: cohereClient,
                 model: "c4ai-aya-expanse-32b",
                 type: "cohere",
             });
@@ -359,7 +364,7 @@ class AIProviderManager {
                         throw new Error(`Invalid response format from ${provider.name}`);
                     }
                 } else if (provider.type === "cohere") {
-                    // Cohere API call
+                    // Cohere API call using the correct v2 API
                     const cohereResponse = await provider.client.chat({
                         model: provider.model,
                         messages: [
