@@ -316,13 +316,24 @@ class AIProviderManager {
                 if (provider.type === "google") {
                     const model = provider.client.getGenerativeModel({
                         model: provider.model,
+                        generationConfig: {
+                            temperature: config.ai.temperature,
+                            maxOutputTokens: maxTokens,
+                        }
                     });
+                    
+                    // Try to disable thinking with thinkingBudget: 0
                     const result = await model.generateContent({
                         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
                         generationConfig: {
-                            reasoning_effort: "none"
+                            temperature: config.ai.temperature,
+                            maxOutputTokens: maxTokens,
+                            thinkingConfig: {
+                                thinkingBudget: 0
+                            }
                         }
                     });
+                    
                     const text = result.response?.text?.();
                     
                     if (!text || typeof text !== "string") {
