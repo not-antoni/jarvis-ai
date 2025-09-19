@@ -181,6 +181,29 @@ class DiscordHandlers {
             return true;
         }
         
+        if (content.startsWith("!t ")) {
+            console.log(`!t command detected: ${message.content}`);
+            try {
+                await message.channel.sendTyping();
+                const response = await this.jarvis.handleUtilityCommand(
+                    message.content.trim(),
+                    message.author.username,
+                    message.author.id
+                );
+                
+                console.log(`!t command response: ${response}`);
+                if (response) {
+                    await message.reply(response);
+                } else {
+                    await message.reply("Search system unavailable, sir. Technical difficulties.");
+                }
+            } catch (error) {
+                console.error("!t command error:", error);
+                await message.reply("Search failed, sir. Technical difficulties.");
+            }
+            return true;
+        }
+        
         return false;
     }
 

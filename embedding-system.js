@@ -120,16 +120,21 @@ class EmbeddingSystem {
     }
 
     async searchAndFormat(query, topK = 3) {
+        console.log(`Embedding search for: "${query}"`);
         const searchResult = await this.search(query, topK);
         
         if (searchResult.error) {
+            console.log(`Embedding search error: ${searchResult.error}`);
             return searchResult.error;
         }
 
         if (searchResult.results.length === 0) {
+            console.log(`No results found for: "${query}"`);
             return `No relevant information found for "${query}"`;
         }
 
+        console.log(`Found ${searchResult.results.length} results for: "${query}"`);
+        
         // Format the results for Jarvis
         let formattedResults = `Found ${searchResult.results.length} relevant entries from the knowledge base:\n\n`;
         
