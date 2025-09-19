@@ -50,6 +50,11 @@ const config = {
     // Admin Configuration
     admin: {
         userId: process.env.ADMIN_USER_ID || '809010595545874432'
+    },
+
+    // Command Restrictions
+    commands: {
+        whitelistedChannelId: process.env.WHITELISTED_CHANNEL_ID || '0' // Set to 0 initially - invalid channel ID
     }
 };
 
