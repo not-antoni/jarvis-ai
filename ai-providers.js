@@ -95,7 +95,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://api.mistral.ai/v1",
                 }),
-                model: "mistral-medium-2508",
+                model: "mistral-small-2503",
                 type: "openai-chat",
             });
         });
@@ -152,8 +152,7 @@ class AIProviderManager {
         cohereKeys.forEach((key, index) => {
             this.providers.push({
                 name: `Cohere${index + 1}`,
-                client: cohere,
-                apiKey: key,
+                client: cohere.ClientV2(key),
                 model: "c4ai-aya-expanse-32b",
                 type: "cohere",
             });
@@ -361,8 +360,7 @@ class AIProviderManager {
                     }
                 } else if (provider.type === "cohere") {
                     // Cohere API call
-                    const cohereClient = provider.client.ClientV2(provider.apiKey);
-                    const cohereResponse = await cohereClient.chat({
+                    const cohereResponse = await provider.client.chat({
                         model: provider.model,
                         messages: [
                             { role: "user", content: `${systemPrompt}\n\n${userPrompt}` }
