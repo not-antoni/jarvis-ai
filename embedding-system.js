@@ -47,7 +47,7 @@ class EmbeddingSystem {
                 const texts = batch.map(item => item.text);
                 
                 const response = await this.openai.embeddings.create({
-                    model: "text-embedding-3-small", // Cheap and good model
+                    model: "text-embedding-3-large", // More powerful embedding model
                     input: texts,
                 });
                 
@@ -87,7 +87,7 @@ class EmbeddingSystem {
         try {
             // Generate embedding for the query
             const response = await this.openai.embeddings.create({
-                model: "text-embedding-3-small",
+                model: "text-embedding-3-large",
                 input: query,
             });
 
