@@ -5,6 +5,7 @@
 const aiManager = require('./ai-providers');
 const database = require('./database');
 const config = require('./config');
+const embeddingSystem = require('./embedding-system');
 
 class JarvisAI {
     constructor() {
@@ -193,6 +194,19 @@ class JarvisAI {
                 : `Quite right, sir, you rolled a ${result}! 🎲`;
         }
 
+        if (cmd.startsWith("!t ")) {
+            const query = input.substring(3).trim(); // Remove "!t " prefix
+            if (!query) return "Please provide a search query, sir.";
+            
+            try {
+                const searchResults = await embeddingSystem.searchAndFormat(query, 3);
+                return searchResults;
+            } catch (error) {
+                console.error("Embedding search error:", error);
+                return "Search system unavailable, sir. Technical difficulties.";
+            }
+        }
+
         return null;
     }
 
@@ -232,6 +246,24 @@ class JarvisAI {
         try {
             const userProfile = await database.getUserProfile(userId, userName);
             
+            // Check if this is a !t command and get embedding context
+            let embeddingContext = "";
+            let processedInput = userInput;
+            
+            if (userInput.startsWith("!t ")) {
+                const query = userInput.substring(3).trim();
+                if (query) {
+                    try {
+                        const searchResults = await embeddingSystem.searchAndFormat(query, 3);
+                        embeddingContext = `\n\nKNOWLEDGE BASE SEARCH RESULTS (to help answer the user's question):\n${searchResults}\n\n`;
+                        processedInput = userInput; // Keep original input
+                    } catch (error) {
+                        console.error("Embedding search error in generateResponse:", error);
+                        embeddingContext = "\n\n[Knowledge base search failed - proceeding without context]\n\n";
+                    }
+                }
+            }
+            
             let context;
             
             if (contextualMemory && contextualMemory.type === "contextual") {
@@ -260,8 +292,10 @@ Context: ${contextType}
 
 Contextual conversation thread:
 ${contextualHistory}
+${embeddingContext}
+Current message: "${processedInput}"
 
-Current message: "${userInput}"
+${userInput.startsWith("!t ") ? "IMPORTANT: The user is asking a question and you have been provided with relevant information from the knowledge base above. Use this information to answer their question accurately and concisely." : ""}
 
 Respond as Jarvis would, maintaining context from this conversation thread. Keep it concise and witty.`;
             } else {
@@ -277,8 +311,10 @@ User Profile - ${userName}:
 
 Recent conversation history:
 ${recentConversations.map((conv) => `${new Date(conv.timestamp).toLocaleString()}: ${conv.userName}: ${conv.userMessage}\nJarvis: ${conv.jarvisResponse}`).join("\n")}
+${embeddingContext}
+Current message: "${processedInput}"
 
-Current message: "${userInput}"
+${userInput.startsWith("!t ") ? "IMPORTANT: The user is asking a question and you have been provided with relevant information from the knowledge base above. Use this information to answer their question accurately and concisely." : ""}
 
 Respond as Jarvis would, weaving in memories and light self-direction. Keep it concise and witty.`;
             }
@@ -323,7 +359,7 @@ Respond as Jarvis would, weaving in memories and light self-direction. Keep it c
             await database.saveConversation(
                 userId,
                 userName,
-                userInput,
+                userInput, // Save original input, not processed
                 jarvisResponse,
                 interaction.guild?.id,
             );
