@@ -125,7 +125,7 @@ class EmbeddingSystem {
         }
     }
 
-    async searchAndFormat(query, topK = 3) {
+    async searchAndFormat(query, topK = 1) {
         console.log(`Embedding search for: "${query}"`);
         const searchResult = await this.search(query, topK);
         
@@ -139,26 +139,20 @@ class EmbeddingSystem {
             return `No relevant information found for "${query}"`;
         }
 
-        console.log(`Found ${searchResult.results.length} results for: "${query}"`);
+        // Get only the best result (highest relevance)
+        const bestResult = searchResult.results[0];
+        console.log(`Found best result for: "${query}" - ${(bestResult.similarity * 100).toFixed(1)}% relevance`);
         
-        // Format the results for Jarvis with length limits
-        let formattedResults = `Found ${searchResult.results.length} relevant entries from the knowledge base:\n\n`;
+        // Format the single best result
+        let formattedResults = `**Best Match: ${bestResult.metadata.title}** (relevance: ${(bestResult.similarity * 100).toFixed(1)}%)\n\n`;
         
-        searchResult.results.forEach((result, index) => {
-            // Truncate text to prevent Discord message limits (2000 char max)
-            const maxTextLength = 400; // Leave room for formatting
-            const truncatedText = result.text.length > maxTextLength 
-                ? result.text.substring(0, maxTextLength) + "..."
-                : result.text;
-                
-            formattedResults += `**Entry ${index + 1}: ${result.metadata.title}** (relevance: ${(result.similarity * 100).toFixed(1)}%)\n`;
-            formattedResults += `${truncatedText}\n\n`;
-        });
-
-        // Ensure total length doesn't exceed Discord's 2000 character limit
-        if (formattedResults.length > 1900) {
-            formattedResults = formattedResults.substring(0, 1900) + "...";
-        }
+        // Truncate text to prevent Discord message limits (2000 char max)
+        const maxTextLength = 1500; // More space since we only have one result
+        const truncatedText = bestResult.text.length > maxTextLength 
+            ? bestResult.text.substring(0, maxTextLength) + "..."
+            : bestResult.text;
+            
+        formattedResults += truncatedText;
 
         return formattedResults;
     }
