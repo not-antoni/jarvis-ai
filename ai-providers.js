@@ -14,6 +14,7 @@ class AIProviderManager {
         this.providerErrors = new Map();
         this.metrics = new Map();
         this.disabledProviders = new Map();
+        this.useRandomSelection = true; // Default to random selection
         this.setupProviders();
     }
 
@@ -158,6 +159,7 @@ class AIProviderManager {
         });
 
         console.log(`Initialized ${this.providers.length} AI providers`);
+        console.log(`Provider selection mode: ${this.useRandomSelection ? 'Random' : 'Ranked'}`);
     }
 
     _rankedProviders() {
@@ -190,6 +192,22 @@ class AIProviderManager {
             });
     }
 
+    _getRandomProvider() {
+        const now = Date.now();
+        const availableProviders = this.providers.filter((p) => {
+            const disabledUntil = this.disabledProviders.get(p.name);
+            return !disabledUntil || disabledUntil <= now;
+        });
+        
+        if (availableProviders.length === 0) {
+            return null;
+        }
+        
+        // Select a random provider from available ones
+        const randomIndex = Math.floor(Math.random() * availableProviders.length);
+        return availableProviders[randomIndex];
+    }
+
     _recordMetric(name, ok, latencyMs) {
         const m = this.metrics.get(name) || {
             successes: 0,
@@ -209,13 +227,29 @@ class AIProviderManager {
             throw new Error("No AI providers available");
         }
         
-        const candidates = this._rankedProviders();
+        let candidates;
+        
+        if (this.useRandomSelection) {
+            // Try random provider first, then fall back to ranked providers
+            const randomProvider = this._getRandomProvider();
+            const rankedProviders = this._rankedProviders();
+            
+            // Create candidates list: random provider first, then ranked providers (excluding the random one)
+            candidates = randomProvider ? 
+                [randomProvider, ...rankedProviders.filter(p => p.name !== randomProvider.name)] : 
+                rankedProviders;
+        } else {
+            // Use only ranked providers (original behavior)
+            candidates = this._rankedProviders();
+        }
+        
         let lastError = null;
         let backoff = 1000;
 
         for (const provider of candidates) {
             const started = Date.now();
-            console.log(`Attempting AI request with ${provider.name} (${provider.model})`);
+            const selectionType = this.useRandomSelection && candidates[0] === provider ? 'RANDOM' : 'FALLBACK';
+            console.log(`Attempting AI request with ${provider.name} (${provider.model}) [${selectionType}]`);
             
             try {
                 let response;
@@ -399,6 +433,16 @@ class AIProviderManager {
     _redactModelName(model) {
         // Redact model names but keep functionality visible
         return '[REDACTED]';
+    }
+
+    // Control provider selection mode
+    setRandomSelection(enabled) {
+        this.useRandomSelection = enabled;
+        console.log(`Provider selection mode changed to: ${enabled ? 'Random' : 'Ranked'}`);
+    }
+
+    getSelectionMode() {
+        return this.useRandomSelection ? 'random' : 'ranked';
     }
 
     // Clean up old metrics to prevent memory leaks
