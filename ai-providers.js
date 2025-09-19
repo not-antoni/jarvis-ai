@@ -304,7 +304,8 @@ class AIProviderManager {
                         choices: [{ message: { content: cohereResponse.text } }],
                     };
                 } else {
-                    response = await provider.client.chat.completions.create({
+                    // Prepare base parameters
+                    const baseParams = {
                         model: provider.model,
                         messages: [
                             { role: "system", content: systemPrompt },
@@ -312,7 +313,14 @@ class AIProviderManager {
                         ],
                         max_tokens: maxTokens,
                         temperature: config.ai.temperature,
-                    });
+                    };
+
+                    // Add reasoning_effort for Groq providers
+                    if (provider.name.startsWith('Groq')) {
+                        baseParams.reasoning_effort = "none";
+                    }
+
+                    response = await provider.client.chat.completions.create(baseParams);
                     
                     // More robust response validation
                     if (!response || !response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
