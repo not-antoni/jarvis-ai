@@ -28,6 +28,9 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY6,
             process.env.OPENROUTER_API_KEY7,
             process.env.OPENROUTER_API_KEY8,
+            process.env.OPENROUTER_API_KEY9,
+            process.env.OPENROUTER_API_KEY10,
+            process.env.OPENROUTER_API_KEY11,
         ].filter(Boolean);
         
         openRouterKeys.forEach((key, index) => {
@@ -107,7 +110,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://router.huggingface.co/v1",
                 }),
-                model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+                model: "google/gemma-3-12b-it",
                 type: "openai-chat",
             });
         });
@@ -373,6 +376,9 @@ class AIProviderManager {
             'OpenRouter6': '[REDACTED]',
             'OpenRouter7': '[REDACTED]',
             'OpenRouter8': '[REDACTED]',
+            'OpenRouter9': '[REDACTED]',
+            'OpenRouter10': '[REDACTED]',
+            'OpenRouter11': '[REDACTED]',
             'Groq1': '[REDACTED]',
             'Groq2': '[REDACTED]',
             'Groq3': '[REDACTED]',
