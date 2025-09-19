@@ -182,6 +182,12 @@ class DiscordHandlers {
         }
         
         if (content.startsWith("!t ")) {
+            // Check if whitelisted channel is set and if current channel matches
+            const whitelistedChannelId = config.commands.whitelistedChannelId;
+            if (whitelistedChannelId === '0' || message.channel.id !== whitelistedChannelId) {
+                return true; // Don't respond - command won't work
+            }
+
             console.log(`!t command detected: ${message.content}`);
             try {
                 await message.channel.sendTyping();
