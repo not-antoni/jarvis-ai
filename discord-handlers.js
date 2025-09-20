@@ -91,8 +91,8 @@ class DiscordHandlers {
                         content: msg.content,
                         timestamp: msg.createdTimestamp
                     });
-                } else if (!msg.author.bot) {
-                    // This is a user message
+                } else if (!msg.author.bot || msg.author.id === '984734399310467112') {
+                    // This is a user message or the allowed bot
                     contextualMessages.push({
                         role: "user",
                         content: msg.content,
@@ -234,8 +234,8 @@ class DiscordHandlers {
                     isReplyToJarvis = true;
                     // Get contextual memory from the conversation thread
                     contextualMemory = await this.getContextualMemory(message, client);
-                } else if (!referencedMessage.author.bot) {
-                    // This is a reply to a user message
+                } else if (!referencedMessage.author.bot || referencedMessage.author.id === '984734399310467112') {
+                    // This is a reply to a user message or the allowed bot
                     isReplyToUser = true;
                     // Check if the reply mentions Jarvis or contains wake words
                     if (isMentioned || containsJarvis) {
