@@ -34,7 +34,7 @@ const config = {
         maxInputLength: 250,
         maxSlashInputLength: 250,
         temperature: 0.6,
-        retryAttempts: 1,
+        retryAttempts: 0,
         fallbackChance: 0.12
     },
 
