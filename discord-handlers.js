@@ -123,9 +123,19 @@ class DiscordHandlers {
     }
 
     async handleMessage(message, client) {
-        // Allow specific bot ID to interact with JARVIS
+        // Allow specific bot ID to interact with JARVIS, but only if it contains wake words
         const allowedBotId = '984734399310467112';
         if (message.author.id === client.user.id || (message.author.bot && message.author.id !== allowedBotId)) return;
+
+        // For the allowed bot, check if it contains wake words first
+        if (message.author.id === allowedBotId) {
+            const containsJarvis = config.wakeWords.some(trigger =>
+                message.content.toLowerCase().includes(trigger)
+            );
+            if (!containsJarvis) {
+                return; // Ignore bot messages without wake words
+            }
+        }
 
         const userId = message.author.id;
         
@@ -148,6 +158,7 @@ class DiscordHandlers {
         }
 
         // Handle regular Jarvis interactions
+        console.log(`Calling handleJarvisInteraction for ${userId}`);
         await this.handleJarvisInteraction(message, client);
     }
 
