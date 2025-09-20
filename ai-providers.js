@@ -58,6 +58,8 @@ class AIProviderManager {
             process.env.GROQ_API_KEY,
             process.env.GROQ_API_KEY2,
             process.env.GROQ_API_KEY3,
+            process.env.GROQ_API_KEY4,
+            process.env.GROQ_API_KEY5,
         ].filter(Boolean);
         
         groqKeys.forEach((key, index) => {
@@ -466,6 +468,8 @@ class AIProviderManager {
             'Groq1': '[REDACTED]',
             'Groq2': '[REDACTED]',
             'Groq3': '[REDACTED]',
+            'Groq4': '[REDACTED]',
+            'Groq5': '[REDACTED]',
             'GoogleAI1': '[REDACTED]',
             'GoogleAI2': '[REDACTED]',
             'Mixtral1': '[REDACTED]',
