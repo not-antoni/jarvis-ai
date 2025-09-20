@@ -119,7 +119,10 @@ class DiscordHandlers {
     }
 
     async handleMessage(message, client) {
-        if (message.author.id === client.user.id || message.author.bot) return;
+        // Allow specific bot to interact (for bot replies)
+        const allowedBotId = '984734399310467112';
+        if (message.author.id === client.user.id) return;
+        if (message.author.bot && message.author.id !== allowedBotId) return;
 
         const userId = message.author.id;
         
@@ -130,8 +133,9 @@ class DiscordHandlers {
             message.content.toLowerCase().includes(trigger)
         );
         const isReplyToJarvis = message.reference && message.reference.messageId;
+        const isBot = message.author.bot;
         
-        // If this looks like a Jarvis interaction, check cooldown immediately
+        // If this looks like a Jarvis interaction, check cooldown immediately (for both users and bots)
         if (isDM || isMentioned || containsJarvis || isReplyToJarvis) {
             if (this.isOnCooldown(userId)) {
                 return; // Exit early if on cooldown
@@ -229,6 +233,12 @@ class DiscordHandlers {
         const containsJarvis = config.wakeWords.some(trigger =>
             message.content.toLowerCase().includes(trigger)
         );
+        const isBot = message.author.bot;
+        
+        // Log bot interactions for debugging
+        if (isBot) {
+            console.log(`Bot interaction detected from ${message.author.username} (${message.author.id}): ${message.content.substring(0, 50)}...`);
+        }
         
         // Check if this is a reply to any message (Jarvis or user)
         let isReplyToJarvis = false;
@@ -257,8 +267,15 @@ class DiscordHandlers {
         }
 
         // Respond if: DM, mentioned, contains wake word, replying to Jarvis, or replying to user with mention/wake word
-        if (!isDM && !isMentioned && !containsJarvis && !isReplyToJarvis && !(isReplyToUser && (isMentioned || containsJarvis))) {
-            return;
+        // For bots, only respond if mentioned or contains wake word
+        if (isBot) {
+            if (!isMentioned && !containsJarvis) {
+                return;
+            }
+        } else {
+            if (!isDM && !isMentioned && !containsJarvis && !isReplyToJarvis && !(isReplyToUser && (isMentioned || containsJarvis))) {
+                return;
+            }
         }
 
         let cleanContent = message.content
