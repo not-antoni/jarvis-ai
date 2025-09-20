@@ -125,8 +125,8 @@ class DiscordHandlers {
 
         const userId = message.author.id;
         
+        
         if (this.isOnCooldown(userId)) {
-            this.setCooldown(userId);
             return;
         }
 
@@ -346,7 +346,6 @@ class DiscordHandlers {
         const userId = interaction.user.id;
         
         if (this.isOnCooldown(userId)) {
-            this.setCooldown(userId);
             return;
         }
 
