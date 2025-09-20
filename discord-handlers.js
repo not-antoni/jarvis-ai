@@ -27,11 +27,15 @@ class DiscordHandlers {
     isOnCooldown(userId) {
         const now = Date.now();
         const lastMessageTime = this.userCooldowns.get(userId) || 0;
-        return now - lastMessageTime < config.ai.cooldownMs;
+        const isOnCooldown = now - lastMessageTime < config.ai.cooldownMs;
+        console.log(`Cooldown check for ${userId}: now=${now}, lastMessage=${lastMessageTime}, diff=${now - lastMessageTime}, cooldownMs=${config.ai.cooldownMs}, isOnCooldown=${isOnCooldown}`);
+        return isOnCooldown;
     }
 
     setCooldown(userId) {
-        this.userCooldowns.set(userId, Date.now());
+        const timestamp = Date.now();
+        this.userCooldowns.set(userId, timestamp);
+        console.log(`Setting cooldown for ${userId} at timestamp: ${timestamp}`);
     }
 
     async getContextualMemory(message, client) {
@@ -125,8 +129,9 @@ class DiscordHandlers {
 
         const userId = message.author.id;
         
-        
+        console.log(`Processing message from ${userId} (${message.author.username})`);
         if (this.isOnCooldown(userId)) {
+            console.log(`User ${userId} is on cooldown, ignoring message`);
             return;
         }
 
