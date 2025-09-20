@@ -123,10 +123,6 @@ class DiscordHandlers {
 
         const userId = message.author.id;
         
-        if (this.isOnCooldown(userId)) {
-            return;
-        }
-
         // Handle admin commands
         if (await this.handleAdminCommands(message)) {
             this.setCooldown(userId);
@@ -139,7 +135,7 @@ class DiscordHandlers {
             return;
         }
 
-        // Handle regular Jarvis interactions
+        // Handle regular Jarvis interactions (cooldown check is inside this method)
         await this.handleJarvisInteraction(message, client);
     }
 
@@ -213,6 +209,13 @@ class DiscordHandlers {
     }
 
     async handleJarvisInteraction(message, client) {
+        const userId = message.author.id;
+        
+        // Check cooldown for AI interactions
+        if (this.isOnCooldown(userId)) {
+            return;
+        }
+
         const isMentioned = message.mentions.has(client.user);
         const isDM = message.channel.type === ChannelType.DM;
         const containsJarvis = config.wakeWords.some(trigger =>
