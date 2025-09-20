@@ -105,35 +105,7 @@ class AIProviderManager {
             });
         });
 
-        // HuggingFace providers
-        const hfKeys = [
-            process.env.HF_TOKEN,
-            process.env.HF_TOKEN2,
-        ].filter(Boolean);
-        
-        hfKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `HuggingFace${index + 1}`,
-                client: new OpenAI({
-                    apiKey: key,
-                    baseURL: "https://router.huggingface.co/v1",
-                }),
-                model: "meta-llama/Meta-Llama-3.1-8B-Instruct",
-                type: "openai-chat",
-            });
-        });
 
-        // Vercel AI SDK OpenAI provider
-        if (process.env.OPENAI_API_KEY) {
-            this.providers.push({
-                name: "VercelOpenAI",
-                client: new OpenAI({
-                    apiKey: process.env.OPENAI_API_KEY,
-                }),
-                model: "gpt-4o-mini",
-                type: "openai-chat",
-            });
-        }
 
 
         // GPT-5 Nano provider
@@ -288,15 +260,12 @@ class AIProviderManager {
                         }
                     });
                     
-                    // Try to disable thinking with thinkingBudget: 0
+                    // Generate content without thinking configuration
                     const result = await model.generateContent({
                         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
                         generationConfig: {
                             temperature: config.ai.temperature,
-                            maxOutputTokens: maxTokens,
-                            thinkingConfig: {
-                                thinkingBudget: 0
-                            }
+                            maxOutputTokens: maxTokens
                         }
                     });
                     
@@ -501,9 +470,6 @@ class AIProviderManager {
             'GoogleAI2': '[REDACTED]',
             'Mixtral1': '[REDACTED]',
             'Mixtral2': '[REDACTED]',
-            'HuggingFace1': '[REDACTED]',
-            'HuggingFace2': '[REDACTED]',
-            'VercelOpenAI': '[REDACTED]',
             'GPT5Nano': '[REDACTED]',
             'Cohere1': '[REDACTED]',
             'Cohere2': '[REDACTED]'
