@@ -123,19 +123,34 @@ class DiscordHandlers {
 
         const userId = message.author.id;
         
+        // Check for potential Jarvis interaction first to prevent race conditions
+        const isMentioned = message.mentions.has(client.user);
+        const isDM = message.channel.type === ChannelType.DM;
+        const containsJarvis = config.wakeWords.some(trigger =>
+            message.content.toLowerCase().includes(trigger)
+        );
+        const isReplyToJarvis = message.reference && message.reference.messageId;
+        
+        // If this looks like a Jarvis interaction, check cooldown immediately
+        if (isDM || isMentioned || containsJarvis || isReplyToJarvis) {
+            if (this.isOnCooldown(userId)) {
+                return; // Exit early if on cooldown
+            }
+            // Set cooldown immediately to prevent race conditions
+            this.setCooldown(userId);
+        }
+        
         // Handle admin commands
         if (await this.handleAdminCommands(message)) {
-            this.setCooldown(userId);
-            return;
+            return; // Cooldown already set above if needed
         }
 
         // Handle utility commands
         if (await this.handleUtilityCommands(message)) {
-            this.setCooldown(userId);
-            return;
+            return; // Cooldown already set above if needed
         }
 
-        // Handle regular Jarvis interactions (cooldown check is inside this method)
+        // Handle regular Jarvis interactions (cooldown already checked and set above)
         await this.handleJarvisInteraction(message, client);
     }
 
@@ -209,13 +224,6 @@ class DiscordHandlers {
     }
 
     async handleJarvisInteraction(message, client) {
-        const userId = message.author.id;
-        
-        // Check cooldown for AI interactions
-        if (this.isOnCooldown(userId)) {
-            return;
-        }
-
         const isMentioned = message.mentions.has(client.user);
         const isDM = message.channel.type === ChannelType.DM;
         const containsJarvis = config.wakeWords.some(trigger =>
@@ -317,7 +325,6 @@ class DiscordHandlers {
                 } else {
                     await message.reply("Utility functions misbehaving, sir. Try another?");
                 }
-                this.setCooldown(message.author.id);
                 return;
             }
 
@@ -329,8 +336,6 @@ class DiscordHandlers {
             } else {
                 await message.reply("Response circuits tangled, sir. Clarify your request?");
             }
-            
-            this.setCooldown(message.author.id);
         } catch (error) {
             console.error("Error processing message:", error);
             try {
@@ -338,7 +343,6 @@ class DiscordHandlers {
             } catch (err) {
                 console.error("Failed to send error reply:", err);
             }
-            this.setCooldown(message.author.id);
         }
     }
 
