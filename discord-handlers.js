@@ -27,15 +27,11 @@ class DiscordHandlers {
     isOnCooldown(userId) {
         const now = Date.now();
         const lastMessageTime = this.userCooldowns.get(userId) || 0;
-        const isOnCooldown = now - lastMessageTime < config.ai.cooldownMs;
-        console.log(`Cooldown check for ${userId}: now=${now}, lastMessage=${lastMessageTime}, diff=${now - lastMessageTime}, cooldownMs=${config.ai.cooldownMs}, isOnCooldown=${isOnCooldown}`);
-        return isOnCooldown;
+        return now - lastMessageTime < config.ai.cooldownMs;
     }
 
     setCooldown(userId) {
-        const timestamp = Date.now();
-        this.userCooldowns.set(userId, timestamp);
-        console.log(`Setting cooldown for ${userId} at timestamp: ${timestamp}`);
+        this.userCooldowns.set(userId, Date.now());
     }
 
     async getContextualMemory(message, client) {
@@ -95,8 +91,8 @@ class DiscordHandlers {
                         content: msg.content,
                         timestamp: msg.createdTimestamp
                     });
-                } else if (!msg.author.bot || msg.author.id === '984734399310467112') {
-                    // This is a user message or the allowed bot
+                } else if (!msg.author.bot) {
+                    // This is a user message
                     contextualMessages.push({
                         role: "user",
                         content: msg.content,
@@ -123,25 +119,11 @@ class DiscordHandlers {
     }
 
     async handleMessage(message, client) {
-        // Allow specific bot ID to interact with JARVIS, but only if it contains wake words
-        const allowedBotId = '984734399310467112';
-        if (message.author.id === client.user.id || (message.author.bot && message.author.id !== allowedBotId)) return;
-
-        // For the allowed bot, check if it contains wake words first
-        if (message.author.id === allowedBotId) {
-            const containsJarvis = config.wakeWords.some(trigger =>
-                message.content.toLowerCase().includes(trigger)
-            );
-            if (!containsJarvis) {
-                return; // Ignore bot messages without wake words
-            }
-        }
+        if (message.author.id === client.user.id || message.author.bot) return;
 
         const userId = message.author.id;
         
-        console.log(`Processing message from ${userId} (${message.author.username})`);
         if (this.isOnCooldown(userId)) {
-            console.log(`User ${userId} is on cooldown, ignoring message`);
             return;
         }
 
@@ -158,7 +140,6 @@ class DiscordHandlers {
         }
 
         // Handle regular Jarvis interactions
-        console.log(`Calling handleJarvisInteraction for ${userId}`);
         await this.handleJarvisInteraction(message, client);
     }
 
@@ -250,8 +231,8 @@ class DiscordHandlers {
                     isReplyToJarvis = true;
                     // Get contextual memory from the conversation thread
                     contextualMemory = await this.getContextualMemory(message, client);
-                } else if (!referencedMessage.author.bot || referencedMessage.author.id === '984734399310467112') {
-                    // This is a reply to a user message or the allowed bot
+                } else if (!referencedMessage.author.bot) {
+                    // This is a reply to a user message
                     isReplyToUser = true;
                     // Check if the reply mentions Jarvis or contains wake words
                     if (isMentioned || containsJarvis) {
