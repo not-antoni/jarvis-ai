@@ -69,7 +69,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://api.groq.com/openai/v1",
                 }),
-                model: "qwen/qwen3-32b",
+                model: "llama-3.1-8b-instant",
                 type: "openai-chat",
             });
         });
