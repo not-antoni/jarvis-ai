@@ -119,7 +119,9 @@ class DiscordHandlers {
     }
 
     async handleMessage(message, client) {
-        if (message.author.id === client.user.id || message.author.bot) return;
+        // Allow specific bot ID to interact with JARVIS
+        const allowedBotId = '984734399310467112';
+        if (message.author.id === client.user.id || (message.author.bot && message.author.id !== allowedBotId)) return;
 
         const userId = message.author.id;
         
