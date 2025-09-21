@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
+const aiManager = require('./ai-providers');
 
 class EmbeddingSystem {
     constructor() {
@@ -143,18 +144,42 @@ class EmbeddingSystem {
         const bestResult = searchResult.results[0];
         console.log(`Found best result for: "${query}" - ${(bestResult.similarity * 100).toFixed(1)}% relevance`);
         
-        // Format the single best result
-        let formattedResults = `**Best Match: ${bestResult.metadata.title}** (relevance: ${(bestResult.similarity * 100).toFixed(1)}%)\n\n`;
+        // Format the raw result for summarization
+        let rawContent = `**Best Match: ${bestResult.metadata.title}** (relevance: ${(bestResult.similarity * 100).toFixed(1)}%)\n\n`;
         
-        // Truncate text to prevent Discord message limits (2000 char max)
-        const maxTextLength = 1500; // More space since we only have one result
-        const truncatedText = bestResult.text.length > maxTextLength 
-            ? bestResult.text.substring(0, maxTextLength) + "..."
-            : bestResult.text;
-            
-        formattedResults += truncatedText;
+        // Use full text for summarization (no truncation yet)
+        rawContent += bestResult.text;
 
-        return formattedResults;
+        // Now summarize the content using random AI provider
+        try {
+            console.log(`Summarizing content for query: "${query}"`);
+            const summarizedResponse = await aiManager.generateResponse(
+                "You are a technical documentation summarizer. Summarize the following content concisely while preserving all important technical details, specifications, and key information. Keep it clear and informative.",
+                `Query: "${query}"\n\nContent to summarize:\n\n${rawContent}`,
+                300 // Limit output tokens for concise summary
+            );
+            
+            if (summarizedResponse && summarizedResponse.content) {
+                console.log(`Successfully summarized content for: "${query}"`);
+                return summarizedResponse.content.trim();
+            } else {
+                console.log(`Summarization failed for: "${query}", returning truncated original`);
+                // Fallback to truncated original if summarization fails
+                const maxTextLength = 1500;
+                const truncatedText = bestResult.text.length > maxTextLength 
+                    ? bestResult.text.substring(0, maxTextLength) + "..."
+                    : bestResult.text;
+                return `**Best Match: ${bestResult.metadata.title}** (relevance: ${(bestResult.similarity * 100).toFixed(1)}%)\n\n${truncatedText}`;
+            }
+        } catch (error) {
+            console.error(`Summarization error for query "${query}":`, error);
+            // Fallback to truncated original if summarization fails
+            const maxTextLength = 1500;
+            const truncatedText = bestResult.text.length > maxTextLength 
+                ? bestResult.text.substring(0, maxTextLength) + "..."
+                : bestResult.text;
+            return `**Best Match: ${bestResult.metadata.title}** (relevance: ${(bestResult.similarity * 100).toFixed(1)}%)\n\n${truncatedText}`;
+        }
     }
 }
 
