@@ -55,14 +55,8 @@ const config = {
 
     // Command Restrictions
     commands: {
-        // Backwards-compatible single-channel value (keeps existing handlers working)
-        whitelistedChannelId: '1403664986089324609',
-
-        // Multi-channel support (use this if your handler checks includes(...))
-        whitelistedChannelIds: [
-            '1403664986089324609',
-            '984738858950344714'
-        ]
+        // Empty means no channel restriction → commands work everywhere
+        whitelistedChannelIds: []
     }
 };
 
