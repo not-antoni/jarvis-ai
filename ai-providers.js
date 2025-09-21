@@ -361,10 +361,8 @@ class AIProviderManager {
                         temperature: config.ai.temperature,
                     };
 
-                    // Add reasoning_effort for Groq providers
-                    if (provider.name.startsWith('Groq')) {
-                        baseParams.reasoning_effort = "none";
-                    }
+                    // Note: reasoning_effort is not supported by llama-3.1-8b-instant model
+                    // Only some Groq models support this parameter
 
                     response = await provider.client.chat.completions.create(baseParams);
                     
