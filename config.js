@@ -1,6 +1,3 @@
-
-You said:
-edit this so it allows the command in a second channel: 984738858950344714
 /**
  * Configuration management for Jarvis Discord Bot
  */
@@ -22,7 +19,7 @@ const config = {
 
     // Database Configuration
     database: {
-        uri: mongodb+srv://aiusr:${process.env.MONGO_PW}@cluster0ai.tmsdg3r.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ai,
+        uri: `mongodb+srv://aiusr:${process.env.MONGO_PW}@cluster0ai.tmsdg3r.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ai`,
         name: 'jarvis_ai',
         collections: {
             conversations: 'conversations',
@@ -60,7 +57,8 @@ const config = {
 
     // Command Restrictions
     commands: {
-        whitelistedChannelId: process.env.WHITELISTED_CHANNEL_ID || '984738858950344714' // Set to 0 initially - invalid channel ID
+        // Multiple channel IDs where !t command is allowed
+        whitelistedChannelIds: ['1403664986089324609', '984738858950344714']
     }
 };
 
@@ -69,7 +67,7 @@ const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_PW', 'OPENAI'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-    console.error(Missing required environment variables: ${missingVars.join(', ')});
+    console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
     process.exit(1);
 }
 
