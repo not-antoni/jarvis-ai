@@ -57,7 +57,7 @@ const config = {
 
     // Command Restrictions
     commands: {
-        whitelistedChannelId: process.env.WHITELISTED_CHANNEL_ID || '0' // Set to 0 initially - invalid channel ID
+        whitelistedChannelId: process.env.WHITELISTED_CHANNEL_ID || '1403664986089324609' // Set to 0 initially - invalid channel ID
     }
 };
 
