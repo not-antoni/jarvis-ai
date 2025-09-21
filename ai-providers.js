@@ -49,7 +49,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://openrouter.ai/api/v1",
                 }),
-                model: "x-ai/grok-4-fast:free",
+                model: "google/gemini-2.0-flash-exp:free",
                 type: "openai-chat",
             });
         });
