@@ -29,7 +29,7 @@ const config = {
 
     // AI Provider Configuration
     ai: {
-        cooldownMs: 10000, // 5 seconds
+        cooldownMs: 10000, // 10 seconds
         maxTokens: 500,
         maxInputLength: 250,
         maxSlashInputLength: 250,
@@ -55,8 +55,12 @@ const config = {
 
     // Command Restrictions
     commands: {
+        // Backwards-compatible single-channel value (keeps existing handlers working)
+        whitelistedChannelId: '1403664986089324609',
+
+        // Multi-channel support (use this if your handler checks includes(...))
         whitelistedChannelIds: [
-            process.env.WHITELISTED_CHANNEL_ID || '1403664986089324609',
+            '1403664986089324609',
             '984738858950344714'
         ]
     }
