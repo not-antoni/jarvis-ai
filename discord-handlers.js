@@ -119,10 +119,10 @@ class DiscordHandlers {
     }
 
     async handleMessage(message, client) {
-        // Allow specific bot to interact (for bot replies)
-        const allowedBotId = '984734399310467112';
+        // Allow specific bots to interact (for bot replies)
+        const allowedBotIds = ['984734399310467112', '1391010888915484672'];
         if (message.author.id === client.user.id) return;
-        if (message.author.bot && message.author.id !== allowedBotId) return;
+        if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
         const userId = message.author.id;
         
