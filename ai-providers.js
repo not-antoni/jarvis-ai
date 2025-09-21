@@ -49,7 +49,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://openrouter.ai/api/v1",
                 }),
-                model: "google/gemini-2.0-flash-exp:free",
+                model: "meta-llama/llama-3.3-70b-instruct:free",
                 type: "openai-chat",
             });
         });
