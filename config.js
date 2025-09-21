@@ -36,8 +36,6 @@ const config = {
         temperature: 0.6,
         retryAttempts: 0,
         fallbackChance: 0.12,
-        // Provider selection: "auto" for random selection, or specific provider type
-        // Options: "auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"
         provider: process.env.AI_PROVIDER || "auto"
     },
 
@@ -57,7 +55,10 @@ const config = {
 
     // Command Restrictions
     commands: {
-        whitelistedChannelId: process.env.WHITELISTED_CHANNEL_ID || '1403664986089324609' // Set to 0 initially - invalid channel ID
+        whitelistedChannelIds: [
+            process.env.WHITELISTED_CHANNEL_ID || '1403664986089324609',
+            '984738858950344714'
+        ]
     }
 };
 
