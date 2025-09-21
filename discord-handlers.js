@@ -134,9 +134,10 @@ class DiscordHandlers {
         );
         const isReplyToJarvis = message.reference && message.reference.messageId;
         const isBot = message.author.bot;
+        const isTCommand = message.content.toLowerCase().trim().startsWith("!t ");
         
         // If this looks like a Jarvis interaction, check cooldown immediately (for both users and bots)
-        if (isDM || isMentioned || containsJarvis || isReplyToJarvis) {
+        if (isDM || isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
             if (this.isOnCooldown(userId)) {
                 return; // Exit early if on cooldown
             }
