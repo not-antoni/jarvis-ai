@@ -17,6 +17,7 @@ class AIProviderManager {
         this.useRandomSelection = true; // Default to random selection
         this.openRouterGlobalFailure = false; // Track if OpenRouter is globally failing
         this.openRouterFailureCount = 0; // Count consecutive OpenRouter failures
+        this.selectedProviderType = config.ai.provider || "auto"; // Get provider selection from config
         this.setupProviders();
     }
 
@@ -144,11 +145,42 @@ class AIProviderManager {
 
         console.log(`Initialized ${this.providers.length} AI providers`);
         console.log(`Provider selection mode: ${this.useRandomSelection ? 'Random' : 'Ranked'}`);
+        console.log(`Selected provider type: ${this.selectedProviderType}`);
+    }
+
+    _filterProvidersByType(providers) {
+        if (this.selectedProviderType === "auto") {
+            return providers; // Return all providers for auto mode
+        }
+
+        return providers.filter(provider => {
+            const providerName = provider.name.toLowerCase();
+            
+            switch (this.selectedProviderType.toLowerCase()) {
+                case "openai":
+                    return providerName === "gpt5nano";
+                case "groq":
+                    return providerName.startsWith("groq");
+                case "openrouter":
+                    return providerName.startsWith("openrouter");
+                case "google":
+                    return providerName.startsWith("googleai");
+                case "mixtral":
+                    return providerName.startsWith("mixtral");
+                case "cohere":
+                    return providerName.startsWith("cohere");
+                default:
+                    console.warn(`Unknown provider type: ${this.selectedProviderType}, falling back to auto mode`);
+                    return true; // Include all providers for unknown types
+            }
+        });
     }
 
     _rankedProviders() {
         const now = Date.now();
-        return [...this.providers]
+        const filteredProviders = this._filterProvidersByType(this.providers);
+        
+        return filteredProviders
             .filter((p) => {
                 const disabledUntil = this.disabledProviders.get(p.name);
                 const isDisabled = disabledUntil && disabledUntil > now;
@@ -185,7 +217,9 @@ class AIProviderManager {
 
     _getRandomProvider() {
         const now = Date.now();
-        const availableProviders = this.providers.filter((p) => {
+        const filteredProviders = this._filterProvidersByType(this.providers);
+        
+        const availableProviders = filteredProviders.filter((p) => {
             const disabledUntil = this.disabledProviders.get(p.name);
             const isDisabled = disabledUntil && disabledUntil > now;
             
@@ -248,7 +282,8 @@ class AIProviderManager {
         for (const provider of candidates) {
             const started = Date.now();
             const selectionType = this.useRandomSelection && candidates[0] === provider ? 'RANDOM' : 'FALLBACK';
-            console.log(`Attempting AI request with ${provider.name} (${provider.model}) [${selectionType}]`);
+            const providerTypeInfo = this.selectedProviderType === "auto" ? "[AUTO]" : `[${this.selectedProviderType.toUpperCase()}]`;
+            console.log(`Attempting AI request with ${provider.name} (${provider.model}) [${selectionType}] ${providerTypeInfo}`);
             
             try {
                 let response;
@@ -494,6 +529,45 @@ class AIProviderManager {
 
     getSelectionMode() {
         return this.useRandomSelection ? 'random' : 'ranked';
+    }
+
+    // Control provider type selection
+    setProviderType(providerType) {
+        const validTypes = ["auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"];
+        if (!validTypes.includes(providerType.toLowerCase())) {
+            throw new Error(`Invalid provider type. Valid options: ${validTypes.join(", ")}`);
+        }
+        
+        this.selectedProviderType = providerType.toLowerCase();
+        console.log(`Provider type changed to: ${this.selectedProviderType}`);
+    }
+
+    getProviderType() {
+        return this.selectedProviderType;
+    }
+
+    getAvailableProviderTypes() {
+        const types = new Set();
+        this.providers.forEach(provider => {
+            const name = provider.name.toLowerCase();
+            if (name === "gpt5nano") {
+                types.add("openai");
+            } else if (name.startsWith("groq")) {
+                types.add("groq");
+            } else if (name.startsWith("openrouter")) {
+                types.add("openrouter");
+            } else if (name.startsWith("googleai")) {
+                types.add("google");
+            } else if (name.startsWith("mixtral")) {
+                types.add("mixtral");
+            } else if (name.startsWith("cohere")) {
+                types.add("cohere");
+            }
+        });
+        
+        const availableTypes = Array.from(types).sort();
+        availableTypes.unshift("auto"); // Always include auto
+        return availableTypes;
     }
 
     // Clean up old metrics to prevent memory leaks

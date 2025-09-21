@@ -35,7 +35,10 @@ const config = {
         maxSlashInputLength: 250,
         temperature: 0.6,
         retryAttempts: 0,
-        fallbackChance: 0.12
+        fallbackChance: 0.12,
+        // Provider selection: "auto" for random selection, or specific provider type
+        // Options: "auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"
+        provider: process.env.AI_PROVIDER || "openai"
     },
 
     // Server Configuration
