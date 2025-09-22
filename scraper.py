@@ -2,8 +2,14 @@ import urllib
 import urllib.parse
 import urllib.request
 import re
-import jsonlines
 import sys
+
+# Only import jsonlines when needed for file operations
+try:
+    import jsonlines
+    JSONLINES_AVAILABLE = True
+except ImportError:
+    JSONLINES_AVAILABLE = False
 
 def get_page(url):
     try:
@@ -292,6 +298,10 @@ def scrape_and_return_content(starting_page_title, use_new_wiki=True, no_link_re
         return "No Results", "No pages were scraped."
 
 def scrape_and_save(starting_page_title, use_new_wiki=True, reset_file=True, no_link_repeat=False, search_query=None):
+    if not JSONLINES_AVAILABLE:
+        print("Error: jsonlines module not available for file operations")
+        return
+    
     # If search_query is provided, search for the page first
     if search_query:
         found_page = search_wiki_page(search_query, use_new_wiki)
