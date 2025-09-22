@@ -6,6 +6,7 @@ const aiManager = require('./ai-providers');
 const database = require('./database');
 const config = require('./config');
 const embeddingSystem = require('./embedding-system');
+const youtubeSearch = require('./youtube-search');
 
 class JarvisAI {
     constructor() {
@@ -33,6 +34,16 @@ class JarvisAI {
 
     async resetUserData(userId) {
         return await database.resetUserData(userId);
+    }
+
+    async handleYouTubeSearch(query) {
+        try {
+            const videoData = await youtubeSearch.searchVideo(query);
+            return youtubeSearch.formatVideoResponse(videoData);
+        } catch (error) {
+            console.error("YouTube search error:", error);
+            return "YouTube search is currently unavailable, sir. Technical difficulties.";
+        }
     }
 
     async clearDatabase() {
