@@ -1,3 +1,1 @@
-# Minimal dependencies for live output mode
-# Uncomment the line below if you need file-based operations:
-# jsonlines==4.0.0
+jsonlines==4.0.1
