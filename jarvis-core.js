@@ -46,71 +46,6 @@ class JarvisAI {
         }
     }
 
-    async handleWikiSearch(query) {
-        try {
-            const { spawn } = require('child_process');
-            
-            return new Promise((resolve, reject) => {
-                // Call the Python scraper with the search query
-                const pythonProcess = spawn('python3', ['scraper.py', query, '--no-reset']);
-                
-                let output = '';
-                let errorOutput = '';
-                
-                pythonProcess.stdout.on('data', (data) => {
-                    output += data.toString();
-                });
-                
-                pythonProcess.stderr.on('data', (data) => {
-                    errorOutput += data.toString();
-                });
-                
-                pythonProcess.on('close', (code) => {
-                    if (code === 0) {
-                        // Success - parse the output
-                        try {
-                            const lines = output.trim().split('\n');
-                            const results = [];
-                            
-                            // Look for page titles and content in the output
-                            for (let i = 0; i < lines.length; i++) {
-                                const line = lines[i];
-                                if (line.includes('Scraping page:')) {
-                                    const pageTitle = line.replace('Scraping page:', '').trim();
-                                    results.push(`📄 **${pageTitle}**`);
-                                }
-                            }
-                            
-                            if (results.length > 0) {
-                                resolve(`Search completed, sir. Found ${results.length} relevant pages:\n\n${results.slice(0, 5).join('\n')}${results.length > 5 ? '\n\n...and more' : ''}`);
-                            } else {
-                                resolve(`Search completed, sir. No specific pages found for "${query}". The scraper has processed the wiki data.`);
-                            }
-                        } catch (parseError) {
-                            console.error("Error parsing scraper output:", parseError);
-                            resolve(`Search completed, sir. Wiki data processed for "${query}".`);
-                        }
-                    } else {
-                        console.error("Python scraper error:", errorOutput);
-                        reject(new Error(`Scraper failed with code ${code}: ${errorOutput}`));
-                    }
-                });
-                
-                pythonProcess.on('error', (error) => {
-                    console.error("Failed to start Python process:", error);
-                    if (error.code === 'ENOENT') {
-                        reject(new Error(`Python3 not found. Please ensure Python is installed and available in PATH.`));
-                    } else {
-                        reject(new Error(`Failed to start scraper: ${error.message}`));
-                    }
-                });
-            });
-        } catch (error) {
-            console.error("Wiki search error:", error);
-            return "Wiki search is currently unavailable, sir. Technical difficulties.";
-        }
-    }
-
     async clearDatabase() {
         return await database.clearDatabase();
     }
@@ -179,20 +114,89 @@ class JarvisAI {
                 : `Quite right, sir, you rolled a ${result}! 🎲`;
         }
 
-        if (cmd.startsWith("!t ")) {
-            const query = input.substring(3).trim(); // Remove "!t " prefix
-            if (!query) return "Please provide a search query, sir.";
-            
-            try {
-                const searchResults = await embeddingSystem.searchAndFormat(query, 3);
-                return searchResults;
-            } catch (error) {
-                console.error("Embedding search error:", error);
-                return "Search system unavailable, sir. Technical difficulties.";
-            }
-        }
 
         return null;
+    }
+
+    async handleWikiSearch(searchQuery) {
+        try {
+            console.log(`Wiki search request: ${searchQuery}`);
+            
+            // Use child_process to call the Python scraper
+            const { spawn } = require('child_process');
+            
+            return new Promise((resolve, reject) => {
+                // Call the scraper with live output mode
+                const pythonProcess = spawn('python', [
+                    'scraper.py',
+                    'Main_Page', // Starting page (will be overridden by search)
+                    '--search-query',
+                    searchQuery,
+                    '--no-link-repeat',
+                    '--live-output'
+                ]);
+
+                let output = '';
+                let errorOutput = '';
+
+                pythonProcess.stdout.on('data', (data) => {
+                    output += data.toString();
+                });
+
+                pythonProcess.stderr.on('data', (data) => {
+                    errorOutput += data.toString();
+                });
+
+                pythonProcess.on('close', (code) => {
+                    if (code === 0) {
+                        // Success - parse the live output
+                        try {
+                            // Parse the structured output: TITLE:... and CONTENT:...
+                            const lines = output.split('\n');
+                            let title = '';
+                            let content = '';
+                            
+                            for (const line of lines) {
+                                if (line.startsWith('TITLE:')) {
+                                    title = line.substring(6).trim();
+                                } else if (line.startsWith('CONTENT:')) {
+                                    content = line.substring(8).trim();
+                                }
+                            }
+                            
+                            if (title && content) {
+                                // Truncate content if too long for Discord
+                                const maxLength = 1900; // Leave room for response wrapper
+                                const truncatedContent = content.length > maxLength 
+                                    ? content.substring(0, maxLength) + '...' 
+                                    : content;
+                                
+                                resolve(`**${title}**\n\n${truncatedContent}`);
+                            } else {
+                                resolve(`Search completed, sir, but no content was found for "${searchQuery}".`);
+                            }
+                        } catch (parseError) {
+                            console.error('Error parsing scraper output:', parseError);
+                            console.error('Raw output:', output);
+                            resolve(`Search completed, sir, but there was an issue processing the results for "${searchQuery}".`);
+                        }
+                    } else {
+                        console.error('Python scraper failed with code:', code);
+                        console.error('Error output:', errorOutput);
+                        reject(new Error(`Scraper failed with exit code ${code}`));
+                    }
+                });
+
+                pythonProcess.on('error', (error) => {
+                    console.error('Failed to start Python scraper:', error);
+                    reject(error);
+                });
+            });
+            
+        } catch (error) {
+            console.error('Wiki search error:', error);
+            return `Wiki search failed, sir. Technical difficulties: ${error.message}`;
+        }
     }
 
     async gateDestructiveRequests(text) {

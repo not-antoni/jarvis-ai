@@ -42,8 +42,6 @@
 ├── ai-providers.js       # AI provider management
 ├── jarvis-core.js        # Core Jarvis personality
 ├── discord-handlers.js   # Discord event handling
-├── scraper.py            # Python wiki scraper
-├── requirements.txt      # Python dependencies
 ├── deploy.js             # Deployment verification
 ├── package.json          # Dependencies and scripts
 ├── render.yaml           # Render configuration
@@ -85,16 +83,6 @@ This will check:
 - Verify API keys are valid and have credits
 - Check Render logs for provider errors
 
-### Features
-
-The bot includes:
-- **AI Chat**: Multiple AI provider support with fallback
-- **Wiki Search**: `jarvis search [query]` - searches wiki using Python scraper
-- **YouTube Search**: `jarvis yt [query]` - searches YouTube videos
-- **Utility Commands**: `/roll`, `/time`, `/status`, `/providers`, `/reset`
-- **Memory System**: Per-user conversation history and profiles
-- **Contextual Replies**: Responds to message threads with context
-
 ### Monitoring
 
 The bot includes:
@@ -103,7 +91,6 @@ The bot includes:
 - Graceful error handling
 - Health check endpoints
 - Detailed logging
-- Python process management for wiki scraping
 
 ### Support
 

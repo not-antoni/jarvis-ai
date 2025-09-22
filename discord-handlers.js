@@ -134,10 +134,9 @@ class DiscordHandlers {
         );
         const isReplyToJarvis = message.reference && message.reference.messageId;
         const isBot = message.author.bot;
-        const isTCommand = message.content.toLowerCase().trim().startsWith("!t ");
         
         // If this looks like a Jarvis interaction, check cooldown immediately (for both users and bots)
-        if (isDM || isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
+        if (isDM || isMentioned || containsJarvis || isReplyToJarvis) {
             if (this.isOnCooldown(userId)) {
                 return; // Exit early if on cooldown
             }
@@ -196,34 +195,6 @@ class DiscordHandlers {
             return true;
         }
         
-        if (content.startsWith("!t ")) {
-            // Check if current channel is in the whitelisted channel IDs
-            const whitelistedChannelIds = config.commands.whitelistedChannelIds;
-            if (!whitelistedChannelIds.includes(message.channel.id)) {
-                return true; // Don't respond - command won't work
-            }
-
-            console.log(`!t command detected: ${message.content}`);
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    message.content.trim(),
-                    message.author.username,
-                    message.author.id
-                );
-                
-                console.log(`!t command response: ${response}`);
-                if (response) {
-                    await message.reply(response);
-                } else {
-                    await message.reply("Search system unavailable, sir. Technical difficulties.");
-                }
-            } catch (error) {
-                console.error("!t command error:", error);
-                await message.reply("Search failed, sir. Technical difficulties.");
-            }
-            return true;
-        }
         
         return false;
     }
@@ -305,7 +276,7 @@ class DiscordHandlers {
             }
         }
 
-        // Check for search command pattern: "jarvis search [search terms]"
+        // Check for wiki search command pattern: "jarvis search [search terms]"
         const searchCommandPattern = /^jarvis\s+search\s+(.+)$/i;
         const searchMatch = cleanContent.match(searchCommandPattern);
         
@@ -320,7 +291,7 @@ class DiscordHandlers {
                     return;
                 } catch (error) {
                     console.error("Wiki search error:", error);
-                    await message.reply("Search failed, sir. Technical difficulties.");
+                    await message.reply("Wiki search failed, sir. Technical difficulties.");
                     this.setCooldown(message.author.id);
                     return;
                 }
