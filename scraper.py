@@ -2,9 +2,16 @@ import urllib
 import urllib.parse
 import urllib.request
 import re
-import jsonlines
 import json
 import sys
+
+# Try to import jsonlines, fallback to manual JSONL handling
+try:
+    import jsonlines
+    HAS_JSONLINES = True
+except ImportError:
+    HAS_JSONLINES = False
+    print("Warning: jsonlines not available, using manual JSONL handling")
 
 def get_page(url, max_retries=3):
     for attempt in range(max_retries):
@@ -356,11 +363,23 @@ def scrape_and_save(starting_page_title, use_new_wiki=True, reset_file=True, no_
     
     # Also save to file as backup (optional)
     if reset_file:
-        with jsonlines.open('data.jsonl', 'w') as writer:
-            writer.write_all(pages)
+        if HAS_JSONLINES:
+            with jsonlines.open('data.jsonl', 'w') as writer:
+                writer.write_all(pages)
+        else:
+            # Manual JSONL writing
+            with open('data.jsonl', 'w', encoding='utf-8') as f:
+                for page in pages:
+                    f.write(json.dumps(page) + '\n')
     else:
-        with jsonlines.open('data.jsonl', 'a') as writer:
-            writer.write_all(pages)
+        if HAS_JSONLINES:
+            with jsonlines.open('data.jsonl', 'a') as writer:
+                writer.write_all(pages)
+        else:
+            # Manual JSONL writing
+            with open('data.jsonl', 'a', encoding='utf-8') as f:
+                for page in pages:
+                    f.write(json.dumps(page) + '\n')
 
 if __name__ == "__main__":
     try:
