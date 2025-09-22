@@ -5,8 +5,11 @@ services:
     repo: https://github.com/HustleSynth/jarvis-ai # Replace with your repo
     buildCommand: |
       npm install
-      python3 -m pip install --upgrade pip
-      python3 -m pip install -r requirements.txt
+      python3 --version
+      python3 -m ensurepip --upgrade
+      python3 -m pip install --upgrade pip setuptools wheel
+      python3 -m pip install jsonlines==4.0.1 --no-cache-dir
+      python3 -c "import jsonlines; print('jsonlines installed successfully')"
     startCommand: node index.js
     envVars:
       - key: DISCORD_TOKEN
