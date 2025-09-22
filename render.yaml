@@ -3,7 +3,9 @@ services:
     name: jarvis-discord-bot
     runtime: node
     repo: https://github.com/HustleSynth/jarvis-ai # Replace with your repo
-    buildCommand: npm install
+    buildCommand: |
+      npm install
+      python3 -m pip install jsonlines || pip install jsonlines || echo "jsonlines installation failed, will use fallback"
     startCommand: node index.js
     envVars:
       - key: DISCORD_TOKEN
