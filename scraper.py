@@ -2,14 +2,8 @@ import urllib
 import urllib.parse
 import urllib.request
 import re
+import jsonlines
 import sys
-
-# Only import jsonlines when needed for file operations
-try:
-    import jsonlines
-    JSONLINES_AVAILABLE = True
-except ImportError:
-    JSONLINES_AVAILABLE = False
 
 def get_page(url):
     try:
@@ -62,19 +56,8 @@ def parse_wiki_markup(content, wikilink):
     if content.find('#REDIRECT') != -1:
         print("This page is a redirect.")
         return (None, [re.sub(r'\[\[|\]\]', '', content[content.find('#REDIRECT') + len('#REDIRECT '):content.find(']]')])])
-    
-    # Remove template syntax and HTML entities
     content = re.sub(r'\[\[File:(?:[^\s]|[\s])+\]\]', '', content)  # Remove file links
-    content = re.sub(r'\{\{[^}]+\}\}', '', content)  # Remove all template syntax {{...}}
-    content = re.sub(r'&lt;', '<', content)  # Decode HTML entities
-    content = re.sub(r'&gt;', '>', content)
-    content = re.sub(r'&amp;', '&', content)
-    content = re.sub(r'&quot;', '"', content)
-    
-    # Remove HTML tags and their content
-    content = re.sub(r'<[^>]+>', '', content)  # Remove all HTML tags
-    
-    # Clean up wiki markup
+    content = re.sub(r'\{\{(?:Machine|STFRCustom|TERF_Logistics_Machine_Infobox_Template|Block|Liquid|Addon|(?:The M.C.F.R))([^\}]+)\}\}', '\1', content)
     content = re.sub(r'\|([^\=\|]]+)\=', '\n: ', content)  # Replace infobox parameters.
     content = re.sub(r'===([^=]+)===', r'###\1', content)  # Replace heading 3s
     content = re.sub(r'==([^=]+)==', r'##\1', content)  # Replace heading 2s
@@ -83,26 +66,21 @@ def parse_wiki_markup(content, wikilink):
     content = re.sub(r'<small>((?:[^\s]|[\s])+)</small>', r'-#\1', content)  # Replace small tags
     content = re.sub(r'\[http[^\s]+\s([^\s]]+)\]', r'\1', content)  # Replace external links with text
     content = re.sub(r'\[http[^\s]]+\]', '', content)  # Remove external links without text
-    content = re.sub(r'<br\s?/?>', '', content)  # Remove HTML line breaks.
+    content = re.sub(r'<br\s?/?>', '', content)  # Repmove HTML line breaks.
     content = re.sub(r'\'\'\'\'\'([^\']+?)\'\'\'\'', r'***\1***', content)  # Replace bold italics
     content = re.sub(r'\'\'\'([^\']+?)\'\'\'', r'**\1**', content)  # Replace bold
     content = re.sub(r'\'\'([^\']+?)\'\'', r'*\1*', content)  # Replace italics
     content = re.sub(r'\[\[Category:(?:[^\s]|[\s])+\]\]', '', content) # Remove categories
-    
-    # Handle wiki links
     def wikilinkparsel(match):
         return f"[{match.group(2)}]({wikilink}{match.group(1).replace(' ', '_')})"
     def wikilinkparses(match):
         return f"[{match.group(1)}]({wikilink}{match.group(1).replace(' ', '_')})"
     content = re.sub(r'\[\[([^\|]+?)\|([^\|]+?)\]\]', wikilinkparsel, content)  # Replace piped links
     content = re.sub(r'\[\[([^\|]+?)\]\]', wikilinkparses, content)  # Replace unpiped links
-    
-    # Final cleanup
     content = re.sub(r'\u0001', '', content)  # Remove \u0001 characters
     content = re.sub(r'^[\s]+', '', content)  # Remove leading spaces
     content = re.sub(r'[\s]+$', '', content)  # Remove trailing spaces
     content = re.sub(r'[\s]+', ' ', content)  # Normalize whitespace
-    
     return (content, links)
 
 def get_wiki_category_content(page_title, use_new_wiki=True):
@@ -256,96 +234,7 @@ def formatJson(pages):
         })
     return json_list
 
-def search_wiki_page(search_query, use_new_wiki=True):
-    """Search for a page using the wiki's search functionality"""
-    if use_new_wiki:
-        base_url = "https://trotywiki.miraheze.org/wiki/"
-        search_url = f"https://trotywiki.miraheze.org/w/index.php?search={urllib.parse.quote(search_query)}&title=Special%3ASearch&go=Go"
-    else:
-        base_url = "https://terf.fandom.com/wiki/"
-        search_url = f"https://terf.fandom.com/wiki/Special:Search?search={urllib.parse.quote(search_query)}"
-    
-    HTMLBC = get_page(search_url)
-    if HTMLBC is None:
-        print(f"Search failed for query: {search_query}")
-        return None
-    
-    HTMLStr = HTMLBC.decode("utf8")
-    
-    # Look for the first result link in the search results
-    if use_new_wiki:
-        # Try multiple patterns for Miraheze search results
-        patterns = [
-            r'<a href="/wiki/([^"]+)" title="[^"]*"[^>]*class="mw-search-result-heading"',
-            r'<a href="/wiki/([^"]+)"[^>]*class="mw-search-result-heading"',
-            r'<a href="/wiki/([^"]+)"[^>]*class="mw-search-result-title"',
-            r'href="/wiki/([^"]+)"[^>]*>.*?{re.escape(search_query)}',
-            r'href="/wiki/([^"]+)"[^>]*>.*?{search_query.lower()}'
-        ]
-    else:
-        # Fandom search result pattern
-        patterns = [
-            r'<a href="/wiki/([^"]+)" title="[^"]*"[^>]*class="unified-search__result__title"',
-            r'href="/wiki/([^"]+)"[^>]*class="unified-search__result__title"'
-        ]
-    
-    matches = []
-    for pattern in patterns:
-        matches = re.findall(pattern, HTMLStr, re.IGNORECASE)
-        if matches:
-            break
-    
-    if matches:
-        # Return the first search result
-        result_title = urllib.parse.unquote(matches[0]).replace('_', ' ')
-        print(f"Search '{search_query}' found: {result_title}")
-        return result_title
-    else:
-        print(f"No search results found for: {search_query}")
-        return None
-
-def scrape_and_return_content(starting_page_title, use_new_wiki=True, no_link_repeat=False, search_query=None):
-    # If search_query is provided, search for the page first
-    if search_query:
-        found_page = search_wiki_page(search_query, use_new_wiki)
-        if found_page:
-            starting_page_title = found_page
-        else:
-            # If search fails, try using the search query as a page title directly
-            print(f"Search failed for '{search_query}', trying as direct page title")
-            starting_page_title = search_query.replace(' ', '_')
-    
-    # Scrape the pages and get the content directly
-    pages = scrape_wiki_pages(starting_page_title, use_new_wiki, no_link_repeat)
-    
-    # Return the first page's content directly (for single page scraping)
-    if pages:
-        first_page_title = list(pages.keys())[0]
-        first_page_content = pages[first_page_title]
-        if first_page_content:
-            return first_page_title, first_page_content
-        else:
-            return first_page_title, "No content found for this page."
-    else:
-        # If no pages found, return a helpful message
-        if search_query:
-            return f"Search Results for '{search_query}'", f"Sorry, I couldn't find any content for '{search_query}'. The page might not exist or the wiki might be unavailable."
-        else:
-            return "No Results", "No pages were scraped."
-
-def scrape_and_save(starting_page_title, use_new_wiki=True, reset_file=True, no_link_repeat=False, search_query=None):
-    if not JSONLINES_AVAILABLE:
-        print("Error: jsonlines module not available for file operations")
-        return
-    
-    # If search_query is provided, search for the page first
-    if search_query:
-        found_page = search_wiki_page(search_query, use_new_wiki)
-        if found_page:
-            starting_page_title = found_page
-        else:
-            print(f"Search failed for '{search_query}', using original page title: {starting_page_title}")
-    
+def scrape_and_save(starting_page_title, use_new_wiki=True, reset_file=True, no_link_repeat=False):
     pages = scrape_wiki_pages(starting_page_title, use_new_wiki, no_link_repeat)
     pages = formatJson(pages)
     if reset_file:
@@ -357,49 +246,43 @@ def scrape_and_save(starting_page_title, use_new_wiki=True, reset_file=True, no_
 
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
-        print("Usage: python scraper.py <StartingPageTitle> [--old-wiki] [--no-reset] [--no-link-repeat] [--search-query <query>] [--live-output]")
+        print("Usage: python scraper.py <StartingPageTitle> [--old-wiki] [--no-reset] [--no-link-repeat]")
         sys.exit(1)
-    
     starting_page = sys.argv[1]
     use_new_wiki = True
     reset_file = True
     no_link_repeat = False
-    search_query = None
-    live_output = False
-    
-    # Parse command line arguments
-    i = 2
-    while i < len(sys.argv):
-        arg = sys.argv[i]
-        
-        if arg == '--old-wiki':
+    if len(sys.argv) >= 3:
+        if sys.argv[2] == '--old-wiki':
             use_new_wiki = False
-        elif arg == '--no-reset':
+        elif sys.argv[2] == '--no-reset':
             reset_file = False
-        elif arg == '--no-link-repeat':
+        elif sys.argv[2] == '--no-link-repeat':
             no_link_repeat = True
-        elif arg == '--search-query':
-            if i + 1 < len(sys.argv):
-                search_query = sys.argv[i + 1]
-                i += 1  # Skip the next argument as it's the query value
-            else:
-                print("Error: --search-query requires a query value")
-                print("Usage: python scraper.py <StartingPageTitle> [--old-wiki] [--no-reset] [--no-link-repeat] [--search-query <query>] [--live-output]")
-                sys.exit(1)
-        elif arg == '--live-output':
-            live_output = True
         else:
-            print("Unknown option:", arg)
-            print("Usage: python scraper.py <StartingPageTitle> [--old-wiki] [--no-reset] [--no-link-repeat] [--search-query <query>] [--live-output]")
+            print("Unknown option:", sys.argv[2])
+            print("Usage: python scraper.py <StartingPageTitle> [--old-wiki] [--no-reset] [--no-link-repeat]")
             sys.exit(1)
-        
-        i += 1
-    
-    if live_output:
-        # For live output (Discord chat), return content directly
-        title, content = scrape_and_return_content(starting_page, use_new_wiki, no_link_repeat, search_query)
-        print(f"TITLE:{title}")
-        print(f"CONTENT:{content}")
-    else:
-        # For file output (legacy behavior)
-        scrape_and_save(starting_page, use_new_wiki, reset_file, no_link_repeat, search_query)
+    if len(sys.argv) >= 4:
+        if sys.argv[3] == '--old-wiki':
+            use_new_wiki = False
+        elif sys.argv[3] == '--no-reset':
+            reset_file = False
+        elif sys.argv[3] == '--no-link-repeat':
+            no_link_repeat = True
+        else:
+            print("Unknown option:", sys.argv[3])
+            print("Usage: python scraper.py <StartingPageTitle> [--old-wiki] [--no-reset] [--no-link-repeat]")
+            sys.exit(1)
+    if len(sys.argv) == 5:
+        if sys.argv[4] == '--old-wiki':
+            use_new_wiki = False
+        elif sys.argv[4] == '--no-reset':
+            reset_file = False
+        elif sys.argv[4] == '--no-link-repeat':
+            no_link_repeat = True
+        else:
+            print("Unknown option:", sys.argv[4])
+            print("Usage: python scraper.py <StartingPageTitle> [--old-wiki] [--no-reset] [--no-link-repeat]")
+            sys.exit(1)
+    scrape_and_save(starting_page, use_new_wiki, reset_file, no_link_repeat)
