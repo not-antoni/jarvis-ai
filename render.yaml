@@ -3,9 +3,7 @@ services:
     name: jarvis-discord-bot
     runtime: node
     repo: https://github.com/HustleSynth/jarvis-ai # Replace with your repo
-    buildCommand: |
-      npm install
-      pip install -r requirements.txt
+    buildCommand: npm install
     startCommand: node index.js
     envVars:
       - key: DISCORD_TOKEN
