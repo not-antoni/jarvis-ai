@@ -283,6 +283,28 @@ class DiscordHandlers {
             .replace(/<@!?\d+>/g, "") // strip mentions only
             .trim();
 
+        // Check for YouTube search command pattern: "jarvis yt [search terms]"
+        const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
+        const ytMatch = cleanContent.match(ytCommandPattern);
+        
+        if (ytMatch) {
+            const searchQuery = ytMatch[1].trim();
+            if (searchQuery) {
+                try {
+                    await message.channel.sendTyping();
+                    const response = await this.jarvis.handleYouTubeSearch(searchQuery);
+                    await message.reply(response);
+                    this.setCooldown(message.author.id);
+                    return;
+                } catch (error) {
+                    console.error("YouTube search error:", error);
+                    await message.reply("YouTube search failed, sir. Technical difficulties.");
+                    this.setCooldown(message.author.id);
+                    return;
+                }
+            }
+        }
+
         // If content is empty, treat as a greeting
         if (!cleanContent) {
             cleanContent = "jarvis";

@@ -60,6 +60,11 @@ const config = {
         // Multiple channel IDs where !t command is allowed
         whitelistedChannelIds: ['1403664986089324609',          '984738858950344714',
 '1419618537525346324']
+    },
+
+    // YouTube API Configuration
+    youtube: {
+        apiKey: process.env.YOUTUBE_API_KEY
     }
 };
 
