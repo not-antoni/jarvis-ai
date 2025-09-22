@@ -2,7 +2,7 @@ import urllib
 import urllib.parse
 import urllib.request
 import re
-import jsonlines
+import json
 import sys
 
 def get_page(url):
@@ -238,11 +238,13 @@ def scrape_and_save(starting_page_title, use_new_wiki=True, reset_file=True, no_
     pages = scrape_wiki_pages(starting_page_title, use_new_wiki, no_link_repeat)
     pages = formatJson(pages)
     if reset_file:
-        with jsonlines.open('data.jsonl', 'w') as writer:
-            writer.write_all(pages)
+        with open('data.jsonl', 'w') as f:
+            for page in pages:
+                f.write(json.dumps(page) + '\n')
     else:
-        with jsonlines.open('data.jsonl', 'a') as writer:
-            writer.write_all(pages)
+        with open('data.jsonl', 'a') as f:
+            for page in pages:
+                f.write(json.dumps(page) + '\n')
 
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
