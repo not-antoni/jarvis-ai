@@ -52,7 +52,7 @@ class JarvisAI {
             
             return new Promise((resolve, reject) => {
                 // Call the Python scraper with the search query
-                const pythonProcess = spawn('python', ['scraper.py', query, '--no-reset']);
+                const pythonProcess = spawn('python3', ['scraper.py', query, '--no-reset']);
                 
                 let output = '';
                 let errorOutput = '';
@@ -98,7 +98,11 @@ class JarvisAI {
                 
                 pythonProcess.on('error', (error) => {
                     console.error("Failed to start Python process:", error);
-                    reject(new Error(`Failed to start scraper: ${error.message}`));
+                    if (error.code === 'ENOENT') {
+                        reject(new Error(`Python3 not found. Please ensure Python is installed and available in PATH.`));
+                    } else {
+                        reject(new Error(`Failed to start scraper: ${error.message}`));
+                    }
                 });
             });
         } catch (error) {

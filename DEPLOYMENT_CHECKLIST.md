@@ -26,7 +26,8 @@
 ```yaml
 buildCommand: |
   npm install
-  pip install -r requirements.txt
+  python3 -m pip install --upgrade pip
+  python3 -m pip install -r requirements.txt
 ```
 
 ### Environment Variables Required
@@ -74,7 +75,10 @@ jarvis search troty
 
 ### Missing jsonlines
 - **Issue**: "ModuleNotFoundError: No module named 'jsonlines'"
-- **Solution**: Verify requirements.txt is in the repo and buildCommand includes pip install
+- **Solution**: 
+  - Verify requirements.txt is in the repo
+  - Use `python3` instead of `python` in buildCommand
+  - Ensure buildCommand includes: `python3 -m pip install -r requirements.txt`
 
 ### Permission Issues
 - **Issue**: Python process fails to start
