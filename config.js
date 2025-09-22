@@ -58,7 +58,8 @@ const config = {
     // Command Restrictions
     commands: {
         // Multiple channel IDs where !t command is allowed
-        whitelistedChannelIds: ['1403664986089324609', '984738858950344714']
+        whitelistedChannelIds: ['1403664986089324609',          '984738858950344714',
+'1419618537525346324']
     }
 };
 
