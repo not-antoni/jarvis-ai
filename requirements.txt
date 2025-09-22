@@ -1,2 +1,0 @@
-jsonlines==4.0.1
-urllib3>=1.26.0
