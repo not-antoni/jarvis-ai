@@ -62,8 +62,19 @@ def parse_wiki_markup(content, wikilink):
     if content.find('#REDIRECT') != -1:
         print("This page is a redirect.")
         return (None, [re.sub(r'\[\[|\]\]', '', content[content.find('#REDIRECT') + len('#REDIRECT '):content.find(']]')])])
+    
+    # Remove template syntax and HTML entities
     content = re.sub(r'\[\[File:(?:[^\s]|[\s])+\]\]', '', content)  # Remove file links
-    content = re.sub(r'\{\{(?:Machine|STFRCustom|TERF_Logistics_Machine_Infobox_Template|Block|Liquid|Addon|(?:The M.C.F.R))([^\}]+)\}\}', '\1', content)
+    content = re.sub(r'\{\{[^}]+\}\}', '', content)  # Remove all template syntax {{...}}
+    content = re.sub(r'&lt;', '<', content)  # Decode HTML entities
+    content = re.sub(r'&gt;', '>', content)
+    content = re.sub(r'&amp;', '&', content)
+    content = re.sub(r'&quot;', '"', content)
+    
+    # Remove HTML tags and their content
+    content = re.sub(r'<[^>]+>', '', content)  # Remove all HTML tags
+    
+    # Clean up wiki markup
     content = re.sub(r'\|([^\=\|]]+)\=', '\n: ', content)  # Replace infobox parameters.
     content = re.sub(r'===([^=]+)===', r'###\1', content)  # Replace heading 3s
     content = re.sub(r'==([^=]+)==', r'##\1', content)  # Replace heading 2s
@@ -72,21 +83,26 @@ def parse_wiki_markup(content, wikilink):
     content = re.sub(r'<small>((?:[^\s]|[\s])+)</small>', r'-#\1', content)  # Replace small tags
     content = re.sub(r'\[http[^\s]+\s([^\s]]+)\]', r'\1', content)  # Replace external links with text
     content = re.sub(r'\[http[^\s]]+\]', '', content)  # Remove external links without text
-    content = re.sub(r'<br\s?/?>', '', content)  # Repmove HTML line breaks.
+    content = re.sub(r'<br\s?/?>', '', content)  # Remove HTML line breaks.
     content = re.sub(r'\'\'\'\'\'([^\']+?)\'\'\'\'', r'***\1***', content)  # Replace bold italics
     content = re.sub(r'\'\'\'([^\']+?)\'\'\'', r'**\1**', content)  # Replace bold
     content = re.sub(r'\'\'([^\']+?)\'\'', r'*\1*', content)  # Replace italics
     content = re.sub(r'\[\[Category:(?:[^\s]|[\s])+\]\]', '', content) # Remove categories
+    
+    # Handle wiki links
     def wikilinkparsel(match):
         return f"[{match.group(2)}]({wikilink}{match.group(1).replace(' ', '_')})"
     def wikilinkparses(match):
         return f"[{match.group(1)}]({wikilink}{match.group(1).replace(' ', '_')})"
     content = re.sub(r'\[\[([^\|]+?)\|([^\|]+?)\]\]', wikilinkparsel, content)  # Replace piped links
     content = re.sub(r'\[\[([^\|]+?)\]\]', wikilinkparses, content)  # Replace unpiped links
+    
+    # Final cleanup
     content = re.sub(r'\u0001', '', content)  # Remove \u0001 characters
     content = re.sub(r'^[\s]+', '', content)  # Remove leading spaces
     content = re.sub(r'[\s]+$', '', content)  # Remove trailing spaces
     content = re.sub(r'[\s]+', ' ', content)  # Normalize whitespace
+    
     return (content, links)
 
 def get_wiki_category_content(page_title, use_new_wiki=True):
@@ -258,13 +274,27 @@ def search_wiki_page(search_query, use_new_wiki=True):
     
     # Look for the first result link in the search results
     if use_new_wiki:
-        # Miraheze search result pattern
-        pattern = r'<a href="/wiki/([^"]+)" title="[^"]*"[^>]*class="mw-search-result-heading"'
+        # Try multiple patterns for Miraheze search results
+        patterns = [
+            r'<a href="/wiki/([^"]+)" title="[^"]*"[^>]*class="mw-search-result-heading"',
+            r'<a href="/wiki/([^"]+)"[^>]*class="mw-search-result-heading"',
+            r'<a href="/wiki/([^"]+)"[^>]*class="mw-search-result-title"',
+            r'href="/wiki/([^"]+)"[^>]*>.*?{re.escape(search_query)}',
+            r'href="/wiki/([^"]+)"[^>]*>.*?{search_query.lower()}'
+        ]
     else:
         # Fandom search result pattern
-        pattern = r'<a href="/wiki/([^"]+)" title="[^"]*"[^>]*class="unified-search__result__title"'
+        patterns = [
+            r'<a href="/wiki/([^"]+)" title="[^"]*"[^>]*class="unified-search__result__title"',
+            r'href="/wiki/([^"]+)"[^>]*class="unified-search__result__title"'
+        ]
     
-    matches = re.findall(pattern, HTMLStr)
+    matches = []
+    for pattern in patterns:
+        matches = re.findall(pattern, HTMLStr, re.IGNORECASE)
+        if matches:
+            break
+    
     if matches:
         # Return the first search result
         result_title = urllib.parse.unquote(matches[0]).replace('_', ' ')
@@ -281,7 +311,9 @@ def scrape_and_return_content(starting_page_title, use_new_wiki=True, no_link_re
         if found_page:
             starting_page_title = found_page
         else:
-            print(f"Search failed for '{search_query}', using original page title: {starting_page_title}")
+            # If search fails, try using the search query as a page title directly
+            print(f"Search failed for '{search_query}', trying as direct page title")
+            starting_page_title = search_query.replace(' ', '_')
     
     # Scrape the pages and get the content directly
     pages = scrape_wiki_pages(starting_page_title, use_new_wiki, no_link_repeat)
@@ -295,7 +327,11 @@ def scrape_and_return_content(starting_page_title, use_new_wiki=True, no_link_re
         else:
             return first_page_title, "No content found for this page."
     else:
-        return "No Results", "No pages were scraped."
+        # If no pages found, return a helpful message
+        if search_query:
+            return f"Search Results for '{search_query}'", f"Sorry, I couldn't find any content for '{search_query}'. The page might not exist or the wiki might be unavailable."
+        else:
+            return "No Results", "No pages were scraped."
 
 def scrape_and_save(starting_page_title, use_new_wiki=True, reset_file=True, no_link_repeat=False, search_query=None):
     if not JSONLINES_AVAILABLE:
