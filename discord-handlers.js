@@ -5,6 +5,8 @@
 const { ChannelType } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
+const pythonBridge = require('./python-bridge');
+const wikiSearchHandler = require('./wiki-search-handler');
 
 class DiscordHandlers {
     constructor() {
@@ -134,10 +136,8 @@ class DiscordHandlers {
         );
         const isReplyToJarvis = message.reference && message.reference.messageId;
         const isBot = message.author.bot;
-        const isTCommand = message.content.toLowerCase().trim().startsWith("!t ");
-        
         // If this looks like a Jarvis interaction, check cooldown immediately (for both users and bots)
-        if (isDM || isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
+        if (isDM || isMentioned || containsJarvis || isReplyToJarvis) {
             if (this.isOnCooldown(userId)) {
                 return; // Exit early if on cooldown
             }
@@ -196,36 +196,52 @@ class DiscordHandlers {
             return true;
         }
         
-        if (content.startsWith("!t ")) {
-            // Check if current channel is in the whitelisted channel IDs
-            const whitelistedChannelIds = config.commands.whitelistedChannelIds;
-            if (!whitelistedChannelIds.includes(message.channel.id)) {
-                return true; // Don't respond - command won't work
-            }
-
-            console.log(`!t command detected: ${message.content}`);
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    message.content.trim(),
-                    message.author.username,
-                    message.author.id
-                );
-                
-                console.log(`!t command response: ${response}`);
-                if (response) {
-                    await message.reply(response);
-                } else {
-                    await message.reply("Search system unavailable, sir. Technical difficulties.");
-                }
-            } catch (error) {
-                console.error("!t command error:", error);
-                await message.reply("Search failed, sir. Technical difficulties.");
-            }
-            return true;
-        }
         
         return false;
+    }
+
+    async handleWikiSearch(searchQuery) {
+        try {
+            console.log(`Processing enhanced wiki search for: "${searchQuery}"`);
+            
+            // Execute the Python scraper
+            const result = await pythonBridge.searchWiki(searchQuery);
+            
+            // Handle fallback case when Python is not available
+            if (result.fallback) {
+                if (result.suggestions && result.suggestions.length > 0) {
+                    return `Wiki search is currently unavailable, sir. However, I found these related terms: **${result.suggestions.join(', ')}**. Please try searching for one of these directly.`;
+                } else {
+                    return `Wiki search is currently unavailable, sir. The system is experiencing technical difficulties.`;
+                }
+            }
+            
+            if (!result.success || !result.data || result.data.length === 0) {
+                return `No results found for "${searchQuery}", sir. The wiki may not contain that information.`;
+            }
+
+            // Use enhanced search handler with OpenAI embeddings
+            const processedResults = await wikiSearchHandler.processSearchResults(searchQuery, result.data);
+            
+            // Format the response using the enhanced handler
+            return wikiSearchHandler.formatResponse(processedResults);
+            
+        } catch (error) {
+            console.error("Wiki search error:", error);
+            
+            // Handle specific error cases
+            if (error.message.includes('No data found')) {
+                return `No results found for "${searchQuery}", sir. The wiki may not contain that information. Try a different search term or check the spelling.`;
+            } else if (error.message.includes('timed out')) {
+                return `Search timed out, sir. The wiki may be experiencing issues.`;
+            } else if (error.message.includes('Python process failed')) {
+                return `Wiki search system is currently unavailable, sir. Technical difficulties.`;
+            } else if (error.message.includes('embedding')) {
+                return `Search processing failed, sir. AI services are temporarily unavailable.`;
+            } else {
+                return `Wiki search failed, sir. Technical difficulties: ${error.message}`;
+            }
+        }
     }
 
     async handleJarvisInteraction(message, client) {
@@ -299,6 +315,28 @@ class DiscordHandlers {
                 } catch (error) {
                     console.error("YouTube search error:", error);
                     await message.reply("YouTube search failed, sir. Technical difficulties.");
+                    this.setCooldown(message.author.id);
+                    return;
+                }
+            }
+        }
+
+        // Check for wiki search command pattern: "jarvis search [query]"
+        const searchCommandPattern = /^jarvis\s+search\s+(.+)$/i;
+        const searchMatch = cleanContent.match(searchCommandPattern);
+        
+        if (searchMatch) {
+            const searchQuery = searchMatch[1].trim();
+            if (searchQuery) {
+                try {
+                    await message.channel.sendTyping();
+                    const response = await this.handleWikiSearch(searchQuery);
+                    await message.reply(response);
+                    this.setCooldown(message.author.id);
+                    return;
+                } catch (error) {
+                    console.error("Wiki search error:", error);
+                    await message.reply("Wiki search failed, sir. Technical difficulties.");
                     this.setCooldown(message.author.id);
                     return;
                 }

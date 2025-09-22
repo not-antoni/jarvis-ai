@@ -44,7 +44,7 @@ services:
         sync: false
       - key: GOOGLE_AI_API_KEY2
         sync: false
-      - key: OPENAI_API_KEY
+      - key: OPENAI
         sync: false
       - key: ADMIN_USER_ID
         sync: false
