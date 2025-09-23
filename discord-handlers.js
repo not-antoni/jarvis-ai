@@ -61,6 +61,137 @@ class DiscordHandlers {
         }
     }
 
+    calculateTextHeight(text, maxWidth) {
+        // Create a temporary canvas to measure text
+        const tempCanvas = createCanvas(1, 1);
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.font = '14px Arial';
+        
+        // Function to detect Discord emojis
+        const detectEmojis = (text) => {
+            const emojiRegex = /<a?:(\w+):(\d+)>/g;
+            const emojis = [];
+            let match;
+            
+            while ((match = emojiRegex.exec(text)) !== null) {
+                emojis.push({
+                    full: match[0],
+                    name: match[1],
+                    id: match[2],
+                    animated: match[0].startsWith('<a:'),
+                    start: match.index,
+                    end: match.index + match[0].length
+                });
+            }
+            
+            return emojis;
+        };
+
+        const emojis = detectEmojis(text);
+        const emojiSize = 18;
+        const lineHeight = 20;
+        const baseHeight = 40; // Username + timestamp + spacing
+        
+        if (emojis.length === 0) {
+            // No emojis, calculate normal word wrap
+            const words = text.split(' ');
+            let currentLine = words[0];
+            let lines = 1;
+
+            for (let i = 1; i < words.length; i++) {
+                const word = words[i];
+                const width = tempCtx.measureText(currentLine + ' ' + word).width;
+                if (width < maxWidth) {
+                    currentLine += ' ' + word;
+                } else {
+                    lines++;
+                    currentLine = word;
+                }
+            }
+            
+            return baseHeight + (lines * lineHeight);
+        }
+
+        // Calculate height with emojis
+        let currentX = 0;
+        let currentY = 0;
+        let lastIndex = 0;
+        
+        for (const emoji of emojis) {
+            // Text before emoji
+            if (emoji.start > lastIndex) {
+                const textBefore = text.substring(lastIndex, emoji.start);
+                const textWidth = tempCtx.measureText(textBefore).width;
+                
+                if (currentX + textWidth > maxWidth) {
+                    currentX = 0;
+                    currentY += lineHeight;
+                }
+                
+                currentX += textWidth;
+            }
+            
+            // Emoji
+            if (currentX + emojiSize > maxWidth) {
+                currentX = 0;
+                currentY += lineHeight;
+            }
+            
+            currentX += emojiSize;
+            lastIndex = emoji.end;
+        }
+        
+        // Remaining text
+        if (lastIndex < text.length) {
+            const remainingText = text.substring(lastIndex);
+            const textWidth = tempCtx.measureText(remainingText).width;
+            
+            if (currentX + textWidth > maxWidth) {
+                currentY += lineHeight;
+            }
+        }
+        
+        return baseHeight + currentY + lineHeight;
+    }
+
+    async calculateImageHeight(attachments, maxWidth) {
+        if (!attachments || attachments.length === 0) {
+            return 0;
+        }
+
+        let totalHeight = 0;
+        const maxImages = Math.min(attachments.length, 3);
+        
+        for (let i = 0; i < maxImages; i++) {
+            const attachment = attachments[i];
+            
+            if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+                try {
+                    const img = await loadImage(attachment.url);
+                    
+                    // Calculate scaled dimensions
+                    let imgWidth = img.width;
+                    let imgHeight = img.height;
+                    
+                    // Scale down if too large
+                    if (imgWidth > maxWidth) {
+                        const scale = maxWidth / imgWidth;
+                        imgWidth = maxWidth;
+                        imgHeight = imgHeight * scale;
+                    }
+                    
+                    totalHeight += imgHeight + 10; // 10px spacing between images
+                    
+                } catch (error) {
+                    // If image fails to load, add placeholder height
+                    totalHeight += 60; // Fixed height for placeholder
+                }
+            }
+        }
+        
+        return totalHeight;
+    }
+
     async handleClipCommand(message, client) {
         // Check if message starts with "jarvis clip"
         const content = message.content.trim().toLowerCase();
@@ -97,7 +228,8 @@ class DiscordHandlers {
                 repliedMessage.author.bot,
                 roleColor,
                 repliedMessage.attachments,
-                message.guild
+                message.guild,
+                client
             );
             
             // Create attachment
@@ -120,27 +252,33 @@ class DiscordHandlers {
         }
     }
 
-    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', attachments = [], guild = null) {
-        // Set up canvas dimensions (adjust based on content)
-        const hasImages = attachments && attachments.length > 0;
+    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', attachments = [], guild = null, client = null) {
+        // Calculate dynamic canvas dimensions based on content
         const width = 400;
-        const baseHeight = 120;
-        const imageHeight = hasImages ? 200 : 0; // Extra space for images
-        const height = baseHeight + imageHeight;
+        const minHeight = 120; // Minimum height for basic content
         
-        const canvas = createCanvas(width, height);
+        // Calculate text height
+        const textHeight = this.calculateTextHeight(text, width - 80); // Account for margins and avatar space
+        
+        // Calculate image height
+        const imageHeight = await this.calculateImageHeight(attachments, width - 40);
+        
+        // Calculate total height
+        const totalHeight = Math.max(minHeight, textHeight + imageHeight + 20); // 20px padding
+        
+        const canvas = createCanvas(width, totalHeight);
         const ctx = canvas.getContext('2d');
 
         // Pure black background
         ctx.fillStyle = '#000000'; // Pure black
-        ctx.fillRect(0, 0, width, height);
+        ctx.fillRect(0, 0, width, totalHeight);
 
         // Calculate centered positioning
         const avatarSize = 32; // Smaller avatar
         const contentWidth = width - 40; // 20px margin on each side
-        const contentHeight = height - 20; // 10px margin top/bottom
+        const contentHeight = totalHeight - 20; // 10px margin top/bottom
         const avatarX = 20;
-        const avatarY = (height - avatarSize) / 2; // Center vertically
+        const avatarY = (totalHeight - avatarSize) / 2; // Center vertically
 
         // Draw avatar (circular)
         if (avatarUrl) {
@@ -255,10 +393,8 @@ class DiscordHandlers {
     // Function to render text with emojis
     const renderTextWithEmojis = async (text, startX, startY, maxWidth) => {
         const emojis = detectEmojis(text);
-        const emojiSize = 16;
-        let currentX = startX;
-        let currentY = startY;
-        const lineHeight = 16;
+        const emojiSize = 18; // Slightly larger for better visibility
+        const lineHeight = 20; // Increased line height for emojis
         
         if (emojis.length === 0) {
             // No emojis, render normally with word wrap
@@ -288,8 +424,10 @@ class DiscordHandlers {
             return;
         }
 
-        // Render text with emojis
+        // Split text into parts and render each part
         let lastIndex = 0;
+        let currentX = startX;
+        let currentY = startY;
         
         for (const emoji of emojis) {
             // Render text before emoji
@@ -297,6 +435,7 @@ class DiscordHandlers {
                 const textBefore = text.substring(lastIndex, emoji.start);
                 const textWidth = ctx.measureText(textBefore).width;
                 
+                // Check if text fits on current line
                 if (currentX + textWidth > startX + maxWidth) {
                     currentX = startX;
                     currentY += lineHeight;
@@ -308,30 +447,51 @@ class DiscordHandlers {
             
             // Render emoji
             try {
-                const emojiUrl = `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`;
+                let emojiUrl;
+                
+                // Try to get emoji from Discord client cache first
+                if (client && guild) {
+                    const discordEmoji = client.emojis.cache.get(emoji.id);
+                    if (discordEmoji) {
+                        emojiUrl = discordEmoji.url;
+                    } else {
+                        // Fallback to CDN URL construction
+                        emojiUrl = `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`;
+                    }
+                } else {
+                    // No client/guild info, use CDN URL
+                    emojiUrl = `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`;
+                }
+                
                 const emojiImg = await loadImage(emojiUrl);
                 
+                // Check if emoji fits on current line
                 if (currentX + emojiSize > startX + maxWidth) {
                     currentX = startX;
                     currentY += lineHeight;
                 }
                 
-                ctx.drawImage(emojiImg, currentX, currentY - 2, emojiSize, emojiSize);
+                ctx.drawImage(emojiImg, currentX, currentY - 1, emojiSize, emojiSize);
                 currentX += emojiSize;
                 
             } catch (error) {
                 console.warn(`Failed to load emoji ${emoji.name}:`, error);
-                // Fallback: render emoji name
+                // Fallback: render emoji name with better styling
                 const fallbackText = `:${emoji.name}:`;
                 const textWidth = ctx.measureText(fallbackText).width;
                 
+                // Check if fallback text fits on current line
                 if (currentX + textWidth > startX + maxWidth) {
                     currentX = startX;
                     currentY += lineHeight;
                 }
                 
-                ctx.fillText(fallbackText, currentX, currentY);
-                currentX += textWidth;
+                // Style the fallback text to look more like an emoji placeholder
+                ctx.fillStyle = '#5865f2'; // Discord blue background
+                ctx.fillRect(currentX, currentY - 2, textWidth + 4, 16);
+                ctx.fillStyle = '#ffffff'; // White text
+                ctx.fillText(fallbackText, currentX + 2, currentY);
+                currentX += textWidth + 4;
             }
             
             lastIndex = emoji.end;
@@ -342,6 +502,7 @@ class DiscordHandlers {
             const remainingText = text.substring(lastIndex);
             const textWidth = ctx.measureText(remainingText).width;
             
+            // Check if remaining text fits on current line
             if (currentX + textWidth > startX + maxWidth) {
                 currentX = startX;
                 currentY += lineHeight;
@@ -356,10 +517,11 @@ class DiscordHandlers {
     await renderTextWithEmojis(text, textStartX, messageStartY, maxTextWidth);
 
         // Draw images if present
-        if (hasImages) {
-            const imageStartY = baseHeight + 10; // Start below the text content
+        if (attachments && attachments.length > 0) {
+            const imageStartY = textHeight + 10; // Start below the text content
             const maxImageWidth = width - 40; // 20px margin on each side
-            const maxImageHeight = imageHeight - 20; // 10px margin top/bottom
+            const maxImageHeight = imageHeight; // Use calculated image height
+            let currentImageY = imageStartY;
             
             for (let i = 0; i < Math.min(attachments.length, 3); i++) { // Max 3 images
                 const attachment = attachments[i];
@@ -388,21 +550,26 @@ class DiscordHandlers {
                         
                         // Center the image horizontally
                         const imgX = (width - imgWidth) / 2;
-                        const imgY = imageStartY + (i * (imgHeight + 10)); // 10px spacing between images
                         
                         // Draw image
-                        ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+                        ctx.drawImage(img, imgX, currentImageY, imgWidth, imgHeight);
+                        
+                        // Move to next image position
+                        currentImageY += imgHeight + 10; // 10px spacing between images
                         
                     } catch (error) {
                         console.warn(`Failed to load image ${i + 1}:`, error);
                         // Draw placeholder for failed images
                         ctx.fillStyle = '#333333';
-                        ctx.fillRect(20, imageStartY + (i * 60), maxImageWidth, 50);
+                        ctx.fillRect(20, currentImageY, maxImageWidth, 50);
                         
                         ctx.fillStyle = '#666666';
                         ctx.font = '12px Arial';
                         ctx.textAlign = 'center';
-                        ctx.fillText('Failed to load image', width / 2, imageStartY + (i * 60) + 30);
+                        ctx.fillText('Failed to load image', width / 2, currentImageY + 30);
+                        
+                        // Move to next image position even for failed images
+                        currentImageY += 60; // Fixed height for placeholder
                     }
                 }
             }
@@ -412,7 +579,7 @@ class DiscordHandlers {
         const buffer = canvas.toBuffer('image/png');
         
         // Use sharp to slightly reduce quality/resolution for funny effect
-        const finalHeight = hasImages ? Math.min(height, 400) : 96; // Cap height for images
+        const finalHeight = Math.min(totalHeight, 500); // Cap height at 500px
         const processedBuffer = await sharp(buffer)
             .resize(320, finalHeight) // Adjust final size based on content
             .png({ quality: 85 }) // Slightly lower quality
@@ -789,7 +956,8 @@ class DiscordHandlers {
                 targetMessage.author.bot,
                 roleColor,
                 targetMessage.attachments,
-                interaction.guild
+                interaction.guild,
+                interaction.client
             );
             
             // Create attachment
