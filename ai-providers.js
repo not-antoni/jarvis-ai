@@ -319,18 +319,35 @@ class AIProviderManager {
                     const cohereResponse = await provider.client.chat({
                         model: provider.model,
                         messages: [
-                            { role: "user", content: `${systemPrompt}\n\n${userPrompt}` }
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt }
                         ],
                         max_tokens: maxTokens,
                         temperature: config.ai.temperature,
                     });
                     
-                    if (!cohereResponse.text) {
+                    // Extract text content from Cohere's response structure
+                    let content = '';
+                    if (cohereResponse.message && cohereResponse.message.content) {
+                        if (Array.isArray(cohereResponse.message.content)) {
+                            // Handle array of content objects
+                            content = cohereResponse.message.content
+                                .filter(item => item.type === 'text')
+                                .map(item => item.text)
+                                .join('');
+                        } else if (typeof cohereResponse.message.content === 'string') {
+                            // Handle direct string content
+                            content = cohereResponse.message.content;
+                        }
+                    }
+                    
+                    if (!content) {
+                        console.error(`Debug - ${provider.name} invalid response structure:`, JSON.stringify(cohereResponse, null, 2));
                         throw new Error(`Invalid response format from ${provider.name}`);
                     }
                     
                     response = {
-                        choices: [{ message: { content: cohereResponse.text } }],
+                        choices: [{ message: { content: content } }],
                     };
                 } else {
                     // Prepare base parameters for all providers
