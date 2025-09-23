@@ -38,6 +38,29 @@ class DiscordHandlers {
         this.userCooldowns.set(userId, Date.now());
     }
 
+    getUserRoleColor(member) {
+        try {
+            if (!member || !member.roles) {
+                return '#ff6b6b'; // Default red
+            }
+
+            // Get the highest role with a color (excluding @everyone)
+            const coloredRoles = member.roles.cache
+                .filter(role => role.color !== 0 && role.name !== '@everyone')
+                .sort((a, b) => b.position - a.position);
+
+            if (coloredRoles.size > 0) {
+                const topRole = coloredRoles.first();
+                return `#${topRole.color.toString(16).padStart(6, '0')}`;
+            }
+
+            return '#ff6b6b'; // Default red if no colored roles
+        } catch (error) {
+            console.warn('Failed to get role color:', error);
+            return '#ff6b6b'; // Default red on error
+        }
+    }
+
     async handleClipCommand(message, client) {
         // Check if message starts with "jarvis clip"
         const content = message.content.trim().toLowerCase();
@@ -56,10 +79,23 @@ class DiscordHandlers {
             
             // Create image from the replied message content with user info
             const avatarUrl = repliedMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
+            
+            // Get user's role color
+            let roleColor = '#ff6b6b'; // Default red
+            try {
+                if (message.guild && repliedMessage.member) {
+                    roleColor = this.getUserRoleColor(repliedMessage.member);
+                }
+            } catch (error) {
+                console.warn('Failed to get role color for text command:', error);
+            }
+            
             const imageBuffer = await this.createClipImage(
                 repliedMessage.content, 
                 repliedMessage.author.username, 
-                avatarUrl
+                avatarUrl,
+                repliedMessage.author.bot,
+                roleColor
             );
             
             // Create attachment
@@ -82,35 +118,25 @@ class DiscordHandlers {
         }
     }
 
-    async createClipImage(text, username, avatarUrl) {
-        // Set up canvas dimensions (lower resolution for funny effect)
-        const width = 600;
-        const height = 500; // Increased height to accommodate avatar and username
+    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b') {
+        // Set up canvas dimensions (smaller, more compact)
+        const width = 400;
+        const height = 120; // Much smaller height
         const canvas = createCanvas(width, height);
         const ctx = canvas.getContext('2d');
 
-        // Create gradient background with vignette effect
-        const gradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, Math.max(width, height)/2);
-        gradient.addColorStop(0, '#2a2a2a'); // Center - lighter silverish gray
-        gradient.addColorStop(0.7, '#1a1a1a'); // Mid - darker
-        gradient.addColorStop(1, '#0a0a0a'); // Edges - very dark for vignette
-        
-        ctx.fillStyle = gradient;
+        // Solid dark background (no vignette)
+        ctx.fillStyle = '#1e1e1e'; // Solid dark gray like Discord
         ctx.fillRect(0, 0, width, height);
 
-        // Add additional vignette overlay
-        const vignetteGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, Math.max(width, height)/1.5);
-        vignetteGradient.addColorStop(0, 'rgba(0,0,0,0)'); // Transparent center
-        vignetteGradient.addColorStop(1, 'rgba(0,0,0,0.4)'); // Dark edges
-        
-        ctx.fillStyle = vignetteGradient;
-        ctx.fillRect(0, 0, width, height);
+        // Calculate centered positioning
+        const avatarSize = 32; // Smaller avatar
+        const contentWidth = width - 40; // 20px margin on each side
+        const contentHeight = height - 20; // 10px margin top/bottom
+        const avatarX = 20;
+        const avatarY = (height - avatarSize) / 2; // Center vertically
 
         // Draw avatar (circular)
-        const avatarSize = 40;
-        const avatarX = 20;
-        const avatarY = 20;
-        
         if (avatarUrl) {
             try {
                 // Create circular clipping path for avatar
@@ -139,7 +165,7 @@ class DiscordHandlers {
                 
                 // Draw user initial
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 16px Arial';
+                ctx.font = 'bold 12px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize/2, avatarY + avatarSize/2);
@@ -154,28 +180,49 @@ class DiscordHandlers {
             ctx.fill();
             
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 16px Arial';
+            ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize/2, avatarY + avatarSize/2);
             ctx.restore();
         }
 
-        // Draw username
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 16px Arial';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(username, avatarX + avatarSize + 10, avatarY + avatarSize/2);
+        // Calculate text positioning (centered)
+        const textStartX = avatarX + avatarSize + 8;
+        const textStartY = avatarY + 2;
+        const maxTextWidth = contentWidth - (avatarSize + 8) - 20;
 
-        // Draw timestamp (simulate Discord style)
+        // Draw username in role color
+        ctx.fillStyle = roleColor; // Use role color
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(username, textStartX, textStartY);
+
+        // Draw bot tag if it's a bot
+        if (isBot) {
+            const usernameWidth = ctx.measureText(username).width;
+            const botTagX = textStartX + usernameWidth + 4;
+            
+            // Bot tag background
+            ctx.fillStyle = '#5865f2';
+            ctx.fillRect(botTagX, textStartY, 35, 16);
+            
+            // Bot tag text
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 10px Arial';
+            ctx.fillText('BOT', botTagX + 2, textStartY + 2);
+        }
+
+        // Draw timestamp
+        const timestampX = textStartX + (isBot ? 45 : 0) + ctx.measureText(username).width + 8;
         ctx.fillStyle = '#72767d';
         ctx.font = '12px Arial';
-        ctx.fillText('Today at 12:00 PM', avatarX + avatarSize + 10, avatarY + avatarSize/2 + 20);
+        ctx.fillText('6:39 PM', timestampX, textStartY);
 
-        // Set text properties for message content
+        // Draw message content in white
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 20px monospace';
+        ctx.font = '14px Arial'; // Regular weight, not bold
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
 
@@ -199,36 +246,22 @@ class DiscordHandlers {
             return lines;
         };
 
-        // Wrap text to fit canvas (accounting for avatar space)
-        const textStartX = avatarX + avatarSize + 10;
-        const textStartY = avatarY + avatarSize + 10;
-        const maxTextWidth = width - textStartX - 20;
-        
+        // Wrap text and position below username
         const lines = wrapText(text, maxTextWidth);
-        const lineHeight = 28;
+        const lineHeight = 16;
+        const messageStartY = textStartY + 18; // Below username line
 
-        // Draw text lines with slight shadow for depth
-        ctx.shadowColor = 'rgba(0,0,0,0.5)';
-        ctx.shadowBlur = 2;
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1;
-        
+        // Draw message lines
         lines.forEach((line, index) => {
-            ctx.fillText(line, textStartX, textStartY + index * lineHeight);
+            ctx.fillText(line, textStartX, messageStartY + index * lineHeight);
         });
-
-        // Reset shadow
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
 
         // Convert canvas to buffer
         const buffer = canvas.toBuffer('image/png');
         
         // Use sharp to slightly reduce quality/resolution for funny effect
         const processedBuffer = await sharp(buffer)
-            .resize(480, 400) // Adjusted for new height
+            .resize(320, 96) // Much smaller final size
             .png({ quality: 85 }) // Slightly lower quality
             .toBuffer();
 
@@ -585,10 +618,23 @@ class DiscordHandlers {
             
             // Create image from the message content with user info
             const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
+            
+            // Get user's role color
+            let roleColor = '#ff6b6b'; // Default red
+            try {
+                if (interaction.guild && targetMessage.member) {
+                    roleColor = this.getUserRoleColor(targetMessage.member);
+                }
+            } catch (error) {
+                console.warn('Failed to get role color for slash command:', error);
+            }
+            
             const imageBuffer = await this.createClipImage(
                 targetMessage.content, 
                 targetMessage.author.username, 
-                avatarUrl
+                avatarUrl,
+                targetMessage.author.bot,
+                roleColor
             );
             
             // Create attachment
