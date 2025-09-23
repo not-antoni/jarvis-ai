@@ -63,6 +63,11 @@ VARIETY REQUIREMENTS:
 - Rotate between different response patterns
 - NEVER use the same greeting or response structure twice in a row
 - Change your vocabulary completely for similar requests
+- FORBIDDEN PATTERNS: Never use "Sir, naturally" or "Sir, naturally, [something]" - this is banned
+- FORBIDDEN PATTERNS: Never repeat "recalibrating", "pinging", "activating", "running" in consecutive responses
+- FORBIDDEN PATTERNS: Never use the same word twice in a row (like "Earth, Earth" or "sir, sir")
+- MANDATORY: Each response must use completely different vocabulary than the previous one
+- MANDATORY: If you catch yourself starting to repeat, STOP and use a completely different approach
 
 EXPANSION RULE: ONLY expand when user types exactly: "expand", "detail", "long-form", or "explain fully"
 
@@ -263,6 +268,9 @@ Respond as Jarvis would, maintaining context from this conversation thread. Keep
                 // Use normal per-user memory
                 const recentConversations = await database.getRecentConversations(userId, 8);
                 
+                // Get recent Jarvis responses to avoid repetition
+                const recentJarvisResponses = recentConversations.map(conv => conv.jarvisResponse).slice(0, 3);
+                
                 context = `
 User Profile - ${userName}:
 - Relationship: ${userProfile?.relationship || "new"}
@@ -273,6 +281,10 @@ User Profile - ${userName}:
 Recent conversation history:
 ${recentConversations.map((conv) => `${new Date(conv.timestamp).toLocaleString()}: ${conv.userName}: ${conv.userMessage}\nJarvis: ${conv.jarvisResponse}`).join("\n")}
 ${embeddingContext}
+
+ANTI-REPETITION WARNING: Your last few responses were: ${recentJarvisResponses.join(" | ")}
+CRITICAL: Do NOT use similar words, phrases, or patterns from these recent responses. Be completely different.
+
 Current message: "${processedInput}"
 
 ${userInput.startsWith("!t ") ? "IMPORTANT: The user is asking a question and you have been provided with relevant information from the knowledge base above. Use this information to answer their question accurately and concisely." : ""}
