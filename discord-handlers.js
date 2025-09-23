@@ -2,9 +2,13 @@
  * Discord event handlers and command processing
  */
 
-const { ChannelType } = require('discord.js');
+const { ChannelType, AttachmentBuilder } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
+const { createCanvas, loadFont, registerFont } = require('canvas');
+const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
 
 class DiscordHandlers {
     constructor() {
@@ -32,6 +36,128 @@ class DiscordHandlers {
 
     setCooldown(userId) {
         this.userCooldowns.set(userId, Date.now());
+    }
+
+    async handleClipCommand(message, client) {
+        // Check if message starts with "jarvis clip"
+        const content = message.content.trim().toLowerCase();
+        if (!content.startsWith('jarvis clip')) {
+            return false;
+        }
+
+        // If not a reply, do nothing (no response)
+        if (!message.reference || !message.reference.messageId) {
+            return true; // Return true to indicate we handled it (by doing nothing)
+        }
+
+        try {
+            // Fetch the replied message
+            const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+            
+            // Create image from the replied message content
+            const imageBuffer = await this.createClipImage(repliedMessage.content);
+            
+            // Create attachment
+            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
+            
+            // Send the image with "clipped, sir." message
+            await message.reply({ 
+                content: 'clipped, sir.', 
+                files: [attachment] 
+            });
+            
+            // Clean up - the image buffer is automatically garbage collected
+            // No need to manually delete since we're working with buffers in memory
+            
+            return true; // Indicate we handled the command
+        } catch (error) {
+            console.error('Error handling clip command:', error);
+            // Don't send any error message, just fail silently
+            return true;
+        }
+    }
+
+    async createClipImage(text) {
+        // Set up canvas dimensions (lower resolution for funny effect)
+        const width = 600;
+        const height = 400;
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+
+        // Create gradient background with vignette effect
+        const gradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, Math.max(width, height)/2);
+        gradient.addColorStop(0, '#2a2a2a'); // Center - lighter silverish gray
+        gradient.addColorStop(0.7, '#1a1a1a'); // Mid - darker
+        gradient.addColorStop(1, '#0a0a0a'); // Edges - very dark for vignette
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // Add additional vignette overlay
+        const vignetteGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, Math.max(width, height)/1.5);
+        vignetteGradient.addColorStop(0, 'rgba(0,0,0,0)'); // Transparent center
+        vignetteGradient.addColorStop(1, 'rgba(0,0,0,0.4)'); // Dark edges
+        
+        ctx.fillStyle = vignetteGradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // Set text properties - white pixelated text like in screenshot
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Word wrap function
+        const wrapText = (text, maxWidth) => {
+            const words = text.split(' ');
+            const lines = [];
+            let currentLine = words[0];
+
+            for (let i = 1; i < words.length; i++) {
+                const word = words[i];
+                const width = ctx.measureText(currentLine + ' ' + word).width;
+                if (width < maxWidth) {
+                    currentLine += ' ' + word;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
+                }
+            }
+            lines.push(currentLine);
+            return lines;
+        };
+
+        // Wrap text to fit canvas
+        const lines = wrapText(text, width - 40);
+        const lineHeight = 28;
+        const startY = height / 2 - (lines.length * lineHeight) / 2;
+
+        // Draw text lines with slight shadow for depth
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        
+        lines.forEach((line, index) => {
+            ctx.fillText(line, width / 2, startY + index * lineHeight);
+        });
+
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+
+        // Convert canvas to buffer
+        const buffer = canvas.toBuffer('image/png');
+        
+        // Use sharp to slightly reduce quality/resolution for funny effect
+        const processedBuffer = await sharp(buffer)
+            .resize(480, 320) // Slightly smaller
+            .png({ quality: 85 }) // Slightly lower quality
+            .toBuffer();
+
+        return processedBuffer;
     }
 
     async getContextualMemory(message, client) {
@@ -258,6 +384,12 @@ class DiscordHandlers {
             .replace(/@everyone/g, "") // NEW
             .replace(/@here/g, "")     // NEW
             .trim();
+
+        // Check for clip command first (overrides AI response)
+        if (await this.handleClipCommand(message, client)) {
+            this.setCooldown(message.author.id);
+            return; // Exit early, no AI response
+        }
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
