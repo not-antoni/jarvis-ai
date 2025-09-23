@@ -165,9 +165,21 @@ class DiscordHandlers {
         for (let i = 0; i < maxImages; i++) {
             const attachment = attachments[i];
             
-            if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+            // Handle both Discord attachments and URL images
+            let imageUrl, contentType;
+            if (attachment.url) {
+                // Discord attachment
+                imageUrl = attachment.url;
+                contentType = attachment.contentType;
+            } else {
+                // URL image
+                imageUrl = attachment;
+                contentType = 'image/jpeg'; // Assume JPEG for URL images
+            }
+            
+            if (contentType && contentType.startsWith('image/')) {
                 try {
-                    const img = await loadImage(attachment.url);
+                    const img = await loadImage(imageUrl);
                     
                     // Calculate scaled dimensions
                     let imgWidth = img.width;
@@ -252,16 +264,50 @@ class DiscordHandlers {
         }
     }
 
+    extractImageUrls(text) {
+        // Regex to find image URLs (common image formats)
+        const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
+        const urls = text.match(imageUrlRegex) || [];
+        
+        // Filter and process Discord URLs to ensure they work with canvas
+        return urls.filter(url => {
+            // Include Discord media URLs
+            if (url.includes('media.discordapp.net') || url.includes('cdn.discordapp.com')) {
+                return true;
+            }
+            // Include other image URLs
+            return url.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i);
+        }).map(url => {
+            // Convert Discord WebP URLs to PNG format for better compatibility
+            if (url.includes('media.discordapp.net') && url.includes('format=webp')) {
+                return url.replace('format=webp', 'format=png');
+            }
+            return url;
+        });
+    }
+
+    removeImageUrls(text) {
+        // Remove image URLs from text for cleaner display
+        const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
+        return text.replace(imageUrlRegex, '').trim();
+    }
     async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', attachments = [], guild = null, client = null) {
         // Calculate dynamic canvas dimensions based on content
         const width = 400;
         const minHeight = 120; // Minimum height for basic content
         
-        // Calculate text height
-        const textHeight = this.calculateTextHeight(text, width - 80); // Account for margins and avatar space
+        // Extract image URLs from text content
+        const imageUrls = this.extractImageUrls(text);
+        
+        // Combine Discord attachments with URL images
+        const allImages = [...attachments, ...imageUrls];
+        
+        // Calculate text height (remove URLs from text for height calculation)
+        const textWithoutUrls = this.removeImageUrls(text);
+        const textHeight = this.calculateTextHeight(textWithoutUrls, width - 80); // Account for margins and avatar space
         
         // Calculate image height
-        const imageHeight = await this.calculateImageHeight(attachments, width - 40);
+        const imageHeight = await this.calculateImageHeight(allImages, width - 40);
         
         // Calculate total height
         const totalHeight = Math.max(minHeight, textHeight + imageHeight + 20); // 20px padding
@@ -514,22 +560,34 @@ class DiscordHandlers {
 
     // Render message with emoji support
     const messageStartY = textStartY + 18; // Below username line
-    await renderTextWithEmojis(text, textStartX, messageStartY, maxTextWidth);
+    await renderTextWithEmojis(textWithoutUrls, textStartX, messageStartY, maxTextWidth);
 
         // Draw images if present
-        if (attachments && attachments.length > 0) {
+        if (allImages && allImages.length > 0) {
             const imageStartY = textHeight + 10; // Start below the text content
             const maxImageWidth = width - 40; // 20px margin on each side
             const maxImageHeight = imageHeight; // Use calculated image height
             let currentImageY = imageStartY;
             
-            for (let i = 0; i < Math.min(attachments.length, 3); i++) { // Max 3 images
-                const attachment = attachments[i];
+            for (let i = 0; i < Math.min(allImages.length, 3); i++) { // Max 3 images
+                const imageItem = allImages[i];
+                
+                // Handle both Discord attachments and URL images
+                let imageUrl, contentType;
+                if (imageItem.url) {
+                    // Discord attachment
+                    imageUrl = imageItem.url;
+                    contentType = imageItem.contentType;
+                } else {
+                    // URL image
+                    imageUrl = imageItem;
+                    contentType = 'image/jpeg'; // Assume JPEG for URL images
+                }
                 
                 // Check if it's an image
-                if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+                if (contentType && contentType.startsWith('image/')) {
                     try {
-                        const img = await loadImage(attachment.url);
+                        const img = await loadImage(imageUrl);
                         
                         // Calculate image dimensions (maintain aspect ratio)
                         let imgWidth = img.width;
