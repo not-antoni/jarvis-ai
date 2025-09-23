@@ -71,6 +71,16 @@ const commands = [
         .setName("reset")
         .setDescription("Delete your conversation history and profile with Jarvis")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("clip")
+        .setDescription("Clip a message into an image")
+        .addStringOption((option) =>
+            option
+                .setName("message_id")
+                .setDescription("ID of the message to clip")
+                .setRequired(true),
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
 ];
 
 const rest = new REST({ version: "10" }).setToken(config.discord.token);
