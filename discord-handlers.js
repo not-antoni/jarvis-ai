@@ -67,141 +67,40 @@ class DiscordHandlers {
         const tempCtx = tempCanvas.getContext('2d');
         tempCtx.font = '14px Arial';
         
-        // Function to detect Discord emojis
-        const detectEmojis = (text) => {
-            const emojiRegex = /<a?:(\w+):(\d+)>/g;
-            const emojis = [];
-            let match;
-            
-            while ((match = emojiRegex.exec(text)) !== null) {
-                emojis.push({
-                    full: match[0],
-                    name: match[1],
-                    id: match[2],
-                    animated: match[0].startsWith('<a:'),
-                    start: match.index,
-                    end: match.index + match[0].length
-                });
-            }
-            
-            return emojis;
-        };
+        const words = text.split(' ');
+        let currentLine = words[0];
+        let lines = 1;
 
-        const emojis = detectEmojis(text);
-        const emojiSize = 18;
-        const lineHeight = 20;
+        for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = tempCtx.measureText(currentLine + ' ' + word).width;
+            if (width < maxWidth) {
+                currentLine += ' ' + word;
+            } else {
+                lines++;
+                currentLine = word;
+            }
+        }
+        
         const baseHeight = 40; // Username + timestamp + spacing
-        
-        if (emojis.length === 0) {
-            // No emojis, calculate normal word wrap
-            const words = text.split(' ');
-            let currentLine = words[0];
-            let lines = 1;
-
-            for (let i = 1; i < words.length; i++) {
-                const word = words[i];
-                const width = tempCtx.measureText(currentLine + ' ' + word).width;
-                if (width < maxWidth) {
-                    currentLine += ' ' + word;
-                } else {
-                    lines++;
-                    currentLine = word;
-                }
-            }
-            
-            return baseHeight + (lines * lineHeight);
-        }
-
-        // Calculate height with emojis
-        let currentX = 0;
-        let currentY = 0;
-        let lastIndex = 0;
-        
-        for (const emoji of emojis) {
-            // Text before emoji
-            if (emoji.start > lastIndex) {
-                const textBefore = text.substring(lastIndex, emoji.start);
-                const textWidth = tempCtx.measureText(textBefore).width;
-                
-                if (currentX + textWidth > maxWidth) {
-                    currentX = 0;
-                    currentY += lineHeight;
-                }
-                
-                currentX += textWidth;
-            }
-            
-            // Emoji
-            if (currentX + emojiSize > maxWidth) {
-                currentX = 0;
-                currentY += lineHeight;
-            }
-            
-            currentX += emojiSize;
-            lastIndex = emoji.end;
-        }
-        
-        // Remaining text
-        if (lastIndex < text.length) {
-            const remainingText = text.substring(lastIndex);
-            const textWidth = tempCtx.measureText(remainingText).width;
-            
-            if (currentX + textWidth > maxWidth) {
-                currentY += lineHeight;
-            }
-        }
-        
-        return baseHeight + currentY + lineHeight;
+        const lineHeight = 20;
+        return baseHeight + (lines * lineHeight);
     }
 
-    async calculateImageHeight(attachments, maxWidth) {
-        if (!attachments || attachments.length === 0) {
-            return 0;
-        }
-
-        let totalHeight = 0;
-        const maxImages = Math.min(attachments.length, 3);
-        
-        for (let i = 0; i < maxImages; i++) {
-            const attachment = attachments[i];
-            
-            // Handle both Discord attachments and URL images
-            let imageUrl, contentType;
-            if (attachment.url) {
-                // Discord attachment
-                imageUrl = attachment.url;
-                contentType = attachment.contentType;
-            } else {
-                // URL image
-                imageUrl = attachment;
-                contentType = 'image/jpeg'; // Assume JPEG for URL images
-            }
-            
-            if (contentType && contentType.startsWith('image/')) {
-                try {
-                    const img = await loadImage(imageUrl);
-                    
-                    // Calculate scaled dimensions
-                    let imgWidth = img.width;
-                    let imgHeight = img.height;
-                    
-                    // Scale down if too large
-                    if (imgWidth > maxWidth) {
-                        const scale = maxWidth / imgWidth;
-                        imgWidth = maxWidth;
-                        imgHeight = imgHeight * scale;
-                    }
-                    
-                    totalHeight += imgHeight + 10; // 10px spacing between images
-                    
-                } catch (error) {
-                    // If image fails to load, add placeholder height
-                    totalHeight += 60; // Fixed height for placeholder
-                }
-            }
+    hasImagesOrEmojis(message) {
+        // Check for Discord attachments
+        if (message.attachments && message.attachments.size > 0) {
+            return true;
         }
         
-        return totalHeight;
+        // Check for image URLs in content
+        const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
+        if (imageUrlRegex.test(message.content)) {
+            return true;
+        }
+        
+        // Allow emojis now - removed emoji blocking
+        return false;
     }
 
     async handleClipCommand(message, client) {
@@ -220,6 +119,11 @@ class DiscordHandlers {
             // Fetch the replied message
             const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
             
+            // Check if message contains images or emojis - if so, don't respond
+            if (this.hasImagesOrEmojis(repliedMessage)) {
+                return true; // Handled silently - don't clip messages with images/emojis
+            }
+            
             // Create image from the replied message content with user info
             const avatarUrl = repliedMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
             
@@ -233,13 +137,15 @@ class DiscordHandlers {
                 console.warn('Failed to get role color for text command:', error);
             }
             
+            // Get display name (server nickname or username)
+            const displayName = repliedMessage.member?.displayName || repliedMessage.author.username;
+            
             const imageBuffer = await this.createClipImage(
                 repliedMessage.content, 
-                repliedMessage.author.username, 
+                displayName, 
                 avatarUrl,
                 repliedMessage.author.bot,
                 roleColor,
-                repliedMessage.attachments,
                 message.guild,
                 client
             );
@@ -264,111 +170,61 @@ class DiscordHandlers {
         }
     }
 
-    extractImageUrls(text) {
-        // Regex to find image URLs (common image formats)
-        const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
-        const urls = text.match(imageUrlRegex) || [];
-        
-        // Filter and process Discord URLs to ensure they work with canvas
-        return urls.filter(url => {
-            // Include Discord media URLs
-            if (url.includes('media.discordapp.net') || url.includes('cdn.discordapp.com')) {
-                return true;
-            }
-            // Include other image URLs
-            return url.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i);
-        }).map(url => {
-            // Convert Discord WebP URLs to PNG format for better compatibility
-            if (url.includes('media.discordapp.net') && url.includes('format=webp')) {
-                return url.replace('format=webp', 'format=png');
-            }
-            return url;
-        });
-    }
+    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null) {
+    // Calculate dynamic canvas dimensions based on content
+    const width = 500; // Even larger width to prevent avatar clipping
+    const minHeight = 120; // Minimum height for basic content
+    
+    // Calculate text height
+    const textHeight = this.calculateTextHeight(text, width - 100); // Account for margins and avatar space
+    
+    // Calculate total height (no images, just text)
+    const totalHeight = Math.max(minHeight, textHeight + 20); // 20px padding
+    
+    const canvas = createCanvas(width, totalHeight);
+    const ctx = canvas.getContext('2d');
 
-    removeImageUrls(text) {
-        // Remove image URLs from text for cleaner display
-        const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
-        return text.replace(imageUrlRegex, '').trim();
-    }
-    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', attachments = [], guild = null, client = null) {
-        // Calculate dynamic canvas dimensions based on content
-        const width = 400;
-        const minHeight = 120; // Minimum height for basic content
-        
-        // Extract image URLs from text content
-        const imageUrls = this.extractImageUrls(text);
-        
-        // Combine Discord attachments with URL images
-        const allImages = [...attachments, ...imageUrls];
-        
-        // Calculate text height (remove URLs from text for height calculation)
-        const textWithoutUrls = this.removeImageUrls(text);
-        const textHeight = this.calculateTextHeight(textWithoutUrls, width - 80); // Account for margins and avatar space
-        
-        // Calculate image height
-        const imageHeight = await this.calculateImageHeight(allImages, width - 40);
-        
-        // Calculate total height
-        const totalHeight = Math.max(minHeight, textHeight + imageHeight + 20); // 20px padding
-        
-        const canvas = createCanvas(width, totalHeight);
-        const ctx = canvas.getContext('2d');
+    // Pure black background
+    ctx.fillStyle = '#000000'; // Pure black
+    ctx.fillRect(0, 0, width, totalHeight);
 
-        // Pure black background
-        ctx.fillStyle = '#000000'; // Pure black
-        ctx.fillRect(0, 0, width, totalHeight);
+    // Calculate centered positioning
+    const avatarSize = 40; // Even larger avatar
+    const contentWidth = width - 40; // 20px margin on each side
+    const contentHeight = totalHeight - 20; // 10px margin top/bottom
+    const avatarX = 50; // Even more space from edge to prevent any clipping
+    const avatarY = (totalHeight - avatarSize) / 2; // Center vertically
 
-        // Calculate centered positioning
-        const avatarSize = 32; // Smaller avatar
-        const contentWidth = width - 40; // 20px margin on each side
-        const contentHeight = totalHeight - 20; // 10px margin top/bottom
-        const avatarX = 20;
-        const avatarY = (totalHeight - avatarSize) / 2; // Center vertically
-
-        // Draw avatar (circular)
-        if (avatarUrl) {
-            try {
-                // Create circular clipping path for avatar
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
-                ctx.clip();
-                
-                // Draw avatar background (fallback)
-                ctx.fillStyle = '#5865f2'; // Discord blue
-                ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
-                
-                // Try to load and draw the actual avatar
-                const avatarImg = await loadImage(avatarUrl);
-                ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
-                
-                ctx.restore();
-            } catch (error) {
-                console.warn('Failed to load avatar, using fallback:', error);
-                // Fallback: draw a simple circle with user initial
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
-                ctx.fillStyle = '#5865f2';
-                ctx.fill();
-                
-                // Draw user initial
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 12px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize/2, avatarY + avatarSize/2);
-                ctx.restore();
-            }
-        } else {
-            // No avatar URL, draw fallback
+    // Draw avatar (circular)
+    if (avatarUrl) {
+        try {
+            // Draw avatar with proper circular clipping
+            ctx.save();
+            
+            // Create circular clipping path
+            ctx.beginPath();
+            ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
+            ctx.clip();
+            
+            // Draw avatar background (fallback)
+            ctx.fillStyle = '#5865f2'; // Discord blue
+            ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
+            
+            // Try to load and draw the actual avatar
+            const avatarImg = await loadImage(avatarUrl);
+            ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
+            
+            ctx.restore();
+        } catch (error) {
+            console.warn('Failed to load avatar, using fallback:', error);
+            // Fallback: draw a simple circle with user initial
             ctx.save();
             ctx.beginPath();
             ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
             ctx.fillStyle = '#5865f2';
             ctx.fill();
             
+            // Draw user initial
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
@@ -376,6 +232,21 @@ class DiscordHandlers {
             ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize/2, avatarY + avatarSize/2);
             ctx.restore();
         }
+    } else {
+        // No avatar URL, draw fallback
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
+        ctx.fillStyle = '#5865f2';
+        ctx.fill();
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize/2, avatarY + avatarSize/2);
+        ctx.restore();
+    }
 
         // Calculate text positioning (centered)
         const textStartX = avatarX + avatarSize + 8;
@@ -410,240 +281,49 @@ class DiscordHandlers {
         ctx.font = '12px Arial';
         ctx.fillText('6:39 PM', timestampX, textStartY);
 
-    // Draw message content with emoji support
+    // Draw message content
     ctx.fillStyle = '#ffffff';
     ctx.font = '14px Arial'; // Regular weight, not bold
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    // Function to detect Discord emojis
-    const detectEmojis = (text) => {
-        const emojiRegex = /<a?:(\w+):(\d+)>/g;
-        const emojis = [];
-        let match;
-        
-        while ((match = emojiRegex.exec(text)) !== null) {
-            emojis.push({
-                full: match[0],
-                name: match[1],
-                id: match[2],
-                animated: match[0].startsWith('<a:'),
-                start: match.index,
-                end: match.index + match[0].length
-            });
-        }
-        
-        return emojis;
-    };
-
-    // Function to render text with emojis
-    const renderTextWithEmojis = async (text, startX, startY, maxWidth) => {
-        const emojis = detectEmojis(text);
-        const emojiSize = 18; // Slightly larger for better visibility
-        const lineHeight = 20; // Increased line height for emojis
-        
-        if (emojis.length === 0) {
-            // No emojis, render normally with word wrap
-            const wrapText = (text, maxWidth) => {
-                const words = text.split(' ');
-                const lines = [];
-                let currentLine = words[0];
-
-                for (let i = 1; i < words.length; i++) {
-                    const word = words[i];
-                    const width = ctx.measureText(currentLine + ' ' + word).width;
-                    if (width < maxWidth) {
-                        currentLine += ' ' + word;
-                    } else {
-                        lines.push(currentLine);
-                        currentLine = word;
-                    }
-                }
-                lines.push(currentLine);
-                return lines;
-            };
-
-            const lines = wrapText(text, maxWidth);
-            lines.forEach((line, index) => {
-                ctx.fillText(line, startX, startY + index * lineHeight);
-            });
-            return;
-        }
-
-        // Split text into parts and render each part
-        let lastIndex = 0;
-        let currentX = startX;
-        let currentY = startY;
-        
-        for (const emoji of emojis) {
-            // Render text before emoji
-            if (emoji.start > lastIndex) {
-                const textBefore = text.substring(lastIndex, emoji.start);
-                const textWidth = ctx.measureText(textBefore).width;
-                
-                // Check if text fits on current line
-                if (currentX + textWidth > startX + maxWidth) {
-                    currentX = startX;
-                    currentY += lineHeight;
-                }
-                
-                ctx.fillText(textBefore, currentX, currentY);
-                currentX += textWidth;
-            }
-            
-            // Render emoji
-            try {
-                let emojiUrl;
-                
-                // Try to get emoji from Discord client cache first
-                if (client && guild) {
-                    const discordEmoji = client.emojis.cache.get(emoji.id);
-                    if (discordEmoji) {
-                        emojiUrl = discordEmoji.url;
-                    } else {
-                        // Fallback to CDN URL construction
-                        emojiUrl = `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`;
-                    }
-                } else {
-                    // No client/guild info, use CDN URL
-                    emojiUrl = `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`;
-                }
-                
-                const emojiImg = await loadImage(emojiUrl);
-                
-                // Check if emoji fits on current line
-                if (currentX + emojiSize > startX + maxWidth) {
-                    currentX = startX;
-                    currentY += lineHeight;
-                }
-                
-                ctx.drawImage(emojiImg, currentX, currentY - 1, emojiSize, emojiSize);
-                currentX += emojiSize;
-                
-            } catch (error) {
-                console.warn(`Failed to load emoji ${emoji.name}:`, error);
-                // Fallback: render emoji name with better styling
-                const fallbackText = `:${emoji.name}:`;
-                const textWidth = ctx.measureText(fallbackText).width;
-                
-                // Check if fallback text fits on current line
-                if (currentX + textWidth > startX + maxWidth) {
-                    currentX = startX;
-                    currentY += lineHeight;
-                }
-                
-                // Style the fallback text to look more like an emoji placeholder
-                ctx.fillStyle = '#5865f2'; // Discord blue background
-                ctx.fillRect(currentX, currentY - 2, textWidth + 4, 16);
-                ctx.fillStyle = '#ffffff'; // White text
-                ctx.fillText(fallbackText, currentX + 2, currentY);
-                currentX += textWidth + 4;
-            }
-            
-            lastIndex = emoji.end;
-        }
-        
-        // Render remaining text
-        if (lastIndex < text.length) {
-            const remainingText = text.substring(lastIndex);
-            const textWidth = ctx.measureText(remainingText).width;
-            
-            // Check if remaining text fits on current line
-            if (currentX + textWidth > startX + maxWidth) {
-                currentX = startX;
-                currentY += lineHeight;
-            }
-            
-            ctx.fillText(remainingText, currentX, currentY);
-        }
-    };
-
-    // Render message with emoji support
+    // Simple text rendering with word wrap
     const messageStartY = textStartY + 18; // Below username line
-    await renderTextWithEmojis(textWithoutUrls, textStartX, messageStartY, maxTextWidth);
+    const wrapText = (text, maxWidth) => {
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = words[0];
 
-        // Draw images if present
-        if (allImages && allImages.length > 0) {
-            const imageStartY = textHeight + 10; // Start below the text content
-            const maxImageWidth = width - 40; // 20px margin on each side
-            const maxImageHeight = imageHeight; // Use calculated image height
-            let currentImageY = imageStartY;
-            
-            for (let i = 0; i < Math.min(allImages.length, 3); i++) { // Max 3 images
-                const imageItem = allImages[i];
-                
-                // Handle both Discord attachments and URL images
-                let imageUrl, contentType;
-                if (imageItem.url) {
-                    // Discord attachment
-                    imageUrl = imageItem.url;
-                    contentType = imageItem.contentType;
-                } else {
-                    // URL image
-                    imageUrl = imageItem;
-                    contentType = 'image/jpeg'; // Assume JPEG for URL images
-                }
-                
-                // Check if it's an image
-                if (contentType && contentType.startsWith('image/')) {
-                    try {
-                        const img = await loadImage(imageUrl);
-                        
-                        // Calculate image dimensions (maintain aspect ratio)
-                        let imgWidth = img.width;
-                        let imgHeight = img.height;
-                        
-                        // Scale down if too large
-                        if (imgWidth > maxImageWidth) {
-                            const scale = maxImageWidth / imgWidth;
-                            imgWidth = maxImageWidth;
-                            imgHeight = imgHeight * scale;
-                        }
-                        
-                        if (imgHeight > maxImageHeight) {
-                            const scale = maxImageHeight / imgHeight;
-                            imgHeight = maxImageHeight;
-                            imgWidth = imgWidth * scale;
-                        }
-                        
-                        // Center the image horizontally
-                        const imgX = (width - imgWidth) / 2;
-                        
-                        // Draw image
-                        ctx.drawImage(img, imgX, currentImageY, imgWidth, imgHeight);
-                        
-                        // Move to next image position
-                        currentImageY += imgHeight + 10; // 10px spacing between images
-                        
-                    } catch (error) {
-                        console.warn(`Failed to load image ${i + 1}:`, error);
-                        // Draw placeholder for failed images
-                        ctx.fillStyle = '#333333';
-                        ctx.fillRect(20, currentImageY, maxImageWidth, 50);
-                        
-                        ctx.fillStyle = '#666666';
-                        ctx.font = '12px Arial';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('Failed to load image', width / 2, currentImageY + 30);
-                        
-                        // Move to next image position even for failed images
-                        currentImageY += 60; // Fixed height for placeholder
-                    }
-                }
+        for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = ctx.measureText(currentLine + ' ' + word).width;
+            if (width < maxWidth) {
+                currentLine += ' ' + word;
+            } else {
+                lines.push(currentLine);
+                currentLine = word;
             }
         }
+        lines.push(currentLine);
+        return lines;
+    };
 
-        // Convert canvas to buffer
-        const buffer = canvas.toBuffer('image/png');
-        
-        // Use sharp to slightly reduce quality/resolution for funny effect
-        const finalHeight = Math.min(totalHeight, 500); // Cap height at 500px
-        const processedBuffer = await sharp(buffer)
-            .resize(320, finalHeight) // Adjust final size based on content
-            .png({ quality: 85 }) // Slightly lower quality
-            .toBuffer();
+    const lines = wrapText(text, maxTextWidth);
+    lines.forEach((line, index) => {
+        ctx.fillText(line, textStartX, messageStartY + index * 20);
+    });
 
-        return processedBuffer;
+    // Convert canvas to buffer
+    const buffer = canvas.toBuffer('image/png');
+    
+    // Use sharp to slightly reduce quality/resolution for funny effect
+    const finalHeight = Math.min(totalHeight, 500); // Cap height at 500px
+    const processedBuffer = await sharp(buffer)
+        .resize(400, finalHeight) // Increased width to match new canvas size
+        .png({ quality: 85 }) // Slightly lower quality
+        .toBuffer();
+
+    return processedBuffer;
     }
 
 
@@ -994,6 +674,12 @@ class DiscordHandlers {
                 return true;
             }
             
+            // Check if message contains images - if so, don't respond (emojis are now allowed)
+            if (this.hasImagesOrEmojis(targetMessage)) {
+                await interaction.editReply("I can only clip plain text messages, sir.");
+                return true;
+            }
+            
             // Create image from the message content with user info
             const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
             
@@ -1007,13 +693,15 @@ class DiscordHandlers {
                 console.warn('Failed to get role color for slash command:', error);
             }
             
+            // Get display name (server nickname or username)
+            const displayName = targetMessage.member?.displayName || targetMessage.author.username;
+            
             const imageBuffer = await this.createClipImage(
                 targetMessage.content, 
-                targetMessage.author.username, 
+                displayName, 
                 avatarUrl,
                 targetMessage.author.bot,
                 roleColor,
-                targetMessage.attachments,
                 interaction.guild,
                 interaction.client
             );
