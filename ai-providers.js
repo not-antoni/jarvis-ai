@@ -87,7 +87,7 @@ class AIProviderManager {
             this.providers.push({
                 name: `GoogleAI${index + 1}`,
                 client: new GoogleGenerativeAI(key),
-                model: "models/gemma-3-12b-it",
+                model: "gemini-2.5-flash-lite",
                 type: "google",
             });
         });
@@ -282,7 +282,9 @@ class AIProviderManager {
                     
                     // Generate content without thinking configuration
                     const result = await model.generateContent({
-                        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+                        contents: [
+                            { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
+                        ],
                         generationConfig: {
                             temperature: config.ai.temperature,
                             maxOutputTokens: maxTokens
