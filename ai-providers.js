@@ -40,6 +40,7 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY14,
             process.env.OPENROUTER_API_KEY15,
             process.env.OPENROUTER_API_KEY16,
+            process.env.OPENROUTER_API_KEY17,
         ].filter(Boolean);
         
         openRouterKeys.forEach((key, index) => {
@@ -61,6 +62,7 @@ class AIProviderManager {
             process.env.GROQ_API_KEY3,
             process.env.GROQ_API_KEY4,
             process.env.GROQ_API_KEY5,
+            process.env.GROQ_API_KEY6,
         ].filter(Boolean);
         
         groqKeys.forEach((key, index) => {
@@ -90,23 +92,6 @@ class AIProviderManager {
             });
         });
 
-        // Mixtral providers
-        const mixtralKeys = [
-            process.env.MIXTRAL_API_KEY,
-            process.env.MIXTRAL_API_KEY2,
-        ].filter(Boolean);
-        
-        mixtralKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `Mixtral${index + 1}`,
-                client: new OpenAI({
-                    apiKey: key,
-                    baseURL: "https://api.mistral.ai/v1",
-                }),
-                model: "open-mixtral-8x22b",
-                type: "openai-chat",
-            });
-        });
 
 
 
@@ -165,8 +150,6 @@ class AIProviderManager {
                     return providerName.startsWith("openrouter");
                 case "google":
                     return providerName.startsWith("googleai");
-                case "mixtral":
-                    return providerName.startsWith("mixtral");
                 case "cohere":
                     return providerName.startsWith("cohere");
                 default:
@@ -498,15 +481,15 @@ class AIProviderManager {
             'OpenRouter14': '[REDACTED]',
             'OpenRouter15': '[REDACTED]',
             'OpenRouter16': '[REDACTED]',
+            'OpenRouter17': '[REDACTED]',
             'Groq1': '[REDACTED]',
             'Groq2': '[REDACTED]',
             'Groq3': '[REDACTED]',
             'Groq4': '[REDACTED]',
             'Groq5': '[REDACTED]',
+            'Groq6': '[REDACTED]',
             'GoogleAI1': '[REDACTED]',
             'GoogleAI2': '[REDACTED]',
-            'Mixtral1': '[REDACTED]',
-            'Mixtral2': '[REDACTED]',
             'GPT5Nano': '[REDACTED]',
             'Cohere1': '[REDACTED]',
             'Cohere2': '[REDACTED]'
@@ -531,7 +514,7 @@ class AIProviderManager {
 
     // Control provider type selection
     setProviderType(providerType) {
-        const validTypes = ["auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"];
+        const validTypes = ["auto", "openai", "groq", "openrouter", "google", "cohere"];
         if (!validTypes.includes(providerType.toLowerCase())) {
             throw new Error(`Invalid provider type. Valid options: ${validTypes.join(", ")}`);
         }
@@ -556,8 +539,6 @@ class AIProviderManager {
                 types.add("openrouter");
             } else if (name.startsWith("googleai")) {
                 types.add("google");
-            } else if (name.startsWith("mixtral")) {
-                types.add("mixtral");
             } else if (name.startsWith("cohere")) {
                 types.add("cohere");
             }
