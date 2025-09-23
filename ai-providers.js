@@ -123,7 +123,7 @@ class AIProviderManager {
             this.providers.push({
                 name: `Cohere${index + 1}`,
                 client: cohereClient,
-                model: "c4ai-aya-expanse-32b",
+                model: "command-r-plus",
                 type: "cohere",
             });
         });
