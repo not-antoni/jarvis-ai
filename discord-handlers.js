@@ -5,7 +5,7 @@
 const { ChannelType, AttachmentBuilder } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
-const { createCanvas, loadFont, registerFont } = require('canvas');
+const { createCanvas, loadImage, registerFont } = require('canvas');
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
@@ -54,8 +54,13 @@ class DiscordHandlers {
             // Fetch the replied message
             const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
             
-            // Create image from the replied message content
-            const imageBuffer = await this.createClipImage(repliedMessage.content);
+            // Create image from the replied message content with user info
+            const avatarUrl = repliedMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
+            const imageBuffer = await this.createClipImage(
+                repliedMessage.content, 
+                repliedMessage.author.username, 
+                avatarUrl
+            );
             
             // Create attachment
             const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
@@ -77,10 +82,10 @@ class DiscordHandlers {
         }
     }
 
-    async createClipImage(text) {
+    async createClipImage(text, username, avatarUrl) {
         // Set up canvas dimensions (lower resolution for funny effect)
         const width = 600;
-        const height = 400;
+        const height = 500; // Increased height to accommodate avatar and username
         const canvas = createCanvas(width, height);
         const ctx = canvas.getContext('2d');
 
@@ -101,11 +106,78 @@ class DiscordHandlers {
         ctx.fillStyle = vignetteGradient;
         ctx.fillRect(0, 0, width, height);
 
-        // Set text properties - white pixelated text like in screenshot
+        // Draw avatar (circular)
+        const avatarSize = 40;
+        const avatarX = 20;
+        const avatarY = 20;
+        
+        if (avatarUrl) {
+            try {
+                // Create circular clipping path for avatar
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
+                ctx.clip();
+                
+                // Draw avatar background (fallback)
+                ctx.fillStyle = '#5865f2'; // Discord blue
+                ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
+                
+                // Try to load and draw the actual avatar
+                const avatarImg = await loadImage(avatarUrl);
+                ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
+                
+                ctx.restore();
+            } catch (error) {
+                console.warn('Failed to load avatar, using fallback:', error);
+                // Fallback: draw a simple circle with user initial
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
+                ctx.fillStyle = '#5865f2';
+                ctx.fill();
+                
+                // Draw user initial
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize/2, avatarY + avatarSize/2);
+                ctx.restore();
+            }
+        } else {
+            // No avatar URL, draw fallback
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
+            ctx.fillStyle = '#5865f2';
+            ctx.fill();
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize/2, avatarY + avatarSize/2);
+            ctx.restore();
+        }
+
+        // Draw username
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(username, avatarX + avatarSize + 10, avatarY + avatarSize/2);
+
+        // Draw timestamp (simulate Discord style)
+        ctx.fillStyle = '#72767d';
+        ctx.font = '12px Arial';
+        ctx.fillText('Today at 12:00 PM', avatarX + avatarSize + 10, avatarY + avatarSize/2 + 20);
+
+        // Set text properties for message content
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 20px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
 
         // Word wrap function
         const wrapText = (text, maxWidth) => {
@@ -127,10 +199,13 @@ class DiscordHandlers {
             return lines;
         };
 
-        // Wrap text to fit canvas
-        const lines = wrapText(text, width - 40);
+        // Wrap text to fit canvas (accounting for avatar space)
+        const textStartX = avatarX + avatarSize + 10;
+        const textStartY = avatarY + avatarSize + 10;
+        const maxTextWidth = width - textStartX - 20;
+        
+        const lines = wrapText(text, maxTextWidth);
         const lineHeight = 28;
-        const startY = height / 2 - (lines.length * lineHeight) / 2;
 
         // Draw text lines with slight shadow for depth
         ctx.shadowColor = 'rgba(0,0,0,0.5)';
@@ -139,7 +214,7 @@ class DiscordHandlers {
         ctx.shadowOffsetY = 1;
         
         lines.forEach((line, index) => {
-            ctx.fillText(line, width / 2, startY + index * lineHeight);
+            ctx.fillText(line, textStartX, textStartY + index * lineHeight);
         });
 
         // Reset shadow
@@ -153,12 +228,13 @@ class DiscordHandlers {
         
         // Use sharp to slightly reduce quality/resolution for funny effect
         const processedBuffer = await sharp(buffer)
-            .resize(480, 320) // Slightly smaller
+            .resize(480, 400) // Adjusted for new height
             .png({ quality: 85 }) // Slightly lower quality
             .toBuffer();
 
         return processedBuffer;
     }
+
 
     async getContextualMemory(message, client) {
         try {
@@ -486,11 +562,67 @@ class DiscordHandlers {
         }
     }
 
+    async handleSlashCommandClip(interaction) {
+        try {
+            await interaction.deferReply({ ephemeral: false });
+            
+            // Get the message ID from the slash command
+            const messageId = interaction.options.getString("message_id");
+            
+            if (!messageId) {
+                await interaction.editReply("Please provide a message ID, sir.");
+                return true;
+            }
+
+            // Fetch the message by ID
+            let targetMessage;
+            try {
+                targetMessage = await interaction.channel.messages.fetch(messageId);
+            } catch (fetchError) {
+                await interaction.editReply("Could not find that message, sir. Make sure the message ID is correct and the message is in this channel.");
+                return true;
+            }
+            
+            // Create image from the message content with user info
+            const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
+            const imageBuffer = await this.createClipImage(
+                targetMessage.content, 
+                targetMessage.author.username, 
+                avatarUrl
+            );
+            
+            // Create attachment
+            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
+            
+            // Send the image with "clipped, sir." message
+            await interaction.editReply({ 
+                content: 'clipped, sir.', 
+                files: [attachment] 
+            });
+            
+            return true; // Indicate we handled the command
+        } catch (error) {
+            console.error('Error handling slash clip command:', error);
+            try {
+                await interaction.editReply("Failed to clip message, sir. Technical difficulties.");
+            } catch (editError) {
+                console.error("Failed to send error reply:", editError);
+            }
+            return true;
+        }
+    }
+
     async handleSlashCommand(interaction) {
         const userId = interaction.user.id;
 
         if (this.isOnCooldown(userId)) {
             return;
+        }
+
+        // Handle clip command first (special case)
+        if (interaction.commandName === "clip") {
+            this.setCooldown(userId);
+            return await this.handleSlashCommandClip(interaction);
         }
 
         try {
