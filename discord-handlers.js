@@ -16,7 +16,7 @@ class DiscordHandlers {
     cleanupCooldowns() {
         const now = Date.now();
         const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-        
+
         for (const [userId, timestamp] of this.userCooldowns.entries()) {
             if (now - timestamp > maxAge) {
                 this.userCooldowns.delete(userId);
@@ -36,15 +36,13 @@ class DiscordHandlers {
 
     async getContextualMemory(message, client) {
         try {
-            // Get recent messages in the channel to build context
             const messages = await message.channel.messages.fetch({ limit: 20 });
             const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-            
-            // Find the conversation thread starting from the referenced message
-            const referencedMessageId = message.reference.messageId;
+
+            const referencedMessageId = message.reference?.messageId;
             let conversationStart = -1;
             let referencedMessage = null;
-            
+
             for (let i = 0; i < sortedMessages.size; i++) {
                 const msg = Array.from(sortedMessages.values())[i];
                 if (msg.id === referencedMessageId) {
@@ -53,16 +51,14 @@ class DiscordHandlers {
                     break;
                 }
             }
-            
+
             if (conversationStart === -1) {
-                return null; // Couldn't find the referenced message
+                return null;
             }
-            
-            // Build contextual conversation from the thread
+
             const contextualMessages = [];
             const threadMessages = Array.from(sortedMessages.values()).slice(conversationStart);
-            
-            // If the referenced message is from Jarvis, include it in context
+
             if (referencedMessage.author.id === client.user.id) {
                 contextualMessages.push({
                     role: "assistant",
@@ -70,7 +66,6 @@ class DiscordHandlers {
                     timestamp: referencedMessage.createdTimestamp
                 });
             } else {
-                // If replying to a user message, include that user's message as context
                 contextualMessages.push({
                     role: "user",
                     content: referencedMessage.content,
@@ -79,20 +74,17 @@ class DiscordHandlers {
                     isReferencedMessage: true
                 });
             }
-            
-            // Add subsequent messages in the thread
+
             for (const msg of threadMessages) {
-                if (msg.id === referencedMessageId) continue; // Skip the referenced message (already added)
-                
+                if (msg.id === referencedMessageId) continue;
+
                 if (msg.author.bot && msg.author.id === client.user.id) {
-                    // This is a Jarvis message
                     contextualMessages.push({
                         role: "assistant",
                         content: msg.content,
                         timestamp: msg.createdTimestamp
                     });
                 } else if (!msg.author.bot) {
-                    // This is a user message
                     contextualMessages.push({
                         role: "user",
                         content: msg.content,
@@ -101,17 +93,16 @@ class DiscordHandlers {
                     });
                 }
             }
-            
-            // Limit to last 10 messages to avoid token limits
+
             const recentContext = contextualMessages.slice(-10);
-            
+
             return {
                 type: "contextual",
                 messages: recentContext,
                 threadStart: referencedMessageId,
                 isReplyToUser: referencedMessage.author.id !== client.user.id
             };
-            
+
         } catch (error) {
             console.warn("Failed to build contextual memory:", error);
             return null;
@@ -119,14 +110,17 @@ class DiscordHandlers {
     }
 
     async handleMessage(message, client) {
-        // Allow specific bots to interact (for bot replies)
         const allowedBotIds = ['984734399310467112', '1391010888915484672'];
         if (message.author.id === client.user.id) return;
         if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
         const userId = message.author.id;
-        
-        // Check for potential Jarvis interaction first to prevent race conditions
+
+        // 🚫 Ignore mass mentions completely
+        if (message.mentions.everyone) {
+            return; // NEW: do not respond to @everyone / @here
+        }
+
         const isMentioned = message.mentions.has(client.user);
         const isDM = message.channel.type === ChannelType.DM;
         const containsJarvis = config.wakeWords.some(trigger =>
@@ -135,38 +129,28 @@ class DiscordHandlers {
         const isReplyToJarvis = message.reference && message.reference.messageId;
         const isBot = message.author.bot;
         const isTCommand = message.content.toLowerCase().trim().startsWith("!t ");
-        
-        // If this looks like a Jarvis interaction, check cooldown immediately (for both users and bots)
+
         if (isDM || isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
             if (this.isOnCooldown(userId)) {
-                return; // Exit early if on cooldown
+                return;
             }
-            // Set cooldown immediately to prevent race conditions
             this.setCooldown(userId);
         }
-        
-        // Handle admin commands
-        if (await this.handleAdminCommands(message)) {
-            return; // Cooldown already set above if needed
-        }
 
-        // Handle utility commands
-        if (await this.handleUtilityCommands(message)) {
-            return; // Cooldown already set above if needed
-        }
+        if (await this.handleAdminCommands(message)) return;
+        if (await this.handleUtilityCommands(message)) return;
 
-        // Handle regular Jarvis interactions (cooldown already checked and set above)
         await this.handleJarvisInteraction(message, client);
     }
 
     async handleAdminCommands(message) {
         const content = message.content.trim().toLowerCase();
-        
+
         if (content === "!cleardbsecret") {
             if (message.author.id !== config.admin.userId) {
-                return false; // Ignore if not admin
+                return false;
             }
-            
+
             try {
                 await message.channel.sendTyping();
                 const { conv, prof } = await this.jarvis.clearDatabase();
@@ -177,13 +161,13 @@ class DiscordHandlers {
             }
             return true;
         }
-        
+
         return false;
     }
 
     async handleUtilityCommands(message) {
         const content = message.content.trim().toLowerCase();
-        
+
         if (content === "!reset") {
             try {
                 await message.channel.sendTyping();
@@ -195,12 +179,11 @@ class DiscordHandlers {
             }
             return true;
         }
-        
+
         if (content.startsWith("!t ")) {
-            // Check if current channel is in the whitelisted channel IDs
             const whitelistedChannelIds = config.commands.whitelistedChannelIds;
             if (!whitelistedChannelIds.includes(message.channel.id)) {
-                return true; // Don't respond - command won't work
+                return true;
             }
 
             console.log(`!t command detected: ${message.content}`);
@@ -211,7 +194,7 @@ class DiscordHandlers {
                     message.author.username,
                     message.author.id
                 );
-                
+
                 console.log(`!t command response: ${response}`);
                 if (response) {
                     await message.reply(response);
@@ -224,7 +207,7 @@ class DiscordHandlers {
             }
             return true;
         }
-        
+
         return false;
     }
 
@@ -235,30 +218,24 @@ class DiscordHandlers {
             message.content.toLowerCase().includes(trigger)
         );
         const isBot = message.author.bot;
-        
-        // Log bot interactions for debugging
+
         if (isBot) {
             console.log(`Bot interaction detected from ${message.author.username} (${message.author.id}): ${message.content.substring(0, 50)}...`);
         }
-        
-        // Check if this is a reply to any message (Jarvis or user)
+
         let isReplyToJarvis = false;
         let isReplyToUser = false;
         let contextualMemory = null;
-        
+
         if (message.reference && message.reference.messageId) {
             try {
                 const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
                 if (referencedMessage.author.id === client.user.id) {
                     isReplyToJarvis = true;
-                    // Get contextual memory from the conversation thread
                     contextualMemory = await this.getContextualMemory(message, client);
                 } else if (!referencedMessage.author.bot) {
-                    // This is a reply to a user message
                     isReplyToUser = true;
-                    // Check if the reply mentions Jarvis or contains wake words
                     if (isMentioned || containsJarvis) {
-                        // Get contextual memory from the conversation thread
                         contextualMemory = await this.getContextualMemory(message, client);
                     }
                 }
@@ -267,26 +244,24 @@ class DiscordHandlers {
             }
         }
 
-        // Respond if: DM, mentioned, contains wake word, replying to Jarvis, or replying to user with mention/wake word
-        // For bots, only respond if mentioned or contains wake word
         if (isBot) {
-            if (!isMentioned && !containsJarvis) {
-                return;
-            }
+            if (!isMentioned && !containsJarvis) return;
         } else {
             if (!isDM && !isMentioned && !containsJarvis && !isReplyToJarvis && !(isReplyToUser && (isMentioned || containsJarvis))) {
                 return;
             }
         }
 
+        // 🚫 Clean mentions + @everyone/@here
         let cleanContent = message.content
-            .replace(/<@!?\d+>/g, "") // strip mentions only
+            .replace(/<@!?\d+>/g, "")  // user mentions
+            .replace(/@everyone/g, "") // NEW
+            .replace(/@here/g, "")     // NEW
             .trim();
 
-        // Check for YouTube search command pattern: "jarvis yt [search terms]"
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
-        
+
         if (ytMatch) {
             const searchQuery = ytMatch[1].trim();
             if (searchQuery) {
@@ -305,16 +280,13 @@ class DiscordHandlers {
             }
         }
 
-        // If content is empty, treat as a greeting
         if (!cleanContent) {
             cleanContent = "jarvis";
         } else {
-            // Check if content is ONLY a wake word followed by punctuation (no actual content)
             const wakeWordPattern = new RegExp(`^(${config.wakeWords.join('|')})[,.!?]*$`, 'i');
             if (wakeWordPattern.test(cleanContent)) {
                 cleanContent = "jarvis";
             }
-            // If it has a wake word + comma + space + actual content, keep it as is
         }
 
         try {
@@ -323,7 +295,6 @@ class DiscordHandlers {
             console.warn("Failed to send typing (permissions?):", err);
         }
 
-        // Check input length
         if (cleanContent.length > config.ai.maxInputLength) {
             const responses = [
                 "Rather verbose, sir. A concise version, perhaps?",
@@ -336,7 +307,7 @@ class DiscordHandlers {
                 "Quite the novella, sir. Abridged edition?",
                 "Brevity is the soul of wit, sir.",
             ];
-            
+
             try {
                 await message.reply(responses[Math.floor(Math.random() * responses.length)]);
             } catch (err) {
@@ -346,19 +317,17 @@ class DiscordHandlers {
             return;
         }
 
-        // Truncate if too long
         if (cleanContent.length > config.ai.maxInputLength) {
             cleanContent = cleanContent.substring(0, config.ai.maxInputLength) + "...";
         }
 
         try {
-            // Check for utility commands first
             const utilityResponse = await this.jarvis.handleUtilityCommand(
                 cleanContent,
                 message.author.username,
                 message.author.id
             );
-            
+
             if (utilityResponse) {
                 if (typeof utilityResponse === "string" && utilityResponse.trim()) {
                     await message.reply(utilityResponse);
@@ -368,9 +337,8 @@ class DiscordHandlers {
                 return;
             }
 
-            // Generate AI response with contextual memory if replying to Jarvis
             const response = await this.jarvis.generateResponse(message, cleanContent, false, contextualMemory);
-            
+
             if (typeof response === "string" && response.trim()) {
                 await message.reply(response);
             } else {
@@ -388,7 +356,7 @@ class DiscordHandlers {
 
     async handleSlashCommand(interaction) {
         const userId = interaction.user.id;
-        
+
         if (this.isOnCooldown(userId)) {
             return;
         }
@@ -406,10 +374,10 @@ class DiscordHandlers {
 
         try {
             let response;
-            
+
             if (interaction.commandName === "jarvis") {
                 let prompt = interaction.options.getString("prompt");
-                
+
                 if (prompt.length > config.ai.maxSlashInputLength) {
                     const responses = [
                         "Rather verbose, sir. A concise version, perhaps?",
@@ -422,16 +390,16 @@ class DiscordHandlers {
                         "Quite the novella, sir. Abridged edition?",
                         "Brevity is the soul of wit, sir.",
                     ];
-                    
+
                     await interaction.editReply(responses[Math.floor(Math.random() * responses.length)]);
                     this.setCooldown(userId);
                     return;
                 }
-                
+
                 if (prompt.length > config.ai.maxInputLength) {
                     prompt = prompt.substring(0, config.ai.maxInputLength) + "...";
                 }
-                
+
                 response = await this.jarvis.generateResponse(interaction, prompt, true);
             } else if (interaction.commandName === "roll") {
                 const sides = interaction.options.getInteger("sides") || 6;
@@ -473,7 +441,7 @@ class DiscordHandlers {
             } else {
                 await interaction.editReply("Response circuits tangled, sir. Try again?");
             }
-            
+
             this.setCooldown(userId);
         } catch (error) {
             console.error("Error processing interaction:", error);
