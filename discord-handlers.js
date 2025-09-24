@@ -223,16 +223,21 @@ class DiscordHandlers {
     }
 
     // Format timestamp to actual readable time
+    // Uses Discord.js Message.createdTimestamp (milliseconds since Unix epoch)
+    // Discord.js also provides Message.createdAt (Date object) as alternative
     formatTimestamp(timestamp, userTimezone = 'UTC') {
         try {
             // Convert Discord timestamp (milliseconds) to Date
+            // timestamp comes from message.createdTimestamp (Discord.js API)
             const date = new Date(timestamp);
             
-            // Format as 12-hour time with AM/PM
+            // Format as 12-hour time with AM/PM in UTC (Discord's timezone)
+            // This matches how Discord displays timestamps in the client
             const options = {
                 hour: 'numeric',
                 minute: '2-digit',
-                hour12: true
+                hour12: true,
+                timeZone: 'UTC'  // Force UTC timezone to match Discord
             };
             
             return date.toLocaleTimeString('en-US', options);
@@ -367,6 +372,14 @@ class DiscordHandlers {
         try {
             // Fetch the replied message
             const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+            
+            // Debug logging for timestamps
+            console.log('Timestamp debug:', {
+                clipCommandTime: new Date(message.createdTimestamp).toLocaleTimeString(),
+                repliedMessageTime: new Date(repliedMessage.createdTimestamp).toLocaleTimeString(),
+                repliedMessageTimestamp: repliedMessage.createdTimestamp,
+                messageTimestamp: message.createdTimestamp
+            });
             
             // Check if message contains images or emojis - if so, don't respond
             if (this.hasImagesOrEmojis(repliedMessage)) {
@@ -578,7 +591,6 @@ class DiscordHandlers {
 
     // Draw timestamp with dynamic formatting
     const timestamp = messageTimestamp ? this.formatTimestamp(messageTimestamp) : '6:39 PM';
-    console.log('Timestamp debug:', { messageTimestamp, timestamp }); // Debug log
     const timestampWidth = ctx.measureText(timestamp).width;
     
     // Ensure timestamp doesn't overlap with username/bot tag
@@ -691,7 +703,7 @@ class DiscordHandlers {
                     
                     ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
                     currentLineWidth += textWidth;
-                } else {
+            } else {
                     // Draw custom emoji image
                     try {
                         console.log('Loading emoji:', { name: segment.name, url: segment.url });
@@ -1235,6 +1247,14 @@ class DiscordHandlers {
             let targetMessage;
             try {
                 targetMessage = await interaction.channel.messages.fetch(messageId);
+                
+                // Debug logging for timestamps
+                console.log('Slash command timestamp debug:', {
+                    slashCommandTime: new Date(interaction.createdTimestamp).toLocaleTimeString(),
+                    targetMessageTime: new Date(targetMessage.createdTimestamp).toLocaleTimeString(),
+                    targetMessageTimestamp: targetMessage.createdTimestamp,
+                    interactionTimestamp: interaction.createdTimestamp
+                });
             } catch (fetchError) {
                 await interaction.editReply("Could not find that message, sir. Make sure the message ID is correct and the message is in this channel.");
                 return true;
