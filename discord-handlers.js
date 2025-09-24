@@ -61,6 +61,136 @@ class DiscordHandlers {
         }
     }
 
+    // Parse Discord custom emojis
+    parseCustomEmojis(text) {
+        const emojiRegex = /<a?:(\w+):(\d+)>/g;
+        const emojis = [];
+        let match;
+        
+        while ((match = emojiRegex.exec(text)) !== null) {
+            const isAnimated = match[0].startsWith('<a:');
+            const name = match[1];
+            const id = match[2];
+            const url = `https://cdn.discordapp.com/emojis/${id}.${isAnimated ? 'gif' : 'png'}`;
+            
+            emojis.push({
+                full: match[0],
+                name: name,
+                id: id,
+                url: url,
+                isAnimated: isAnimated,
+                start: match.index,
+                end: match.index + match[0].length
+            });
+        }
+        
+        return emojis;
+    }
+
+    // Parse Discord markdown formatting
+    parseDiscordFormatting(text) {
+        const formatting = [];
+        
+        // Bold: **text**
+        const boldRegex = /\*\*(.*?)\*\*/g;
+        let match;
+        while ((match = boldRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'bold',
+                content: match[1],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Italic: *text* or _text_
+        const italicRegex = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|(?<!_)_(?!_)([^_]+)_(?!_)/g;
+        while ((match = italicRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'italic',
+                content: match[1] || match[2],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Strikethrough: ~~text~~
+        const strikeRegex = /~~(.*?)~~/g;
+        while ((match = strikeRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'strikethrough',
+                content: match[1],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Underline: __text__
+        const underlineRegex = /__(.*?)__/g;
+        while ((match = underlineRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'underline',
+                content: match[1],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Code: `text`
+        const codeRegex = /`([^`]+)`/g;
+        while ((match = codeRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'code',
+                content: match[1],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Sort by start position
+        formatting.sort((a, b) => a.start - b.start);
+        
+        return formatting;
+    }
+
+    // Format timestamp based on user timezone
+    formatTimestamp(timestamp, userTimezone = 'UTC') {
+        try {
+            const date = new Date(timestamp);
+            
+            // For now, use local time formatting
+            // In a real implementation, you'd use a timezone library like moment-timezone
+            const options = {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            };
+            
+            return date.toLocaleTimeString('en-US', options);
+        } catch (error) {
+            console.warn('Failed to format timestamp:', error);
+            return '6:39 PM'; // Fallback
+        }
+    }
+
+    // Truncate text if too long
+    truncateText(text, maxLength) {
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength - 3) + '...';
+    }
+
+    // Extract image URLs from text
+    extractImageUrls(text) {
+        const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
+        const matches = text.match(imageUrlRegex);
+        return matches || [];
+    }
+
     calculateTextHeight(text, maxWidth) {
         // Create a temporary canvas to measure text
         const tempCanvas = createCanvas(1, 1);
@@ -88,18 +218,7 @@ class DiscordHandlers {
     }
 
     hasImagesOrEmojis(message) {
-        // Check for Discord attachments
-        if (message.attachments && message.attachments.size > 0) {
-            return true;
-        }
-        
-        // Check for image URLs in content
-        const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
-        if (imageUrlRegex.test(message.content)) {
-            return true;
-        }
-        
-        // Allow emojis now - removed emoji blocking
+        // Allow all content now - images and emojis are supported
         return false;
     }
 
@@ -147,7 +266,10 @@ class DiscordHandlers {
                 repliedMessage.author.bot,
                 roleColor,
                 message.guild,
-                client
+                client,
+                repliedMessage.createdTimestamp,
+                repliedMessage.author.verified || false,
+                repliedMessage.attachments
             );
             
             // Create attachment
@@ -170,61 +292,64 @@ class DiscordHandlers {
         }
     }
 
-    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null) {
+    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, messageTimestamp = null, isVerified = false, attachments = null) {
+    // Parse custom emojis and formatting
+    const customEmojis = this.parseCustomEmojis(text);
+    const formatting = this.parseDiscordFormatting(text);
+    
+    // Check for image attachments
+    const hasImages = attachments && attachments.size > 0;
+    const imageUrls = this.extractImageUrls(text);
+    
     // Calculate dynamic canvas dimensions based on content
-    const width = 500; // Even larger width to prevent avatar clipping
+    const width = 600; // Increased width for better layout
     const minHeight = 120; // Minimum height for basic content
     
-    // Calculate text height
-    const textHeight = this.calculateTextHeight(text, width - 100); // Account for margins and avatar space
+    // Calculate text height with emojis and formatting
+    const textHeight = this.calculateTextHeight(text, width - 120); // Account for margins and avatar space
     
-    // Calculate total height (no images, just text)
-    const totalHeight = Math.max(minHeight, textHeight + 20); // 20px padding
+    // Calculate total height including emojis and images
+    const emojiHeight = customEmojis.length > 0 ? 20 : 0;
+    const imageHeight = (hasImages || imageUrls.length > 0) ? 200 : 0; // Space for images
+    const totalHeight = Math.max(minHeight, textHeight + emojiHeight + imageHeight + 40); // Extra padding
     
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
 
     // Pure black background
-    ctx.fillStyle = '#000000'; // Pure black
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, totalHeight);
 
     // Calculate centered positioning
-    const avatarSize = 40; // Even larger avatar
-    const contentWidth = width - 40; // 20px margin on each side
-    const contentHeight = totalHeight - 20; // 10px margin top/bottom
-    const avatarX = 50; // Even more space from edge to prevent any clipping
-    const avatarY = (totalHeight - avatarSize) / 2; // Center vertically
+    const avatarSize = 40;
+    const contentWidth = width - 40;
+    const contentHeight = totalHeight - 20;
+    const avatarX = 20;
+    const avatarY = (totalHeight - avatarSize) / 2;
 
     // Draw avatar (circular)
     if (avatarUrl) {
         try {
-            // Draw avatar with proper circular clipping
             ctx.save();
-            
-            // Create circular clipping path
             ctx.beginPath();
             ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
             ctx.clip();
             
-            // Draw avatar background (fallback)
-            ctx.fillStyle = '#5865f2'; // Discord blue
+            ctx.fillStyle = '#5865f2';
             ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
             
-            // Try to load and draw the actual avatar
             const avatarImg = await loadImage(avatarUrl);
             ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
             
             ctx.restore();
         } catch (error) {
             console.warn('Failed to load avatar, using fallback:', error);
-            // Fallback: draw a simple circle with user initial
             ctx.save();
             ctx.beginPath();
             ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
             ctx.fillStyle = '#5865f2';
             ctx.fill();
             
-            // Draw user initial
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
@@ -233,7 +358,6 @@ class DiscordHandlers {
             ctx.restore();
         }
     } else {
-        // No avatar URL, draw fallback
         ctx.save();
         ctx.beginPath();
         ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
@@ -248,82 +372,201 @@ class DiscordHandlers {
         ctx.restore();
     }
 
-        // Calculate text positioning (centered)
-        const textStartX = avatarX + avatarSize + 8;
-        const textStartY = avatarY + 2;
-        const maxTextWidth = contentWidth - (avatarSize + 8) - 20;
+    // Calculate text positioning
+    const textStartX = avatarX + avatarSize + 12;
+    const textStartY = avatarY + 2;
+    const maxTextWidth = contentWidth - (avatarSize + 12) - 20;
 
-        // Draw username in role color
-        ctx.fillStyle = roleColor; // Use role color
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(username, textStartX, textStartY);
-
-        // Draw bot tag if it's a bot
-        if (isBot) {
-            const usernameWidth = ctx.measureText(username).width;
-            const botTagX = textStartX + usernameWidth + 4;
-            
-            // Bot tag background
-            ctx.fillStyle = '#5865f2';
-            ctx.fillRect(botTagX, textStartY, 35, 16);
-            
-            // Bot tag text
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 10px Arial';
-            ctx.fillText('BOT', botTagX + 2, textStartY + 2);
-        }
-
-        // Draw timestamp
-        const timestampX = textStartX + (isBot ? 45 : 0) + ctx.measureText(username).width + 8;
-        ctx.fillStyle = '#72767d';
-        ctx.font = '12px Arial';
-        ctx.fillText('6:39 PM', timestampX, textStartY);
-
-    // Draw message content
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '14px Arial'; // Regular weight, not bold
+    // Truncate username if too long to prevent timestamp overlap
+    const truncatedUsername = this.truncateText(username, 20);
+    
+    // Draw username in role color
+    ctx.fillStyle = roleColor;
+    ctx.font = 'bold 14px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
+    ctx.fillText(truncatedUsername, textStartX, textStartY);
 
-    // Simple text rendering with word wrap
-    const messageStartY = textStartY + 18; // Below username line
-    const wrapText = (text, maxWidth) => {
-        const words = text.split(' ');
-        const lines = [];
-        let currentLine = words[0];
+    let currentX = textStartX + ctx.measureText(truncatedUsername).width + 4;
 
-        for (let i = 1; i < words.length; i++) {
-            const word = words[i];
-            const width = ctx.measureText(currentLine + ' ' + word).width;
-            if (width < maxWidth) {
-                currentLine += ' ' + word;
-            } else {
-                lines.push(currentLine);
-                currentLine = word;
-            }
+    // Draw bot tag if it's a bot
+    if (isBot) {
+        const botTagWidth = 35;
+        const botTagHeight = 16;
+        
+        // Bot tag background
+        ctx.fillStyle = '#5865f2';
+        ctx.fillRect(currentX, textStartY, botTagWidth, botTagHeight);
+        
+        // Bot tag text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px Arial';
+        ctx.fillText('BOT', currentX + 2, textStartY + 2);
+        
+        currentX += botTagWidth + 4;
+        
+        // Draw verification checkmark if verified
+        if (isVerified) {
+            ctx.fillStyle = '#00d26a';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText('✓', currentX, textStartY);
+            currentX += 12;
         }
-        lines.push(currentLine);
-        return lines;
-    };
+    }
 
-    const lines = wrapText(text, maxTextWidth);
-    lines.forEach((line, index) => {
-        ctx.fillText(line, textStartX, messageStartY + index * 20);
-    });
+    // Draw timestamp with dynamic formatting
+    const timestamp = messageTimestamp ? this.formatTimestamp(messageTimestamp) : '6:39 PM';
+    const timestampWidth = ctx.measureText(timestamp).width;
+    
+    // Ensure timestamp doesn't overlap with username/bot tag
+    const availableWidth = width - currentX - 20;
+    if (timestampWidth <= availableWidth) {
+        ctx.fillStyle = '#72767d';
+        ctx.font = '12px Arial';
+        ctx.fillText(timestamp, currentX, textStartY);
+    } else {
+        // If not enough space, put timestamp on next line
+        ctx.fillStyle = '#72767d';
+        ctx.font = '12px Arial';
+        ctx.fillText(timestamp, textStartX, textStartY + 16);
+    }
+
+    // Draw message content with formatting support
+    const messageStartY = textStartY + 18;
+    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, customEmojis, formatting);
+
+    // Draw images if present
+    let imageY = messageStartY + textHeight + 10;
+    if (hasImages || imageUrls.length > 0) {
+        imageY = await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
+    }
 
     // Convert canvas to buffer
     const buffer = canvas.toBuffer('image/png');
     
-    // Use sharp to slightly reduce quality/resolution for funny effect
-    const finalHeight = Math.min(totalHeight, 500); // Cap height at 500px
+    // Use sharp to optimize the image
+    const finalHeight = Math.min(totalHeight, 600);
     const processedBuffer = await sharp(buffer)
-        .resize(400, finalHeight) // Increased width to match new canvas size
-        .png({ quality: 85 }) // Slightly lower quality
+        .resize(500, finalHeight)
+        .png({ quality: 90 })
         .toBuffer();
 
     return processedBuffer;
+    }
+
+    // Draw text with Discord formatting and emojis
+    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        // Process text with formatting and emojis
+        let processedText = text;
+        let currentY = startY;
+        let currentX = startX;
+        const lineHeight = 20;
+
+        // Replace custom emojis with placeholders for now
+        customEmojis.forEach(emoji => {
+            processedText = processedText.replace(emoji.full, `:${emoji.name}:`);
+        });
+
+        // Simple word wrap with basic formatting
+        const words = processedText.split(' ');
+        let currentLine = '';
+        let currentLineWidth = 0;
+
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const wordWidth = ctx.measureText(word + ' ').width;
+            
+            if (currentLineWidth + wordWidth > maxWidth && currentLine !== '') {
+                // Draw current line
+                this.drawFormattedLine(ctx, currentLine, currentX, currentY, formatting);
+                currentY += lineHeight;
+                currentLine = word + ' ';
+                currentLineWidth = ctx.measureText(word + ' ').width;
+            } else {
+                currentLine += word + ' ';
+                currentLineWidth += wordWidth;
+            }
+        }
+
+        // Draw the last line
+        if (currentLine.trim()) {
+            this.drawFormattedLine(ctx, currentLine, currentX, currentY, formatting);
+        }
+    }
+
+    // Draw a single line with formatting applied
+    drawFormattedLine(ctx, line, x, y, formatting) {
+        // Remove formatting markers and apply styles
+        let processedLine = line.trim();
+        
+        // Apply bold formatting
+        processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '$1');
+        
+        // Apply italic formatting
+        processedLine = processedLine.replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1');
+        processedLine = processedLine.replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1');
+        
+        // Apply strikethrough formatting
+        processedLine = processedLine.replace(/~~(.*?)~~/g, '$1');
+        
+        // Apply underline formatting
+        processedLine = processedLine.replace(/__(.*?)__/g, '$1');
+        
+        // Apply code formatting
+        processedLine = processedLine.replace(/`([^`]+)`/g, '$1');
+        
+        // Draw the processed text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '14px Arial';
+        ctx.fillText(processedLine, x, y);
+    }
+
+    // Draw images from attachments and URLs
+    async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth) {
+        let currentY = startY;
+        const imageHeight = 150;
+        const maxImageWidth = Math.min(maxWidth, 400);
+
+        // Draw attachment images
+        if (attachments && attachments.size > 0) {
+            for (const attachment of attachments.values()) {
+                if (attachment.contentType && attachment.contentType.startsWith('image/')) {
+                    try {
+                        const img = await loadImage(attachment.url);
+                        const aspectRatio = img.width / img.height;
+                        const drawWidth = Math.min(maxImageWidth, aspectRatio * imageHeight);
+                        const drawHeight = drawWidth / aspectRatio;
+
+                        ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
+                        currentY += drawHeight + 10;
+                    } catch (error) {
+                        console.warn('Failed to load attachment image:', error);
+                    }
+                }
+            }
+        }
+
+        // Draw URL images
+        for (const imageUrl of imageUrls) {
+            try {
+                const img = await loadImage(imageUrl);
+                const aspectRatio = img.width / img.height;
+                const drawWidth = Math.min(maxImageWidth, aspectRatio * imageHeight);
+                const drawHeight = drawWidth / aspectRatio;
+
+                ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
+                currentY += drawHeight + 10;
+            } catch (error) {
+                console.warn('Failed to load URL image:', error);
+            }
+        }
+
+        return currentY;
     }
 
 
@@ -674,11 +917,8 @@ class DiscordHandlers {
                 return true;
             }
             
-            // Check if message contains images - if so, don't respond (emojis are now allowed)
-            if (this.hasImagesOrEmojis(targetMessage)) {
-                await interaction.editReply("I can only clip plain text messages, sir.");
-                return true;
-            }
+            // All content types are now supported
+            // No need to check for images or emojis anymore
             
             // Create image from the message content with user info
             const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
@@ -703,7 +943,10 @@ class DiscordHandlers {
                 targetMessage.author.bot,
                 roleColor,
                 interaction.guild,
-                interaction.client
+                interaction.client,
+                targetMessage.createdTimestamp,
+                targetMessage.author.verified || false,
+                targetMessage.attachments
             );
             
             // Create attachment
