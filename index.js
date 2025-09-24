@@ -446,7 +446,7 @@ process.on("SIGINT", async () => {
 async function startBot() {
     try {
         // Start uptime server
-        app.listen(config.server.port, () => {
+        app.listen(config.server.port, '0.0.0.0', () => {
             console.log(`Uptime server listening on port ${config.server.port}`);
         });
 
