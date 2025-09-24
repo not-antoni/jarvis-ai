@@ -62,6 +62,8 @@ class DiscordHandlers {
     }
 
     // Parse Discord custom emojis using Discord API
+    // This function extracts custom emojis from message text and gets their proper URLs
+    // Uses guild emoji cache for accurate emoji data, falls back to CDN URLs
     parseCustomEmojis(text, guild = null) {
         const emojiRegex = /<a?:(\w+):(\d+)>/g;
         const emojis = [];
@@ -73,6 +75,7 @@ class DiscordHandlers {
             const id = match[2];
             
             // Try to get emoji from guild first, then fallback to CDN URL
+            // Guild cache provides more accurate emoji data than CDN URLs
             let emojiUrl = `https://cdn.discordapp.com/emojis/${id}.${isAnimated ? 'gif' : 'png'}`;
             let emojiObject = null;
             
@@ -210,6 +213,13 @@ class DiscordHandlers {
         }
     }
 
+    // Get the official Discord verification badge URL
+    getVerificationBadgeUrl() {
+        // Discord's official verification badge URL from their CDN
+        // This is the actual badge icon used by Discord for verified bots
+        return 'https://cdn.discordapp.com/badge-icons/6f1c2f904b1f5b7f3f2746965d3992f0.png';
+    }
+
     // Extract image URLs from text
     extractImageUrls(text) {
         const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
@@ -269,8 +279,11 @@ class DiscordHandlers {
                 return true; // Handled silently - don't clip messages with images/emojis
             }
             
-            // Create image from the replied message content with user info
-            const avatarUrl = repliedMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
+            // Get server-specific avatar (guild avatar) or fallback to global avatar
+            // Discord allows users to set unique avatars per server - this gets the server-specific one
+            // If no server avatar is set, falls back to the user's global avatar
+            const avatarUrl = repliedMessage.member?.avatarURL({ extension: 'png', size: 128 }) || 
+                            repliedMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
             
             // Get user's role color
             let roleColor = '#ff6b6b'; // Default red
@@ -323,6 +336,11 @@ class DiscordHandlers {
     const customEmojis = this.parseCustomEmojis(text, guild);
     const formatting = this.parseDiscordFormatting(text);
     
+    // Debug logging for emoji parsing
+    if (customEmojis.length > 0) {
+        console.log('Found emojis:', customEmojis.map(e => ({ name: e.name, url: e.url })));
+    }
+    
     // Check bot verification status using Discord API
     const isVerified = user ? this.isBotVerified(user) : false;
     
@@ -338,9 +356,9 @@ class DiscordHandlers {
     const textHeight = this.calculateTextHeight(text, width - 180); // Account for margins and avatar space
     
     // Calculate total height including emojis and images
-    const emojiHeight = customEmojis.length > 0 ? 20 : 0;
+    // Emojis are rendered inline with text, so no extra height needed
     const imageHeight = (hasImages || imageUrls.length > 0) ? 200 : 0; // Space for images
-    const totalHeight = Math.max(minHeight, textHeight + emojiHeight + imageHeight + 40); // Extra padding
+    const totalHeight = Math.max(minHeight, textHeight + imageHeight + 40); // Extra padding
     
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
@@ -434,12 +452,22 @@ class DiscordHandlers {
         
         currentX += botTagWidth + 4;
         
-        // Draw verification checkmark if verified
+        // Draw verification badge if verified
         if (isVerified) {
-            ctx.fillStyle = '#00d26a';
-            ctx.font = 'bold 12px Arial';
-            ctx.fillText('✓', currentX, textStartY);
-            currentX += 12;
+            try {
+                const badgeUrl = this.getVerificationBadgeUrl();
+                const badgeImg = await loadImage(badgeUrl);
+                const badgeSize = 16;
+                ctx.drawImage(badgeImg, currentX, textStartY, badgeSize, badgeSize);
+                currentX += badgeSize + 4;
+            } catch (error) {
+                console.warn('Failed to load verification badge, using fallback:', error);
+                // Fallback to text checkmark
+                ctx.fillStyle = '#00d26a';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText('✓', currentX, textStartY);
+                currentX += 12;
+            }
         }
     }
 
@@ -491,19 +519,13 @@ class DiscordHandlers {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
 
-        // Process text with formatting and emojis
-        let processedText = text;
         let currentY = startY;
         let currentX = startX;
         const lineHeight = 20;
-
-        // Replace custom emojis with their names
-        customEmojis.forEach(emoji => {
-            processedText = processedText.replace(emoji.full, `:${emoji.name}:`);
-        });
+        const emojiSize = 16;
 
         // Remove Discord formatting markers for cleaner display
-        processedText = processedText
+        let processedText = text
             .replace(/\*\*(.*?)\*\*/g, '$1') // Bold
             .replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1') // Italic *
             .replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1') // Italic _
@@ -511,31 +533,98 @@ class DiscordHandlers {
             .replace(/__(.*?)__/g, '$1') // Underline
             .replace(/`([^`]+)`/g, '$1'); // Code
 
-        // Simple word wrap
-        const words = processedText.split(' ');
-        let currentLine = '';
+        // Split text into segments (text and emojis)
+        const segments = this.splitTextWithEmojis(processedText, customEmojis);
+        
         let currentLineWidth = 0;
+        let currentLineHeight = lineHeight;
 
-        for (let i = 0; i < words.length; i++) {
-            const word = words[i];
-            const wordWidth = ctx.measureText(word + ' ').width;
-            
-            if (currentLineWidth + wordWidth > maxWidth && currentLine !== '') {
-                // Draw current line
-                ctx.fillText(currentLine.trim(), currentX, currentY);
-                currentY += lineHeight;
-                currentLine = word + ' ';
-                currentLineWidth = ctx.measureText(word + ' ').width;
+        for (const segment of segments) {
+            if (segment.type === 'emoji') {
+                // Draw emoji image
+                try {
+                    const emojiImg = await loadImage(segment.url);
+                    const emojiWidth = emojiSize;
+                    const emojiHeight = emojiSize;
+                    
+                    // Check if emoji fits on current line
+                    if (currentLineWidth + emojiWidth > maxWidth && currentLineWidth > 0) {
+                        currentY += currentLineHeight;
+                        currentLineWidth = 0;
+                    }
+                    
+                    ctx.drawImage(emojiImg, currentX + currentLineWidth, currentY, emojiWidth, emojiHeight);
+                    currentLineWidth += emojiWidth + 2; // Small spacing after emoji
+                } catch (error) {
+                    console.warn('Failed to load emoji:', error);
+                    // Fallback to text representation
+                    const emojiText = `:${segment.name}:`;
+                    const textWidth = ctx.measureText(emojiText).width;
+                    
+                    if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
+                        currentY += currentLineHeight;
+                        currentLineWidth = 0;
+                    }
+                    
+                    ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
+                    currentLineWidth += textWidth;
+                }
             } else {
-                currentLine += word + ' ';
-                currentLineWidth += wordWidth;
+                // Draw text segment
+                const words = segment.text.split(' ');
+                
+                for (const word of words) {
+                    const wordWidth = ctx.measureText(word + ' ').width;
+                    
+                    if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
+                        currentY += currentLineHeight;
+                        currentLineWidth = 0;
+                    }
+                    
+                    ctx.fillText(word + ' ', currentX + currentLineWidth, currentY);
+                    currentLineWidth += wordWidth;
+                }
             }
         }
+    }
 
-        // Draw the last line
-        if (currentLine.trim()) {
-            ctx.fillText(currentLine.trim(), currentX, currentY);
+    // Split text into segments with emojis
+    splitTextWithEmojis(text, customEmojis) {
+        const segments = [];
+        let lastIndex = 0;
+        
+        // Sort emojis by position
+        const sortedEmojis = customEmojis.sort((a, b) => a.start - b.start);
+        
+        for (const emoji of sortedEmojis) {
+            // Add text before emoji
+            if (emoji.start > lastIndex) {
+                const textSegment = text.substring(lastIndex, emoji.start);
+                if (textSegment) {
+                    segments.push({ type: 'text', text: textSegment });
+                }
+            }
+            
+            // Add emoji
+            segments.push({
+                type: 'emoji',
+                name: emoji.name,
+                url: emoji.url,
+                full: emoji.full
+            });
+            
+            lastIndex = emoji.end;
         }
+        
+        // Add remaining text
+        if (lastIndex < text.length) {
+            const remainingText = text.substring(lastIndex);
+            if (remainingText) {
+                segments.push({ type: 'text', text: remainingText });
+            }
+        }
+        
+        return segments;
     }
 
     // Draw a single line with formatting applied
@@ -959,8 +1048,11 @@ class DiscordHandlers {
             // All content types are now supported
             // No need to check for images or emojis anymore
             
-            // Create image from the message content with user info
-            const avatarUrl = targetMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
+            // Get server-specific avatar (guild avatar) or fallback to global avatar
+            // Discord allows users to set unique avatars per server - this gets the server-specific one
+            // If no server avatar is set, falls back to the user's global avatar
+            const avatarUrl = targetMessage.member?.avatarURL({ extension: 'png', size: 128 }) || 
+                            targetMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
             
             // Get user's role color
             let roleColor = '#ff6b6b'; // Default red
