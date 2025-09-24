@@ -105,6 +105,30 @@ class DiscordHandlers {
         return emojis;
     }
 
+    // Parse Unicode emojis as well
+    parseUnicodeEmojis(text) {
+        // Unicode emoji regex - covers most emoji ranges
+        const unicodeEmojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+        const emojis = [];
+        let match;
+        
+        while ((match = unicodeEmojiRegex.exec(text)) !== null) {
+            emojis.push({
+                full: match[0],
+                name: match[0],
+                id: null,
+                url: null, // Unicode emojis don't have URLs
+                isAnimated: false,
+                emojiObject: null,
+                start: match.index,
+                end: match.index + match[0].length,
+                isUnicode: true
+            });
+        }
+        
+        return emojis;
+    }
+
     // Parse Discord markdown formatting
     parseDiscordFormatting(text) {
         const formatting = [];
@@ -176,15 +200,20 @@ class DiscordHandlers {
         return formatting;
     }
 
-    // Format timestamp using Discord's timestamp format
+    // Format timestamp to actual readable time
     formatTimestamp(timestamp, userTimezone = 'UTC') {
         try {
-            // Convert Discord timestamp (milliseconds) to Unix timestamp (seconds)
-            const unixTimestamp = Math.floor(timestamp / 1000);
+            // Convert Discord timestamp (milliseconds) to Date
+            const date = new Date(timestamp);
             
-            // Use Discord's timestamp format: <t:UNIX_TIMESTAMP:t>
-            // This will display as "9:41 AM" format
-            return `<t:${unixTimestamp}:t>`;
+            // Format as 12-hour time with AM/PM
+            const options = {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            };
+            
+            return date.toLocaleTimeString('en-US', options);
         } catch (error) {
             console.warn('Failed to format timestamp:', error);
             return '6:39 PM'; // Fallback
@@ -335,11 +364,13 @@ class DiscordHandlers {
     async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, messageTimestamp = null, user = null, attachments = null) {
     // Parse custom emojis and formatting using Discord API
     const customEmojis = this.parseCustomEmojis(text, guild);
+    const unicodeEmojis = this.parseUnicodeEmojis(text);
+    const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
     const formatting = this.parseDiscordFormatting(text);
     
     // Debug logging for emoji parsing
-    if (customEmojis.length > 0) {
-        console.log('Found emojis:', customEmojis.map(e => ({ name: e.name, url: e.url })));
+    if (allEmojis.length > 0) {
+        console.log('Found emojis:', allEmojis.map(e => ({ name: e.name, url: e.url, isUnicode: e.isUnicode })));
     }
     
     // Check bot verification status using Discord API
@@ -438,40 +469,40 @@ class DiscordHandlers {
 
     let currentX = textStartX + ctx.measureText(truncatedUsername).width + 4;
 
-        // Draw bot tag if it's a bot
+        // Draw app tag if it's a bot
         if (isBot) {
-        const botTagWidth = 35;
-        const botTagHeight = 16;
+            const appTagWidth = 35;
+            const appTagHeight = 16;
             
-            // Bot tag background
-            ctx.fillStyle = '#5865f2';
-        ctx.fillRect(currentX, textStartY, botTagWidth, botTagHeight);
+            // App tag background (purple/blue-violet color)
+            ctx.fillStyle = '#8B5CF6'; // Purple color for APP badge
+            ctx.fillRect(currentX, textStartY, appTagWidth, appTagHeight);
             
-            // Bot tag text
+            // App tag text
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 10px Arial';
-        ctx.fillText('BOT', currentX + 2, textStartY + 2);
-        
-        currentX += botTagWidth + 4;
-        
-        // Draw verification badge if verified
-        if (isVerified) {
-            try {
-                const badgeUrl = this.getVerificationBadgeUrl();
-                const badgeImg = await loadImage(badgeUrl);
-                const badgeSize = 16;
-                ctx.drawImage(badgeImg, currentX, textStartY, badgeSize, badgeSize);
-                currentX += badgeSize + 4;
-            } catch (error) {
-                console.warn('Failed to load verification badge, using fallback:', error);
-                // Fallback to text checkmark
-                ctx.fillStyle = '#00d26a';
-                ctx.font = 'bold 12px Arial';
-                ctx.fillText('✓', currentX, textStartY);
-                currentX += 12;
+            ctx.fillText('APP', currentX + 2, textStartY + 2);
+            
+            currentX += appTagWidth + 4;
+            
+            // Draw verification badge if verified
+            if (isVerified) {
+                try {
+                    const badgeUrl = this.getVerificationBadgeUrl();
+                    const badgeImg = await loadImage(badgeUrl);
+                    const badgeSize = 16;
+                    ctx.drawImage(badgeImg, currentX, textStartY, badgeSize, badgeSize);
+                    currentX += badgeSize + 4;
+                } catch (error) {
+                    console.warn('Failed to load verification badge, using fallback:', error);
+                    // Fallback to text checkmark
+                    ctx.fillStyle = '#00d26a';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.fillText('✓', currentX, textStartY);
+                    currentX += 12;
+                }
             }
         }
-    }
 
     // Draw timestamp with dynamic formatting
     const timestamp = messageTimestamp ? this.formatTimestamp(messageTimestamp) : '6:39 PM';
@@ -493,7 +524,7 @@ class DiscordHandlers {
 
     // Draw message content with formatting support
     const messageStartY = textStartY + 18;
-    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, customEmojis, formatting);
+    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting);
 
     // Draw images if present and calculate actual height needed
     let actualImageHeight = 0;
@@ -576,24 +607,9 @@ class DiscordHandlers {
 
         for (const segment of segments) {
             if (segment.type === 'emoji') {
-                // Draw emoji image
-                try {
-                    const emojiImg = await loadImage(segment.url);
-                    const emojiWidth = emojiSize;
-                    const emojiHeight = emojiSize;
-                    
-                    // Check if emoji fits on current line
-                    if (currentLineWidth + emojiWidth > maxWidth && currentLineWidth > 0) {
-                        currentY += currentLineHeight;
-                        currentLineWidth = 0;
-                    }
-                    
-                    ctx.drawImage(emojiImg, currentX + currentLineWidth, currentY, emojiWidth, emojiHeight);
-                    currentLineWidth += emojiWidth + 2; // Small spacing after emoji
-                } catch (error) {
-                    console.warn('Failed to load emoji:', error);
-                    // Fallback to text representation
-                    const emojiText = `:${segment.name}:`;
+                if (segment.isUnicode) {
+                    // Draw Unicode emoji as text
+                    const emojiText = segment.name;
                     const textWidth = ctx.measureText(emojiText).width;
                     
                     if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
@@ -603,6 +619,35 @@ class DiscordHandlers {
                     
                     ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
                     currentLineWidth += textWidth;
+                } else {
+                    // Draw custom emoji image
+                    try {
+                        const emojiImg = await loadImage(segment.url);
+                        const emojiWidth = emojiSize;
+                        const emojiHeight = emojiSize;
+                        
+                        // Check if emoji fits on current line
+                        if (currentLineWidth + emojiWidth > maxWidth && currentLineWidth > 0) {
+                            currentY += currentLineHeight;
+                            currentLineWidth = 0;
+                        }
+                        
+                        ctx.drawImage(emojiImg, currentX + currentLineWidth, currentY, emojiWidth, emojiHeight);
+                        currentLineWidth += emojiWidth + 2; // Small spacing after emoji
+                    } catch (error) {
+                        console.warn('Failed to load emoji:', error);
+                        // Fallback to text representation
+                        const emojiText = `:${segment.name}:`;
+                        const textWidth = ctx.measureText(emojiText).width;
+                        
+                        if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
+                            currentY += currentLineHeight;
+                            currentLineWidth = 0;
+                        }
+                        
+                        ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
+                        currentLineWidth += textWidth;
+                    }
                 }
             } else {
                 // Draw text segment
@@ -624,12 +669,12 @@ class DiscordHandlers {
     }
 
     // Split text into segments with emojis
-    splitTextWithEmojis(text, customEmojis) {
+    splitTextWithEmojis(text, allEmojis) {
         const segments = [];
         let lastIndex = 0;
         
         // Sort emojis by position
-        const sortedEmojis = customEmojis.sort((a, b) => a.start - b.start);
+        const sortedEmojis = allEmojis.sort((a, b) => a.start - b.start);
         
         for (const emoji of sortedEmojis) {
             // Add text before emoji
@@ -645,7 +690,8 @@ class DiscordHandlers {
                 type: 'emoji',
                 name: emoji.name,
                 url: emoji.url,
-                full: emoji.full
+                full: emoji.full,
+                isUnicode: emoji.isUnicode
             });
             
             lastIndex = emoji.end;
