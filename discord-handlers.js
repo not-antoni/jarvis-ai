@@ -245,6 +245,45 @@ class DiscordHandlers {
         }
     }
 
+    // Get Discord's native timestamp format for user's local timezone
+    // This matches exactly what Discord shows in the client
+    getDiscordTimestamp(message) {
+        try {
+            // Convert to Unix timestamp (seconds, not milliseconds)
+            const unixTimestamp = Math.floor(message.createdTimestamp / 1000);
+            
+            // Discord timestamp format: <t:timestamp:format>
+            // 't' = short time (e.g., "2:30 PM")
+            return `<t:${unixTimestamp}:t>`;
+        } catch (error) {
+            console.warn('Failed to get Discord timestamp:', error);
+            return '6:39 PM'; // Fallback
+        }
+    }
+
+    // Parse Discord timestamp to get the actual formatted time
+    // This extracts the time from Discord's timestamp format
+    parseDiscordTimestamp(message) {
+        try {
+            // Get the Discord timestamp format
+            const discordTimestamp = this.getDiscordTimestamp(message);
+            
+            // For Canvas rendering, we need the actual time string
+            // Use the message's createdAt Date object with proper formatting
+            const date = message.createdAt;
+            const options = {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            };
+            
+            return date.toLocaleTimeString('en-US', options);
+        } catch (error) {
+            console.warn('Failed to parse Discord timestamp:', error);
+            return '6:39 PM'; // Fallback
+        }
+    }
+
     // Truncate text if too long
     truncateText(text, maxLength) {
         if (text.length <= maxLength) return text;
@@ -376,7 +415,12 @@ class DiscordHandlers {
                 clipCommandTime: message.createdAt.toLocaleTimeString(),
                 repliedMessageTime: repliedMessage.createdAt.toLocaleTimeString(),
                 repliedMessageTimestamp: repliedMessage.createdTimestamp,
-                messageTimestamp: message.createdTimestamp
+                messageTimestamp: message.createdTimestamp,
+                // Check if we're getting the right message
+                repliedMessageId: repliedMessage.id,
+                repliedMessageContent: repliedMessage.content.substring(0, 50) + '...',
+                // Check message age
+                messageAge: Date.now() - repliedMessage.createdTimestamp
             });
             
             // Check if message contains images or emojis - if so, don't respond
@@ -419,7 +463,7 @@ class DiscordHandlers {
                 roleColor,
                 message.guild,
                 client,
-                repliedMessage.createdAt,
+                repliedMessage, // Pass the entire message object
                 repliedMessage.author,
                 repliedMessage.attachments
             );
@@ -444,7 +488,7 @@ class DiscordHandlers {
         }
     }
 
-    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, messageTimestamp = null, user = null, attachments = null) {
+    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null) {
     // Parse custom emojis and formatting using Discord API
     const customEmojis = await this.parseCustomEmojis(text, guild);
     const unicodeEmojis = this.parseUnicodeEmojis(text);
@@ -588,7 +632,7 @@ class DiscordHandlers {
         }
 
     // Draw timestamp with dynamic formatting
-    const timestamp = messageTimestamp ? this.formatTimestamp(messageTimestamp) : '6:39 PM';
+    const timestamp = message ? this.parseDiscordTimestamp(message) : '6:39 PM';
     const timestampWidth = ctx.measureText(timestamp).width;
     
     // Ensure timestamp doesn't overlap with username/bot tag
@@ -1289,14 +1333,14 @@ class DiscordHandlers {
             const displayName = targetMessage.member?.displayName || targetMessage.author.username;
             
             const imageBuffer = await this.createClipImage(
-                targetMessage.content, 
-                displayName, 
+                targetMessage.content,
+                displayName,
                 avatarUrl,
                 targetMessage.author.bot,
                 roleColor,
                 interaction.guild,
                 interaction.client,
-                targetMessage.createdAt,
+                targetMessage, // Pass the entire message object
                 targetMessage.author,
                 targetMessage.attachments
             );
