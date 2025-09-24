@@ -2,7 +2,7 @@
  * Discord event handlers and command processing
  */
 
-const { ChannelType, AttachmentBuilder } = require('discord.js');
+const { ChannelType, AttachmentBuilder, UserFlags } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
 const { createCanvas, loadImage, registerFont } = require('canvas');
@@ -61,8 +61,8 @@ class DiscordHandlers {
         }
     }
 
-    // Parse Discord custom emojis
-    parseCustomEmojis(text) {
+    // Parse Discord custom emojis using Discord API
+    parseCustomEmojis(text, guild = null) {
         const emojiRegex = /<a?:(\w+):(\d+)>/g;
         const emojis = [];
         let match;
@@ -71,14 +71,29 @@ class DiscordHandlers {
             const isAnimated = match[0].startsWith('<a:');
             const name = match[1];
             const id = match[2];
-            const url = `https://cdn.discordapp.com/emojis/${id}.${isAnimated ? 'gif' : 'png'}`;
+            
+            // Try to get emoji from guild first, then fallback to CDN URL
+            let emojiUrl = `https://cdn.discordapp.com/emojis/${id}.${isAnimated ? 'gif' : 'png'}`;
+            let emojiObject = null;
+            
+            if (guild) {
+                try {
+                    emojiObject = guild.emojis.cache.get(id);
+                    if (emojiObject) {
+                        emojiUrl = emojiObject.url;
+                    }
+                } catch (error) {
+                    console.warn('Failed to fetch emoji from guild:', error);
+                }
+            }
             
             emojis.push({
                 full: match[0],
                 name: name,
                 id: id,
-                url: url,
+                url: emojiUrl,
                 isAnimated: isAnimated,
+                emojiObject: emojiObject,
                 start: match.index,
                 end: match.index + match[0].length
             });
@@ -184,6 +199,17 @@ class DiscordHandlers {
         return text.substring(0, maxLength - 3) + '...';
     }
 
+    // Check if bot is verified using Discord API
+    isBotVerified(user) {
+        try {
+            // Check if user has the VerifiedBot flag
+            return user.flags && user.flags.has(UserFlags.VerifiedBot);
+        } catch (error) {
+            console.warn('Failed to check bot verification status:', error);
+            return false;
+        }
+    }
+
     // Extract image URLs from text
     extractImageUrls(text) {
         const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
@@ -268,7 +294,7 @@ class DiscordHandlers {
                 message.guild,
                 client,
                 repliedMessage.createdTimestamp,
-                repliedMessage.author.verified || false,
+                repliedMessage.author,
                 repliedMessage.attachments
             );
             
@@ -292,21 +318,24 @@ class DiscordHandlers {
         }
     }
 
-    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, messageTimestamp = null, isVerified = false, attachments = null) {
-    // Parse custom emojis and formatting
-    const customEmojis = this.parseCustomEmojis(text);
+    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, messageTimestamp = null, user = null, attachments = null) {
+    // Parse custom emojis and formatting using Discord API
+    const customEmojis = this.parseCustomEmojis(text, guild);
     const formatting = this.parseDiscordFormatting(text);
+    
+    // Check bot verification status using Discord API
+    const isVerified = user ? this.isBotVerified(user) : false;
     
     // Check for image attachments
     const hasImages = attachments && attachments.size > 0;
     const imageUrls = this.extractImageUrls(text);
     
     // Calculate dynamic canvas dimensions based on content
-    const width = 700; // Increased width for better layout and to prevent avatar cutoff
+    const width = 800; // Increased width for better layout and positioning
     const minHeight = 120; // Minimum height for basic content
     
     // Calculate text height with emojis and formatting
-    const textHeight = this.calculateTextHeight(text, width - 140); // Account for margins and avatar space
+    const textHeight = this.calculateTextHeight(text, width - 180); // Account for margins and avatar space
     
     // Calculate total height including emojis and images
     const emojiHeight = customEmojis.length > 0 ? 20 : 0;
@@ -320,11 +349,11 @@ class DiscordHandlers {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, totalHeight);
 
-    // Calculate centered positioning with more space for avatar
+    // Calculate centered positioning with more space for avatar and text
     const avatarSize = 40;
-    const contentWidth = width - 60; // More margin
+    const contentWidth = width - 80; // More margin
     const contentHeight = totalHeight - 20;
-    const avatarX = 30; // Moved more to the right to prevent cutoff
+    const avatarX = 50; // Moved further to the right
     const avatarY = (totalHeight - avatarSize) / 2;
 
     // Draw avatar (circular)
@@ -372,10 +401,10 @@ class DiscordHandlers {
         ctx.restore();
     }
 
-    // Calculate text positioning
-    const textStartX = avatarX + avatarSize + 12;
+    // Calculate text positioning - moved further right
+    const textStartX = avatarX + avatarSize + 20; // Increased spacing
     const textStartY = avatarY + 2;
-    const maxTextWidth = contentWidth - (avatarSize + 12) - 20;
+    const maxTextWidth = contentWidth - (avatarSize + 20) - 30; // More margin
 
     // Truncate username if too long to prevent timestamp overlap
     const truncatedUsername = this.truncateText(username, 20);
@@ -448,7 +477,7 @@ class DiscordHandlers {
     // Use sharp to optimize the image
     const finalHeight = Math.min(totalHeight, 600);
     const processedBuffer = await sharp(buffer)
-        .resize(600, finalHeight) // Increased width to match new canvas size
+        .resize(700, finalHeight) // Increased width to match new canvas size
         .png({ quality: 90 })
         .toBuffer();
 
@@ -955,7 +984,7 @@ class DiscordHandlers {
                 interaction.guild,
                 interaction.client,
                 targetMessage.createdTimestamp,
-                targetMessage.author.verified || false,
+                targetMessage.author,
                 targetMessage.attachments
             );
             
