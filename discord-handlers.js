@@ -223,21 +223,19 @@ class DiscordHandlers {
     }
 
     // Format timestamp to actual readable time
-    // Uses Discord.js Message.createdTimestamp (milliseconds since Unix epoch)
-    // Discord.js also provides Message.createdAt (Date object) as alternative
+    // Uses Discord.js Message.createdAt (Date object) for proper timezone handling
     formatTimestamp(timestamp, userTimezone = 'UTC') {
         try {
-            // Convert Discord timestamp (milliseconds) to Date
-            // timestamp comes from message.createdTimestamp (Discord.js API)
-            const date = new Date(timestamp);
+            // Handle both Date objects and timestamp numbers
+            const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
             
-            // Format as 12-hour time with AM/PM in UTC (Discord's timezone)
-            // This matches how Discord displays timestamps in the client
+            // Format as 12-hour time with AM/PM
+            // Use system timezone to match Discord client behavior
             const options = {
                 hour: 'numeric',
                 minute: '2-digit',
-                hour12: true,
-                timeZone: 'UTC'  // Force UTC timezone to match Discord
+                hour12: true
+                // No timeZone specified - uses system timezone (matches Discord client)
             };
             
             return date.toLocaleTimeString('en-US', options);
@@ -375,8 +373,8 @@ class DiscordHandlers {
             
             // Debug logging for timestamps
             console.log('Timestamp debug:', {
-                clipCommandTime: new Date(message.createdTimestamp).toLocaleTimeString(),
-                repliedMessageTime: new Date(repliedMessage.createdTimestamp).toLocaleTimeString(),
+                clipCommandTime: message.createdAt.toLocaleTimeString(),
+                repliedMessageTime: repliedMessage.createdAt.toLocaleTimeString(),
                 repliedMessageTimestamp: repliedMessage.createdTimestamp,
                 messageTimestamp: message.createdTimestamp
             });
@@ -421,7 +419,7 @@ class DiscordHandlers {
                 roleColor,
                 message.guild,
                 client,
-                repliedMessage.createdTimestamp,
+                repliedMessage.createdAt,
                 repliedMessage.author,
                 repliedMessage.attachments
             );
@@ -1250,8 +1248,8 @@ class DiscordHandlers {
                 
                 // Debug logging for timestamps
                 console.log('Slash command timestamp debug:', {
-                    slashCommandTime: new Date(interaction.createdTimestamp).toLocaleTimeString(),
-                    targetMessageTime: new Date(targetMessage.createdTimestamp).toLocaleTimeString(),
+                    slashCommandTime: interaction.createdAt.toLocaleTimeString(),
+                    targetMessageTime: targetMessage.createdAt.toLocaleTimeString(),
                     targetMessageTimestamp: targetMessage.createdTimestamp,
                     interactionTimestamp: interaction.createdTimestamp
                 });
@@ -1298,7 +1296,7 @@ class DiscordHandlers {
                 roleColor,
                 interaction.guild,
                 interaction.client,
-                targetMessage.createdTimestamp,
+                targetMessage.createdAt,
                 targetMessage.author,
                 targetMessage.attachments
             );
