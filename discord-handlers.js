@@ -176,20 +176,15 @@ class DiscordHandlers {
         return formatting;
     }
 
-    // Format timestamp based on user timezone
+    // Format timestamp using Discord's timestamp format
     formatTimestamp(timestamp, userTimezone = 'UTC') {
         try {
-            // Convert Discord timestamp (which is in milliseconds) to Date
-            const date = new Date(timestamp);
+            // Convert Discord timestamp (milliseconds) to Unix timestamp (seconds)
+            const unixTimestamp = Math.floor(timestamp / 1000);
             
-            // Format as 12-hour time with AM/PM
-            const options = {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            };
-            
-            return date.toLocaleTimeString('en-US', options);
+            // Use Discord's timestamp format: <t:UNIX_TIMESTAMP:t>
+            // This will display as "9:41 AM" format
+            return `<t:${unixTimestamp}:t>`;
         } catch (error) {
             console.warn('Failed to format timestamp:', error);
             return '6:39 PM'; // Fallback
@@ -220,11 +215,17 @@ class DiscordHandlers {
         return 'https://cdn.discordapp.com/badge-icons/6f1c2f904b1f5b7f3f2746965d3992f0.png';
     }
 
-    // Extract image URLs from text
+    // Extract image URLs from text including Tenor GIFs
     extractImageUrls(text) {
+        // Standard image URLs
         const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
-        const matches = text.match(imageUrlRegex);
-        return matches || [];
+        const imageMatches = text.match(imageUrlRegex) || [];
+        
+        // Tenor GIF URLs
+        const tenorRegex = /(https?:\/\/tenor\.com\/[^\s]+)/gi;
+        const tenorMatches = text.match(tenorRegex) || [];
+        
+        return [...imageMatches, ...tenorMatches];
     }
 
     calculateTextHeight(text, maxWidth) {
@@ -357,8 +358,9 @@ class DiscordHandlers {
     
     // Calculate total height including emojis and images
     // Emojis are rendered inline with text, so no extra height needed
-    const imageHeight = (hasImages || imageUrls.length > 0) ? 200 : 0; // Space for images
-    const totalHeight = Math.max(minHeight, textHeight + imageHeight + 40); // Extra padding
+    // We'll calculate actual image height after drawing
+    const estimatedImageHeight = (hasImages || imageUrls.length > 0) ? 250 : 0; // Estimated space for images
+    const totalHeight = Math.max(minHeight, textHeight + estimatedImageHeight + 40); // Extra padding
     
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
@@ -421,33 +423,33 @@ class DiscordHandlers {
 
     // Calculate text positioning - moved further right
     const textStartX = avatarX + avatarSize + 20; // Increased spacing
-    const textStartY = avatarY + 2;
+        const textStartY = avatarY + 2;
     const maxTextWidth = contentWidth - (avatarSize + 20) - 30; // More margin
 
     // Truncate username if too long to prevent timestamp overlap
     const truncatedUsername = this.truncateText(username, 20);
-    
-    // Draw username in role color
+
+        // Draw username in role color
     ctx.fillStyle = roleColor;
-    ctx.font = 'bold 14px Arial';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
     ctx.fillText(truncatedUsername, textStartX, textStartY);
 
     let currentX = textStartX + ctx.measureText(truncatedUsername).width + 4;
 
-    // Draw bot tag if it's a bot
-    if (isBot) {
+        // Draw bot tag if it's a bot
+        if (isBot) {
         const botTagWidth = 35;
         const botTagHeight = 16;
-        
-        // Bot tag background
-        ctx.fillStyle = '#5865f2';
+            
+            // Bot tag background
+            ctx.fillStyle = '#5865f2';
         ctx.fillRect(currentX, textStartY, botTagWidth, botTagHeight);
-        
-        // Bot tag text
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 10px Arial';
+            
+            // Bot tag text
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 10px Arial';
         ctx.fillText('BOT', currentX + 2, textStartY + 2);
         
         currentX += botTagWidth + 4;
@@ -493,17 +495,50 @@ class DiscordHandlers {
     const messageStartY = textStartY + 18;
     await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, customEmojis, formatting);
 
-    // Draw images if present
+    // Draw images if present and calculate actual height needed
+    let actualImageHeight = 0;
     let imageY = messageStartY + textHeight + 10;
+    
     if (hasImages || imageUrls.length > 0) {
+        // Create a temporary canvas to measure image heights
+        const tempCanvas = createCanvas(width, 1000); // Large temp canvas
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, textStartX, 0, maxTextWidth);
+        actualImageHeight = imageEndY + 20; // Add padding
+        
+        // Now draw on the actual canvas
         imageY = await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
+        
+        // Resize canvas if needed
+        const requiredHeight = messageStartY + textHeight + actualImageHeight + 20;
+        if (requiredHeight > totalHeight) {
+            // Create new canvas with proper height
+            const newCanvas = createCanvas(width, requiredHeight);
+            const newCtx = newCanvas.getContext('2d');
+            
+            // Copy existing content
+            newCtx.drawImage(canvas, 0, 0);
+            
+            // Draw images on new canvas
+            await this.drawImages(newCtx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
+            
+            // Use new canvas
+            const buffer = newCanvas.toBuffer('image/png');
+            const processedBuffer = await sharp(buffer)
+                .resize(700, Math.min(requiredHeight, 800)) // Increased max height
+                .png({ quality: 90 })
+                .toBuffer();
+            
+            return processedBuffer;
+        }
     }
 
     // Convert canvas to buffer
     const buffer = canvas.toBuffer('image/png');
     
     // Use sharp to optimize the image
-    const finalHeight = Math.min(totalHeight, 600);
+    const finalHeight = Math.min(totalHeight, 800); // Increased max height
     const processedBuffer = await sharp(buffer)
         .resize(700, finalHeight) // Increased width to match new canvas size
         .png({ quality: 90 })
@@ -514,10 +549,10 @@ class DiscordHandlers {
 
     // Draw text with Discord formatting and emojis
     async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting) {
-        ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#ffffff';
         ctx.font = '14px Arial';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
 
         let currentY = startY;
         let currentX = startX;
@@ -657,8 +692,8 @@ class DiscordHandlers {
     // Draw images from attachments and URLs
     async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth) {
         let currentY = startY;
-        const imageHeight = 150;
         const maxImageWidth = Math.min(maxWidth, 400);
+        const maxImageHeight = 300; // Increased max height
 
         // Draw attachment images
         if (attachments && attachments.size > 0) {
@@ -667,8 +702,16 @@ class DiscordHandlers {
                     try {
                         const img = await loadImage(attachment.url);
                         const aspectRatio = img.width / img.height;
-                        const drawWidth = Math.min(maxImageWidth, aspectRatio * imageHeight);
-                        const drawHeight = drawWidth / aspectRatio;
+                        
+                        // Calculate dimensions maintaining aspect ratio
+                        let drawWidth = maxImageWidth;
+                        let drawHeight = drawWidth / aspectRatio;
+                        
+                        // If height exceeds max, scale down
+                        if (drawHeight > maxImageHeight) {
+                            drawHeight = maxImageHeight;
+                            drawWidth = drawHeight * aspectRatio;
+                        }
 
                         ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
                         currentY += drawHeight + 10;
@@ -679,13 +722,21 @@ class DiscordHandlers {
             }
         }
 
-        // Draw URL images
+        // Draw URL images (including Tenor GIFs)
         for (const imageUrl of imageUrls) {
             try {
                 const img = await loadImage(imageUrl);
                 const aspectRatio = img.width / img.height;
-                const drawWidth = Math.min(maxImageWidth, aspectRatio * imageHeight);
-                const drawHeight = drawWidth / aspectRatio;
+                
+                // Calculate dimensions maintaining aspect ratio
+                let drawWidth = maxImageWidth;
+                let drawHeight = drawWidth / aspectRatio;
+                
+                // If height exceeds max, scale down
+                if (drawHeight > maxImageHeight) {
+                    drawHeight = maxImageHeight;
+                    drawWidth = drawHeight * aspectRatio;
+                }
 
                 ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
                 currentY += drawHeight + 10;
