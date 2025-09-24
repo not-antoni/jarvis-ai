@@ -315,7 +315,6 @@ Status: <span class="online">OPERATIONAL</span>
     ╔══════════════════════════════════════════════════════════════╗
     ║  🔗 Health Check: /health                                   ║
     ║  🎯 Discord Bot: Active                                     ║
-    ║  🚀 Render: [REDACTED]                                      ║
     ╚══════════════════════════════════════════════════════════════╝
         </div>
         
