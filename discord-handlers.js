@@ -64,7 +64,7 @@ class DiscordHandlers {
     // Parse Discord custom emojis using Discord API
     // This function extracts custom emojis from message text and gets their proper URLs
     // Uses guild emoji cache for accurate emoji data, falls back to CDN URLs
-    parseCustomEmojis(text, guild = null) {
+    async parseCustomEmojis(text, guild = null) {
         const emojiRegex = /<a?:(\w+):(\d+)>/g;
         const emojis = [];
         let match;
@@ -74,16 +74,38 @@ class DiscordHandlers {
             const name = match[1];
             const id = match[2];
             
-            // Try to get emoji from guild first, then fallback to CDN URL
-            // Guild cache provides more accurate emoji data than CDN URLs
+            // Always use Discord's CDN URL for emojis
+            // Discord API format: https://cdn.discordapp.com/emojis/{emoji_id}.png
+            // For animated emojis: https://cdn.discordapp.com/emojis/{emoji_id}.gif
             let emojiUrl = `https://cdn.discordapp.com/emojis/${id}.${isAnimated ? 'gif' : 'png'}`;
             let emojiObject = null;
             
+            // Try to get emoji from guild for additional info
             if (guild) {
                 try {
                     emojiObject = guild.emojis.cache.get(id);
                     if (emojiObject) {
-                        emojiUrl = emojiObject.url;
+                        // Use the emoji's URL if available, otherwise use CDN URL
+                        emojiUrl = emojiObject.url || emojiUrl;
+                    } else {
+                        // Try to fetch emoji from Discord API if not in cache
+                        // Discord API endpoint: GET /guilds/{guild_id}/emojis/{emoji_id}
+                        try {
+                            const fetchedEmoji = await guild.emojis.fetch(id);
+                            if (fetchedEmoji) {
+                                emojiObject = fetchedEmoji;
+                                emojiUrl = fetchedEmoji.url || emojiUrl;
+                            }
+                        } catch (fetchError) {
+                            // Handle Discord API errors gracefully
+                            if (fetchError.code === 10014) {
+                                console.warn(`Emoji ${id} not found in guild ${guild.id}`);
+                            } else if (fetchError.code === 50013) {
+                                console.warn(`Missing permissions to fetch emoji ${id} from guild ${guild.id}`);
+                            } else {
+                                console.warn('Failed to fetch emoji from Discord API:', fetchError);
+                            }
+                        }
                     }
                 } catch (error) {
                     console.warn('Failed to fetch emoji from guild:', error);
@@ -229,8 +251,9 @@ class DiscordHandlers {
     // Check if bot is verified using Discord API
     isBotVerified(user) {
         try {
-            // Check if user has the VerifiedBot flag
-            return user.flags && user.flags.has(UserFlags.VerifiedBot);
+            // Check if user has the VerifiedBot flag using public_flags
+            // Discord API uses public_flags bitfield for verification status
+            return user.publicFlags && user.publicFlags.has(UserFlags.VerifiedBot);
         } catch (error) {
             console.warn('Failed to check bot verification status:', error);
             return false;
@@ -250,11 +273,52 @@ class DiscordHandlers {
         const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
         const imageMatches = text.match(imageUrlRegex) || [];
         
-        // Tenor GIF URLs
+        // Tenor GIF URLs - extract the actual GIF URL
         const tenorRegex = /(https?:\/\/tenor\.com\/[^\s]+)/gi;
         const tenorMatches = text.match(tenorRegex) || [];
         
-        return [...imageMatches, ...tenorMatches];
+        // Convert Tenor URLs to actual GIF URLs
+        const tenorGifUrls = tenorMatches.map(tenorUrl => {
+            try {
+                // Extract GIF ID from different Tenor URL formats
+                let gifId = null;
+                
+                // Format 1: https://tenor.com/view/gif-name-gifId
+                const viewMatch = tenorUrl.match(/\/view\/[^-]+-(\d+)/);
+                if (viewMatch) {
+                    gifId = viewMatch[1];
+                }
+                
+                // Format 2: https://tenor.com/view/gifId
+                if (!gifId) {
+                    const directMatch = tenorUrl.match(/\/view\/(\d+)/);
+                    if (directMatch) {
+                        gifId = directMatch[1];
+                    }
+                }
+                
+                // Format 3: https://tenor.com/view/gif-name-gifId-other
+                if (!gifId) {
+                    const complexMatch = tenorUrl.match(/-(\d+)(?:-|$)/);
+                    if (complexMatch) {
+                        gifId = complexMatch[1];
+                    }
+                }
+                
+                if (gifId) {
+                    // Return the actual GIF URL from Tenor's CDN
+                    return `https://media.tenor.com/${gifId}.gif`;
+                }
+                
+                console.warn('Could not extract GIF ID from Tenor URL:', tenorUrl);
+                return tenorUrl; // Fallback to original URL
+            } catch (error) {
+                console.warn('Failed to convert Tenor URL:', error);
+                return tenorUrl;
+            }
+        });
+        
+        return [...imageMatches, ...tenorGifUrls];
     }
 
     calculateTextHeight(text, maxWidth) {
@@ -312,8 +376,16 @@ class DiscordHandlers {
             // Get server-specific avatar (guild avatar) or fallback to global avatar
             // Discord allows users to set unique avatars per server - this gets the server-specific one
             // If no server avatar is set, falls back to the user's global avatar
-            const avatarUrl = repliedMessage.member?.avatarURL({ extension: 'png', size: 128 }) || 
-                            repliedMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
+            // Using Discord's proper avatar URL structure: https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png
+            const avatarUrl = repliedMessage.member?.avatarURL({ 
+                extension: 'png', 
+                size: 128,
+                forceStatic: false // Allow animated avatars
+            }) || repliedMessage.author.displayAvatarURL({ 
+                extension: 'png', 
+                size: 128,
+                forceStatic: false // Allow animated avatars
+            });
             
             // Get user's role color
             let roleColor = '#ff6b6b'; // Default red
@@ -363,7 +435,7 @@ class DiscordHandlers {
 
     async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, messageTimestamp = null, user = null, attachments = null) {
     // Parse custom emojis and formatting using Discord API
-    const customEmojis = this.parseCustomEmojis(text, guild);
+    const customEmojis = await this.parseCustomEmojis(text, guild);
     const unicodeEmojis = this.parseUnicodeEmojis(text);
     const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
     const formatting = this.parseDiscordFormatting(text);
@@ -391,7 +463,7 @@ class DiscordHandlers {
     // Emojis are rendered inline with text, so no extra height needed
     // We'll calculate actual image height after drawing
     const estimatedImageHeight = (hasImages || imageUrls.length > 0) ? 250 : 0; // Estimated space for images
-    const totalHeight = Math.max(minHeight, textHeight + estimatedImageHeight + 40); // Extra padding
+    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + estimatedImageHeight + 40)); // Extra padding, ensure integer
     
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
@@ -542,10 +614,10 @@ class DiscordHandlers {
         imageY = await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
         
         // Resize canvas if needed
-        const requiredHeight = messageStartY + textHeight + actualImageHeight + 20;
+        const requiredHeight = Math.ceil(messageStartY + textHeight + actualImageHeight + 20);
         if (requiredHeight > totalHeight) {
-            // Create new canvas with proper height
-            const newCanvas = createCanvas(width, requiredHeight);
+            // Create new canvas with proper height (ensure integer)
+            const newCanvas = createCanvas(width, Math.ceil(requiredHeight));
             const newCtx = newCanvas.getContext('2d');
             
             // Copy existing content
@@ -557,7 +629,7 @@ class DiscordHandlers {
             // Use new canvas
             const buffer = newCanvas.toBuffer('image/png');
             const processedBuffer = await sharp(buffer)
-                .resize(700, Math.min(requiredHeight, 800)) // Increased max height
+                .resize(700, Math.min(Math.ceil(requiredHeight), 800)) // Ensure integer height
                 .png({ quality: 90 })
                 .toBuffer();
             
@@ -569,7 +641,7 @@ class DiscordHandlers {
     const buffer = canvas.toBuffer('image/png');
     
     // Use sharp to optimize the image
-    const finalHeight = Math.min(totalHeight, 800); // Increased max height
+    const finalHeight = Math.ceil(Math.min(totalHeight, 800)); // Increased max height, ensure integer
     const processedBuffer = await sharp(buffer)
         .resize(700, finalHeight) // Increased width to match new canvas size
         .png({ quality: 90 })
@@ -622,6 +694,7 @@ class DiscordHandlers {
                 } else {
                     // Draw custom emoji image
                     try {
+                        console.log('Loading emoji:', { name: segment.name, url: segment.url });
                         const emojiImg = await loadImage(segment.url);
                         const emojiWidth = emojiSize;
                         const emojiHeight = emojiSize;
@@ -634,19 +707,44 @@ class DiscordHandlers {
                         
                         ctx.drawImage(emojiImg, currentX + currentLineWidth, currentY, emojiWidth, emojiHeight);
                         currentLineWidth += emojiWidth + 2; // Small spacing after emoji
+                        console.log('Successfully rendered emoji:', segment.name);
                     } catch (error) {
-                        console.warn('Failed to load emoji:', error);
-                        // Fallback to text representation
-                        const emojiText = `:${segment.name}:`;
-                        const textWidth = ctx.measureText(emojiText).width;
+                        console.warn('Failed to load emoji:', { name: segment.name, url: segment.url, error: error.message });
                         
-                        if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
-                            currentY += currentLineHeight;
-                            currentLineWidth = 0;
+                        // Try alternative CDN URL if first attempt failed
+                        try {
+                            const alternativeUrl = `https://cdn.discordapp.com/emojis/${segment.id}.png`;
+                            if (alternativeUrl !== segment.url) {
+                                console.log('Trying alternative emoji URL:', alternativeUrl);
+                                const emojiImg = await loadImage(alternativeUrl);
+                                const emojiWidth = emojiSize;
+                                const emojiHeight = emojiSize;
+                                
+                                if (currentLineWidth + emojiWidth > maxWidth && currentLineWidth > 0) {
+                                    currentY += currentLineHeight;
+                                    currentLineWidth = 0;
+                                }
+                                
+                                ctx.drawImage(emojiImg, currentX + currentLineWidth, currentY, emojiWidth, emojiHeight);
+                                currentLineWidth += emojiWidth + 2;
+                                console.log('Successfully rendered emoji with alternative URL:', segment.name);
+                            } else {
+                                throw new Error('Alternative URL same as original');
+                            }
+                        } catch (altError) {
+                            console.warn('Alternative emoji URL also failed:', altError.message);
+                            // Fallback to text representation
+                            const emojiText = `:${segment.name}:`;
+                            const textWidth = ctx.measureText(emojiText).width;
+                            
+                            if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
+                                currentY += currentLineHeight;
+                                currentLineWidth = 0;
+                            }
+                            
+                            ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
+                            currentLineWidth += textWidth;
                         }
-                        
-                        ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
-                        currentLineWidth += textWidth;
                     }
                 }
             } else {
@@ -1148,8 +1246,16 @@ class DiscordHandlers {
             // Get server-specific avatar (guild avatar) or fallback to global avatar
             // Discord allows users to set unique avatars per server - this gets the server-specific one
             // If no server avatar is set, falls back to the user's global avatar
-            const avatarUrl = targetMessage.member?.avatarURL({ extension: 'png', size: 128 }) || 
-                            targetMessage.author.displayAvatarURL({ extension: 'png', size: 128 });
+            // Using Discord's proper avatar URL structure: https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png
+            const avatarUrl = targetMessage.member?.avatarURL({ 
+                extension: 'png', 
+                size: 128,
+                forceStatic: false // Allow animated avatars
+            }) || targetMessage.author.displayAvatarURL({ 
+                extension: 'png', 
+                size: 128,
+                forceStatic: false // Allow animated avatars
+            });
             
             // Get user's role color
             let roleColor = '#ff6b6b'; // Default red
