@@ -161,10 +161,10 @@ class DiscordHandlers {
     // Format timestamp based on user timezone
     formatTimestamp(timestamp, userTimezone = 'UTC') {
         try {
+            // Convert Discord timestamp (which is in milliseconds) to Date
             const date = new Date(timestamp);
             
-            // For now, use local time formatting
-            // In a real implementation, you'd use a timezone library like moment-timezone
+            // Format as 12-hour time with AM/PM
             const options = {
                 hour: 'numeric',
                 minute: '2-digit',
@@ -302,11 +302,11 @@ class DiscordHandlers {
     const imageUrls = this.extractImageUrls(text);
     
     // Calculate dynamic canvas dimensions based on content
-    const width = 600; // Increased width for better layout
+    const width = 700; // Increased width for better layout and to prevent avatar cutoff
     const minHeight = 120; // Minimum height for basic content
     
     // Calculate text height with emojis and formatting
-    const textHeight = this.calculateTextHeight(text, width - 120); // Account for margins and avatar space
+    const textHeight = this.calculateTextHeight(text, width - 140); // Account for margins and avatar space
     
     // Calculate total height including emojis and images
     const emojiHeight = customEmojis.length > 0 ? 20 : 0;
@@ -320,11 +320,11 @@ class DiscordHandlers {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, totalHeight);
 
-    // Calculate centered positioning
+    // Calculate centered positioning with more space for avatar
     const avatarSize = 40;
-    const contentWidth = width - 40;
+    const contentWidth = width - 60; // More margin
     const contentHeight = totalHeight - 20;
-    const avatarX = 20;
+    const avatarX = 30; // Moved more to the right to prevent cutoff
     const avatarY = (totalHeight - avatarSize) / 2;
 
     // Draw avatar (circular)
@@ -416,6 +416,7 @@ class DiscordHandlers {
 
     // Draw timestamp with dynamic formatting
     const timestamp = messageTimestamp ? this.formatTimestamp(messageTimestamp) : '6:39 PM';
+    console.log('Timestamp debug:', { messageTimestamp, timestamp }); // Debug log
     const timestampWidth = ctx.measureText(timestamp).width;
     
     // Ensure timestamp doesn't overlap with username/bot tag
@@ -447,7 +448,7 @@ class DiscordHandlers {
     // Use sharp to optimize the image
     const finalHeight = Math.min(totalHeight, 600);
     const processedBuffer = await sharp(buffer)
-        .resize(500, finalHeight)
+        .resize(600, finalHeight) // Increased width to match new canvas size
         .png({ quality: 90 })
         .toBuffer();
 
@@ -467,12 +468,21 @@ class DiscordHandlers {
         let currentX = startX;
         const lineHeight = 20;
 
-        // Replace custom emojis with placeholders for now
+        // Replace custom emojis with their names
         customEmojis.forEach(emoji => {
             processedText = processedText.replace(emoji.full, `:${emoji.name}:`);
         });
 
-        // Simple word wrap with basic formatting
+        // Remove Discord formatting markers for cleaner display
+        processedText = processedText
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Bold
+            .replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1') // Italic *
+            .replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1') // Italic _
+            .replace(/~~(.*?)~~/g, '$1') // Strikethrough
+            .replace(/__(.*?)__/g, '$1') // Underline
+            .replace(/`([^`]+)`/g, '$1'); // Code
+
+        // Simple word wrap
         const words = processedText.split(' ');
         let currentLine = '';
         let currentLineWidth = 0;
@@ -483,7 +493,7 @@ class DiscordHandlers {
             
             if (currentLineWidth + wordWidth > maxWidth && currentLine !== '') {
                 // Draw current line
-                this.drawFormattedLine(ctx, currentLine, currentX, currentY, formatting);
+                ctx.fillText(currentLine.trim(), currentX, currentY);
                 currentY += lineHeight;
                 currentLine = word + ' ';
                 currentLineWidth = ctx.measureText(word + ' ').width;
@@ -495,7 +505,7 @@ class DiscordHandlers {
 
         // Draw the last line
         if (currentLine.trim()) {
-            this.drawFormattedLine(ctx, currentLine, currentX, currentY, formatting);
+            ctx.fillText(currentLine.trim(), currentX, currentY);
         }
     }
 
