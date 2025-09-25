@@ -363,11 +363,11 @@ class DiscordHandlers {
         return [...imageMatches, ...tenorGifUrls];
     }
 
-    calculateTextHeight(text, maxWidth, dpiScale = 1) {
+    calculateTextHeight(text, maxWidth) {
         // Create a temporary canvas to measure text
         const tempCanvas = createCanvas(1, 1);
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.font = `24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+        tempCtx.font = '14px Arial';
         
         const words = text.split(' ');
         let currentLine = words[0];
@@ -384,8 +384,8 @@ class DiscordHandlers {
             }
         }
         
-        const baseHeight = 90; // Username + timestamp + spacing
-        const lineHeight = 36; // Line height
+        const baseHeight = 40; // Username + timestamp + spacing
+        const lineHeight = 20;
         return baseHeight + (lines * lineHeight);
     }
 
@@ -468,8 +468,8 @@ class DiscordHandlers {
                 repliedMessage.attachments
             );
             
-            // Create attachment with WebP format for better quality
-            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.webp' });
+            // Create attachment
+            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
             
             // Send the image with "clipped, sir." message
             await message.reply({ 
@@ -507,43 +507,31 @@ class DiscordHandlers {
     const hasImages = attachments && attachments.size > 0;
     const imageUrls = this.extractImageUrls(text);
     
-    // Calculate dynamic canvas dimensions - use native high resolution without double scaling
-    const baseWidth = 1600; // High resolution base width
-    const width = baseWidth; // No DPI scaling to avoid quality loss
-    const minHeight = 200; // Minimum height
+    // Calculate dynamic canvas dimensions based on content
+    const width = 800; // Increased width for better layout and positioning
+    const minHeight = 120; // Minimum height for basic content
     
     // Calculate text height with emojis and formatting
-    const textHeight = this.calculateTextHeight(text, width - 220, 1); // Account for margins and avatar space
-
-    // Pre-measure images to compute exact final canvas height before creating it
-    let preMeasuredImageHeight = 0;
-    if (hasImages || imageUrls.length > 0) {
-        const tempCanvas = createCanvas(10, 10);
-        const tempCtx = tempCanvas.getContext('2d');
-        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, 0, 0, width - 220, 1);
-        preMeasuredImageHeight = imageEndY + 30; // include padding under images
-    }
-
-    // Compute final canvas height and create canvas once
-    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + preMeasuredImageHeight + 80));
+    const textHeight = this.calculateTextHeight(text, width - 180); // Account for margins and avatar space
+    
+    // Calculate total height including emojis and images
+    // Emojis are rendered inline with text, so no extra height needed
+    // We'll calculate actual image height after drawing
+    const estimatedImageHeight = (hasImages || imageUrls.length > 0) ? 250 : 0; // Estimated space for images
+    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + estimatedImageHeight + 40)); // Extra padding, ensure integer
+    
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
-    
-    // Enable high-quality rendering
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.textRenderingOptimization = 'optimizeQuality';
-    ctx.antialias = 'default';
 
     // Pure black background
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, totalHeight);
 
     // Calculate centered positioning with more space for avatar and text
-    const avatarSize = 80; // Larger avatar for better quality
-    const contentWidth = width - 160; // More margin
-    const contentHeight = totalHeight - 40;
-    const avatarX = 80; // Moved further to the right
+    const avatarSize = 40;
+    const contentWidth = width - 80; // More margin
+    const contentHeight = totalHeight - 20;
+    const avatarX = 50; // Moved further to the right
     const avatarY = (totalHeight - avatarSize) / 2;
 
     // Draw avatar (circular)
@@ -592,53 +580,53 @@ class DiscordHandlers {
     }
 
     // Calculate text positioning - moved further right
-    const textStartX = avatarX + avatarSize + 40; // Increased spacing
-    const textStartY = avatarY + 6;
-    const maxTextWidth = contentWidth - (avatarSize + 40) - 60; // More margin
+    const textStartX = avatarX + avatarSize + 20; // Increased spacing
+        const textStartY = avatarY + 2;
+    const maxTextWidth = contentWidth - (avatarSize + 20) - 30; // More margin
 
     // Truncate username if too long to prevent timestamp overlap
     const truncatedUsername = this.truncateText(username, 20);
 
-    // Draw username in role color with high-quality font
+        // Draw username in role color
     ctx.fillStyle = roleColor;
-    ctx.font = `bold 28px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
+        ctx.font = 'bold 14px Arial';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
     ctx.fillText(truncatedUsername, textStartX, textStartY);
 
     let currentX = textStartX + ctx.measureText(truncatedUsername).width + 4;
 
         // Draw app tag if it's a bot
         if (isBot) {
-            const appTagWidth = 60;
-            const appTagHeight = 28;
+            const appTagWidth = 35;
+            const appTagHeight = 16;
             
             // App tag background (purple/blue-violet color)
             ctx.fillStyle = '#8B5CF6'; // Purple color for APP badge
             ctx.fillRect(currentX, textStartY, appTagWidth, appTagHeight);
             
-            // App tag text with high-quality font
+            // App tag text
             ctx.fillStyle = '#ffffff';
-            ctx.font = `bold 18px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
-            ctx.fillText('APP', currentX + 8, textStartY + 6);
+            ctx.font = 'bold 10px Arial';
+            ctx.fillText('APP', currentX + 2, textStartY + 2);
             
-            currentX += appTagWidth + 8;
+            currentX += appTagWidth + 4;
             
             // Draw verification badge if verified
             if (isVerified) {
                 try {
                     const badgeUrl = this.getVerificationBadgeUrl();
                     const badgeImg = await loadImage(badgeUrl);
-                    const badgeSize = 28;
+                    const badgeSize = 16;
                     ctx.drawImage(badgeImg, currentX, textStartY, badgeSize, badgeSize);
-                    currentX += badgeSize + 8;
+                    currentX += badgeSize + 4;
                 } catch (error) {
                     console.warn('Failed to load verification badge, using fallback:', error);
                     // Fallback to text checkmark
                     ctx.fillStyle = '#00d26a';
-                    ctx.font = `bold 18px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+                    ctx.font = 'bold 12px Arial';
                     ctx.fillText('✓', currentX, textStartY);
-                    currentX += 22;
+                    currentX += 12;
                 }
             }
         }
@@ -648,61 +636,85 @@ class DiscordHandlers {
     const timestampWidth = ctx.measureText(timestamp).width;
     
     // Ensure timestamp doesn't overlap with username/bot tag
-    const availableWidth = width - currentX - 40;
+    const availableWidth = width - currentX - 20;
     if (timestampWidth <= availableWidth) {
         ctx.fillStyle = '#72767d';
-        ctx.font = `20px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+        ctx.font = '12px Arial';
         ctx.fillText(timestamp, currentX, textStartY);
     } else {
         // If not enough space, put timestamp on next line
         ctx.fillStyle = '#72767d';
-        ctx.font = `20px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
-        ctx.fillText(timestamp, textStartX, textStartY + 30);
+        ctx.font = '12px Arial';
+        ctx.fillText(timestamp, textStartX, textStartY + 16);
     }
 
     // Draw message content with formatting support
-    const messageStartY = textStartY + 42;
-    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, 1);
+    const messageStartY = textStartY + 18;
+    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting);
 
-    // Draw images once on the final canvas (no resize later)
-    let imageY = messageStartY + textHeight + 20;
+    // Draw images if present and calculate actual height needed
+    let actualImageHeight = 0;
+    let imageY = messageStartY + textHeight + 10;
+    
     if (hasImages || imageUrls.length > 0) {
-        await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth, 1);
+        // Create a temporary canvas to measure image heights
+        const tempCanvas = createCanvas(width, 1000); // Large temp canvas
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, textStartX, 0, maxTextWidth);
+        actualImageHeight = imageEndY + 20; // Add padding
+        
+        // Now draw on the actual canvas
+        imageY = await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
+        
+        // Resize canvas if needed
+        const requiredHeight = Math.ceil(messageStartY + textHeight + actualImageHeight + 20);
+        if (requiredHeight > totalHeight) {
+            // Create new canvas with proper height (ensure integer)
+            const newCanvas = createCanvas(width, Math.ceil(requiredHeight));
+            const newCtx = newCanvas.getContext('2d');
+            
+            // Copy existing content
+            newCtx.drawImage(canvas, 0, 0);
+            
+            // Draw images on new canvas
+            await this.drawImages(newCtx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
+            
+            // Use new canvas
+            const buffer = newCanvas.toBuffer('image/png');
+            const processedBuffer = await sharp(buffer)
+                .resize(700, Math.min(Math.ceil(requiredHeight), 800)) // Ensure integer height
+                .png({ quality: 90 })
+                .toBuffer();
+            
+            return processedBuffer;
+        }
     }
 
-    // Convert canvas to buffer with optimized processing
+    // Convert canvas to buffer
     const buffer = canvas.toBuffer('image/png');
     
-    // Use sharp to optimize the image with subtle enhancement
-    const finalHeight = Math.ceil(Math.min(totalHeight, 1600)); // No unnecessary scaling
+    // Use sharp to optimize the image
+    const finalHeight = Math.ceil(Math.min(totalHeight, 800)); // Increased max height, ensure integer
     const processedBuffer = await sharp(buffer)
-        .resize(baseWidth, finalHeight, {
-            kernel: sharp.kernel.lanczos3, // High-quality scaling algorithm
-            withoutEnlargement: false
-        })
-        .sharpen({ sigma: 0.3, m1: 0.5, m2: 1.5, x1: 2, y2: 10 }) // Subtle sharpening
-        .webp({ 
-            quality: 98, // Higher quality than PNG
-            effort: 6, // Maximum compression effort for best quality
-            smartSubsample: true, // Smart color subsampling
-            reductionEffort: 6 // Maximum reduction effort
-        })
+        .resize(700, finalHeight) // Increased width to match new canvas size
+        .png({ quality: 90 })
         .toBuffer();
 
     return processedBuffer;
     }
 
-    // Draw text with Discord formatting and emojis (high-quality rendering)
-    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting, dpiScale = 1) {
+    // Draw text with Discord formatting and emojis
+    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting) {
     ctx.fillStyle = '#ffffff';
-    ctx.font = `24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+        ctx.font = '14px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
         let currentY = startY;
         let currentX = startX;
-        const lineHeight = 36; // Line height
-        const emojiSize = 32; // Larger emojis for better quality
+        const lineHeight = 20;
+        const emojiSize = 16;
 
         // Remove Discord formatting markers for cleaner display
         let processedText = text
@@ -876,17 +888,16 @@ class DiscordHandlers {
     }
 
     // Draw images from attachments and URLs
-    async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth, dpiScale = 1) {
+    async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth) {
         let currentY = startY;
-        const maxImageWidth = Math.min(maxWidth, 800); // Larger images for better quality
-        const maxImageHeight = 600; // Increased max height
+        const maxImageWidth = Math.min(maxWidth, 400);
+        const maxImageHeight = 300; // Increased max height
 
-        // Draw attachment images with optimized processing
+        // Draw attachment images
         if (attachments && attachments.size > 0) {
             for (const attachment of attachments.values()) {
                 if (attachment.contentType && attachment.contentType.startsWith('image/')) {
                     try {
-                        // Load image directly without preprocessing to avoid quality loss
                         const img = await loadImage(attachment.url);
                         const aspectRatio = img.width / img.height;
                         
@@ -901,7 +912,7 @@ class DiscordHandlers {
                         }
 
                         ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
-                        currentY += drawHeight + 20; // More spacing
+                        currentY += drawHeight + 10;
                     } catch (error) {
                         console.warn('Failed to load attachment image:', error);
                     }
@@ -909,10 +920,9 @@ class DiscordHandlers {
             }
         }
 
-        // Draw URL images (including Tenor GIFs) with optimized processing
+        // Draw URL images (including Tenor GIFs)
         for (const imageUrl of imageUrls) {
             try {
-                // Load image directly without preprocessing to avoid quality loss
                 const img = await loadImage(imageUrl);
                 const aspectRatio = img.width / img.height;
                 
@@ -927,7 +937,7 @@ class DiscordHandlers {
                 }
 
                 ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
-                currentY += drawHeight + 20; // More spacing
+                currentY += drawHeight + 10;
             } catch (error) {
                 console.warn('Failed to load URL image:', error);
             }
@@ -1335,8 +1345,8 @@ class DiscordHandlers {
                 targetMessage.attachments
             );
             
-            // Create attachment with WebP format for better quality
-            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.webp' });
+            // Create attachment
+            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
             
             // Send the image with "clipped, sir." message
             await interaction.editReply({ 
