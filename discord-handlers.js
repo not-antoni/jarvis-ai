@@ -367,7 +367,7 @@ class DiscordHandlers {
         // Create a temporary canvas to measure text
         const tempCanvas = createCanvas(1, 1);
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.font = `22px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+        tempCtx.font = `24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
         
         const words = text.split(' ');
         let currentLine = words[0];
@@ -384,8 +384,8 @@ class DiscordHandlers {
             }
         }
         
-        const baseHeight = 80; // Username + timestamp + spacing
-        const lineHeight = 32; // Line height
+        const baseHeight = 90; // Username + timestamp + spacing
+        const lineHeight = 36; // Line height
         return baseHeight + (lines * lineHeight);
     }
 
@@ -513,14 +513,19 @@ class DiscordHandlers {
     const minHeight = 200; // Minimum height
     
     // Calculate text height with emojis and formatting
-    const textHeight = this.calculateTextHeight(text, width - 200, 1); // Account for margins and avatar space
-    
-    // Calculate total height including emojis and images
-    // Emojis are rendered inline with text, so no extra height needed
-    // We'll calculate actual image height after drawing
-    const estimatedImageHeight = (hasImages || imageUrls.length > 0) ? 500 : 0; // Estimated space for images
-    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + estimatedImageHeight + 80)); // Extra padding
-    
+    const textHeight = this.calculateTextHeight(text, width - 220, 1); // Account for margins and avatar space
+
+    // Pre-measure images to compute exact final canvas height before creating it
+    let preMeasuredImageHeight = 0;
+    if (hasImages || imageUrls.length > 0) {
+        const tempCanvas = createCanvas(10, 10);
+        const tempCtx = tempCanvas.getContext('2d');
+        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, 0, 0, width - 220, 1);
+        preMeasuredImageHeight = imageEndY + 30; // include padding under images
+    }
+
+    // Compute final canvas height and create canvas once
+    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + preMeasuredImageHeight + 80));
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
     
@@ -596,7 +601,7 @@ class DiscordHandlers {
 
     // Draw username in role color with high-quality font
     ctx.fillStyle = roleColor;
-    ctx.font = `bold 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+    ctx.font = `bold 28px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(truncatedUsername, textStartX, textStartY);
@@ -614,8 +619,8 @@ class DiscordHandlers {
             
             // App tag text with high-quality font
             ctx.fillStyle = '#ffffff';
-            ctx.font = `bold 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
-            ctx.fillText('APP', currentX + 6, textStartY + 6);
+            ctx.font = `bold 18px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+            ctx.fillText('APP', currentX + 8, textStartY + 6);
             
             currentX += appTagWidth + 8;
             
@@ -646,65 +651,23 @@ class DiscordHandlers {
     const availableWidth = width - currentX - 40;
     if (timestampWidth <= availableWidth) {
         ctx.fillStyle = '#72767d';
-        ctx.font = `18px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+        ctx.font = `20px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
         ctx.fillText(timestamp, currentX, textStartY);
     } else {
         // If not enough space, put timestamp on next line
         ctx.fillStyle = '#72767d';
-        ctx.font = `18px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+        ctx.font = `20px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
         ctx.fillText(timestamp, textStartX, textStartY + 30);
     }
 
     // Draw message content with formatting support
-    const messageStartY = textStartY + 35;
+    const messageStartY = textStartY + 42;
     await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, 1);
 
-    // Draw images if present and calculate actual height needed
-    let actualImageHeight = 0;
+    // Draw images once on the final canvas (no resize later)
     let imageY = messageStartY + textHeight + 20;
-    
     if (hasImages || imageUrls.length > 0) {
-        // Create a temporary canvas to measure image heights
-        const tempCanvas = createCanvas(width, 1000); // Large temp canvas
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, textStartX, 0, maxTextWidth, 1);
-        actualImageHeight = imageEndY + 30; // Add padding
-        
-        // Now draw on the actual canvas
-        imageY = await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth, 1);
-        
-        // Resize canvas if needed
-        const requiredHeight = Math.ceil(messageStartY + textHeight + actualImageHeight + 20);
-        if (requiredHeight > totalHeight) {
-            // Create new canvas with proper height (ensure integer)
-            const newCanvas = createCanvas(width, Math.ceil(requiredHeight));
-            const newCtx = newCanvas.getContext('2d');
-            
-            // Copy existing content
-            newCtx.drawImage(canvas, 0, 0);
-            
-            // Draw images on new canvas
-            await this.drawImages(newCtx, attachments, imageUrls, textStartX, imageY, maxTextWidth, 1);
-            
-            // Use new canvas with optimized processing
-            const buffer = newCanvas.toBuffer('image/png');
-            const processedBuffer = await sharp(buffer)
-                .resize(baseWidth, Math.min(Math.ceil(requiredHeight), 1600), {
-                    kernel: sharp.kernel.lanczos3, // High-quality scaling
-                    withoutEnlargement: false
-                })
-                .sharpen({ sigma: 0.3, m1: 0.5, m2: 1.5, x1: 2, y2: 10 }) // Subtle sharpening
-                .webp({ 
-                    quality: 98, 
-                    effort: 6, // Maximum compression effort
-                    smartSubsample: true,
-                    reductionEffort: 6
-                })
-                .toBuffer();
-            
-            return processedBuffer;
-        }
+        await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth, 1);
     }
 
     // Convert canvas to buffer with optimized processing
@@ -732,14 +695,14 @@ class DiscordHandlers {
     // Draw text with Discord formatting and emojis (high-quality rendering)
     async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting, dpiScale = 1) {
     ctx.fillStyle = '#ffffff';
-    ctx.font = `22px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+    ctx.font = `24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
         let currentY = startY;
         let currentX = startX;
-        const lineHeight = 32; // Line height
-        const emojiSize = 28; // Larger emojis for better quality
+        const lineHeight = 36; // Line height
+        const emojiSize = 32; // Larger emojis for better quality
 
         // Remove Discord formatting markers for cleaner display
         let processedText = text
