@@ -364,10 +364,10 @@ class DiscordHandlers {
     }
 
     calculateTextHeight(text, maxWidth) {
-        // Create a temporary canvas to measure text
+        // Create a temporary canvas to measure text (scaled for high-DPI)
         const tempCanvas = createCanvas(1, 1);
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.font = '14px Arial';
+        tempCtx.font = `${18 * dpiScale}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
         
         const words = text.split(' ');
         let currentLine = words[0];
@@ -384,8 +384,8 @@ class DiscordHandlers {
             }
         }
         
-        const baseHeight = 40; // Username + timestamp + spacing
-        const lineHeight = 20;
+        const baseHeight = 60 * dpiScale; // Username + timestamp + spacing (scaled)
+        const lineHeight = 28 * dpiScale; // Scaled line height
         return baseHeight + (lines * lineHeight);
     }
 
@@ -468,8 +468,8 @@ class DiscordHandlers {
                 repliedMessage.attachments
             );
             
-            // Create attachment
-            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
+            // Create attachment with WebP format for better quality
+            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.webp' });
             
             // Send the image with "clipped, sir." message
             await message.reply({ 
@@ -507,31 +507,38 @@ class DiscordHandlers {
     const hasImages = attachments && attachments.size > 0;
     const imageUrls = this.extractImageUrls(text);
     
-    // Calculate dynamic canvas dimensions based on content
-    const width = 800; // Increased width for better layout and positioning
-    const minHeight = 120; // Minimum height for basic content
+    // Calculate dynamic canvas dimensions based on content with high-DPI support
+    const dpiScale = 2; // Retina/high-DPI scaling factor
+    const baseWidth = 1200; // Increased base width for better quality
+    const width = baseWidth * dpiScale; // High-resolution canvas
+    const minHeight = 180 * dpiScale; // Minimum height scaled for high-DPI
     
-    // Calculate text height with emojis and formatting
-    const textHeight = this.calculateTextHeight(text, width - 180); // Account for margins and avatar space
+    // Calculate text height with emojis and formatting (scaled for high-DPI)
+    const textHeight = this.calculateTextHeight(text, (width - 180 * dpiScale) / dpiScale) * dpiScale; // Account for margins and avatar space
     
     // Calculate total height including emojis and images
     // Emojis are rendered inline with text, so no extra height needed
     // We'll calculate actual image height after drawing
-    const estimatedImageHeight = (hasImages || imageUrls.length > 0) ? 250 : 0; // Estimated space for images
-    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + estimatedImageHeight + 40)); // Extra padding, ensure integer
+    const estimatedImageHeight = (hasImages || imageUrls.length > 0) ? 400 * dpiScale : 0; // Estimated space for images (scaled)
+    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + estimatedImageHeight + 60 * dpiScale)); // Extra padding, ensure integer
     
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
+    
+    // Enable high-quality rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.textRenderingOptimization = 'optimizeQuality';
 
     // Pure black background
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, totalHeight);
 
-    // Calculate centered positioning with more space for avatar and text
-    const avatarSize = 40;
-    const contentWidth = width - 80; // More margin
-    const contentHeight = totalHeight - 20;
-    const avatarX = 50; // Moved further to the right
+    // Calculate centered positioning with more space for avatar and text (scaled for high-DPI)
+    const avatarSize = 60 * dpiScale; // Larger avatar for better quality
+    const contentWidth = width - 120 * dpiScale; // More margin (scaled)
+    const contentHeight = totalHeight - 30 * dpiScale;
+    const avatarX = 60 * dpiScale; // Moved further to the right (scaled)
     const avatarY = (totalHeight - avatarSize) / 2;
 
     // Draw avatar (circular)
@@ -579,82 +586,82 @@ class DiscordHandlers {
         ctx.restore();
     }
 
-    // Calculate text positioning - moved further right
-    const textStartX = avatarX + avatarSize + 20; // Increased spacing
-        const textStartY = avatarY + 2;
-    const maxTextWidth = contentWidth - (avatarSize + 20) - 30; // More margin
+    // Calculate text positioning - moved further right (scaled for high-DPI)
+    const textStartX = avatarX + avatarSize + 30 * dpiScale; // Increased spacing (scaled)
+    const textStartY = avatarY + 4 * dpiScale;
+    const maxTextWidth = contentWidth - (avatarSize + 30 * dpiScale) - 40 * dpiScale; // More margin (scaled)
 
     // Truncate username if too long to prevent timestamp overlap
     const truncatedUsername = this.truncateText(username, 20);
 
-        // Draw username in role color
+    // Draw username in role color with high-quality font
     ctx.fillStyle = roleColor;
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
+    ctx.font = `bold ${18 * dpiScale}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
     ctx.fillText(truncatedUsername, textStartX, textStartY);
 
     let currentX = textStartX + ctx.measureText(truncatedUsername).width + 4;
 
-        // Draw app tag if it's a bot
+        // Draw app tag if it's a bot (scaled for high-DPI)
         if (isBot) {
-            const appTagWidth = 35;
-            const appTagHeight = 16;
+            const appTagWidth = 50 * dpiScale;
+            const appTagHeight = 24 * dpiScale;
             
             // App tag background (purple/blue-violet color)
             ctx.fillStyle = '#8B5CF6'; // Purple color for APP badge
             ctx.fillRect(currentX, textStartY, appTagWidth, appTagHeight);
             
-            // App tag text
+            // App tag text with high-quality font
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 10px Arial';
-            ctx.fillText('APP', currentX + 2, textStartY + 2);
+            ctx.font = `bold ${14 * dpiScale}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+            ctx.fillText('APP', currentX + 4 * dpiScale, textStartY + 4 * dpiScale);
             
-            currentX += appTagWidth + 4;
+            currentX += appTagWidth + 6 * dpiScale;
             
-            // Draw verification badge if verified
+            // Draw verification badge if verified (scaled for high-DPI)
             if (isVerified) {
                 try {
                     const badgeUrl = this.getVerificationBadgeUrl();
                     const badgeImg = await loadImage(badgeUrl);
-                    const badgeSize = 16;
+                    const badgeSize = 24 * dpiScale;
                     ctx.drawImage(badgeImg, currentX, textStartY, badgeSize, badgeSize);
-                    currentX += badgeSize + 4;
+                    currentX += badgeSize + 6 * dpiScale;
                 } catch (error) {
                     console.warn('Failed to load verification badge, using fallback:', error);
                     // Fallback to text checkmark
                     ctx.fillStyle = '#00d26a';
-                    ctx.font = 'bold 12px Arial';
+                    ctx.font = `bold ${16 * dpiScale}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
                     ctx.fillText('✓', currentX, textStartY);
-                    currentX += 12;
+                    currentX += 18 * dpiScale;
                 }
             }
         }
 
-    // Draw timestamp with dynamic formatting
+    // Draw timestamp with dynamic formatting (scaled for high-DPI)
     const timestamp = message ? this.parseDiscordTimestamp(message) : '6:39 PM';
     const timestampWidth = ctx.measureText(timestamp).width;
     
     // Ensure timestamp doesn't overlap with username/bot tag
-    const availableWidth = width - currentX - 20;
+    const availableWidth = width - currentX - 30 * dpiScale;
     if (timestampWidth <= availableWidth) {
         ctx.fillStyle = '#72767d';
-        ctx.font = '12px Arial';
+        ctx.font = `${16 * dpiScale}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
         ctx.fillText(timestamp, currentX, textStartY);
     } else {
         // If not enough space, put timestamp on next line
         ctx.fillStyle = '#72767d';
-        ctx.font = '12px Arial';
-        ctx.fillText(timestamp, textStartX, textStartY + 16);
+        ctx.font = `${16 * dpiScale}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
+        ctx.fillText(timestamp, textStartX, textStartY + 24 * dpiScale);
     }
 
-    // Draw message content with formatting support
-    const messageStartY = textStartY + 18;
+    // Draw message content with formatting support (scaled for high-DPI)
+    const messageStartY = textStartY + 28 * dpiScale;
     await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting);
 
     // Draw images if present and calculate actual height needed
     let actualImageHeight = 0;
-    let imageY = messageStartY + textHeight + 10;
+    let imageY = messageStartY + textHeight + 15 * dpiScale;
     
     if (hasImages || imageUrls.length > 0) {
         // Create a temporary canvas to measure image heights
@@ -680,41 +687,61 @@ class DiscordHandlers {
             // Draw images on new canvas
             await this.drawImages(newCtx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
             
-            // Use new canvas
+            // Use new canvas with high-quality processing
             const buffer = newCanvas.toBuffer('image/png');
             const processedBuffer = await sharp(buffer)
-                .resize(700, Math.min(Math.ceil(requiredHeight), 800)) // Ensure integer height
-                .png({ quality: 90 })
+                .resize(baseWidth, Math.min(Math.ceil(requiredHeight / dpiScale), 1200), {
+                    kernel: sharp.kernel.lanczos3, // High-quality scaling
+                    withoutEnlargement: false
+                })
+                .sharpen({ sigma: 1.0, m1: 0.5, m2: 3.0, x1: 2, y2: 10 }) // Image sharpening
+                .modulate({ brightness: 1.05, saturation: 1.1 }) // Slight enhancement
+                .webp({ 
+                    quality: 95, 
+                    effort: 6, // Maximum compression effort
+                    smartSubsample: true,
+                    reductionEffort: 6
+                })
                 .toBuffer();
             
             return processedBuffer;
         }
     }
 
-    // Convert canvas to buffer
+    // Convert canvas to buffer with high-quality processing
     const buffer = canvas.toBuffer('image/png');
     
-    // Use sharp to optimize the image
-    const finalHeight = Math.ceil(Math.min(totalHeight, 800)); // Increased max height, ensure integer
+    // Use sharp to optimize the image with enhancement
+    const finalHeight = Math.ceil(Math.min(totalHeight / dpiScale, 1200)); // Scaled down for final output
     const processedBuffer = await sharp(buffer)
-        .resize(700, finalHeight) // Increased width to match new canvas size
-        .png({ quality: 90 })
+        .resize(baseWidth, finalHeight, {
+            kernel: sharp.kernel.lanczos3, // High-quality scaling algorithm
+            withoutEnlargement: false
+        })
+        .sharpen({ sigma: 1.0, m1: 0.5, m2: 3.0, x1: 2, y2: 10 }) // Image sharpening for crispness
+        .modulate({ brightness: 1.05, saturation: 1.1 }) // Slight brightness and saturation boost
+        .webp({ 
+            quality: 95, // Higher quality than PNG
+            effort: 6, // Maximum compression effort for best quality
+            smartSubsample: true, // Smart color subsampling
+            reductionEffort: 6 // Maximum reduction effort
+        })
         .toBuffer();
 
     return processedBuffer;
     }
 
-    // Draw text with Discord formatting and emojis
+    // Draw text with Discord formatting and emojis (high-quality rendering)
     async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting) {
     ctx.fillStyle = '#ffffff';
-        ctx.font = '14px Arial';
+    ctx.font = `${18 * dpiScale}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
         let currentY = startY;
         let currentX = startX;
-        const lineHeight = 20;
-        const emojiSize = 16;
+        const lineHeight = 28 * dpiScale; // Scaled line height
+        const emojiSize = 24 * dpiScale; // Larger emojis for better quality
 
         // Remove Discord formatting markers for cleaner display
         let processedText = text
@@ -890,15 +917,27 @@ class DiscordHandlers {
     // Draw images from attachments and URLs
     async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth) {
         let currentY = startY;
-        const maxImageWidth = Math.min(maxWidth, 400);
-        const maxImageHeight = 300; // Increased max height
+        const maxImageWidth = Math.min(maxWidth, 600 * dpiScale); // Larger images for better quality
+        const maxImageHeight = 450 * dpiScale; // Increased max height (scaled)
 
-        // Draw attachment images
+        // Draw attachment images with high-quality processing
         if (attachments && attachments.size > 0) {
             for (const attachment of attachments.values()) {
                 if (attachment.contentType && attachment.contentType.startsWith('image/')) {
                     try {
-                        const img = await loadImage(attachment.url);
+                        // Use Sharp to preprocess the image for better quality
+                        const imageBuffer = await fetch(attachment.url).then(res => res.arrayBuffer());
+                        const processedImage = await sharp(Buffer.from(imageBuffer))
+                            .resize(maxImageWidth, maxImageHeight, {
+                                fit: 'inside',
+                                kernel: sharp.kernel.lanczos3, // High-quality scaling
+                                withoutEnlargement: false
+                            })
+                            .sharpen({ sigma: 0.5, m1: 0.5, m2: 2.0, x1: 2, y2: 10 }) // Subtle sharpening
+                            .png()
+                            .toBuffer();
+                        
+                        const img = await loadImage(processedImage);
                         const aspectRatio = img.width / img.height;
                         
                         // Calculate dimensions maintaining aspect ratio
@@ -912,7 +951,7 @@ class DiscordHandlers {
                         }
 
                         ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
-                        currentY += drawHeight + 10;
+                        currentY += drawHeight + 15 * dpiScale; // More spacing (scaled)
                     } catch (error) {
                         console.warn('Failed to load attachment image:', error);
                     }
@@ -920,10 +959,22 @@ class DiscordHandlers {
             }
         }
 
-        // Draw URL images (including Tenor GIFs)
+        // Draw URL images (including Tenor GIFs) with high-quality processing
         for (const imageUrl of imageUrls) {
             try {
-                const img = await loadImage(imageUrl);
+                // Use Sharp to preprocess the image for better quality
+                const imageBuffer = await fetch(imageUrl).then(res => res.arrayBuffer());
+                const processedImage = await sharp(Buffer.from(imageBuffer))
+                    .resize(maxImageWidth, maxImageHeight, {
+                        fit: 'inside',
+                        kernel: sharp.kernel.lanczos3, // High-quality scaling
+                        withoutEnlargement: false
+                    })
+                    .sharpen({ sigma: 0.5, m1: 0.5, m2: 2.0, x1: 2, y2: 10 }) // Subtle sharpening
+                    .png()
+                    .toBuffer();
+                
+                const img = await loadImage(processedImage);
                 const aspectRatio = img.width / img.height;
                 
                 // Calculate dimensions maintaining aspect ratio
@@ -937,7 +988,7 @@ class DiscordHandlers {
                 }
 
                 ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
-                currentY += drawHeight + 10;
+                currentY += drawHeight + 15 * dpiScale; // More spacing (scaled)
             } catch (error) {
                 console.warn('Failed to load URL image:', error);
             }
@@ -1345,8 +1396,8 @@ class DiscordHandlers {
                 targetMessage.attachments
             );
             
-            // Create attachment
-            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
+            // Create attachment with WebP format for better quality
+            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.webp' });
             
             // Send the image with "clipped, sir." message
             await interaction.editReply({ 
