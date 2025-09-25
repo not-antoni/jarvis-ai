@@ -363,7 +363,7 @@ class DiscordHandlers {
         return [...imageMatches, ...tenorGifUrls];
     }
 
-    calculateTextHeight(text, maxWidth) {
+    calculateTextHeight(text, maxWidth, dpiScale = 1) {
         // Create a temporary canvas to measure text (scaled for high-DPI)
         const tempCanvas = createCanvas(1, 1);
         const tempCtx = tempCanvas.getContext('2d');
@@ -514,7 +514,7 @@ class DiscordHandlers {
     const minHeight = 180 * dpiScale; // Minimum height scaled for high-DPI
     
     // Calculate text height with emojis and formatting (scaled for high-DPI)
-    const textHeight = this.calculateTextHeight(text, (width - 180 * dpiScale) / dpiScale) * dpiScale; // Account for margins and avatar space
+    const textHeight = this.calculateTextHeight(text, (width - 180 * dpiScale) / dpiScale, dpiScale) * dpiScale; // Account for margins and avatar space
     
     // Calculate total height including emojis and images
     // Emojis are rendered inline with text, so no extra height needed
@@ -657,7 +657,7 @@ class DiscordHandlers {
 
     // Draw message content with formatting support (scaled for high-DPI)
     const messageStartY = textStartY + 28 * dpiScale;
-    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting);
+    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, dpiScale);
 
     // Draw images if present and calculate actual height needed
     let actualImageHeight = 0;
@@ -668,11 +668,11 @@ class DiscordHandlers {
         const tempCanvas = createCanvas(width, 1000); // Large temp canvas
         const tempCtx = tempCanvas.getContext('2d');
         
-        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, textStartX, 0, maxTextWidth);
+        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, textStartX, 0, maxTextWidth, dpiScale);
         actualImageHeight = imageEndY + 20; // Add padding
         
         // Now draw on the actual canvas
-        imageY = await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
+        imageY = await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth, dpiScale);
         
         // Resize canvas if needed
         const requiredHeight = Math.ceil(messageStartY + textHeight + actualImageHeight + 20);
@@ -685,7 +685,7 @@ class DiscordHandlers {
             newCtx.drawImage(canvas, 0, 0);
             
             // Draw images on new canvas
-            await this.drawImages(newCtx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
+            await this.drawImages(newCtx, attachments, imageUrls, textStartX, imageY, maxTextWidth, dpiScale);
             
             // Use new canvas with high-quality processing
             const buffer = newCanvas.toBuffer('image/png');
@@ -732,7 +732,7 @@ class DiscordHandlers {
     }
 
     // Draw text with Discord formatting and emojis (high-quality rendering)
-    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting) {
+    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting, dpiScale = 1) {
     ctx.fillStyle = '#ffffff';
     ctx.font = `${18 * dpiScale}px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`;
     ctx.textAlign = 'left';
@@ -915,7 +915,7 @@ class DiscordHandlers {
     }
 
     // Draw images from attachments and URLs
-    async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth) {
+    async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth, dpiScale = 1) {
         let currentY = startY;
         const maxImageWidth = Math.min(maxWidth, 600 * dpiScale); // Larger images for better quality
         const maxImageHeight = 450 * dpiScale; // Increased max height (scaled)
