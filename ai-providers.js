@@ -1,4 +1,4 @@
-/**
+734 210 014/**
  * AI Provider Manager with smart switching and fallback logic
  */
 
@@ -50,7 +50,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://openrouter.ai/api/v1",
                 }),
-                model: "meta-llama/llama-3.3-70b-instruct:free",
+                model: "x-ai/grok-4-fast:free",
                 type: "openai-chat",
             });
         });
