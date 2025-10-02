@@ -1,7 +1,3 @@
-734 210 014/**
- * AI Provider Manager with smart switching and fallback logic
- */
-
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { createOpenAI } = require("@ai-sdk/openai");
