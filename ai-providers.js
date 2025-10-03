@@ -429,7 +429,7 @@ class AIProviderManager {
                         setTimeout(() => {
                             this.openRouterGlobalFailure = false;
                             console.log(`OpenRouter global failure cleared - re-enabling OpenRouter providers`);
-                        }, 5 * 60 * 60 * 1000 // 5 hours
+                        }, 5 * 60 * 60 * 1000); // 5 hours
                     }
                     
                     // Temporarily disable this specific OpenRouter provider
