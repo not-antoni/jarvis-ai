@@ -45,7 +45,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://openrouter.ai/api/v1",
                 }),
-                model: "x-ai/grok-4-fast:free",
+                model: "deepseek/deepseek-chat-v3.1:free",
                 type: "openai-chat",
             });
         });
