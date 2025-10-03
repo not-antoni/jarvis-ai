@@ -421,15 +421,15 @@ class AIProviderManager {
                     this.openRouterFailureCount++;
                     
                     // If 3+ OpenRouter providers fail with empty responses, disable all OpenRouter
-                    if (this.openRouterFailureCount >= 3) {
+                    if (this.openRouterFailureCount >= 2) {
                         this.openRouterGlobalFailure = true;
-                        console.log(`OpenRouter global failure detected - disabling all OpenRouter providers for 5 minutes`);
+                        console.log(`OpenRouter global failure detected - disabling all OpenRouter providers for 5 hours`);
                         // Reset the counter and set a timer to re-enable
                         this.openRouterFailureCount = 0;
                         setTimeout(() => {
                             this.openRouterGlobalFailure = false;
                             console.log(`OpenRouter global failure cleared - re-enabling OpenRouter providers`);
-                        }, 5 * 60 * 1000); // 5 minutes
+                        }, 5 * 60 * 60 * 1000 // 5 hours
                     }
                     
                     // Temporarily disable this specific OpenRouter provider
