@@ -1,7 +1,6 @@
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { createOpenAI } = require("@ai-sdk/openai");
-const { CohereClientV2 } = require("cohere-ai");
 const config = require('./config');
 
 class AIProviderManager {
@@ -88,10 +87,6 @@ class AIProviderManager {
             });
         });
 
-
-
-
-
         // GPT-5 Nano provider
         if (process.env.OPENAI) {
             this.providers.push({
@@ -103,26 +98,6 @@ class AIProviderManager {
                 type: "gpt5-nano",
             });
         }
-
-        // Cohere providers
-        const cohereKeys = [
-            process.env.COHERE_API_KEY,
-            process.env.COHERE_API_KEY2,
-        ].filter(Boolean);
-        
-        cohereKeys.forEach((key, index) => {
-            // Initialize Cohere client using the correct API
-            const cohereClient = new CohereClientV2({
-                token: key,
-            });
-            
-            this.providers.push({
-                name: `Cohere${index + 1}`,
-                client: cohereClient,
-                model: "command-a-03-2025",
-                type: "cohere",
-            });
-        });
 
         console.log(`Initialized ${this.providers.length} AI providers`);
         console.log(`Provider selection mode: ${this.useRandomSelection ? 'Random' : 'Ranked'}`);
@@ -146,11 +121,9 @@ class AIProviderManager {
                     return providerName.startsWith("openrouter");
                 case "google":
                     return providerName.startsWith("googleai");
-                case "cohere":
-                    return providerName.startsWith("cohere");
                 default:
                     console.warn(`Unknown provider type: ${this.selectedProviderType}, falling back to auto mode`);
-                    return true; // Include all providers for unknown types
+                    return true;
             }
         });
     }
@@ -219,7 +192,6 @@ class AIProviderManager {
         return availableProviders[randomIndex];
     }
 
-
     _recordMetric(name, ok, latencyMs) {
         const m = this.metrics.get(name) || {
             successes: 0,
@@ -242,16 +214,12 @@ class AIProviderManager {
         let candidates;
         
         if (this.useRandomSelection) {
-            // Try random provider first, then fall back to ranked providers
             const randomProvider = this._getRandomProvider();
             const rankedProviders = this._rankedProviders();
-            
-            // Create candidates list: random provider first, then ranked providers (excluding the random one)
             candidates = randomProvider ? 
                 [randomProvider, ...rankedProviders.filter(p => p.name !== randomProvider.name)] : 
                 rankedProviders;
         } else {
-            // Use only ranked providers (original behavior)
             candidates = this._rankedProviders();
         }
         
@@ -276,7 +244,6 @@ class AIProviderManager {
                         }
                     });
                     
-                    // Generate content without thinking configuration
                     const result = await model.generateContent({
                         contents: [
                             { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
@@ -297,7 +264,6 @@ class AIProviderManager {
                         choices: [{ message: { content: text } }],
                     };
                 } else if (provider.type === "gpt5-nano") {
-                    // GPT-5 Nano with low reasoning and fixed temperature of 1
                     response = await provider.client.chat.completions.create({
                         model: provider.model,
                         messages: [
@@ -305,50 +271,14 @@ class AIProviderManager {
                             { role: "user", content: userPrompt }
                         ],
                         max_completion_tokens: maxTokens,
-                        temperature: 1, // Fixed temperature - GPT-5 nano doesn't support below 1
+                        temperature: 1,
                         reasoning_effort: "low",
                     });
                     
                     if (!response.choices?.[0]?.message?.content) {
                         throw new Error(`Invalid response format from ${provider.name}`);
                     }
-                } else if (provider.type === "cohere") {
-                    // Cohere API call using the correct v2 API
-                    const cohereResponse = await provider.client.chat({
-                        model: provider.model,
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt }
-                        ],
-                        max_tokens: maxTokens,
-                        temperature: config.ai.temperature,
-                    });
-                    
-                    // Extract text content from Cohere's response structure
-                    let content = '';
-                    if (cohereResponse.message && cohereResponse.message.content) {
-                        if (Array.isArray(cohereResponse.message.content)) {
-                            // Handle array of content objects
-                            content = cohereResponse.message.content
-                                .filter(item => item.type === 'text')
-                                .map(item => item.text)
-                                .join('');
-                        } else if (typeof cohereResponse.message.content === 'string') {
-                            // Handle direct string content
-                            content = cohereResponse.message.content;
-                        }
-                    }
-                    
-                    if (!content) {
-                        console.error(`Debug - ${provider.name} invalid response structure:`, JSON.stringify(cohereResponse, null, 2));
-                        throw new Error(`Invalid response format from ${provider.name}`);
-                    }
-                    
-                    response = {
-                        choices: [{ message: { content: content } }],
-                    };
                 } else {
-                    // Prepare base parameters for all providers
                     const baseParams = {
                         model: provider.model,
                         messages: [
@@ -359,12 +289,8 @@ class AIProviderManager {
                         temperature: config.ai.temperature,
                     };
 
-                    // Note: reasoning_effort is not supported by llama-3.1-8b-instant model
-                    // Only some Groq models support this parameter
-
                     response = await provider.client.chat.completions.create(baseParams);
                     
-                    // More robust response validation
                     if (!response || !response.choices || !Array.isArray(response.choices) || response.choices.length === 0) {
                         console.error(`Debug - ${provider.name} invalid response structure:`, JSON.stringify(response, null, 2));
                         throw new Error(`Invalid response format from ${provider.name} - no choices array`);
@@ -376,7 +302,6 @@ class AIProviderManager {
                         throw new Error(`Invalid response format from ${provider.name} - no message content`);
                     }
                     
-                    // Check if content is empty or just whitespace
                     if (!choice.message.content.trim()) {
                         console.error(`Debug - ${provider.name} empty content:`, JSON.stringify(choice, null, 2));
                         throw new Error(`Empty response content from ${provider.name}`);
@@ -387,7 +312,6 @@ class AIProviderManager {
                 const latency = Date.now() - started;
                 this._recordMetric(provider.name, true, latency);
                 
-                // Reset OpenRouter failure counter on success
                 if (provider.name.startsWith('OpenRouter')) {
                     this.openRouterFailureCount = 0;
                 }
@@ -417,25 +341,21 @@ class AIProviderManager {
                     );
                     console.log(`${provider.name} disabled for 5 hours`);
                 } else if (error.message.includes("Empty response content") && provider.name.startsWith('OpenRouter')) {
-                    // Track OpenRouter failures
                     this.openRouterFailureCount++;
                     
-                    // If 3+ OpenRouter providers fail with empty responses, disable all OpenRouter
                     if (this.openRouterFailureCount >= 2) {
                         this.openRouterGlobalFailure = true;
                         console.log(`OpenRouter global failure detected - disabling all OpenRouter providers for 5 hours`);
-                        // Reset the counter and set a timer to re-enable
                         this.openRouterFailureCount = 0;
                         setTimeout(() => {
                             this.openRouterGlobalFailure = false;
                             console.log(`OpenRouter global failure cleared - re-enabling OpenRouter providers`);
-                        }, 5 * 60 * 60 * 1000); // 5 hours
+                        }, 5 * 60 * 60 * 1000);
                     }
                     
-                    // Temporarily disable this specific OpenRouter provider
                     this.disabledProviders.set(
                         provider.name,
-                        Date.now() + 2 * 60 * 1000, // 2 minutes
+                        Date.now() + 2 * 60 * 1000,
                     );
                     console.log(`${provider.name} temporarily disabled for 2 minutes due to empty responses`);
                 } else if (error.status === 429) {
@@ -478,7 +398,6 @@ class AIProviderManager {
     }
 
     _redactProviderName(name) {
-        // Redact provider names but keep functionality visible
         const redactionMap = {
             'OpenRouter1': '[REDACTED]',
             'OpenRouter2': '[REDACTED]',
@@ -505,19 +424,15 @@ class AIProviderManager {
             'Groq6': '[REDACTED]',
             'GoogleAI1': '[REDACTED]',
             'GoogleAI2': '[REDACTED]',
-            'GPT5Nano': '[REDACTED]',
-            'Cohere1': '[REDACTED]',
-            'Cohere2': '[REDACTED]'
+            'GPT5Nano': '[REDACTED]'
         };
         return redactionMap[name] || '[REDACTED]';
     }
 
     _redactModelName(model) {
-        // Redact model names but keep functionality visible
         return '[REDACTED]';
     }
 
-    // Control provider selection mode
     setRandomSelection(enabled) {
         this.useRandomSelection = enabled;
         console.log(`Provider selection mode changed to: ${enabled ? 'Random' : 'Ranked'}`);
@@ -527,9 +442,8 @@ class AIProviderManager {
         return this.useRandomSelection ? 'random' : 'ranked';
     }
 
-    // Control provider type selection
     setProviderType(providerType) {
-        const validTypes = ["auto", "openai", "groq", "openrouter", "google", "cohere"];
+        const validTypes = ["auto", "openai", "groq", "openrouter", "google"];
         if (!validTypes.includes(providerType.toLowerCase())) {
             throw new Error(`Invalid provider type. Valid options: ${validTypes.join(", ")}`);
         }
@@ -554,20 +468,17 @@ class AIProviderManager {
                 types.add("openrouter");
             } else if (name.startsWith("googleai")) {
                 types.add("google");
-            } else if (name.startsWith("cohere")) {
-                types.add("cohere");
             }
         });
         
         const availableTypes = Array.from(types).sort();
-        availableTypes.unshift("auto"); // Always include auto
+        availableTypes.unshift("auto");
         return availableTypes;
     }
 
-    // Clean up old metrics to prevent memory leaks
     cleanupOldMetrics() {
         const now = Date.now();
-        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+        const maxAge = 24 * 60 * 60 * 1000;
         
         for (const [name, error] of this.providerErrors.entries()) {
             if (now - error.timestamp > maxAge) {
@@ -575,7 +486,6 @@ class AIProviderManager {
             }
         }
         
-        // Clean up disabled providers
         for (const [name, disabledUntil] of this.disabledProviders.entries()) {
             if (disabledUntil <= now) {
                 this.disabledProviders.delete(name);
