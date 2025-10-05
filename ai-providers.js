@@ -334,34 +334,26 @@ class AIProviderManager {
                 console.error(`Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`);
                 lastError = error;
 
-                if (error.message.includes("free-models-per-day")) {
-                    this.disabledProviders.set(
-                        provider.name,
-                        Date.now() + 5 * 60 * 60 * 1000,
-                    );
-                    console.log(`${provider.name} disabled for 5 hours`);
-                } else if (error.message.includes("Empty response content") && provider.name.startsWith('OpenRouter')) {
+                // Disable logic
+                const isEmptyResponse = error.message.includes("empty");
+                const disableDuration = isEmptyResponse ? 6 * 60 * 60 * 1000 : 12 * 60 * 60 * 1000;
+                const hours = disableDuration / (60 * 60 * 1000);
+                this.disabledProviders.set(provider.name, Date.now() + disableDuration);
+                console.log(`${provider.name} disabled for ${hours} hours due to ${isEmptyResponse ? 'empty response' : 'error'}`);
+
+                // Handle OpenRouter empty response counting
+                if (isEmptyResponse && provider.name.startsWith('OpenRouter')) {
                     this.openRouterFailureCount++;
                     
                     if (this.openRouterFailureCount >= 2) {
                         this.openRouterGlobalFailure = true;
-                        console.log(`OpenRouter global failure detected - disabling all OpenRouter providers for 5 hours`);
+                        console.log(`OpenRouter global failure detected - disabling all OpenRouter providers for ${hours} hours`);
                         this.openRouterFailureCount = 0;
                         setTimeout(() => {
                             this.openRouterGlobalFailure = false;
                             console.log(`OpenRouter global failure cleared - re-enabling OpenRouter providers`);
-                        }, 5 * 60 * 60 * 1000);
+                        }, disableDuration);
                     }
-                    
-                    this.disabledProviders.set(
-                        provider.name,
-                        Date.now() + 2 * 60 * 1000,
-                    );
-                    console.log(`${provider.name} temporarily disabled for 2 minutes due to empty responses`);
-                } else if (error.status === 429) {
-                    console.log(`Rate limited by ${provider.name}, waiting ${backoff}ms`);
-                    await new Promise((r) => setTimeout(r, backoff));
-                    backoff *= 2;
                 }
             }
         }
