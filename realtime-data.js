@@ -4,7 +4,6 @@
  */
 
 const axios = require('axios');
-const weather = require('weather-js');
 
 class RealtimeDataService {
     constructor() {
@@ -24,47 +23,65 @@ class RealtimeDataService {
         try {
             console.log(`Fetching weather for: ${location}`);
             
-            return new Promise((resolve, reject) => {
-                weather.find({
-                    search: location,
-                    degreeType: options.unit || 'F'
-                }, (err, result) => {
-                    if (err) {
-                        reject(err);
-                        return;
-                    }
-
-                    if (result && result.length > 0) {
-                        const data = result[0];
-                        const weatherData = {
-                            location: data.location.name,
-                            current: {
-                                temperature: data.current.temperature,
-                                skytext: data.current.skytext,
-                                humidity: data.current.humidity,
-                                winddisplay: data.current.winddisplay,
-                                feelslike: data.current.feelslike
-                            },
-                            forecast: data.forecast.slice(0, 3).map(day => ({
-                                day: day.day,
-                                low: day.low,
-                                high: day.high,
-                                skytextday: day.skytextday
-                            })),
-                            unit: data.location.degreetype,
-                            timestamp: new Date().toISOString()
-                        };
-
-                        this.setCache(cacheKey, weatherData);
-                        resolve(weatherData);
-                    } else {
-                        reject(new Error('Location not found'));
-                    }
-                });
+            // Use wttr.in free API (no authentication required)
+            const response = await axios.get(`https://wttr.in/${encodeURIComponent(location)}?format=j1`, {
+                timeout: 10000,
+                headers: {
+                    'User-Agent': 'Jarvis-Discord-Bot'
+                }
             });
+
+            if (response.data && response.data.current_condition) {
+                const data = response.data.current_condition[0];
+                const locationData = response.data.nearest_area[0];
+
+                const weatherData = {
+                    location: `${locationData.areaName[0].value}, ${locationData.country[0].value}`,
+                    current: {
+                        temperature: `${data.temp_C}°C (${data.temp_F}°F)`,
+                        skytext: data.weatherDesc[0].value,
+                        humidity: `${data.humidity}%`,
+                        winddisplay: `${data.windspeedKmph} km/h`,
+                        feelslike: `${data.FeelsLikeC}°C (${data.FeelsLikeF}°F)`,
+                        pressure: `${data.pressure} mb`,
+                        uvIndex: data.uvIndex
+                    },
+                    forecast: response.data.weather.slice(0, 3).map(day => ({
+                        day: day.date,
+                        low: `${day.mintempC}°C`,
+                        high: `${day.maxtempC}°C`,
+                        skytextday: day.hourly[0].weatherDesc[0].value
+                    })),
+                    timestamp: new Date().toISOString(),
+                    source: 'wttr.in'
+                };
+
+                this.setCache(cacheKey, weatherData);
+                return weatherData;
+            } else {
+                throw new Error('Invalid weather data received');
+            }
         } catch (error) {
-            console.error('Weather fetch error:', error);
-            throw error;
+            console.error('Weather API error:', error);
+            
+            // Fallback to simple text weather
+            try {
+                const response = await axios.get(`https://wttr.in/${encodeURIComponent(location)}?format=3`, {
+                    timeout: 10000
+                });
+                
+                return {
+                    location: location,
+                    current: {
+                        temperature: response.data.trim(),
+                        skytext: 'Data from fallback API'
+                    },
+                    timestamp: new Date().toISOString(),
+                    source: 'wttr.in (fallback)'
+                };
+            } catch (fallbackError) {
+                throw new Error(`Weather service unavailable: ${error.message}`);
+            }
         }
     }
 

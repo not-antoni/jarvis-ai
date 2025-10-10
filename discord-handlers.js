@@ -1590,7 +1590,7 @@ class DiscordHandlers {
                     { name: "Humidity", value: weather.current.humidity, inline: true },
                     { name: "Wind", value: weather.current.winddisplay, inline: true }
                 ],
-                footer: { text: "Weather data provided by weather-js" },
+                footer: { text: "Weather data provided by wttr.in" },
                 timestamp: weather.timestamp
             };
 
