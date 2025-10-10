@@ -10,6 +10,15 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 
+// Import new feature modules
+const imageGeneration = require('./image-generation');
+const ttsService = require('./tts-service');
+const realtimeData = require('./realtime-data');
+const productivityTools = require('./productivity-tools');
+const serverManagement = require('./server-management');
+const entertainmentGames = require('./entertainment-games');
+const prefixCommands = require('./prefix-commands');
+
 class DiscordHandlers {
     constructor() {
         this.jarvis = new JarvisAI();
@@ -1052,6 +1061,9 @@ class DiscordHandlers {
 
         if (await this.handleAdminCommands(message)) return;
         if (await this.handleUtilityCommands(message)) return;
+        
+        // Handle prefix commands
+        if (await prefixCommands.handleMessage(message, client)) return;
 
         await this.handleJarvisInteraction(message, client);
     }
@@ -1444,6 +1456,38 @@ class DiscordHandlers {
                     true,
                     interaction
                 );
+            } else if (interaction.commandName === "generate") {
+                response = await this.handleGenerateCommand(interaction);
+            } else if (interaction.commandName === "speak") {
+                response = await this.handleSpeakCommand(interaction);
+            } else if (interaction.commandName === "weather") {
+                response = await this.handleWeatherCommand(interaction);
+            } else if (interaction.commandName === "stock") {
+                response = await this.handleStockCommand(interaction);
+            } else if (interaction.commandName === "crypto") {
+                response = await this.handleCryptoCommand(interaction);
+            } else if (interaction.commandName === "news") {
+                response = await this.handleNewsCommand(interaction);
+            } else if (interaction.commandName === "task") {
+                response = await this.handleTaskCommand(interaction);
+            } else if (interaction.commandName === "calendar") {
+                response = await this.handleCalendarCommand(interaction);
+            } else if (interaction.commandName === "email") {
+                response = await this.handleEmailCommand(interaction);
+            } else if (interaction.commandName === "trivia") {
+                response = await this.handleTriviaCommand(interaction);
+            } else if (interaction.commandName === "poll") {
+                response = await this.handlePollCommand(interaction);
+            } else if (interaction.commandName === "meme") {
+                response = await this.handleMemeCommand(interaction);
+            } else if (interaction.commandName === "story") {
+                response = await this.handleStoryCommand(interaction);
+            } else if (interaction.commandName === "analytics") {
+                response = await this.handleAnalyticsCommand(interaction);
+            } else if (interaction.commandName === "remind") {
+                response = await this.handleRemindCommand(interaction);
+            } else if (interaction.commandName === "note") {
+                response = await this.handleNoteCommand(interaction);
             } else {
                 response = await this.jarvis.handleUtilityCommand(
                     interaction.commandName,
@@ -1473,6 +1517,484 @@ class DiscordHandlers {
                 console.error("Failed to send error reply:", editError);
             }
             this.setCooldown(userId);
+        }
+    }
+
+    // New Feature Command Handlers
+    async handleGenerateCommand(interaction) {
+        try {
+            const prompt = interaction.options.getString("prompt");
+            const width = interaction.options.getInteger("width") || 512;
+            const height = interaction.options.getInteger("height") || 512;
+
+            const result = await imageGeneration.generateImage(prompt, {
+                width: width,
+                height: height
+            });
+
+            if (result.success) {
+                const attachment = new AttachmentBuilder(result.imageBuffer, { name: 'generated.png' });
+                return {
+                    content: `Generated image: "${prompt}"\nModel: ${result.model}`,
+                    files: [attachment]
+                };
+            } else {
+                return `Image generation failed, sir. ${result.error || 'Unknown error'}`;
+            }
+        } catch (error) {
+            console.error('Image generation error:', error);
+            return "Image generation encountered technical difficulties, sir.";
+        }
+    }
+
+    async handleSpeakCommand(interaction) {
+        try {
+            const text = interaction.options.getString("text");
+            const voiceIndex = interaction.options.getInteger("voice") || 0;
+
+            const result = await ttsService.generateSpeech(text, { voiceIndex });
+
+            if (result.success) {
+                if (result.fallback) {
+                    return `TTS service unavailable, sir. Here's your text: "${text}"`;
+                } else {
+                    const attachment = new AttachmentBuilder(result.audioBuffer, { 
+                        name: `speech.${result.format}` 
+                    });
+                    return {
+                        content: `Speaking: "${text}"\nVoice: ${result.voice}`,
+                        files: [attachment]
+                    };
+                }
+            } else {
+                return `TTS generation failed, sir. ${result.error || 'Unknown error'}`;
+            }
+        } catch (error) {
+            console.error('TTS error:', error);
+            return "TTS encountered technical difficulties, sir.";
+        }
+    }
+
+    async handleWeatherCommand(interaction) {
+        try {
+            const location = interaction.options.getString("location");
+            const unit = interaction.options.getString("unit") || "F";
+
+            const weather = await realtimeData.getWeather(location, { unit });
+
+            const embed = {
+                title: `Weather in ${weather.location}`,
+                fields: [
+                    { name: "Current", value: `${weather.current.temperature}°${weather.unit} - ${weather.current.skytext}`, inline: true },
+                    { name: "Feels Like", value: `${weather.current.feelslike}°${weather.unit}`, inline: true },
+                    { name: "Humidity", value: weather.current.humidity, inline: true },
+                    { name: "Wind", value: weather.current.winddisplay, inline: true }
+                ],
+                footer: { text: "Weather data provided by weather-js" },
+                timestamp: weather.timestamp
+            };
+
+            return { embeds: [embed] };
+        } catch (error) {
+            console.error('Weather error:', error);
+            return "Weather service unavailable, sir. Technical difficulties.";
+        }
+    }
+
+    async handleStockCommand(interaction) {
+        try {
+            const symbol = interaction.options.getString("symbol").toUpperCase();
+
+            const stock = await realtimeData.getStockQuote(symbol);
+
+            const changeEmoji = stock.change >= 0 ? "📈" : "📉";
+            const changeColor = stock.change >= 0 ? "#00ff00" : "#ff0000";
+
+            const embed = {
+                title: `${changeEmoji} ${stock.symbol} Stock Quote`,
+                fields: [
+                    { name: "Price", value: `$${stock.price.toFixed(2)}`, inline: true },
+                    { name: "Change", value: `${stock.change >= 0 ? '+' : ''}${stock.change.toFixed(2)} (${stock.changePercent})`, inline: true },
+                    { name: "Volume", value: stock.volume.toLocaleString(), inline: true },
+                    { name: "High", value: `$${stock.high.toFixed(2)}`, inline: true },
+                    { name: "Low", value: `$${stock.low.toFixed(2)}`, inline: true },
+                    { name: "Open", value: `$${stock.open.toFixed(2)}`, inline: true }
+                ],
+                color: changeColor,
+                footer: { text: "Stock data provided by financial APIs" },
+                timestamp: stock.timestamp
+            };
+
+            return { embeds: [embed] };
+        } catch (error) {
+            console.error('Stock error:', error);
+            return "Stock data unavailable, sir. Technical difficulties.";
+        }
+    }
+
+    async handleCryptoCommand(interaction) {
+        try {
+            const symbol = interaction.options.getString("symbol").toUpperCase();
+
+            const crypto = await realtimeData.getCryptoPrice(symbol);
+
+            const changeEmoji = crypto.change24h >= 0 ? "🚀" : "📉";
+            const changeColor = crypto.change24h >= 0 ? "#00ff00" : "#ff0000";
+
+            const embed = {
+                title: `${changeEmoji} ${crypto.name} (${crypto.symbol})`,
+                fields: [
+                    { name: "Price", value: `$${crypto.price.toLocaleString()}`, inline: true },
+                    { name: "24h Change", value: `${crypto.change24h >= 0 ? '+' : ''}${crypto.change24h.toFixed(2)}%`, inline: true },
+                    { name: "24h Volume", value: `$${crypto.volume24h.toLocaleString()}`, inline: true },
+                    { name: "Market Cap", value: `$${crypto.marketCap.toLocaleString()}`, inline: true }
+                ],
+                color: changeColor,
+                footer: { text: "Crypto data provided by CoinGecko" },
+                timestamp: crypto.timestamp
+            };
+
+            return { embeds: [embed] };
+        } catch (error) {
+            console.error('Crypto error:', error);
+            return "Crypto data unavailable, sir. Technical difficulties.";
+        }
+    }
+
+    async handleNewsCommand(interaction) {
+        try {
+            const topic = interaction.options.getString("topic") || "technology";
+
+            const news = await realtimeData.getNews(topic);
+
+            const embed = {
+                title: `Latest ${topic.charAt(0).toUpperCase() + topic.slice(1)} News`,
+                description: `Found ${news.totalResults} articles`,
+                fields: news.articles.slice(0, 5).map(article => ({
+                    name: article.title,
+                    value: `[Read more](${article.url})\n*${article.source}*`,
+                    inline: false
+                })),
+                footer: { text: "News data provided by News API" },
+                timestamp: news.timestamp
+            };
+
+            return { embeds: [embed] };
+        } catch (error) {
+            console.error('News error:', error);
+            return "News service unavailable, sir. Technical difficulties.";
+        }
+    }
+
+    async handleTaskCommand(interaction) {
+        try {
+            const action = interaction.options.getString("action");
+            const title = interaction.options.getString("title");
+            const description = interaction.options.getString("description");
+            const userId = interaction.user.id;
+
+            switch (action) {
+                case "create":
+                    if (!title) return "Please provide a task title, sir.";
+                    const task = productivityTools.createTask(userId, { title, description });
+                    return `Task created, sir: "${task.title}" (ID: ${task.id})`;
+
+                case "list":
+                    const tasks = productivityTools.getTasks(userId);
+                    if (tasks.length === 0) return "No tasks found, sir.";
+                    const taskList = tasks.slice(0, 10).map(t => 
+                        `• ${t.title} (${t.status}) ${t.dueDate ? `- Due: ${new Date(t.dueDate).toLocaleDateString()}` : ''}`
+                    ).join('\n');
+                    return `Your tasks, sir:\n${taskList}`;
+
+                case "complete":
+                    if (!title) return "Please provide a task title to complete, sir.";
+                    // This would need task ID lookup in a real implementation
+                    return "Task completion feature needs task ID, sir. Use the task list to get IDs.";
+
+                default:
+                    return "Unknown task action, sir.";
+            }
+        } catch (error) {
+            console.error('Task error:', error);
+            return "Task management encountered difficulties, sir.";
+        }
+    }
+
+    async handleCalendarCommand(interaction) {
+        try {
+            const action = interaction.options.getString("action");
+            const title = interaction.options.getString("title");
+            const start = interaction.options.getString("start");
+            const end = interaction.options.getString("end");
+            const userId = interaction.user.id;
+
+            switch (action) {
+                case "create":
+                    if (!title || !start || !end) {
+                        return "Please provide title, start time, and end time, sir.";
+                    }
+                    const event = await productivityTools.createCalendarEvent(userId, {
+                        title,
+                        startTime: start,
+                        endTime: end
+                    });
+                    return `Event created, sir: "${event.title}" at ${new Date(event.startTime).toLocaleString()}`;
+
+                case "upcoming":
+                    const upcoming = await productivityTools.getUpcomingEvents(userId, 7);
+                    if (upcoming.length === 0) return "No upcoming events, sir.";
+                    const eventList = upcoming.slice(0, 5).map(e => 
+                        `• ${e.title} - ${new Date(e.startTime).toLocaleString()}`
+                    ).join('\n');
+                    return `Upcoming events, sir:\n${eventList}`;
+
+                default:
+                    return "Unknown calendar action, sir.";
+            }
+        } catch (error) {
+            console.error('Calendar error:', error);
+            return "Calendar service unavailable, sir. Check your Google Calendar integration.";
+        }
+    }
+
+    async handleEmailCommand(interaction) {
+        try {
+            const to = interaction.options.getString("to");
+            const subject = interaction.options.getString("subject");
+            const message = interaction.options.getString("message");
+
+            const result = await productivityTools.sendEmail({
+                to,
+                subject,
+                text: message
+            });
+
+            return `Email sent successfully, sir. Message ID: ${result.messageId}`;
+        } catch (error) {
+            console.error('Email error:', error);
+            return "Email service unavailable, sir. Check your email configuration.";
+        }
+    }
+
+    async handleTriviaCommand(interaction) {
+        try {
+            const category = interaction.options.getString("category") || "general";
+            const difficulty = interaction.options.getString("difficulty") || "medium";
+
+            const game = entertainmentGames.startTriviaGame(
+                interaction.guild.id,
+                interaction.channel.id,
+                { category, difficulty, questionCount: 5 }
+            );
+
+            const question = entertainmentGames.getCurrentQuestion(game.id);
+            if (question) {
+                const embed = {
+                    title: `Trivia Question ${question.questionNumber}/${question.totalQuestions}`,
+                    description: question.question,
+                    fields: question.options.map((option, index) => ({
+                        name: `${index + 1}.`,
+                        value: option,
+                        inline: false
+                    })),
+                    footer: { text: `Category: ${question.category} | Difficulty: ${question.difficulty}` }
+                };
+
+                return { 
+                    content: `Trivia game started! Answer with 1, 2, 3, or 4.`,
+                    embeds: [embed]
+                };
+            } else {
+                return "Failed to start trivia game, sir.";
+            }
+        } catch (error) {
+            console.error('Trivia error:', error);
+            return "Trivia service unavailable, sir.";
+        }
+    }
+
+    async handlePollCommand(interaction) {
+        try {
+            const question = interaction.options.getString("question");
+            const optionsText = interaction.options.getString("options");
+            const duration = interaction.options.getInteger("duration") || 60;
+
+            const options = optionsText.split(',').map(opt => opt.trim()).slice(0, 10);
+            if (options.length < 2) return "Please provide at least 2 options, sir.";
+
+            const poll = entertainmentGames.createPoll(
+                interaction.guild.id,
+                interaction.channel.id,
+                question,
+                options,
+                { duration }
+            );
+
+            const embed = {
+                title: `📊 ${question}`,
+                description: options.map((option, index) => 
+                    `${index + 1}. ${option}`
+                ).join('\n'),
+                footer: { text: `Poll ID: ${poll.id} | Duration: ${duration} minutes` },
+                timestamp: new Date().toISOString()
+            };
+
+            return { 
+                content: `Poll created! Vote by reacting with the corresponding number emoji.`,
+                embeds: [embed]
+            };
+        } catch (error) {
+            console.error('Poll error:', error);
+            return "Poll creation failed, sir.";
+        }
+    }
+
+    async handleMemeCommand(interaction) {
+        try {
+            const template = interaction.options.getString("template");
+            const text = interaction.options.getString("text");
+
+            const textFields = text.split(',').map(t => t.trim());
+
+            const result = await entertainmentGames.generateMeme(template, textFields);
+
+            if (result.success) {
+                if (result.fallback) {
+                    const attachment = new AttachmentBuilder(result.imageBuffer, { name: 'meme.png' });
+                    return {
+                        content: `Generated meme (fallback): ${template}`,
+                        files: [attachment]
+                    };
+                } else {
+                    return {
+                        content: `Generated meme: ${template}\n[View Image](${result.imageUrl})`
+                    };
+                }
+            } else {
+                return `Meme generation failed, sir. ${result.error}`;
+            }
+        } catch (error) {
+            console.error('Meme error:', error);
+            return "Meme generation failed, sir.";
+        }
+    }
+
+    async handleStoryCommand(interaction) {
+        try {
+            const action = interaction.options.getString("action");
+            const prompt = interaction.options.getString("prompt");
+
+            switch (action) {
+                case "start":
+                    if (!prompt) return "Please provide a story prompt, sir.";
+                    const story = entertainmentGames.startStoryGeneration(
+                        interaction.guild.id,
+                        interaction.channel.id,
+                        prompt
+                    );
+                    return `Story started, sir! ID: ${story.id}\n\nInitial prompt: "${prompt}"`;
+
+                case "continue":
+                    if (!prompt) return "Please provide story continuation, sir.";
+                    // This would need story ID lookup in a real implementation
+                    return "Story continuation feature needs story ID, sir. Use story list to get IDs.";
+
+                default:
+                    return "Unknown story action, sir.";
+            }
+        } catch (error) {
+            console.error('Story error:', error);
+            return "Story service unavailable, sir.";
+        }
+    }
+
+    async handleAnalyticsCommand(interaction) {
+        try {
+            const timeframe = interaction.options.getString("timeframe") || "24h";
+
+            const analytics = serverManagement.getServerAnalytics(interaction.guild.id, timeframe);
+
+            const embed = {
+                title: `📊 Server Analytics (${timeframe})`,
+                fields: [
+                    { name: "Active Users", value: analytics.totalUsers.toString(), inline: true },
+                    { name: "Total Messages", value: analytics.totalMessages.toString(), inline: true },
+                    { name: "Total Reactions", value: analytics.totalReactions.toString(), inline: true },
+                    { name: "Voice Time", value: `${analytics.totalVoiceTime} minutes`, inline: true },
+                    { name: "Avg Messages/User", value: analytics.averageMessagesPerUser.toString(), inline: true }
+                ],
+                footer: { text: `Data from last ${timeframe}` },
+                timestamp: new Date().toISOString()
+            };
+
+            if (analytics.mostActiveUsers.length > 0) {
+                const topUsers = analytics.mostActiveUsers.slice(0, 3).map(user => 
+                    `<@${user.userId}> (${user.messages} msgs)`
+                ).join('\n');
+                embed.fields.push({
+                    name: "Most Active Users",
+                    value: topUsers,
+                    inline: false
+                });
+            }
+
+            return { embeds: [embed] };
+        } catch (error) {
+            console.error('Analytics error:', error);
+            return "Analytics service unavailable, sir.";
+        }
+    }
+
+    async handleRemindCommand(interaction) {
+        try {
+            const message = interaction.options.getString("message");
+            const minutes = interaction.options.getInteger("minutes") || 0;
+            const hours = interaction.options.getInteger("hours") || 0;
+
+            const totalMinutes = minutes + (hours * 60);
+            if (totalMinutes === 0) return "Please specify minutes or hours, sir.";
+
+            const reminder = productivityTools.createReminder(interaction.user.id, {
+                title: "Discord Reminder",
+                message: message,
+                triggerTime: new Date(Date.now() + (totalMinutes * 60 * 1000)).toISOString()
+            });
+
+            return `Reminder set, sir. I'll remind you in ${totalMinutes} minutes: "${message}"`;
+        } catch (error) {
+            console.error('Reminder error:', error);
+            return "Reminder service unavailable, sir.";
+        }
+    }
+
+    async handleNoteCommand(interaction) {
+        try {
+            const action = interaction.options.getString("action");
+            const title = interaction.options.getString("title");
+            const content = interaction.options.getString("content");
+            const userId = interaction.user.id;
+
+            switch (action) {
+                case "create":
+                    if (!title || !content) return "Please provide title and content, sir.";
+                    const note = productivityTools.createNote(userId, { title, content });
+                    return `Note created, sir: "${note.title}" (ID: ${note.id})`;
+
+                case "list":
+                    const notes = productivityTools.getNotes(userId);
+                    if (notes.length === 0) return "No notes found, sir.";
+                    const noteList = notes.slice(0, 10).map(n => 
+                        `• ${n.title} ${n.isPinned ? '📌' : ''}`
+                    ).join('\n');
+                    return `Your notes, sir:\n${noteList}`;
+
+                default:
+                    return "Unknown note action, sir.";
+            }
+        } catch (error) {
+            console.error('Note error:', error);
+            return "Note management encountered difficulties, sir.";
         }
     }
 }
