@@ -65,31 +65,6 @@ const config = {
     // YouTube API Configuration
     youtube: {
         apiKey: process.env.YOUTUBE_API_KEY
-    },
-
-    // New Feature API Keys
-    features: {
-        // Image Generation
-        huggingfaceToken: process.env.HUGGINGFACE_TOKEN,
-        
-        // TTS
-        googleTTSApiKey: process.env.GOOGLE_TTS_API_KEY,
-        
-        // Real-time Data
-        newsApiKey: process.env.NEWS_API_KEY,
-        alphaVantageApiKey: process.env.ALPHA_VANTAGE_API_KEY,
-        coinmarketcapApiKey: process.env.COINMARKETCAP_API_KEY,
-        
-        // Productivity Tools
-        gmailClientId: process.env.GMAIL_CLIENT_ID,
-        gmailClientSecret: process.env.GMAIL_CLIENT_SECRET,
-        gmailRefreshToken: process.env.GMAIL_REFRESH_TOKEN,
-        googleCalendarClientId: process.env.GOOGLE_CALENDAR_CLIENT_ID,
-        googleCalendarClientSecret: process.env.GOOGLE_CALENDAR_CLIENT_SECRET,
-        googleCalendarRefreshToken: process.env.GOOGLE_CALENDAR_REFRESH_TOKEN,
-        smtpHost: process.env.SMTP_HOST,
-        smtpUser: process.env.SMTP_USER,
-        smtpPass: process.env.SMTP_PASS
     }
 };
 
