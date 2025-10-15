@@ -544,20 +544,26 @@ class DiscordHandlers {
     // Check for image attachments
     const hasImages = attachments && attachments.size > 0;
     const imageUrls = this.extractImageUrls(text);
-    
+
     // Calculate dynamic canvas dimensions based on content
     const width = 800; // Increased width for better layout and positioning
     const minHeight = 120; // Minimum height for basic content
-    
+
     // Calculate text height with emojis and formatting
     const textHeight = this.calculateTextHeight(text, width - 180); // Account for margins and avatar space
-    
-    // Calculate total height including emojis and images
-    // Emojis are rendered inline with text, so no extra height needed
-    // We'll calculate actual image height after drawing
-    const estimatedImageHeight = (hasImages || imageUrls.length > 0) ? 250 : 0; // Estimated space for images
-    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + estimatedImageHeight + 40)); // Extra padding, ensure integer
-    
+
+    // Measure required image height BEFORE creating main canvas to avoid clipping
+    let actualImageHeight = 0;
+    if (hasImages || imageUrls.length > 0) {
+        const tempCanvas = createCanvas(width, 1);
+        const tempCtx = tempCanvas.getContext('2d');
+        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, 0, 0, width - 180);
+        actualImageHeight = imageEndY + 20; // padding
+    }
+
+    // Calculate total height including measured image height
+    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + actualImageHeight + 40));
+
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
 
@@ -690,52 +696,18 @@ class DiscordHandlers {
     const messageStartY = textStartY + 18;
     await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting);
 
-    // Draw images if present and calculate actual height needed
-    let actualImageHeight = 0;
-    let imageY = messageStartY + textHeight + 10;
-    
+    // Draw images if present (main canvas has enough height already)
     if (hasImages || imageUrls.length > 0) {
-        // Create a temporary canvas to measure image heights
-        const tempCanvas = createCanvas(width, 1000); // Large temp canvas
-        const tempCtx = tempCanvas.getContext('2d');
-        
-        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, textStartX, 0, maxTextWidth);
-        actualImageHeight = imageEndY + 20; // Add padding
-        
-        // Now draw on the actual canvas
-        imageY = await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
-        
-        // Resize canvas if needed
-        const requiredHeight = Math.ceil(messageStartY + textHeight + actualImageHeight + 20);
-        if (requiredHeight > totalHeight) {
-            // Create new canvas with proper height (ensure integer)
-            const newCanvas = createCanvas(width, Math.ceil(requiredHeight));
-            const newCtx = newCanvas.getContext('2d');
-            
-            // Copy existing content
-            newCtx.drawImage(canvas, 0, 0);
-            
-            // Draw images on new canvas
-            await this.drawImages(newCtx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
-            
-            // Use new canvas
-            const buffer = newCanvas.toBuffer('image/png');
-            const processedBuffer = await sharp(buffer)
-                .resize(700, Math.min(Math.ceil(requiredHeight), 800)) // Ensure integer height
-                .png({ quality: 90 })
-                .toBuffer();
-            
-            return processedBuffer;
-        }
+        const imageY = messageStartY + textHeight + 10;
+        await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
     }
 
     // Convert canvas to buffer
     const buffer = canvas.toBuffer('image/png');
-    
-    // Use sharp to optimize the image
-    const finalHeight = Math.ceil(Math.min(totalHeight, 800)); // Increased max height, ensure integer
+
+    // Use sharp to optimize the image without cropping (prevent mid-image truncation)
     const processedBuffer = await sharp(buffer)
-        .resize(700, finalHeight) // Increased width to match new canvas size
+        .resize({ width: 700, fit: 'inside', withoutEnlargement: true })
         .png({ quality: 90 })
         .toBuffer();
 
