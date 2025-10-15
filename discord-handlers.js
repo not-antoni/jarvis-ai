@@ -451,7 +451,7 @@ class DiscordHandlers {
         return false;
     }
 
-    async handleClipCommand(message, client) {
+	async handleClipCommand(message, client) {
         // Check if message starts with "jarvis clip"
         const content = message.content.trim().toLowerCase();
         if (!content.startsWith('jarvis clip')) {
@@ -512,7 +512,7 @@ class DiscordHandlers {
             // Get display name (sanitized for rendering)
             const displayName = this.getSafeDisplayName(repliedMessage.member, repliedMessage.author);
             
-            const imageBuffer = await this.createClipImage(
+			const imageBuffer = await this.createClipImage(
                 repliedMessage.content, 
                 displayName, 
                 avatarUrl,
@@ -520,9 +520,10 @@ class DiscordHandlers {
                 roleColor,
                 message.guild,
                 client,
-                repliedMessage, // Pass the entire message object
-                repliedMessage.author,
-                repliedMessage.attachments
+				repliedMessage, // Pass the entire message object
+				repliedMessage.author,
+				repliedMessage.attachments,
+				repliedMessage.embeds
             );
             
             // Create attachment
@@ -631,7 +632,7 @@ class DiscordHandlers {
 		return null;
 	}
 
-    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null) {
+	async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null, embeds = null) {
     // Parse custom emojis and formatting using Discord API
     const customEmojis = await this.parseCustomEmojis(text, guild);
     const unicodeEmojis = this.parseUnicodeEmojis(text);
@@ -646,14 +647,27 @@ class DiscordHandlers {
     // Check bot verification status using Discord API
     const isVerified = user ? this.isBotVerified(user) : false;
     
-    // Check for image attachments
+    // Check for image attachments and embed previews (Discord link embeds like Tenor/Discord CDN)
     const hasImages = attachments && attachments.size > 0;
     const imageUrls = this.extractImageUrls(text);
+    const embedImageUrls = (embeds || []).flatMap(e => {
+        const urls = [];
+        if (e && e.image && e.image.url) urls.push(e.image.url);
+        if (e && e.thumbnail && e.thumbnail.url) urls.push(e.thumbnail.url);
+        return urls;
+    });
+    // Also detect if the message ends with a direct .gif URL (with optional query params)
+    let trailingGifUrl = null;
+    try {
+        const trailing = text.trim().match(/(https?:\/\/\S+?\.gif(?:\?\S*)?)$/i);
+        if (trailing && trailing[1]) trailingGifUrl = trailing[1];
+    } catch (_) {}
+    const allImageUrls = [...imageUrls, ...embedImageUrls, ...(trailingGifUrl ? [trailingGifUrl] : [])];
 
     // Remove raw image/GIF links from text rendering (we draw them separately)
     let cleanedText = text;
     try {
-        for (const url of imageUrls) {
+        for (const url of allImageUrls) {
             const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             cleanedText = cleanedText.replace(new RegExp(escaped, 'g'), '').trim();
         }
@@ -672,10 +686,10 @@ class DiscordHandlers {
 
     // Measure required image height BEFORE creating main canvas to avoid clipping
     let actualImageHeight = 0;
-    if (hasImages || imageUrls.length > 0) {
+    if (hasImages || allImageUrls.length > 0) {
         const tempCanvas = createCanvas(width, 1);
         const tempCtx = tempCanvas.getContext('2d');
-        const imageEndY = await this.drawImages(tempCtx, attachments, imageUrls, 0, 0, width - 180);
+        const imageEndY = await this.drawImages(tempCtx, attachments, allImageUrls, 0, 0, width - 180);
         actualImageHeight = imageEndY + 20; // padding
     }
 
@@ -816,9 +830,9 @@ class DiscordHandlers {
     await this.drawFormattedText(ctx, cleanedText, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
 
     // Draw images if present (main canvas has enough height already)
-    if (hasImages || imageUrls.length > 0) {
+    if (hasImages || allImageUrls.length > 0) {
         const imageY = messageStartY + textHeight + 10;
-        await this.drawImages(ctx, attachments, imageUrls, textStartX, imageY, maxTextWidth);
+        await this.drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
     }
 
     // Convert canvas to buffer
@@ -1080,7 +1094,8 @@ class DiscordHandlers {
                     const staticUrl = await this.resolveTenorStatic(sourceUrl);
                     if (staticUrl) sourceUrl = staticUrl;
                 }
-                const isGifUrl = /\.gif(\?|$)/i.test(sourceUrl);
+                // Handle Discord CDN GIFs and any URL ending in .gif (with params)
+                const isGifUrl = /\.gif(\?|$)/i.test(sourceUrl) || /media\.discordapp\.net\//i.test(sourceUrl);
                 const img = isGifUrl ? await this.loadStaticImage(sourceUrl) : await loadImage(sourceUrl);
                 const aspectRatio = img.width / img.height;
                 
