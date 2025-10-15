@@ -437,8 +437,8 @@ class DiscordHandlers {
 		}
 
 		return null;
-	}
-
+        }
+        
         // If not a reply, do nothing (no response)
         if (!message.reference || !message.reference.messageId) {
             return true; // Return true to indicate we handled it (by doing nothing)
@@ -525,6 +525,44 @@ class DiscordHandlers {
             return true;
         }
     }
+
+	// Find a message by ID across accessible channels in the same guild
+	async findMessageAcrossChannels(interaction, messageId) {
+		// Try current channel first
+		try {
+			if (interaction.channel && interaction.channel.messages) {
+				const msg = await interaction.channel.messages.fetch(messageId);
+				if (msg) return msg;
+			}
+		} catch (_) {}
+
+		// If not in a guild, we cannot search other channels
+		if (!interaction.guild) return null;
+
+		// Iterate over text-based channels where the bot can view and read history
+		const channels = interaction.guild.channels.cache;
+		for (const [, channel] of channels) {
+			try {
+				// Skip non text-based channels
+				if (!channel || typeof channel.isTextBased !== 'function' || !channel.isTextBased()) continue;
+
+				// Permission checks to avoid errors/rate limits
+				const perms = channel.permissionsFor(interaction.client.user.id);
+				if (!perms) continue;
+				if (!perms.has(PermissionsBitField.Flags.ViewChannel)) continue;
+				if (!perms.has(PermissionsBitField.Flags.ReadMessageHistory)) continue;
+
+				// Attempt to fetch by ID in this channel
+				const msg = await channel.messages.fetch(messageId);
+				if (msg) return msg;
+			} catch (err) {
+				// Ignore not found/permission/rate-limit errors and continue
+				continue;
+			}
+		}
+
+		return null;
+	}
 
     async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null) {
     // Parse custom emojis and formatting using Discord API
