@@ -650,12 +650,25 @@ class DiscordHandlers {
     const hasImages = attachments && attachments.size > 0;
     const imageUrls = this.extractImageUrls(text);
 
+    // Remove raw image/GIF links from text rendering (we draw them separately)
+    let cleanedText = text;
+    try {
+        for (const url of imageUrls) {
+            const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            cleanedText = cleanedText.replace(new RegExp(escaped, 'g'), '').trim();
+        }
+        // Also remove Tenor share links that might not have been converted
+        cleanedText = cleanedText.replace(/https?:\/\/tenor\.com\/\S+/gi, '').trim();
+        // Collapse excess whitespace
+        cleanedText = cleanedText.replace(/\s{2,}/g, ' ').trim();
+    } catch (_) {}
+
     // Calculate dynamic canvas dimensions based on content
     const width = 800; // Increased width for better layout and positioning
     const minHeight = 120; // Minimum height for basic content
 
     // Calculate text height with emojis and formatting
-    const textHeight = this.calculateTextHeight(text, width - 180); // Account for margins and avatar space
+    const textHeight = this.calculateTextHeight(cleanedText, width - 180); // Account for margins and avatar space
 
     // Measure required image height BEFORE creating main canvas to avoid clipping
     let actualImageHeight = 0;
@@ -799,8 +812,8 @@ class DiscordHandlers {
 
     // Draw message content with formatting support
     const messageStartY = textStartY + 18;
-    const mentions = await this.parseMentions(text, guild, client);
-    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
+    const mentions = await this.parseMentions(cleanedText, guild, client);
+    await this.drawFormattedText(ctx, cleanedText, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
 
     // Draw images if present (main canvas has enough height already)
     if (hasImages || imageUrls.length > 0) {
