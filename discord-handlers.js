@@ -2,7 +2,7 @@
  * Discord event handlers and command processing
  */
 
-const { ChannelType, AttachmentBuilder, UserFlags } = require('discord.js');
+const { ChannelType, AttachmentBuilder, UserFlags, PermissionsBitField } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
 const { createCanvas, loadImage, registerFont } = require('canvas');
@@ -400,6 +400,44 @@ class DiscordHandlers {
         if (!content.startsWith('jarvis clip')) {
             return false;
         }
+
+	// Find a message by ID across accessible channels in the same guild
+	async findMessageAcrossChannels(interaction, messageId) {
+		// Try current channel first
+		try {
+			if (interaction.channel && interaction.channel.messages) {
+				const msg = await interaction.channel.messages.fetch(messageId);
+				if (msg) return msg;
+			}
+		} catch (_) {}
+
+		// If not in a guild, we cannot search other channels
+		if (!interaction.guild) return null;
+
+		// Iterate over text-based channels where the bot can view and read history
+		const channels = interaction.guild.channels.cache;
+		for (const [, channel] of channels) {
+			try {
+				// Skip non text-based channels
+				if (!channel || typeof channel.isTextBased !== 'function' || !channel.isTextBased()) continue;
+
+				// Permission checks to avoid errors/rate limits
+				const perms = channel.permissionsFor(interaction.client.user.id);
+				if (!perms) continue;
+				if (!perms.has(PermissionsBitField.Flags.ViewChannel)) continue;
+				if (!perms.has(PermissionsBitField.Flags.ReadMessageHistory)) continue;
+
+				// Attempt to fetch by ID in this channel
+				const msg = await channel.messages.fetch(messageId);
+				if (msg) return msg;
+			} catch (err) {
+				// Ignore not found/permission/rate-limit errors and continue
+				continue;
+			}
+		}
+
+		return null;
+	}
 
         // If not a reply, do nothing (no response)
         if (!message.reference || !message.reference.messageId) {
@@ -1285,22 +1323,20 @@ class DiscordHandlers {
                 return true;
             }
 
-            // Fetch the message by ID
-            let targetMessage;
-            try {
-                targetMessage = await interaction.channel.messages.fetch(messageId);
-                
-                // Debug logging for timestamps
-                console.log('Slash command timestamp debug:', {
-                    slashCommandTime: interaction.createdAt.toLocaleTimeString(),
-                    targetMessageTime: targetMessage.createdAt.toLocaleTimeString(),
-                    targetMessageTimestamp: targetMessage.createdTimestamp,
-                    interactionTimestamp: interaction.createdTimestamp
-                });
-            } catch (fetchError) {
-                await interaction.editReply("Could not find that message, sir. Make sure the message ID is correct and the message is in this channel.");
-                return true;
-            }
+			// Fetch the message by ID (search across accessible channels)
+			let targetMessage = await this.findMessageAcrossChannels(interaction, messageId);
+			if (!targetMessage) {
+				await interaction.editReply("Could not find that message, sir. I searched this channel and others I can access.");
+				return true;
+			}
+
+			// Debug logging for timestamps
+			console.log('Slash command timestamp debug:', {
+				slashCommandTime: interaction.createdAt.toLocaleTimeString(),
+				targetMessageTime: targetMessage.createdAt.toLocaleTimeString(),
+				targetMessageTimestamp: targetMessage.createdTimestamp,
+				interactionTimestamp: interaction.createdTimestamp
+			});
             
             // All content types are now supported
             // No need to check for images or emojis anymore
