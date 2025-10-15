@@ -61,6 +61,26 @@ class DiscordHandlers {
         }
     }
 
+	// Produce a display name that renders reliably on canvas
+	getSafeDisplayName(member, author) {
+		try {
+			const rawName = (member && member.displayName) ? member.displayName : (author && author.username ? author.username : 'User');
+			// Normalize to canonical form
+			let name = rawName.normalize('NFKC');
+			// Remove control and zero-width characters
+			name = name.replace(/[\p{C}\p{Cf}]/gu, '');
+			// Allow letters, numbers, spaces, and a small set of safe punctuation; drop the rest
+			name = name.replace(/[^\p{L}\p{N}\p{M} _\-'.]/gu, '');
+			// Collapse whitespace
+			name = name.replace(/\s+/g, ' ').trim();
+			// Fallback if empty after sanitization
+			if (!name) name = (author && author.username) ? author.username : 'User';
+			return name;
+		} catch (_) {
+			return (author && author.username) ? author.username : 'User';
+		}
+	}
+
     // Parse Discord custom emojis using Discord API
     // This function extracts custom emojis from message text and gets their proper URLs
     // Uses guild emoji cache for accurate emoji data, falls back to CDN URLs
@@ -150,6 +170,43 @@ class DiscordHandlers {
         
         return emojis;
     }
+
+	// Parse user mentions like <@123> or <@!123> and resolve to @DisplayName
+	async parseMentions(text, guild = null, client = null) {
+		const mentionRegex = /<@!?([0-9]{5,})>/g;
+		const mentions = [];
+		let match;
+		while ((match = mentionRegex.exec(text)) !== null) {
+			const userId = match[1];
+			let display = `@unknown`;
+			try {
+				let user = null;
+				let member = null;
+				if (guild) {
+					member = guild.members.cache.get(userId) || null;
+					if (!member) {
+						try { member = await guild.members.fetch(userId); } catch (_) {}
+					}
+					user = member ? member.user : null;
+				}
+				if (!user && client) {
+					user = client.users.cache.get(userId) || null;
+					if (!user) {
+						try { user = await client.users.fetch(userId); } catch (_) {}
+					}
+				}
+				display = `@${this.getSafeDisplayName(member, user || { username: userId })}`;
+			} catch (_) {}
+			mentions.push({
+				full: match[0],
+				userId: userId,
+				display: display,
+				start: match.index,
+				end: match.index + match[0].length
+			});
+		}
+		return mentions;
+	}
 
     // Parse Discord markdown formatting
     parseDiscordFormatting(text) {
@@ -452,8 +509,8 @@ class DiscordHandlers {
                 console.warn('Failed to get role color for text command:', error);
             }
             
-            // Get display name (server nickname or username)
-            const displayName = repliedMessage.member?.displayName || repliedMessage.author.username;
+            // Get display name (sanitized for rendering)
+            const displayName = this.getSafeDisplayName(repliedMessage.member, repliedMessage.author);
             
             const imageBuffer = await this.createClipImage(
                 repliedMessage.content, 
@@ -742,7 +799,8 @@ class DiscordHandlers {
 
     // Draw message content with formatting support
     const messageStartY = textStartY + 18;
-    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting);
+    const mentions = await this.parseMentions(text, guild, client);
+    await this.drawFormattedText(ctx, text, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
 
     // Draw images if present (main canvas has enough height already)
     if (hasImages || imageUrls.length > 0) {
@@ -763,7 +821,7 @@ class DiscordHandlers {
     }
 
     // Draw text with Discord formatting and emojis
-    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting) {
+    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting, mentions = []) {
     ctx.fillStyle = '#ffffff';
         ctx.font = '14px Arial';
     ctx.textAlign = 'left';
@@ -783,8 +841,8 @@ class DiscordHandlers {
             .replace(/__(.*?)__/g, '$1') // Underline
             .replace(/`([^`]+)`/g, '$1'); // Code
 
-        // Split text into segments (text and emojis)
-        const segments = this.splitTextWithEmojis(processedText, customEmojis);
+        // Split text into segments (text, emojis, mentions)
+        const segments = this.splitTextWithEmojisAndMentions(processedText, customEmojis, mentions);
         
         let currentLineWidth = 0;
         let currentLineHeight = lineHeight;
@@ -859,6 +917,19 @@ class DiscordHandlers {
                         }
                     }
                 }
+            } else if (segment.type === 'mention') {
+                // Render mentions in blue
+                const mentionText = segment.text + ' ';
+                const textWidth = ctx.measureText(mentionText).width;
+                if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
+                    currentY += currentLineHeight;
+                    currentLineWidth = 0;
+                }
+                const prevFill = ctx.fillStyle;
+                ctx.fillStyle = '#8899ff';
+                ctx.fillText(mentionText, currentX + currentLineWidth, currentY);
+                ctx.fillStyle = prevFill;
+                currentLineWidth += textWidth;
             } else {
                 // Draw text segment
                 const words = segment.text.split(' ');
@@ -878,33 +949,41 @@ class DiscordHandlers {
         }
     }
 
-    // Split text into segments with emojis
-    splitTextWithEmojis(text, allEmojis) {
+    // Split text into segments with emojis and mentions
+    splitTextWithEmojisAndMentions(text, allEmojis, mentions) {
         const segments = [];
         let lastIndex = 0;
         
         // Sort emojis by position
         const sortedEmojis = allEmojis.sort((a, b) => a.start - b.start);
-        
-        for (const emoji of sortedEmojis) {
-            // Add text before emoji
-            if (emoji.start > lastIndex) {
-                const textSegment = text.substring(lastIndex, emoji.start);
-                if (textSegment) {
-                    segments.push({ type: 'text', text: textSegment });
-                }
+        const sortedMentions = (mentions || []).sort((a, b) => a.start - b.start);
+
+        // Merge streams by position
+        let i = 0, j = 0;
+        const items = [];
+        while (i < sortedEmojis.length || j < sortedMentions.length) {
+            const nextEmoji = i < sortedEmojis.length ? sortedEmojis[i] : null;
+            const nextMention = j < sortedMentions.length ? sortedMentions[j] : null;
+            const takeEmoji = nextEmoji && (!nextMention || nextEmoji.start <= nextMention.start);
+            if (takeEmoji) { items.push({ kind: 'emoji', item: nextEmoji }); i++; }
+            else { items.push({ kind: 'mention', item: nextMention }); j++; }
+        }
+
+        for (const entry of items) {
+            const posStart = entry.item.start;
+            const posEnd = entry.item.end;
+            if (posStart > lastIndex) {
+                const textSegment = text.substring(lastIndex, posStart);
+                if (textSegment) segments.push({ type: 'text', text: textSegment });
             }
-            
-            // Add emoji
-            segments.push({
-                type: 'emoji',
-                name: emoji.name,
-                url: emoji.url,
-                full: emoji.full,
-                isUnicode: emoji.isUnicode
-            });
-            
-            lastIndex = emoji.end;
+            if (entry.kind === 'emoji') {
+                const emoji = entry.item;
+                segments.push({ type: 'emoji', name: emoji.name, url: emoji.url, full: emoji.full, isUnicode: emoji.isUnicode });
+            } else {
+                const mention = entry.item;
+                segments.push({ type: 'mention', text: mention.display });
+            }
+            lastIndex = posEnd;
         }
         
         // Add remaining text
@@ -1393,8 +1472,8 @@ class DiscordHandlers {
                 console.warn('Failed to get role color for slash command:', error);
             }
             
-            // Get display name (server nickname or username)
-            const displayName = targetMessage.member?.displayName || targetMessage.author.username;
+            // Get display name (sanitized for rendering)
+            const displayName = this.getSafeDisplayName(targetMessage.member, targetMessage.author);
             
             const imageBuffer = await this.createClipImage(
                 targetMessage.content,
