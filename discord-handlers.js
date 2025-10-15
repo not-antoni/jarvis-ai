@@ -526,6 +526,23 @@ class DiscordHandlers {
 		return null;
 	}
 
+	// Load a static image for GIF sources by extracting the first frame with Sharp
+	async loadStaticImage(url) {
+		try {
+			// Node 18 has global fetch
+			const res = await fetch(url);
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const buffer = await res.arrayBuffer();
+			const input = Buffer.from(buffer);
+			// Extract first frame to PNG buffer
+			const pngBuffer = await sharp(input).ensureAlpha().extractFrame(0).png().toBuffer();
+			return await loadImage(pngBuffer);
+		} catch (error) {
+			console.warn('Failed to load static GIF frame, falling back to direct load:', error);
+			return await loadImage(url);
+		}
+	}
+
     async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null) {
     // Parse custom emojis and formatting using Discord API
     const customEmojis = await this.parseCustomEmojis(text, guild);
@@ -908,7 +925,8 @@ class DiscordHandlers {
             for (const attachment of attachments.values()) {
                 if (attachment.contentType && attachment.contentType.startsWith('image/')) {
                     try {
-                        const img = await loadImage(attachment.url);
+                        const isGif = attachment.contentType.includes('gif') || /\.gif(\?|$)/i.test(attachment.url);
+                        const img = isGif ? await this.loadStaticImage(attachment.url) : await loadImage(attachment.url);
                         const aspectRatio = img.width / img.height;
                         
                         // Calculate dimensions maintaining aspect ratio
@@ -933,7 +951,8 @@ class DiscordHandlers {
         // Draw URL images (including Tenor GIFs)
         for (const imageUrl of imageUrls) {
             try {
-                const img = await loadImage(imageUrl);
+                const isGifUrl = /\.gif(\?|$)/i.test(imageUrl);
+                const img = isGifUrl ? await this.loadStaticImage(imageUrl) : await loadImage(imageUrl);
                 const aspectRatio = img.width / img.height;
                 
                 // Calculate dimensions maintaining aspect ratio
