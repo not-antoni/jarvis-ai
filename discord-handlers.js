@@ -318,6 +318,37 @@ class DiscordHandlers {
         }
     }
 
+    // Draw the verified badge SVG checkmark
+    drawVerifiedBadge(ctx, x, y, size = 16) {
+        try {
+            // Save context state
+            ctx.save();
+            
+            // Set white fill for the checkmark
+            ctx.fillStyle = '#ffffff';
+            
+            // Create the checkmark path (simplified SVG path)
+            ctx.beginPath();
+            // Move to start of checkmark
+            ctx.moveTo(x + size * 0.3, y + size * 0.5);
+            // Line to middle point
+            ctx.lineTo(x + size * 0.45, y + size * 0.65);
+            // Line to end point
+            ctx.lineTo(x + size * 0.7, y + size * 0.35);
+            
+            // Draw with rounded line caps for cleaner look
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+            
+            ctx.restore();
+        } catch (error) {
+            console.warn('Failed to draw verified badge:', error);
+        }
+    }
+
     // Parse Discord timestamp to get the actual formatted time
     // This extracts the time from Discord's timestamp format
     parseDiscordTimestamp(message) {
@@ -777,8 +808,16 @@ class DiscordHandlers {
             const appTagWidth = 35;
             const appTagHeight = 16;
             
-            // App tag background (purple/blue-violet color)
-            ctx.fillStyle = '#8B5CF6'; // Purple color for APP badge
+            // Draw verification badge if verified (to the left of APP tag)
+            if (isVerified) {
+                const badgeSize = 16;
+                const badgeX = currentX;
+                this.drawVerifiedBadge(ctx, badgeX, textStartY, badgeSize);
+                currentX += badgeSize + 4;
+            }
+            
+            // App tag background (Discord blue color)
+            ctx.fillStyle = 'rgb(88, 101, 242)'; // Discord APP badge color
             ctx.fillRect(currentX, textStartY, appTagWidth, appTagHeight);
             
             // App tag text
@@ -787,24 +826,6 @@ class DiscordHandlers {
             ctx.fillText('APP', currentX + 2, textStartY + 2);
             
             currentX += appTagWidth + 4;
-            
-            // Draw verification badge if verified
-            if (isVerified) {
-                try {
-                    const badgeUrl = this.getVerificationBadgeUrl();
-                    const badgeImg = await loadImage(badgeUrl);
-                    const badgeSize = 16;
-                    ctx.drawImage(badgeImg, currentX, textStartY, badgeSize, badgeSize);
-                    currentX += badgeSize + 4;
-                } catch (error) {
-                    console.warn('Failed to load verification badge, using fallback:', error);
-                    // Fallback to text checkmark
-                    ctx.fillStyle = '#00d26a';
-                    ctx.font = 'bold 12px Arial';
-                    ctx.fillText('✓', currentX, textStartY);
-                    currentX += 12;
-                }
-            }
         }
 
     // Draw timestamp with dynamic formatting
