@@ -543,6 +543,37 @@ class DiscordHandlers {
 		}
 	}
 
+	// Resolve Tenor share pages to a static image URL via oEmbed (thumbnail)
+	async resolveTenorStatic(url) {
+		try {
+			// 1) Try oEmbed (handles most Tenor URL forms)
+			const oembedUrl = `https://tenor.com/oembed?url=${encodeURIComponent(url)}`;
+			const res = await fetch(oembedUrl, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
+			if (!res.ok) throw new Error(`Tenor oEmbed HTTP ${res.status}`);
+			const data = await res.json();
+			// oEmbed typically provides thumbnail_url
+			if (data && data.thumbnail_url) return data.thumbnail_url;
+			// Fallbacks some responses might include url
+			if (data && data.url) return data.url;
+		} catch (error) {
+			console.warn('Failed to resolve Tenor static image via oEmbed:', error);
+		}
+
+		// 2) Fallback: fetch HTML and parse meta tags (works across Tenor share/short URLs)
+		try {
+			const pageRes = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
+			if (!pageRes.ok) throw new Error(`Tenor page HTTP ${pageRes.status}`);
+			const html = await pageRes.text();
+			// Prefer og:image, fall back to twitter:image
+			let metaMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+			if (!metaMatch) metaMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+			if (metaMatch && metaMatch[1]) return metaMatch[1];
+		} catch (err) {
+			console.warn('Failed to parse Tenor page for image:', err);
+		}
+		return null;
+	}
+
     async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null) {
     // Parse custom emojis and formatting using Discord API
     const customEmojis = await this.parseCustomEmojis(text, guild);
@@ -951,8 +982,14 @@ class DiscordHandlers {
         // Draw URL images (including Tenor GIFs)
         for (const imageUrl of imageUrls) {
             try {
-                const isGifUrl = /\.gif(\?|$)/i.test(imageUrl);
-                const img = isGifUrl ? await this.loadStaticImage(imageUrl) : await loadImage(imageUrl);
+                let sourceUrl = imageUrl;
+                // Always try to resolve Tenor links to a static image (covers all Tenor URL forms)
+                if (/tenor\.com\//i.test(sourceUrl)) {
+                    const staticUrl = await this.resolveTenorStatic(sourceUrl);
+                    if (staticUrl) sourceUrl = staticUrl;
+                }
+                const isGifUrl = /\.gif(\?|$)/i.test(sourceUrl);
+                const img = isGifUrl ? await this.loadStaticImage(sourceUrl) : await loadImage(sourceUrl);
                 const aspectRatio = img.width / img.height;
                 
                 // Calculate dimensions maintaining aspect ratio
