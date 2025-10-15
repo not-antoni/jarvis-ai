@@ -576,7 +576,7 @@ class DiscordHandlers {
     const contentWidth = width - 80; // More margin
     const contentHeight = totalHeight - 20;
     const avatarX = 50; // Moved further to the right
-    const avatarY = (totalHeight - avatarSize) / 2;
+    const avatarY = 20; // Top-aligned padding instead of vertical centering
 
     // Draw avatar (circular)
     if (avatarUrl) {
