@@ -29,7 +29,7 @@ const config = {
 
     // AI Provider Configuration
     ai: {
-        cooldownMs: 10000, // 5 seconds
+        cooldownMs: 8000, // 5 seconds
         maxTokens: 500,
         maxInputLength: 250,
         maxSlashInputLength: 250,
