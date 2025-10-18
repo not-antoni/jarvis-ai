@@ -1451,9 +1451,8 @@ class DiscordHandlers {
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
-        const braveInvocation = typeof braveSearch.extractSearchInvocation === 'function'
-            ? braveSearch.extractSearchInvocation(cleanContent)
-            : { triggered: false, query: null };
+        const searchCommandPattern = /^jarvis\s+search\s+(.+)$/i;
+        const searchMatch = cleanContent.match(searchCommandPattern);
 
         if (ytMatch) {
             const searchQuery = ytMatch[1].trim();
@@ -1473,25 +1472,12 @@ class DiscordHandlers {
             }
         }
 
-        if (braveInvocation.triggered) {
-            const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
-                ? braveSearch.prepareQueryForApi(braveInvocation.query)
-                : (braveInvocation.query || '').trim();
-
-            if (preparedQuery) {
+        if (searchMatch) {
+            const searchQuery = searchMatch[1].trim();
+            if (searchQuery) {
                 try {
-                    if (braveSearch.isExplicitQuery && braveSearch.isExplicitQuery(preparedQuery)) {
-                        await message.reply({
-                            content: braveSearch.getExplicitQueryMessage
-                                ? braveSearch.getExplicitQueryMessage()
-                                : 'I must decline that request, sir. My safety filters forbid it.'
-                        });
-                        this.setCooldown(message.author.id);
-                        return;
-                    }
-
                     await message.channel.sendTyping();
-                    const response = await this.jarvis.handleBraveSearch(preparedQuery);
+                    const response = await this.jarvis.handleBraveSearch(searchQuery);
                     await message.reply(response);
                     this.setCooldown(message.author.id);
                     return;
@@ -1501,10 +1487,6 @@ class DiscordHandlers {
                     this.setCooldown(message.author.id);
                     return;
                 }
-            } else {
-                await message.reply("Please provide a web search query after 'jarvis search', sir.");
-                this.setCooldown(message.author.id);
-                return;
             }
         }
 

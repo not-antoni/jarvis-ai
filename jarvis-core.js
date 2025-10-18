@@ -98,38 +98,10 @@ EXECUTION PIPELINE
     }
 
     async handleBraveSearch(query) {
-        const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
-            ? braveSearch.prepareQueryForApi(query)
-            : (typeof query === 'string' ? query.trim() : '');
-
-        if (!preparedQuery) {
-            return {
-                content: "Please provide a web search query, sir."
-            };
-        }
-
         try {
-            if (braveSearch.isExplicitQuery && braveSearch.isExplicitQuery(preparedQuery)) {
-                return {
-                    content: braveSearch.getExplicitQueryMessage
-                        ? braveSearch.getExplicitQueryMessage()
-                        : 'I must decline that request, sir. My safety filters forbid it.'
-                };
-            }
+            const results = await braveSearch.searchWeb(query);
+            return braveSearch.formatSearchResponse(query, results);
         } catch (error) {
-            console.error("Pre-flight Brave explicit check failed:", error);
-        }
-
-        try {
-            const results = await braveSearch.searchWeb(preparedQuery);
-            return braveSearch.formatSearchResponse(preparedQuery, results);
-        } catch (error) {
-            if (error && error.isSafeSearchBlock) {
-                return {
-                    content: error.message || 'Those results were blocked by my safety filters, sir.'
-                };
-            }
-
             console.error("Brave search error:", error);
             return {
                 content: "Web search is currently unavailable, sir. Technical difficulties."
