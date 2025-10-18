@@ -457,82 +457,66 @@ class DiscordHandlers {
         const tempCtx = tempCanvas.getContext('2d');
         tempCtx.font = '14px Arial';
 
-        // Preprocess the text: strip multiline code fences with optional language
-        // specification and leave only the code body. Also remove remaining
-        // triple backtick markers. This ensures the line calculation accounts
-        // for the actual text that will be rendered and that long code blocks
-        // wrap correctly.
+        // Remove fenced code blocks with optional language spec and keep only the
+        // inner code content. Then remove any stray triple backticks. This
+        // ensures code blocks do not interfere with height calculations.
         let processedText = text;
-        // Replace full fenced code blocks (```lang\n...```) with just the inner
-        // code. The first capture group (language identifier) is ignored and
-        // the second capture (code body) is kept.
         processedText = processedText.replace(/```[^\n]*\n([\s\S]*?)```/g, '$1');
-        // Remove any stray triple backtick markers left over (e.g. unmatched
-        // fences or closing ticks without language identifiers).
         processedText = processedText.replace(/```/g, '');
 
-        // Split into individual lines on explicit newlines. Discord code blocks
-        // often contain explicit newlines which need to be respected. Each
-        // newline will incur its own line height.
-        const rawLines = processedText.split(/\n/);
+        // Split the processed text into tokens, preserving newlines and whitespace
+        // as separate tokens. This allows us to handle wrapping at both spaces
+        // and explicit newline boundaries. The regex captures newline characters
+        // and runs of whitespace (spaces or tabs) as individual tokens.
+        const tokens = processedText.split(/(\n|\s+)/);
         let lineCount = 0;
+        let currentLineWidth = 0;
 
-        for (const rawLine of rawLines) {
-            // Split the line into whitespace-delimited tokens. This allows
-            // wrapping at word boundaries when possible. Long tokens that
-            // exceed the available width will be broken into character
-            // segments (see below).
-            const tokens = rawLine.split(' ');
-            let currentLineWidth = 0;
-            for (let idx = 0; idx < tokens.length; idx++) {
-                const token = tokens[idx];
-                const suffix = idx < tokens.length - 1 ? ' ' : '';
-                const tokenWithSpace = token + suffix;
-                const tokenWidth = tempCtx.measureText(tokenWithSpace).width;
-                // If the token itself is wider than maxWidth, break it into
-                // individual characters. This prevents extremely long
-                // “words” (like long URLs or code with no spaces) from
-                // overflowing the canvas. Each character is measured and
-                // wrapped as needed.
-                if (tokenWidth > maxWidth) {
-                    for (const char of token) {
-                        const charWidth = tempCtx.measureText(char).width;
-                        if (currentLineWidth + charWidth > maxWidth && currentLineWidth > 0) {
-                            lineCount++;
-                            currentLineWidth = 0;
-                        }
-                        currentLineWidth += charWidth;
-                    }
-                    // Add a space after the broken token if it wasn’t the last
-                    // token in the line. Spaces are measured separately to
-                    // ensure proper wrapping when a long token ends a line.
-                    if (suffix) {
-                        const spaceWidth = tempCtx.measureText(' ').width;
-                        if (currentLineWidth + spaceWidth > maxWidth && currentLineWidth > 0) {
-                            lineCount++;
-                            currentLineWidth = 0;
-                        }
-                        currentLineWidth += spaceWidth;
-                    }
-                } else {
-                    // If the word fits on the current line, append it; otherwise
-                    // wrap to a new line.
-                    if (currentLineWidth + tokenWidth > maxWidth && currentLineWidth > 0) {
+        for (const token of tokens) {
+            if (token === '\n') {
+                // Explicit newline: end the current line and start a new one
+                lineCount++;
+                currentLineWidth = 0;
+                continue;
+            }
+            // Check if token is only whitespace (space or multiple spaces)
+            if (/^\s+$/.test(token)) {
+                // Process each space individually to wrap correctly
+                for (const char of token) {
+                    const charWidth = tempCtx.measureText(char).width;
+                    if (currentLineWidth + charWidth > maxWidth && currentLineWidth > 0) {
                         lineCount++;
                         currentLineWidth = 0;
                     }
-                    currentLineWidth += tokenWidth;
+                    currentLineWidth += charWidth;
                 }
+                continue;
             }
-            // Count the line itself
-            lineCount++;
+            // Non-whitespace token: measure its width
+            const tokenWidth = tempCtx.measureText(token).width;
+            if (tokenWidth > maxWidth) {
+                // Break long tokens (like URLs or unspaced code) into characters
+                for (const char of token) {
+                    const charWidth = tempCtx.measureText(char).width;
+                    if (currentLineWidth + charWidth > maxWidth && currentLineWidth > 0) {
+                        lineCount++;
+                        currentLineWidth = 0;
+                    }
+                    currentLineWidth += charWidth;
+                }
+            } else {
+                if (currentLineWidth + tokenWidth > maxWidth && currentLineWidth > 0) {
+                    lineCount++;
+                    currentLineWidth = 0;
+                }
+                currentLineWidth += tokenWidth;
+            }
         }
-        // Base height accounts for username, timestamp, and spacing above the
-        // message body (approximately 40 pixels). Each line adds 20 pixels to
-        // the total height.
-        const baseHeight = 40;
+        // Count the final line if any content was measured or if there were no tokens
+        lineCount++;
+        const baseHeight = 40; // Reserve space for username, timestamp, and gap
         const lineHeight = 20;
-        return baseHeight + lineCount * lineHeight;
+        return baseHeight + (lineCount * lineHeight);
     }
 
     hasImagesOrEmojis(message) {
@@ -903,20 +887,23 @@ class DiscordHandlers {
         ctx.fillText(timestamp, textStartX, textStartY + 16);
     }
 
-    // Draw message content with formatting support. The message begins 16px
-    // below the username row (14px for the username line plus a 2px gap).
+    // Draw message content with formatting support
+    // Position the message content immediately below the username. The username
+    // occupies approximately 14px of vertical space, so we add a 2px gap to
+    // separate the text from the header. This mirrors the 2px gap between text
+    // and images later on, keeping spacing consistent.
     const messageStartY = textStartY + 16;
     const mentions = await this.parseMentions(cleanedText, guild, client);
     await this.drawFormattedText(ctx, cleanedText, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
 
-    // Draw images if present. Position the image 2px below the rendered text
-    // content. `textHeight` includes the 40px base height reserved for the
-    // username/timestamp region; subtract that to get the actual message
-    // content height. If there is no text content, `textContentHeight` will
-    // be zero so the image sits just beneath the username row.
+    // Draw images if present (main canvas has enough height already)
     if (hasImages || allImageUrls.length > 0) {
-        const textContentHeight = Math.max(0, textHeight - 40);
-        const imageY = messageStartY + textContentHeight + 2;
+        // Compute the starting Y position for images. We subtract the base 40px
+        // reserved in calculateTextHeight (for username/timestamp) from the
+        // measured textHeight to get only the height of the rendered lines. Then
+        // add a small 2px gap so images sit flush beneath the message text.
+        const effectiveTextHeight = Math.max(0, textHeight - 40);
+        const imageY = messageStartY + effectiveTextHeight + 2;
         await this.drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
     }
 
@@ -950,30 +937,27 @@ class DiscordHandlers {
         const emojiSize = 16;
 
         // Remove Discord formatting markers for cleaner display
-        // Preprocess formatting markers and code fences. Remove bold, italic,
-        // underline, strikethrough, and inline code markers for rendering. Also
-        // strip multiline code fences (```lang\n ... ```), leaving only the
-        // code body. Remaining triple backticks are removed to avoid
-        // displaying them directly.
+        // We also strip fenced code blocks (triple backticks) so that the code
+        // content is displayed without the surrounding fences or language spec.
         let processedText = text
             // Bold
             .replace(/\*\*(.*?)\*\*/g, '$1')
-            // Italic with *
+            // Italic using asterisks
             .replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1')
-            // Italic with _
+            // Italic using underscores
             .replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1')
             // Strikethrough
             .replace(/~~(.*?)~~/g, '$1')
             // Underline
             .replace(/__(.*?)__/g, '$1')
-            // Inline code
-            .replace(/`([^`]+)`/g, '$1');
-
-        // Remove fenced code blocks. Capture the language identifier if
-        // present (ignored) and keep only the content between the fences.
-        processedText = processedText.replace(/```[^\n]*\n([\s\S]*?)```/g, '$1');
-        // Remove any leftover triple backticks
-        processedText = processedText.replace(/```/g, '');
+            // Inline code (single backticks)
+            .replace(/`([^`]+)`/g, '$1')
+            // Fenced code blocks with optional language spec: remove the fences and
+            // language line but keep the inner code. This pattern matches
+            // ```lang\ncode\n```
+            .replace(/```[^\n]*\n([\s\S]*?)```/g, '$1')
+            // If any stray triple backticks remain, remove them
+            .replace(/```/g, '');
 
         // Split text into segments (text, emojis, mentions)
         const segments = this.splitTextWithEmojisAndMentions(processedText, customEmojis, mentions);
@@ -1071,49 +1055,19 @@ class DiscordHandlers {
                 ctx.fillStyle = prevFill;
                 currentLineWidth += textWidth;
             } else {
-                // Draw regular text segment. Break on spaces, but if a "word"
-                // exceeds the available width, break it into individual
-                // characters. This mirrors the logic used in
-                // calculateTextHeight to keep text wrapping consistent.
+                // Draw text segment
                 const words = segment.text.split(' ');
-                for (let wi = 0; wi < words.length; wi++) {
-                    const word = words[wi];
-                    // Determine whether to add a space after this word (except
-                    // for the last word). A trailing space will be measured and
-                    // rendered to preserve spacing between words.
-                    const suffix = wi < words.length - 1 ? ' ' : '';
-                    const wordWithSpace = word + suffix;
-                    const tokenWidth = ctx.measureText(wordWithSpace).width;
-                    if (tokenWidth > maxWidth) {
-                        // Break the long token into characters
-                        for (const char of word) {
-                            const charWidth = ctx.measureText(char).width;
-                            if (currentLineWidth + charWidth > maxWidth && currentLineWidth > 0) {
-                                currentY += currentLineHeight;
-                                currentLineWidth = 0;
-                            }
-                            ctx.fillText(char, currentX + currentLineWidth, currentY);
-                            currentLineWidth += charWidth;
-                        }
-                        // If not the last word, add a space after the broken token
-                        if (suffix) {
-                            const spaceWidth = ctx.measureText(' ').width;
-                            if (currentLineWidth + spaceWidth > maxWidth && currentLineWidth > 0) {
-                                currentY += currentLineHeight;
-                                currentLineWidth = 0;
-                            }
-                            ctx.fillText(' ', currentX + currentLineWidth, currentY);
-                            currentLineWidth += spaceWidth;
-                        }
-                    } else {
-                        // Normal word fits on the line
-                        if (currentLineWidth + tokenWidth > maxWidth && currentLineWidth > 0) {
-                            currentY += currentLineHeight;
-                            currentLineWidth = 0;
-                        }
-                        ctx.fillText(wordWithSpace, currentX + currentLineWidth, currentY);
-                        currentLineWidth += tokenWidth;
+                
+                for (const word of words) {
+                    const wordWidth = ctx.measureText(word + ' ').width;
+                    
+                    if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
+                        currentY += currentLineHeight;
+                        currentLineWidth = 0;
                     }
+                    
+                    ctx.fillText(word + ' ', currentX + currentLineWidth, currentY);
+                    currentLineWidth += wordWidth;
                 }
             }
         }
