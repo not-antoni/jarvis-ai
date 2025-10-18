@@ -38,7 +38,7 @@ const config = {
         fallbackChance: 0.12,
         // Provider selection: "auto" for random selection, or specific provider type
         // Options: "auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"
-        provider: process.env.AI_PROVIDER || "auto"
+        provider: process.env.AI_PROVIDER || "openai"
     },
 
     // Server Configuration
