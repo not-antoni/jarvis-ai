@@ -7,6 +7,7 @@ const database = require('./database');
 const config = require('./config');
 const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
+const braveSearch = require('./brave-search');
 
 class JarvisAI {
     constructor() {
@@ -93,6 +94,68 @@ EXECUTION PIPELINE
         } catch (error) {
             console.error("YouTube search error:", error);
             return "YouTube search is currently unavailable, sir. Technical difficulties.";
+        }
+    }
+
+    async handleBraveSearch(query) {
+        const payload = (query && typeof query === 'object')
+            ? query
+            : { raw: typeof query === 'string' ? query : '', prepared: typeof query === 'string' ? query : '', explicit: false };
+
+        const rawInput = typeof payload.raw === 'string' ? payload.raw : '';
+        const initialPrepared = typeof payload.prepared === 'string' && payload.prepared.length > 0
+            ? payload.prepared
+            : rawInput;
+
+        const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
+            ? braveSearch.prepareQueryForApi(initialPrepared)
+            : (typeof initialPrepared === 'string' ? initialPrepared.trim() : '');
+
+        if (payload.explicit) {
+            return {
+                content: braveSearch.getExplicitQueryMessage
+                    ? braveSearch.getExplicitQueryMessage()
+                    : 'I must decline that request, sir. My safety filters forbid it.'
+            };
+        }
+
+        if (!preparedQuery) {
+            return {
+                content: "Please provide a web search query, sir."
+            };
+        }
+
+        const rawSegmentForCheck = rawInput || preparedQuery;
+
+        try {
+            if (braveSearch.isExplicitQuery && (
+                braveSearch.isExplicitQuery(preparedQuery, { rawSegment: rawSegmentForCheck }) ||
+                (rawSegmentForCheck && braveSearch.isExplicitQuery(rawSegmentForCheck, { rawSegment: rawSegmentForCheck }))
+            )) {
+                return {
+                    content: braveSearch.getExplicitQueryMessage
+                        ? braveSearch.getExplicitQueryMessage()
+                        : 'I must decline that request, sir. My safety filters forbid it.'
+                };
+            }
+        } catch (error) {
+            console.error("Pre-flight Brave explicit check failed:", error);
+        }
+
+        try {
+            const results = await braveSearch.searchWeb(preparedQuery, { rawSegment: rawSegmentForCheck });
+            return braveSearch.formatSearchResponse(preparedQuery, results);
+        } catch (error) {
+            if (error && error.isSafeSearchBlock) {
+                return {
+                    content: error.message || 'Those results were blocked by my safety filters, sir.'
+                };
+            }
+
+            console.error("Brave search error:", error);
+            return {
+                content: "Web search is currently unavailable, sir. Technical difficulties."
+            };
         }
     }
 
