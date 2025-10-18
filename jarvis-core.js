@@ -102,12 +102,6 @@ EXECUTION PIPELINE
             const results = await braveSearch.searchWeb(query);
             return braveSearch.formatSearchResponse(query, results);
         } catch (error) {
-            if (error && error.isSafeSearchBlock) {
-                return {
-                    content: error.message || 'Those results were blocked by my safety filters, sir.'
-                };
-            }
-
             console.error("Brave search error:", error);
             return {
                 content: "Web search is currently unavailable, sir. Technical difficulties."
