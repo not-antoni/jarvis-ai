@@ -853,8 +853,11 @@ class DiscordHandlers {
 
     // Draw images if present (main canvas has enough height already)
     if (hasImages || allImageUrls.length > 0) {
-        // Position images directly below the message content with a 2px gap
-        const imageY = messageStartY + textHeight + 2;
+        // Position images directly below the message lines with a 2px gap.  Subtract the base height
+        // (username + spacing, 40px) used when calculating textHeight to avoid doubling the header area.
+        const baseHeight = 40;
+        const messageTextHeight = Math.max(0, textHeight - baseHeight);
+        const imageY = messageStartY + messageTextHeight + 2;
         await this.drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
     }
 
