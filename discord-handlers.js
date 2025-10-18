@@ -5,6 +5,7 @@
 const { ChannelType, AttachmentBuilder, UserFlags, PermissionsBitField } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
+const braveSearch = require('./brave-search');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const sharp = require('sharp');
 const fs = require('fs');
