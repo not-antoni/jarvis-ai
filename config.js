@@ -65,6 +65,11 @@ const config = {
     // YouTube API Configuration
     youtube: {
         apiKey: process.env.YOUTUBE_API_KEY
+    },
+
+    // Brave Search API Configuration
+    brave: {
+        apiKey: process.env.BRAVE_API_KEY
     }
 };
 
