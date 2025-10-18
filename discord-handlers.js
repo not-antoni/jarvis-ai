@@ -846,18 +846,26 @@ class DiscordHandlers {
     }
 
     // Draw message content with formatting support
-    // Start the message just below the username line (14px) plus a 2px gap
+    // Position the message just below the username line (14px) plus a 2px gap.
     const messageStartY = textStartY + 16;
     const mentions = await this.parseMentions(cleanedText, guild, client);
     await this.drawFormattedText(ctx, cleanedText, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
 
     // Draw images if present (main canvas has enough height already)
     if (hasImages || allImageUrls.length > 0) {
-        // Position images directly below the message lines with a 2px gap.  Subtract the base height
-        // (username + spacing, 40px) used when calculating textHeight to avoid doubling the header area.
+        /*
+         * Place images directly below the last line of message text with a 2px gap.
+         * The calculateTextHeight function includes a base height (40px) for the
+         * username and timestamp lines; when there is actual message text we
+         * subtract this base to find the true height of the text lines.
+         * If there is no message content (e.g. clipping an image-only message),
+         * we skip reserving a line and simply position the image 2px below
+         * messageStartY.
+         */
         const baseHeight = 40;
-        const messageTextHeight = Math.max(0, textHeight - baseHeight);
-        const imageY = messageStartY + messageTextHeight + 2;
+        const hasMessageContent = cleanedText && cleanedText.trim().length > 0;
+        const messageLinesHeight = hasMessageContent ? Math.max(0, textHeight - baseHeight) : 0;
+        const imageY = messageStartY + messageLinesHeight + 2;
         await this.drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
     }
 
