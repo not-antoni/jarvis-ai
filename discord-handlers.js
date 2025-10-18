@@ -1411,6 +1411,8 @@ class DiscordHandlers {
         let isReplyToUser = false;
         let contextualMemory = null;
 
+        const rawContent = typeof message.content === 'string' ? message.content : '';
+
         if (message.reference && message.reference.messageId) {
             try {
                 const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
@@ -1434,6 +1436,38 @@ class DiscordHandlers {
             if (!isDM && !isMentioned && !containsJarvis && !isReplyToJarvis && !(isReplyToUser && (isMentioned || containsJarvis))) {
                 return;
             }
+        }
+
+        const defaultBraveInvocation = { triggered: false, query: null, rawQuery: null, invocation: null, explicit: false };
+        let rawBraveInvocation = defaultBraveInvocation;
+
+        if (rawContent && typeof braveSearch.extractSearchInvocation === 'function') {
+            try {
+                const extracted = braveSearch.extractSearchInvocation(rawContent);
+                if (extracted && typeof extracted === 'object') {
+                    rawBraveInvocation = {
+                        ...defaultBraveInvocation,
+                        ...extracted
+                    };
+                }
+            } catch (error) {
+                console.error('Failed to parse raw Brave invocation:', error);
+                rawBraveInvocation = defaultBraveInvocation;
+            }
+        }
+
+        if (rawBraveInvocation.triggered && rawBraveInvocation.explicit) {
+            try {
+                await message.reply({
+                    content: braveSearch.getExplicitQueryMessage
+                        ? braveSearch.getExplicitQueryMessage()
+                        : 'I must decline that request, sir. My safety filters forbid it.'
+                });
+            } catch (error) {
+                console.error('Failed to reply to explicit Brave request:', error);
+            }
+            this.setCooldown(message.author.id);
+            return;
         }
 
         // 🚫 Clean mentions + @everyone/@here
