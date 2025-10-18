@@ -7,6 +7,7 @@ const database = require('./database');
 const config = require('./config');
 const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
+const braveSearch = require('./brave-search');
 
 class JarvisAI {
     constructor() {
@@ -93,6 +94,18 @@ EXECUTION PIPELINE
         } catch (error) {
             console.error("YouTube search error:", error);
             return "YouTube search is currently unavailable, sir. Technical difficulties.";
+        }
+    }
+
+    async handleBraveSearch(query) {
+        try {
+            const results = await braveSearch.searchWeb(query);
+            return braveSearch.formatSearchResponse(query, results);
+        } catch (error) {
+            console.error("Brave search error:", error);
+            return {
+                content: "Web search is currently unavailable, sir. Technical difficulties."
+            };
         }
     }
 
