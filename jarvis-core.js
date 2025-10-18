@@ -98,74 +98,10 @@ EXECUTION PIPELINE
     }
 
     async handleBraveSearch(query) {
-        const payload = (query && typeof query === 'object')
-            ? query
-            : { raw: typeof query === 'string' ? query : '', prepared: typeof query === 'string' ? query : '', explicit: false };
-
-        const rawInput = typeof payload.raw === 'string' ? payload.raw : '';
-        const invocationSegment = typeof payload.invocation === 'string' ? payload.invocation : '';
-        const messageContent = typeof payload.content === 'string' ? payload.content : '';
-
-        const initialPrepared = typeof payload.prepared === 'string' && payload.prepared.length > 0
-            ? payload.prepared
-            : rawInput;
-
-        const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
-            ? braveSearch.prepareQueryForApi(initialPrepared)
-            : (typeof initialPrepared === 'string' ? initialPrepared.trim() : '');
-
-        const buildExplicitBlock = () => ({
-            content: braveSearch.getExplicitQueryMessage
-                ? braveSearch.getExplicitQueryMessage()
-                : 'I must decline that request, sir. My safety filters forbid it.'
-        });
-
-        const isExplicitSegment = (text, rawSegmentOverride = null) => {
-            if (!text || typeof text !== 'string' || !text.length || typeof braveSearch.isExplicitQuery !== 'function') {
-                return false;
-            }
-
-            const rawSegment = typeof rawSegmentOverride === 'string' && rawSegmentOverride.length > 0
-                ? rawSegmentOverride
-                : text;
-
-            try {
-                return braveSearch.isExplicitQuery(text, { rawSegment });
-            } catch (error) {
-                console.error('Explicit segment detection failed:', error);
-                return false;
-            }
-        };
-
-        if (payload.explicit || isExplicitSegment(rawInput) || isExplicitSegment(invocationSegment) || isExplicitSegment(messageContent)) {
-            return buildExplicitBlock();
-        }
-
-        if (!preparedQuery) {
-            return {
-                content: "Please provide a web search query, sir."
-            };
-        }
-
-        const rawSegmentForCheck = rawInput
-            || invocationSegment
-            || messageContent
-            || preparedQuery;
-
-        if (isExplicitSegment(preparedQuery, rawSegmentForCheck) || isExplicitSegment(rawSegmentForCheck, rawSegmentForCheck)) {
-            return buildExplicitBlock();
-        }
-
         try {
-            const results = await braveSearch.searchWeb(preparedQuery, { rawSegment: rawSegmentForCheck });
-            return braveSearch.formatSearchResponse(preparedQuery, results);
+            const results = await braveSearch.searchWeb(query);
+            return braveSearch.formatSearchResponse(query, results);
         } catch (error) {
-            if (error && error.isSafeSearchBlock) {
-                return {
-                    content: error.message || 'Those results were blocked by my safety filters, sir.'
-                };
-            }
-
             console.error("Brave search error:", error);
             return {
                 content: "Web search is currently unavailable, sir. Technical difficulties."
