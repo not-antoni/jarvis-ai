@@ -1450,6 +1450,8 @@ class DiscordHandlers {
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
+        const searchCommandPattern = /^jarvis\s+search\s+(.+)$/i;
+        const searchMatch = cleanContent.match(searchCommandPattern);
 
         if (ytMatch) {
             const searchQuery = ytMatch[1].trim();
@@ -1463,6 +1465,24 @@ class DiscordHandlers {
                 } catch (error) {
                     console.error("YouTube search error:", error);
                     await message.reply("YouTube search failed, sir. Technical difficulties.");
+                    this.setCooldown(message.author.id);
+                    return;
+                }
+            }
+        }
+
+        if (searchMatch) {
+            const searchQuery = searchMatch[1].trim();
+            if (searchQuery) {
+                try {
+                    await message.channel.sendTyping();
+                    const response = await this.jarvis.handleBraveSearch(searchQuery);
+                    await message.reply(response);
+                    this.setCooldown(message.author.id);
+                    return;
+                } catch (error) {
+                    console.error("Brave search error:", error);
+                    await message.reply("Web search failed, sir. Technical difficulties.");
                     this.setCooldown(message.author.id);
                     return;
                 }
