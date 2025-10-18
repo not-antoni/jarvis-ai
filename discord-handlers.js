@@ -1476,16 +1476,6 @@ class DiscordHandlers {
             const searchQuery = searchMatch[1].trim();
             if (searchQuery) {
                 try {
-                    if (braveSearch.isExplicitQuery && braveSearch.isExplicitQuery(searchQuery)) {
-                        await message.reply({
-                            content: braveSearch.getExplicitQueryMessage
-                                ? braveSearch.getExplicitQueryMessage()
-                                : 'I must decline that request, sir. My safety filters forbid it.'
-                        });
-                        this.setCooldown(message.author.id);
-                        return;
-                    }
-
                     await message.channel.sendTyping();
                     const response = await this.jarvis.handleBraveSearch(searchQuery);
                     await message.reply(response);

@@ -99,27 +99,9 @@ EXECUTION PIPELINE
 
     async handleBraveSearch(query) {
         try {
-            if (braveSearch.isExplicitQuery && braveSearch.isExplicitQuery(query)) {
-                return {
-                    content: braveSearch.getExplicitQueryMessage
-                        ? braveSearch.getExplicitQueryMessage()
-                        : 'I must decline that request, sir. My safety filters forbid it.'
-                };
-            }
-        } catch (error) {
-            console.error("Pre-flight Brave explicit check failed:", error);
-        }
-
-        try {
             const results = await braveSearch.searchWeb(query);
             return braveSearch.formatSearchResponse(query, results);
         } catch (error) {
-            if (error && error.isSafeSearchBlock) {
-                return {
-                    content: error.message || 'Those results were blocked by my safety filters, sir.'
-                };
-            }
-
             console.error("Brave search error:", error);
             return {
                 content: "Web search is currently unavailable, sir. Technical difficulties."
