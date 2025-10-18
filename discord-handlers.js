@@ -149,8 +149,8 @@ class DiscordHandlers {
 
     // Parse Unicode emojis as well
     parseUnicodeEmojis(text) {
-        // Unicode emoji regex - covers most emoji ranges
-        const unicodeEmojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
+        // Enhanced Unicode emoji regex - covers more emoji ranges including newer ones
+        const unicodeEmojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA70}-\u{1FAFF}]|[\u{1F018}-\u{1F0FF}]|[\u{1F200}-\u{1F2FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F000}-\u{1F02F}]|[\u{1F030}-\u{1F09F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{1F300}-\u{1F5FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F650}-\u{1F67F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{1FB00}-\u{1FBFF}]|[\u{1FC00}-\u{1FCFF}]|[\u{1FD00}-\u{1FDFF}]|[\u{1FE00}-\u{1FEFF}]|[\u{1FF00}-\u{1FFFF}]/gu;
         const emojis = [];
         let match;
         
@@ -846,7 +846,7 @@ class DiscordHandlers {
     }
 
     // Draw message content with formatting support
-    const messageStartY = textStartY + 18;
+    const messageStartY = textStartY + 4; // Reduced gap between username and message content
     const mentions = await this.parseMentions(cleanedText, guild, client);
     await this.drawFormattedText(ctx, cleanedText, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
 
@@ -861,8 +861,13 @@ class DiscordHandlers {
 
     // Use sharp to optimize the image without cropping (prevent mid-image truncation)
     const processedBuffer = await sharp(buffer)
-        .resize({ width: 700, fit: 'inside', withoutEnlargement: true })
-        .png({ quality: 90 })
+        .resize({ width: 800, fit: 'inside', withoutEnlargement: true })
+        .png({ 
+            quality: 95,
+            compressionLevel: 6,
+            adaptiveFiltering: true,
+            palette: true
+        })
         .toBuffer();
 
     return processedBuffer;
@@ -898,8 +903,11 @@ class DiscordHandlers {
         for (const segment of segments) {
             if (segment.type === 'emoji') {
                 if (segment.isUnicode) {
-                    // Draw Unicode emoji as text
+                    // Draw Unicode emoji as text with emoji-compatible font
                     const emojiText = segment.name;
+                    
+                    // Use a font that supports emojis better
+                    ctx.font = '16px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
                     const textWidth = ctx.measureText(emojiText).width;
                     
                     if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
@@ -909,6 +917,9 @@ class DiscordHandlers {
                     
                     ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
                     currentLineWidth += textWidth;
+                    
+                    // Reset font back to normal text
+                    ctx.font = '14px Arial';
             } else {
                     // Draw custom emoji image
                     try {
