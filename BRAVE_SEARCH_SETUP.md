@@ -24,7 +24,7 @@ The token is available from the Brave Search developer dashboard. The bot uses t
 
 ## Notes
 
-- Safe search is set to `strict` by default.
+- Safe search is set to `moderate` by default.
 - Jarvis displays the top three results and links back to the original sources.
 - When the API key is missing or the request fails, Jarvis will let the user know that the web search is temporarily unavailable.
 - Link-style buttons are limited to the first five results to stay within Discord component limits.
