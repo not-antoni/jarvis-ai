@@ -5,6 +5,7 @@
 const { ChannelType, AttachmentBuilder, UserFlags, PermissionsBitField } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
+const braveSearch = require('./brave-search');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const sharp = require('sharp');
 const fs = require('fs');
@@ -1450,6 +1451,8 @@ class DiscordHandlers {
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
+        const searchCommandPattern = /^jarvis\s+search\s+(.+)$/i;
+        const searchMatch = cleanContent.match(searchCommandPattern);
 
         if (ytMatch) {
             const searchQuery = ytMatch[1].trim();
@@ -1463,6 +1466,34 @@ class DiscordHandlers {
                 } catch (error) {
                     console.error("YouTube search error:", error);
                     await message.reply("YouTube search failed, sir. Technical difficulties.");
+                    this.setCooldown(message.author.id);
+                    return;
+                }
+            }
+        }
+
+        if (searchMatch) {
+            const searchQuery = searchMatch[1].trim();
+            if (searchQuery) {
+                try {
+                    if (braveSearch.isExplicitQuery && braveSearch.isExplicitQuery(searchQuery)) {
+                        await message.reply({
+                            content: braveSearch.getExplicitQueryMessage
+                                ? braveSearch.getExplicitQueryMessage()
+                                : 'I must decline that request, sir. My safety filters forbid it.'
+                        });
+                        this.setCooldown(message.author.id);
+                        return;
+                    }
+
+                    await message.channel.sendTyping();
+                    const response = await this.jarvis.handleBraveSearch(searchQuery);
+                    await message.reply(response);
+                    this.setCooldown(message.author.id);
+                    return;
+                } catch (error) {
+                    console.error("Brave search error:", error);
+                    await message.reply("Web search failed, sir. Technical difficulties.");
                     this.setCooldown(message.author.id);
                     return;
                 }
