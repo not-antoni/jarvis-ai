@@ -846,19 +846,17 @@ class DiscordHandlers {
     }
 
     // Draw message content with formatting support
-    // Position the first line of the message below the username. We offset by
-    // the approximate height of the username text (14px) plus a 2px gap so
-    // that the spacing matches the 2px gap used between the message and
-    // images. 14px + 2px = 16px.
+    // Offset the first line of the message by the approximate height of the username (14px)
+    // plus a 2px spacer. This ensures the gap between the username and the message
+    // matches the 2px gap used below the message when images are present.
     const messageStartY = textStartY + 16;
     const mentions = await this.parseMentions(cleanedText, guild, client);
     await this.drawFormattedText(ctx, cleanedText, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
 
     // Draw images if present (main canvas has enough height already)
     if (hasImages || allImageUrls.length > 0) {
-        // Align the gap between the message and the image to 2px, matching
-        // the gap between the username and the message. This creates
-        // consistent vertical spacing throughout the clip.
+        // Align the image gap with the text gap (2px) so there is
+        // consistent spacing throughout the clip.
         const imageY = messageStartY + textHeight + 2;
         await this.drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
     }
