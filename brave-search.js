@@ -66,7 +66,7 @@ class BraveSearch {
         const url = new URL(this.endpoint);
         url.searchParams.set('q', query);
         url.searchParams.set('count', '5');
-        url.searchParams.set('safesearch', 'moderate');
+        url.searchParams.set('safesearch', 'strict');
 
         const response = await fetch(url.toString(), {
             headers: {
