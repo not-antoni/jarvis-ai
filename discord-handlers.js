@@ -5,6 +5,7 @@
 const { ChannelType, AttachmentBuilder, UserFlags, PermissionsBitField } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
+const braveSearch = require('./brave-search');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const sharp = require('sharp');
 const fs = require('fs');
@@ -1450,6 +1451,9 @@ class DiscordHandlers {
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
+        const braveInvocation = typeof braveSearch.extractSearchInvocation === 'function'
+            ? braveSearch.extractSearchInvocation(cleanContent)
+            : { triggered: false, query: null, rawQuery: null, invocation: null, explicit: false };
 
         if (ytMatch) {
             const searchQuery = ytMatch[1].trim();
@@ -1466,6 +1470,84 @@ class DiscordHandlers {
                     this.setCooldown(message.author.id);
                     return;
                 }
+            }
+        }
+
+        if (braveInvocation.triggered) {
+            const invocationContext = typeof braveInvocation.invocation === 'string' && braveInvocation.invocation.length > 0
+                ? braveInvocation.invocation
+                : cleanContent;
+
+            const rawSegmentCandidate = typeof braveInvocation.rawQuery === 'string' && braveInvocation.rawQuery.length > 0
+                ? braveInvocation.rawQuery
+                : invocationContext;
+
+            const explicitFromInvocation = (!braveInvocation.explicit && braveSearch.isExplicitQuery)
+                ? braveSearch.isExplicitQuery(invocationContext, { rawSegment: invocationContext })
+                : false;
+
+            const explicitDetected = braveInvocation.explicit === true || explicitFromInvocation === true;
+
+            if (explicitDetected) {
+                await message.reply({
+                    content: braveSearch.getExplicitQueryMessage
+                        ? braveSearch.getExplicitQueryMessage()
+                        : 'I must decline that request, sir. My safety filters forbid it.'
+                });
+                this.setCooldown(message.author.id);
+                return;
+            }
+
+            const querySource = typeof braveInvocation.query === 'string' && braveInvocation.query.length > 0
+                ? braveInvocation.query
+                : rawSegmentCandidate;
+
+            const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
+                ? braveSearch.prepareQueryForApi(querySource)
+                : (querySource || '').trim();
+
+            if (preparedQuery) {
+                try {
+                    const rawSegmentForCheck = (typeof rawSegmentCandidate === 'string' && rawSegmentCandidate.length > 0)
+                        ? rawSegmentCandidate
+                        : ((typeof invocationContext === 'string' && invocationContext.length > 0)
+                            ? invocationContext
+                            : preparedQuery);
+
+                    if (braveSearch.isExplicitQuery && (
+                        braveSearch.isExplicitQuery(preparedQuery, { rawSegment: rawSegmentForCheck }) ||
+                        (rawSegmentForCheck && braveSearch.isExplicitQuery(rawSegmentForCheck, { rawSegment: rawSegmentForCheck }))
+                    )) {
+                        await message.reply({
+                            content: braveSearch.getExplicitQueryMessage
+                                ? braveSearch.getExplicitQueryMessage()
+                                : 'I must decline that request, sir. My safety filters forbid it.'
+                        });
+                        this.setCooldown(message.author.id);
+                        return;
+                    }
+
+                    await message.channel.sendTyping();
+                    const response = await this.jarvis.handleBraveSearch({
+                        raw: rawSegmentForCheck,
+                        prepared: preparedQuery,
+                        invocation: invocationContext,
+                        content: cleanContent,
+                        explicit: explicitDetected
+                    });
+                    await message.reply(response);
+                    this.setCooldown(message.author.id);
+                    return;
+                } catch (error) {
+                    console.error("Brave search error:", error);
+                    await message.reply("Web search failed, sir. Technical difficulties.");
+                    this.setCooldown(message.author.id);
+                    return;
+                }
+            } else {
+                await message.reply("Please provide a web search query after 'jarvis search', sir.");
+                this.setCooldown(message.author.id);
+                return;
             }
         }
 
