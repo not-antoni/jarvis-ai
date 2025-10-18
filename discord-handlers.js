@@ -452,29 +452,81 @@ class DiscordHandlers {
     }
 
     calculateTextHeight(text, maxWidth) {
-        // Create a temporary canvas to measure text
+        /*
+         * Calculates the vertical space needed for a given message. This
+         * implementation accounts for newline characters by splitting the
+         * incoming text into separate logical lines. Each logical line is
+         * then measured against the maximum width to determine how many
+         * wrapped lines are required. This helps prevent clipping when the
+         * rendered content contains line breaks or very long messages.
+         */
         const tempCanvas = createCanvas(1, 1);
         const tempCtx = tempCanvas.getContext('2d');
+        // Use the same font used for message rendering
         tempCtx.font = '14px Arial';
-        
-        const words = text.split(' ');
-        let currentLine = words[0];
-        let lines = 1;
+        const baseHeight = 40; // Space reserved for username, timestamp and top padding
+        const lineHeight = 20;
+        let linesCount = 0;
 
-        for (let i = 1; i < words.length; i++) {
-            const word = words[i];
-            const width = tempCtx.measureText(currentLine + ' ' + word).width;
-            if (width < maxWidth) {
-                currentLine += ' ' + word;
-            } else {
-                lines++;
-                currentLine = word;
+        /*
+         * To properly estimate height we need to account for fenced code blocks as
+         * well as normal text. We iterate through the text, splitting out any
+         * triple backtick segments. Text outside of code blocks is wrapped
+         * according to the maximum width. Each line inside a code block
+         * contributes exactly one line regardless of its length, since code
+         * blocks always render at full width. Empty logical lines also
+         * contribute to the line count.
+         */
+        const codeBlockRegex = /```(?:[\w-]*\n)?([\s\S]*?)```/g;
+        let lastIndex = 0;
+        // Helper function to count wrapped lines for a plain text segment
+        const countWrappedLines = (segment) => {
+            const lines = segment.split(/\n/);
+            for (const rawLine of lines) {
+                const line = rawLine.trim();
+                // Empty lines still occupy one line
+                if (line.length === 0) {
+                    linesCount++;
+                    continue;
+                }
+                const words = line.split(/\s+/).filter(w => w.length > 0);
+                let currentLine = words[0];
+                for (let i = 1; i < words.length; i++) {
+                    const word = words[i];
+                    const width = tempCtx.measureText(currentLine + ' ' + word).width;
+                    if (width < maxWidth) {
+                        currentLine += ' ' + word;
+                    } else {
+                        linesCount++;
+                        currentLine = word;
+                    }
+                }
+                linesCount++;
+            }
+        };
+        let match;
+        while ((match = codeBlockRegex.exec(text)) !== null) {
+            // Count lines in preceding plain text
+            if (match.index > lastIndex) {
+                const plainPart = text.substring(lastIndex, match.index);
+                if (plainPart.length > 0) {
+                    countWrappedLines(plainPart);
+                }
+            }
+            // Count lines in code block content
+            const codeContent = match[1] || '';
+            const codeLines = codeContent.split(/\n/);
+            linesCount += codeLines.length;
+            lastIndex = match.index + match[0].length;
+        }
+        // Count any remaining text after the last code block
+        if (lastIndex < text.length) {
+            const remaining = text.substring(lastIndex);
+            if (remaining.length > 0) {
+                countWrappedLines(remaining);
             }
         }
-        
-        const baseHeight = 40; // Username + timestamp + spacing
-        const lineHeight = 20;
-        return baseHeight + (lines * lineHeight);
+        return baseHeight + (linesCount * lineHeight);
     }
 
     hasImagesOrEmojis(message) {
@@ -851,8 +903,11 @@ class DiscordHandlers {
     await this.drawFormattedText(ctx, cleanedText, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
 
     // Draw images if present (main canvas has enough height already)
-    if (hasImages || allImageUrls.length > 0) {
-        const imageY = messageStartY + textHeight + 10;
+        if (hasImages || allImageUrls.length > 0) {
+        // Position images closer to the end of the text to reduce excess vertical
+        // spacing; previously a 10px gap caused noticeable separation. A 5px gap
+        // preserves readability without leaving too much blank space.
+        const imageY = messageStartY + textHeight + 5;
         await this.drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
     }
 
@@ -990,19 +1045,96 @@ class DiscordHandlers {
                 ctx.fillStyle = prevFill;
                 currentLineWidth += textWidth;
             } else {
-                // Draw text segment
-                const words = segment.text.split(' ');
-                
-                for (const word of words) {
-                    const wordWidth = ctx.measureText(word + ' ').width;
-                    
-                    if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
+                /*
+                 * Handle plain text segments, including support for multi-line messages and
+                 * fenced code blocks (```code```). We break on newline characters,
+                 * wrap long words based on maxWidth, and render code blocks with a
+                 * monospace font on a shaded background. The regular expression
+                 * matches triple backtick sequences with an optional language label.
+                 */
+                const textContent = segment.text;
+                // Regular expression to capture code blocks: ````language\ncode\n````, language is optional
+                const codeBlockRegex = /```(?:([\w-]+)\n)?([\s\S]*?)```/g;
+                let lastIndex = 0;
+                let match;
+                // Helper to render plain text (handles newlines and word wrapping)
+                const renderPlainText = (plainText) => {
+                    const lines = plainText.split(/\n/);
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i];
+                        // Split on whitespace to handle multiple spaces uniformly
+                        const wordsInLine = line.split(/\s+/).filter(w => w.length > 0);
+                        // If line is empty (e.g. consecutive newlines), move to a new line
+                        if (wordsInLine.length === 0) {
+                            if (currentLineWidth > 0 || i > 0) {
+                                currentY += currentLineHeight;
+                                currentLineWidth = 0;
+                            }
+                            continue;
+                        }
+                        for (let w = 0; w < wordsInLine.length; w++) {
+                            const word = wordsInLine[w];
+                            // Add a space after the word unless it's the last word in the line
+                            const wordWithSpace = (w === wordsInLine.length - 1) ? word : word + ' ';
+                            const wordWidth = ctx.measureText(wordWithSpace).width;
+                            // If this word doesn't fit in the remaining space, wrap to the next line
+                            if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
+                                currentY += currentLineHeight;
+                                currentLineWidth = 0;
+                            }
+                            ctx.fillText(wordWithSpace, currentX + currentLineWidth, currentY);
+                            currentLineWidth += wordWidth;
+                        }
+                        // Move to next line if not the last logical line
+                        if (i < lines.length - 1) {
+                            currentY += currentLineHeight;
+                            currentLineWidth = 0;
+                        }
+                    }
+                };
+                while ((match = codeBlockRegex.exec(textContent)) !== null) {
+                    // Text before this code block
+                    if (match.index > lastIndex) {
+                        const beforeText = textContent.substring(lastIndex, match.index);
+                        if (beforeText.trim().length > 0) {
+                            renderPlainText(beforeText);
+                        }
+                    }
+                    // Render the code block itself
+                    // Advance to a new line if currently mid-line
+                    if (currentLineWidth > 0) {
                         currentY += currentLineHeight;
                         currentLineWidth = 0;
                     }
-                    
-                    ctx.fillText(word + ' ', currentX + currentLineWidth, currentY);
-                    currentLineWidth += wordWidth;
+                    const codeContent = match[2] || '';
+                    const codeLines = codeContent.split(/\n/);
+                    // Determine the block height (one lineHeight per code line)
+                    const blockHeight = codeLines.length * lineHeight;
+                    // Draw shaded background across the full message width
+                    ctx.fillStyle = '#2f3136';
+                    ctx.fillRect(currentX, currentY, maxWidth, blockHeight + 8);
+                    // Render each code line with monospace font
+                    ctx.fillStyle = '#dddddd';
+                    const originalFont = ctx.font;
+                    ctx.font = '12px Consolas, monospace';
+                    let codeLineY = currentY + 4;
+                    for (const codeLine of codeLines) {
+                        ctx.fillText(codeLine, currentX + 4, codeLineY);
+                        codeLineY += lineHeight;
+                    }
+                    // Restore normal font and color
+                    ctx.font = originalFont;
+                    ctx.fillStyle = '#ffffff';
+                    // Move currentY past the code block
+                    currentY += blockHeight + 8;
+                    lastIndex = match.index + match[0].length;
+                }
+                // Render any text remaining after the last code block
+                if (lastIndex < textContent.length) {
+                    const remaining = textContent.substring(lastIndex);
+                    if (remaining.trim().length > 0) {
+                        renderPlainText(remaining);
+                    }
                 }
             }
         }
