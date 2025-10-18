@@ -33,7 +33,7 @@ const config = {
         maxTokens: 500,
         maxInputLength: 300,
         maxSlashInputLength: 250,
-        temperature: 0.9,
+        temperature: 1,
         retryAttempts: 0,
         fallbackChance: 0.12,
         // Provider selection: "auto" for random selection, or specific provider type
