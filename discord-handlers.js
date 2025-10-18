@@ -5,6 +5,7 @@
 const { ChannelType, AttachmentBuilder, UserFlags, PermissionsBitField } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
+const braveSearch = require('./brave-search');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const sharp = require('sharp');
 const fs = require('fs');
@@ -1450,6 +1451,9 @@ class DiscordHandlers {
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
+        const braveInvocation = typeof braveSearch.extractSearchInvocation === 'function'
+            ? braveSearch.extractSearchInvocation(cleanContent)
+            : { triggered: false, query: null };
 
         if (ytMatch) {
             const searchQuery = ytMatch[1].trim();
@@ -1466,6 +1470,41 @@ class DiscordHandlers {
                     this.setCooldown(message.author.id);
                     return;
                 }
+            }
+        }
+
+        if (braveInvocation.triggered) {
+            const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
+                ? braveSearch.prepareQueryForApi(braveInvocation.query)
+                : (braveInvocation.query || '').trim();
+
+            if (preparedQuery) {
+                try {
+                    if (braveSearch.isExplicitQuery && braveSearch.isExplicitQuery(preparedQuery)) {
+                        await message.reply({
+                            content: braveSearch.getExplicitQueryMessage
+                                ? braveSearch.getExplicitQueryMessage()
+                                : 'I must decline that request, sir. My safety filters forbid it.'
+                        });
+                        this.setCooldown(message.author.id);
+                        return;
+                    }
+
+                    await message.channel.sendTyping();
+                    const response = await this.jarvis.handleBraveSearch(preparedQuery);
+                    await message.reply(response);
+                    this.setCooldown(message.author.id);
+                    return;
+                } catch (error) {
+                    console.error("Brave search error:", error);
+                    await message.reply("Web search failed, sir. Technical difficulties.");
+                    this.setCooldown(message.author.id);
+                    return;
+                }
+            } else {
+                await message.reply("Please provide a web search query after 'jarvis search', sir.");
+                this.setCooldown(message.author.id);
+                return;
             }
         }
 
