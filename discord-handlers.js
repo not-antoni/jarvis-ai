@@ -1550,6 +1550,22 @@ class DiscordHandlers {
             return true;
         }
 
+        if (content.startsWith("!encode")) {
+            try {
+                await message.channel.sendTyping();
+                const response = await this.jarvis.handleUtilityCommand(
+                    rawContent.substring(1),
+                    message.author.username,
+                    message.author.id
+                );
+                await message.reply(response || "Encoding complete, sir.");
+            } catch (error) {
+                console.error("Encode command error:", error);
+                await message.reply("Unable to encode that right now, sir.");
+            }
+            return true;
+        }
+
         if (content.startsWith("!decode")) {
             try {
                 await message.channel.sendTyping();
@@ -2088,6 +2104,14 @@ class DiscordHandlers {
             } else if (interaction.commandName === "recap") {
                 response = await this.jarvis.handleUtilityCommand(
                     "recap",
+                    interaction.user.username,
+                    interaction.user.id,
+                    true,
+                    interaction
+                );
+            } else if (interaction.commandName === "encode") {
+                response = await this.jarvis.handleUtilityCommand(
+                    "encode",
                     interaction.user.username,
                     interaction.user.id,
                     true,

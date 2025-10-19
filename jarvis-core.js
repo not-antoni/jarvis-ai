@@ -9,8 +9,31 @@ const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 
+const punycode = require('node:punycode');
+
 const MAX_DECODE_DISPLAY_CHARS = 1800;
 const BINARY_PREVIEW_BYTES = 32;
+
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+const MORSE_TABLE = {
+    'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.', 'H': '....',
+    'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.', 'O': '---', 'P': '.--.',
+    'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
+    'Y': '-.--', 'Z': '--..',
+    '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....',
+    '6': '-....', '7': '--...', '8': '---..', '9': '----.',
+    '.': '.-.-.-', ',': '--..--', '?': '..--..', "'": '.----.', '!': '-.-.--', '/': '-..-.',
+    '(': '-.--.', ')': '-.--.-', '&': '.-...', ':': '---...', ';': '-.-.-.', '=': '-...-',
+    '+': '.-.-.', '-': '-....-', '_': '..--.-', '"': '.-..-.', '$': '...-..-', '@': '.--.-.',
+    '¿': '..-.-', '¡': '--...-', ' ': '/' // treat spaces as /
+};
+
+const REVERSE_MORSE_TABLE = Object.entries(MORSE_TABLE).reduce((acc, [char, code]) => {
+    acc[code] = char;
+    return acc;
+}, {});
 
 function sanitizeForCodeBlock(text) {
     return text.replace(/```/g, '`\u200b``');
@@ -44,54 +67,207 @@ function applyRot13(text) {
     });
 }
 
-const decoderStrategies = [
-    {
-        key: 'base64',
-        label: 'Base64',
-        detect: (input) => {
-            const sanitized = input.replace(/\s+/g, '');
-            const normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
-            if (normalized.length < 8 || normalized.length % 4 !== 0) {
-                return false;
-            }
-            return /^[A-Za-z0-9+/]+={0,2}$/.test(normalized);
-        },
-        decode: (input) => {
-            const sanitized = input.replace(/\s+/g, '');
-            if (!sanitized.length) {
-                throw new Error('No Base64 data provided.');
-            }
-            const normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
-            if (normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
-                throw new Error('Base64 data must include only A-Z, a-z, 0-9, "+", "/", or "=" padding.');
-            }
+function base32Encode(buffer) {
+    if (!Buffer.isBuffer(buffer)) {
+        buffer = Buffer.from(buffer);
+    }
 
-            const buffer = Buffer.from(normalized, 'base64');
-            if (buffer.length === 0 && normalized.replace(/=+$/, '').length > 0) {
-                throw new Error('Unable to decode Base64 payload.');
-            }
+    let bits = '';
+    for (const byte of buffer) {
+        bits += byte.toString(2).padStart(8, '0');
+    }
 
-            const reencoded = buffer.toString('base64').replace(/=+$/, '');
-            const stripped = normalized.replace(/=+$/, '');
-            if (reencoded !== stripped) {
-                throw new Error('Invalid Base64 padding or characters.');
-            }
+    const chunks = bits.match(/.{1,5}/g) || [];
+    let output = chunks.map(chunk => {
+        const padded = chunk.padEnd(5, '0');
+        const index = parseInt(padded, 2);
+        return BASE32_ALPHABET[index];
+    }).join('');
 
-            return buffer;
+    while (output.length % 8 !== 0) {
+        output += '=';
+    }
+
+    return output;
+}
+
+function base32Decode(input) {
+    const sanitized = input.replace(/\s+/g, '').toUpperCase();
+    const stripped = sanitized.replace(/=+$/g, '');
+
+    if (!stripped.length) {
+        throw new Error('No Base32 data provided.');
+    }
+
+    if (!/^[A-Z2-7]+=*$/.test(sanitized)) {
+        throw new Error('Base32 data must contain only A-Z, 2-7, and optional padding.');
+    }
+
+    let bits = '';
+    for (const char of stripped) {
+        const index = BASE32_ALPHABET.indexOf(char);
+        if (index === -1) {
+            throw new Error('Invalid Base32 character encountered.');
         }
-    },
+        bits += index.toString(2).padStart(5, '0');
+    }
+
+    const bytes = bits.match(/.{8}/g) || [];
+    const byteValues = bytes
+        .map(byte => parseInt(byte, 2))
+        .filter((value) => !Number.isNaN(value));
+
+    return Buffer.from(byteValues);
+}
+
+function base58Encode(buffer) {
+    if (!Buffer.isBuffer(buffer)) {
+        buffer = Buffer.from(buffer);
+    }
+
+    let num = BigInt('0x' + buffer.toString('hex'));
+    const base = BigInt(BASE58_ALPHABET.length);
+
+    if (num === 0n) {
+        return BASE58_ALPHABET[0];
+    }
+
+    let encoded = '';
+    while (num > 0n) {
+        const remainder = Number(num % base);
+        num = num / base;
+        encoded = BASE58_ALPHABET[remainder] + encoded;
+    }
+
+    for (const byte of buffer) {
+        if (byte === 0x00) {
+            encoded = BASE58_ALPHABET[0] + encoded;
+        } else {
+            break;
+        }
+    }
+
+    return encoded;
+}
+
+function base58Decode(input) {
+    const sanitized = input.replace(/\s+/g, '');
+    if (!sanitized.length) {
+        throw new Error('No Base58 data provided.');
+    }
+
+    if (!new RegExp(`^[${BASE58_ALPHABET}]+$`).test(sanitized)) {
+        throw new Error('Base58 data contains invalid characters.');
+    }
+
+    const base = BigInt(BASE58_ALPHABET.length);
+    let num = 0n;
+    for (const char of sanitized) {
+        const value = BASE58_ALPHABET.indexOf(char);
+        if (value === -1) {
+            throw new Error('Invalid Base58 character encountered.');
+        }
+        num = num * base + BigInt(value);
+    }
+
+    let hex = num.toString(16);
+    if (hex.length % 2 !== 0) {
+        hex = '0' + hex;
+    }
+
+    let buffer = Buffer.from(hex, 'hex');
+    let leadingZeroCount = 0;
+    for (const char of sanitized) {
+        if (char === BASE58_ALPHABET[0]) {
+            leadingZeroCount++;
+        } else {
+            break;
+        }
+    }
+
+    if (leadingZeroCount > 0) {
+        buffer = Buffer.concat([Buffer.alloc(leadingZeroCount, 0), buffer]);
+    }
+
+    return buffer;
+}
+
+function morseEncode(text) {
+    return text
+        .toUpperCase()
+        .split('')
+        .map((char) => MORSE_TABLE[char] || '')
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s{2,}/g, ' ');
+}
+
+function morseDecode(input) {
+    const segments = input.trim().split(/\s+/);
+    const decoded = segments.map((segment) => {
+        if (segment === '/' || segment === '|') {
+            return ' ';
+        }
+        return REVERSE_MORSE_TABLE[segment] || '';
+    }).join('');
+
+    if (!decoded.trim()) {
+        throw new Error('No valid Morse code found.');
+    }
+
+    return Buffer.from(decoded, 'utf8');
+}
+
+function normalizeDetectResult(result, fallback = 0) {
+    if (!result) {
+        return { confidence: 0 };
+    }
+
+    if (typeof result === 'number') {
+        return { confidence: Math.max(0, Math.min(1, result)) };
+    }
+
+    if (typeof result === 'boolean') {
+        return { confidence: result ? Math.max(0.1, fallback) : 0 };
+    }
+
+    if (typeof result === 'object') {
+        const confidence = typeof result.confidence === 'number'
+            ? Math.max(0, Math.min(1, result.confidence))
+            : Math.max(0.1, fallback);
+        return { confidence, ...result };
+    }
+
+    return { confidence: 0 };
+}
+
+const codecStrategies = [
     {
         key: 'hex',
         label: 'Hexadecimal',
+        aliases: ['hexadecimal'],
         detect: (input) => {
             const sanitized = input
                 .replace(/0x/gi, '')
                 .replace(/\\x/gi, '')
                 .replace(/[^0-9a-fA-F]/g, '');
-            return sanitized.length >= 2 && sanitized.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(sanitized);
+            if (sanitized.length < 2 || sanitized.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(sanitized)) {
+                return { confidence: 0 };
+            }
+
+            let confidence = 0.8;
+            if (/0x|\\x/i.test(input)) {
+                confidence += 0.15;
+            }
+
+            if (/\s/.test(input)) {
+                confidence += 0.05;
+            }
+
+            return { confidence: Math.min(confidence, 0.98), sanitized };
         },
-        decode: (input) => {
-            const sanitized = input
+        decode: (_, context = {}) => {
+            const sanitized = (context.sanitized || _)
                 .replace(/0x/gi, '')
                 .replace(/\\x/gi, '')
                 .replace(/[^0-9a-fA-F]/g, '');
@@ -103,19 +279,140 @@ const decoderStrategies = [
             }
 
             return Buffer.from(sanitized, 'hex');
-        }
+        },
+        encode: (buffer) => Buffer.from(buffer).toString('hex')
+    },
+    {
+        key: 'base64',
+        label: 'Base64',
+        aliases: ['b64'],
+        detect: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            const normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
+
+            if (normalized.length < 8 || normalized.length % 4 !== 0) {
+                return { confidence: 0 };
+            }
+
+            if (!/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
+                return { confidence: 0 };
+            }
+
+            let confidence = 0.55;
+            if (/=/.test(normalized)) {
+                confidence += 0.2;
+            }
+            if (/[+\/]/.test(normalized)) {
+                confidence += 0.1;
+            }
+            if (/[^0-9a-f]/i.test(normalized)) {
+                confidence += 0.1;
+            }
+
+            return { confidence: Math.min(confidence, 0.95), normalized };
+        },
+        decode: (_, context = {}) => {
+            const sanitized = (context.normalized || _)
+                .replace(/\s+/g, '')
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+            if (!sanitized.length) {
+                throw new Error('No Base64 data provided.');
+            }
+            if (sanitized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(sanitized)) {
+                throw new Error('Base64 data must include only A-Z, a-z, 0-9, "+", "/", or "=" padding.');
+            }
+
+            const buffer = Buffer.from(sanitized, 'base64');
+            if (buffer.length === 0 && sanitized.replace(/=+$/, '').length > 0) {
+                throw new Error('Unable to decode Base64 payload.');
+            }
+
+            const reencoded = buffer.toString('base64').replace(/=+$/, '');
+            const stripped = sanitized.replace(/=+$/, '');
+            if (reencoded !== stripped) {
+                throw new Error('Invalid Base64 padding or characters.');
+            }
+
+            return buffer;
+        },
+        encode: (buffer) => Buffer.from(buffer).toString('base64')
+    },
+    {
+        key: 'base32',
+        label: 'Base32',
+        aliases: ['b32'],
+        detect: (input) => {
+            const sanitized = input.replace(/\s+/g, '').toUpperCase();
+            if (sanitized.length < 8) {
+                return { confidence: 0 };
+            }
+
+            if (!/^[A-Z2-7]+=*$/.test(sanitized)) {
+                return { confidence: 0 };
+            }
+
+            let confidence = 0.6;
+            if (/=/.test(sanitized)) {
+                confidence += 0.1;
+            }
+            if (/[2-7]/.test(sanitized)) {
+                confidence += 0.1;
+            }
+
+            return { confidence: Math.min(confidence, 0.9), sanitized };
+        },
+        decode: (_, context = {}) => base32Decode(context.sanitized || _),
+        encode: (buffer) => base32Encode(buffer)
+    },
+    {
+        key: 'base58',
+        label: 'Base58',
+        aliases: ['b58'],
+        detect: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            if (!sanitized.length) {
+                return { confidence: 0 };
+            }
+
+            if (!new RegExp(`^[${BASE58_ALPHABET}]+$`).test(sanitized)) {
+                return { confidence: 0 };
+            }
+
+            let confidence = 0.55;
+            if (/^[13]/.test(sanitized)) {
+                confidence += 0.1;
+            }
+            if (sanitized.length > 20) {
+                confidence += 0.1;
+            }
+
+            return { confidence: Math.min(confidence, 0.85), sanitized };
+        },
+        decode: (_, context = {}) => base58Decode(context.sanitized || _),
+        encode: (buffer) => base58Encode(buffer)
     },
     {
         key: 'binary',
         label: 'Binary',
+        aliases: ['bin'],
         detect: (input) => {
             const sanitized = input
                 .replace(/0b/gi, '')
                 .replace(/[^01]/g, '');
-            return sanitized.length >= 8 && sanitized.length % 8 === 0 && /^[01]+$/.test(sanitized);
+            if (sanitized.length < 8 || sanitized.length % 8 !== 0) {
+                return { confidence: 0 };
+            }
+
+            let confidence = 0.7;
+            if (/0b/i.test(input)) {
+                confidence += 0.15;
+            }
+
+            return { confidence: Math.min(confidence, 0.9), sanitized };
         },
-        decode: (input) => {
-            const sanitized = input
+        decode: (_, context = {}) => {
+            const sanitized = (context.sanitized || _)
                 .replace(/0b/gi, '')
                 .replace(/[^01]/g, '');
             if (!sanitized.length) {
@@ -127,12 +424,27 @@ const decoderStrategies = [
 
             const bytes = sanitized.match(/.{1,8}/g).map((bits) => parseInt(bits, 2));
             return Buffer.from(bytes);
-        }
+        },
+        encode: (buffer) => Array.from(Buffer.from(buffer)).map((byte) => byte.toString(2).padStart(8, '0')).join(' ')
     },
     {
         key: 'url',
         label: 'URL-encoded',
-        detect: (input) => /%[0-9a-fA-F]{2}/.test(input) || /\+/.test(input),
+        aliases: ['percent'],
+        detect: (input) => {
+            let confidence = 0;
+            if (/%[0-9a-fA-F]{2}/.test(input)) {
+                confidence += 0.6;
+            }
+            if (/\+/.test(input)) {
+                confidence += 0.2;
+            }
+            if (/=/.test(input) && /%/.test(input)) {
+                confidence += 0.05;
+            }
+
+            return { confidence: Math.min(confidence, 0.9) };
+        },
         decode: (input) => {
             const normalized = input.replace(/\+/g, ' ');
             try {
@@ -141,23 +453,87 @@ const decoderStrategies = [
             } catch (error) {
                 throw new Error('Invalid percent-encoding sequence.');
             }
-        }
+        },
+        encode: (_, text = '') => encodeURIComponent(text)
     },
     {
         key: 'rot13',
         label: 'ROT13',
         detect: (input) => {
             const letters = input.replace(/[^A-Za-z]/g, '');
-            return letters.length > 0 && /[nopqrstuvwxyzNOPQRSTUVWXYZ]/.test(letters);
+            if (!letters.length) {
+                return { confidence: 0 };
+            }
+
+            const shifted = letters.split('').filter((char) => /[nopqrstuvwxyzNOPQRSTUVWXYZ]/.test(char)).length;
+            const confidence = shifted / letters.length;
+            return { confidence: Math.min(confidence, 0.8) };
         },
-        decode: (input) => Buffer.from(applyRot13(input), 'utf8')
+        decode: (input) => Buffer.from(applyRot13(input), 'utf8'),
+        encode: (buffer, text = '') => applyRot13(text)
+    },
+    {
+        key: 'punycode',
+        label: 'Punycode (IDNA)',
+        aliases: ['idna'],
+        detect: (input) => {
+            if (!/\bxn--[a-z0-9-]+/i.test(input)) {
+                return { confidence: 0 };
+            }
+            return { confidence: 0.8 };
+        },
+        decode: (input) => Buffer.from(punycode.toUnicode(input), 'utf8'),
+        encode: (_, text = '') => punycode.toASCII(text)
+    },
+    {
+        key: 'morse',
+        label: 'Morse code',
+        aliases: ['cw'],
+        detect: (input) => {
+            if (!/^[-.\s\/|]+$/.test(input.trim())) {
+                return { confidence: 0 };
+            }
+
+            const dotDashCount = (input.match(/[.-]/g) || []).length;
+            if (dotDashCount === 0) {
+                return { confidence: 0 };
+            }
+
+            return { confidence: Math.min(0.65 + Math.min(dotDashCount / 40, 0.25), 0.9) };
+        },
+        decode: (input) => morseDecode(input),
+        encode: (_, text = '') => morseEncode(text)
     }
 ];
 
-const decoderFormatKeys = new Set(['auto', ...decoderStrategies.map((entry) => entry.key)]);
+const formatAliasMap = codecStrategies.reduce((map, strategy) => {
+    map.set(strategy.key, strategy.key);
+    if (Array.isArray(strategy.aliases)) {
+        for (const alias of strategy.aliases) {
+            map.set(alias.toLowerCase(), strategy.key);
+        }
+    }
+    return map;
+}, new Map([['auto', 'auto']]));
+
+const decoderFormatKeys = new Set(formatAliasMap.keys());
+const encoderFormatKeys = new Set([...formatAliasMap.keys()].filter((key) => key !== 'auto'));
+
+function resolveFormatKey(format) {
+    if (!format) {
+        return 'auto';
+    }
+
+    const lower = format.toLowerCase();
+    return formatAliasMap.get(lower) || lower;
+}
+
+function getStrategyByKey(key) {
+    return codecStrategies.find((entry) => entry.key === key);
+}
 
 function decodeInput(format, text) {
-    const normalizedFormat = (format || 'auto').toLowerCase();
+    const normalizedFormat = resolveFormatKey(format || 'auto');
     const trimmed = text.trim();
 
     if (!trimmed) {
@@ -165,9 +541,9 @@ function decodeInput(format, text) {
     }
 
     if (normalizedFormat !== 'auto') {
-        const strategy = decoderStrategies.find((entry) => entry.key === normalizedFormat);
+        const strategy = getStrategyByKey(normalizedFormat);
         if (!strategy) {
-            throw new Error('Unsupported format. Try base64, hex, binary, url, or rot13.');
+            throw new Error('Unsupported format. Try base64, base32, base58, hex, binary, url, rot13, punycode, or morse.');
         }
 
         return {
@@ -176,20 +552,38 @@ function decodeInput(format, text) {
         };
     }
 
-    for (const strategy of decoderStrategies) {
-        if (typeof strategy.detect === 'function' && strategy.detect(trimmed)) {
-            try {
-                return {
-                    label: strategy.label,
-                    buffer: strategy.decode(trimmed)
-                };
-            } catch (_) {
-                // Detection matched but decoding failed; continue to other strategies.
+    const candidates = codecStrategies
+        .map((strategy) => {
+            if (typeof strategy.detect !== 'function') {
+                return null;
             }
+
+            const result = normalizeDetectResult(strategy.detect(trimmed), 0.5);
+            return {
+                strategy,
+                confidence: result.confidence || 0,
+                context: result
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.confidence - a.confidence);
+
+    for (const candidate of candidates) {
+        if (!candidate.confidence || candidate.confidence < 0.25) {
+            continue;
+        }
+
+        try {
+            return {
+                label: `${candidate.strategy.label}${candidate.confidence >= 0.65 ? '' : ' (probable)'}`.trim(),
+                buffer: candidate.strategy.decode(trimmed, candidate.context)
+            };
+        } catch (error) {
+            // try next candidate
         }
     }
 
-    for (const strategy of decoderStrategies) {
+    for (const strategy of codecStrategies) {
         try {
             return {
                 label: `${strategy.label} (guessed)`,
@@ -201,6 +595,34 @@ function decodeInput(format, text) {
     }
 
     throw new Error('Unable to detect encoding automatically. Specify the format explicitly.');
+}
+
+function encodeInput(format, text) {
+    const normalizedFormat = resolveFormatKey(format);
+    if (normalizedFormat === 'auto') {
+        throw new Error('Specify an encoding format. Auto mode is unavailable for encoding.');
+    }
+
+    const strategy = getStrategyByKey(normalizedFormat);
+    if (!strategy) {
+        throw new Error('Unsupported format. Try base64, base32, base58, hex, binary, url, rot13, punycode, or morse.');
+    }
+
+    if (typeof strategy.encode !== 'function') {
+        throw new Error(`${strategy.label} does not support encoding.`);
+    }
+
+    const payload = typeof text === 'string' ? text : '';
+    if (!payload.length) {
+        throw new Error('Provide some text to encode.');
+    }
+
+    const buffer = Buffer.from(payload, 'utf8');
+    const output = strategy.encode(buffer, payload);
+    return {
+        label: strategy.label,
+        output
+    };
 }
 
 function formatDecodedOutput(label, buffer) {
@@ -245,6 +667,29 @@ function formatDecodedOutput(label, buffer) {
         if (buffer.length > BINARY_PREVIEW_BYTES) {
             lines.push(`• Preview truncated; showing first ${BINARY_PREVIEW_BYTES} of ${buffer.length} bytes.`);
         }
+    }
+
+    return lines.join('\n');
+}
+
+function formatEncodedOutput(label, output) {
+    const sanitized = sanitizeForCodeBlock(output);
+    const truncated = sanitized.length > MAX_DECODE_DISPLAY_CHARS
+        ? `${sanitized.slice(0, MAX_DECODE_DISPLAY_CHARS)}…`
+        : sanitized;
+
+    const lines = [
+        '**Encoder report**',
+        `• Applied encoding: ${label}`,
+        `• Output length: ${output.length} characters`,
+        '',
+        '```',
+        truncated,
+        '```'
+    ];
+
+    if (sanitized.length > MAX_DECODE_DISPLAY_CHARS) {
+        lines.push(`• Output truncated to ${MAX_DECODE_DISPLAY_CHARS} characters.`);
     }
 
     return lines.join('\n');
@@ -503,7 +948,8 @@ EXECUTION PIPELINE
                 "• `/help` — Show this overview.",
                 "• `/profile show` — Review your stored profile and preferences.",
                 "• `/profile set key value` — Update a preference (e.g. `/profile set pronouns they/them`).",
-                "• `/decode` — Decode Base64, hex, binary, URL strings, or ROT13 text.",
+                "• `/encode` — Encode text to Base64, Base32, Base58, hex, binary, URL, ROT13, Punycode, or Morse.",
+                "• `/decode` — Decode Base64, Base32, Base58, hex, binary, URL, ROT13, Punycode, or Morse text.",
                 "• `/history` — Recap your recent prompts.",
                 "• `/recap` — Get a short activity summary from the past day.",
                 "• `/roll [sides]` — Roll a die (defaults to 6).",
@@ -696,6 +1142,42 @@ EXECUTION PIPELINE
                 highlightLines.length ? "• Highlights:" : null,
                 highlightLines.length ? highlightLines.join("\n") : null
             ].filter(Boolean).join("\n");
+        }
+
+        if (cmd === "encode" || cmd.startsWith("encode ")) {
+            let format = 'base64';
+            let payload = '';
+
+            if (isSlash && interaction?.commandName === "encode") {
+                format = interaction.options.getString('format') || 'base64';
+                payload = interaction.options.getString('text') || '';
+            } else {
+                const afterCommand = rawInput.replace(/^encode/i, '').trim();
+                if (afterCommand) {
+                    const parts = afterCommand.split(/\s+/);
+                    if (parts.length > 1 && encoderFormatKeys.has(parts[0].toLowerCase())) {
+                        format = parts[0].toLowerCase();
+                        payload = afterCommand.slice(parts[0].length).trim();
+                    } else if (parts.length > 1 && encoderFormatKeys.has(parts[parts.length - 1].toLowerCase())) {
+                        const last = parts[parts.length - 1];
+                        format = last.toLowerCase();
+                        payload = afterCommand.slice(0, afterCommand.length - last.length).trim();
+                    } else {
+                        payload = afterCommand;
+                    }
+                }
+            }
+
+            if (!payload) {
+                return 'Please provide text to encode, sir.';
+            }
+
+            try {
+                const { label, output } = encodeInput(format, payload);
+                return formatEncodedOutput(label, output);
+            } catch (error) {
+                return `Unable to encode that, sir. ${error.message}`;
+            }
         }
 
         if (cmd === "decode" || cmd.startsWith("decode ")) {
