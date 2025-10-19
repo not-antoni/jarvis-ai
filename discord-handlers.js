@@ -773,6 +773,14 @@ class DiscordHandlers {
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
 
+    // Maximize rendering quality to avoid jagged edges in the final clip
+    ctx.patternQuality = 'best';
+    ctx.quality = 'best';
+    ctx.antialias = 'subpixel';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.textDrawingMode = 'path';
+
     // Pure black background
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, totalHeight);
@@ -913,12 +921,18 @@ class DiscordHandlers {
 
     // Use sharp to optimize the image without cropping (prevent mid-image truncation)
     const processedBuffer = await sharp(buffer)
-        .resize({ width: 800, fit: 'inside', withoutEnlargement: true })
-        .png({ 
-            quality: 95,
+        .resize({
+            width: 800,
+            fit: 'inside',
+            withoutEnlargement: true,
+            kernel: sharp.kernel.lanczos3
+        })
+        .png({
             compressionLevel: 6,
             adaptiveFiltering: true,
-            palette: true
+            quality: 100,
+            effort: 6,
+            palette: false
         })
         .toBuffer();
 
