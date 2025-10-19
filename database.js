@@ -74,15 +74,30 @@ class DatabaseManager {
 
     async getRecentConversations(userId, limit = 20) {
         if (!this.isConnected) return [];
-        
+
         const conversations = await this.db
             .collection(config.database.collections.conversations)
             .find({ userId })
             .sort({ timestamp: -1 })
             .limit(limit)
             .toArray();
-            
+
         return conversations.reverse();
+    }
+
+    async getConversationsSince(userId, since) {
+        if (!this.isConnected) return [];
+
+        const conversations = await this.db
+            .collection(config.database.collections.conversations)
+            .find({
+                userId,
+                timestamp: { $gte: since }
+            })
+            .sort({ timestamp: 1 })
+            .toArray();
+
+        return conversations;
     }
 
     async saveConversation(userId, userName, userInput, jarvisResponse, guildId = null) {
@@ -147,6 +162,23 @@ class DatabaseManager {
             conv: convResult.deletedCount,
             prof: profileResult.deletedCount
         };
+    }
+
+    async setUserPreference(userId, key, value) {
+        if (!this.isConnected) throw new Error("Database not connected");
+
+        await this.db
+            .collection(config.database.collections.userProfiles)
+            .updateOne(
+                { userId },
+                {
+                    $set: {
+                        [`preferences.${key}`]: value,
+                        lastSeen: new Date()
+                    }
+                },
+                { upsert: true }
+            );
     }
 
     async clearDatabase() {
