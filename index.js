@@ -122,6 +122,28 @@ const commands = [
                 ))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName("decode")
+        .setDescription("Decode encoded text")
+        .addStringOption(option =>
+            option
+                .setName("text")
+                .setDescription("The text to decode")
+                .setRequired(true))
+        .addStringOption(option =>
+            option
+                .setName("format")
+                .setDescription("Encoding to decode from (default: auto)")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Auto detect", value: "auto" },
+                    { name: "Base64", value: "base64" },
+                    { name: "Hexadecimal", value: "hex" },
+                    { name: "Binary", value: "binary" },
+                    { name: "URL-encoded", value: "url" },
+                    { name: "ROT13", value: "rot13" }
+                ))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("clip")
         .setDescription("Clip a message into an image")
         .addStringOption((option) =>

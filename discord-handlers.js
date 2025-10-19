@@ -1514,6 +1514,22 @@ class DiscordHandlers {
             return true;
         }
 
+        if (content.startsWith("!decode")) {
+            try {
+                await message.channel.sendTyping();
+                const response = await this.jarvis.handleUtilityCommand(
+                    rawContent.substring(1),
+                    message.author.username,
+                    message.author.id
+                );
+                await message.reply(response || "Decoding complete, sir.");
+            } catch (error) {
+                console.error("Decode command error:", error);
+                await message.reply("Unable to decode that right now, sir.");
+            }
+            return true;
+        }
+
         if (content.startsWith("!t ")) {
             const whitelistedChannelIds = config.commands.whitelistedChannelIds;
             if (!whitelistedChannelIds.includes(message.channel.id)) {
@@ -1941,7 +1957,7 @@ class DiscordHandlers {
             return await this.handleSlashCommandClip(interaction);
         }
 
-        const ephemeralCommands = new Set(["help", "profile", "history", "recap"]);
+        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "decode"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
 
         try {
@@ -2036,6 +2052,14 @@ class DiscordHandlers {
             } else if (interaction.commandName === "recap") {
                 response = await this.jarvis.handleUtilityCommand(
                     "recap",
+                    interaction.user.username,
+                    interaction.user.id,
+                    true,
+                    interaction
+                );
+            } else if (interaction.commandName === "decode") {
+                response = await this.jarvis.handleUtilityCommand(
+                    "decode",
                     interaction.user.username,
                     interaction.user.id,
                     true,
