@@ -201,7 +201,8 @@ EXECUTION PIPELINE
     }
 
     async handleUtilityCommand(input, userName, userId = null, isSlash = false, interaction = null) {
-        const cmd = input.toLowerCase().trim();
+        const rawInput = typeof input === "string" ? input.trim() : "";
+        const cmd = rawInput.toLowerCase();
 
         if (cmd === "reset") {
             try {
@@ -254,6 +255,92 @@ EXECUTION PIPELINE
             return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
         }
 
+        if (cmd === "help") {
+            const helpLines = [
+                "**Jarvis Utility Guide**",
+                "• `/jarvis <prompt>` — Ask me anything.",
+                "• `/help` — Show this overview.",
+                "• `/profile show` — Review your stored profile and preferences.",
+                "• `/profile set key value` — Update a preference (e.g. `/profile set pronouns they/them`).",
+                "• `/history` — Recap your recent prompts.",
+                "• `/recap` — Get a short activity summary from the past day.",
+                "• `/roll [sides]` — Roll a die (defaults to 6).",
+                "• `/time [format]` — Display the current time in different formats.",
+                "• `/providers` — List configured AI providers.",
+                "• `/reset` — Wipe your conversations and profile.",
+                "Utility commands prefixed with `!` also work in text channels for some features, sir."
+            ];
+
+            return helpLines.join("\n");
+        }
+
+        if (cmd.startsWith("profile")) {
+            const handleShow = async () => {
+                if (!database.isConnected) {
+                    return "Profile system offline, sir. Database unavailable.";
+                }
+
+                const profile = await database.getUserProfile(userId, userName);
+                const preferenceLines = Object.entries(profile.preferences || {}).map(([key, value]) => `• **${key}**: ${value}`);
+                const prefs = preferenceLines.length > 0 ? preferenceLines.join("\n") : "• No custom preferences saved.";
+                const lastSeen = profile.lastSeen ? `<t:${Math.floor(new Date(profile.lastSeen).getTime() / 1000)}:R>` : "unknown";
+
+                return [
+                    `**Jarvis dossier for ${profile.name || userName}**`,
+                    `• Introduced: <t:${Math.floor(new Date(profile.firstMet).getTime() / 1000)}:F>`,
+                    `• Last seen: ${lastSeen}`,
+                    `• Interactions logged: ${profile.interactions || 0}`,
+                    `• Relationship status: ${profile.relationship || 'new'}`,
+                    `• Personality drift: ${(profile.personalityDrift || 0).toFixed(2)}`,
+                    `• Preferences:\n${prefs}`
+                ].join("\n");
+            };
+
+            const handleSet = async (key, value) => {
+                if (!key || !value) {
+                    return "Please provide both a preference key and value, sir.";
+                }
+
+                if (!database.isConnected) {
+                    return "Unable to update preferences, sir. Database offline.";
+                }
+
+                await database.getUserProfile(userId, userName);
+                await database.setUserPreference(userId, key, value);
+                return `Preference \`${key}\` updated to \`${value}\`, sir.`;
+            };
+
+            if (isSlash && interaction?.commandName === "profile") {
+                const subcommand = interaction.options.getSubcommand();
+
+                if (subcommand === "show") {
+                    return await handleShow();
+                }
+
+                if (subcommand === "set") {
+                    const key = interaction.options.getString("key");
+                    const value = interaction.options.getString("value");
+                    return await handleSet(key, value);
+                }
+            } else {
+                const parts = rawInput.split(/\s+/);
+                const action = parts[1];
+
+                if (!action || action.toLowerCase() === "show") {
+                    return await handleShow();
+                }
+
+                if (action.toLowerCase() === "set") {
+                    const key = parts[2];
+                    const valueIndex = key ? rawInput.indexOf(key) : -1;
+                    const value = valueIndex >= 0 ? rawInput.substring(valueIndex + key.length).trim() : "";
+                    return await handleSet(key, value);
+                }
+            }
+
+            return "Unrecognized profile command, sir. Try `/profile show` or `/profile set key value`.";
+        }
+
         if (cmd.startsWith("roll")) {
             const sides = parseInt(cmd.split(" ")[1]) || 6;
             if (sides < 1) return "Sides must be at least 1, sir.";
@@ -264,9 +351,9 @@ EXECUTION PIPELINE
         }
 
         if (cmd.startsWith("!t ")) {
-            const query = input.substring(3).trim(); // Remove "!t " prefix
+            const query = rawInput.substring(3).trim(); // Remove "!t " prefix
             if (!query) return "Please provide a search query, sir.";
-            
+
             try {
                 const searchResults = await embeddingSystem.searchAndFormat(query, 3);
                 return searchResults;
@@ -274,6 +361,99 @@ EXECUTION PIPELINE
                 console.error("Embedding search error:", error);
                 return "Search system unavailable, sir. Technical difficulties.";
             }
+        }
+
+        if (cmd === "history" || cmd.startsWith("history")) {
+            if (!database.isConnected) {
+                return "Conversation logs unavailable, sir. Database offline.";
+            }
+
+            let limit = 5;
+
+            if (isSlash && interaction?.commandName === "history") {
+                limit = interaction.options.getInteger("count") || limit;
+            } else {
+                const match = rawInput.match(/history\s+(\d{1,2})/i);
+                if (match) {
+                    limit = Math.max(1, Math.min(parseInt(match[1], 10), 20));
+                }
+            }
+
+            limit = Math.max(1, Math.min(limit, 20));
+
+            const conversations = await database.getRecentConversations(userId, limit);
+            if (!conversations.length) {
+                return "No conversations on file yet, sir.";
+            }
+
+            const historyLines = conversations.map((conv) => {
+                const timestamp = Math.floor(new Date(conv.timestamp).getTime() / 1000);
+                const userMessage = conv.userMessage ? conv.userMessage.replace(/\s+/g, " ").trim() : "(no prompt)";
+                return `• <t:${timestamp}:R> — ${userMessage.substring(0, 140)}${userMessage.length > 140 ? '…' : ''}`;
+            });
+
+            return [
+                `Here are your last ${historyLines.length} prompts, sir:`,
+                ...historyLines
+            ].join("\n");
+        }
+
+        if (cmd === "recap" || cmd.startsWith("recap")) {
+            if (!database.isConnected) {
+                return "Unable to produce a recap, sir. Database offline.";
+            }
+
+            const timeframeOptions = {
+                "6h": 6 * 60 * 60 * 1000,
+                "12h": 12 * 60 * 60 * 1000,
+                "24h": 24 * 60 * 60 * 1000,
+                "7d": 7 * 24 * 60 * 60 * 1000
+            };
+
+            let timeframe = "24h";
+
+            if (isSlash && interaction?.commandName === "recap") {
+                timeframe = interaction.options.getString("window") || timeframe;
+            } else {
+                const match = rawInput.match(/recap\s+(6h|12h|24h|7d)/i);
+                if (match) {
+                    timeframe = match[1].toLowerCase();
+                }
+            }
+
+            const duration = timeframeOptions[timeframe] || timeframeOptions["24h"];
+            const since = new Date(Date.now() - duration);
+            const conversations = await database.getConversationsSince(userId, since);
+
+            if (!conversations.length) {
+                return `Nothing to report from the last ${timeframe}, sir.`;
+            }
+
+            const first = conversations[0];
+            const last = conversations[conversations.length - 1];
+            const uniquePrompts = new Set(
+                conversations
+                    .map((conv) => (conv.userMessage || "").toLowerCase())
+                    .filter(Boolean)
+            );
+
+            const highlightLines = conversations
+                .slice(-5)
+                .map((conv) => {
+                    const timestamp = Math.floor(new Date(conv.timestamp).getTime() / 1000);
+                    const userMessage = conv.userMessage ? conv.userMessage.replace(/\s+/g, " ").trim() : "(no prompt)";
+                    return `• <t:${timestamp}:t> — ${userMessage.substring(0, 100)}${userMessage.length > 100 ? '…' : ''}`;
+                });
+
+            return [
+                `Activity summary for the past ${timeframe}, sir:`,
+                `• Interactions: ${conversations.length}`,
+                `• Distinct prompts: ${uniquePrompts.size}`,
+                `• First prompt: <t:${Math.floor(new Date(first.timestamp).getTime() / 1000)}:R>`,
+                `• Most recent: <t:${Math.floor(new Date(last.timestamp).getTime() / 1000)}:R>`,
+                highlightLines.length ? "• Highlights:" : null,
+                highlightLines.length ? highlightLines.join("\n") : null
+            ].filter(Boolean).join("\n");
         }
 
         return null;
