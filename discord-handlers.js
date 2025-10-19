@@ -1378,6 +1378,12 @@ class DiscordHandlers {
 
         const userId = message.author.id;
 
+        const braveGuardedEarly = await this.enforceImmediateBraveGuard(message);
+        if (braveGuardedEarly) {
+            this.setCooldown(userId);
+            return;
+        }
+
         // 🚫 Ignore mass mentions completely
         if (message.mentions.everyone) {
             return; // NEW: do not respond to @everyone / @here
@@ -1394,12 +1400,6 @@ class DiscordHandlers {
 
         if (isDM || isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
             if (this.isOnCooldown(userId)) {
-                return;
-            }
-
-            const handledByBraveGuard = await this.enforceImmediateBraveGuard(message);
-            if (handledByBraveGuard) {
-                this.setCooldown(userId);
                 return;
             }
 
@@ -1570,8 +1570,22 @@ class DiscordHandlers {
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
-        const searchCommandPattern = /^jarvis\s+search\s+(.+)$/i;
-        const searchMatch = cleanContent.match(searchCommandPattern);
+        let braveInvocation = defaultBraveInvocation;
+
+        if (typeof braveSearch.extractSearchInvocation === 'function') {
+            try {
+                const extracted = braveSearch.extractSearchInvocation(cleanContent);
+                if (extracted && typeof extracted === 'object') {
+                    braveInvocation = {
+                        ...defaultBraveInvocation,
+                        ...extracted
+                    };
+                }
+            } catch (error) {
+                console.error('Failed to parse cleaned Brave invocation:', error);
+                braveInvocation = defaultBraveInvocation;
+            }
+        }
 
         if (ytMatch) {
             const searchQuery = ytMatch[1].trim();
@@ -1591,12 +1605,83 @@ class DiscordHandlers {
             }
         }
 
-        if (searchMatch) {
-            const searchQuery = searchMatch[1].trim();
-            if (searchQuery) {
+        if (braveInvocation.triggered || rawBraveInvocation.triggered) {
+            const invocationContext =
+                (typeof braveInvocation.invocation === 'string' && braveInvocation.invocation.length > 0)
+                    ? braveInvocation.invocation
+                    : (typeof rawBraveInvocation.invocation === 'string' && rawBraveInvocation.invocation.length > 0)
+                        ? rawBraveInvocation.invocation
+                        : cleanContent;
+
+            const rawSegmentCandidate =
+                (typeof braveInvocation.rawQuery === 'string' && braveInvocation.rawQuery.length > 0)
+                    ? braveInvocation.rawQuery
+                    : (typeof rawBraveInvocation.rawQuery === 'string' && rawBraveInvocation.rawQuery.length > 0)
+                        ? rawBraveInvocation.rawQuery
+                        : invocationContext;
+
+            const explicitFromInvocation = (!braveInvocation.explicit && braveSearch.isExplicitQuery)
+                ? braveSearch.isExplicitQuery(invocationContext, { rawSegment: invocationContext })
+                : false;
+
+            const explicitDetected = (
+                braveInvocation.explicit === true
+                || rawBraveInvocation.explicit === true
+                || explicitFromInvocation === true
+            );
+
+            if (explicitDetected) {
+                await message.reply({
+                    content: braveSearch.getExplicitQueryMessage
+                        ? braveSearch.getExplicitQueryMessage()
+                        : 'I must decline that request, sir. My safety filters forbid it.'
+                });
+                this.setCooldown(message.author.id);
+                return;
+            }
+
+            const querySource =
+                (typeof braveInvocation.query === 'string' && braveInvocation.query.length > 0)
+                    ? braveInvocation.query
+                    : (typeof rawBraveInvocation.query === 'string' && rawBraveInvocation.query.length > 0)
+                        ? rawBraveInvocation.query
+                        : rawSegmentCandidate;
+
+            const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
+                ? braveSearch.prepareQueryForApi(querySource)
+                : (querySource || '').trim();
+
+            if (preparedQuery) {
                 try {
+                    const rawSegmentForCheck = (typeof rawSegmentCandidate === 'string' && rawSegmentCandidate.length > 0)
+                        ? rawSegmentCandidate
+                        : ((typeof invocationContext === 'string' && invocationContext.length > 0)
+                            ? invocationContext
+                            : preparedQuery);
+
+                    if (braveSearch.isExplicitQuery && (
+                        braveSearch.isExplicitQuery(preparedQuery, { rawSegment: rawSegmentForCheck }) ||
+                        (rawSegmentForCheck && braveSearch.isExplicitQuery(rawSegmentForCheck, { rawSegment: rawSegmentForCheck }))
+                    )) {
+                        await message.reply({
+                            content: braveSearch.getExplicitQueryMessage
+                                ? braveSearch.getExplicitQueryMessage()
+                                : 'I must decline that request, sir. My safety filters forbid it.'
+                        });
+                        this.setCooldown(message.author.id);
+                        return;
+                    }
+
                     await message.channel.sendTyping();
-                    const response = await this.jarvis.handleBraveSearch(searchQuery);
+                    const response = await this.jarvis.handleBraveSearch({
+                        raw: rawSegmentForCheck,
+                        prepared: preparedQuery,
+                        invocation: invocationContext,
+                        content: cleanContent,
+                        rawMessage: rawContent,
+                        rawInvocation: rawBraveInvocation.invocation,
+                        explicit: explicitDetected
+                    });
                     await message.reply(response);
                     this.setCooldown(message.author.id);
                     return;
@@ -1606,6 +1691,10 @@ class DiscordHandlers {
                     this.setCooldown(message.author.id);
                     return;
                 }
+            } else {
+                await message.reply("Please provide a web search query after 'jarvis search', sir.");
+                this.setCooldown(message.author.id);
+                return;
             }
         }
 
