@@ -9,6 +9,233 @@ const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 
+const MAX_DECODE_DISPLAY_CHARS = 1800;
+const BINARY_PREVIEW_BYTES = 32;
+
+function sanitizeForCodeBlock(text) {
+    return text.replace(/```/g, '`\u200b``');
+}
+
+function isMostlyPrintable(text) {
+    if (!text) {
+        return false;
+    }
+
+    let printable = 0;
+    for (const char of text) {
+        const code = char.charCodeAt(0);
+        if (
+            (code >= 32 && code <= 126)
+            || code === 9
+            || code === 10
+            || code === 13
+        ) {
+            printable++;
+        }
+    }
+
+    return printable / text.length >= 0.8;
+}
+
+function applyRot13(text) {
+    return text.replace(/[a-zA-Z]/g, (char) => {
+        const base = char <= 'Z' ? 65 : 97;
+        return String.fromCharCode(((char.charCodeAt(0) - base + 13) % 26) + base);
+    });
+}
+
+const decoderStrategies = [
+    {
+        key: 'base64',
+        label: 'Base64',
+        detect: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            if (sanitized.length < 8 || sanitized.length % 4 !== 0) {
+                return false;
+            }
+            return /^[A-Za-z0-9+/]+={0,2}$/.test(sanitized);
+        },
+        decode: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            if (!sanitized.length) {
+                throw new Error('No Base64 data provided.');
+            }
+            if (sanitized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(sanitized)) {
+                throw new Error('Base64 data must include only A-Z, a-z, 0-9, "+", "/", or "=" padding.');
+            }
+
+            const buffer = Buffer.from(sanitized, 'base64');
+            if (buffer.length === 0 && sanitized.replace(/=+$/, '').length > 0) {
+                throw new Error('Unable to decode Base64 payload.');
+            }
+
+            const reencoded = buffer.toString('base64').replace(/=+$/, '');
+            const normalized = sanitized.replace(/=+$/, '');
+            if (reencoded !== normalized) {
+                throw new Error('Invalid Base64 padding or characters.');
+            }
+
+            return buffer;
+        }
+    },
+    {
+        key: 'hex',
+        label: 'Hexadecimal',
+        detect: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            return sanitized.length >= 2 && sanitized.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(sanitized);
+        },
+        decode: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            if (!sanitized.length) {
+                throw new Error('No hexadecimal data provided.');
+            }
+            if (sanitized.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(sanitized)) {
+                throw new Error('Hexadecimal data must be pairs of 0-9 or A-F characters.');
+            }
+
+            return Buffer.from(sanitized, 'hex');
+        }
+    },
+    {
+        key: 'binary',
+        label: 'Binary',
+        detect: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            return sanitized.length >= 8 && sanitized.length % 8 === 0 && /^[01]+$/.test(sanitized);
+        },
+        decode: (input) => {
+            const sanitized = input.replace(/[^01]/g, '');
+            if (!sanitized.length) {
+                throw new Error('No binary data provided.');
+            }
+            if (sanitized.length % 8 !== 0) {
+                throw new Error('Binary data must be provided in 8-bit groups.');
+            }
+
+            const bytes = sanitized.match(/.{1,8}/g).map((bits) => parseInt(bits, 2));
+            return Buffer.from(bytes);
+        }
+    },
+    {
+        key: 'url',
+        label: 'URL-encoded',
+        detect: (input) => /%[0-9a-fA-F]{2}/.test(input) || /\+/.test(input),
+        decode: (input) => {
+            const normalized = input.replace(/\+/g, ' ');
+            try {
+                const decoded = decodeURIComponent(normalized);
+                return Buffer.from(decoded, 'utf8');
+            } catch (error) {
+                throw new Error('Invalid percent-encoding sequence.');
+            }
+        }
+    },
+    {
+        key: 'rot13',
+        label: 'ROT13',
+        detect: (input) => {
+            const letters = input.replace(/[^A-Za-z]/g, '');
+            return letters.length > 0 && /[nopqrstuvwxyzNOPQRSTUVWXYZ]/.test(letters);
+        },
+        decode: (input) => Buffer.from(applyRot13(input), 'utf8')
+    }
+];
+
+function decodeInput(format, text) {
+    const normalizedFormat = (format || 'auto').toLowerCase();
+    const trimmed = text.trim();
+
+    if (!trimmed) {
+        throw new Error('Provide some text to decode.');
+    }
+
+    if (normalizedFormat !== 'auto') {
+        const strategy = decoderStrategies.find((entry) => entry.key === normalizedFormat);
+        if (!strategy) {
+            throw new Error('Unsupported format. Try base64, hex, binary, url, or rot13.');
+        }
+
+        return {
+            label: strategy.label,
+            buffer: strategy.decode(trimmed)
+        };
+    }
+
+    for (const strategy of decoderStrategies) {
+        if (typeof strategy.detect === 'function' && strategy.detect(trimmed)) {
+            try {
+                return {
+                    label: strategy.label,
+                    buffer: strategy.decode(trimmed)
+                };
+            } catch (_) {
+                // Detection matched but decoding failed; continue to other strategies.
+            }
+        }
+    }
+
+    for (const strategy of decoderStrategies) {
+        try {
+            return {
+                label: `${strategy.label} (guessed)`,
+                buffer: strategy.decode(trimmed)
+            };
+        } catch (_) {
+            // Ignore and try next strategy
+        }
+    }
+
+    throw new Error('Unable to detect encoding automatically. Specify the format explicitly.');
+}
+
+function formatDecodedOutput(label, buffer) {
+    const lines = [
+        '**Decoder report**',
+        `• Detected encoding: ${label}`,
+        `• Output bytes: ${buffer.length}`
+    ];
+
+    if (buffer.length === 0) {
+        lines.push('• Decoded result is empty.');
+        return lines.join('\n');
+    }
+
+    const text = buffer.toString('utf8');
+    const printable = isMostlyPrintable(text);
+
+    if (printable) {
+        const sanitized = sanitizeForCodeBlock(text);
+        const truncated = sanitized.length > MAX_DECODE_DISPLAY_CHARS
+            ? `${sanitized.slice(0, MAX_DECODE_DISPLAY_CHARS)}…`
+            : sanitized;
+
+        lines.push('', '```', truncated, '```');
+
+        if (sanitized.length > MAX_DECODE_DISPLAY_CHARS) {
+            lines.push(`• Output truncated to ${MAX_DECODE_DISPLAY_CHARS} of ${sanitized.length} characters.`);
+        }
+    } else {
+        const hexPairs = (buffer.toString('hex').match(/.{1,2}/g) || []);
+        const previewPairs = hexPairs.slice(0, BINARY_PREVIEW_BYTES);
+        const previewLines = [];
+
+        for (let i = 0; i < previewPairs.length; i += 16) {
+            previewLines.push(previewPairs.slice(i, i + 16).join(' '));
+        }
+
+        const preview = previewLines.join('\n');
+
+        lines.push('• Output appears to be binary. Showing hexadecimal preview:', '```', preview || '(no data)', '```');
+
+        if (buffer.length > BINARY_PREVIEW_BYTES) {
+            lines.push(`• Preview truncated; showing first ${BINARY_PREVIEW_BYTES} of ${buffer.length} bytes.`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
 class JarvisAI {
     constructor() {
         this.personality = {
@@ -262,6 +489,7 @@ EXECUTION PIPELINE
                 "• `/help` — Show this overview.",
                 "• `/profile show` — Review your stored profile and preferences.",
                 "• `/profile set key value` — Update a preference (e.g. `/profile set pronouns they/them`).",
+                "• `/decode` — Decode Base64, hex, binary, URL strings, or ROT13 text.",
                 "• `/history` — Recap your recent prompts.",
                 "• `/recap` — Get a short activity summary from the past day.",
                 "• `/roll [sides]` — Roll a die (defaults to 6).",
@@ -454,6 +682,33 @@ EXECUTION PIPELINE
                 highlightLines.length ? "• Highlights:" : null,
                 highlightLines.length ? highlightLines.join("\n") : null
             ].filter(Boolean).join("\n");
+        }
+
+        if (cmd === "decode" || cmd.startsWith("decode ")) {
+            let format = 'auto';
+            let payload = '';
+
+            if (isSlash && interaction?.commandName === "decode") {
+                format = interaction.options.getString('format') || 'auto';
+                payload = interaction.options.getString('text') || '';
+            } else {
+                const match = rawInput.match(/^decode(?:\s+([a-z0-9]+))?\s+([\s\S]+)/i);
+                if (match) {
+                    format = match[1] ? match[1].toLowerCase() : 'auto';
+                    payload = match[2];
+                }
+            }
+
+            if (!payload) {
+                return 'Please provide text to decode, sir.';
+            }
+
+            try {
+                const { label, buffer } = decodeInput(format, payload);
+                return formatDecodedOutput(label, buffer);
+            } catch (error) {
+                return `Unable to decode that, sir. ${error.message}`;
+            }
         }
 
         return null;
