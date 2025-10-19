@@ -137,10 +137,39 @@ const commands = [
                 .addChoices(
                     { name: "Auto detect", value: "auto" },
                     { name: "Base64", value: "base64" },
+                    { name: "Base32", value: "base32" },
+                    { name: "Base58", value: "base58" },
                     { name: "Hexadecimal", value: "hex" },
                     { name: "Binary", value: "binary" },
                     { name: "URL-encoded", value: "url" },
-                    { name: "ROT13", value: "rot13" }
+                    { name: "ROT13", value: "rot13" },
+                    { name: "Punycode", value: "punycode" },
+                    { name: "Morse code", value: "morse" }
+                ))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("encode")
+        .setDescription("Encode plain text")
+        .addStringOption(option =>
+            option
+                .setName("text")
+                .setDescription("The text to encode")
+                .setRequired(true))
+        .addStringOption(option =>
+            option
+                .setName("format")
+                .setDescription("Encoding format (default: base64)")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Base64", value: "base64" },
+                    { name: "Base32", value: "base32" },
+                    { name: "Base58", value: "base58" },
+                    { name: "Hexadecimal", value: "hex" },
+                    { name: "Binary", value: "binary" },
+                    { name: "URL-encoded", value: "url" },
+                    { name: "ROT13", value: "rot13" },
+                    { name: "Punycode", value: "punycode" },
+                    { name: "Morse code", value: "morse" }
                 ))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
