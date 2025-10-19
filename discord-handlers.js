@@ -1436,6 +1436,7 @@ class DiscordHandlers {
 
     async handleUtilityCommands(message) {
         const content = message.content.trim().toLowerCase();
+        const rawContent = message.content.trim();
 
         if (content === "!reset") {
             try {
@@ -1445,6 +1446,86 @@ class DiscordHandlers {
             } catch (error) {
                 console.error("Reset error:", error);
                 await message.reply("Unable to reset memories, sir. Technical issue.");
+            }
+            return true;
+        }
+
+        if (content === "!help") {
+            try {
+                await message.channel.sendTyping();
+                const response = await this.jarvis.handleUtilityCommand(
+                    "help",
+                    message.author.username,
+                    message.author.id
+                );
+                await message.reply(response);
+            } catch (error) {
+                console.error("Help command error:", error);
+                await message.reply("Unable to display help right now, sir.");
+            }
+            return true;
+        }
+
+        if (content.startsWith("!profile")) {
+            try {
+                await message.channel.sendTyping();
+                const response = await this.jarvis.handleUtilityCommand(
+                    rawContent.substring(1),
+                    message.author.username,
+                    message.author.id
+                );
+                await message.reply(response || "Profile command processed, sir.");
+            } catch (error) {
+                console.error("Profile command error:", error);
+                await message.reply("Unable to access profile systems, sir.");
+            }
+            return true;
+        }
+
+        if (content.startsWith("!history")) {
+            try {
+                await message.channel.sendTyping();
+                const response = await this.jarvis.handleUtilityCommand(
+                    rawContent.substring(1),
+                    message.author.username,
+                    message.author.id
+                );
+                await message.reply(response || "No history available yet, sir.");
+            } catch (error) {
+                console.error("History command error:", error);
+                await message.reply("Unable to retrieve history, sir.");
+            }
+            return true;
+        }
+
+        if (content.startsWith("!recap")) {
+            try {
+                await message.channel.sendTyping();
+                const response = await this.jarvis.handleUtilityCommand(
+                    rawContent.substring(1),
+                    message.author.username,
+                    message.author.id
+                );
+                await message.reply(response || "Nothing to report just yet, sir.");
+            } catch (error) {
+                console.error("Recap command error:", error);
+                await message.reply("Unable to compile a recap, sir.");
+            }
+            return true;
+        }
+
+        if (content.startsWith("!decode")) {
+            try {
+                await message.channel.sendTyping();
+                const response = await this.jarvis.handleUtilityCommand(
+                    rawContent.substring(1),
+                    message.author.username,
+                    message.author.id
+                );
+                await message.reply(response || "Decoding complete, sir.");
+            } catch (error) {
+                console.error("Decode command error:", error);
+                await message.reply("Unable to decode that right now, sir.");
             }
             return true;
         }
@@ -1876,8 +1957,11 @@ class DiscordHandlers {
             return await this.handleSlashCommandClip(interaction);
         }
 
+        const ephemeralCommands = new Set(["help", "profile", "history", "recap"]);
+        const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
+
         try {
-            await interaction.deferReply({ ephemeral: false });
+            await interaction.deferReply({ ephemeral: shouldBeEphemeral });
         } catch (error) {
             if (error.code === 10062) {
                 console.warn("Ignored unknown interaction during deferReply.");
@@ -1936,6 +2020,46 @@ class DiscordHandlers {
             } else if (interaction.commandName === "reset") {
                 response = await this.jarvis.handleUtilityCommand(
                     "reset",
+                    interaction.user.username,
+                    interaction.user.id,
+                    true,
+                    interaction
+                );
+            } else if (interaction.commandName === "help") {
+                response = await this.jarvis.handleUtilityCommand(
+                    "help",
+                    interaction.user.username,
+                    interaction.user.id,
+                    true,
+                    interaction
+                );
+            } else if (interaction.commandName === "profile") {
+                response = await this.jarvis.handleUtilityCommand(
+                    "profile",
+                    interaction.user.username,
+                    interaction.user.id,
+                    true,
+                    interaction
+                );
+            } else if (interaction.commandName === "history") {
+                response = await this.jarvis.handleUtilityCommand(
+                    "history",
+                    interaction.user.username,
+                    interaction.user.id,
+                    true,
+                    interaction
+                );
+            } else if (interaction.commandName === "recap") {
+                response = await this.jarvis.handleUtilityCommand(
+                    "recap",
+                    interaction.user.username,
+                    interaction.user.id,
+                    true,
+                    interaction
+                );
+            } else if (interaction.commandName === "decode") {
+                response = await this.jarvis.handleUtilityCommand(
+                    "decode",
                     interaction.user.username,
                     interaction.user.id,
                     true,

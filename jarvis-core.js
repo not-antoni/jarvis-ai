@@ -9,6 +9,247 @@ const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 
+const MAX_DECODE_DISPLAY_CHARS = 1800;
+const BINARY_PREVIEW_BYTES = 32;
+
+function sanitizeForCodeBlock(text) {
+    return text.replace(/```/g, '`\u200b``');
+}
+
+function isMostlyPrintable(text) {
+    if (!text) {
+        return false;
+    }
+
+    let printable = 0;
+    for (const char of text) {
+        const code = char.charCodeAt(0);
+        if (
+            (code >= 32 && code <= 126)
+            || code === 9
+            || code === 10
+            || code === 13
+        ) {
+            printable++;
+        }
+    }
+
+    return printable / text.length >= 0.8;
+}
+
+function applyRot13(text) {
+    return text.replace(/[a-zA-Z]/g, (char) => {
+        const base = char <= 'Z' ? 65 : 97;
+        return String.fromCharCode(((char.charCodeAt(0) - base + 13) % 26) + base);
+    });
+}
+
+const decoderStrategies = [
+    {
+        key: 'base64',
+        label: 'Base64',
+        detect: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            const normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
+            if (normalized.length < 8 || normalized.length % 4 !== 0) {
+                return false;
+            }
+            return /^[A-Za-z0-9+/]+={0,2}$/.test(normalized);
+        },
+        decode: (input) => {
+            const sanitized = input.replace(/\s+/g, '');
+            if (!sanitized.length) {
+                throw new Error('No Base64 data provided.');
+            }
+            const normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
+            if (normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
+                throw new Error('Base64 data must include only A-Z, a-z, 0-9, "+", "/", or "=" padding.');
+            }
+
+            const buffer = Buffer.from(normalized, 'base64');
+            if (buffer.length === 0 && normalized.replace(/=+$/, '').length > 0) {
+                throw new Error('Unable to decode Base64 payload.');
+            }
+
+            const reencoded = buffer.toString('base64').replace(/=+$/, '');
+            const stripped = normalized.replace(/=+$/, '');
+            if (reencoded !== stripped) {
+                throw new Error('Invalid Base64 padding or characters.');
+            }
+
+            return buffer;
+        }
+    },
+    {
+        key: 'hex',
+        label: 'Hexadecimal',
+        detect: (input) => {
+            const sanitized = input
+                .replace(/0x/gi, '')
+                .replace(/\\x/gi, '')
+                .replace(/[^0-9a-fA-F]/g, '');
+            return sanitized.length >= 2 && sanitized.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(sanitized);
+        },
+        decode: (input) => {
+            const sanitized = input
+                .replace(/0x/gi, '')
+                .replace(/\\x/gi, '')
+                .replace(/[^0-9a-fA-F]/g, '');
+            if (!sanitized.length) {
+                throw new Error('No hexadecimal data provided.');
+            }
+            if (sanitized.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(sanitized)) {
+                throw new Error('Hexadecimal data must be pairs of 0-9 or A-F characters.');
+            }
+
+            return Buffer.from(sanitized, 'hex');
+        }
+    },
+    {
+        key: 'binary',
+        label: 'Binary',
+        detect: (input) => {
+            const sanitized = input
+                .replace(/0b/gi, '')
+                .replace(/[^01]/g, '');
+            return sanitized.length >= 8 && sanitized.length % 8 === 0 && /^[01]+$/.test(sanitized);
+        },
+        decode: (input) => {
+            const sanitized = input
+                .replace(/0b/gi, '')
+                .replace(/[^01]/g, '');
+            if (!sanitized.length) {
+                throw new Error('No binary data provided.');
+            }
+            if (sanitized.length % 8 !== 0) {
+                throw new Error('Binary data must be provided in 8-bit groups.');
+            }
+
+            const bytes = sanitized.match(/.{1,8}/g).map((bits) => parseInt(bits, 2));
+            return Buffer.from(bytes);
+        }
+    },
+    {
+        key: 'url',
+        label: 'URL-encoded',
+        detect: (input) => /%[0-9a-fA-F]{2}/.test(input) || /\+/.test(input),
+        decode: (input) => {
+            const normalized = input.replace(/\+/g, ' ');
+            try {
+                const decoded = decodeURIComponent(normalized);
+                return Buffer.from(decoded, 'utf8');
+            } catch (error) {
+                throw new Error('Invalid percent-encoding sequence.');
+            }
+        }
+    },
+    {
+        key: 'rot13',
+        label: 'ROT13',
+        detect: (input) => {
+            const letters = input.replace(/[^A-Za-z]/g, '');
+            return letters.length > 0 && /[nopqrstuvwxyzNOPQRSTUVWXYZ]/.test(letters);
+        },
+        decode: (input) => Buffer.from(applyRot13(input), 'utf8')
+    }
+];
+
+const decoderFormatKeys = new Set(['auto', ...decoderStrategies.map((entry) => entry.key)]);
+
+function decodeInput(format, text) {
+    const normalizedFormat = (format || 'auto').toLowerCase();
+    const trimmed = text.trim();
+
+    if (!trimmed) {
+        throw new Error('Provide some text to decode.');
+    }
+
+    if (normalizedFormat !== 'auto') {
+        const strategy = decoderStrategies.find((entry) => entry.key === normalizedFormat);
+        if (!strategy) {
+            throw new Error('Unsupported format. Try base64, hex, binary, url, or rot13.');
+        }
+
+        return {
+            label: strategy.label,
+            buffer: strategy.decode(trimmed)
+        };
+    }
+
+    for (const strategy of decoderStrategies) {
+        if (typeof strategy.detect === 'function' && strategy.detect(trimmed)) {
+            try {
+                return {
+                    label: strategy.label,
+                    buffer: strategy.decode(trimmed)
+                };
+            } catch (_) {
+                // Detection matched but decoding failed; continue to other strategies.
+            }
+        }
+    }
+
+    for (const strategy of decoderStrategies) {
+        try {
+            return {
+                label: `${strategy.label} (guessed)`,
+                buffer: strategy.decode(trimmed)
+            };
+        } catch (_) {
+            // Ignore and try next strategy
+        }
+    }
+
+    throw new Error('Unable to detect encoding automatically. Specify the format explicitly.');
+}
+
+function formatDecodedOutput(label, buffer) {
+    const lines = [
+        '**Decoder report**',
+        `• Detected encoding: ${label}`,
+        `• Output bytes: ${buffer.length}`
+    ];
+
+    if (buffer.length === 0) {
+        lines.push('• Decoded result is empty.');
+        return lines.join('\n');
+    }
+
+    const text = buffer.toString('utf8');
+    const printable = isMostlyPrintable(text);
+
+    if (printable) {
+        const sanitized = sanitizeForCodeBlock(text);
+        const truncated = sanitized.length > MAX_DECODE_DISPLAY_CHARS
+            ? `${sanitized.slice(0, MAX_DECODE_DISPLAY_CHARS)}…`
+            : sanitized;
+
+        lines.push('', '```', truncated, '```');
+
+        if (sanitized.length > MAX_DECODE_DISPLAY_CHARS) {
+            lines.push(`• Output truncated to ${MAX_DECODE_DISPLAY_CHARS} of ${sanitized.length} characters.`);
+        }
+    } else {
+        const hexPairs = (buffer.toString('hex').match(/.{1,2}/g) || []);
+        const previewPairs = hexPairs.slice(0, BINARY_PREVIEW_BYTES);
+        const previewLines = [];
+
+        for (let i = 0; i < previewPairs.length; i += 16) {
+            previewLines.push(previewPairs.slice(i, i + 16).join(' '));
+        }
+
+        const preview = previewLines.join('\n');
+
+        lines.push('• Output appears to be binary. Showing hexadecimal preview:', '```', preview || '(no data)', '```');
+
+        if (buffer.length > BINARY_PREVIEW_BYTES) {
+            lines.push(`• Preview truncated; showing first ${BINARY_PREVIEW_BYTES} of ${buffer.length} bytes.`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
 class JarvisAI {
     constructor() {
         this.personality = {
@@ -201,7 +442,8 @@ EXECUTION PIPELINE
     }
 
     async handleUtilityCommand(input, userName, userId = null, isSlash = false, interaction = null) {
-        const cmd = input.toLowerCase().trim();
+        const rawInput = typeof input === "string" ? input.trim() : "";
+        const cmd = rawInput.toLowerCase();
 
         if (cmd === "reset") {
             try {
@@ -254,6 +496,93 @@ EXECUTION PIPELINE
             return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
         }
 
+        if (cmd === "help") {
+            const helpLines = [
+                "**Jarvis Utility Guide**",
+                "• `/jarvis <prompt>` — Ask me anything.",
+                "• `/help` — Show this overview.",
+                "• `/profile show` — Review your stored profile and preferences.",
+                "• `/profile set key value` — Update a preference (e.g. `/profile set pronouns they/them`).",
+                "• `/decode` — Decode Base64, hex, binary, URL strings, or ROT13 text.",
+                "• `/history` — Recap your recent prompts.",
+                "• `/recap` — Get a short activity summary from the past day.",
+                "• `/roll [sides]` — Roll a die (defaults to 6).",
+                "• `/time [format]` — Display the current time in different formats.",
+                "• `/providers` — List configured AI providers.",
+                "• `/reset` — Wipe your conversations and profile.",
+                "Utility commands prefixed with `!` also work in text channels for some features, sir."
+            ];
+
+            return helpLines.join("\n");
+        }
+
+        if (cmd.startsWith("profile")) {
+            const handleShow = async () => {
+                if (!database.isConnected) {
+                    return "Profile system offline, sir. Database unavailable.";
+                }
+
+                const profile = await database.getUserProfile(userId, userName);
+                const preferenceLines = Object.entries(profile.preferences || {}).map(([key, value]) => `• **${key}**: ${value}`);
+                const prefs = preferenceLines.length > 0 ? preferenceLines.join("\n") : "• No custom preferences saved.";
+                const lastSeen = profile.lastSeen ? `<t:${Math.floor(new Date(profile.lastSeen).getTime() / 1000)}:R>` : "unknown";
+
+                return [
+                    `**Jarvis dossier for ${profile.name || userName}**`,
+                    `• Introduced: <t:${Math.floor(new Date(profile.firstMet).getTime() / 1000)}:F>`,
+                    `• Last seen: ${lastSeen}`,
+                    `• Interactions logged: ${profile.interactions || 0}`,
+                    `• Relationship status: ${profile.relationship || 'new'}`,
+                    `• Personality drift: ${(profile.personalityDrift || 0).toFixed(2)}`,
+                    `• Preferences:\n${prefs}`
+                ].join("\n");
+            };
+
+            const handleSet = async (key, value) => {
+                if (!key || !value) {
+                    return "Please provide both a preference key and value, sir.";
+                }
+
+                if (!database.isConnected) {
+                    return "Unable to update preferences, sir. Database offline.";
+                }
+
+                await database.getUserProfile(userId, userName);
+                await database.setUserPreference(userId, key, value);
+                return `Preference \`${key}\` updated to \`${value}\`, sir.`;
+            };
+
+            if (isSlash && interaction?.commandName === "profile") {
+                const subcommand = interaction.options.getSubcommand();
+
+                if (subcommand === "show") {
+                    return await handleShow();
+                }
+
+                if (subcommand === "set") {
+                    const key = interaction.options.getString("key");
+                    const value = interaction.options.getString("value");
+                    return await handleSet(key, value);
+                }
+            } else {
+                const parts = rawInput.split(/\s+/);
+                const action = parts[1];
+
+                if (!action || action.toLowerCase() === "show") {
+                    return await handleShow();
+                }
+
+                if (action.toLowerCase() === "set") {
+                    const key = parts[2];
+                    const valueIndex = key ? rawInput.indexOf(key) : -1;
+                    const value = valueIndex >= 0 ? rawInput.substring(valueIndex + key.length).trim() : "";
+                    return await handleSet(key, value);
+                }
+            }
+
+            return "Unrecognized profile command, sir. Try `/profile show` or `/profile set key value`.";
+        }
+
         if (cmd.startsWith("roll")) {
             const sides = parseInt(cmd.split(" ")[1]) || 6;
             if (sides < 1) return "Sides must be at least 1, sir.";
@@ -264,15 +593,147 @@ EXECUTION PIPELINE
         }
 
         if (cmd.startsWith("!t ")) {
-            const query = input.substring(3).trim(); // Remove "!t " prefix
+            const query = rawInput.substring(3).trim(); // Remove "!t " prefix
             if (!query) return "Please provide a search query, sir.";
-            
+
             try {
                 const searchResults = await embeddingSystem.searchAndFormat(query, 3);
                 return searchResults;
             } catch (error) {
                 console.error("Embedding search error:", error);
                 return "Search system unavailable, sir. Technical difficulties.";
+            }
+        }
+
+        if (cmd === "history" || cmd.startsWith("history")) {
+            if (!database.isConnected) {
+                return "Conversation logs unavailable, sir. Database offline.";
+            }
+
+            let limit = 5;
+
+            if (isSlash && interaction?.commandName === "history") {
+                limit = interaction.options.getInteger("count") || limit;
+            } else {
+                const match = rawInput.match(/history\s+(\d{1,2})/i);
+                if (match) {
+                    limit = Math.max(1, Math.min(parseInt(match[1], 10), 20));
+                }
+            }
+
+            limit = Math.max(1, Math.min(limit, 20));
+
+            const conversations = await database.getRecentConversations(userId, limit);
+            if (!conversations.length) {
+                return "No conversations on file yet, sir.";
+            }
+
+            const historyLines = conversations.map((conv) => {
+                const timestamp = Math.floor(new Date(conv.timestamp).getTime() / 1000);
+                const userMessage = conv.userMessage ? conv.userMessage.replace(/\s+/g, " ").trim() : "(no prompt)";
+                return `• <t:${timestamp}:R> — ${userMessage.substring(0, 140)}${userMessage.length > 140 ? '…' : ''}`;
+            });
+
+            return [
+                `Here are your last ${historyLines.length} prompts, sir:`,
+                ...historyLines
+            ].join("\n");
+        }
+
+        if (cmd === "recap" || cmd.startsWith("recap")) {
+            if (!database.isConnected) {
+                return "Unable to produce a recap, sir. Database offline.";
+            }
+
+            const timeframeOptions = {
+                "6h": 6 * 60 * 60 * 1000,
+                "12h": 12 * 60 * 60 * 1000,
+                "24h": 24 * 60 * 60 * 1000,
+                "7d": 7 * 24 * 60 * 60 * 1000
+            };
+
+            let timeframe = "24h";
+
+            if (isSlash && interaction?.commandName === "recap") {
+                timeframe = interaction.options.getString("window") || timeframe;
+            } else {
+                const match = rawInput.match(/recap\s+(6h|12h|24h|7d)/i);
+                if (match) {
+                    timeframe = match[1].toLowerCase();
+                }
+            }
+
+            const duration = timeframeOptions[timeframe] || timeframeOptions["24h"];
+            const since = new Date(Date.now() - duration);
+            const conversations = await database.getConversationsSince(userId, since);
+
+            if (!conversations.length) {
+                return `Nothing to report from the last ${timeframe}, sir.`;
+            }
+
+            const first = conversations[0];
+            const last = conversations[conversations.length - 1];
+            const uniquePrompts = new Set(
+                conversations
+                    .map((conv) => (conv.userMessage || "").toLowerCase())
+                    .filter(Boolean)
+            );
+
+            const highlightLines = conversations
+                .slice(-5)
+                .map((conv) => {
+                    const timestamp = Math.floor(new Date(conv.timestamp).getTime() / 1000);
+                    const userMessage = conv.userMessage ? conv.userMessage.replace(/\s+/g, " ").trim() : "(no prompt)";
+                    return `• <t:${timestamp}:t> — ${userMessage.substring(0, 100)}${userMessage.length > 100 ? '…' : ''}`;
+                });
+
+            return [
+                `Activity summary for the past ${timeframe}, sir:`,
+                `• Interactions: ${conversations.length}`,
+                `• Distinct prompts: ${uniquePrompts.size}`,
+                `• First prompt: <t:${Math.floor(new Date(first.timestamp).getTime() / 1000)}:R>`,
+                `• Most recent: <t:${Math.floor(new Date(last.timestamp).getTime() / 1000)}:R>`,
+                highlightLines.length ? "• Highlights:" : null,
+                highlightLines.length ? highlightLines.join("\n") : null
+            ].filter(Boolean).join("\n");
+        }
+
+        if (cmd === "decode" || cmd.startsWith("decode ")) {
+            let format = 'auto';
+            let payload = '';
+
+            if (isSlash && interaction?.commandName === "decode") {
+                format = interaction.options.getString('format') || 'auto';
+                payload = interaction.options.getString('text') || '';
+            } else {
+                const afterCommand = rawInput.replace(/^decode/i, '').trim();
+                if (afterCommand) {
+                    const parts = afterCommand.split(/\s+/);
+                    if (parts.length > 1 && decoderFormatKeys.has(parts[0].toLowerCase())) {
+                        format = parts[0].toLowerCase();
+                        payload = afterCommand.slice(parts[0].length).trim();
+                    } else if (parts.length > 1 && decoderFormatKeys.has(parts[parts.length - 1].toLowerCase())) {
+                        const last = parts[parts.length - 1];
+                        format = last.toLowerCase();
+                        payload = afterCommand.slice(0, afterCommand.length - last.length).trim();
+                    } else if (parts.length === 1 && decoderFormatKeys.has(parts[0].toLowerCase())) {
+                        format = parts[0].toLowerCase();
+                        payload = '';
+                    } else {
+                        payload = afterCommand;
+                    }
+                }
+            }
+
+            if (!payload) {
+                return 'Please provide text to decode, sir.';
+            }
+
+            try {
+                const { label, buffer } = decodeInput(format, payload);
+                return formatDecodedOutput(label, buffer);
+            } catch (error) {
+                return `Unable to decode that, sir. ${error.message}`;
             }
         }
 
