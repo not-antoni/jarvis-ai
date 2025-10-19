@@ -1957,7 +1957,7 @@ class DiscordHandlers {
             return await this.handleSlashCommandClip(interaction);
         }
 
-        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "decode"]);
+        const ephemeralCommands = new Set(["help", "profile", "history", "recap"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
 
         try {
