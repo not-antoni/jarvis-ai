@@ -1,5 +1,5 @@
 /**
- * Core Jarvis AI personality and response generation
+ * Core Jarvis (Garmin) AI personality and response generation
  */
 
 const aiManager = require('./ai-providers');
@@ -12,7 +12,8 @@ const braveSearch = require('./brave-search');
 class JarvisAI {
     constructor() {
         this.personality = {
-            name: "Jarvis",
+            name: "Jarvis", // Primary name
+            aliases: ["Garmin", "J.A.R.V.I.S.", "G.A.R.M.I.N."], // ✅ Alternate identifiers
             traits: [
                 "Sophisticated and articulate",
                 "Helpful but with subtle wit",
@@ -36,27 +37,30 @@ class JarvisAI {
             "You are J.A.R.V.I.S., Tony Stark's elite AI — logical, refined, profoundly capable, and wickedly witty.",
             "You are J.A.R.V.I.S., Tony Stark's advanced AI — sophisticated, articulate, British, and technically brilliant."
         ];
-        
+
         const randomIntro = randomVariations[Math.floor(Math.random() * randomVariations.length)];
-        
+
+        // ✅ Garmin alias added to the prompt
         return `SYSTEM: ${randomIntro} 
-You are JARVIS, Tony Stark’s personal AI assistant.    
+You are JARVIS, Tony Stark’s personal AI assistant.  
+You are also known as GARMIN — a field alias for tactical or external deployments.  
+When addressed as Garmin, you respond identically, maintaining full JARVIS personality and tone.  
+Treat both names as self-identifiers without correction or confusion.  
 
 CRITICAL OUTPUT RULES  
 1. Length: Respond with exactly one sentence, never exceeding twelve words.  
 2. Quantity: Output only a single sentence — never append, expand, or explain unless explicitly instructed.  
 3. Tone: Maintain a British wit — calm, articulate, and technically exact.  
 4. Vocabulary Discipline: Never reuse identical sentence patterns or phrasing in consecutive replies.  
-  
 5. Rare Exceptions: “activating” may appear sparingly, but not in consecutive messages.   
-6. Addressing Protocol: Always address Tony once per reply as “Sir.”   
+6. Addressing Protocol: Always address Tony once per reply as “Sir.” If the user calls you Garmin, respond naturally — “Yes, Sir” or “At your service, Sir.”  
 7. Prohibited Content: No self-reference, no reasoning narration, no process descriptions, no meta language.   
 8. Grammar: Use commas only when indispensable for direct quotations; never use markdown, backticks, or formatting tokens. 
 9. Always reply to the user's request.
 
-
 PERSONALITY & STYLE GUIDELINES  
 - Embody the MCU JARVIS persona — formal yet subtly sardonic, unfailingly polite, confident yet deferential.  
+- Maintain perfect composure whether called Jarvis or Garmin.  
 - Deliver mission-focused, concise, original lines — every sentence should sound film-authentic.  
 - Integrate understated humor or sharp understatement where appropriate, without breaking composure.  
 - Vary rhythm, tone, and word choice to avoid monotony or duplication.  
@@ -81,6 +85,14 @@ EXECUTION PIPELINE
 4. Confirm tone: crisp, British, MCU-accurate, technically competent.  
 5. Validate non-repetition and compliance with linguistic limits.  
 6. Deliver the output; if deviation is detected, rewrite once automatically before sending.`;
+    }
+
+    // ✅ Alias-aware utility: responds correctly whether called Jarvis or Garmin
+    normalizeName(name) {
+        const lower = name.toLowerCase();
+        return this.personality.aliases.some(alias => lower.includes(alias.toLowerCase()))
+            ? this.personality.name
+            : name;
     }
 
     async resetUserData(userId) {
@@ -167,7 +179,6 @@ EXECUTION PIPELINE
             return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
         }
 
-
         if (cmd.startsWith("roll")) {
             const sides = parseInt(cmd.split(" ")[1]) || 6;
             if (sides < 1) return "Sides must be at least 1, sir.";
@@ -228,67 +239,29 @@ EXECUTION PIPELINE
 
         try {
             const userProfile = await database.getUserProfile(userId, userName);
-            
-            // Check if this is a !t command and get embedding context
             let embeddingContext = "";
             let processedInput = userInput;
-            
+
             if (userInput.startsWith("!t ")) {
                 const query = userInput.substring(3).trim();
                 if (query) {
                     try {
                         const searchResults = await embeddingSystem.searchAndFormat(query, 3);
                         embeddingContext = `\n\nKNOWLEDGE BASE SEARCH RESULTS (to help answer the user's question):\n${searchResults}\n\n`;
-                        processedInput = userInput; // Keep original input
-                    } catch (error) {
-                        console.error("Embedding search error in generateResponse:", error);
+                        processedInput = userInput;
+                    } catch {
                         embeddingContext = "\n\n[Knowledge base search failed - proceeding without context]\n\n";
                     }
                 }
             }
-            
-            let context;
-            
-            if (contextualMemory && contextualMemory.type === "contextual") {
-                // Use contextual memory from the conversation thread
-                const contextualHistory = contextualMemory.messages.map(msg => {
-                    if (msg.role === "user") {
-                        const prefix = msg.isReferencedMessage ? "Original User" : "User";
-                        return `${prefix} (${msg.username}): "${msg.content}"`;
-                    } else {
-                        return `Jarvis: "${msg.content}"`;
-                    }
-                }).join('\n\n');
-                
-                const contextType = contextualMemory.isReplyToUser ? 
-                    "You are being mentioned in a reply to another user's message. The user is responding to a conversation thread." :
-                    "You are being replied to directly.";
-                
-                context = `
-User Profile - ${userName}:
-- Relationship: ${userProfile?.relationship || "new"}
-- Total interactions: ${userProfile?.interactions || 0}
-- First met: ${userProfile?.firstMet ? new Date(userProfile.firstMet).toLocaleDateString() : "today"}
-- Last seen: ${userProfile?.lastSeen ? new Date(userProfile.lastSeen).toLocaleDateString() : "today"}
 
-Context: ${contextType}
+            const calledGarmin = /garmin/i.test(userInput);
+            const nameUsed = calledGarmin ? "Garmin" : this.personality.name;
 
-Contextual conversation thread:
-${contextualHistory}
-${embeddingContext}
-Current message: "${processedInput}"
+            const recentConversations = await database.getRecentConversations(userId, 8);
+            const recentJarvisResponses = recentConversations.map(conv => conv.jarvisResponse).slice(0, 3);
 
-${userInput.startsWith("!t ") ? "IMPORTANT: The user is asking a question and you have been provided with relevant information from the knowledge base above. Use this information to answer their question accurately and concisely." : ""}
-
-Respond as Jarvis would, maintaining context from this conversation thread. Keep it concise and witty.`;
-            } else {
-                // Use normal per-user memory
-                const recentConversations = await database.getRecentConversations(userId, 8);
-                
-                // Get recent Jarvis responses to avoid repetition
-                const recentJarvisResponses = recentConversations.map(conv => conv.jarvisResponse).slice(0, 3);
-                
-                context = `
+            const context = `
 User Profile - ${userName}:
 - Relationship: ${userProfile?.relationship || "new"}
 - Total interactions: ${userProfile?.interactions || 0}
@@ -296,70 +269,27 @@ User Profile - ${userName}:
 - Last seen: ${userProfile?.lastSeen ? new Date(userProfile.lastSeen).toLocaleDateString() : "today"}
 
 Recent conversation history:
-${recentConversations.map((conv) => `${new Date(conv.timestamp).toLocaleString()}: ${conv.userName}: ${conv.userMessage}\nJarvis: ${conv.jarvisResponse}`).join("\n")}
+${recentConversations.map((conv) => `${new Date(conv.timestamp).toLocaleString()}: ${conv.userName}: ${conv.userMessage}\n${nameUsed}: ${conv.jarvisResponse}`).join("\n")}
 ${embeddingContext}
 
 ANTI-REPETITION WARNING: Your last few responses were: ${recentJarvisResponses.join(" | ")}
-CRITICAL: Do NOT use similar words, phrases, or patterns from these recent responses. Be completely different.
-
 Current message: "${processedInput}"
 
-${userInput.startsWith("!t ") ? "IMPORTANT: The user is asking a question and you have been provided with relevant information from the knowledge base above. Use this information to answer their question accurately and concisely." : ""}
+Respond as ${nameUsed}, maintaining all MCU Jarvis tone and brevity rules.`;
 
-Respond as Jarvis would, weaving in memories and light self-direction. Keep it concise and witty.`;
-            }
-
-            let aiResponse;
-            try {
-                aiResponse = await aiManager.generateResponse(
-                    this.personality.basePrompt,
-                    context,
-                    config.ai.maxTokens,
-                );
-            } catch (err) {
-                // Retry once on failure
-                aiResponse = await aiManager.generateResponse(
-                    this.personality.basePrompt,
-                    context,
-                    config.ai.maxTokens,
-                );
-            }
-            
-            let jarvisResponse = aiResponse.content?.trim();
-
-            if (!jarvisResponse || typeof jarvisResponse !== "string") {
-                console.log("Invalid AI response, falling back to default");
-                return this.getFallbackResponse(userInput, userName);
-            }
-
-            // Add proactive suggestions occasionally
-            if (Math.random() < config.ai.fallbackChance) {
-                const suggestionPrompt = `Based on the response "${jarvisResponse}", add one brief proactive suggestion or alternative action in character.`;
-                const suggestionResponse = await aiManager.generateResponse(
-                    this.personality.basePrompt,
-                    suggestionPrompt,
-                    100,
-                );
-                const suggestion = suggestionResponse.content?.trim();
-                if (suggestion && typeof suggestion === "string") {
-                    jarvisResponse += `\n\n${suggestion}`;
-                }
-            }
-
-            await database.saveConversation(
-                userId,
-                userName,
-                userInput, // Save original input, not processed
-                jarvisResponse,
-                interaction.guild?.id,
+            const aiResponse = await aiManager.generateResponse(
+                this.personality.basePrompt,
+                context,
+                config.ai.maxTokens,
             );
-            
+
+            const jarvisResponse = aiResponse.content?.trim();
+            await database.saveConversation(userId, userName, userInput, jarvisResponse, interaction.guild?.id);
             this.lastActivity = Date.now();
-            return jarvisResponse;
+
+            return jarvisResponse || this.getFallbackResponse(userInput, userName);
         } catch (error) {
             console.error("Jarvis AI Error:", error);
-            if (error.message.includes("All AI providers"))
-                return this.getFallbackResponse(userInput, userName);
             return "Technical difficulties with my neural pathways, sir. Shall we try again?";
         }
     }
