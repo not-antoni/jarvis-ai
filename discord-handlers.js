@@ -452,71 +452,91 @@ class DiscordHandlers {
         return [...imageMatches, ...tenorGifUrls];
     }
 
-    calculateTextHeight(text, maxWidth) {
-        // Create a temporary canvas to measure text widths
+    calculateTextHeight(text, maxWidth, customEmojis = [], mentions = []) {
         const tempCanvas = createCanvas(1, 1);
         const tempCtx = tempCanvas.getContext('2d');
         tempCtx.font = '14px Arial';
 
-        // Remove fenced code blocks with optional language spec and keep only the
-        // inner code content. Then remove any stray triple backticks. This
-        // ensures code blocks do not interfere with height calculations.
-        let processedText = text;
-        processedText = processedText.replace(/```[^\n]*\n([\s\S]*?)```/g, '$1');
-        processedText = processedText.replace(/```/g, '');
+        const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
+        const lineHeight = 20;
+        const emojiSize = 16;
 
-        // Split the processed text into tokens, preserving newlines and whitespace
-        // as separate tokens. This allows us to handle wrapping at both spaces
-        // and explicit newline boundaries. The regex captures newline characters
-        // and runs of whitespace (spaces or tabs) as individual tokens.
-        const tokens = processedText.split(/(\n|\s+)/);
-        let lineCount = 0;
+        let lineCount = 1;
         let currentLineWidth = 0;
 
-        for (const token of tokens) {
-            if (token === '\n') {
-                // Explicit newline: end the current line and start a new one
-                lineCount++;
-                currentLineWidth = 0;
-                continue;
+        const advanceLine = () => {
+            lineCount++;
+            currentLineWidth = 0;
+        };
+
+        const handleWhitespaceToken = token => {
+            if (!token) return;
+            const width = tempCtx.measureText(token).width;
+            if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                advanceLine();
             }
-            // Check if token is only whitespace (space or multiple spaces)
-            if (/^\s+$/.test(token)) {
-                // Process each space individually to wrap correctly
-                for (const char of token) {
-                    const charWidth = tempCtx.measureText(char).width;
-                    if (currentLineWidth + charWidth > maxWidth && currentLineWidth > 0) {
-                        lineCount++;
-                        currentLineWidth = 0;
+            currentLineWidth += width;
+        };
+
+        const handleTextToken = token => {
+            if (!token) return;
+            const width = tempCtx.measureText(token).width;
+            if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                advanceLine();
+            }
+            currentLineWidth += width;
+        };
+
+        for (const segment of segments) {
+            if (segment.type === 'emoji') {
+                if (segment.isUnicode) {
+                    const emojiText = segment.name;
+                    tempCtx.font = '16px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
+                    const width = tempCtx.measureText(emojiText).width;
+                    tempCtx.font = '14px Arial';
+                    if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                        advanceLine();
                     }
-                    currentLineWidth += charWidth;
+                    currentLineWidth += width;
+                } else {
+                    const width = emojiSize + 2;
+                    if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                        advanceLine();
+                    }
+                    currentLineWidth += width;
                 }
-                continue;
-            }
-            // Non-whitespace token: measure its width
-            const tokenWidth = tempCtx.measureText(token).width;
-            if (tokenWidth > maxWidth) {
-                // Break long tokens (like URLs or unspaced code) into characters
-                for (const char of token) {
-                    const charWidth = tempCtx.measureText(char).width;
-                    if (currentLineWidth + charWidth > maxWidth && currentLineWidth > 0) {
-                        lineCount++;
-                        currentLineWidth = 0;
+            } else if (segment.type === 'mention') {
+                const mentionTokens = segment.text.split(/(\n|\s+)/);
+                for (const token of mentionTokens) {
+                    if (!token) continue;
+                    if (token === '\n') {
+                        advanceLine();
+                        continue;
                     }
-                    currentLineWidth += charWidth;
+                    if (/^\s+$/.test(token)) {
+                        handleWhitespaceToken(token);
+                        continue;
+                    }
+                    handleTextToken(token);
                 }
             } else {
-                if (currentLineWidth + tokenWidth > maxWidth && currentLineWidth > 0) {
-                    lineCount++;
-                    currentLineWidth = 0;
+                const textTokens = segment.text.split(/(\n|\s+)/);
+                for (const token of textTokens) {
+                    if (!token) continue;
+                    if (token === '\n') {
+                        advanceLine();
+                        continue;
+                    }
+                    if (/^\s+$/.test(token)) {
+                        handleWhitespaceToken(token);
+                        continue;
+                    }
+                    handleTextToken(token);
                 }
-                currentLineWidth += tokenWidth;
             }
         }
-        // Count the final line if any content was measured or if there were no tokens
-        lineCount++;
-        const baseHeight = 40; // Reserve space for username, timestamp, and gap
-        const lineHeight = 20;
+
+        const baseHeight = 40;
         return baseHeight + (lineCount * lineHeight);
     }
 
@@ -706,18 +726,36 @@ class DiscordHandlers {
 		return null;
 	}
 
-	async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null, embeds = null) {
-    // Parse custom emojis and formatting using Discord API
-    const customEmojis = await this.parseCustomEmojis(text, guild);
-    const unicodeEmojis = this.parseUnicodeEmojis(text);
-    const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
-    const formatting = this.parseDiscordFormatting(text);
-    
-    // Debug logging for emoji parsing
-    if (allEmojis.length > 0) {
-        console.log('Found emojis:', allEmojis.map(e => ({ name: e.name, url: e.url, isUnicode: e.isUnicode })));
+    sanitizeMessageText(text) {
+        if (!text) return '';
+
+        let sanitized = text
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .replace(/[\u2028\u2029]/g, '\n');
+
+        // Strip zero-width and control characters that can disturb layout
+        sanitized = sanitized.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+
+        // Remove Discord markdown markers while keeping inner text
+        sanitized = sanitized.replace(/```[^\n]*\n([\s\S]*?)```/g, '$1');
+        sanitized = sanitized.replace(/```/g, '');
+        sanitized = sanitized.replace(/\*\*(.*?)\*\*/g, '$1');
+        sanitized = sanitized.replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1');
+        sanitized = sanitized.replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1');
+        sanitized = sanitized.replace(/~~(.*?)~~/g, '$1');
+        sanitized = sanitized.replace(/__(.*?)__/g, '$1');
+        sanitized = sanitized.replace(/`([^`]+)`/g, '$1');
+
+        // Normalise repeated spaces and tabs without touching line breaks
+        sanitized = sanitized.replace(/[^\S\r\n]+/g, ' ');
+        sanitized = sanitized.replace(/\n[ \t]+/g, '\n');
+        sanitized = sanitized.replace(/[ \t]+\n/g, '\n');
+
+        return sanitized.trimEnd();
     }
-    
+
+    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null, embeds = null) {
     // Check bot verification status using Discord API
     const isVerified = user ? this.isBotVerified(user) : false;
     
@@ -747,16 +785,33 @@ class DiscordHandlers {
         }
         // Also remove Tenor share links that might not have been converted
         cleanedText = cleanedText.replace(/https?:\/\/tenor\.com\/\S+/gi, '').trim();
-        // Collapse excess whitespace
-        cleanedText = cleanedText.replace(/\s{2,}/g, ' ').trim();
+        // Collapse spaces and tabs without disturbing intentional newlines
+        cleanedText = cleanedText.replace(/[^\S\r\n]+/g, ' ');
+        cleanedText = cleanedText.replace(/\n[ \t]+/g, '\n');
+        cleanedText = cleanedText.replace(/[ \t]+\n/g, '\n');
+        cleanedText = cleanedText.trimEnd();
     } catch (_) {}
+
+    const sanitizedText = this.sanitizeMessageText(cleanedText);
+
+    // Parse custom emojis and formatting using Discord API
+    const customEmojis = await this.parseCustomEmojis(sanitizedText, guild);
+    const unicodeEmojis = this.parseUnicodeEmojis(sanitizedText);
+    const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
+
+    const mentions = await this.parseMentions(sanitizedText, guild, client);
+
+    // Debug logging for emoji parsing
+    if (allEmojis.length > 0) {
+        console.log('Found emojis:', allEmojis.map(e => ({ name: e.name, url: e.url, isUnicode: e.isUnicode })));
+    }
 
     // Calculate dynamic canvas dimensions based on content
     const width = 800; // Increased width for better layout and positioning
     const minHeight = 120; // Minimum height for basic content
 
     // Calculate text height with emojis and formatting
-    const textHeight = this.calculateTextHeight(cleanedText, width - 180); // Account for margins and avatar space
+    const textHeight = this.calculateTextHeight(sanitizedText, width - 180, allEmojis, mentions); // Account for margins and avatar space
 
     // Measure required image height BEFORE creating main canvas to avoid clipping
     let actualImageHeight = 0;
@@ -772,6 +827,14 @@ class DiscordHandlers {
 
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
+
+    // Maximize rendering quality to avoid jagged edges in the final clip
+    ctx.patternQuality = 'best';
+    ctx.quality = 'best';
+    ctx.antialias = 'subpixel';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.textDrawingMode = 'path';
 
     // Pure black background
     ctx.fillStyle = '#000000';
@@ -894,8 +957,7 @@ class DiscordHandlers {
     // separate the text from the header. This mirrors the 2px gap between text
     // and images later on, keeping spacing consistent.
     const messageStartY = textStartY + 16;
-    const mentions = await this.parseMentions(cleanedText, guild, client);
-    await this.drawFormattedText(ctx, cleanedText, textStartX, messageStartY, maxTextWidth, allEmojis, formatting, mentions);
+    await this.drawFormattedText(ctx, sanitizedText, textStartX, messageStartY, maxTextWidth, allEmojis, mentions);
 
     // Draw images if present (main canvas has enough height already)
     if (hasImages || allImageUrls.length > 0) {
@@ -913,12 +975,18 @@ class DiscordHandlers {
 
     // Use sharp to optimize the image without cropping (prevent mid-image truncation)
     const processedBuffer = await sharp(buffer)
-        .resize({ width: 800, fit: 'inside', withoutEnlargement: true })
-        .png({ 
-            quality: 95,
+        .resize({
+            width: 800,
+            fit: 'inside',
+            withoutEnlargement: true,
+            kernel: sharp.kernel.lanczos3
+        })
+        .png({
             compressionLevel: 6,
             adaptiveFiltering: true,
-            palette: true
+            quality: 100,
+            effort: 6,
+            palette: false
         })
         .toBuffer();
 
@@ -926,87 +994,79 @@ class DiscordHandlers {
     }
 
     // Draw text with Discord formatting and emojis
-    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, formatting, mentions = []) {
-    ctx.fillStyle = '#ffffff';
+    async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, mentions = []) {
+        ctx.fillStyle = '#ffffff';
         ctx.font = '14px Arial';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
 
         let currentY = startY;
-        let currentX = startX;
         const lineHeight = 20;
         const emojiSize = 16;
 
-        // Remove Discord formatting markers for cleaner display
-        // We also strip fenced code blocks (triple backticks) so that the code
-        // content is displayed without the surrounding fences or language spec.
-        let processedText = text
-            // Bold
-            .replace(/\*\*(.*?)\*\*/g, '$1')
-            // Italic using asterisks
-            .replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1')
-            // Italic using underscores
-            .replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1')
-            // Strikethrough
-            .replace(/~~(.*?)~~/g, '$1')
-            // Underline
-            .replace(/__(.*?)__/g, '$1')
-            // Inline code (single backticks)
-            .replace(/`([^`]+)`/g, '$1')
-            // Fenced code blocks with optional language spec: remove the fences and
-            // language line but keep the inner code. This pattern matches
-            // ```lang\ncode\n```
-            .replace(/```[^\n]*\n([\s\S]*?)```/g, '$1')
-            // If any stray triple backticks remain, remove them
-            .replace(/```/g, '');
+        const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
 
-        // Split text into segments (text, emojis, mentions)
-        const segments = this.splitTextWithEmojisAndMentions(processedText, customEmojis, mentions);
-        
         let currentLineWidth = 0;
-        let currentLineHeight = lineHeight;
+
+        const advanceLine = () => {
+            currentY += lineHeight;
+            currentLineWidth = 0;
+        };
+
+        const handleWhitespaceToken = token => {
+            if (!token) return;
+            const width = ctx.measureText(token).width;
+            if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                advanceLine();
+            }
+            currentLineWidth += width;
+        };
+
+        const handleTextToken = (token, color = '#ffffff') => {
+            if (!token) return;
+            const width = ctx.measureText(token).width;
+            if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                advanceLine();
+            }
+            const previousFill = ctx.fillStyle;
+            ctx.fillStyle = color;
+            ctx.fillText(token, startX + currentLineWidth, currentY);
+            ctx.fillStyle = previousFill;
+            currentLineWidth += width;
+        };
 
         for (const segment of segments) {
             if (segment.type === 'emoji') {
                 if (segment.isUnicode) {
-                    // Draw Unicode emoji as text with emoji-compatible font
                     const emojiText = segment.name;
-                    
-                    // Use a font that supports emojis better
+
                     ctx.font = '16px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
                     const textWidth = ctx.measureText(emojiText).width;
-                    
                     if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
-                        currentY += currentLineHeight;
-                        currentLineWidth = 0;
+                        advanceLine();
                     }
-                    
-                    ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
+
+                    ctx.fillText(emojiText, startX + currentLineWidth, currentY);
                     currentLineWidth += textWidth;
-                    
-                    // Reset font back to normal text
+
                     ctx.font = '14px Arial';
-            } else {
-                    // Draw custom emoji image
+                } else {
                     try {
                         console.log('Loading emoji:', { name: segment.name, url: segment.url });
                         const emojiImg = await loadImage(segment.url);
                         const emojiWidth = emojiSize;
                         const emojiHeight = emojiSize;
-                        
-                        // Check if emoji fits on current line
+
                         if (currentLineWidth + emojiWidth > maxWidth && currentLineWidth > 0) {
-                            currentY += currentLineHeight;
-                            currentLineWidth = 0;
+                            advanceLine();
                         }
-                        
-                        ctx.drawImage(emojiImg, currentX + currentLineWidth, currentY, emojiWidth, emojiHeight);
-                        currentLineWidth += emojiWidth + 2; // Small spacing after emoji
+
+                        ctx.drawImage(emojiImg, startX + currentLineWidth, currentY, emojiWidth, emojiHeight);
+                        currentLineWidth += emojiWidth + 2;
                         console.log('Successfully rendered emoji:', segment.name);
                     } catch (error) {
                         console.warn('Failed to load emoji:', { name: segment.name, url: segment.url, error: error.message });
-                        
-                        // Try alternative CDN URL if first attempt failed
+
                         try {
                             const alternativeUrl = `https://cdn.discordapp.com/emojis/${segment.id}.png`;
                             if (alternativeUrl !== segment.url) {
@@ -1014,13 +1074,12 @@ class DiscordHandlers {
                                 const emojiImg = await loadImage(alternativeUrl);
                                 const emojiWidth = emojiSize;
                                 const emojiHeight = emojiSize;
-                                
+
                                 if (currentLineWidth + emojiWidth > maxWidth && currentLineWidth > 0) {
-                                    currentY += currentLineHeight;
-                                    currentLineWidth = 0;
+                                    advanceLine();
                                 }
-                                
-                                ctx.drawImage(emojiImg, currentX + currentLineWidth, currentY, emojiWidth, emojiHeight);
+
+                                ctx.drawImage(emojiImg, startX + currentLineWidth, currentY, emojiWidth, emojiHeight);
                                 currentLineWidth += emojiWidth + 2;
                                 console.log('Successfully rendered emoji with alternative URL:', segment.name);
                             } else {
@@ -1028,47 +1087,38 @@ class DiscordHandlers {
                             }
                         } catch (altError) {
                             console.warn('Alternative emoji URL also failed:', altError.message);
-                            // Fallback to text representation
-                            const emojiText = `:${segment.name}:`;
-                            const textWidth = ctx.measureText(emojiText).width;
-                            
-                            if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
-                                currentY += currentLineHeight;
-                                currentLineWidth = 0;
-                            }
-                            
-                            ctx.fillText(emojiText, currentX + currentLineWidth, currentY);
-                            currentLineWidth += textWidth;
+                            const fallbackText = `:${segment.name}:`;
+                            handleTextToken(fallbackText);
                         }
                     }
                 }
             } else if (segment.type === 'mention') {
-                // Render mentions in blue
-                const mentionText = segment.text + ' ';
-                const textWidth = ctx.measureText(mentionText).width;
-                if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
-                    currentY += currentLineHeight;
-                    currentLineWidth = 0;
-                }
-                const prevFill = ctx.fillStyle;
-                ctx.fillStyle = '#8899ff';
-                ctx.fillText(mentionText, currentX + currentLineWidth, currentY);
-                ctx.fillStyle = prevFill;
-                currentLineWidth += textWidth;
-            } else {
-                // Draw text segment
-                const words = segment.text.split(' ');
-                
-                for (const word of words) {
-                    const wordWidth = ctx.measureText(word + ' ').width;
-                    
-                    if (currentLineWidth + wordWidth > maxWidth && currentLineWidth > 0) {
-                        currentY += currentLineHeight;
-                        currentLineWidth = 0;
+                const mentionTokens = segment.text.split(/(\n|\s+)/);
+                for (const token of mentionTokens) {
+                    if (!token) continue;
+                    if (token === '\n') {
+                        advanceLine();
+                        continue;
                     }
-                    
-                    ctx.fillText(word + ' ', currentX + currentLineWidth, currentY);
-                    currentLineWidth += wordWidth;
+                    if (/^\s+$/.test(token)) {
+                        handleWhitespaceToken(token);
+                        continue;
+                    }
+                    handleTextToken(token, '#8899ff');
+                }
+            } else {
+                const textTokens = segment.text.split(/(\n|\s+)/);
+                for (const token of textTokens) {
+                    if (!token) continue;
+                    if (token === '\n') {
+                        advanceLine();
+                        continue;
+                    }
+                    if (/^\s+$/.test(token)) {
+                        handleWhitespaceToken(token);
+                        continue;
+                    }
+                    handleTextToken(token);
                 }
             }
         }
@@ -1103,7 +1153,7 @@ class DiscordHandlers {
             }
             if (entry.kind === 'emoji') {
                 const emoji = entry.item;
-                segments.push({ type: 'emoji', name: emoji.name, url: emoji.url, full: emoji.full, isUnicode: emoji.isUnicode });
+                segments.push({ type: 'emoji', name: emoji.name, url: emoji.url, full: emoji.full, id: emoji.id, isUnicode: emoji.isUnicode });
             } else {
                 const mention = entry.item;
                 segments.push({ type: 'mention', text: mention.display });
