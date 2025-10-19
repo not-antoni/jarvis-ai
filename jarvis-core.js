@@ -50,28 +50,30 @@ const decoderStrategies = [
         label: 'Base64',
         detect: (input) => {
             const sanitized = input.replace(/\s+/g, '');
-            if (sanitized.length < 8 || sanitized.length % 4 !== 0) {
+            const normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
+            if (normalized.length < 8 || normalized.length % 4 !== 0) {
                 return false;
             }
-            return /^[A-Za-z0-9+/]+={0,2}$/.test(sanitized);
+            return /^[A-Za-z0-9+/]+={0,2}$/.test(normalized);
         },
         decode: (input) => {
             const sanitized = input.replace(/\s+/g, '');
             if (!sanitized.length) {
                 throw new Error('No Base64 data provided.');
             }
-            if (sanitized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(sanitized)) {
+            const normalized = sanitized.replace(/-/g, '+').replace(/_/g, '/');
+            if (normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
                 throw new Error('Base64 data must include only A-Z, a-z, 0-9, "+", "/", or "=" padding.');
             }
 
-            const buffer = Buffer.from(sanitized, 'base64');
-            if (buffer.length === 0 && sanitized.replace(/=+$/, '').length > 0) {
+            const buffer = Buffer.from(normalized, 'base64');
+            if (buffer.length === 0 && normalized.replace(/=+$/, '').length > 0) {
                 throw new Error('Unable to decode Base64 payload.');
             }
 
             const reencoded = buffer.toString('base64').replace(/=+$/, '');
-            const normalized = sanitized.replace(/=+$/, '');
-            if (reencoded !== normalized) {
+            const stripped = normalized.replace(/=+$/, '');
+            if (reencoded !== stripped) {
                 throw new Error('Invalid Base64 padding or characters.');
             }
 
@@ -82,11 +84,17 @@ const decoderStrategies = [
         key: 'hex',
         label: 'Hexadecimal',
         detect: (input) => {
-            const sanitized = input.replace(/\s+/g, '');
+            const sanitized = input
+                .replace(/0x/gi, '')
+                .replace(/\\x/gi, '')
+                .replace(/[^0-9a-fA-F]/g, '');
             return sanitized.length >= 2 && sanitized.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(sanitized);
         },
         decode: (input) => {
-            const sanitized = input.replace(/\s+/g, '');
+            const sanitized = input
+                .replace(/0x/gi, '')
+                .replace(/\\x/gi, '')
+                .replace(/[^0-9a-fA-F]/g, '');
             if (!sanitized.length) {
                 throw new Error('No hexadecimal data provided.');
             }
@@ -101,11 +109,15 @@ const decoderStrategies = [
         key: 'binary',
         label: 'Binary',
         detect: (input) => {
-            const sanitized = input.replace(/\s+/g, '');
+            const sanitized = input
+                .replace(/0b/gi, '')
+                .replace(/[^01]/g, '');
             return sanitized.length >= 8 && sanitized.length % 8 === 0 && /^[01]+$/.test(sanitized);
         },
         decode: (input) => {
-            const sanitized = input.replace(/[^01]/g, '');
+            const sanitized = input
+                .replace(/0b/gi, '')
+                .replace(/[^01]/g, '');
             if (!sanitized.length) {
                 throw new Error('No binary data provided.');
             }
@@ -141,6 +153,8 @@ const decoderStrategies = [
         decode: (input) => Buffer.from(applyRot13(input), 'utf8')
     }
 ];
+
+const decoderFormatKeys = new Set(['auto', ...decoderStrategies.map((entry) => entry.key)]);
 
 function decodeInput(format, text) {
     const normalizedFormat = (format || 'auto').toLowerCase();
@@ -692,10 +706,22 @@ EXECUTION PIPELINE
                 format = interaction.options.getString('format') || 'auto';
                 payload = interaction.options.getString('text') || '';
             } else {
-                const match = rawInput.match(/^decode(?:\s+([a-z0-9]+))?\s+([\s\S]+)/i);
-                if (match) {
-                    format = match[1] ? match[1].toLowerCase() : 'auto';
-                    payload = match[2];
+                const afterCommand = rawInput.replace(/^decode/i, '').trim();
+                if (afterCommand) {
+                    const parts = afterCommand.split(/\s+/);
+                    if (parts.length > 1 && decoderFormatKeys.has(parts[0].toLowerCase())) {
+                        format = parts[0].toLowerCase();
+                        payload = afterCommand.slice(parts[0].length).trim();
+                    } else if (parts.length > 1 && decoderFormatKeys.has(parts[parts.length - 1].toLowerCase())) {
+                        const last = parts[parts.length - 1];
+                        format = last.toLowerCase();
+                        payload = afterCommand.slice(0, afterCommand.length - last.length).trim();
+                    } else if (parts.length === 1 && decoderFormatKeys.has(parts[0].toLowerCase())) {
+                        format = parts[0].toLowerCase();
+                        payload = '';
+                    } else {
+                        payload = afterCommand;
+                    }
                 }
             }
 
