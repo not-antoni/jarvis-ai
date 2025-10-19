@@ -72,6 +72,78 @@ const commands = [
         .setDescription("Delete your conversation history and profile with Jarvis")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName("help")
+        .setDescription("Show Jarvis command overview")
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("profile")
+        .setDescription("View or update your Jarvis profile")
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("show")
+                .setDescription("Display your saved profile information"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("set")
+                .setDescription("Update one of your profile preferences")
+                .addStringOption(option =>
+                    option
+                        .setName("key")
+                        .setDescription("Preference key to update")
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option
+                        .setName("value")
+                        .setDescription("Value to store for the preference")
+                        .setRequired(true)))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("history")
+        .setDescription("Review your recent prompts")
+        .addIntegerOption(option =>
+            option
+                .setName("count")
+                .setDescription("How many prompts to show (max 20)")
+                .setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("recap")
+        .setDescription("Get a quick activity summary")
+        .addStringOption(option =>
+            option
+                .setName("window")
+                .setDescription("How far back to look")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Last 6 hours", value: "6h" },
+                    { name: "Last 12 hours", value: "12h" },
+                    { name: "Last 24 hours", value: "24h" },
+                    { name: "Last 7 days", value: "7d" }
+                ))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("decode")
+        .setDescription("Decode encoded text")
+        .addStringOption(option =>
+            option
+                .setName("text")
+                .setDescription("The text to decode")
+                .setRequired(true))
+        .addStringOption(option =>
+            option
+                .setName("format")
+                .setDescription("Encoding to decode from (default: auto)")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Auto detect", value: "auto" },
+                    { name: "Base64", value: "base64" },
+                    { name: "Hexadecimal", value: "hex" },
+                    { name: "Binary", value: "binary" },
+                    { name: "URL-encoded", value: "url" },
+                    { name: "ROT13", value: "rot13" }
+                ))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("clip")
         .setDescription("Clip a message into an image")
         .addStringOption((option) =>
