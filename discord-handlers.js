@@ -1307,6 +1307,70 @@ class DiscordHandlers {
         }
     }
 
+    async enforceImmediateBraveGuard(message) {
+        if (!message || typeof message.content !== 'string' || !message.content.length) {
+            return false;
+        }
+
+        if (typeof braveSearch.extractSearchInvocation !== 'function' || typeof braveSearch.isExplicitQuery !== 'function') {
+            return false;
+        }
+
+        const rawContent = message.content;
+
+        try {
+            const invocation = braveSearch.extractSearchInvocation(rawContent);
+
+            if (!invocation || invocation.triggered !== true) {
+                return false;
+            }
+
+            const segments = [];
+
+            if (typeof invocation.query === 'string' && invocation.query.length > 0) {
+                segments.push({ text: invocation.query, raw: typeof invocation.rawQuery === 'string' && invocation.rawQuery.length > 0 ? invocation.rawQuery : invocation.query });
+            }
+
+            if (typeof invocation.rawQuery === 'string' && invocation.rawQuery.length > 0) {
+                segments.push({ text: invocation.rawQuery, raw: invocation.rawQuery });
+            }
+
+            if (typeof invocation.invocation === 'string' && invocation.invocation.length > 0) {
+                segments.push({ text: invocation.invocation, raw: invocation.invocation });
+            }
+
+            segments.push({ text: rawContent, raw: rawContent });
+
+            const isExplicit = invocation.explicit === true || segments.some(({ text, raw }) => {
+                try {
+                    return braveSearch.isExplicitQuery(text, { rawSegment: raw });
+                } catch (error) {
+                    console.error('Failed explicit check during Brave guard:', error);
+                    return false;
+                }
+            });
+
+            if (!isExplicit) {
+                return false;
+            }
+
+            const blockMessage = braveSearch.getExplicitQueryMessage
+                ? braveSearch.getExplicitQueryMessage()
+                : 'I must decline that request, sir. My safety filters forbid it.';
+
+            try {
+                await message.reply({ content: blockMessage });
+            } catch (error) {
+                console.error('Failed to send Brave explicit guard reply:', error);
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Failed to run Brave pre-flight guard:', error);
+            return false;
+        }
+    }
+
     async handleMessage(message, client) {
         const allowedBotIds = ['984734399310467112', '1391010888915484672'];
         if (message.author.id === client.user.id) return;
@@ -1332,6 +1396,13 @@ class DiscordHandlers {
             if (this.isOnCooldown(userId)) {
                 return;
             }
+
+            const handledByBraveGuard = await this.enforceImmediateBraveGuard(message);
+            if (handledByBraveGuard) {
+                this.setCooldown(userId);
+                return;
+            }
+
             this.setCooldown(userId);
         }
 
