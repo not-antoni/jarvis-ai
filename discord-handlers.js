@@ -30,6 +30,8 @@ class DiscordHandlers {
         this.autoModRuleName = 'Jarvis Blacklist Filter';
         this.maxAutoModKeywords = 100;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
+        this.autoModDefaultsPath = path.join(__dirname, 'automod-defaults.txt');
+        this.autoModDefaultKeywords = this.loadDefaultAutoModKeywords();
         this.serverStatsCategoryName = '────────│ Server Stats │────────';
         this.serverStatsChannelLabels = {
             total: 'Member Count',
@@ -361,7 +363,6 @@ class DiscordHandlers {
 
             console.error('Failed to send member log message:', error);
         }
-    }
 
     async handleGuildMemberAdd(member) {
         await this.sendMemberLogEvent(member, 'join');
@@ -407,6 +408,130 @@ class DiscordHandlers {
             .filter(Boolean);
     }
 
+    loadDefaultAutoModKeywords() {
+        try {
+            const raw = fs.readFileSync(this.autoModDefaultsPath, 'utf8');
+            return this.mergeKeywords([], this.parseKeywordInput(raw));
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                console.warn('Failed to load default auto moderation keywords:', error);
+            }
+            return [];
+        }
+    }
+
+    expandKeywordVariants(keyword) {
+        const base = this.normalizeKeyword(keyword);
+        if (!base) {
+            return [];
+        }
+
+        const variants = new Set();
+        variants.add(base);
+
+        if (!base.startsWith('*')) {
+            variants.add(`*${base}`);
+        }
+
+        if (!base.endsWith('*')) {
+            variants.add(`${base}*`);
+        }
+
+        variants.add(`*${base}*`);
+
+        const collapsed = base.replace(/[\s_\-]+/g, '');
+        if (collapsed && collapsed !== base) {
+            variants.add(collapsed);
+            variants.add(`*${collapsed}*`);
+        }
+
+        const wildcarded = base.replace(/[\s_\-]+/g, '*');
+        if (wildcarded && wildcarded !== base) {
+            variants.add(wildcarded);
+            variants.add(`*${wildcarded}*`);
+        }
+
+        const leetMap = {
+            a: ['4', '@'],
+            e: ['3'],
+            i: ['1', '!'],
+            o: ['0'],
+            s: ['$', '5'],
+            t: ['7']
+        };
+
+        let leetVariant = '';
+        let leetApplied = false;
+        for (const char of collapsed || base) {
+            const replacements = leetMap[char];
+            if (replacements && replacements.length) {
+                leetVariant += replacements[0];
+                leetApplied = true;
+            } else {
+                leetVariant += char;
+            }
+        }
+
+        if (leetApplied && leetVariant && leetVariant !== base) {
+            variants.add(leetVariant);
+            variants.add(`*${leetVariant}*`);
+        }
+
+        return Array.from(variants).filter(Boolean);
+    }
+
+    expandKeywordSet(keywords = []) {
+        const expanded = new Set();
+
+        for (const keyword of keywords) {
+            const variants = this.expandKeywordVariants(keyword);
+            for (const variant of variants) {
+                if (expanded.size >= this.maxAutoModKeywords) {
+                    break;
+                }
+                expanded.add(variant);
+            }
+
+            if (expanded.size >= this.maxAutoModKeywords) {
+                break;
+            }
+
+            await this.applyServerStatsPermissions(channel, me, everyoneId);
+            return channel;
+        };
+
+        const totalChannel = await ensureVoiceChannel(existingConfig?.totalChannelId, `${this.serverStatsChannelLabels.total}: 0`);
+        const userChannel = await ensureVoiceChannel(existingConfig?.userChannelId, `${this.serverStatsChannelLabels.users}: 0`);
+        const botChannel = await ensureVoiceChannel(existingConfig?.botChannelId, `${this.serverStatsChannelLabels.bots}: 0`);
+
+        return { category, totalChannel, userChannel, botChannel, botMember: me, everyoneId };
+    }
+
+    async collectGuildMemberStats(guild) {
+        if (!guild) {
+            return { total: 0, botCount: 0, userCount: 0 };
+        }
+
+        return Array.from(expanded);
+    }
+
+    getEffectiveAutoModFilters(record) {
+        const includeDefaults = Boolean(record?.includeDefaults);
+        const baseKeywords = Array.isArray(record?.keywords) ? record.keywords : [];
+        const canonical = this.mergeKeywords([], baseKeywords);
+        const combined = includeDefaults
+            ? this.mergeKeywords(canonical, this.autoModDefaultKeywords)
+            : canonical.slice(0, this.maxAutoModKeywords);
+        const expanded = this.expandKeywordSet(combined);
+
+        return {
+            canonical,
+            combined,
+            expanded,
+            includeDefaults
+        };
+    }
+
     mergeKeywords(current = [], additions = []) {
         const unique = new Set();
 
@@ -448,14 +573,30 @@ class DiscordHandlers {
         }
     }
 
-    async upsertAutoModRule(guild, keywords, customMessage = null, ruleId = null, enabled = true) {
+    async upsertAutoModRule(
+        guild,
+        keywords,
+        customMessage = null,
+        ruleId = null,
+        enabled = true,
+        includeDefaults = true
+    ) {
         if (!guild) {
             throw new Error('I could not access that server, sir.');
         }
 
         const sanitized = this.mergeKeywords([], keywords);
-        if (sanitized.length === 0) {
+        const combined = includeDefaults
+            ? this.mergeKeywords(sanitized, this.autoModDefaultKeywords)
+            : sanitized.slice(0, this.maxAutoModKeywords);
+
+        if (!combined.length) {
             throw new Error('Please provide at least one valid keyword, sir.');
+        }
+
+        const expanded = this.expandKeywordSet(combined);
+        if (!expanded.length) {
+            throw new Error('I could not derive any usable filters from those words, sir.');
         }
 
         const payload = {
@@ -463,7 +604,7 @@ class DiscordHandlers {
             eventType: AutoModerationRuleEventType.MessageSend,
             triggerType: AutoModerationRuleTriggerType.Keyword,
             triggerMetadata: {
-                keywordFilter: sanitized
+                keywordFilter: expanded
             },
             actions: [
                 {
@@ -489,7 +630,7 @@ class DiscordHandlers {
             rule = await guild.autoModerationRules.create(payload);
         }
 
-        return { rule, keywords: sanitized };
+        return { rule, keywords: sanitized, appliedKeywords: expanded };
     }
 
     async disableAutoModRule(guild, ruleId) {
@@ -904,6 +1045,7 @@ class DiscordHandlers {
                         }
                     }
                 }
+                return;
             }
         }
 
@@ -3327,6 +3469,7 @@ class DiscordHandlers {
                     await interaction.editReply('Server statistics channels were not configured, sir.');
                     return;
                 }
+            }
 
                 await this.disableServerStats(guild, existing);
                 await interaction.editReply('Server statistics channels have been removed, sir.');
@@ -3379,7 +3522,8 @@ class DiscordHandlers {
                 keywords: [],
                 enabled: false,
                 customMessage: this.defaultAutoModMessage,
-                ruleId: null
+                ruleId: null,
+                includeDefaults: true
             };
         } else {
             if (!Array.isArray(record.keywords)) {
@@ -3389,7 +3533,13 @@ class DiscordHandlers {
             if (!record.customMessage) {
                 record.customMessage = this.defaultAutoModMessage;
             }
+
+            if (typeof record.includeDefaults !== 'boolean') {
+                record.includeDefaults = true;
+            }
         }
+
+        record.keywords = this.mergeKeywords([], record.keywords);
 
         const replyWithError = async message => {
             await interaction.editReply(message);
@@ -3398,6 +3548,7 @@ class DiscordHandlers {
         if (subcommand === 'status') {
             const rule = record.ruleId ? await this.fetchAutoModRule(guild, record.ruleId) : null;
             const enabledState = rule ? rule.enabled : Boolean(record.enabled);
+            const filters = this.getEffectiveAutoModFilters(record);
             const footerText = rule
                 ? `Rule ID ${rule.id}`
                 : record.ruleId
@@ -3408,7 +3559,16 @@ class DiscordHandlers {
                 .setColor(0x5865f2)
                 .addFields(
                     { name: 'Enabled', value: enabledState ? 'Yes' : 'No', inline: true },
-                    { name: 'Tracked phrases', value: `${record.keywords.length}`, inline: true }
+                    { name: 'Custom entries', value: `${filters.canonical.length}`, inline: true },
+                    {
+                        name: 'Default pack',
+                        value:
+                            filters.includeDefaults && this.autoModDefaultKeywords.length
+                                ? `${this.autoModDefaultKeywords.length}`
+                                : 'Disabled',
+                        inline: true
+                    },
+                    { name: 'Effective filters', value: `${filters.expanded.length}`, inline: true }
                 )
                 .setFooter({ text: footerText });
 
@@ -3417,31 +3577,52 @@ class DiscordHandlers {
         }
 
         if (subcommand === 'list') {
-            if (!record.keywords.length) {
+            const hasCustom = record.keywords.length > 0;
+            const hasDefaults = record.includeDefaults && this.autoModDefaultKeywords.length > 0;
+
+            if (!hasCustom && !hasDefaults) {
                 await interaction.editReply('No blacklist entries are currently configured, sir.');
                 return;
             }
 
             const chunkSize = 20;
-            const chunks = [];
-            for (let index = 0; index < record.keywords.length; index += chunkSize) {
-                chunks.push(record.keywords.slice(index, index + chunkSize));
-            }
-
             const embed = new EmbedBuilder()
                 .setTitle('Blacklisted phrases')
                 .setColor(0x5865f2);
 
-            chunks.slice(0, 5).forEach((chunk, index) => {
-                const value = chunk.map(word => `• ${word}`).join('\n');
-                embed.addFields({
-                    name: `Batch ${index + 1}`,
-                    value: value.length > 1024 ? `${value.slice(0, 1021)}...` : value
-                });
-            });
+            if (hasCustom) {
+                const chunks = [];
+                for (let index = 0; index < record.keywords.length; index += chunkSize) {
+                    chunks.push(record.keywords.slice(index, index + chunkSize));
+                }
 
-            if (chunks.length > 5) {
-                embed.setFooter({ text: `Showing ${Math.min(100, record.keywords.length)} of ${record.keywords.length} entries.` });
+                chunks.slice(0, 5).forEach((chunk, index) => {
+                    const value = chunk.map(word => `• ${word}`).join('\n');
+                    embed.addFields({
+                        name: `Custom batch ${index + 1}`,
+                        value: value.length > 1024 ? `${value.slice(0, 1021)}...` : value
+                    });
+                });
+
+                if (chunks.length > 5) {
+                    embed.setFooter({
+                        text: `Showing ${Math.min(100, record.keywords.length)} of ${record.keywords.length} custom entries.`
+                    });
+                }
+            } else {
+                embed.setDescription('No custom blacklist entries are configured, sir.');
+            }
+
+            if (hasDefaults) {
+                const defaultLines = this.autoModDefaultKeywords.map(word => `• ${word}`).join('\n');
+                embed.addFields({
+                    name: 'Default pack',
+                    value: defaultLines.length > 1024 ? `${defaultLines.slice(0, 1021)}...` : defaultLines
+                });
+
+                if (!hasCustom) {
+                    embed.setFooter({ text: 'Showing Jarvis default blacklist entries.' });
+                }
             }
 
             await interaction.editReply({ embeds: [embed] });
@@ -3449,7 +3630,10 @@ class DiscordHandlers {
         }
 
         if (subcommand === 'enable') {
-            if (!record.keywords.length) {
+            const canEnable =
+                record.keywords.length > 0 || (record.includeDefaults && this.autoModDefaultKeywords.length > 0);
+
+            if (!canEnable) {
                 await replyWithError('Please add blacklisted words before enabling auto moderation, sir.');
                 return;
             }
@@ -3460,23 +3644,31 @@ class DiscordHandlers {
                     record.keywords,
                     record.customMessage,
                     record.ruleId,
-                    true
+                    true,
+                    record.includeDefaults
                 );
 
                 record.ruleId = rule.id;
                 record.keywords = keywords;
                 record.enabled = Boolean(rule.enabled);
                 await database.saveAutoModConfig(guild.id, record);
+                const effectiveFilters = this.getEffectiveAutoModFilters(record).expanded.length;
                 const statusLine = record.enabled
                     ? 'Discord will now block the configured phrases.'
                     : 'The rule was updated, but Discord left it disabled.';
-                await interaction.editReply(`Auto moderation ${record.enabled ? 'engaged' : 'updated'}, sir. ${statusLine}`);
+                const patternLine = effectiveFilters
+                    ? ` Currently enforcing ${effectiveFilters} pattern${effectiveFilters === 1 ? '' : 's'}.`
+                    : '';
+                await interaction.editReply(
+                    `Auto moderation ${record.enabled ? 'engaged' : 'updated'}, sir. ${statusLine}${patternLine}`
+                );
             } catch (error) {
                 console.error('Failed to enable auto moderation:', error);
                 await replyWithError('I could not enable auto moderation, sir. Please ensure I have the AutoMod permission.');
             }
             return;
         }
+    }
 
         if (subcommand === 'disable') {
             try {
@@ -3502,728 +3694,65 @@ class DiscordHandlers {
 
             record.keywords = [];
             record.enabled = false;
+            record.includeDefaults = false;
             await database.saveAutoModConfig(guild.id, record);
             await interaction.editReply('Blacklist cleared and auto moderation disabled, sir.');
             return;
         }
 
-        if (subcommand === 'setmessage') {
-            const message = interaction.options.getString('message');
-            if (!message || !message.trim()) {
-                await replyWithError('Please provide a custom message, sir.');
-                return;
-            }
+        if (subcommand === 'defaults') {
+            const enableDefaults = interaction.options.getBoolean('enabled');
 
-            record.customMessage = message.trim().slice(0, 150);
+            record.includeDefaults = Boolean(enableDefaults);
 
-            if (record.enabled && record.keywords.length) {
-                try {
-                    const { rule } = await this.upsertAutoModRule(
-                        guild,
-                        record.keywords,
-                        record.customMessage,
-                        record.ruleId,
-                        record.enabled
-                    );
-                    record.ruleId = rule.id;
-                } catch (error) {
-                    console.error('Failed to update auto moderation message:', error);
-                    await replyWithError('I could not update the auto moderation message, sir.');
-                    return;
-                }
-            }
+            let statusLine = record.includeDefaults
+                ? 'Jarvis default blacklist entries are now active, sir.'
+                : 'Jarvis default blacklist entries are now disabled, sir.';
 
-            await database.saveAutoModConfig(guild.id, record);
-            await interaction.editReply('Custom enforcement message updated, sir.');
-            return;
-        }
+            if (record.enabled) {
+                const shouldMaintainRule =
+                    record.keywords.length > 0 || (record.includeDefaults && this.autoModDefaultKeywords.length > 0);
 
-        if (subcommand === 'add') {
-            const input = interaction.options.getString('words');
-            const additions = this.parseKeywordInput(input);
+                if (shouldMaintainRule) {
+                    try {
+                        const { rule, keywords } = await this.upsertAutoModRule(
+                            guild,
+                            record.keywords,
+                            record.customMessage,
+                            record.ruleId,
+                            true,
+                            record.includeDefaults
+                        );
 
-            if (!additions.length) {
-                await replyWithError('Please provide at least one word or phrase to blacklist, sir.');
-                return;
-            }
-
-            const merged = this.mergeKeywords(record.keywords, additions);
-            if (merged.length === record.keywords.length) {
-                await replyWithError('Those words were already on the blacklist or exceeded the limit, sir.');
-                return;
-            }
-
-            const previousCount = record.keywords.length;
-            try {
-                const { rule, keywords } = await this.upsertAutoModRule(
-                    guild,
-                    merged,
-                    record.customMessage,
-                    record.ruleId,
-                    true
-                );
-
-                record.ruleId = rule.id;
-                record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
-                await database.saveAutoModConfig(guild.id, record);
-                const addedCount = keywords.length - previousCount;
-                const statusLine = record.enabled
-                    ? 'Auto moderation is active, sir.'
-                    : 'Auto moderation is currently disabled, sir.';
-                await interaction.editReply(`Blacklist updated with ${addedCount} new entr${addedCount === 1 ? 'y' : 'ies'}. ${statusLine}`);
-            } catch (error) {
-                console.error('Failed to add auto moderation keywords:', error);
-                await replyWithError('I could not update the auto moderation rule, sir.');
-            }
-            return;
-        }
-
-        if (subcommand === 'remove') {
-            const input = interaction.options.getString('words');
-            const removals = this.parseKeywordInput(input);
-
-            if (!removals.length) {
-                await replyWithError('Please specify the words to remove from the blacklist, sir.');
-                return;
-            }
-
-            const removalSet = new Set(removals.map(word => this.normalizeKeyword(word)));
-            const remaining = (record.keywords || []).filter(keyword => !removalSet.has(this.normalizeKeyword(keyword)));
-
-            if (remaining.length === record.keywords.length) {
-                await replyWithError('None of those words were on the blacklist, sir.');
-                return;
-            }
-
-            record.keywords = remaining;
-
-            if (record.keywords.length) {
-                try {
-                    const { rule, keywords } = await this.upsertAutoModRule(
-                        guild,
-                        record.keywords,
-                        record.customMessage,
-                        record.ruleId,
-                        record.enabled
-                    );
-
-                    record.ruleId = rule.id;
-                    record.keywords = keywords;
-                } catch (error) {
-                    console.error('Failed to update auto moderation keywords after removal:', error);
-                    await replyWithError('I could not update the auto moderation rule after removal, sir.');
-                    return;
-                }
-            } else {
-                try {
-                    await this.disableAutoModRule(guild, record.ruleId);
-                } catch (error) {
-                    console.error('Failed to disable auto moderation after removal:', error);
-                }
-                record.enabled = false;
-            }
-
-            await database.saveAutoModConfig(guild.id, record);
-            await interaction.editReply('Blacklist updated, sir.');
-            return;
-        }
-
-        if (subcommand === 'import') {
-            const attachment = interaction.options.getAttachment('file');
-            const shouldReplace = interaction.options.getBoolean('replace') || false;
-
-            if (!attachment) {
-                await replyWithError('Please attach a text file containing the blacklist, sir.');
-                return;
-            }
-
-            if (attachment.size > 256000) {
-                await replyWithError('That file is a bit much, sir. Please provide a text file under 250KB.');
-                return;
-            }
-
-            let text = '';
-            try {
-                const response = await fetch(attachment.url);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                text = await response.text();
-            } catch (error) {
-                console.error('Failed to download blacklist file:', error);
-                await replyWithError('I could not download that file, sir.');
-                return;
-            }
-
-            const imported = this.parseKeywordInput(text);
-            if (!imported.length) {
-                await replyWithError('That file did not contain any usable entries, sir.');
-                return;
-            }
-
-            const combined = shouldReplace
-                ? this.mergeKeywords([], imported)
-                : this.mergeKeywords(record.keywords, imported);
-
-            if (!combined.length) {
-                await replyWithError('I could not extract any valid keywords from that file, sir.');
-                return;
-            }
-
-            try {
-                const { rule, keywords } = await this.upsertAutoModRule(
-                    guild,
-                    combined,
-                    record.customMessage,
-                    record.ruleId,
-                    true
-                );
-
-                record.ruleId = rule.id;
-                record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
-                await database.saveAutoModConfig(guild.id, record);
-                const statusLine = record.enabled
-                    ? 'Auto moderation is active, sir.'
-                    : 'Auto moderation is currently disabled, sir.';
-                await interaction.editReply(`Blacklist now tracks ${keywords.length} entr${keywords.length === 1 ? 'y' : 'ies'}. ${statusLine}`);
-            } catch (error) {
-                console.error('Failed to import auto moderation keywords:', error);
-                await replyWithError('I could not apply that blacklist to Discord, sir.');
-            }
-            return;
-        }
-
-        await interaction.editReply('That subcommand is not recognized, sir.');
-    }
-
-    async handleReactionRoleCommand(interaction) {
-        if (!interaction.guild) {
-            await interaction.editReply('This command is only available within a server, sir.');
-            return;
-        }
-
-        if (!database.isConnected) {
-            await interaction.editReply('My database uplink is offline, sir. Reaction roles are unavailable at the moment.');
-            return;
-        }
-
-        const guild = interaction.guild;
-        const member = interaction.member;
-        const subcommand = interaction.options.getSubcommand();
-        const guildConfig = await this.getGuildConfig(guild);
-
-        if (subcommand === 'setmods') {
-            const isOwner = member.id === guild.ownerId;
-            const hasAdmin = member.permissions?.has(PermissionsBitField.Flags.Administrator);
-            if (!isOwner && !hasAdmin) {
-                await interaction.editReply('Only the server owner or administrators may adjust moderator roles, sir.');
-                return;
-            }
-        } else {
-            const isModerator = await this.isGuildModerator(member, guildConfig);
-            if (!isModerator) {
-                await interaction.editReply('Only the server owner or configured moderators may do that, sir.');
-                return;
-            }
-        }
-
-        if (subcommand === 'create') {
-            const channel = interaction.options.getChannel('channel');
-            const pairsInput = interaction.options.getString('pairs');
-            const title = interaction.options.getString('title') || 'Select your roles';
-            const description = interaction.options.getString('description') || 'React with the options below to toggle roles, sir.';
-
-            if (!channel || channel.guildId !== guild.id) {
-                await interaction.editReply('I could not access that channel, sir.');
-                return;
-            }
-
-            const allowedTypes = new Set([ChannelType.GuildText, ChannelType.GuildAnnouncement]);
-            if (!channel.isTextBased() || !allowedTypes.has(channel.type)) {
-                await interaction.editReply('Reaction roles require a standard text channel or announcement channel, sir.');
-                return;
-            }
-
-            const me = guild.members.me || await guild.members.fetchMe();
-            if (!me) {
-                await interaction.editReply('I could not verify my permissions in that server, sir.');
-                return;
-            }
-
-            if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
-                await interaction.editReply('I require the "Manage Roles" permission to do that, sir.');
-                return;
-            }
-
-            const channelPermissions = channel.permissionsFor(me);
-            if (!channelPermissions || !channelPermissions.has(PermissionsBitField.Flags.ViewChannel) || !channelPermissions.has(PermissionsBitField.Flags.SendMessages) || !channelPermissions.has(PermissionsBitField.Flags.AddReactions) || !channelPermissions.has(PermissionsBitField.Flags.EmbedLinks)) {
-                await interaction.editReply('I need permission to send messages, add reactions, and embed links in that channel, sir.');
-                return;
-            }
-
-            let options;
-            try {
-                options = await this.parseReactionRolePairs(pairsInput, guild);
-            } catch (error) {
-                await interaction.editReply(error.message || 'Those role mappings confused me, sir.');
-                return;
-            }
-
-            const unusableRole = options.find(option => {
-                const role = guild.roles.cache.get(option.roleId);
-                if (!role) {
-                    return false;
-                }
-                return me.roles.highest.comparePositionTo(role) <= 0;
-            });
-
-            if (unusableRole) {
-                await interaction.editReply(`My highest role must be above ${guild.roles.cache.get(unusableRole.roleId)?.name || 'that role'}, sir.`);
-                return;
-            }
-
-            const optionLines = options.map(option => `${option.display} — <@&${option.roleId}>`).join('\n');
-            const embedDescription = description ? `${description}\n\n${optionLines}` : optionLines;
-
-            const embed = new EmbedBuilder()
-                .setTitle(title)
-                .setDescription(embedDescription)
-                .setColor(0x5865f2)
-                .setFooter({ text: 'React to add or remove roles.' });
-
-            let sentMessage;
-            try {
-                sentMessage = await channel.send({ embeds: [embed] });
-            } catch (error) {
-                console.error('Failed to send reaction role message:', error);
-                await interaction.editReply('I could not send the panel to that channel, sir.');
-                return;
-            }
-
-            try {
-                for (const option of options) {
-                    await sentMessage.react(option.rawEmoji);
-                }
-            } catch (error) {
-                console.error('Failed to add reactions for reaction role panel:', error);
-                await interaction.editReply('One of those emojis could not be used, sir. I removed the panel.');
-                try {
-                    await sentMessage.delete();
-                } catch (deleteError) {
-                    console.warn('Failed to delete reaction role message after reaction failure:', deleteError);
-                }
-                return;
-            }
-
-            try {
-                await database.saveReactionRoleMessage({
-                    guildId: guild.id,
-                    channelId: channel.id,
-                    messageId: sentMessage.id,
-                    options,
-                    createdBy: interaction.user.id,
-                    title,
-                    description,
-                    createdAt: new Date()
-                });
-            } catch (error) {
-                console.error('Failed to persist reaction role configuration:', error);
-                await interaction.editReply('I could not save that configuration, sir.');
-                try {
-                    await sentMessage.delete();
-                } catch (cleanupError) {
-                    console.warn('Failed to delete reaction role panel after persistence failure:', cleanupError);
-                }
-                return;
-            }
-
-            const messageUrl = sentMessage.url || `https://discord.com/channels/${guild.id}/${channel.id}/${sentMessage.id}`;
-            await interaction.editReply(`Reaction role panel deployed in ${channel}, sir. [Jump to message](${messageUrl}).`);
-            return;
-        }
-
-        if (subcommand === 'remove') {
-            const messageInput = interaction.options.getString('message');
-            const idMatch = messageInput?.match(/(\d{17,20})$/);
-            const messageId = idMatch ? idMatch[1] : messageInput;
-
-            if (!messageId) {
-                await interaction.editReply('Please provide a valid message ID or link, sir.');
-                return;
-            }
-
-            let record;
-            try {
-                record = await database.getReactionRole(messageId);
-            } catch (error) {
-                console.error('Failed to load reaction role message:', error);
-            }
-
-            if (!record || record.guildId !== guild.id) {
-                await interaction.editReply('I do not have a reaction role panel for that message, sir.');
-                return;
-            }
-
-            try {
-                await database.deleteReactionRole(record.messageId);
-            } catch (error) {
-                console.error('Failed to delete reaction role configuration:', error);
-                await interaction.editReply('I could not remove that configuration from the database, sir.');
-                return;
-            }
-
-            let messageDeleted = false;
-            try {
-                const targetChannel = await guild.channels.fetch(record.channelId);
-                const me = guild.members.me || await guild.members.fetchMe();
-                if (targetChannel?.isTextBased() && me) {
-                    const channelPerms = targetChannel.permissionsFor(me);
-                    if (channelPerms?.has(PermissionsBitField.Flags.ManageMessages)) {
-                        const panelMessage = await targetChannel.messages.fetch(record.messageId);
-                        await panelMessage.delete();
-                        messageDeleted = true;
+                        record.ruleId = rule.id;
+                        record.keywords = keywords;
+                    } catch (error) {
+                        console.error('Failed to update auto moderation defaults:', error);
+                        await replyWithError('I could not update the auto moderation rule, sir.');
+                        return;
                     }
-                }
-            } catch (error) {
-                console.warn('Failed to delete reaction role message:', error);
-            }
+                } else {
+                    try {
+                        await this.disableAutoModRule(guild, record.ruleId);
+                    } catch (error) {
+                        console.error('Failed to disable auto moderation after removing defaults:', error);
+                    }
 
-            await interaction.editReply(messageDeleted
-                ? 'Reaction role panel removed and the message deleted, sir.'
-                : 'Reaction role panel removed from my registry, sir.');
-            return;
-        }
-
-        if (subcommand === 'list') {
-            let records = [];
-            try {
-                records = await database.getReactionRolesForGuild(guild.id);
-            } catch (error) {
-                console.error('Failed to list reaction roles:', error);
-                await interaction.editReply('I could not retrieve the current configurations, sir.');
-                return;
-            }
-
-            if (!records || records.length === 0) {
-                await interaction.editReply('No reaction role panels are currently configured, sir.');
-                return;
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle('Active reaction role panels')
-                .setColor(0x5865f2);
-
-            const limitedRecords = records.slice(0, 25);
-            for (let index = 0; index < limitedRecords.length; index++) {
-                const record = limitedRecords[index];
-                const url = `https://discord.com/channels/${guild.id}/${record.channelId}/${record.messageId}`;
-                const roleLines = (record.options || [])
-                    .map(option => `${option.display} → <@&${option.roleId}>`)
-                    .join('\n') || 'No roles recorded.';
-
-                const value = `${guild.channels.cache.get(record.channelId) ? `<#${record.channelId}>` : 'Channel missing'} • [Jump to message](${url})\n${roleLines}`;
-
-                embed.addFields({
-                    name: `Panel ${index + 1}`,
-                    value: value.length > 1024 ? `${value.slice(0, 1019)}...` : value
-                });
-            }
-
-            if (records.length > limitedRecords.length) {
-                embed.setFooter({ text: `Showing ${limitedRecords.length} of ${records.length} panels.` });
-            }
-
-            await interaction.editReply({ embeds: [embed] });
-            return;
-        }
-
-        if (subcommand === 'setmods') {
-            const shouldClear = interaction.options.getBoolean('clear') || false;
-            const roleIds = [];
-            for (let index = 1; index <= 5; index++) {
-                const role = interaction.options.getRole(`role${index}`);
-                if (role && !roleIds.includes(role.id)) {
-                    roleIds.push(role.id);
+                    record.enabled = false;
+                    statusLine += ' Auto moderation was disabled because no entries remain, sir.';
                 }
             }
 
-            if (!shouldClear && roleIds.length === 0) {
-                await interaction.editReply('Please provide at least one role or enable the clear option, sir.');
-                return;
-            }
-
-            try {
-                const updated = await database.setGuildModeratorRoles(guild.id, shouldClear ? [] : roleIds, guild.ownerId);
-                const summary = updated?.moderatorRoleIds?.length
-                    ? updated.moderatorRoleIds.map(roleId => `<@&${roleId}>`).join(', ')
-                    : 'Only the server owner may configure reaction roles.';
-
-                await interaction.editReply(shouldClear
-                    ? 'Moderator roles cleared, sir. Only the owner retains access.'
-                    : `Moderator roles updated, sir: ${summary}`);
-            } catch (error) {
-                console.error('Failed to update moderator roles:', error);
-                await interaction.editReply('I could not adjust the moderator roles, sir.');
-            }
-            return;
-        }
-
-        await interaction.editReply('I do not recognize that subcommand, sir.');
-    }
-
-    async handleReactionAdd(reaction, user) {
-        if (!database.isConnected || !reaction || !user || user.bot) {
-            return;
-        }
-
-        try {
-            if (reaction.partial) {
-                try {
-                    await reaction.fetch();
-                } catch (error) {
-                    console.warn('Failed to fetch partial reaction (add):', error);
-                }
-            }
-
-            if (reaction.message?.partial) {
-                try {
-                    await reaction.message.fetch();
-                } catch (error) {
-                    console.warn('Failed to fetch partial message for reaction add:', error);
-                }
-            }
-
-            const context = await this.resolveReactionRoleContext(reaction, user);
-            if (!context) {
-                return;
-            }
-
-            if (context.member.roles.cache.has(context.role.id)) {
-                return;
-            }
-
-            await context.member.roles.add(context.role, 'Reaction role assignment');
-        } catch (error) {
-            console.error('Failed to handle reaction role assignment:', error);
-        }
-    }
-
-    async handleReactionRemove(reaction, user) {
-        if (!database.isConnected || !reaction || !user || user.bot) {
-            return;
-        }
-
-        try {
-            if (reaction.partial) {
-                try {
-                    await reaction.fetch();
-                } catch (error) {
-                    console.warn('Failed to fetch partial reaction (remove):', error);
-                }
-            }
-
-            if (reaction.message?.partial) {
-                try {
-                    await reaction.message.fetch();
-                } catch (error) {
-                    console.warn('Failed to fetch partial message for reaction remove:', error);
-                }
-            }
-
-            const context = await this.resolveReactionRoleContext(reaction, user);
-            if (!context) {
-                return;
-            }
-
-            if (!context.member.roles.cache.has(context.role.id)) {
-                return;
-            }
-
-            await context.member.roles.remove(context.role, 'Reaction role removal');
-        } catch (error) {
-            console.error('Failed to handle reaction role removal:', error);
-        }
-    }
-
-    async handleTrackedMessageDelete(message) {
-        if (!database.isConnected || !message?.id) {
-            return;
-        }
-
-        try {
-            const record = await database.getReactionRole(message.id);
-            if (!record) {
-                return;
-            }
-
-            await database.deleteReactionRole(message.id);
-        } catch (error) {
-            console.error('Failed to clean up deleted reaction role message:', error);
-        }
-    }
-
-    async handleAutoModCommand(interaction) {
-        if (!interaction.guild) {
-            await interaction.editReply('This command is only available within a server, sir.');
-            return;
-        }
-
-        if (!database.isConnected) {
-            await interaction.editReply('My database uplink is offline, sir. Auto moderation is unavailable at the moment.');
-            return;
-        }
-
-        const guild = interaction.guild;
-        const member = interaction.member;
-        const subcommand = interaction.options.getSubcommand();
-        const guildConfig = await this.getGuildConfig(guild);
-
-        const isModerator = await this.isGuildModerator(member, guildConfig);
-        if (!isModerator) {
-            await interaction.editReply('Only the server owner or configured moderators may do that, sir.');
-            return;
-        }
-
-        const me = guild.members.me || await guild.members.fetchMe();
-        if (!me || !me.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
-            await interaction.editReply('I require the "Manage Server" permission to configure auto moderation, sir.');
-            return;
-        }
-
-        let record = await database.getAutoModConfig(guild.id);
-        if (!record) {
-            record = {
-                guildId: guild.id,
-                keywords: [],
-                enabled: false,
-                customMessage: this.defaultAutoModMessage,
-                ruleId: null
-            };
-        } else {
-            if (!Array.isArray(record.keywords)) {
-                record.keywords = [];
-            }
-
-            if (!record.customMessage) {
-                record.customMessage = this.defaultAutoModMessage;
-            }
-        }
-
-        const replyWithError = async message => {
-            await interaction.editReply(message);
-        };
-
-        if (subcommand === 'status') {
-            const rule = record.ruleId ? await this.fetchAutoModRule(guild, record.ruleId) : null;
-            const enabledState = rule ? rule.enabled : Boolean(record.enabled);
-            const footerText = rule
-                ? `Rule ID ${rule.id}`
-                : record.ruleId
-                    ? 'Stored configuration exists, but the Discord rule is missing.'
-                    : 'Auto moderation has not been deployed yet.';
-            const embed = new EmbedBuilder()
-                .setTitle('Auto moderation status')
-                .setColor(0x5865f2)
-                .addFields(
-                    { name: 'Enabled', value: enabledState ? 'Yes' : 'No', inline: true },
-                    { name: 'Tracked phrases', value: `${record.keywords.length}`, inline: true }
-                )
-                .setFooter({ text: footerText });
-
-            await interaction.editReply({ embeds: [embed] });
-            return;
-        }
-
-        if (subcommand === 'list') {
-            if (!record.keywords.length) {
-                await interaction.editReply('No blacklist entries are currently configured, sir.');
-                return;
-            }
-
-            const chunkSize = 20;
-            const chunks = [];
-            for (let index = 0; index < record.keywords.length; index += chunkSize) {
-                chunks.push(record.keywords.slice(index, index + chunkSize));
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle('Blacklisted phrases')
-                .setColor(0x5865f2);
-
-            chunks.slice(0, 5).forEach((chunk, index) => {
-                const value = chunk.map(word => `• ${word}`).join('\n');
-                embed.addFields({
-                    name: `Batch ${index + 1}`,
-                    value: value.length > 1024 ? `${value.slice(0, 1021)}...` : value
-                });
-            });
-
-            if (chunks.length > 5) {
-                embed.setFooter({ text: `Showing ${Math.min(100, record.keywords.length)} of ${record.keywords.length} entries.` });
-            }
-
-            await interaction.editReply({ embeds: [embed] });
-            return;
-        }
-
-        if (subcommand === 'enable') {
-            if (!record.keywords.length) {
-                await replyWithError('Please add blacklisted words before enabling auto moderation, sir.');
-                return;
-            }
-
-            try {
-                const { rule, keywords } = await this.upsertAutoModRule(
-                    guild,
-                    record.keywords,
-                    record.customMessage,
-                    record.ruleId,
-                    true
-                );
-
-                record.ruleId = rule.id;
-                record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
-                await database.saveAutoModConfig(guild.id, record);
-                const statusLine = record.enabled
-                    ? 'Discord will now block the configured phrases.'
-                    : 'The rule was updated, but Discord left it disabled.';
-                await interaction.editReply(`Auto moderation ${record.enabled ? 'engaged' : 'updated'}, sir. ${statusLine}`);
-            } catch (error) {
-                console.error('Failed to enable auto moderation:', error);
-                await replyWithError('I could not enable auto moderation, sir. Please ensure I have the AutoMod permission.');
-            }
-            return;
-        }
-
-        if (subcommand === 'disable') {
-            try {
-                await this.disableAutoModRule(guild, record.ruleId);
-            } catch (error) {
-                console.error('Failed to disable auto moderation rule:', error);
-                await replyWithError('I could not disable the auto moderation rule, sir.');
-                return;
-            }
-
-            record.enabled = false;
             await database.saveAutoModConfig(guild.id, record);
-            await interaction.editReply('Auto moderation is now offline for this server, sir.');
-            return;
+            const effectiveFilters = record.enabled ? this.getEffectiveAutoModFilters(record).expanded.length : 0;
+            if (record.enabled && effectiveFilters) {
+                statusLine += ` Currently enforcing ${effectiveFilters} pattern${effectiveFilters === 1 ? '' : 's'}, sir.`;
+            } else if (!record.enabled) {
+                statusLine += ' Auto moderation is currently disabled, sir.';
+            }
         }
 
-        if (subcommand === 'clear') {
-            try {
-                await this.disableAutoModRule(guild, record.ruleId);
-            } catch (error) {
-                console.error('Failed to disable auto moderation while clearing:', error);
-            }
-
-            record.keywords = [];
-            record.enabled = false;
-            await database.saveAutoModConfig(guild.id, record);
-            await interaction.editReply('Blacklist cleared and auto moderation disabled, sir.');
+            await interaction.editReply(statusLine);
             return;
         }
 
@@ -4236,14 +3765,18 @@ class DiscordHandlers {
 
             record.customMessage = message.trim().slice(0, 150);
 
-            if (record.enabled && record.keywords.length) {
+            if (
+                record.enabled &&
+                (record.keywords.length || (record.includeDefaults && this.autoModDefaultKeywords.length))
+            ) {
                 try {
                     const { rule } = await this.upsertAutoModRule(
                         guild,
                         record.keywords,
                         record.customMessage,
                         record.ruleId,
-                        record.enabled
+                        record.enabled,
+                        record.includeDefaults
                     );
                     record.ruleId = rule.id;
                 } catch (error) {
@@ -4280,7 +3813,8 @@ class DiscordHandlers {
                     merged,
                     record.customMessage,
                     record.ruleId,
-                    true
+                    true,
+                    record.includeDefaults
                 );
 
                 record.ruleId = rule.id;
@@ -4291,7 +3825,13 @@ class DiscordHandlers {
                 const statusLine = record.enabled
                     ? 'Auto moderation is active, sir.'
                     : 'Auto moderation is currently disabled, sir.';
-                await interaction.editReply(`Blacklist updated with ${addedCount} new entr${addedCount === 1 ? 'y' : 'ies'}. ${statusLine}`);
+                const effectiveFilters = this.getEffectiveAutoModFilters(record).expanded.length;
+                const patternLine = effectiveFilters
+                    ? ` Now enforcing ${effectiveFilters} pattern${effectiveFilters === 1 ? '' : 's'}.`
+                    : '';
+                await interaction.editReply(
+                    `Blacklist updated with ${addedCount} new entr${addedCount === 1 ? 'y' : 'ies'}. ${statusLine}${patternLine}`
+                );
             } catch (error) {
                 console.error('Failed to add auto moderation keywords:', error);
                 await replyWithError('I could not update the auto moderation rule, sir.');
@@ -4318,14 +3858,18 @@ class DiscordHandlers {
 
             record.keywords = remaining;
 
-            if (record.keywords.length) {
+            const hasFilters =
+                record.keywords.length > 0 || (record.includeDefaults && this.autoModDefaultKeywords.length > 0);
+
+            if (hasFilters) {
                 try {
                     const { rule, keywords } = await this.upsertAutoModRule(
                         guild,
                         record.keywords,
                         record.customMessage,
                         record.ruleId,
-                        record.enabled
+                        record.enabled,
+                        record.includeDefaults
                     );
 
                     record.ruleId = rule.id;
@@ -4345,7 +3889,11 @@ class DiscordHandlers {
             }
 
             await database.saveAutoModConfig(guild.id, record);
-            await interaction.editReply('Blacklist updated, sir.');
+            const effectiveFilters = this.getEffectiveAutoModFilters(record).expanded.length;
+            const statusLine = record.enabled && effectiveFilters
+                ? `Jarvis will enforce ${effectiveFilters} pattern${effectiveFilters === 1 ? '' : 's'}, sir.`
+                : 'Auto moderation is currently disabled, sir.';
+            await interaction.editReply(`Blacklist updated, sir. ${statusLine}`);
             return;
         }
 
@@ -4391,13 +3939,15 @@ class DiscordHandlers {
                 return;
             }
 
+            let text = '';
             try {
                 const { rule, keywords } = await this.upsertAutoModRule(
                     guild,
                     combined,
                     record.customMessage,
                     record.ruleId,
-                    true
+                    true,
+                    record.includeDefaults
                 );
 
                 record.ruleId = rule.id;
@@ -4407,7 +3957,13 @@ class DiscordHandlers {
                 const statusLine = record.enabled
                     ? 'Auto moderation is active, sir.'
                     : 'Auto moderation is currently disabled, sir.';
-                await interaction.editReply(`Blacklist now tracks ${keywords.length} entr${keywords.length === 1 ? 'y' : 'ies'}. ${statusLine}`);
+                const effectiveFilters = this.getEffectiveAutoModFilters(record).expanded.length;
+                const patternLine = effectiveFilters
+                    ? ` Now enforcing ${effectiveFilters} pattern${effectiveFilters === 1 ? '' : 's'}.`
+                    : '';
+                await interaction.editReply(
+                    `Blacklist now tracks ${keywords.length} entr${keywords.length === 1 ? 'y' : 'ies'}. ${statusLine}${patternLine}`
+                );
             } catch (error) {
                 console.error('Failed to import auto moderation keywords:', error);
                 await replyWithError('I could not apply that blacklist to Discord, sir.');

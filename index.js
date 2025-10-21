@@ -333,6 +333,15 @@ const commands = [
                         .setName("message")
                         .setDescription("Custom response shown to users")
                         .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("defaults")
+                .setDescription("Toggle Jarvis default blacklist entries")
+                .addBooleanOption(option =>
+                    option
+                        .setName("enabled")
+                        .setDescription("Whether to include Jarvis default blacklist entries")
+                        .setRequired(true))))
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("serverstats")
