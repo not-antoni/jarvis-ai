@@ -26,7 +26,9 @@ const config = {
             userProfiles: 'userProfiles',
             guildConfigs: 'guildConfigs',
             reactionRoles: 'reactionRoles',
-            autoModeration: 'autoModerationRules'
+            autoModeration: 'autoModerationRules',
+            serverStats: 'serverStats',
+            memberLogs: 'memberLogs'
         }
     },
 

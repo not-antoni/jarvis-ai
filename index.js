@@ -83,6 +83,10 @@ const commands = [
         .setDescription("Show Jarvis command overview")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName("invite")
+        .setDescription("Grab the Jarvis HQ support server invite")
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("profile")
         .setDescription("View or update your Jarvis profile")
         .addSubcommand(subcommand =>
@@ -330,7 +334,128 @@ const commands = [
                         .setDescription("Custom response shown to users")
                         .setRequired(true)))
         .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName("serverstats")
+        .setDescription("Manage Jarvis server statistics channels")
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("status")
+                .setDescription("Show the current server stats configuration"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("enable")
+                .setDescription("Create or update server stats channels"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("refresh")
+                .setDescription("Refresh the server stats counts immediately"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("disable")
+                .setDescription("Remove the server stats channels"))
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName("memberlog")
+        .setDescription("Configure Jarvis join and leave announcements")
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("status")
+                .setDescription("View the current join/leave log configuration"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("setchannel")
+                .setDescription("Choose where Jarvis posts join and leave messages")
+                .addChannelOption(option =>
+                    option
+                        .setName("channel")
+                        .setDescription("Text channel for join/leave reports")
+                        .setRequired(true)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("enable")
+                .setDescription("Enable join and leave announcements"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("disable")
+                .setDescription("Disable join and leave announcements"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("addvariation")
+                .setDescription("Add a custom message variation")
+                .addStringOption(option =>
+                    option
+                        .setName("type")
+                        .setDescription("Which event to customize")
+                        .setRequired(true)
+                        .addChoices(
+                            { name: "Join", value: "join" },
+                            { name: "Leave", value: "leave" }
+                        ))
+                .addStringOption(option =>
+                    option
+                        .setName("message")
+                        .setDescription("Message text (supports placeholders like {mention})")
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("removevariation")
+                .setDescription("Remove a custom variation by its index")
+                .addStringOption(option =>
+                    option
+                        .setName("type")
+                        .setDescription("Which event to modify")
+                        .setRequired(true)
+                        .addChoices(
+                            { name: "Join", value: "join" },
+                            { name: "Leave", value: "leave" }
+                        ))
+                .addIntegerOption(option =>
+                    option
+                        .setName("index")
+                        .setDescription("Position from the status list to remove")
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("setcustom")
+                .setDescription("Set a single custom message that always sends")
+                .addStringOption(option =>
+                    option
+                        .setName("type")
+                        .setDescription("Which event to customize")
+                        .setRequired(true)
+                        .addChoices(
+                            { name: "Join", value: "join" },
+                            { name: "Leave", value: "leave" }
+                        ))
+                .addStringOption(option =>
+                    option
+                        .setName("message")
+                        .setDescription("Message text (supports placeholders like {mention})")
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("clearcustom")
+                .setDescription("Remove the custom message override")
+                .addStringOption(option =>
+                    option
+                        .setName("type")
+                        .setDescription("Which event to reset")
+                        .setRequired(true)
+                        .addChoices(
+                            { name: "Join", value: "join" },
+                            { name: "Leave", value: "leave" }
+                        )))
+        .setContexts([InteractionContextType.Guild]),
 ];
+
+const serverStatsRefreshJob = cron.schedule('*/10 * * * *', async () => {
+    try {
+        await discordHandlers.refreshAllServerStats(client);
+    } catch (error) {
+        console.error('Failed to refresh server stats:', error);
+    }
+}, { scheduled: false });
 
 async function registerSlashCommands() {
     try {
@@ -605,11 +730,13 @@ app.get("/health", (req, res) => {
 // ------------------------ Event Handlers ------------------------
 client.once("ready", async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
-    
+
     try {
         await database.connect();
         client.user.setActivity("over the digital realm", { type: "WATCHING" });
         await registerSlashCommands();
+        serverStatsRefreshJob.start();
+        await discordHandlers.refreshAllServerStats(client);
         console.log("Provider status on startup:", aiManager.getProviderStatus());
     } catch (error) {
         console.error("Failed to initialize:", error);
@@ -637,6 +764,14 @@ client.on("messageDelete", async (message) => {
     await discordHandlers.handleTrackedMessageDelete(message);
 });
 
+client.on("guildMemberAdd", async (member) => {
+    await discordHandlers.handleGuildMemberAdd(member);
+});
+
+client.on("guildMemberRemove", async (member) => {
+    await discordHandlers.handleGuildMemberRemove(member);
+});
+
 // ------------------------ Cleanup Tasks ------------------------
 // Clean up old data periodically
 cron.schedule('0 2 * * *', () => {
@@ -659,6 +794,7 @@ process.on("unhandledRejection", (err) => {
 process.on("SIGTERM", async () => {
     console.log("Jarvis is powering down...");
     try {
+        serverStatsRefreshJob.stop();
         await database.disconnect();
         client.destroy();
     } catch (error) {
@@ -670,6 +806,7 @@ process.on("SIGTERM", async () => {
 process.on("SIGINT", async () => {
     console.log("Jarvis received SIGINT, shutting down gracefully...");
     try {
+        serverStatsRefreshJob.stop();
         await database.disconnect();
         client.destroy();
     } catch (error) {
