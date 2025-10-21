@@ -23,7 +23,12 @@ const config = {
         name: 'jarvis_ai',
         collections: {
             conversations: 'conversations',
-            userProfiles: 'userProfiles'
+            userProfiles: 'userProfiles',
+            guildConfigs: 'guildConfigs',
+            reactionRoles: 'reactionRoles',
+            autoModeration: 'autoModerationRules',
+            serverStats: 'serverStats',
+            memberLogs: 'memberLogs'
         }
     },
 
@@ -78,8 +83,7 @@ const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_PW', 'OPENAI'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-    console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
-    process.exit(1);
+    console.warn(`Missing required environment variables: ${missingVars.join(', ')}`);
 }
 
 module.exports = config;
