@@ -341,7 +341,7 @@ const commands = [
                     option
                         .setName("enabled")
                         .setDescription("Whether to include Jarvis default blacklist entries")
-                        .setRequired(true))))
+                        .setRequired(true)))
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("serverstats")

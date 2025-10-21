@@ -368,6 +368,10 @@ class DiscordHandlers {
         await this.sendMemberLogEvent(member, 'join');
     }
 
+    async handleGuildMemberAdd(member) {
+        await this.sendMemberLogEvent(member, 'join');
+    }
+
     async handleGuildMemberRemove(member) {
         await this.sendMemberLogEvent(member, 'leave');
     }
@@ -1045,7 +1049,6 @@ class DiscordHandlers {
                         }
                     }
                 }
-                return;
             }
         }
 
@@ -3668,7 +3671,6 @@ class DiscordHandlers {
             }
             return;
         }
-    }
 
         if (subcommand === 'disable') {
             try {
