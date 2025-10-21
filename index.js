@@ -3,7 +3,7 @@
  * Refactored for better organization and maintainability
  */
 
-const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, InteractionContextType } = require("discord.js");
+const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials } = require("discord.js");
 const express = require("express");
 const cron = require("node-cron");
 
@@ -15,7 +15,14 @@ const discordHandlers = require('./discord-handlers');
 
 // ------------------------ Discord Client Setup ------------------------
 const client = new Client({
-    intents: config.discord.intents.map(intent => GatewayIntentBits[intent])
+    intents: config.discord.intents.map(intent => GatewayIntentBits[intent]),
+    partials: [
+        Partials.Message,
+        Partials.Channel,
+        Partials.Reaction,
+        Partials.User,
+        Partials.GuildMember
+    ]
 });
 
 // ------------------------ Slash Command Registration ------------------------
@@ -182,42 +189,159 @@ const commands = [
                 .setRequired(true),
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("reactionrole")
+        .setDescription("Manage reaction role panels")
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("create")
+                .setDescription("Create a reaction role panel")
+                .addChannelOption(option =>
+                    option
+                        .setName("channel")
+                        .setDescription("Channel where the panel will be posted")
+                        .setRequired(true)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+                .addStringOption(option =>
+                    option
+                        .setName("pairs")
+                        .setDescription("Emoji-role pairs, e.g. 😀 @Role, 😎 @AnotherRole")
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option
+                        .setName("title")
+                        .setDescription("Panel title")
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option
+                        .setName("description")
+                        .setDescription("Panel description")
+                        .setRequired(false)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("remove")
+                .setDescription("Remove a reaction role panel")
+                .addStringOption(option =>
+                    option
+                        .setName("message")
+                        .setDescription("Message ID or link to the panel")
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("list")
+                .setDescription("List configured reaction role panels"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("setmods")
+                .setDescription("Configure which roles may manage reaction roles")
+                .addRoleOption(option =>
+                    option
+                        .setName("role1")
+                        .setDescription("Allowed moderator role")
+                        .setRequired(false))
+                .addRoleOption(option =>
+                    option
+                        .setName("role2")
+                        .setDescription("Additional moderator role")
+                        .setRequired(false))
+                .addRoleOption(option =>
+                    option
+                        .setName("role3")
+                        .setDescription("Additional moderator role")
+                        .setRequired(false))
+                .addRoleOption(option =>
+                    option
+                        .setName("role4")
+                        .setDescription("Additional moderator role")
+                        .setRequired(false))
+                .addRoleOption(option =>
+                    option
+                        .setName("role5")
+                        .setDescription("Additional moderator role")
+                        .setRequired(false))
+                .addBooleanOption(option =>
+                    option
+                        .setName("clear")
+                        .setDescription("Clear moderator roles and revert to owner-only control")
+                        .setRequired(false)))
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName("automod")
+        .setDescription("Configure Jarvis auto moderation")
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("status")
+                .setDescription("Show auto moderation status"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("enable")
+                .setDescription("Enable auto moderation with the configured blacklist"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("disable")
+                .setDescription("Disable auto moderation"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("add")
+                .setDescription("Add words to the blacklist")
+                .addStringOption(option =>
+                    option
+                        .setName("words")
+                        .setDescription("Comma or newline separated words")
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("remove")
+                .setDescription("Remove words from the blacklist")
+                .addStringOption(option =>
+                    option
+                        .setName("words")
+                        .setDescription("Comma or newline separated words")
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("import")
+                .setDescription("Import blacklist entries from a text file")
+                .addAttachmentOption(option =>
+                    option
+                        .setName("file")
+                        .setDescription("Plain text file with one word or phrase per line")
+                        .setRequired(true))
+                .addBooleanOption(option =>
+                    option
+                        .setName("replace")
+                        .setDescription("Replace the existing blacklist instead of merging")
+                        .setRequired(false)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("list")
+                .setDescription("List configured blacklist entries"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("clear")
+                .setDescription("Remove all blacklisted entries and disable auto moderation"))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("setmessage")
+                .setDescription("Set the custom message shown when blocking a message")
+                .addStringOption(option =>
+                    option
+                        .setName("message")
+                        .setDescription("Custom response shown to users")
+                        .setRequired(true)))
+        .setContexts([InteractionContextType.Guild]),
 ];
-
-const rest = new REST({ version: "10" }).setToken(config.discord.token);
 
 async function registerSlashCommands() {
     try {
-        console.log("Fetching existing global commands...");
-        const existingCommands = await rest.get(Routes.applicationCommands(client.application.id));
-        console.log(`Found ${existingCommands.length} existing commands: ${existingCommands.map(c => c.name).join(", ")}`);
+        const commandData = commands.map(command => command.toJSON());
 
-        // Create a map of desired commands by name, overwriting duplicates
-        const commandsToRegister = [];
-        const seenNames = new Set();
-
-        // Preserve non-desired existing commands
-        for (const existing of existingCommands) {
-            if (!commands.some(cmd => cmd.name === existing.name)) {
-                commandsToRegister.push(existing);
-                seenNames.add(existing.name);
-                console.log(`Preserving existing command: ${existing.name}`);
-            }
+        if (!client.application?.id) {
+            await client.application?.fetch();
         }
 
-        // Add/update desired commands
-        for (const cmd of commands) {
-            const json = cmd.toJSON();
-            commandsToRegister.push(json);
-            seenNames.add(cmd.name);
-            console.log(seenNames.has(cmd.name) ? `Updating command: ${cmd.name}` : `Adding command: ${cmd.name}`);
-        }
-
-        console.log(`Registering ${commandsToRegister.length} global slash commands...`);
-        await rest.put(Routes.applicationCommands(client.application.id), {
-            body: commandsToRegister,
-        });
-        console.log("Successfully registered global slash commands.");
+        await client.application.commands.set(commandData);
+        console.log(`Successfully registered ${commandData.length} global slash commands.`);
     } catch (error) {
         console.error("Failed to register slash commands:", error);
     }
@@ -499,6 +623,18 @@ client.on("messageCreate", async (message) => {
 client.on("interactionCreate", async (interaction) => {
     if (!interaction.isCommand()) return;
     await discordHandlers.handleSlashCommand(interaction);
+});
+
+client.on("messageReactionAdd", async (reaction, user) => {
+    await discordHandlers.handleReactionAdd(reaction, user);
+});
+
+client.on("messageReactionRemove", async (reaction, user) => {
+    await discordHandlers.handleReactionRemove(reaction, user);
+});
+
+client.on("messageDelete", async (message) => {
+    await discordHandlers.handleTrackedMessageDelete(message);
 });
 
 // ------------------------ Cleanup Tasks ------------------------
