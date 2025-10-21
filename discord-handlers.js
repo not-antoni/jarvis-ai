@@ -28,7 +28,9 @@ class DiscordHandlers {
         this.jarvis = new JarvisAI();
         this.userCooldowns = new Map();
         this.autoModRuleName = 'Jarvis Blacklist Filter';
-        this.maxAutoModKeywords = 100;
+        this.maxAutoModRules = 6;
+        this.maxAutoModPatternsPerRule = 1000;
+        this.maxAutoModStoredKeywords = this.maxAutoModRules * this.maxAutoModPatternsPerRule;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
         this.autoModDefaultsPath = path.join(__dirname, 'automod-defaults.txt');
         this.autoModDefaultKeywords = this.loadDefaultAutoModKeywords();
@@ -433,6 +435,8 @@ class DiscordHandlers {
         const variants = new Set();
         variants.add(base);
 
+        const hasSeparators = /[\s_\-]/.test(base);
+
         if (!base.startsWith('*')) {
             variants.add(`*${base}`);
         }
@@ -443,16 +447,18 @@ class DiscordHandlers {
 
         variants.add(`*${base}*`);
 
-        const collapsed = base.replace(/[\s_\-]+/g, '');
-        if (collapsed && collapsed !== base) {
-            variants.add(collapsed);
-            variants.add(`*${collapsed}*`);
-        }
+        if (!hasSeparators) {
+            const collapsed = base.replace(/[\s_\-]+/g, '');
+            if (collapsed && collapsed !== base) {
+                variants.add(collapsed);
+                variants.add(`*${collapsed}*`);
+            }
 
-        const wildcarded = base.replace(/[\s_\-]+/g, '*');
-        if (wildcarded && wildcarded !== base) {
-            variants.add(wildcarded);
-            variants.add(`*${wildcarded}*`);
+            const wildcarded = base.replace(/[\s_\-]+/g, '*');
+            if (wildcarded && wildcarded !== base) {
+                variants.add(wildcarded);
+                variants.add(`*${wildcarded}*`);
+            }
         }
 
         const leetMap = {
@@ -466,32 +472,96 @@ class DiscordHandlers {
 
         let leetVariant = '';
         let leetApplied = false;
-        for (const char of collapsed || base) {
-            const replacements = leetMap[char];
-            if (replacements && replacements.length) {
-                leetVariant += replacements[0];
-                leetApplied = true;
-            } else {
-                leetVariant += char;
-            }
-        }
+        if (!hasSeparators) {
+            const collapsed = base.replace(/[\s_\-]+/g, '');
 
-        if (leetApplied && leetVariant && leetVariant !== base) {
-            variants.add(leetVariant);
-            variants.add(`*${leetVariant}*`);
+            for (const char of collapsed || base) {
+                const replacements = leetMap[char];
+                if (replacements && replacements.length) {
+                    leetVariant += replacements[0];
+                    leetApplied = true;
+                } else {
+                    leetVariant += char;
+                }
+            }
+
+            if (leetApplied && leetVariant && leetVariant !== base) {
+                variants.add(leetVariant);
+                variants.add(`*${leetVariant}*`);
+            }
         }
 
         return Array.from(variants).filter(Boolean);
     }
 
-    expandKeywordSet(keywords = []) {
+    expandKeywordSet(keywords = [], limit = this.maxAutoModPatternsPerRule) {
         const expanded = new Set();
+        const hasLimit = Number.isFinite(limit);
 
         for (const keyword of keywords) {
             const variants = this.expandKeywordVariants(keyword);
             for (const variant of variants) {
-                if (expanded.size >= this.maxAutoModKeywords) {
+                if (hasLimit && expanded.size >= limit) {
                     break;
+                }
+                expanded.add(variant);
+            }
+
+            if (hasLimit && expanded.size >= limit) {
+                break;
+            }
+        }
+
+        return Array.from(expanded);
+    }
+
+    getEffectiveAutoModFilters(record) {
+        const info = this.partitionAutoModKeywords(
+            Array.isArray(record?.keywords) ? record.keywords : [],
+            Boolean(record?.includeDefaults)
+        );
+
+        const expanded = [];
+        for (const partition of info.partitions) {
+            expanded.push(...partition.filters);
+        }
+
+        return {
+            canonical: info.canonical,
+            combined: info.combined,
+            expanded,
+            includeDefaults: info.includeDefaults,
+            partitions: info.partitions,
+            overflow: info.overflow
+        };
+    }
+
+    mergeKeywords(current = [], additions = [], limit = this.maxAutoModStoredKeywords) {
+        const unique = new Set();
+        const hasLimit = Number.isFinite(limit);
+
+        for (const keyword of current) {
+            const normalized = this.normalizeKeyword(keyword);
+            if (normalized) {
+                unique.add(normalized);
+                if (hasLimit && unique.size >= limit) {
+                    break;
+                }
+            }
+        }
+
+        if (!hasLimit || unique.size < limit) {
+            for (const addition of additions) {
+                if (hasLimit && unique.size >= limit) {
+                    break;
+                }
+
+                const normalized = this.normalizeKeyword(addition);
+                if (normalized) {
+                    unique.add(normalized);
+                    if (hasLimit && unique.size >= limit) {
+                        break;
+                    }
                 }
                 expanded.add(variant);
             }
@@ -516,48 +586,8 @@ class DiscordHandlers {
             return { total: 0, botCount: 0, userCount: 0 };
         }
 
-        return Array.from(expanded);
-    }
-
-    getEffectiveAutoModFilters(record) {
-        const includeDefaults = Boolean(record?.includeDefaults);
-        const baseKeywords = Array.isArray(record?.keywords) ? record.keywords : [];
-        const canonical = this.mergeKeywords([], baseKeywords);
-        const combined = includeDefaults
-            ? this.mergeKeywords(canonical, this.autoModDefaultKeywords)
-            : canonical.slice(0, this.maxAutoModKeywords);
-        const expanded = this.expandKeywordSet(combined);
-
-        return {
-            canonical,
-            combined,
-            expanded,
-            includeDefaults
-        };
-    }
-
-    mergeKeywords(current = [], additions = []) {
-        const unique = new Set();
-
-        for (const keyword of current) {
-            const normalized = this.normalizeKeyword(keyword);
-            if (normalized) {
-                unique.add(normalized);
-            }
-        }
-
-        for (const addition of additions) {
-            if (unique.size >= this.maxAutoModKeywords) {
-                break;
-            }
-
-            const normalized = this.normalizeKeyword(addition);
-            if (normalized) {
-                unique.add(normalized);
-            }
-        }
-
-        return Array.from(unique).slice(0, this.maxAutoModKeywords);
+        const result = Array.from(unique);
+        return hasLimit ? result.slice(0, limit) : result;
     }
 
     async fetchAutoModRule(guild, ruleId) {
@@ -577,86 +607,291 @@ class DiscordHandlers {
         }
     }
 
-    async upsertAutoModRule(
-        guild,
-        keywords,
-        customMessage = null,
-        ruleId = null,
-        enabled = true,
-        includeDefaults = true
-    ) {
+    formatAutoModRuleName(index) {
+        return index === 0 ? this.autoModRuleName : `${this.autoModRuleName} #${index + 1}`;
+    }
+
+    isJarvisAutoModRuleName(name) {
+        if (!name || typeof name !== 'string') {
+            return false;
+        }
+
+        if (name === this.autoModRuleName) {
+            return true;
+        }
+
+        return name.startsWith(`${this.autoModRuleName} #`);
+    }
+
+    getStoredAutoModRuleIds(record) {
+        const ids = [];
+
+        if (record?.ruleId) {
+            ids.push(record.ruleId);
+        }
+
+        if (Array.isArray(record?.ruleIds)) {
+            for (const id of record.ruleIds) {
+                if (id && !ids.includes(id)) {
+                    ids.push(id);
+                }
+            }
+        }
+
+        return ids;
+    }
+
+    partitionAutoModKeywords(customKeywords = [], includeDefaults = true) {
+        const canonical = this.mergeKeywords([], Array.isArray(customKeywords) ? customKeywords : []);
+        const defaults = includeDefaults ? this.autoModDefaultKeywords : [];
+        const combined = this.mergeKeywords(canonical, defaults, null);
+        const partitions = [];
+        const limit = this.maxAutoModPatternsPerRule;
+        const hasLimit = Number.isFinite(limit) && limit > 0;
+
+        let currentKeywords = [];
+        let currentFilters = [];
+
+        const flush = () => {
+            if (currentFilters.length) {
+                partitions.push({
+                    keywords: currentKeywords,
+                    filters: currentFilters
+                });
+                currentKeywords = [];
+                currentFilters = [];
+            }
+        };
+
+        for (const keyword of combined) {
+            const variants = this.expandKeywordVariants(keyword);
+            if (!variants.length) {
+                continue;
+            }
+
+            if (hasLimit && currentFilters.length && currentFilters.length + variants.length > limit) {
+                flush();
+            }
+
+            if (hasLimit && variants.length > limit) {
+                partitions.push({
+                    keywords: [keyword],
+                    filters: variants.slice(0, limit)
+                });
+                continue;
+            }
+
+            currentKeywords.push(keyword);
+            currentFilters.push(...variants);
+
+            if (hasLimit && currentFilters.length >= limit) {
+                flush();
+            }
+        }
+
+        flush();
+
+        const overflow = this.maxAutoModRules && partitions.length > this.maxAutoModRules;
+
+        return {
+            canonical,
+            combined,
+            partitions,
+            includeDefaults,
+            overflow
+        };
+    }
+
+    async fetchJarvisAutoModRules(guild) {
+        if (!guild) {
+            return [];
+        }
+
+        try {
+            const rules = await guild.autoModerationRules.fetch();
+            const clientId = guild.client?.user?.id || null;
+            const matches = [];
+
+            for (const existing of rules.values()) {
+                if (!this.isJarvisAutoModRuleName(existing.name)) {
+                    continue;
+                }
+
+                if (clientId && existing.creatorId && existing.creatorId !== clientId) {
+                    continue;
+                }
+
+                matches.push(existing);
+            }
+
+            matches.sort((a, b) => {
+                const nameCompare = (a.name || '').localeCompare(b.name || '');
+                if (nameCompare !== 0) {
+                    return nameCompare;
+                }
+
+                return (a.id || '').localeCompare(b.id || '');
+            });
+
+            return matches;
+        } catch (error) {
+            console.warn('Failed to fetch Jarvis auto moderation rules:', error);
+            return [];
+        }
+
+        return Array.from(unique).slice(0, this.maxAutoModKeywords);
+    }
+
+    async syncAutoModRules(guild, record, options = {}) {
         if (!guild) {
             throw new Error('I could not access that server, sir.');
         }
 
-        const sanitized = this.mergeKeywords([], keywords);
-        const combined = includeDefaults
-            ? this.mergeKeywords(sanitized, this.autoModDefaultKeywords)
-            : sanitized.slice(0, this.maxAutoModKeywords);
+        const { enable = true, customMessage = null } = options;
+        const info = this.partitionAutoModKeywords(record?.keywords || [], Boolean(record?.includeDefaults));
 
-        if (!combined.length) {
+        if (!info.partitions.length) {
             throw new Error('Please provide at least one valid keyword, sir.');
         }
 
-        const expanded = this.expandKeywordSet(combined);
-        if (!expanded.length) {
-            throw new Error('I could not derive any usable filters from those words, sir.');
+        if (info.overflow) {
+            throw this.createFriendlyError(
+                `Discord only allows ${this.maxAutoModRules} keyword rules, sir. Your configuration would require ${info.partitions.length}. Please reduce the blacklist before adding more entries.`
+            );
         }
 
-        const payload = {
-            name: this.autoModRuleName,
-            eventType: AutoModerationRuleEventType.MessageSend,
-            triggerType: AutoModerationRuleTriggerType.Keyword,
-            triggerMetadata: {
-                keywordFilter: expanded
-            },
-            actions: [
-                {
-                    type: AutoModerationActionType.BlockMessage,
-                    metadata: customMessage
+        const actions = [
+            {
+                type: AutoModerationActionType.BlockMessage,
+                metadata:
+                    customMessage && customMessage.trim()
                         ? { customMessage: customMessage.slice(0, 150) }
                         : {}
-                }
-            ],
-            enabled,
-            exemptRoles: [],
-            exemptChannels: []
+            }
+        ];
+
+        const existingRules = await this.fetchJarvisAutoModRules(guild);
+        const storedIds = this.getStoredAutoModRuleIds(record);
+        const usedRuleIds = new Set();
+        const activeRules = [];
+
+        const takeRuleById = id => {
+            if (!id) {
+                return null;
+            }
+
+            const match = existingRules.find(rule => rule.id === id && !usedRuleIds.has(rule.id));
+            if (match) {
+                usedRuleIds.add(match.id);
+                return match;
+            }
+
+            return null;
         };
 
-        let rule = null;
-        if (ruleId) {
-            rule = await this.fetchAutoModRule(guild, ruleId);
+        const takeAnyRule = () => {
+            const match = existingRules.find(rule => !usedRuleIds.has(rule.id));
+            if (match) {
+                usedRuleIds.add(match.id);
+                return match;
+            }
+
+            return null;
+        };
+
+        for (let index = 0; index < info.partitions.length; index += 1) {
+            const partition = info.partitions[index];
+            const payload = {
+                name: this.formatAutoModRuleName(index),
+                eventType: AutoModerationRuleEventType.MessageSend,
+                triggerType: AutoModerationRuleTriggerType.Keyword,
+                triggerMetadata: {
+                    keywordFilter: partition.filters
+                },
+                actions,
+                enabled: enable,
+                exemptRoles: [],
+                exemptChannels: []
+            };
+
+            let rule = takeRuleById(storedIds[index]);
+            if (!rule) {
+                rule = takeAnyRule();
+            }
+
+            if (rule) {
+                try {
+                    rule = await rule.edit(payload);
+                } catch (error) {
+                    if (error.code === 10066 || error.code === 50001 || error.code === 50013) {
+                        throw this.createFriendlyError('I do not have permission to update the auto moderation rule, sir.');
+                    }
+
+                    throw error;
+                }
+            } else {
+                try {
+                    rule = await guild.autoModerationRules.create(payload);
+                } catch (error) {
+                    if (error.code === 50013 || error.code === 50001) {
+                        throw this.createFriendlyError('I do not have permission to create auto moderation rules, sir.');
+                    }
+
+                    throw error;
+                }
+            }
+
+            usedRuleIds.add(rule.id);
+            activeRules.push(rule);
         }
 
-        if (rule) {
-            rule = await rule.edit(payload);
-        } else {
-            rule = await guild.autoModerationRules.create(payload);
+        for (const rule of existingRules) {
+            if (!usedRuleIds.has(rule.id)) {
+                try {
+                    await rule.delete();
+                } catch (error) {
+                    if (error.code !== 10066 && error.code !== 50001 && error.code !== 50013) {
+                        console.warn('Failed to delete unused auto moderation rule:', error);
+                    }
+                }
+            }
         }
 
-        return { rule, keywords: sanitized, appliedKeywords: expanded };
+        return {
+            rules: activeRules,
+            ruleIds: activeRules.map(rule => rule.id),
+            keywords: info.canonical,
+            partitions: info.partitions
+        };
     }
 
-    async disableAutoModRule(guild, ruleId) {
-        if (!guild || !ruleId) {
+    async disableAutoModRules(guild, ruleIds = []) {
+        if (!guild || !Array.isArray(ruleIds) || !ruleIds.length) {
             return false;
         }
 
-        try {
-            const rule = await guild.autoModerationRules.fetch(ruleId);
-            if (!rule) {
-                return false;
-            }
+        let disabledAny = false;
+        const uniqueIds = Array.from(new Set(ruleIds.filter(Boolean)));
 
-            await rule.edit({ enabled: false });
-            return true;
-        } catch (error) {
-            if (error.code === 10066 || error.code === 50001) {
-                return false;
-            }
+        for (const ruleId of uniqueIds) {
+            try {
+                const rule = await guild.autoModerationRules.fetch(ruleId);
+                if (!rule) {
+                    continue;
+                }
 
-            throw error;
+                await rule.edit({ enabled: false });
+                disabledAny = true;
+            } catch (error) {
+                if (error.code === 10066 || error.code === 50001) {
+                    continue;
+                }
+
+                throw error;
+            }
         }
+
+        return disabledAny;
     }
 
     async getGuildConfig(guild) {
@@ -938,6 +1173,7 @@ class DiscordHandlers {
                 botCount = guild.members.cache.filter(member => member.user?.bot).size;
                 userCount = Math.max(0, total - botCount);
             }
+            throw error;
         }
 
         if (userCount < 0) {
@@ -3526,6 +3762,7 @@ class DiscordHandlers {
                 enabled: false,
                 customMessage: this.defaultAutoModMessage,
                 ruleId: null,
+                ruleIds: [],
                 includeDefaults: true
             };
         } else {
@@ -3540,22 +3777,30 @@ class DiscordHandlers {
             if (typeof record.includeDefaults !== 'boolean') {
                 record.includeDefaults = true;
             }
+
+            if (!Array.isArray(record.ruleIds)) {
+                record.ruleIds = [];
+            }
         }
 
         record.keywords = this.mergeKeywords([], record.keywords);
+        record.ruleIds = this.getStoredAutoModRuleIds(record);
+        record.ruleId = record.ruleIds[0] || null;
 
         const replyWithError = async message => {
             await interaction.editReply(message);
         };
 
         if (subcommand === 'status') {
-            const rule = record.ruleId ? await this.fetchAutoModRule(guild, record.ruleId) : null;
-            const enabledState = rule ? rule.enabled : Boolean(record.enabled);
+            const rules = await this.fetchJarvisAutoModRules(guild);
+            const primaryRule = rules[0] || (record.ruleId ? await this.fetchAutoModRule(guild, record.ruleId) : null);
+            const enabledState = rules.length ? rules.some(rule => rule.enabled) : Boolean(record.enabled);
             const filters = this.getEffectiveAutoModFilters(record);
-            const footerText = rule
-                ? `Rule ID ${rule.id}`
-                : record.ruleId
-                    ? 'Stored configuration exists, but the Discord rule is missing.'
+            const trackedRules = rules.length || record.ruleIds.length;
+            const footerText = primaryRule
+                ? `Primary rule ID ${primaryRule.id} (${trackedRules} total)`
+                : record.ruleIds.length
+                    ? 'Stored configuration exists, but the Discord rules are missing.'
                     : 'Auto moderation has not been deployed yet.';
             const embed = new EmbedBuilder()
                 .setTitle('Auto moderation status')
@@ -3571,6 +3816,7 @@ class DiscordHandlers {
                                 : 'Disabled',
                         inline: true
                     },
+                    { name: 'Discord rules', value: `${trackedRules}`, inline: true },
                     { name: 'Effective filters', value: `${filters.expanded.length}`, inline: true }
                 )
                 .setFooter({ text: footerText });
@@ -3642,29 +3888,40 @@ class DiscordHandlers {
             }
 
             try {
-                const { rule, keywords } = await this.upsertAutoModRule(
-                    guild,
-                    record.keywords,
-                    record.customMessage,
-                    record.ruleId,
-                    true,
-                    record.includeDefaults
-                );
+                const result = await this.syncAutoModRules(guild, record, {
+                    enable: true,
+                    customMessage: record.customMessage
+                });
 
-                record.ruleId = rule.id;
-                record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
+                record.keywords = result.keywords;
+                record.ruleIds = result.ruleIds;
+                record.ruleId = record.ruleIds[0] || null;
+                const activeRules = result.rules.filter(rule => rule.enabled).length;
+                record.enabled = activeRules > 0;
                 await database.saveAutoModConfig(guild.id, record);
                 const effectiveFilters = this.getEffectiveAutoModFilters(record).expanded.length;
-                const statusLine = record.enabled
-                    ? 'Discord will now block the configured phrases.'
-                    : 'The rule was updated, but Discord left it disabled.';
+                const totalRules = result.rules.length;
+                let statusLine = '';
+
+                if (!totalRules) {
+                    statusLine = 'No auto moderation rules could be deployed, sir.';
+                } else if (activeRules === totalRules) {
+                    statusLine = `Discord enabled all ${totalRules} rule${totalRules === 1 ? '' : 's'}.`;
+                } else if (activeRules > 0) {
+                    statusLine = `Discord enabled ${activeRules} of ${totalRules} rule${totalRules === 1 ? '' : 's'}.`;
+                } else {
+                    statusLine = 'The rules were updated, but Discord left them disabled.';
+                }
+
                 const patternLine = effectiveFilters
                     ? ` Currently enforcing ${effectiveFilters} pattern${effectiveFilters === 1 ? '' : 's'}.`
                     : '';
-                await interaction.editReply(
-                    `Auto moderation ${record.enabled ? 'engaged' : 'updated'}, sir. ${statusLine}${patternLine}`
-                );
+                const summary = [
+                    `Auto moderation synced across ${totalRules} rule${totalRules === 1 ? '' : 's'}, sir.`,
+                    statusLine ? ` ${statusLine}` : '',
+                    patternLine
+                ].join('');
+                await interaction.editReply(summary);
             } catch (error) {
                 console.error('Failed to enable auto moderation:', error);
                 await replyWithError('I could not enable auto moderation, sir. Please ensure I have the AutoMod permission.');
@@ -3674,7 +3931,7 @@ class DiscordHandlers {
 
         if (subcommand === 'disable') {
             try {
-                await this.disableAutoModRule(guild, record.ruleId);
+                await this.disableAutoModRules(guild, record.ruleIds);
             } catch (error) {
                 console.error('Failed to disable auto moderation rule:', error);
                 await replyWithError('I could not disable the auto moderation rule, sir.');
@@ -3689,7 +3946,7 @@ class DiscordHandlers {
 
         if (subcommand === 'clear') {
             try {
-                await this.disableAutoModRule(guild, record.ruleId);
+                await this.disableAutoModRules(guild, record.ruleIds);
             } catch (error) {
                 console.error('Failed to disable auto moderation while clearing:', error);
             }
@@ -3697,6 +3954,8 @@ class DiscordHandlers {
             record.keywords = [];
             record.enabled = false;
             record.includeDefaults = false;
+            record.ruleIds = this.getStoredAutoModRuleIds(record);
+            record.ruleId = record.ruleIds[0] || null;
             await database.saveAutoModConfig(guild.id, record);
             await interaction.editReply('Blacklist cleared and auto moderation disabled, sir.');
             return;
@@ -3717,17 +3976,15 @@ class DiscordHandlers {
 
                 if (shouldMaintainRule) {
                     try {
-                        const { rule, keywords } = await this.upsertAutoModRule(
-                            guild,
-                            record.keywords,
-                            record.customMessage,
-                            record.ruleId,
-                            true,
-                            record.includeDefaults
-                        );
+                        const result = await this.syncAutoModRules(guild, record, {
+                            enable: true,
+                            customMessage: record.customMessage
+                        });
 
-                        record.ruleId = rule.id;
-                        record.keywords = keywords;
+                        record.keywords = result.keywords;
+                        record.ruleIds = result.ruleIds;
+                        record.ruleId = record.ruleIds[0] || null;
+                        record.enabled = result.rules.some(rule => rule.enabled);
                     } catch (error) {
                         console.error('Failed to update auto moderation defaults:', error);
                         await replyWithError('I could not update the auto moderation rule, sir.');
@@ -3735,7 +3992,7 @@ class DiscordHandlers {
                     }
                 } else {
                     try {
-                        await this.disableAutoModRule(guild, record.ruleId);
+                        await this.disableAutoModRules(guild, record.ruleIds);
                     } catch (error) {
                         console.error('Failed to disable auto moderation after removing defaults:', error);
                     }
@@ -3772,15 +4029,14 @@ class DiscordHandlers {
                 (record.keywords.length || (record.includeDefaults && this.autoModDefaultKeywords.length))
             ) {
                 try {
-                    const { rule } = await this.upsertAutoModRule(
-                        guild,
-                        record.keywords,
-                        record.customMessage,
-                        record.ruleId,
-                        record.enabled,
-                        record.includeDefaults
-                    );
-                    record.ruleId = rule.id;
+                    const result = await this.syncAutoModRules(guild, record, {
+                        enable: record.enabled,
+                        customMessage: record.customMessage
+                    });
+                    record.keywords = result.keywords;
+                    record.ruleIds = result.ruleIds;
+                    record.ruleId = record.ruleIds[0] || null;
+                    record.enabled = result.rules.some(rule => rule.enabled);
                 } catch (error) {
                     console.error('Failed to update auto moderation message:', error);
                     await replyWithError('I could not update the auto moderation message, sir.');
@@ -3809,21 +4065,20 @@ class DiscordHandlers {
             }
 
             const previousCount = record.keywords.length;
+            record.keywords = merged;
             try {
-                const { rule, keywords } = await this.upsertAutoModRule(
-                    guild,
-                    merged,
-                    record.customMessage,
-                    record.ruleId,
-                    true,
-                    record.includeDefaults
-                );
+                const result = await this.syncAutoModRules(guild, record, {
+                    enable: true,
+                    customMessage: record.customMessage
+                });
 
-                record.ruleId = rule.id;
-                record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
+                record.keywords = result.keywords;
+                record.ruleIds = result.ruleIds;
+                record.ruleId = record.ruleIds[0] || null;
+                const activeRules = result.rules.filter(rule => rule.enabled).length;
+                record.enabled = activeRules > 0;
                 await database.saveAutoModConfig(guild.id, record);
-                const addedCount = keywords.length - previousCount;
+                const addedCount = Math.max(0, record.keywords.length - previousCount);
                 const statusLine = record.enabled
                     ? 'Auto moderation is active, sir.'
                     : 'Auto moderation is currently disabled, sir.';
@@ -3865,17 +4120,15 @@ class DiscordHandlers {
 
             if (hasFilters) {
                 try {
-                    const { rule, keywords } = await this.upsertAutoModRule(
-                        guild,
-                        record.keywords,
-                        record.customMessage,
-                        record.ruleId,
-                        record.enabled,
-                        record.includeDefaults
-                    );
+                    const result = await this.syncAutoModRules(guild, record, {
+                        enable: record.enabled,
+                        customMessage: record.customMessage
+                    });
 
-                    record.ruleId = rule.id;
-                    record.keywords = keywords;
+                    record.keywords = result.keywords;
+                    record.ruleIds = result.ruleIds;
+                    record.ruleId = record.ruleIds[0] || null;
+                    record.enabled = result.rules.some(rule => rule.enabled);
                 } catch (error) {
                     console.error('Failed to update auto moderation keywords after removal:', error);
                     await replyWithError('I could not update the auto moderation rule after removal, sir.');
@@ -3883,7 +4136,7 @@ class DiscordHandlers {
                 }
             } else {
                 try {
-                    await this.disableAutoModRule(guild, record.ruleId);
+                    await this.disableAutoModRules(guild, record.ruleIds);
                 } catch (error) {
                     console.error('Failed to disable auto moderation after removal:', error);
                 }
@@ -3941,31 +4194,31 @@ class DiscordHandlers {
                 return;
             }
 
-            let text = '';
+            record.keywords = combined;
             try {
-                const { rule, keywords } = await this.upsertAutoModRule(
-                    guild,
-                    combined,
-                    record.customMessage,
-                    record.ruleId,
-                    true,
-                    record.includeDefaults
-                );
+                const result = await this.syncAutoModRules(guild, record, {
+                    enable: true,
+                    customMessage: record.customMessage
+                });
 
-                record.ruleId = rule.id;
-                record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
+                record.keywords = result.keywords;
+                record.ruleIds = result.ruleIds;
+                record.ruleId = record.ruleIds[0] || null;
+                record.enabled = result.rules.some(rule => rule.enabled);
                 await database.saveAutoModConfig(guild.id, record);
                 const statusLine = record.enabled
-                    ? 'Auto moderation is active, sir.'
+                    ? `Auto moderation is active across ${result.rules.length} rule${result.rules.length === 1 ? '' : 's'}, sir.`
                     : 'Auto moderation is currently disabled, sir.';
                 const effectiveFilters = this.getEffectiveAutoModFilters(record).expanded.length;
                 const patternLine = effectiveFilters
                     ? ` Now enforcing ${effectiveFilters} pattern${effectiveFilters === 1 ? '' : 's'}.`
                     : '';
-                await interaction.editReply(
-                    `Blacklist now tracks ${keywords.length} entr${keywords.length === 1 ? 'y' : 'ies'}. ${statusLine}${patternLine}`
-                );
+                const summary = [
+                    `Blacklist now tracks ${record.keywords.length} entr${record.keywords.length === 1 ? 'y' : 'ies'}.`,
+                    ` ${statusLine}`,
+                    patternLine
+                ].join('');
+                await interaction.editReply(summary);
             } catch (error) {
                 console.error('Failed to import auto moderation keywords:', error);
                 await replyWithError('I could not apply that blacklist to Discord, sir.');
