@@ -337,8 +337,13 @@ class DatabaseManager {
         const collection = this.db.collection(config.database.collections.autoModeration);
         const now = new Date();
 
+        const sanitized = { ...data };
+        delete sanitized._id;
+        delete sanitized.createdAt;
+        delete sanitized.updatedAt;
+
         const update = {
-            ...data,
+            ...sanitized,
             guildId,
             updatedAt: now
         };
