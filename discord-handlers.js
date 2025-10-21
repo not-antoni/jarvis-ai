@@ -365,6 +365,9 @@ class DiscordHandlers {
 
             console.error('Failed to send member log message:', error);
         }
+
+    async handleGuildMemberAdd(member) {
+        await this.sendMemberLogEvent(member, 'join');
     }
 
     getReactionEmojiKey(emoji) {
@@ -552,7 +555,27 @@ class DiscordHandlers {
                         break;
                     }
                 }
+                expanded.add(variant);
             }
+
+            if (expanded.size >= this.maxAutoModKeywords) {
+                break;
+            }
+
+            await this.applyServerStatsPermissions(channel, me, everyoneId);
+            return channel;
+        };
+
+        const totalChannel = await ensureVoiceChannel(existingConfig?.totalChannelId, `${this.serverStatsChannelLabels.total}: 0`);
+        const userChannel = await ensureVoiceChannel(existingConfig?.userChannelId, `${this.serverStatsChannelLabels.users}: 0`);
+        const botChannel = await ensureVoiceChannel(existingConfig?.botChannelId, `${this.serverStatsChannelLabels.bots}: 0`);
+
+        return { category, totalChannel, userChannel, botChannel, botMember: me, everyoneId };
+    }
+
+    async collectGuildMemberStats(guild) {
+        if (!guild) {
+            return { total: 0, botCount: 0, userCount: 0 };
         }
 
         const result = Array.from(unique);
@@ -707,6 +730,8 @@ class DiscordHandlers {
             console.warn('Failed to fetch Jarvis auto moderation rules:', error);
             return [];
         }
+
+        return ids;
     }
 
     async syncAutoModRules(guild, record, options = {}) {
@@ -3985,6 +4010,7 @@ class DiscordHandlers {
                 await replyWithError('Please provide a custom message, sir.');
                 return;
             }
+        }
 
             record.customMessage = message.trim().slice(0, 150);
 
@@ -4006,6 +4032,8 @@ class DiscordHandlers {
                     await replyWithError('I could not update the auto moderation message, sir.');
                     return;
                 }
+            } else {
+                embed.setDescription('No custom blacklist entries are configured, sir.');
             }
 
             await database.saveAutoModConfig(guild.id, record);
