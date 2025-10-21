@@ -370,12 +370,12 @@ class DiscordHandlers {
         await this.sendMemberLogEvent(member, 'join');
     }
 
-    async handleGuildMemberAdd(member) {
-        await this.sendMemberLogEvent(member, 'join');
+    handleGuildMemberAdd(member) {
+        return this.sendMemberLogEvent(member, 'join');
     }
 
-    async handleGuildMemberRemove(member) {
-        await this.sendMemberLogEvent(member, 'leave');
+    handleGuildMemberRemove(member) {
+        return this.sendMemberLogEvent(member, 'leave');
     }
 
     getReactionEmojiKey(emoji) {
@@ -739,7 +739,7 @@ class DiscordHandlers {
             return [];
         }
 
-        return Array.from(unique).slice(0, this.maxAutoModKeywords);
+        return ids;
     }
 
     async syncAutoModRules(guild, record, options = {}) {
@@ -1173,7 +1173,6 @@ class DiscordHandlers {
                 botCount = guild.members.cache.filter(member => member.user?.bot).size;
                 userCount = Math.max(0, total - botCount);
             }
-            throw error;
         }
 
         if (userCount < 0) {
