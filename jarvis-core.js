@@ -8,6 +8,7 @@ const config = require('./config');
 const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const punycode = require('node:punycode');
 
@@ -35,8 +36,71 @@ const REVERSE_MORSE_TABLE = Object.entries(MORSE_TABLE).reduce((acc, [char, code
     return acc;
 }, {});
 
+const SUPPORT_SERVER_URL = 'https://discord.gg/ksXzuBtmK5';
+
 function sanitizeForCodeBlock(text) {
     return text.replace(/```/g, '`\u200b``');
+}
+
+function buildSupportEmbed(includeGuide = false) {
+    const embed = new EmbedBuilder()
+        .setTitle('Join Jarvis HQ ⚙️')
+        .setDescription('Need help or want updates? Join the official Jarvis Support Server!')
+        .setURL(SUPPORT_SERVER_URL)
+        .setColor('#00BFFF');
+
+    if (includeGuide) {
+        embed
+            .addFields(
+                {
+                    name: 'Core Systems',
+                    value: [
+                        '`/jarvis <prompt>` Ask Jarvis anything.',
+                        '`/help` Quick reference & support invite.',
+                        '`/invite` Share the support server banner.'
+                    ].join('\n'),
+                },
+                {
+                    name: 'Personal Tools',
+                    value: [
+                        '`/profile show` Review your dossier.',
+                        '`/profile set` Update preferences.',
+                        '`/history` & `/recap` Catch up on recent chats.',
+                        '`/time` | `/roll` Handy utilities on demand.'
+                    ].join('\n'),
+                },
+                {
+                    name: 'Server Utilities',
+                    value: [
+                        '`/reactionrole` Configure reaction role panels.',
+                        '`/automod` Manage blacklist & automod rules.',
+                        '`/serverstats` Maintain live member counters.',
+                        '`/memberlog` Customize join & leave messages.'
+                    ].join('\n'),
+                },
+                {
+                    name: 'Power Tools',
+                    value: [
+                        '`/encode` & `/decode` Convert text effortlessly.',
+                        '`/providers` Check AI provider status.',
+                        '`/reset` Wipe conversations when needed.'
+                    ].join('\n'),
+                }
+            )
+            .setFooter({ text: 'Use /invite any time to grab the support link for your team.' });
+    } else {
+        embed.setFooter({ text: 'Share this link so everyone can reach Jarvis HQ when needed.' });
+    }
+
+    const supportButton = new ButtonBuilder()
+        .setLabel('Join the Support Server')
+        .setStyle(ButtonStyle.Link)
+        .setURL(SUPPORT_SERVER_URL)
+        .setEmoji('🤝');
+
+    const row = new ActionRowBuilder().addComponents(supportButton);
+
+    return { embeds: [embed], components: [row] };
 }
 
 function isMostlyPrintable(text) {
@@ -941,25 +1005,12 @@ EXECUTION PIPELINE
             return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
         }
 
-        if (cmd === "help") {
-            const helpLines = [
-                "**Jarvis Utility Guide**",
-                "• `/jarvis <prompt>` — Ask me anything.",
-                "• `/help` — Show this overview.",
-                "• `/profile show` — Review your stored profile and preferences.",
-                "• `/profile set key value` — Update a preference (e.g. `/profile set pronouns they/them`).",
-                "• `/encode` — Encode text to Base64, Base32, Base58, hex, binary, URL, ROT13, Punycode, or Morse.",
-                "• `/decode` — Decode Base64, Base32, Base58, hex, binary, URL, ROT13, Punycode, or Morse text.",
-                "• `/history` — Recap your recent prompts.",
-                "• `/recap` — Get a short activity summary from the past day.",
-                "• `/roll [sides]` — Roll a die (defaults to 6).",
-                "• `/time [format]` — Display the current time in different formats.",
-                "• `/providers` — List configured AI providers.",
-                "• `/reset` — Wipe your conversations and profile.",
-                "Utility commands prefixed with `!` also work in text channels for some features, sir."
-            ];
+        if (cmd === "invite") {
+            return buildSupportEmbed(false);
+        }
 
-            return helpLines.join("\n");
+        if (cmd === "help") {
+            return buildSupportEmbed(true);
         }
 
         if (cmd.startsWith("profile")) {
