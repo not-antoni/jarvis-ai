@@ -278,23 +278,21 @@ class DatabaseManager {
 
         const collection = this.db.collection(config.database.collections.reactionRoles);
         const now = new Date();
-        const document = {
-            ...reactionRole,
-            updatedAt: now
-        };
+        const { createdAt, ...reactionRoleData } = reactionRole;
 
-        if (!document.createdAt) {
-            document.createdAt = now;
-        }
+        const updateDoc = {
+            $set: {
+                ...reactionRoleData,
+                updatedAt: now
+            },
+            $setOnInsert: {
+                createdAt: createdAt || now
+            }
+        };
 
         await collection.updateOne(
             { messageId: reactionRole.messageId },
-            {
-                $set: document,
-                $setOnInsert: {
-                    createdAt: document.createdAt
-                }
-            },
+            updateDoc,
             { upsert: true }
         );
     }
