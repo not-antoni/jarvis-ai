@@ -35,11 +35,27 @@ class DatabaseManager {
             await this.db
                 .collection(config.database.collections.conversations)
                 .createIndex({ userId: 1, timestamp: -1 });
-            
+
             await this.db
                 .collection(config.database.collections.userProfiles)
                 .createIndex({ userId: 1 });
-                
+
+            await this.db
+                .collection(config.database.collections.guildConfigs)
+                .createIndex({ guildId: 1 }, { unique: true });
+
+            await this.db
+                .collection(config.database.collections.reactionRoles)
+                .createIndex({ messageId: 1 }, { unique: true });
+
+            await this.db
+                .collection(config.database.collections.reactionRoles)
+                .createIndex({ guildId: 1 });
+
+            await this.db
+                .collection(config.database.collections.autoModeration)
+                .createIndex({ guildId: 1 }, { unique: true });
+
             console.log('Database indexes created successfully');
         } catch (error) {
             console.error('Failed to create indexes:', error);
@@ -183,19 +199,170 @@ class DatabaseManager {
 
     async clearDatabase() {
         if (!this.isConnected) throw new Error("Database not connected");
-        
+
         const convResult = await this.db
             .collection(config.database.collections.conversations)
             .deleteMany({});
-            
+
         const profileResult = await this.db
             .collection(config.database.collections.userProfiles)
             .deleteMany({});
-            
+
         return {
             conv: convResult.deletedCount,
             prof: profileResult.deletedCount
         };
+    }
+
+    async getGuildConfig(guildId, ownerId = null) {
+        if (!this.isConnected) return null;
+
+        const collection = this.db.collection(config.database.collections.guildConfigs);
+        let guildConfig = await collection.findOne({ guildId });
+
+        if (!guildConfig) {
+            const now = new Date();
+            guildConfig = {
+                guildId,
+                ownerId: ownerId || null,
+                moderatorRoleIds: [],
+                moderatorUserIds: [],
+                createdAt: now,
+                updatedAt: now
+            };
+            await collection.insertOne(guildConfig);
+        } else if (ownerId && guildConfig.ownerId !== ownerId) {
+            guildConfig.ownerId = ownerId;
+            guildConfig.updatedAt = new Date();
+            await collection.updateOne(
+                { guildId },
+                {
+                    $set: {
+                        ownerId: guildConfig.ownerId,
+                        updatedAt: guildConfig.updatedAt
+                    }
+                }
+            );
+        }
+
+        return guildConfig;
+    }
+
+    async setGuildModeratorRoles(guildId, roleIds = [], ownerId = null) {
+        if (!this.isConnected) throw new Error("Database not connected");
+
+        const collection = this.db.collection(config.database.collections.guildConfigs);
+        const now = new Date();
+
+        await collection.updateOne(
+            { guildId },
+            {
+                $set: {
+                    moderatorRoleIds: roleIds,
+                    updatedAt: now,
+                    ...(ownerId ? { ownerId } : {})
+                },
+                $setOnInsert: {
+                    moderatorUserIds: [],
+                    createdAt: now
+                }
+            },
+            { upsert: true }
+        );
+
+        return this.getGuildConfig(guildId, ownerId);
+    }
+
+    async saveReactionRoleMessage(reactionRole) {
+        if (!this.isConnected) throw new Error("Database not connected");
+
+        const collection = this.db.collection(config.database.collections.reactionRoles);
+        const now = new Date();
+        const { createdAt, ...reactionRoleData } = reactionRole;
+
+        const updateDoc = {
+            $set: {
+                ...reactionRoleData,
+                updatedAt: now
+            },
+            $setOnInsert: {
+                createdAt: createdAt || now
+            }
+        };
+
+        await collection.updateOne(
+            { messageId: reactionRole.messageId },
+            updateDoc,
+            { upsert: true }
+        );
+    }
+
+    async getReactionRole(messageId) {
+        if (!this.isConnected) return null;
+
+        return this.db
+            .collection(config.database.collections.reactionRoles)
+            .findOne({ messageId });
+    }
+
+    async getReactionRolesForGuild(guildId) {
+        if (!this.isConnected) return [];
+
+        return this.db
+            .collection(config.database.collections.reactionRoles)
+            .find({ guildId })
+            .sort({ createdAt: 1 })
+            .toArray();
+    }
+
+    async deleteReactionRole(messageId) {
+        if (!this.isConnected) throw new Error("Database not connected");
+
+        await this.db
+            .collection(config.database.collections.reactionRoles)
+            .deleteOne({ messageId });
+    }
+
+    async getAutoModConfig(guildId) {
+        if (!this.isConnected) return null;
+
+        return this.db
+            .collection(config.database.collections.autoModeration)
+            .findOne({ guildId });
+    }
+
+    async saveAutoModConfig(guildId, data) {
+        if (!this.isConnected) throw new Error("Database not connected");
+
+        const collection = this.db.collection(config.database.collections.autoModeration);
+        const now = new Date();
+
+        const update = {
+            ...data,
+            guildId,
+            updatedAt: now
+        };
+
+        const result = await collection.findOneAndUpdate(
+            { guildId },
+            {
+                $set: update,
+                $setOnInsert: {
+                    createdAt: now
+                }
+            },
+            { upsert: true, returnDocument: 'after' }
+        );
+
+        return result?.value || update;
+    }
+
+    async deleteAutoModConfig(guildId) {
+        if (!this.isConnected) throw new Error("Database not connected");
+
+        await this.db
+            .collection(config.database.collections.autoModeration)
+            .deleteOne({ guildId });
     }
 
     async disconnect() {
