@@ -363,6 +363,9 @@ class DiscordHandlers {
 
             console.error('Failed to send member log message:', error);
         }
+
+    async handleGuildMemberAdd(member) {
+        await this.sendMemberLogEvent(member, 'join');
     }
 
     async handleGuildMemberAdd(member) {
@@ -496,6 +499,21 @@ class DiscordHandlers {
             if (expanded.size >= this.maxAutoModKeywords) {
                 break;
             }
+
+            await this.applyServerStatsPermissions(channel, me, everyoneId);
+            return channel;
+        };
+
+        const totalChannel = await ensureVoiceChannel(existingConfig?.totalChannelId, `${this.serverStatsChannelLabels.total}: 0`);
+        const userChannel = await ensureVoiceChannel(existingConfig?.userChannelId, `${this.serverStatsChannelLabels.users}: 0`);
+        const botChannel = await ensureVoiceChannel(existingConfig?.botChannelId, `${this.serverStatsChannelLabels.bots}: 0`);
+
+        return { category, totalChannel, userChannel, botChannel, botMember: me, everyoneId };
+    }
+
+    async collectGuildMemberStats(guild) {
+        if (!guild) {
+            return { total: 0, botCount: 0, userCount: 0 };
         }
 
         return Array.from(expanded);
@@ -3454,6 +3472,7 @@ class DiscordHandlers {
                     await interaction.editReply('Server statistics channels were not configured, sir.');
                     return;
                 }
+            }
 
                 await this.disableServerStats(guild, existing);
                 await interaction.editReply('Server statistics channels have been removed, sir.');
@@ -3733,6 +3752,7 @@ class DiscordHandlers {
             } else if (!record.enabled) {
                 statusLine += ' Auto moderation is currently disabled, sir.';
             }
+        }
 
             await interaction.editReply(statusLine);
             return;
@@ -3921,6 +3941,7 @@ class DiscordHandlers {
                 return;
             }
 
+            let text = '';
             try {
                 const { rule, keywords } = await this.upsertAutoModRule(
                     guild,
