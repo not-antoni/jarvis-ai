@@ -1,5 +1,5 @@
 services:
-  - type: web
+  - type: worker
     name: jarvis-discord-bot
     runtime: node
     repo: https://github.com/HustleSynth/jarvis-ai # Replace with your repo
@@ -48,5 +48,3 @@ services:
         sync: false
       - key: ADMIN_USER_ID
         sync: false
-      - key: PORT
-        generateValue: true
