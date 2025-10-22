@@ -5,23 +5,11 @@
             return;
         }
 
-        let record = await database.getAutoModConfig(guild.id);
-        if (!record) {
-            record = {
-                guildId: guild.id,
-                keywords: [],
-                enabled: false,
-                customMessage: this.defaultAutoModMessage,
-                ruleId: null
-            };
-        } else {
-            if (!Array.isArray(record.keywords)) {
-                record.keywords = [];
-            }
+        const storedRecord = await database.getAutoModConfig(guild.id);
+        const { record, rule: cachedRule, mutated, missingRuleId } = await this.prepareAutoModState(guild, storedRecord);
 
-            if (!record.customMessage) {
-                record.customMessage = this.defaultAutoModMessage;
-            }
+        if (mutated) {
+            await database.saveAutoModConfig(guild.id, record);
         }
 
         const replyWithError = async message => {
@@ -29,12 +17,11 @@
         };
 
         if (subcommand === 'status') {
-            const rule = record.ruleId ? await this.fetchAutoModRule(guild, record.ruleId) : null;
-            const enabledState = rule ? rule.enabled : Boolean(record.enabled);
-            const footerText = rule
-                ? `Rule ID ${rule.id}`
-                : record.ruleId
-                    ? 'Stored configuration exists, but the Discord rule is missing.'
+            const enabledState = cachedRule ? cachedRule.enabled : Boolean(record.enabled);
+            const footerText = cachedRule
+                ? `Rule ID ${cachedRule.id}`
+                : missingRuleId
+                    ? `Stored rule ${missingRuleId} is no longer accessible.`
                     : 'Auto moderation has not been deployed yet.';
             const embed = new EmbedBuilder()
                 .setTitle('Auto moderation status')
@@ -105,18 +92,24 @@
                     : 'The rule was updated, but Discord left it disabled.';
                 await interaction.editReply(`Auto moderation ${record.enabled ? 'engaged' : 'updated'}, sir. ${statusLine}`);
             } catch (error) {
-                console.error('Failed to enable auto moderation:', error);
-                await replyWithError('I could not enable auto moderation, sir. Please ensure I have the AutoMod permission.');
+                console.error('Failed to enable auto moderation:', error?.cause || error);
+                await replyWithError(this.getAutoModErrorMessage(
+                    error,
+                    'I could not enable auto moderation, sir. Please ensure I have the AutoMod permission.'
+                ));
             }
             return;
         }
 
         if (subcommand === 'disable') {
             try {
-                await this.disableAutoModRule(guild, record.ruleId);
+                const disabled = await this.disableAutoModRule(guild, record.ruleId);
+                if (!disabled) {
+                    record.ruleId = null;
+                }
             } catch (error) {
-                console.error('Failed to disable auto moderation rule:', error);
-                await replyWithError('I could not disable the auto moderation rule, sir.');
+                console.error('Failed to disable auto moderation rule:', error?.cause || error);
+                await replyWithError(this.getAutoModErrorMessage(error, 'I could not disable the auto moderation rule, sir.'));
                 return;
             }
 
@@ -128,13 +121,17 @@
 
         if (subcommand === 'clear') {
             try {
-                await this.disableAutoModRule(guild, record.ruleId);
+                const disabled = await this.disableAutoModRule(guild, record.ruleId);
+                if (!disabled) {
+                    record.ruleId = null;
+                }
             } catch (error) {
-                console.error('Failed to disable auto moderation while clearing:', error);
+                console.error('Failed to disable auto moderation while clearing:', error?.cause || error);
             }
 
             record.keywords = [];
             record.enabled = false;
+            record.ruleId = null;
             await database.saveAutoModConfig(guild.id, record);
             await interaction.editReply('Blacklist cleared and auto moderation disabled, sir.');
             return;
@@ -151,7 +148,7 @@
 
             if (record.enabled && record.keywords.length) {
                 try {
-                    const { rule } = await this.upsertAutoModRule(
+                    const { rule, keywords } = await this.upsertAutoModRule(
                         guild,
                         record.keywords,
                         record.customMessage,
@@ -159,9 +156,11 @@
                         record.enabled
                     );
                     record.ruleId = rule.id;
+                    record.enabled = Boolean(rule.enabled);
+                    record.keywords = keywords;
                 } catch (error) {
-                    console.error('Failed to update auto moderation message:', error);
-                    await replyWithError('I could not update the auto moderation message, sir.');
+                    console.error('Failed to update auto moderation message:', error?.cause || error);
+                    await replyWithError(this.getAutoModErrorMessage(error, 'I could not update the auto moderation message, sir.'));
                     return;
                 }
             }
@@ -206,8 +205,8 @@
                     : 'Auto moderation is currently disabled, sir.';
                 await interaction.editReply(`Blacklist updated with ${addedCount} new entr${addedCount === 1 ? 'y' : 'ies'}. ${statusLine}`);
             } catch (error) {
-                console.error('Failed to add auto moderation keywords:', error);
-                await replyWithError('I could not update the auto moderation rule, sir.');
+                console.error('Failed to add auto moderation keywords:', error?.cause || error);
+                await replyWithError(this.getAutoModErrorMessage(error, 'I could not update the auto moderation rule, sir.'));
             }
             return;
         }
@@ -243,17 +242,22 @@
 
                     record.ruleId = rule.id;
                     record.keywords = keywords;
+                    record.enabled = Boolean(rule.enabled);
                 } catch (error) {
-                    console.error('Failed to update auto moderation keywords after removal:', error);
-                    await replyWithError('I could not update the auto moderation rule after removal, sir.');
+                    console.error('Failed to update auto moderation keywords after removal:', error?.cause || error);
+                    await replyWithError(this.getAutoModErrorMessage(error, 'I could not update the auto moderation rule after removal, sir.'));
                     return;
                 }
             } else {
                 try {
-                    await this.disableAutoModRule(guild, record.ruleId);
+                    const disabled = await this.disableAutoModRule(guild, record.ruleId);
+                    if (!disabled) {
+                        record.ruleId = null;
+                    }
                 } catch (error) {
-                    console.error('Failed to disable auto moderation after removal:', error);
+                    console.error('Failed to disable auto moderation after removal:', error?.cause || error);
                 }
+                record.ruleId = null;
                 record.enabled = false;
             }
 
@@ -322,8 +326,8 @@
                     : 'Auto moderation is currently disabled, sir.';
                 await interaction.editReply(`Blacklist now tracks ${keywords.length} entr${keywords.length === 1 ? 'y' : 'ies'}. ${statusLine}`);
             } catch (error) {
-                console.error('Failed to import auto moderation keywords:', error);
-                await replyWithError('I could not apply that blacklist to Discord, sir.');
+                console.error('Failed to import auto moderation keywords:', error?.cause || error);
+                await replyWithError(this.getAutoModErrorMessage(error, 'I could not apply that blacklist to Discord, sir.'));
             }
             return;
         }
