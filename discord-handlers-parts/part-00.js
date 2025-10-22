@@ -11,7 +11,8 @@ const {
     parseEmoji,
     AutoModerationActionType,
     AutoModerationRuleEventType,
-    AutoModerationRuleTriggerType
+    AutoModerationRuleTriggerType,
+    DiscordAPIError
 } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('./config');
@@ -433,6 +434,199 @@ class DiscordHandlers {
         return Array.from(unique).slice(0, this.maxAutoModKeywords);
     }
 
+    createDefaultAutoModRecord(guildId = null) {
+        return {
+            guildId: guildId || null,
+            keywords: [],
+            enabled: false,
+            customMessage: this.defaultAutoModMessage,
+            ruleId: null
+        };
+    }
+
+    extractAutoModKeywordIssues(error) {
+        const issues = new Set();
+
+        const addIssue = value => {
+            if (!value) {
+                return;
+            }
+
+            if (typeof value === 'string') {
+                issues.add(value);
+                return;
+            }
+
+            if (typeof value === 'object') {
+                if (typeof value.message === 'string') {
+                    issues.add(value.message);
+                } else if (typeof value.keyword === 'string') {
+                    issues.add(value.keyword);
+                }
+            }
+        };
+
+        const traverse = node => {
+            if (!node) {
+                return;
+            }
+
+            if (Array.isArray(node)) {
+                node.forEach(item => traverse(item));
+                return;
+            }
+
+            if (typeof node === 'object') {
+                if (Array.isArray(node._errors)) {
+                    node._errors.forEach(addIssue);
+                }
+
+                for (const key of Object.keys(node)) {
+                    if (key === '_errors') {
+                        continue;
+                    }
+
+                    traverse(node[key]);
+                }
+                return;
+            }
+
+            addIssue(node);
+        };
+
+        if (error?.rawError) {
+            const direct = error.rawError.trigger_metadata?.keyword_filter;
+            if (Array.isArray(direct)) {
+                direct.forEach(addIssue);
+            }
+
+            traverse(error.rawError.errors?.trigger_metadata?.keyword_filter);
+        }
+
+        return Array.from(issues).filter(Boolean);
+    }
+
+    getAutoModErrorMessage(error, fallback = 'I could not update the auto moderation rule, sir.') {
+        if (!error) {
+            return fallback;
+        }
+
+        if (error.isFriendly && typeof error.message === 'string') {
+            return error.message;
+        }
+
+        if (error instanceof DiscordAPIError) {
+            if (error.code === 50013 || error.status === 403) {
+                return 'Discord denied me the permission to adjust auto moderation, sir. Please ensure I have the "Manage Server" permission.';
+            }
+
+            if (error.code === 50035) {
+                const issues = this.extractAutoModKeywordIssues(error);
+                if (issues.length) {
+                    const preview = issues.slice(0, 3).join('; ');
+                    const suffix = issues.length > 3 ? ' …' : '';
+                    return `Discord rejected the blacklist update: ${preview}${suffix}. Please adjust those entries and try again, sir.`;
+                }
+
+                return 'Discord rejected one of the blacklist entries, sir. Please ensure each entry is under 60 characters and avoids restricted symbols.';
+            }
+
+            if (error.code === 30037 || error.code === 30035 || error.code === 30013) {
+                return 'This server already has the maximum number of auto moderation rules, sir. Please remove another rule or reuse the Jarvis rule.';
+            }
+
+            if (error.code === 20022 || error.status === 429) {
+                return 'Discord rate limited the auto moderation update, sir. Please wait a few seconds and try again.';
+            }
+        }
+
+        if (error.code === 50001) {
+            return 'Discord denied me access to the auto moderation rule, sir. Please ensure I can manage AutoMod settings.';
+        }
+
+        return fallback;
+    }
+
+    handleAutoModApiError(error, fallback = 'I could not update the auto moderation rule, sir.') {
+        if (!error) {
+            throw this.createFriendlyError(fallback);
+        }
+
+        if (error.isFriendly) {
+            throw error;
+        }
+
+        const friendlyError = this.createFriendlyError(this.getAutoModErrorMessage(error, fallback));
+        friendlyError.cause = error;
+        throw friendlyError;
+    }
+
+    async prepareAutoModState(guild, record) {
+        if (!guild) {
+            throw this.createFriendlyError('I could not access that server, sir.');
+        }
+
+        const prepared = record ? { ...record } : this.createDefaultAutoModRecord(guild.id);
+        prepared.guildId = guild.id;
+
+        let mutated = false;
+
+        if (!Array.isArray(prepared.keywords)) {
+            prepared.keywords = [];
+            mutated = true;
+        }
+
+        const mergedKeywords = this.mergeKeywords([], prepared.keywords);
+        if (mergedKeywords.length !== prepared.keywords.length) {
+            prepared.keywords = mergedKeywords;
+            mutated = true;
+        }
+
+        const normalizedMessage = typeof prepared.customMessage === 'string' && prepared.customMessage.trim()
+            ? prepared.customMessage.trim().slice(0, 150)
+            : this.defaultAutoModMessage;
+        if (prepared.customMessage !== normalizedMessage) {
+            prepared.customMessage = normalizedMessage;
+            mutated = true;
+        }
+
+        if (prepared.ruleId && typeof prepared.ruleId !== 'string') {
+            prepared.ruleId = String(prepared.ruleId);
+            mutated = true;
+        }
+
+        const normalizedEnabled = Boolean(prepared.enabled);
+        if (prepared.enabled !== normalizedEnabled) {
+            prepared.enabled = normalizedEnabled;
+            mutated = true;
+        }
+
+        let rule = null;
+        let missingRuleId = null;
+
+        if (prepared.ruleId) {
+            const storedRuleId = prepared.ruleId;
+            rule = await this.fetchAutoModRule(guild, storedRuleId);
+
+            if (!rule) {
+                missingRuleId = storedRuleId;
+                prepared.ruleId = null;
+                if (prepared.enabled) {
+                    prepared.enabled = false;
+                }
+                mutated = true;
+            } else {
+                const enabledState = Boolean(rule.enabled);
+                if (prepared.enabled !== enabledState) {
+                    prepared.enabled = enabledState;
+                    mutated = true;
+                }
+            }
+        }
+
+        return { record: prepared, rule, mutated, missingRuleId };
+    }
+
     async fetchAutoModRule(guild, ruleId) {
         if (!guild || !ruleId) {
             return null;
@@ -452,12 +646,12 @@ class DiscordHandlers {
 
     async upsertAutoModRule(guild, keywords, customMessage = null, ruleId = null, enabled = true) {
         if (!guild) {
-            throw new Error('I could not access that server, sir.');
+            throw this.createFriendlyError('I could not access that server, sir.');
         }
 
         const sanitized = this.mergeKeywords([], keywords);
         if (sanitized.length === 0) {
-            throw new Error('Please provide at least one valid keyword, sir.');
+            throw this.createFriendlyError('Please provide at least one valid keyword, sir.');
         }
 
         const payload = {
@@ -481,14 +675,33 @@ class DiscordHandlers {
         };
 
         let rule = null;
+
         if (ruleId) {
-            rule = await this.fetchAutoModRule(guild, ruleId);
+            const existingRule = await this.fetchAutoModRule(guild, ruleId);
+
+            if (existingRule) {
+                try {
+                    rule = await existingRule.edit(payload);
+                } catch (error) {
+                    if (error?.code === 10066 || error?.code === 50001) {
+                        console.warn(`Stored auto moderation rule ${ruleId} no longer exists. Recreating.`);
+                    } else {
+                        this.handleAutoModApiError(error, 'I could not update the auto moderation rule, sir.');
+                    }
+                }
+            }
         }
 
-        if (rule) {
-            rule = await rule.edit(payload);
-        } else {
-            rule = await guild.autoModerationRules.create(payload);
+        if (!rule) {
+            try {
+                rule = await guild.autoModerationRules.create(payload);
+            } catch (error) {
+                this.handleAutoModApiError(error, 'I could not create the auto moderation rule, sir.');
+            }
+        }
+
+        if (!rule) {
+            throw this.createFriendlyError('Discord did not return an auto moderation rule, sir.');
         }
 
         return { rule, keywords: sanitized };
