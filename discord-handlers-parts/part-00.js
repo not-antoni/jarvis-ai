@@ -34,7 +34,9 @@ class DiscordHandlers {
         this.serverStatsChannelLabels = {
             total: 'Member Count',
             users: 'User Count',
-            bots: 'Bot Count'
+            bots: 'Bot Count',
+            channels: 'Channels Count',
+            roles: 'Role Count'
         };
         this.memberLogCache = new Map();
         this.maxMemberLogVariations = 20;
@@ -761,18 +763,37 @@ class DiscordHandlers {
         const totalChannel = await ensureVoiceChannel(existingConfig?.totalChannelId, `${this.serverStatsChannelLabels.total}: 0`);
         const userChannel = await ensureVoiceChannel(existingConfig?.userChannelId, `${this.serverStatsChannelLabels.users}: 0`);
         const botChannel = await ensureVoiceChannel(existingConfig?.botChannelId, `${this.serverStatsChannelLabels.bots}: 0`);
+        const channelCountChannel = await ensureVoiceChannel(
+            existingConfig?.channelCountChannelId,
+            `${this.serverStatsChannelLabels.channels}: 0`
+        );
+        const roleCountChannel = await ensureVoiceChannel(
+            existingConfig?.roleCountChannelId,
+            `${this.serverStatsChannelLabels.roles}: 0`
+        );
 
-        return { category, totalChannel, userChannel, botChannel, botMember: me, everyoneId };
+        return {
+            category,
+            totalChannel,
+            userChannel,
+            botChannel,
+            channelCountChannel,
+            roleCountChannel,
+            botMember: me,
+            everyoneId
+        };
     }
 
     async collectGuildMemberStats(guild) {
         if (!guild) {
-            return { total: 0, botCount: 0, userCount: 0 };
+            return { total: 0, botCount: 0, userCount: 0, channelCount: 0, roleCount: 0 };
         }
 
         let total = typeof guild.memberCount === 'number' ? guild.memberCount : 0;
         let botCount = 0;
         let userCount = 0;
+        let channelCount = 0;
+        let roleCount = 0;
 
         try {
             const members = await guild.members.fetch();
@@ -799,7 +820,35 @@ class DiscordHandlers {
             userCount = 0;
         }
 
-        return { total, botCount, userCount };
+        try {
+            const channels = await guild.channels.fetch();
+            channelCount = channels.filter(channel => channel && channel.type !== ChannelType.GuildCategory).size;
+        } catch (error) {
+            if (error.code !== 50013 && error.code !== 50001) {
+                console.warn(`Failed to fetch full channel list for guild ${guild.id}:`, error);
+            }
+
+            const cachedChannels = guild.channels.cache;
+            if (cachedChannels.size > 0) {
+                channelCount = cachedChannels.filter(channel => channel && channel.type !== ChannelType.GuildCategory).size;
+            }
+        }
+
+        try {
+            const roles = await guild.roles.fetch();
+            roleCount = roles.size;
+        } catch (error) {
+            if (error.code !== 50013 && error.code !== 50001) {
+                console.warn(`Failed to fetch full role list for guild ${guild.id}:`, error);
+            }
+
+            const cachedRoles = guild.roles.cache;
+            if (cachedRoles.size > 0) {
+                roleCount = cachedRoles.size;
+            }
+        }
+
+        return { total, botCount, userCount, channelCount, roleCount };
     }
 
     async updateServerStats(guild, existingConfig = null) {
@@ -809,12 +858,23 @@ class DiscordHandlers {
 
         const stats = await this.collectGuildMemberStats(guild);
         const ensured = await this.ensureServerStatsChannels(guild, existingConfig);
-        const { category, totalChannel, userChannel, botChannel, botMember, everyoneId } = ensured;
+        const {
+            category,
+            totalChannel,
+            userChannel,
+            botChannel,
+            channelCountChannel,
+            roleCountChannel,
+            botMember,
+            everyoneId
+        } = ensured;
 
         const desiredNames = {
             total: this.formatServerStatsName(this.serverStatsChannelLabels.total, stats.total),
             users: this.formatServerStatsName(this.serverStatsChannelLabels.users, stats.userCount),
-            bots: this.formatServerStatsName(this.serverStatsChannelLabels.bots, stats.botCount)
+            bots: this.formatServerStatsName(this.serverStatsChannelLabels.bots, stats.botCount),
+            channels: this.formatServerStatsName(this.serverStatsChannelLabels.channels, stats.channelCount),
+            roles: this.formatServerStatsName(this.serverStatsChannelLabels.roles, stats.roleCount)
         };
 
         try {
@@ -829,6 +889,14 @@ class DiscordHandlers {
             if (botChannel && botChannel.name !== desiredNames.bots) {
                 await botChannel.setName(desiredNames.bots);
             }
+
+            if (channelCountChannel && channelCountChannel.name !== desiredNames.channels) {
+                await channelCountChannel.setName(desiredNames.channels);
+            }
+
+            if (roleCountChannel && roleCountChannel.name !== desiredNames.roles) {
+                await roleCountChannel.setName(desiredNames.roles);
+            }
         } catch (error) {
             if (error.code === 50013) {
                 throw this.createFriendlyError('I lack permission to rename the server stats channels, sir.');
@@ -839,12 +907,16 @@ class DiscordHandlers {
         await this.applyServerStatsPermissions(totalChannel, botMember, everyoneId);
         await this.applyServerStatsPermissions(userChannel, botMember, everyoneId);
         await this.applyServerStatsPermissions(botChannel, botMember, everyoneId);
+        await this.applyServerStatsPermissions(channelCountChannel, botMember, everyoneId);
+        await this.applyServerStatsPermissions(roleCountChannel, botMember, everyoneId);
 
         const record = await database.saveServerStatsConfig(guild.id, {
             categoryId: category.id,
             totalChannelId: totalChannel.id,
             userChannelId: userChannel.id,
-            botChannelId: botChannel.id
+            botChannelId: botChannel.id,
+            channelCountChannelId: channelCountChannel.id,
+            roleCountChannelId: roleCountChannel.id
         });
 
         return { record, stats };
@@ -865,7 +937,9 @@ class DiscordHandlers {
         const channelIds = new Set([
             config.totalChannelId,
             config.userChannelId,
-            config.botChannelId
+            config.botChannelId,
+            config.channelCountChannelId,
+            config.roleCountChannelId
         ]);
 
         for (const channelId of channelIds) {

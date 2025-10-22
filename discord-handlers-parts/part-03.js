@@ -159,13 +159,17 @@
                 const totalChannel = await this.resolveGuildChannel(guild, config.totalChannelId);
                 const userChannel = await this.resolveGuildChannel(guild, config.userChannelId);
                 const botChannel = await this.resolveGuildChannel(guild, config.botChannelId);
+                const channelCountChannel = await this.resolveGuildChannel(guild, config.channelCountChannelId);
+                const roleCountChannel = await this.resolveGuildChannel(guild, config.roleCountChannelId);
 
                 const lines = [
                     `Category: ${category ? `<#${category.id}>` : 'Missing'}`,
                     `Member channel: ${totalChannel ? `<#${totalChannel.id}>` : 'Missing'}`,
                     `User channel: ${userChannel ? `<#${userChannel.id}>` : 'Missing'}`,
                     `Bot channel: ${botChannel ? `<#${botChannel.id}>` : 'Missing'}`,
-                    `Current totals — Members: ${this.formatServerStatsValue(stats.total)}, Users: ${this.formatServerStatsValue(stats.userCount)}, Bots: ${this.formatServerStatsValue(stats.botCount)}`
+                    `Channel count channel: ${channelCountChannel ? `<#${channelCountChannel.id}>` : 'Missing'}`,
+                    `Role count channel: ${roleCountChannel ? `<#${roleCountChannel.id}>` : 'Missing'}`,
+                    `Current totals — Members: ${this.formatServerStatsValue(stats.total)}, Users: ${this.formatServerStatsValue(stats.userCount)}, Bots: ${this.formatServerStatsValue(stats.botCount)}, Channels: ${this.formatServerStatsValue(stats.channelCount)}, Roles: ${this.formatServerStatsValue(stats.roleCount)}`
                 ];
 
                 await interaction.editReply(`Server statistics are active, sir.\n${lines.join('\n')}`);
