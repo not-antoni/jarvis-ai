@@ -11,6 +11,8 @@
     const avatarX = 50; // Moved further to the right
     const avatarY = 20; // Top-aligned padding instead of vertical centering
 
+    const avatarBackgroundColor = '#1a1a1e';
+
     // Draw avatar (circular)
     if (avatarUrl) {
         try {
@@ -18,22 +20,22 @@
             ctx.beginPath();
             ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
             ctx.clip();
-            
-            ctx.fillStyle = '#5865f2';
+
+            ctx.fillStyle = avatarBackgroundColor;
             ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
-            
+
             const avatarImg = await loadImage(avatarUrl);
             ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
-            
+
             ctx.restore();
         } catch (error) {
             console.warn('Failed to load avatar, using fallback:', error);
             ctx.save();
             ctx.beginPath();
             ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
-            ctx.fillStyle = '#5865f2';
+            ctx.fillStyle = avatarBackgroundColor;
             ctx.fill();
-            
+
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
@@ -45,9 +47,9 @@
         ctx.save();
         ctx.beginPath();
         ctx.arc(avatarX + avatarSize/2, avatarY + avatarSize/2, avatarSize/2, 0, Math.PI * 2);
-        ctx.fillStyle = '#5865f2';
+        ctx.fillStyle = avatarBackgroundColor;
         ctx.fill();
-        
+
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 12px Arial';
         ctx.textAlign = 'center';
