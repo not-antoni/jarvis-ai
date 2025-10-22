@@ -3,7 +3,7 @@
  */
 
 require('dotenv').config();
-const AIProviderManager = require('./src/ai/providers');
+const AIProviderManager = require('./ai-providers');
 
 async function testPuterProvider() {
     console.log('Testing Puter provider integration...\n');

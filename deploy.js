@@ -3,9 +3,9 @@
  * Run this to check if everything is ready for Render deployment
  */
 
-const config = require('./src/core/config');
-const database = require('./src/data/database');
-const aiManager = require('./src/ai/providers');
+const config = require('./config');
+const database = require('./database');
+const aiManager = require('./ai-providers');
 
 async function verifyDeployment() {
     console.log('🔍 Verifying Jarvis deployment readiness...\n');
