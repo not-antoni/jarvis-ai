@@ -433,7 +433,8 @@ class DiscordHandlers {
             enabled: false,
             customMessage: this.defaultAutoModMessage,
             ruleId: null,
-            ruleIds: []
+            ruleIds: [],
+            extraFilters: []
         };
     }
 
@@ -629,6 +630,69 @@ class DiscordHandlers {
         const rules = [];
         const missingRuleIds = [];
 
+        if (!Array.isArray(prepared.extraFilters)) {
+            prepared.extraFilters = [];
+            mutated = true;
+        }
+
+        const normalizedExtraFilters = [];
+        for (const entry of prepared.extraFilters) {
+            if (!entry || typeof entry !== 'object') {
+                mutated = true;
+                continue;
+            }
+
+            const keywords = this.mergeKeywords([], Array.isArray(entry.keywords) ? entry.keywords : []);
+            if (!keywords.length) {
+                mutated = true;
+                continue;
+            }
+
+            const customMessage = typeof entry.customMessage === 'string' && entry.customMessage.trim()
+                ? entry.customMessage.trim().slice(0, 150)
+                : normalizedMessage;
+            const name = typeof entry.name === 'string' && entry.name.trim()
+                ? entry.name.trim().slice(0, 100)
+                : `${this.autoModRuleName} Filter`;
+
+            let ruleId = typeof entry.ruleId === 'string' && entry.ruleId.trim()
+                ? entry.ruleId.trim()
+                : null;
+            let enabled = Boolean(entry.enabled);
+
+            if (ruleId) {
+                const rule = await this.fetchAutoModRule(guild, ruleId);
+                if (rule) {
+                    enabled = Boolean(rule.enabled);
+                } else {
+                    missingRuleIds.push(ruleId);
+                    ruleId = null;
+                    enabled = false;
+                    mutated = true;
+                }
+            }
+
+            normalizedExtraFilters.push({
+                ruleId,
+                keywords,
+                customMessage,
+                enabled,
+                name
+            });
+
+            if (!entry.ruleId || entry.ruleId !== ruleId ||
+                !Array.isArray(entry.keywords) || entry.keywords.length !== keywords.length ||
+                entry.customMessage !== customMessage || entry.enabled !== enabled || entry.name !== name) {
+                mutated = true;
+            }
+        }
+
+        if (normalizedExtraFilters.length !== prepared.extraFilters.length) {
+            mutated = true;
+        }
+
+        prepared.extraFilters = normalizedExtraFilters;
+
         for (const ruleId of prepared.ruleIds) {
             const rule = await this.fetchAutoModRule(guild, ruleId);
             if (rule) {
@@ -796,6 +860,139 @@ class DiscordHandlers {
         }
 
         return { rules: resolvedRules, keywords: sanitized, ruleIds: resolvedRuleIds };
+    }
+
+    generateAutoModFilterName(existingFilters = []) {
+        const baseName = `${this.autoModRuleName} Filter`;
+        if (!Array.isArray(existingFilters) || !existingFilters.length) {
+            return baseName;
+        }
+
+        const usedNumbers = new Set();
+        for (const filter of existingFilters) {
+            const match = typeof filter?.name === 'string' ? filter.name.match(/#(\d+)$/) : null;
+            if (match) {
+                usedNumbers.add(Number(match[1]));
+            }
+        }
+
+        let counter = existingFilters.length + 1;
+        for (let candidate = 1; candidate <= existingFilters.length + 5; candidate += 1) {
+            if (!usedNumbers.has(candidate)) {
+                counter = candidate;
+                break;
+            }
+        }
+
+        return `${baseName} #${counter}`;
+    }
+
+    async upsertExtraAutoModFilter(guild, filter, defaultMessage, enabled = true) {
+        if (!guild || !filter) {
+            throw this.createFriendlyError('I could not adjust that auto moderation filter, sir.');
+        }
+
+        const keywords = this.mergeKeywords([], Array.isArray(filter.keywords) ? filter.keywords : []);
+        if (!keywords.length) {
+            throw this.createFriendlyError('Please provide at least one valid keyword, sir.');
+        }
+
+        const customMessage = typeof filter.customMessage === 'string' && filter.customMessage.trim()
+            ? filter.customMessage.trim().slice(0, 150)
+            : (typeof defaultMessage === 'string' && defaultMessage.trim()
+                ? defaultMessage.trim().slice(0, 150)
+                : this.defaultAutoModMessage);
+
+        const name = typeof filter.name === 'string' && filter.name.trim()
+            ? filter.name.trim().slice(0, 100)
+            : `${this.autoModRuleName} Filter`;
+
+        try {
+            const { rule, keywords: sanitized } = await this.upsertAutoModRule(
+                guild,
+                keywords,
+                customMessage,
+                filter.ruleId,
+                enabled,
+                name
+            );
+
+            filter.ruleId = rule.id;
+            filter.keywords = sanitized;
+            filter.customMessage = customMessage;
+            filter.enabled = Boolean(rule.enabled);
+            filter.name = rule.name || name;
+            return filter;
+        } catch (error) {
+            console.error('Failed to synchronize additional auto moderation filter:', error?.cause || error);
+            throw error;
+        }
+    }
+
+    async enableExtraAutoModFilters(guild, record) {
+        if (!guild || !record || !Array.isArray(record.extraFilters) || !record.extraFilters.length) {
+            return;
+        }
+
+        for (const filter of record.extraFilters) {
+            try {
+                filter.enabled = true;
+                await this.upsertExtraAutoModFilter(
+                    guild,
+                    filter,
+                    record.customMessage || this.defaultAutoModMessage,
+                    true
+                );
+            } catch (error) {
+                this.handleAutoModApiError(error, 'I could not enable one of the additional auto moderation filters, sir.');
+            }
+        }
+    }
+
+    async disableExtraAutoModFilters(guild, record) {
+        if (!guild || !record || !Array.isArray(record.extraFilters) || !record.extraFilters.length) {
+            return;
+        }
+
+        for (const filter of record.extraFilters) {
+            if (!filter.ruleId) {
+                filter.enabled = false;
+                continue;
+            }
+
+            try {
+                const disabled = await this.disableAutoModRule(guild, filter.ruleId);
+                filter.enabled = false;
+                if (!disabled) {
+                    filter.ruleId = null;
+                }
+            } catch (error) {
+                this.handleAutoModApiError(error, 'I could not disable one of the additional auto moderation filters, sir.');
+            }
+        }
+    }
+
+    async resyncEnabledExtraAutoModFilters(guild, record) {
+        if (!guild || !record || !Array.isArray(record.extraFilters) || !record.extraFilters.length) {
+            return;
+        }
+
+        for (const filter of record.extraFilters) {
+            if (!filter.enabled) {
+                continue;
+            }
+
+            try {
+                await this.upsertExtraAutoModFilter(
+                    guild,
+                    filter,
+                    record.customMessage || this.defaultAutoModMessage,
+                    true
+                );
+            } catch (error) {
+                this.handleAutoModApiError(error, 'I could not update one of the additional auto moderation filters, sir.');
+            }
+        }
     }
 
     async disableAutoModRule(guild, ruleId) {
