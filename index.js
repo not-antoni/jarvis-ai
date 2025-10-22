@@ -333,6 +333,19 @@ const commands = [
                         .setName("message")
                         .setDescription("Custom response shown to users")
                         .setRequired(true)))
+        .addSubcommandGroup(group =>
+            group
+                .setName("filter")
+                .setDescription("Manage additional auto moderation filters")
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("add")
+                        .setDescription("Create a separate auto moderation rule with its own keywords")
+                        .addStringOption(option =>
+                            option
+                                .setName("words")
+                                .setDescription("Comma or newline separated words for the new filter")
+                                .setRequired(true)))))
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("serverstats")
