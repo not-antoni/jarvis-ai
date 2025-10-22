@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
-const aiManager = require('./ai-providers');
+const aiManager = require('../providers');
 
 class EmbeddingSystem {
     constructor() {
@@ -27,7 +27,7 @@ class EmbeddingSystem {
 
     async loadData() {
         try {
-            const dataPath = path.join(__dirname, 'data.jsonl');
+            const dataPath = path.join(__dirname, '../../data/knowledge/data.jsonl');
             const fileContent = fs.readFileSync(dataPath, 'utf8');
             const lines = fileContent.trim().split('\n');
             
