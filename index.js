@@ -465,8 +465,46 @@ async function registerSlashCommands() {
             await client.application?.fetch();
         }
 
-        await client.application.commands.set(commandData);
-        console.log(`Successfully registered ${commandData.length} global slash commands.`);
+        const existingCommands = await client.application.commands.fetch();
+        const commandsByName = new Map();
+
+        existingCommands.forEach(command => {
+            commandsByName.set(command.name, command);
+        });
+
+        const processedNames = new Set();
+
+        for (const data of commandData) {
+            const existing = commandsByName.get(data.name);
+
+            if (existing) {
+                await client.application.commands.edit(existing.id, data);
+                console.log(`Updated global command: ${data.name}`);
+            } else {
+                await client.application.commands.create(data);
+                console.log(`Created global command: ${data.name}`);
+            }
+
+            processedNames.add(data.name);
+        }
+
+        for (const command of existingCommands.values()) {
+            if (processedNames.has(command.name)) {
+                continue;
+            }
+
+            const isEntryPointCommand = command.integrationTypes?.includes?.(2) || command.name.toLowerCase() === "launch";
+
+            if (isEntryPointCommand) {
+                console.log(`Preserving Discord Activity entry point command: ${command.name}`);
+                continue;
+            }
+
+            await client.application.commands.delete(command.id);
+            console.log(`Removed stale global command: ${command.name}`);
+        }
+
+        console.log(`Successfully synchronized ${commandData.length} managed global slash commands.`);
     } catch (error) {
         console.error("Failed to register slash commands:", error);
     }
