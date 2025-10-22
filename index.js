@@ -345,7 +345,7 @@ const commands = [
                             option
                                 .setName("words")
                                 .setDescription("Comma or newline separated words for the new filter")
-                                .setRequired(true)))))
+                                .setRequired(true))))
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("serverstats")
