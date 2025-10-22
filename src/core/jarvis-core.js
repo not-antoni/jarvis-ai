@@ -2,12 +2,12 @@
  * Core Jarvis (Garmin) AI personality and response generation
  */
 
-const aiManager = require('./ai-providers');
-const database = require('./database');
+const aiManager = require('../ai/providers');
+const database = require('../data/database');
 const config = require('./config');
-const embeddingSystem = require('./embedding-system');
-const youtubeSearch = require('./youtube-search');
-const braveSearch = require('./brave-search');
+const embeddingSystem = require('../ai/embeddings');
+const youtubeSearch = require('../integrations/youtube/search');
+const braveSearch = require('../integrations/brave/search');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const punycode = require('node:punycode');

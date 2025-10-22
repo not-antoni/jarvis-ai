@@ -1,7 +1,7 @@
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { createOpenAI } = require("@ai-sdk/openai");
-const config = require('./config');
+const config = require('../../core/config');
 
 class AIProviderManager {
     constructor() {
