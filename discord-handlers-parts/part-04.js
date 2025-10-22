@@ -16,6 +16,83 @@
             await interaction.editReply(message);
         };
 
+        if (subcommandGroup === 'filter') {
+            if (subcommand === 'add') {
+                const input = interaction.options.getString('words');
+                const additions = this.parseKeywordInput(input);
+
+                if (!additions.length) {
+                    await replyWithError('Please provide at least one word or phrase for the new filter, sir.');
+                    return;
+                }
+
+                const merged = this.mergeKeywords([], additions);
+                if (!merged.length) {
+                    await replyWithError('I could not extract any valid keywords for that filter, sir.');
+                    return;
+                }
+
+                if (merged.length > this.maxAutoModKeywordsPerRule) {
+                    await replyWithError(`Each filter may track up to ${this.maxAutoModKeywordsPerRule} entries, sir.`);
+                    return;
+                }
+
+                const mergedSet = new Set(merged);
+                const duplicate = (record.extraFilters || []).some(filter => {
+                    const normalized = this.mergeKeywords([], filter.keywords || []);
+                    if (normalized.length !== merged.length) {
+                        return false;
+                    }
+                    return normalized.every(keyword => mergedSet.has(keyword));
+                });
+
+                if (duplicate) {
+                    await replyWithError('An additional filter already tracks those keywords, sir.');
+                    return;
+                }
+
+                if (!Array.isArray(record.extraFilters)) {
+                    record.extraFilters = [];
+                }
+
+                const filterName = this.generateAutoModFilterName(record.extraFilters);
+                const newFilter = {
+                    ruleId: null,
+                    keywords: merged,
+                    customMessage: record.customMessage,
+                    enabled: true,
+                    name: filterName,
+                    createdAt: new Date().toISOString()
+                };
+
+                try {
+                    await this.upsertExtraAutoModFilter(
+                        guild,
+                        newFilter,
+                        record.customMessage || this.defaultAutoModMessage,
+                        true
+                    );
+
+                    record.extraFilters.push(newFilter);
+                    await database.saveAutoModConfig(guild.id, record);
+
+                    const activeFilters = record.extraFilters.filter(filter => filter.enabled).length;
+                    await interaction.editReply(
+                        `Additional auto moderation filter deployed, sir. ` +
+                        `You now have ${record.extraFilters.length} filter${record.extraFilters.length === 1 ? '' : 's'} ` +
+                        `(${activeFilters} active).`
+                    );
+                } catch (error) {
+                    console.error('Failed to add additional auto moderation filter:', error?.cause || error);
+                    await replyWithError(this.getAutoModErrorMessage(error, 'I could not create that additional auto moderation filter, sir.'));
+                }
+                return;
+            }
+
+            await replyWithError('I am not certain how to handle that auto moderation filter request, sir.');
+            return;
+        }
+
         if (subcommand === 'status') {
             const enabledState = cachedRules.length
                 ? cachedRules.every(rule => Boolean(rule.enabled))
@@ -29,12 +106,17 @@
                 const suffix = missingRuleIds.length > 2 ? ', …' : '';
                 footerText = `Stored rule${missingRuleIds.length === 1 ? '' : 's'} ${preview}${suffix} ${missingRuleIds.length === 1 ? 'is' : 'are'} no longer accessible.`;
             }
+
+            const extraFilters = Array.isArray(record.extraFilters) ? record.extraFilters : [];
+            const activeExtras = extraFilters.filter(filter => filter.enabled).length;
+
             const embed = new EmbedBuilder()
                 .setTitle('Auto moderation status')
                 .setColor(0x5865f2)
                 .addFields(
                     { name: 'Enabled', value: enabledState ? 'Yes' : 'No', inline: true },
-                    { name: 'Tracked phrases', value: `${record.keywords.length}`, inline: true }
+                    { name: 'Tracked phrases', value: `${record.keywords.length}`, inline: true },
+                    { name: 'Additional filters', value: extraFilters.length ? `${activeExtras}/${extraFilters.length} active` : 'None', inline: true }
                 )
                 .setFooter({ text: footerText });
 
@@ -92,6 +174,14 @@
                 record.ruleIds = ruleIds;
                 record.keywords = keywords;
                 record.enabled = rules.every(rule => Boolean(rule.enabled));
+                try {
+                    await this.enableExtraAutoModFilters(guild, record);
+                } catch (error) {
+                    console.error('Failed to enable additional auto moderation filters:', error?.cause || error);
+                    await replyWithError(this.getAutoModErrorMessage(error, 'I could not enable the additional auto moderation filters, sir.'));
+                    return;
+                }
+
                 await database.saveAutoModConfig(guild.id, record);
                 const statusLine = record.enabled
                     ? 'Discord will now block the configured phrases.'
@@ -119,6 +209,14 @@
                 return;
             }
 
+            try {
+                await this.disableExtraAutoModFilters(guild, record);
+            } catch (error) {
+                console.error('Failed to disable additional auto moderation filters:', error?.cause || error);
+                await replyWithError(this.getAutoModErrorMessage(error, 'I could not disable the additional auto moderation filters, sir.'));
+                return;
+            }
+
             record.enabled = false;
             await database.saveAutoModConfig(guild.id, record);
             await interaction.editReply('Auto moderation is now offline for this server, sir.');
@@ -135,9 +233,16 @@
                 console.error('Failed to disable auto moderation while clearing:', error?.cause || error);
             }
 
+            try {
+                await this.disableExtraAutoModFilters(guild, record);
+            } catch (error) {
+                console.error('Failed to disable additional auto moderation filters while clearing:', error?.cause || error);
+            }
+
             record.keywords = [];
             record.enabled = false;
             record.ruleIds = [];
+            record.extraFilters = [];
             await database.saveAutoModConfig(guild.id, record);
             await interaction.editReply('Blacklist cleared and auto moderation disabled, sir.');
             return;
@@ -169,6 +274,18 @@
                     await replyWithError(this.getAutoModErrorMessage(error, 'I could not update the auto moderation message, sir.'));
                     return;
                 }
+            }
+
+            for (const filter of record.extraFilters) {
+                filter.customMessage = record.customMessage;
+            }
+
+            try {
+                await this.resyncEnabledExtraAutoModFilters(guild, record);
+            } catch (error) {
+                console.error('Failed to update additional auto moderation filters with new message:', error?.cause || error);
+                await replyWithError(this.getAutoModErrorMessage(error, 'I could not update the additional auto moderation filters, sir.'));
+                return;
             }
 
             await database.saveAutoModConfig(guild.id, record);
