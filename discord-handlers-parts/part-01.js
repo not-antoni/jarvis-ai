@@ -1,0 +1,1029 @@
+            }
+
+            console.error('Failed to handle member log command:', error);
+            await replyWithError('I could not complete that member log request, sir.');
+        }
+    }
+
+    async refreshAllServerStats(client) {
+        if (!client || !database.isConnected) {
+            return;
+        }
+
+        let configs = [];
+        try {
+            configs = await database.getAllServerStatsConfigs();
+        } catch (error) {
+            console.error('Failed to load server stats configurations:', error);
+            return;
+        }
+
+        for (const config of configs) {
+            if (!config?.guildId) {
+                continue;
+            }
+
+            let guild = client.guilds.cache.get(config.guildId) || null;
+            if (!guild) {
+                try {
+                    guild = await client.guilds.fetch(config.guildId);
+                } catch (error) {
+                    if (error.code !== 50001 && error.code !== 10004) {
+                        console.warn(`Failed to fetch guild ${config.guildId} for server stats update:`, error);
+                    }
+                    continue;
+                }
+            }
+
+            try {
+                await this.updateServerStats(guild, config);
+            } catch (error) {
+                if (error.isFriendly || error.code === 50013) {
+                    console.warn(`Skipping server stats update for guild ${config.guildId}: ${error.message || 'missing permissions'}`);
+                } else if (error.code === 50001) {
+                    console.warn(`Missing access to update server stats for guild ${config.guildId}.`);
+                } else {
+                    console.error(`Failed to update server stats for guild ${config.guildId}:`, error);
+                }
+            }
+        }
+    }
+
+    async resolveRoleFromInput(roleInput, guild) {
+        if (!roleInput || !guild) {
+            return null;
+        }
+
+        const trimmed = roleInput.trim();
+        let roleId = null;
+
+        const mentionMatch = trimmed.match(/^<@&(\d{5,})>$/);
+        if (mentionMatch) {
+            roleId = mentionMatch[1];
+        }
+
+        if (!roleId && /^\d{5,}$/.test(trimmed)) {
+            roleId = trimmed;
+        }
+
+        let role = null;
+        if (roleId) {
+            role = guild.roles.cache.get(roleId) || null;
+            if (!role) {
+                try {
+                    role = await guild.roles.fetch(roleId);
+                } catch (error) {
+                    role = null;
+                }
+            }
+        }
+
+        if (!role) {
+            const normalized = trimmed.toLowerCase();
+            role = guild.roles.cache.find(r => r.name.toLowerCase() === normalized) || null;
+        }
+
+        return role || null;
+    }
+
+    async parseReactionRolePairs(input, guild) {
+        if (!input || typeof input !== 'string') {
+            throw new Error('Please provide emoji and role pairs separated by commas, sir.');
+        }
+
+        const segments = input
+            .split(/[\n,]+/)
+            .map(segment => segment.trim())
+            .filter(Boolean);
+
+        if (segments.length === 0) {
+            throw new Error('Please provide at least one emoji and role pair, sir.');
+        }
+
+        if (segments.length > 20) {
+            throw new Error('Discord allows a maximum of 20 reactions per message, sir.');
+        }
+
+        const results = [];
+        const seenKeys = new Set();
+        const emojiPattern = /\p{Extended_Pictographic}/u;
+
+        for (const segment of segments) {
+            const separatorIndex = segment.search(/\s/);
+            if (separatorIndex === -1) {
+                throw new Error('Each pair must include an emoji and a role separated by a space, sir.');
+            }
+
+            const emojiInput = segment.substring(0, separatorIndex).trim();
+            const roleInput = segment.substring(separatorIndex).trim();
+
+            if (!emojiInput || !roleInput) {
+                throw new Error('Each pair must include both an emoji and a role, sir.');
+            }
+
+            const parsedEmoji = parseEmoji(emojiInput);
+            if (!parsedEmoji) {
+                throw new Error(`I could not understand the emoji "${emojiInput}", sir.`);
+            }
+
+            if (!parsedEmoji.id && !emojiPattern.test(emojiInput)) {
+                throw new Error(`"${emojiInput}" is not a usable emoji, sir. Please use a Unicode emoji or a custom server emoji.`);
+            }
+
+            const matchKey = parsedEmoji.id || parsedEmoji.name;
+            if (!matchKey) {
+                throw new Error(`I could not determine how to track the emoji "${emojiInput}", sir.`);
+            }
+
+            if (seenKeys.has(matchKey)) {
+                throw new Error('Each emoji may only be used once per panel, sir.');
+            }
+
+            const role = await this.resolveRoleFromInput(roleInput, guild);
+            if (!role) {
+                throw new Error(`I could not find the role "${roleInput}", sir.`);
+            }
+
+            seenKeys.add(matchKey);
+
+            const emojiDisplay = parsedEmoji.id
+                ? `<${parsedEmoji.animated ? 'a' : ''}:${parsedEmoji.name}:${parsedEmoji.id}>`
+                : emojiInput;
+
+            results.push({
+                matchKey,
+                rawEmoji: emojiDisplay,
+                display: emojiDisplay,
+                roleId: role.id,
+                roleName: role.name
+            });
+        }
+
+        return results;
+    }
+
+    async resolveReactionRoleContext(reaction, user) {
+        if (!database.isConnected || !reaction || !user || user.bot) {
+            return null;
+        }
+
+        const messageId = reaction.message?.id || reaction.messageId;
+        if (!messageId) {
+            return null;
+        }
+
+        const record = await database.getReactionRole(messageId);
+        if (!record) {
+            return null;
+        }
+
+        if (reaction.message?.guildId && record.guildId && reaction.message.guildId !== record.guildId) {
+            return null;
+        }
+
+        const key = this.getReactionEmojiKey(reaction.emoji);
+        if (!key) {
+            return null;
+        }
+
+        const option = (record.options || []).find(entry => entry.matchKey === key);
+        if (!option) {
+            return null;
+        }
+
+        const guildId = record.guildId || reaction.message?.guildId;
+        if (!guildId) {
+            return null;
+        }
+
+        const guild = reaction.message?.guild
+            || reaction.client.guilds.cache.get(guildId)
+            || await reaction.client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) {
+            return null;
+        }
+
+        const member = await guild.members.fetch(user.id).catch(() => null);
+        if (!member) {
+            return null;
+        }
+
+        const role = guild.roles.cache.get(option.roleId) || await guild.roles.fetch(option.roleId).catch(() => null);
+        if (!role) {
+            return null;
+        }
+
+        const me = guild.members.me || await guild.members.fetchMe().catch(() => null);
+        if (!me?.permissions?.has(PermissionsBitField.Flags.ManageRoles)) {
+            return null;
+        }
+
+        if (me.roles.highest.comparePositionTo(role) <= 0) {
+            return null;
+        }
+
+        return {
+            record,
+            option,
+            guild,
+            member,
+            role,
+            me
+        };
+    }
+
+    getUserRoleColor(member) {
+        try {
+            if (!member || !member.roles) {
+                return '#ff6b6b'; // Default red
+            }
+
+            // Get the highest role with a color (excluding @everyone)
+            const coloredRoles = member.roles.cache
+                .filter(role => role.color !== 0 && role.name !== '@everyone')
+                .sort((a, b) => b.position - a.position);
+
+            if (coloredRoles.size > 0) {
+                const topRole = coloredRoles.first();
+                return `#${topRole.color.toString(16).padStart(6, '0')}`;
+            }
+
+            return '#ff6b6b'; // Default red if no colored roles
+        } catch (error) {
+            console.warn('Failed to get role color:', error);
+            return '#ff6b6b'; // Default red on error
+        }
+    }
+
+	// Produce a display name that renders reliably on canvas
+	getSafeDisplayName(member, author) {
+		try {
+			const rawName = (member && member.displayName) ? member.displayName : (author && author.username ? author.username : 'User');
+			// Normalize to canonical form
+			let name = rawName.normalize('NFKC');
+			// Remove control and zero-width characters
+			name = name.replace(/[\p{C}\p{Cf}]/gu, '');
+			// Allow letters, numbers, spaces, and a small set of safe punctuation; drop the rest
+			name = name.replace(/[^\p{L}\p{N}\p{M} _\-'.]/gu, '');
+			// Collapse whitespace
+			name = name.replace(/\s+/g, ' ').trim();
+			// Fallback if empty after sanitization
+			if (!name) name = (author && author.username) ? author.username : 'User';
+			return name;
+		} catch (_) {
+			return (author && author.username) ? author.username : 'User';
+		}
+	}
+
+    // Parse Discord custom emojis using Discord API
+    // This function extracts custom emojis from message text and gets their proper URLs
+    // Uses guild emoji cache for accurate emoji data, falls back to CDN URLs
+    async parseCustomEmojis(text, guild = null) {
+        const emojiRegex = /<a?:(\w+):(\d+)>/g;
+        const emojis = [];
+        let match;
+        
+        while ((match = emojiRegex.exec(text)) !== null) {
+            const isAnimated = match[0].startsWith('<a:');
+            const name = match[1];
+            const id = match[2];
+            
+            // Always use Discord's CDN URL for emojis
+            // Discord API format: https://cdn.discordapp.com/emojis/{emoji_id}.png
+            // For animated emojis: https://cdn.discordapp.com/emojis/{emoji_id}.gif
+            let emojiUrl = `https://cdn.discordapp.com/emojis/${id}.${isAnimated ? 'gif' : 'png'}`;
+            let emojiObject = null;
+            
+            // Try to get emoji from guild for additional info
+            if (guild) {
+                try {
+                    emojiObject = guild.emojis.cache.get(id);
+                    if (emojiObject) {
+                        // Use the emoji's URL if available, otherwise use CDN URL
+                        emojiUrl = emojiObject.url || emojiUrl;
+                    } else {
+                        // Try to fetch emoji from Discord API if not in cache
+                        // Discord API endpoint: GET /guilds/{guild_id}/emojis/{emoji_id}
+                        try {
+                            const fetchedEmoji = await guild.emojis.fetch(id);
+                            if (fetchedEmoji) {
+                                emojiObject = fetchedEmoji;
+                                emojiUrl = fetchedEmoji.url || emojiUrl;
+                            }
+                        } catch (fetchError) {
+                            // Handle Discord API errors gracefully
+                            if (fetchError.code === 10014) {
+                                console.warn(`Emoji ${id} not found in guild ${guild.id}`);
+                            } else if (fetchError.code === 50013) {
+                                console.warn(`Missing permissions to fetch emoji ${id} from guild ${guild.id}`);
+                            } else {
+                                console.warn('Failed to fetch emoji from Discord API:', fetchError);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Failed to fetch emoji from guild:', error);
+                }
+            }
+            
+            emojis.push({
+                full: match[0],
+                name: name,
+                id: id,
+                url: emojiUrl,
+                isAnimated: isAnimated,
+                emojiObject: emojiObject,
+                start: match.index,
+                end: match.index + match[0].length
+            });
+        }
+        
+        return emojis;
+    }
+
+    // Parse Unicode emojis as well
+    parseUnicodeEmojis(text) {
+        // Enhanced Unicode emoji regex - covers more emoji ranges including newer ones
+        const unicodeEmojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA70}-\u{1FAFF}]|[\u{1F018}-\u{1F0FF}]|[\u{1F200}-\u{1F2FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F000}-\u{1F02F}]|[\u{1F030}-\u{1F09F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{1F300}-\u{1F5FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F650}-\u{1F67F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{1FB00}-\u{1FBFF}]|[\u{1FC00}-\u{1FCFF}]|[\u{1FD00}-\u{1FDFF}]|[\u{1FE00}-\u{1FEFF}]|[\u{1FF00}-\u{1FFFF}]/gu;
+        const emojis = [];
+        let match;
+        
+        while ((match = unicodeEmojiRegex.exec(text)) !== null) {
+            emojis.push({
+                full: match[0],
+                name: match[0],
+                id: null,
+                url: null, // Unicode emojis don't have URLs
+                isAnimated: false,
+                emojiObject: null,
+                start: match.index,
+                end: match.index + match[0].length,
+                isUnicode: true
+            });
+        }
+        
+        return emojis;
+    }
+
+	// Parse user mentions like <@123> or <@!123> and resolve to @DisplayName
+	async parseMentions(text, guild = null, client = null) {
+		const mentionRegex = /<@!?([0-9]{5,})>/g;
+		const mentions = [];
+		let match;
+		while ((match = mentionRegex.exec(text)) !== null) {
+			const userId = match[1];
+			let display = `@unknown`;
+			try {
+				let user = null;
+				let member = null;
+				if (guild) {
+					member = guild.members.cache.get(userId) || null;
+					if (!member) {
+						try { member = await guild.members.fetch(userId); } catch (_) {}
+					}
+					user = member ? member.user : null;
+				}
+				if (!user && client) {
+					user = client.users.cache.get(userId) || null;
+					if (!user) {
+						try { user = await client.users.fetch(userId); } catch (_) {}
+					}
+				}
+				display = `@${this.getSafeDisplayName(member, user || { username: userId })}`;
+			} catch (_) {}
+			mentions.push({
+				full: match[0],
+				userId: userId,
+				display: display,
+				start: match.index,
+				end: match.index + match[0].length
+			});
+		}
+		return mentions;
+	}
+
+    // Parse Discord markdown formatting
+    parseDiscordFormatting(text) {
+        const formatting = [];
+        
+        // Bold: **text**
+        const boldRegex = /\*\*(.*?)\*\*/g;
+        let match;
+        while ((match = boldRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'bold',
+                content: match[1],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Italic: *text* or _text_
+        const italicRegex = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|(?<!_)_(?!_)([^_]+)_(?!_)/g;
+        while ((match = italicRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'italic',
+                content: match[1] || match[2],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Strikethrough: ~~text~~
+        const strikeRegex = /~~(.*?)~~/g;
+        while ((match = strikeRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'strikethrough',
+                content: match[1],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Underline: __text__
+        const underlineRegex = /__(.*?)__/g;
+        while ((match = underlineRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'underline',
+                content: match[1],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Code: `text`
+        const codeRegex = /`([^`]+)`/g;
+        while ((match = codeRegex.exec(text)) !== null) {
+            formatting.push({
+                type: 'code',
+                content: match[1],
+                start: match.index,
+                end: match.index + match[0].length,
+                full: match[0]
+            });
+        }
+        
+        // Sort by start position
+        formatting.sort((a, b) => a.start - b.start);
+        
+        return formatting;
+    }
+
+    // Format timestamp to actual readable time
+    // Uses Discord.js Message.createdAt (Date object) for proper timezone handling
+    formatTimestamp(timestamp, userTimezone = 'UTC') {
+        try {
+            // Handle both Date objects and timestamp numbers
+            const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+            
+            // Format as 12-hour time with AM/PM
+            // Use system timezone to match Discord client behavior
+            const options = {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+                // No timeZone specified - uses system timezone (matches Discord client)
+            };
+            
+            return date.toLocaleTimeString('en-US', options);
+        } catch (error) {
+            console.warn('Failed to format timestamp:', error);
+            return '6:39 PM'; // Fallback
+        }
+    }
+
+    // Get Discord's native timestamp format for user's local timezone
+    // This matches exactly what Discord shows in the client
+    getDiscordTimestamp(message) {
+        try {
+            // Convert to Unix timestamp (seconds, not milliseconds)
+            const unixTimestamp = Math.floor(message.createdTimestamp / 1000);
+            
+            // Discord timestamp format: <t:timestamp:format>
+            // 't' = short time (e.g., "2:30 PM")
+            return `<t:${unixTimestamp}:t>`;
+        } catch (error) {
+            console.warn('Failed to get Discord timestamp:', error);
+            return '6:39 PM'; // Fallback
+        }
+    }
+
+    // Draw the verified badge SVG checkmark
+    drawVerifiedBadge(ctx, x, y, size = 16) {
+        try {
+            // Save context state
+            ctx.save();
+            
+            // Set white fill for the checkmark
+            ctx.fillStyle = '#ffffff';
+            
+            // Create the checkmark path (simplified SVG path)
+            ctx.beginPath();
+            // Move to start of checkmark
+            ctx.moveTo(x + size * 0.3, y + size * 0.5);
+            // Line to middle point
+            ctx.lineTo(x + size * 0.45, y + size * 0.65);
+            // Line to end point
+            ctx.lineTo(x + size * 0.7, y + size * 0.35);
+            
+            // Draw with rounded line caps for cleaner look
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+            
+            ctx.restore();
+        } catch (error) {
+            console.warn('Failed to draw verified badge:', error);
+        }
+    }
+
+    // Parse Discord timestamp to get the actual formatted time
+    // This extracts the time from Discord's timestamp format
+    parseDiscordTimestamp(message) {
+        try {
+            // Get the Discord timestamp format
+            const discordTimestamp = this.getDiscordTimestamp(message);
+            
+            // For Canvas rendering, we need the actual time string
+            // Use the message's createdAt Date object with proper formatting
+            const date = message.createdAt;
+            const options = {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            };
+            
+            return date.toLocaleTimeString('en-US', options);
+        } catch (error) {
+            console.warn('Failed to parse Discord timestamp:', error);
+            return '6:39 PM'; // Fallback
+        }
+    }
+
+    // Truncate text if too long
+    truncateText(text, maxLength) {
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength - 3) + '...';
+    }
+
+    // Check if bot is verified using Discord API
+    isBotVerified(user) {
+        try {
+            // Check if user has the VerifiedBot flag using public_flags
+            // Discord API uses public_flags bitfield for verification status
+            return user.publicFlags && user.publicFlags.has(UserFlags.VerifiedBot);
+        } catch (error) {
+            console.warn('Failed to check bot verification status:', error);
+            return false;
+        }
+    }
+
+    // Get the official Discord verification badge URL
+    getVerificationBadgeUrl() {
+        // Discord's official verification badge URL from their CDN
+        // This is the actual badge icon used by Discord for verified bots
+        return 'https://cdn.discordapp.com/badge-icons/6f1c2f904b1f5b7f3f2746965d3992f0.png';
+    }
+
+    // Extract image URLs from text including Tenor GIFs
+    extractImageUrls(text) {
+        // Standard image URLs
+        const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
+        const imageMatches = text.match(imageUrlRegex) || [];
+        
+        // Tenor GIF URLs - extract the actual GIF URL
+        const tenorRegex = /(https?:\/\/tenor\.com\/[^\s]+)/gi;
+        const tenorMatches = text.match(tenorRegex) || [];
+        
+        // Convert Tenor URLs to actual GIF URLs
+        const tenorGifUrls = tenorMatches.map(tenorUrl => {
+            try {
+                // Extract GIF ID from different Tenor URL formats
+                let gifId = null;
+                
+                // Format 1: https://tenor.com/view/gif-name-gifId
+                const viewMatch = tenorUrl.match(/\/view\/[^-]+-(\d+)/);
+                if (viewMatch) {
+                    gifId = viewMatch[1];
+                }
+                
+                // Format 2: https://tenor.com/view/gifId
+                if (!gifId) {
+                    const directMatch = tenorUrl.match(/\/view\/(\d+)/);
+                    if (directMatch) {
+                        gifId = directMatch[1];
+                    }
+                }
+                
+                // Format 3: https://tenor.com/view/gif-name-gifId-other
+                if (!gifId) {
+                    const complexMatch = tenorUrl.match(/-(\d+)(?:-|$)/);
+                    if (complexMatch) {
+                        gifId = complexMatch[1];
+                    }
+                }
+                
+                if (gifId) {
+                    // Return the actual GIF URL from Tenor's CDN
+                    return `https://media.tenor.com/${gifId}.gif`;
+                }
+                
+                console.warn('Could not extract GIF ID from Tenor URL:', tenorUrl);
+                return tenorUrl; // Fallback to original URL
+            } catch (error) {
+                console.warn('Failed to convert Tenor URL:', error);
+                return tenorUrl;
+            }
+        });
+        
+        return [...imageMatches, ...tenorGifUrls];
+    }
+
+    calculateTextHeight(text, maxWidth, customEmojis = [], mentions = []) {
+        const tempCanvas = createCanvas(1, 1);
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.font = '14px Arial';
+
+        const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
+        const lineHeight = 20;
+        const emojiSize = 16;
+
+        let lineCount = 1;
+        let currentLineWidth = 0;
+
+        const advanceLine = () => {
+            lineCount++;
+            currentLineWidth = 0;
+        };
+
+        const handleWhitespaceToken = token => {
+            if (!token) return;
+            const width = tempCtx.measureText(token).width;
+            if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                advanceLine();
+            }
+            currentLineWidth += width;
+        };
+
+        const handleTextToken = token => {
+            if (!token) return;
+            const width = tempCtx.measureText(token).width;
+            if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                advanceLine();
+            }
+            currentLineWidth += width;
+        };
+
+        for (const segment of segments) {
+            if (segment.type === 'emoji') {
+                if (segment.isUnicode) {
+                    const emojiText = segment.name;
+                    tempCtx.font = '16px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
+                    const width = tempCtx.measureText(emojiText).width;
+                    tempCtx.font = '14px Arial';
+                    if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                        advanceLine();
+                    }
+                    currentLineWidth += width;
+                } else {
+                    const width = emojiSize + 2;
+                    if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                        advanceLine();
+                    }
+                    currentLineWidth += width;
+                }
+            } else if (segment.type === 'mention') {
+                const mentionTokens = segment.text.split(/(\n|\s+)/);
+                for (const token of mentionTokens) {
+                    if (!token) continue;
+                    if (token === '\n') {
+                        advanceLine();
+                        continue;
+                    }
+                    if (/^\s+$/.test(token)) {
+                        handleWhitespaceToken(token);
+                        continue;
+                    }
+                    handleTextToken(token);
+                }
+            } else {
+                const textTokens = segment.text.split(/(\n|\s+)/);
+                for (const token of textTokens) {
+                    if (!token) continue;
+                    if (token === '\n') {
+                        advanceLine();
+                        continue;
+                    }
+                    if (/^\s+$/.test(token)) {
+                        handleWhitespaceToken(token);
+                        continue;
+                    }
+                    handleTextToken(token);
+                }
+            }
+        }
+
+        const baseHeight = 40;
+        return baseHeight + (lineCount * lineHeight);
+    }
+
+    hasImagesOrEmojis(message) {
+        // Allow all content now - images and emojis are supported
+        return false;
+    }
+
+	async handleClipCommand(message, client) {
+        // Check if message starts with "jarvis clip"
+        const content = message.content.trim().toLowerCase();
+        if (!content.startsWith('jarvis clip')) {
+            return false;
+        }
+
+        // If not a reply, do nothing (no response)
+        if (!message.reference || !message.reference.messageId) {
+            return true; // Return true to indicate we handled it (by doing nothing)
+        }
+
+        try {
+            // Fetch the replied message
+            const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+            
+            // Debug logging for timestamps
+            console.log('Timestamp debug:', {
+                clipCommandTime: message.createdAt.toLocaleTimeString(),
+                repliedMessageTime: repliedMessage.createdAt.toLocaleTimeString(),
+                repliedMessageTimestamp: repliedMessage.createdTimestamp,
+                messageTimestamp: message.createdTimestamp,
+                // Check if we're getting the right message
+                repliedMessageId: repliedMessage.id,
+                repliedMessageContent: repliedMessage.content.substring(0, 50) + '...',
+                // Check message age
+                messageAge: Date.now() - repliedMessage.createdTimestamp
+            });
+            
+            // Check if message contains images or emojis - if so, don't respond
+            if (this.hasImagesOrEmojis(repliedMessage)) {
+                return true; // Handled silently - don't clip messages with images/emojis
+            }
+            
+            // Get server-specific avatar (guild avatar) or fallback to global avatar
+            // Discord allows users to set unique avatars per server - this gets the server-specific one
+            // If no server avatar is set, falls back to the user's global avatar
+            // Using Discord's proper avatar URL structure: https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png
+            const avatarUrl = repliedMessage.member?.avatarURL({ 
+                extension: 'png', 
+                size: 128,
+                forceStatic: false // Allow animated avatars
+            }) || repliedMessage.author.displayAvatarURL({ 
+                extension: 'png', 
+                size: 128,
+                forceStatic: false // Allow animated avatars
+            });
+            
+            // Get user's role color
+            let roleColor = '#ff6b6b'; // Default red
+            try {
+                if (message.guild && repliedMessage.member) {
+                    roleColor = this.getUserRoleColor(repliedMessage.member);
+                }
+            } catch (error) {
+                console.warn('Failed to get role color for text command:', error);
+            }
+            
+            // Get display name (sanitized for rendering)
+            const displayName = this.getSafeDisplayName(repliedMessage.member, repliedMessage.author);
+            
+			const imageBuffer = await this.createClipImage(
+                repliedMessage.content, 
+                displayName, 
+                avatarUrl,
+                repliedMessage.author.bot,
+                roleColor,
+                message.guild,
+                client,
+				repliedMessage, // Pass the entire message object
+				repliedMessage.author,
+				repliedMessage.attachments,
+				repliedMessage.embeds
+            );
+            
+            // Create attachment
+            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
+            
+            // Send the image with "clipped, sir." message
+            await message.reply({ 
+                content: 'clipped, sir.', 
+                files: [attachment] 
+            });
+            
+            // Clean up - the image buffer is automatically garbage collected
+            // No need to manually delete since we're working with buffers in memory
+            
+            return true; // Indicate we handled the command
+        } catch (error) {
+            console.error('Error handling clip command:', error);
+            // Don't send any error message, just fail silently
+            return true;
+        }
+    }
+
+	// Find a message by ID across accessible channels in the same guild
+	async findMessageAcrossChannels(interaction, messageId) {
+		// Try current channel first
+		try {
+			if (interaction.channel && interaction.channel.messages) {
+				const msg = await interaction.channel.messages.fetch(messageId);
+				if (msg) return msg;
+			}
+		} catch (_) {}
+
+		// If not in a guild, we cannot search other channels
+		if (!interaction.guild) return null;
+
+		// Iterate over text-based channels where the bot can view and read history
+		const channels = interaction.guild.channels.cache;
+		for (const [, channel] of channels) {
+			try {
+				// Skip non text-based channels
+				if (!channel || typeof channel.isTextBased !== 'function' || !channel.isTextBased()) continue;
+
+				// Permission checks to avoid errors/rate limits
+				const perms = channel.permissionsFor(interaction.client.user.id);
+				if (!perms) continue;
+				if (!perms.has(PermissionsBitField.Flags.ViewChannel)) continue;
+				if (!perms.has(PermissionsBitField.Flags.ReadMessageHistory)) continue;
+
+				// Attempt to fetch by ID in this channel
+				const msg = await channel.messages.fetch(messageId);
+				if (msg) return msg;
+			} catch (err) {
+				// Ignore not found/permission/rate-limit errors and continue
+				continue;
+			}
+		}
+
+		return null;
+	}
+
+	// Load a static image for GIF sources by extracting the first frame with Sharp
+	async loadStaticImage(url) {
+		try {
+			// Node 18 has global fetch
+			const res = await fetch(url);
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			const buffer = await res.arrayBuffer();
+			const input = Buffer.from(buffer);
+			// Extract first frame to PNG buffer
+			const pngBuffer = await sharp(input).ensureAlpha().extractFrame(0).png().toBuffer();
+			return await loadImage(pngBuffer);
+		} catch (error) {
+			console.warn('Failed to load static GIF frame, falling back to direct load:', error);
+			return await loadImage(url);
+		}
+	}
+
+	// Resolve Tenor share pages to a static image URL via oEmbed (thumbnail)
+	async resolveTenorStatic(url) {
+		try {
+			// 1) Try oEmbed (handles most Tenor URL forms)
+			const oembedUrl = `https://tenor.com/oembed?url=${encodeURIComponent(url)}`;
+			const res = await fetch(oembedUrl, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
+			if (!res.ok) throw new Error(`Tenor oEmbed HTTP ${res.status}`);
+			const data = await res.json();
+			// oEmbed typically provides thumbnail_url
+			if (data && data.thumbnail_url) return data.thumbnail_url;
+			// Fallbacks some responses might include url
+			if (data && data.url) return data.url;
+		} catch (error) {
+			console.warn('Failed to resolve Tenor static image via oEmbed:', error);
+		}
+
+		// 2) Fallback: fetch HTML and parse meta tags (works across Tenor share/short URLs)
+		try {
+			const pageRes = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
+			if (!pageRes.ok) throw new Error(`Tenor page HTTP ${pageRes.status}`);
+			const html = await pageRes.text();
+			// Prefer og:image, fall back to twitter:image
+			let metaMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+			if (!metaMatch) metaMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+			if (metaMatch && metaMatch[1]) return metaMatch[1];
+		} catch (err) {
+			console.warn('Failed to parse Tenor page for image:', err);
+		}
+		return null;
+	}
+
+    sanitizeMessageText(text) {
+        if (!text) return '';
+
+        let sanitized = text
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .replace(/[\u2028\u2029]/g, '\n');
+
+        // Strip zero-width and control characters that can disturb layout
+        sanitized = sanitized.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+
+        // Remove Discord markdown markers while keeping inner text
+        sanitized = sanitized.replace(/```[^\n]*\n([\s\S]*?)```/g, '$1');
+        sanitized = sanitized.replace(/```/g, '');
+        sanitized = sanitized.replace(/\*\*(.*?)\*\*/g, '$1');
+        sanitized = sanitized.replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1');
+        sanitized = sanitized.replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1');
+        sanitized = sanitized.replace(/~~(.*?)~~/g, '$1');
+        sanitized = sanitized.replace(/__(.*?)__/g, '$1');
+        sanitized = sanitized.replace(/`([^`]+)`/g, '$1');
+
+        // Normalise repeated spaces and tabs without touching line breaks
+        sanitized = sanitized.replace(/[^\S\r\n]+/g, ' ');
+        sanitized = sanitized.replace(/\n[ \t]+/g, '\n');
+        sanitized = sanitized.replace(/[ \t]+\n/g, '\n');
+
+        return sanitized.trimEnd();
+    }
+
+    async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null, embeds = null) {
+    // Check bot verification status using Discord API
+    const isVerified = user ? this.isBotVerified(user) : false;
+    
+    // Check for image attachments and embed previews (Discord link embeds like Tenor/Discord CDN)
+    const hasImages = attachments && attachments.size > 0;
+    const imageUrls = this.extractImageUrls(text);
+    const embedImageUrls = (embeds || []).flatMap(e => {
+        const urls = [];
+        if (e && e.image && e.image.url) urls.push(e.image.url);
+        if (e && e.thumbnail && e.thumbnail.url) urls.push(e.thumbnail.url);
+        return urls;
+    });
+    // Also detect if the message ends with a direct .gif URL (with optional query params)
+    let trailingGifUrl = null;
+    try {
+        const trailing = text.trim().match(/(https?:\/\/\S+?\.gif(?:\?\S*)?)$/i);
+        if (trailing && trailing[1]) trailingGifUrl = trailing[1];
+    } catch (_) {}
+    const allImageUrls = [...imageUrls, ...embedImageUrls, ...(trailingGifUrl ? [trailingGifUrl] : [])];
+
+    // Remove raw image/GIF links from text rendering (we draw them separately)
+    let cleanedText = text;
+    try {
+        for (const url of allImageUrls) {
+            const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            cleanedText = cleanedText.replace(new RegExp(escaped, 'g'), '').trim();
+        }
+        // Also remove Tenor share links that might not have been converted
+        cleanedText = cleanedText.replace(/https?:\/\/tenor\.com\/\S+/gi, '').trim();
+        // Collapse spaces and tabs without disturbing intentional newlines
+        cleanedText = cleanedText.replace(/[^\S\r\n]+/g, ' ');
+        cleanedText = cleanedText.replace(/\n[ \t]+/g, '\n');
+        cleanedText = cleanedText.replace(/[ \t]+\n/g, '\n');
+        cleanedText = cleanedText.trimEnd();
+    } catch (_) {}
+
+    const sanitizedText = this.sanitizeMessageText(cleanedText);
+
+    // Parse custom emojis and formatting using Discord API
+    const customEmojis = await this.parseCustomEmojis(sanitizedText, guild);
+    const unicodeEmojis = this.parseUnicodeEmojis(sanitizedText);
+    const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
+
+    const mentions = await this.parseMentions(sanitizedText, guild, client);
+
+    // Debug logging for emoji parsing
+    if (allEmojis.length > 0) {
+        console.log('Found emojis:', allEmojis.map(e => ({ name: e.name, url: e.url, isUnicode: e.isUnicode })));
+    }
+
+    // Calculate dynamic canvas dimensions based on content
+    const width = 800; // Increased width for better layout and positioning
+    const minHeight = 120; // Minimum height for basic content
+
+    // Calculate text height with emojis and formatting
+    const textHeight = this.calculateTextHeight(sanitizedText, width - 180, allEmojis, mentions); // Account for margins and avatar space
+
+    // Measure required image height BEFORE creating main canvas to avoid clipping
+    let actualImageHeight = 0;
+    if (hasImages || allImageUrls.length > 0) {
+        const tempCanvas = createCanvas(width, 1);
+        const tempCtx = tempCanvas.getContext('2d');
+        const imageEndY = await this.drawImages(tempCtx, attachments, allImageUrls, 0, 0, width - 180);
+        actualImageHeight = imageEndY + 20; // padding
+    }
+
+    // Calculate total height including measured image height
+    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + actualImageHeight + 40));
+
+    const canvas = createCanvas(width, totalHeight);
+    const ctx = canvas.getContext('2d');
+
+    // Maximize rendering quality to avoid jagged edges in the final clip
+    ctx.patternQuality = 'best';
+    ctx.quality = 'best';
+    ctx.antialias = 'subpixel';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
