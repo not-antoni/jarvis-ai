@@ -247,7 +247,7 @@
         }
 
         const storedRecord = await database.getAutoModConfig(guild.id);
-        const { record, rule: cachedRule, mutated, missingRuleId } = await this.prepareAutoModState(guild, storedRecord);
+        const { record, rules: cachedRules, mutated, missingRuleIds } = await this.prepareAutoModState(guild, storedRecord);
 
         if (mutated) {
             await database.saveAutoModConfig(guild.id, record);
@@ -258,12 +258,18 @@
         };
 
         if (subcommand === 'status') {
-            const enabledState = cachedRule ? cachedRule.enabled : Boolean(record.enabled);
-            const footerText = cachedRule
-                ? `Rule ID ${cachedRule.id}`
-                : missingRuleId
-                    ? `Stored rule ${missingRuleId} is no longer accessible.`
-                    : 'Auto moderation has not been deployed yet.';
+            const enabledState = cachedRules.length
+                ? cachedRules.every(rule => Boolean(rule.enabled))
+                : Boolean(record.enabled);
+
+            let footerText = 'Auto moderation has not been deployed yet.';
+            if (cachedRules.length) {
+                footerText = `Managing ${cachedRules.length} auto moderation rule${cachedRules.length === 1 ? '' : 's'}.`;
+            } else if (missingRuleIds.length) {
+                const preview = missingRuleIds.slice(0, 2).join(', ');
+                const suffix = missingRuleIds.length > 2 ? ', …' : '';
+                footerText = `Stored rule${missingRuleIds.length === 1 ? '' : 's'} ${preview}${suffix} ${missingRuleIds.length === 1 ? 'is' : 'are'} no longer accessible.`;
+            }
             const embed = new EmbedBuilder()
                 .setTitle('Auto moderation status')
                 .setColor(0x5865f2)
@@ -316,21 +322,21 @@
             }
 
             try {
-                const { rule, keywords } = await this.upsertAutoModRule(
+                const { rules, keywords, ruleIds } = await this.syncAutoModRules(
                     guild,
                     record.keywords,
                     record.customMessage,
-                    record.ruleId,
+                    record.ruleIds,
                     true
                 );
 
-                record.ruleId = rule.id;
+                record.ruleIds = ruleIds;
                 record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
+                record.enabled = rules.every(rule => Boolean(rule.enabled));
                 await database.saveAutoModConfig(guild.id, record);
                 const statusLine = record.enabled
                     ? 'Discord will now block the configured phrases.'
-                    : 'The rule was updated, but Discord left it disabled.';
+                    : 'The rules were updated, but Discord left them disabled.';
                 await interaction.editReply(`Auto moderation ${record.enabled ? 'engaged' : 'updated'}, sir. ${statusLine}`);
             } catch (error) {
                 console.error('Failed to enable auto moderation:', error?.cause || error);
@@ -344,9 +350,9 @@
 
         if (subcommand === 'disable') {
             try {
-                const disabled = await this.disableAutoModRule(guild, record.ruleId);
+                const disabled = await this.disableAutoModRule(guild, record.ruleIds);
                 if (!disabled) {
-                    record.ruleId = null;
+                    record.ruleIds = [];
                 }
             } catch (error) {
                 console.error('Failed to disable auto moderation rule:', error?.cause || error);
@@ -362,9 +368,9 @@
 
         if (subcommand === 'clear') {
             try {
-                const disabled = await this.disableAutoModRule(guild, record.ruleId);
+                const disabled = await this.disableAutoModRule(guild, record.ruleIds);
                 if (!disabled) {
-                    record.ruleId = null;
+                    record.ruleIds = [];
                 }
             } catch (error) {
                 console.error('Failed to disable auto moderation while clearing:', error?.cause || error);
@@ -372,7 +378,7 @@
 
             record.keywords = [];
             record.enabled = false;
-            record.ruleId = null;
+            record.ruleIds = [];
             await database.saveAutoModConfig(guild.id, record);
             await interaction.editReply('Blacklist cleared and auto moderation disabled, sir.');
             return;
@@ -389,15 +395,15 @@
 
             if (record.enabled && record.keywords.length) {
                 try {
-                    const { rule, keywords } = await this.upsertAutoModRule(
+                    const { rules, keywords, ruleIds } = await this.syncAutoModRules(
                         guild,
                         record.keywords,
                         record.customMessage,
-                        record.ruleId,
+                        record.ruleIds,
                         record.enabled
                     );
-                    record.ruleId = rule.id;
-                    record.enabled = Boolean(rule.enabled);
+                    record.ruleIds = ruleIds;
+                    record.enabled = rules.every(rule => Boolean(rule.enabled));
                     record.keywords = keywords;
                 } catch (error) {
                     console.error('Failed to update auto moderation message:', error?.cause || error);
@@ -422,23 +428,23 @@
 
             const merged = this.mergeKeywords(record.keywords, additions);
             if (merged.length === record.keywords.length) {
-                await replyWithError('Those words were already on the blacklist or exceeded the limit, sir.');
+                await replyWithError('Those words were already on the blacklist, sir.');
                 return;
             }
 
             const previousCount = record.keywords.length;
             try {
-                const { rule, keywords } = await this.upsertAutoModRule(
+                const { rules, keywords, ruleIds } = await this.syncAutoModRules(
                     guild,
                     merged,
                     record.customMessage,
-                    record.ruleId,
+                    record.ruleIds,
                     true
                 );
 
-                record.ruleId = rule.id;
+                record.ruleIds = ruleIds;
                 record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
+                record.enabled = rules.every(rule => Boolean(rule.enabled));
                 await database.saveAutoModConfig(guild.id, record);
                 const addedCount = keywords.length - previousCount;
                 const statusLine = record.enabled
@@ -473,17 +479,17 @@
 
             if (record.keywords.length) {
                 try {
-                    const { rule, keywords } = await this.upsertAutoModRule(
+                    const { rules, keywords, ruleIds } = await this.syncAutoModRules(
                         guild,
                         record.keywords,
                         record.customMessage,
-                        record.ruleId,
+                        record.ruleIds,
                         record.enabled
                     );
 
-                    record.ruleId = rule.id;
+                    record.ruleIds = ruleIds;
                     record.keywords = keywords;
-                    record.enabled = Boolean(rule.enabled);
+                    record.enabled = rules.every(rule => Boolean(rule.enabled));
                 } catch (error) {
                     console.error('Failed to update auto moderation keywords after removal:', error?.cause || error);
                     await replyWithError(this.getAutoModErrorMessage(error, 'I could not update the auto moderation rule after removal, sir.'));
@@ -491,14 +497,14 @@
                 }
             } else {
                 try {
-                    const disabled = await this.disableAutoModRule(guild, record.ruleId);
+                    const disabled = await this.disableAutoModRule(guild, record.ruleIds);
                     if (!disabled) {
-                        record.ruleId = null;
+                        record.ruleIds = [];
                     }
                 } catch (error) {
                     console.error('Failed to disable auto moderation after removal:', error?.cause || error);
                 }
-                record.ruleId = null;
+                record.ruleIds = [];
                 record.enabled = false;
             }
 
@@ -550,17 +556,17 @@
             }
 
             try {
-                const { rule, keywords } = await this.upsertAutoModRule(
+                const { rules, keywords, ruleIds } = await this.syncAutoModRules(
                     guild,
                     combined,
                     record.customMessage,
-                    record.ruleId,
+                    record.ruleIds,
                     true
                 );
 
-                record.ruleId = rule.id;
+                record.ruleIds = ruleIds;
                 record.keywords = keywords;
-                record.enabled = Boolean(rule.enabled);
+                record.enabled = rules.every(rule => Boolean(rule.enabled));
                 await database.saveAutoModConfig(guild.id, record);
                 const statusLine = record.enabled
                     ? 'Auto moderation is active, sir.'
