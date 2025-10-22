@@ -3,7 +3,7 @@
  */
 
 const { MongoClient } = require('mongodb');
-const config = require('./config');
+const config = require('../core/config');
 
 class DatabaseManager {
     constructor() {
@@ -31,38 +31,59 @@ class DatabaseManager {
         if (!this.db) return;
 
         try {
-            // Create indexes for better query performance
-            await this.db
-                .collection(config.database.collections.conversations)
-                .createIndex({ userId: 1, timestamp: -1 });
+            const indexDefinitions = [
+                {
+                    name: config.database.collections.conversations,
+                    indexes: [
+                        [{ userId: 1, timestamp: -1 }, { name: 'conversations_user_timestamp' }],
+                        [{ guildId: 1, timestamp: -1 }, { name: 'conversations_guild_timestamp' }]
+                    ]
+                },
+                {
+                    name: config.database.collections.userProfiles,
+                    indexes: [[{ userId: 1 }, { name: 'userProfiles_user', unique: true }]]
+                },
+                {
+                    name: config.database.collections.guildConfigs,
+                    indexes: [[{ guildId: 1 }, { name: 'guildConfigs_guild', unique: true }]]
+                },
+                {
+                    name: config.database.collections.reactionRoles,
+                    indexes: [
+                        [{ guildId: 1, messageId: 1 }, { name: 'reactionRoles_guild_message', unique: true }],
+                        [{ guildId: 1 }, { name: 'reactionRoles_guild' }]
+                    ]
+                },
+                {
+                    name: config.database.collections.autoModeration,
+                    indexes: [[{ guildId: 1 }, { name: 'autoModeration_guild', unique: true }]]
+                },
+                {
+                    name: config.database.collections.serverStats,
+                    indexes: [[{ guildId: 1 }, { name: 'serverStats_guild', unique: true }]]
+                },
+                {
+                    name: config.database.collections.memberLogs,
+                    indexes: [
+                        [{ guildId: 1 }, { name: 'memberLogs_guild' }],
+                        [
+                            { createdAt: 1 },
+                            {
+                                name: 'memberLogs_createdAt_ttl',
+                                expireAfterSeconds: 60 * 60 * 24 * 30,
+                                partialFilterExpression: { createdAt: { $type: 'date' } }
+                            }
+                        ]
+                    ]
+                }
+            ];
 
-            await this.db
-                .collection(config.database.collections.userProfiles)
-                .createIndex({ userId: 1 });
-
-            await this.db
-                .collection(config.database.collections.guildConfigs)
-                .createIndex({ guildId: 1 }, { unique: true });
-
-            await this.db
-                .collection(config.database.collections.reactionRoles)
-                .createIndex({ messageId: 1 }, { unique: true });
-
-            await this.db
-                .collection(config.database.collections.reactionRoles)
-                .createIndex({ guildId: 1 });
-
-            await this.db
-                .collection(config.database.collections.autoModeration)
-                .createIndex({ guildId: 1 }, { unique: true });
-
-            await this.db
-                .collection(config.database.collections.serverStats)
-                .createIndex({ guildId: 1 }, { unique: true });
-
-            await this.db
-                .collection(config.database.collections.memberLogs)
-                .createIndex({ guildId: 1 }, { unique: true });
+            for (const { name, indexes } of indexDefinitions) {
+                const collection = this.db.collection(name);
+                for (const [fields, options] of indexes) {
+                    await collection.createIndex(fields, options);
+                }
+            }
 
             console.log('Database indexes created successfully');
         } catch (error) {
