@@ -36,7 +36,7 @@ class DiscordHandlers {
             total: 'Member Count',
             users: 'User Count',
             bots: 'Bot Count',
-            channels: 'Channels Count',
+            channels: 'Channel Count',
             roles: 'Role Count'
         };
         this.memberLogCache = new Map();
@@ -45,14 +45,14 @@ class DiscordHandlers {
         this.defaultJoinMessages = [
             '🛰️ {mention} has entered {server}.',
             '🎉 A new arrival! Welcome {mention} — population now {membercount}.',
-            '🔔 {username} just docked with {server}. Make them feel at home.',
+            '🔔 {mention} just docked with {server}. Make them feel at home.',
             '✨ {mention} joined us. Jarvis registering their credentials now.'
         ];
         this.defaultLeaveMessages = [
             '📉 {mention} has departed {server}. We are now {membercount} strong.',
-            '🛰️ {username} slipped out of the hangar. Farewell until next time.',
+            '🛰️ {mention} slipped out of the hangar. Farewell until next time.',
             '⚠️ {mention} has left the server. Recalibrating member count to {membercount}.',
-            '😔 {username} disconnected from {server}. Until we meet again.'
+            '😔 {mention} disconnected from {server}. Until we meet again.'
         ];
     }
 

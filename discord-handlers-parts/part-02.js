@@ -1,7 +1,7 @@
     ctx.textDrawingMode = 'path';
 
     // Pure black background
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = '#1a1a1e';
     ctx.fillRect(0, 0, width, totalHeight);
 
     // Calculate centered positioning with more space for avatar and text
