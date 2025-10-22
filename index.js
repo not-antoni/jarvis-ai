@@ -8,22 +8,14 @@ const express = require("express");
 const cron = require("node-cron");
 
 // Import our modules
-const config = require('../core/config');
-const database = require('../data/database');
-const aiManager = require('../ai/providers');
-const discordHandlers = require('../discord/handlers');
+const config = require('./config');
+const database = require('./database');
+const aiManager = require('./ai-providers');
+const discordHandlers = require('./discord-handlers');
 
 // ------------------------ Discord Client Setup ------------------------
-const resolvedIntents = config.discord.intents.map(intentName => {
-    const value = GatewayIntentBits[intentName];
-    if (typeof value === 'undefined') {
-        throw new Error(`Unknown Discord gateway intent: ${intentName}`);
-    }
-    return value;
-});
-
 const client = new Client({
-    intents: resolvedIntents,
+    intents: config.discord.intents.map(intent => GatewayIntentBits[intent]),
     partials: [
         Partials.Message,
         Partials.Channel,

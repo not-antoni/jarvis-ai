@@ -4,8 +4,7 @@ node_modules
 .DS_Store
 *.log
 npm-debug.log*
-/data/
-!src/data/
+data/
 *.sqlite
 *.db
 .vscode/

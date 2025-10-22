@@ -2,9 +2,9 @@
   "name": "jarvis-discord-bot",
   "version": "1.0.0",
   "description": "Jarvis - A sentient Discord bot with AI capabilities",
-  "main": "src/app/index.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/app/index.js",
+    "start": "node index.js",
     "verify": "node deploy.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test-puter": "node test-puter.js",
