@@ -4,7 +4,7 @@ services:
     runtime: node
     repo: https://github.com/HustleSynth/jarvis-ai # Replace with your repo
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: node src/app/index.js
     envVars:
       - key: DISCORD_TOKEN
         sync: false
