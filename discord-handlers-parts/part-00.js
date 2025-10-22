@@ -29,7 +29,7 @@ class DiscordHandlers {
         this.jarvis = new JarvisAI();
         this.userCooldowns = new Map();
         this.autoModRuleName = 'Jarvis Blacklist Filter';
-        this.maxAutoModKeywords = 100;
+        this.maxAutoModKeywordsPerRule = 1000;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
         this.serverStatsCategoryName = '────────│ Server Stats │────────';
         this.serverStatsChannelLabels = {
@@ -413,25 +413,17 @@ class DiscordHandlers {
     mergeKeywords(current = [], additions = []) {
         const unique = new Set();
 
-        for (const keyword of current) {
+        const register = keyword => {
             const normalized = this.normalizeKeyword(keyword);
             if (normalized) {
                 unique.add(normalized);
             }
-        }
+        };
 
-        for (const addition of additions) {
-            if (unique.size >= this.maxAutoModKeywords) {
-                break;
-            }
+        current.forEach(register);
+        additions.forEach(register);
 
-            const normalized = this.normalizeKeyword(addition);
-            if (normalized) {
-                unique.add(normalized);
-            }
-        }
-
-        return Array.from(unique).slice(0, this.maxAutoModKeywords);
+        return Array.from(unique);
     }
 
     createDefaultAutoModRecord(guildId = null) {
@@ -440,7 +432,8 @@ class DiscordHandlers {
             keywords: [],
             enabled: false,
             customMessage: this.defaultAutoModMessage,
-            ruleId: null
+            ruleId: null,
+            ruleIds: []
         };
     }
 
@@ -590,41 +583,84 @@ class DiscordHandlers {
             mutated = true;
         }
 
-        if (prepared.ruleId && typeof prepared.ruleId !== 'string') {
-            prepared.ruleId = String(prepared.ruleId);
-            mutated = true;
-        }
-
         const normalizedEnabled = Boolean(prepared.enabled);
         if (prepared.enabled !== normalizedEnabled) {
             prepared.enabled = normalizedEnabled;
             mutated = true;
         }
 
-        let rule = null;
-        let missingRuleId = null;
+        let ruleIds = Array.isArray(prepared.ruleIds) ? prepared.ruleIds.slice() : [];
 
-        if (prepared.ruleId) {
-            const storedRuleId = prepared.ruleId;
-            rule = await this.fetchAutoModRule(guild, storedRuleId);
+        if (!ruleIds.length && prepared.ruleId) {
+            ruleIds = [prepared.ruleId];
+        }
 
-            if (!rule) {
-                missingRuleId = storedRuleId;
-                prepared.ruleId = null;
-                if (prepared.enabled) {
-                    prepared.enabled = false;
+        const sanitizedRuleIds = [];
+        for (const id of ruleIds) {
+            if (!id) {
+                continue;
+            }
+
+            if (typeof id === 'string') {
+                if (id.trim()) {
+                    sanitizedRuleIds.push(id.trim());
                 }
-                mutated = true;
             } else {
-                const enabledState = Boolean(rule.enabled);
-                if (prepared.enabled !== enabledState) {
-                    prepared.enabled = enabledState;
-                    mutated = true;
-                }
+                sanitizedRuleIds.push(String(id));
+                mutated = true;
             }
         }
 
-        return { record: prepared, rule, mutated, missingRuleId };
+        if (prepared.ruleId) {
+            const legacyId = String(prepared.ruleId);
+            if (legacyId && !sanitizedRuleIds.includes(legacyId)) {
+                sanitizedRuleIds.push(legacyId);
+            }
+            prepared.ruleId = null;
+            mutated = true;
+        }
+
+        if (prepared.ruleIds?.length !== sanitizedRuleIds.length ||
+            prepared.ruleIds?.some((value, index) => value !== sanitizedRuleIds[index])) {
+            prepared.ruleIds = sanitizedRuleIds;
+            mutated = true;
+        }
+
+        const rules = [];
+        const missingRuleIds = [];
+
+        for (const ruleId of prepared.ruleIds) {
+            const rule = await this.fetchAutoModRule(guild, ruleId);
+            if (rule) {
+                rules.push(rule);
+            } else {
+                missingRuleIds.push(ruleId);
+            }
+        }
+
+        if (missingRuleIds.length) {
+            const missingSet = new Set(missingRuleIds);
+            const retained = prepared.ruleIds.filter(id => !missingSet.has(id));
+            if (retained.length !== prepared.ruleIds.length) {
+                prepared.ruleIds = retained;
+                mutated = true;
+            }
+
+            if (!retained.length && prepared.enabled) {
+                prepared.enabled = false;
+                mutated = true;
+            }
+        }
+
+        if (rules.length) {
+            const allEnabled = rules.every(rule => Boolean(rule.enabled));
+            if (prepared.enabled !== allEnabled) {
+                prepared.enabled = allEnabled;
+                mutated = true;
+            }
+        }
+
+        return { record: prepared, rules, mutated, missingRuleIds };
     }
 
     async fetchAutoModRule(guild, ruleId) {
@@ -644,7 +680,7 @@ class DiscordHandlers {
         }
     }
 
-    async upsertAutoModRule(guild, keywords, customMessage = null, ruleId = null, enabled = true) {
+    async upsertAutoModRule(guild, keywords, customMessage = null, ruleId = null, enabled = true, ruleName = null) {
         if (!guild) {
             throw this.createFriendlyError('I could not access that server, sir.');
         }
@@ -654,8 +690,12 @@ class DiscordHandlers {
             throw this.createFriendlyError('Please provide at least one valid keyword, sir.');
         }
 
+        if (sanitized.length > this.maxAutoModKeywordsPerRule) {
+            throw this.createFriendlyError(`Each auto moderation rule can track up to ${this.maxAutoModKeywordsPerRule} entries, sir.`);
+        }
+
         const payload = {
-            name: this.autoModRuleName,
+            name: ruleName || this.autoModRuleName,
             eventType: AutoModerationRuleEventType.MessageSend,
             triggerType: AutoModerationRuleTriggerType.Keyword,
             triggerMetadata: {
@@ -707,9 +747,71 @@ class DiscordHandlers {
         return { rule, keywords: sanitized };
     }
 
+    async syncAutoModRules(guild, keywords, customMessage = null, existingRuleIds = [], enabled = true) {
+        if (!guild) {
+            throw this.createFriendlyError('I could not access that server, sir.');
+        }
+
+        const sanitized = this.mergeKeywords([], keywords);
+        if (!sanitized.length) {
+            throw this.createFriendlyError('Please provide at least one valid keyword, sir.');
+        }
+
+        const chunks = [];
+        for (let index = 0; index < sanitized.length; index += this.maxAutoModKeywordsPerRule) {
+            chunks.push(sanitized.slice(index, index + this.maxAutoModKeywordsPerRule));
+        }
+
+        const resolvedRules = [];
+        const resolvedRuleIds = [];
+        const normalizedExisting = Array.isArray(existingRuleIds)
+            ? existingRuleIds.filter(id => typeof id === 'string' && id.trim()).map(id => id.trim())
+            : [];
+
+        for (let index = 0; index < chunks.length; index += 1) {
+            const chunkKeywords = chunks[index];
+            const ruleName = chunks.length > 1
+                ? `${this.autoModRuleName} #${index + 1}`
+                : this.autoModRuleName;
+            const targetRuleId = normalizedExisting[index] || null;
+
+            const { rule } = await this.upsertAutoModRule(
+                guild,
+                chunkKeywords,
+                customMessage,
+                targetRuleId,
+                enabled,
+                ruleName
+            );
+
+            resolvedRules.push(rule);
+            resolvedRuleIds.push(rule.id);
+        }
+
+        if (normalizedExisting.length > chunks.length) {
+            const extras = normalizedExisting.slice(chunks.length);
+            for (const extraId of extras) {
+                await this.disableAutoModRule(guild, extraId);
+            }
+        }
+
+        return { rules: resolvedRules, keywords: sanitized, ruleIds: resolvedRuleIds };
+    }
+
     async disableAutoModRule(guild, ruleId) {
         if (!guild || !ruleId) {
             return false;
+        }
+
+        if (Array.isArray(ruleId)) {
+            let disabledAny = false;
+            for (const id of ruleId) {
+                const disabled = await this.disableAutoModRule(guild, id);
+                if (disabled) {
+                    disabledAny = true;
+                }
+            }
+            return disabledAny;
         }
 
         try {
