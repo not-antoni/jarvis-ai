@@ -161,6 +161,8 @@
                 const botChannel = await this.resolveGuildChannel(guild, config.botChannelId);
                 const channelCountChannel = await this.resolveGuildChannel(guild, config.channelCountChannelId);
                 const roleCountChannel = await this.resolveGuildChannel(guild, config.roleCountChannelId);
+                const onlineUsersChannel = await this.resolveGuildChannel(guild, config.onlineUsersChannelId);
+                const offlineUsersChannel = await this.resolveGuildChannel(guild, config.offlineUsersChannelId);
 
                 const lines = [
                     `Category: ${category ? `<#${category.id}>` : 'Missing'}`,
@@ -169,7 +171,9 @@
                     `Bot channel: ${botChannel ? `<#${botChannel.id}>` : 'Missing'}`,
                     `Channel count channel: ${channelCountChannel ? `<#${channelCountChannel.id}>` : 'Missing'}`,
                     `Role count channel: ${roleCountChannel ? `<#${roleCountChannel.id}>` : 'Missing'}`,
-                    `Current totals — Members: ${this.formatServerStatsValue(stats.total)}, Users: ${this.formatServerStatsValue(stats.userCount)}, Bots: ${this.formatServerStatsValue(stats.botCount)}, Channels: ${this.formatServerStatsValue(stats.channelCount)}, Roles: ${this.formatServerStatsValue(stats.roleCount)}`
+                    `Online users channel: ${onlineUsersChannel ? `<#${onlineUsersChannel.id}>` : 'Missing'}`,
+                    `Offline users channel: ${offlineUsersChannel ? `<#${offlineUsersChannel.id}>` : 'Missing'}`,
+                    `Current totals — Members: ${this.formatServerStatsValue(stats.total)}, Users: ${this.formatServerStatsValue(stats.userCount)}, Bots: ${this.formatServerStatsValue(stats.botCount)}, Channels: ${this.formatServerStatsValue(stats.channelCount)}, Roles: ${this.formatServerStatsValue(stats.roleCount)}, Online Users: ${this.formatServerStatsValue(stats.onlineUserCount)}, Offline Users: ${this.formatServerStatsValue(stats.offlineUserCount)}`
                 ];
 
                 await interaction.editReply(`Server statistics are active, sir.\n${lines.join('\n')}`);
