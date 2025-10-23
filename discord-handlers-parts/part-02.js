@@ -578,6 +578,10 @@
         if (message.author.id === client.user.id) return;
         if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
+        if (message.channel?.type === ChannelType.DM) {
+            return;
+        }
+
         const userId = message.author.id;
 
         const braveGuardedEarly = await this.enforceImmediateBraveGuard(message);
@@ -592,7 +596,6 @@
         }
 
         const isMentioned = message.mentions.has(client.user);
-        const isDM = message.channel.type === ChannelType.DM;
         const containsJarvis = config.wakeWords.some(trigger =>
             message.content.toLowerCase().includes(trigger)
         );
@@ -600,7 +603,7 @@
         const isBot = message.author.bot;
         const isTCommand = message.content.toLowerCase().trim().startsWith("!t ");
 
-        if (isDM || isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
+        if (isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
             if (this.isOnCooldown(userId)) {
                 return;
             }
