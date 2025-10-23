@@ -37,7 +37,9 @@ class DiscordHandlers {
             users: 'User Count',
             bots: 'Bot Count',
             channels: 'Channel Count',
-            roles: 'Role Count'
+            roles: 'Role Count',
+            onlineUsers: 'Online Users',
+            offlineUsers: 'Offline Users'
         };
         this.memberLogCache = new Map();
         this.maxMemberLogVariations = 20;
@@ -1283,6 +1285,14 @@ class DiscordHandlers {
             existingConfig?.roleCountChannelId,
             `${this.serverStatsChannelLabels.roles}: 0`
         );
+        const onlineUsersChannel = await ensureVoiceChannel(
+            existingConfig?.onlineUsersChannelId,
+            `${this.serverStatsChannelLabels.onlineUsers}: 0`
+        );
+        const offlineUsersChannel = await ensureVoiceChannel(
+            existingConfig?.offlineUsersChannelId,
+            `${this.serverStatsChannelLabels.offlineUsers}: 0`
+        );
 
         return {
             category,
@@ -1291,6 +1301,8 @@ class DiscordHandlers {
             botChannel,
             channelCountChannel,
             roleCountChannel,
+            onlineUsersChannel,
+            offlineUsersChannel,
             botMember: me,
             everyoneId
         };
@@ -1298,7 +1310,15 @@ class DiscordHandlers {
 
     async collectGuildMemberStats(guild) {
         if (!guild) {
-            return { total: 0, botCount: 0, userCount: 0, channelCount: 0, roleCount: 0 };
+            return {
+                total: 0,
+                botCount: 0,
+                userCount: 0,
+                channelCount: 0,
+                roleCount: 0,
+                onlineUserCount: 0,
+                offlineUserCount: 0
+            };
         }
 
         let total = typeof guild.memberCount === 'number' ? guild.memberCount : 0;
@@ -1306,12 +1326,23 @@ class DiscordHandlers {
         let userCount = 0;
         let channelCount = 0;
         let roleCount = 0;
+        let onlineUserCount = 0;
+        let offlineUserCount = 0;
 
         try {
             const members = await guild.members.fetch();
             total = members.size;
             botCount = members.filter(member => member.user.bot).size;
             userCount = total - botCount;
+
+            onlineUserCount = members.filter(member => {
+                if (member.user?.bot) {
+                    return false;
+                }
+
+                const status = member.presence?.status;
+                return status === 'online' || status === 'idle' || status === 'dnd';
+            }).size;
         } catch (error) {
             if (error.code !== 50013 && error.code !== 50001) {
                 console.warn(`Failed to fetch full member list for guild ${guild.id}:`, error);
@@ -1322,6 +1353,14 @@ class DiscordHandlers {
                 total = cachedMembers.size;
                 botCount = cachedMembers.filter(member => member.user?.bot).size;
                 userCount = total - botCount;
+                onlineUserCount = cachedMembers.filter(member => {
+                    if (member.user?.bot) {
+                        return false;
+                    }
+
+                    const status = member.presence?.status;
+                    return status === 'online' || status === 'idle' || status === 'dnd';
+                }).size;
             } else {
                 botCount = guild.members.cache.filter(member => member.user?.bot).size;
                 userCount = Math.max(0, total - botCount);
@@ -1330,6 +1369,14 @@ class DiscordHandlers {
 
         if (userCount < 0) {
             userCount = 0;
+        }
+
+        if (onlineUserCount < 0) {
+            onlineUserCount = 0;
+        }
+
+        if (onlineUserCount > userCount) {
+            onlineUserCount = userCount;
         }
 
         try {
@@ -1360,7 +1407,9 @@ class DiscordHandlers {
             }
         }
 
-        return { total, botCount, userCount, channelCount, roleCount };
+        offlineUserCount = Math.max(0, userCount - onlineUserCount);
+
+        return { total, botCount, userCount, channelCount, roleCount, onlineUserCount, offlineUserCount };
     }
 
     async updateServerStats(guild, existingConfig = null) {
@@ -1377,6 +1426,8 @@ class DiscordHandlers {
             botChannel,
             channelCountChannel,
             roleCountChannel,
+            onlineUsersChannel,
+            offlineUsersChannel,
             botMember,
             everyoneId
         } = ensured;
@@ -1386,7 +1437,9 @@ class DiscordHandlers {
             users: this.formatServerStatsName(this.serverStatsChannelLabels.users, stats.userCount),
             bots: this.formatServerStatsName(this.serverStatsChannelLabels.bots, stats.botCount),
             channels: this.formatServerStatsName(this.serverStatsChannelLabels.channels, stats.channelCount),
-            roles: this.formatServerStatsName(this.serverStatsChannelLabels.roles, stats.roleCount)
+            roles: this.formatServerStatsName(this.serverStatsChannelLabels.roles, stats.roleCount),
+            onlineUsers: this.formatServerStatsName(this.serverStatsChannelLabels.onlineUsers, stats.onlineUserCount),
+            offlineUsers: this.formatServerStatsName(this.serverStatsChannelLabels.offlineUsers, stats.offlineUserCount)
         };
 
         try {
@@ -1409,6 +1462,14 @@ class DiscordHandlers {
             if (roleCountChannel && roleCountChannel.name !== desiredNames.roles) {
                 await roleCountChannel.setName(desiredNames.roles);
             }
+
+            if (onlineUsersChannel && onlineUsersChannel.name !== desiredNames.onlineUsers) {
+                await onlineUsersChannel.setName(desiredNames.onlineUsers);
+            }
+
+            if (offlineUsersChannel && offlineUsersChannel.name !== desiredNames.offlineUsers) {
+                await offlineUsersChannel.setName(desiredNames.offlineUsers);
+            }
         } catch (error) {
             if (error.code === 50013) {
                 throw this.createFriendlyError('I lack permission to rename the server stats channels, sir.');
@@ -1421,6 +1482,8 @@ class DiscordHandlers {
         await this.applyServerStatsPermissions(botChannel, botMember, everyoneId);
         await this.applyServerStatsPermissions(channelCountChannel, botMember, everyoneId);
         await this.applyServerStatsPermissions(roleCountChannel, botMember, everyoneId);
+        await this.applyServerStatsPermissions(onlineUsersChannel, botMember, everyoneId);
+        await this.applyServerStatsPermissions(offlineUsersChannel, botMember, everyoneId);
 
         const record = await database.saveServerStatsConfig(guild.id, {
             categoryId: category.id,
@@ -1428,7 +1491,9 @@ class DiscordHandlers {
             userChannelId: userChannel.id,
             botChannelId: botChannel.id,
             channelCountChannelId: channelCountChannel.id,
-            roleCountChannelId: roleCountChannel.id
+            roleCountChannelId: roleCountChannel.id,
+            onlineUsersChannelId: onlineUsersChannel.id,
+            offlineUsersChannelId: offlineUsersChannel.id
         });
 
         return { record, stats };
@@ -1451,7 +1516,9 @@ class DiscordHandlers {
             config.userChannelId,
             config.botChannelId,
             config.channelCountChannelId,
-            config.roleCountChannelId
+            config.roleCountChannelId,
+            config.onlineUsersChannelId,
+            config.offlineUsersChannelId
         ]);
 
         for (const channelId of channelIds) {
