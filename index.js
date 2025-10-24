@@ -806,7 +806,7 @@ app.get("/", async (req, res) => {
             `Connected: ${databaseStatus.connected ? '✅ Yes' : '❌ No'}`,
             `Ping: ${databaseStatus.ping}`,
             databaseStatus.error ? `Last error: ${databaseStatus.error}` : null
-        ].filter(Boolean).join('\\n');
+        ].filter(Boolean).join('\n');
 
         const uptimeText = `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m ${uptimeSeconds % 60}s`;
         const memoryText = `${Math.round(memory.heapUsed / 1024 / 1024)}MB / ${Math.round(memory.heapTotal / 1024 / 1024)}MB`;
