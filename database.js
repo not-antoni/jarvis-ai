@@ -18,7 +18,7 @@ class DatabaseManager {
             await this.client.connect();
             this.db = this.client.db(config.database.name);
             this.isConnected = true;
-            
+
             console.log('MongoDB connected successfully for Jarvis++');
             await this.createIndexes();
         } catch (error) {
@@ -31,42 +31,50 @@ class DatabaseManager {
         if (!this.db) return;
 
         try {
-            // Create indexes for better query performance
-            await this.db
-                .collection(config.database.collections.conversations)
-                .createIndex({ userId: 1, timestamp: -1 });
+            const ninetyDays = 60 * 60 * 24 * 90;
+            const sixtyDays = 60 * 60 * 24 * 60;
 
-            await this.db
-                .collection(config.database.collections.userProfiles)
-                .createIndex({ userId: 1 });
+            const conversations = this.db.collection(config.database.collections.conversations);
+            const userProfiles = this.db.collection(config.database.collections.userProfiles);
+            const guildConfigs = this.db.collection(config.database.collections.guildConfigs);
+            const memberLogs = this.db.collection(config.database.collections.memberLogs);
+            const reactionRoles = this.db.collection(config.database.collections.reactionRoles);
+            const autoModeration = this.db.collection(config.database.collections.autoModeration);
+            const serverStats = this.db.collection(config.database.collections.serverStats);
 
-            await this.db
-                .collection(config.database.collections.guildConfigs)
-                .createIndex({ guildId: 1 }, { unique: true });
+            await conversations.createIndex({ userId: 1, guildId: 1, createdAt: -1 });
+            await conversations.createIndex(
+                { createdAt: 1 },
+                { expireAfterSeconds: ninetyDays, name: 'ttl_conversations_createdAt' }
+            );
 
-            await this.db
-                .collection(config.database.collections.reactionRoles)
-                .createIndex({ messageId: 1 }, { unique: true });
+            await userProfiles.createIndex({ userId: 1 }, { unique: true });
 
-            await this.db
-                .collection(config.database.collections.reactionRoles)
-                .createIndex({ guildId: 1 });
+            await guildConfigs.createIndex({ guildId: 1, key: 1 }, { unique: true });
 
-            await this.db
-                .collection(config.database.collections.autoModeration)
-                .createIndex({ guildId: 1 }, { unique: true });
+            await reactionRoles.createIndex({ messageId: 1 }, { unique: true });
+            await reactionRoles.createIndex({ guildId: 1 });
 
-            await this.db
-                .collection(config.database.collections.serverStats)
-                .createIndex({ guildId: 1 }, { unique: true });
+            await autoModeration.createIndex({ guildId: 1 }, { unique: true });
+            await serverStats.createIndex({ guildId: 1 }, { unique: true });
 
-            await this.db
-                .collection(config.database.collections.memberLogs)
-                .createIndex({ guildId: 1 }, { unique: true });
+            await memberLogs.createIndex(
+                { guildId: 1 },
+                { unique: true, partialFilterExpression: { isConfig: true } }
+            );
+            await memberLogs.createIndex(
+                { createdAt: 1 },
+                {
+                    expireAfterSeconds: sixtyDays,
+                    name: 'ttl_memberLogs_createdAt',
+                    partialFilterExpression: { isConfig: { $ne: true }, createdAt: { $exists: true } }
+                }
+            );
 
             console.log('Database indexes created successfully');
         } catch (error) {
             console.error('Failed to create indexes:', error);
+            throw error;
         }
     }
 
@@ -102,7 +110,7 @@ class DatabaseManager {
         const conversations = await this.db
             .collection(config.database.collections.conversations)
             .find({ userId })
-            .sort({ timestamp: -1 })
+            .sort({ createdAt: -1, timestamp: -1 })
             .limit(limit)
             .toArray();
 
@@ -116,9 +124,12 @@ class DatabaseManager {
             .collection(config.database.collections.conversations)
             .find({
                 userId,
-                timestamp: { $gte: since }
+                $or: [
+                    { createdAt: { $gte: since } },
+                    { createdAt: { $exists: false }, timestamp: { $gte: since } }
+                ]
             })
-            .sort({ timestamp: 1 })
+            .sort({ createdAt: 1, timestamp: 1 })
             .toArray();
 
         return conversations;
@@ -127,12 +138,14 @@ class DatabaseManager {
     async saveConversation(userId, userName, userInput, jarvisResponse, guildId = null) {
         if (!this.isConnected) return;
         
+        const now = new Date();
         const conversation = {
             userId,
             userName,
             userMessage: userInput,
             jarvisResponse,
-            timestamp: new Date(),
+            timestamp: now,
+            createdAt: now,
             guildId,
         };
         
@@ -150,7 +163,7 @@ class DatabaseManager {
             const oldest = await this.db
                 .collection(config.database.collections.conversations)
                 .find({ userId })
-                .sort({ timestamp: 1 })
+                .sort({ createdAt: 1, timestamp: 1 })
                 .limit(excessCount)
                 .toArray();
                 
@@ -349,11 +362,13 @@ class DatabaseManager {
         delete sanitized._id;
         delete sanitized.createdAt;
         delete sanitized.updatedAt;
+        delete sanitized.isConfig;
 
         const update = {
             ...sanitized,
             guildId,
-            updatedAt: now
+            updatedAt: now,
+            isConfig: true
         };
 
         const result = await collection.findOneAndUpdate(
@@ -396,11 +411,13 @@ class DatabaseManager {
         delete sanitized._id;
         delete sanitized.createdAt;
         delete sanitized.updatedAt;
+        delete sanitized.isConfig;
 
         const update = {
             ...sanitized,
             guildId,
-            updatedAt: now
+            updatedAt: now,
+            isConfig: true
         };
 
         const result = await collection.findOneAndUpdate(
