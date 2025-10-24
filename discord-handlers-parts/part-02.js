@@ -791,7 +791,9 @@
                 const response = await this.jarvis.handleUtilityCommand(
                     message.content.trim(),
                     message.author.username,
-                    message.author.id
+                    message.author.id,
+                    false,
+                    { guildId: message.guildId }
                 );
 
                 console.log(`!t command response: ${response}`);

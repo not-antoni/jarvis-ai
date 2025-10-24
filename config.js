@@ -30,7 +30,11 @@ const rawConfig = {
             reactionRoles: 'reactionRoles',
             autoModeration: 'autoModerationRules',
             serverStats: 'serverStats',
-            memberLogs: 'memberLogs'
+            memberLogs: 'memberLogs',
+            tickets: 'tickets',
+            ticketTranscripts: 'ticketTranscripts',
+            knowledgeBase: 'knowledgeBaseEntries',
+            counters: 'counters'
         }
     },
 

@@ -36,7 +36,7 @@ const commands = [
                 .setDescription("Your message to Jarvis")
                 .setRequired(true),
         )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("roll")
         .setDescription("Roll a die (e.g., /roll sides:20)")
@@ -46,11 +46,11 @@ const commands = [
                 .setDescription("Number of sides (default: 6)")
                 .setRequired(false),
         )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("status")
         .setDescription("Check Jarvis's system status")
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("time")
         .setDescription("Get the current time in your timezone")
@@ -69,15 +69,15 @@ const commands = [
                     { name: "Relative time", value: "R" }
                 )
         )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("providers")
         .setDescription("List available AI providers")
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("reset")
         .setDescription("Delete your conversation history and profile with Jarvis")
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("help")
         .setDescription("Show Jarvis command overview")
@@ -193,6 +193,102 @@ const commands = [
                 .setRequired(true),
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('ticket')
+        .setDescription('Manage support tickets')
+        .addSubcommand((sub) =>
+            sub
+                .setName('open')
+                .setDescription('Open a new private support ticket')
+                .addStringOption((option) =>
+                    option
+                        .setName('reason')
+                        .setDescription('Brief description of the issue')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('close')
+                .setDescription('Close the current ticket')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('export')
+                .setDescription('Export a transcript of a ticket')
+                .addStringOption((option) =>
+                    option
+                        .setName('ticket_id')
+                        .setDescription('Ticket identifier to export (optional when used inside a ticket channel)')
+                        .setRequired(false)
+                )
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('kb')
+        .setDescription('Manage the server knowledge base')
+        .addSubcommand((sub) =>
+            sub
+                .setName('add')
+                .setDescription('Add content to the knowledge base')
+                .addStringOption((option) =>
+                    option
+                        .setName('title')
+                        .setDescription('Title for the entry')
+                        .setRequired(true)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('content')
+                        .setDescription('Plain text or markdown content to store')
+                        .setRequired(false)
+                )
+                .addAttachmentOption((option) =>
+                    option
+                        .setName('file')
+                        .setDescription('Optional text or markdown file to ingest')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('search')
+                .setDescription('Search the knowledge base for a query')
+                .addStringOption((option) =>
+                    option
+                        .setName('query')
+                        .setDescription('Search keywords')
+                        .setRequired(true)
+                )
+                .addIntegerOption((option) =>
+                    option
+                        .setName('limit')
+                        .setDescription('Maximum number of results to display (default 5)')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('delete')
+                .setDescription('Remove an entry from the knowledge base')
+                .addStringOption((option) =>
+                    option
+                        .setName('entry_id')
+                        .setDescription('Identifier returned by /kb search or /kb add')
+                        .setRequired(true)
+                )
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('ask')
+        .setDescription('Query the server knowledge base for an answer')
+        .addStringOption((option) =>
+            option
+                .setName('query')
+                .setDescription('What would you like to know?')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("reactionrole")
         .setDescription("Manage reaction role panels")
