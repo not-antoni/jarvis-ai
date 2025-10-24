@@ -623,10 +623,11 @@
 
             const lines = entries.slice(0, 10).map((entry, index) => {
                 const tags = Array.isArray(entry.tags) && entry.tags.length ? ` — tags: ${entry.tags.join(', ')}` : '';
-                return `${index + 1}. **${entry.title || 'Untitled'}** (ID: \\`${entry._id}\\`)${tags}`;
+                return `${index + 1}. **${entry.title || 'Untitled'}** (ID: ${entry._id})${tags}`;
             });
 
-            await interaction.editReply([`Available macros${tag ? ` for tag \\`${tag}\\`` : ''}, sir:`, ...lines].join('\n'));
+            const tagLabel = tag ? ` for tag "${tag}"` : '';
+            await interaction.editReply([`Available macros${tagLabel}, sir:`, ...lines].join('\n'));
             return;
         }
 
