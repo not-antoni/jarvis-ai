@@ -148,9 +148,22 @@
         let ticket = null;
 
         if (subcommand === 'close' || subcommand === 'export') {
-            const ticketId = interaction.options.getString('ticket_id');
-            if (ticketId) {
-                ticket = await database.getTicketById(ticketId.trim());
+            const ticketIdInput = interaction.options.getString('ticket_id');
+            if (ticketIdInput) {
+                try {
+                    ticket = await database.getTicketById(ticketIdInput.trim());
+                } catch (error) {
+                    console.warn('Invalid ticket_id supplied for /ticket command:', error);
+                    await interaction.editReply('That ticket identifier is not valid, sir.');
+                    return;
+                }
+            }
+
+            if (!ticket && subcommand === 'export') {
+                const ticketNumber = interaction.options.getInteger('ticket_number');
+                if (ticketNumber && Number.isInteger(ticketNumber) && ticketNumber > 0) {
+                    ticket = await database.getTicketByNumber(guild.id, ticketNumber);
+                }
             }
 
             if (!ticket && channel) {
@@ -230,6 +243,14 @@
                 } catch (error) {
                     console.warn('Failed to lock ticket channel:', error);
                 }
+
+                if (channel.deletable) {
+                    const deleteDelayMs = 5000;
+                    setTimeout(() => {
+                        channel.delete('Ticket closed and archived.')
+                            .catch((error) => console.warn('Failed to delete ticket channel after closing:', error));
+                    }, deleteDelayMs);
+                }
             }
 
             try {
@@ -307,8 +328,13 @@
                 name: `ticket-${String(ticket.ticketNumber).padStart(4, '0')}.txt`
             });
 
+            const replyContent = [`Transcript for ticket #${String(ticket.ticketNumber).padStart(4, '0')}, sir.`];
+            if (!ticket.channelId) {
+                replyContent.push('This ticket channel no longer exists; transcript retrieved from archives.');
+            }
+
             await interaction.editReply({
-                content: `Transcript for ticket #${String(ticket.ticketNumber).padStart(4, '0')}, sir.`,
+                content: replyContent.join(' '),
                 files: [attachment]
             });
             return;

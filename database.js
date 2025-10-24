@@ -457,6 +457,14 @@ class DatabaseManager {
             .findOne({ channelId });
     }
 
+    async getTicketByNumber(guildId, ticketNumber) {
+        if (!this.isConnected) return null;
+
+        return this.db
+            .collection(config.database.collections.tickets)
+            .findOne({ guildId, ticketNumber });
+    }
+
     async getTicketById(ticketId) {
         if (!this.isConnected) return null;
 
