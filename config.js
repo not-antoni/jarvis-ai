@@ -2,13 +2,15 @@
  * Configuration management for Jarvis Discord Bot
  */
 
-const config = {
+const validateConfig = require('./config/validate');
+
+const rawConfig = {
     // Discord Bot Configuration
     discord: {
         token: process.env.DISCORD_TOKEN,
         intents: [
             'Guilds',
-            'GuildMessages', 
+            'GuildMessages',
             'MessageContent',
             'GuildMembers',
             'DirectMessages',
@@ -43,7 +45,7 @@ const config = {
         fallbackChance: 0.12,
         // Provider selection: "auto" for random selection, or specific provider type
         // Options: "auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"
-        provider: process.env.AI_PROVIDER || "auto"
+        provider: process.env.AI_PROVIDER || "auto",
     },
 
     // Server Configuration
@@ -63,8 +65,7 @@ const config = {
     // Command Restrictions
     commands: {
         // Multiple channel IDs where !t command is allowed
-        whitelistedChannelIds: ['1403664986089324609',          '984738858950344714',
-'1419618537525346324']
+        whitelistedChannelIds: ['1403664986089324609', '984738858950344714', '1419618537525346324']
     },
 
     // YouTube API Configuration
@@ -78,12 +79,6 @@ const config = {
     }
 };
 
-// Validation
-const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_PW', 'OPENAI'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-if (missingVars.length > 0) {
-    console.warn(`Missing required environment variables: ${missingVars.join(', ')}`);
-}
+const config = validateConfig(rawConfig);
 
 module.exports = config;
