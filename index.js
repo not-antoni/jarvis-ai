@@ -921,6 +921,8 @@ client.on("guildCreate", async (guild) => {
     } catch (error) {
         console.error(`Failed to register slash commands for new guild ${guild.id}:`, error);
     }
+
+    console.log("Provider status on startup:", aiManager.getProviderStatus());
 });
 
 client.on("messageCreate", async (message) => {
