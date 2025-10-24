@@ -710,22 +710,6 @@ function buildCommandData() {
     return commands.map((command) => command.toJSON());
 }
 
-async function registerSlashCommandsForGuild(guild, commandData = null) {
-    if (!guild) {
-        return null;
-    }
-
-    const resolvedGuild = guild.commands ? guild : await client.guilds.fetch(guild.id);
-    const data = commandData || buildCommandData();
-
-    const registered = await resolvedGuild.commands.set(data);
-    console.log(
-        `Synchronized ${registered.size ?? data.length} slash commands for guild ${resolvedGuild.name ?? 'Unknown'} (${resolvedGuild.id})`
-    );
-
-    return registered;
-}
-
 const serverStatsRefreshJob = cron.schedule('*/10 * * * *', async () => {
     try {
         await discordHandlers.refreshAllServerStats(client);
@@ -811,8 +795,12 @@ app.get("/", async (req, res) => {
             `Required: ${envRequiredCount}/${envRequiredTotal}`,
             missingRequired.length ? `Missing: ${missingRequired.join(', ')}` : 'Missing: None',
             `Optional: ${optionalConfigured}/${optionalTotal}`,
-            optionalEnabled.length ? `Enabled: ${optionalEnabled.map(name => `- ${name}`).join('\n')}` : 'Enabled: None'
-        ].join('\n');
+            ...(
+                optionalEnabled.length
+                    ? ['Enabled:', ...optionalEnabled.map((name) => `- ${name}`)]
+                    : ['Enabled: None']
+            )
+        ].join('\\n');
 
         const dbLines = [
             `Connected: ${databaseStatus.connected ? '✅ Yes' : '❌ No'}`,
@@ -1339,6 +1327,7 @@ client.once("ready", async () => {
 
 client.on("guildCreate", async (guild) => {
     console.log(`Joined new guild ${guild.name ?? 'Unknown'} (${guild.id}). Synchronizing slash commands.`);
+
     console.log("Provider status on startup:", aiManager.getProviderStatus());
 });
 
