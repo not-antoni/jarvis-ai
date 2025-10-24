@@ -357,7 +357,7 @@
         }
 
         if (!embeddingSystem.isAvailable) {
-            await interaction.editReply('OPENAI is not configured, sir. I cannot manage embeddings.');
+            await interaction.editReply('Embedding service unavailable, sir. Configure OPENAI or LOCAL_EMBEDDING_URL.');
             return;
         }
 
@@ -494,6 +494,15 @@
 
         const query = interaction.options.getString('query', true);
 
+        const energyResult = await this.ensureEnergyAvailability({
+            interaction,
+            cost: this.energyConfig.costs?.default
+        });
+
+        if (!energyResult.ok) {
+            return;
+        }
+
         try {
             const { answer, sources } = await embeddingSystem.answerGuildQuestion({
                 guildId: guild.id,
@@ -511,6 +520,174 @@
             console.error('Knowledge answer generation failed:', error);
             await interaction.editReply('My knowledge synthesis failed, sir. Please try again later.');
         }
+    }
+
+    async handleNewsCommand(interaction) {
+        const topic = interaction.options.getString('topic') || 'technology';
+        const fresh = interaction.options.getBoolean('fresh') || false;
+        const normalizedTopic = topic.toLowerCase();
+
+        if (!braveSearch.apiKey) {
+            await interaction.editReply('Brave Search is not configured, sir. Set BRAVE_API_KEY to enable news briefings.');
+            return;
+        }
+
+        let articles = [];
+        let fromCache = false;
+
+        if (!fresh && database.isConnected) {
+            try {
+                const cached = await database.getNewsDigest(normalizedTopic);
+                if (cached?.articles?.length) {
+                    articles = cached.articles.map((article) => ({
+                        ...article,
+                        published: article.published ? new Date(article.published) : null
+                    }));
+                    fromCache = true;
+                    if (cached.metadata?.cachedAt) {
+                        const cachedDate = new Date(cached.metadata.cachedAt);
+                        if (!Number.isNaN(cachedDate.getTime()) && Date.now() - cachedDate.getTime() > 90 * 60 * 1000) {
+                            fromCache = false;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to read cached news digest:', error);
+            }
+        }
+
+        if (!articles.length) {
+            try {
+                articles = await braveSearch.fetchNews(normalizedTopic, { count: 5 });
+                if (database.isConnected) {
+                    const serialisable = articles.map((article) => ({
+                        ...article,
+                        published: article.published ? article.published.toISOString() : null
+                    }));
+                    await database.saveNewsDigest(normalizedTopic, serialisable, { cachedAt: new Date().toISOString() });
+                }
+            } catch (error) {
+                console.error('News fetch failed:', error);
+                await interaction.editReply('Unable to fetch headlines at the moment, sir.');
+                return;
+            }
+        }
+
+        const digest = braveSearch.formatNewsDigest(normalizedTopic, articles);
+        const footerLines = [];
+
+        if (fromCache && database.isConnected) {
+            footerLines.push('_Served from cache. Add `fresh:true` to refresh._');
+        }
+
+        await interaction.editReply([digest, ...footerLines].filter(Boolean).join('\n\n'));
+    }
+
+    async handleMacroCommand(interaction) {
+        const guild = interaction.guild;
+
+        if (!guild) {
+            await interaction.editReply('Macros are only available within a server, sir.');
+            return;
+        }
+
+        if (!database.isConnected) {
+            await interaction.editReply('Knowledge archives offline, sir. Please try later.');
+            return;
+        }
+
+        const subcommand = interaction.options.getSubcommand();
+        const guildId = guild.id;
+
+        if (subcommand === 'list') {
+            const tagInput = interaction.options.getString('tag');
+            const tag = tagInput ? tagInput.trim().toLowerCase() : null;
+            let entries = [];
+
+            try {
+                if (tag) {
+                    entries = await database.getKnowledgeEntriesByTag(guildId, tag, 10);
+                } else {
+                    entries = await database.getKnowledgeEntriesForGuild(guildId);
+                }
+            } catch (error) {
+                console.error('Failed to list macros:', error);
+                await interaction.editReply('Macro index unavailable, sir.');
+                return;
+            }
+
+            if (!entries.length) {
+                await interaction.editReply(tag ? `No macros found with tag \\`${tag}\\`, sir.` : 'No macros recorded yet, sir. Add some via /kb add.');
+                return;
+            }
+
+            const lines = entries.slice(0, 10).map((entry, index) => {
+                const tags = Array.isArray(entry.tags) && entry.tags.length ? ` — tags: ${entry.tags.join(', ')}` : '';
+                return `${index + 1}. **${entry.title || 'Untitled'}** (ID: \\`${entry._id}\\`)${tags}`;
+            });
+
+            await interaction.editReply([`Available macros${tag ? ` for tag \\`${tag}\\`` : ''}, sir:`, ...lines].join('\n'));
+            return;
+        }
+
+        if (subcommand === 'send') {
+            const entryIdInput = interaction.options.getString('entry_id');
+            const tagInput = interaction.options.getString('tag');
+
+            if (!entryIdInput && !tagInput) {
+                await interaction.editReply('Please provide either an entry ID or a tag to resolve, sir.');
+                return;
+            }
+
+            let entry = null;
+            try {
+                if (entryIdInput) {
+                    entry = await database.getKnowledgeEntryById(guildId, entryIdInput.trim());
+                } else if (tagInput) {
+                    const candidates = await database.getKnowledgeEntriesByTag(guildId, tagInput.trim().toLowerCase(), 1);
+                    entry = candidates[0] || null;
+                }
+            } catch (error) {
+                console.error('Failed to resolve macro entry:', error);
+            }
+
+            if (!entry) {
+                await interaction.editReply('I could not locate that macro entry, sir.');
+                return;
+            }
+
+            const channelOption = interaction.options.getChannel('channel');
+            const targetChannel = channelOption || interaction.channel;
+
+            if (!targetChannel || !targetChannel.isTextBased?.()) {
+                await interaction.editReply('Please choose a text channel for macro delivery, sir.');
+                return;
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle(entry.title || 'Knowledge Macro')
+                .setDescription((entry.text || '').length ? entry.text.slice(0, 4000) : '(no content)')
+                .setColor(0xF4A261)
+                .setFooter({ text: `Macro ID: ${entry._id}` })
+                .setTimestamp(entry.updatedAt || entry.createdAt || new Date());
+
+            if (Array.isArray(entry.tags) && entry.tags.length) {
+                embed.addFields({ name: 'Tags', value: entry.tags.join(', ').slice(0, 1024) });
+            }
+
+            try {
+                await targetChannel.send({ embeds: [embed] });
+                await interaction.editReply(targetChannel.id === interaction.channelId
+                    ? 'Macro dispatched, sir.'
+                    : `Macro dispatched to ${targetChannel}, sir.`);
+            } catch (error) {
+                console.error('Failed to send macro:', error);
+                await interaction.editReply('I could not deliver that macro, sir.');
+            }
+            return;
+        }
+
+        await interaction.editReply('I do not recognize that macro request, sir.');
     }
 
     async refreshAllServerStats(client) {

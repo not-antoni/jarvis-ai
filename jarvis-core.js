@@ -950,9 +950,10 @@ EXECUTION PIPELINE
         return await database.clearDatabase();
     }
 
-    async handleUtilityCommand(input, userName, userId = null, isSlash = false, interaction = null) {
+    async handleUtilityCommand(input, userName, userId = null, isSlash = false, interaction = null, guildId = null) {
         const rawInput = typeof input === "string" ? input.trim() : "";
         const cmd = rawInput.toLowerCase();
+        const effectiveGuildId = guildId || interaction?.guild?.id || null;
 
         if (cmd === "reset") {
             try {
@@ -1000,9 +1001,39 @@ EXECUTION PIPELINE
         }
 
         if (cmd === "providers") {
-            const status = aiManager.getRedactedProviderStatus();
-            const workingCount = status.filter(p => !p.hasError).length;
-            return `I have ${status.length} AI providers configured, sir: [REDACTED]. ${workingCount} are currently operational.`;
+            const analytics = aiManager.getProviderAnalytics();
+            if (!analytics.length) {
+                return "I am currently offline from all AI providers, sir.";
+            }
+
+            const lines = analytics.map((provider, index) => {
+                const tier = provider.costTier ? provider.costTier[0].toUpperCase() + provider.costTier.slice(1) : 'Unknown';
+                const total = provider.metrics.total || 0;
+                const success = Number.isFinite(provider.metrics.successRate)
+                    ? `${provider.metrics.successRate.toFixed(1)}%`
+                    : 'n/a';
+                const latency = Number.isFinite(provider.metrics.avgLatencyMs)
+                    ? `${Math.round(provider.metrics.avgLatencyMs)}ms`
+                    : 'n/a';
+                const statusIcon = provider.isDisabled
+                    ? '⛔'
+                    : provider.hasError
+                        ? '⚠️'
+                        : '✅';
+
+                const disabledNote = provider.isDisabled && provider.disabledUntil
+                    ? ` — returns <t:${Math.floor(provider.disabledUntil / 1000)}:R>`
+                    : '';
+
+                return `${statusIcon} **${index + 1}. ${provider.name}** (${tier}) — ${provider.model} • uptime ${success} • latency ${latency} • calls ${total}${disabledNote}`;
+            });
+
+            return [
+                '**AI Provider Rotation**',
+                'Prioritizing free tiers before paid fallbacks.',
+                '',
+                ...lines
+            ].join('\n');
         }
 
         if (cmd === "invite") {
@@ -1049,6 +1080,34 @@ EXECUTION PIPELINE
                 return `Preference \`${key}\` updated to \`${value}\`, sir.`;
             };
 
+            const handleEnergy = async () => {
+                if (!config.features?.energyMeter || !config.energy?.enabled) {
+                    return 'Energy tracking is disabled for this deployment, sir.';
+                }
+
+                if (!database.isConnected) {
+                    return 'Energy telemetry offline, sir. Database unavailable.';
+                }
+
+                const energyStatus = await database.getEnergyStatus(userId, effectiveGuildId || `dm:${userId}`, {
+                    maxPoints: config.energy.maxPoints,
+                    windowMinutes: config.energy.windowMinutes
+                });
+
+                const resetDate = energyStatus.resetsAt ? new Date(energyStatus.resetsAt) : null;
+                const resetText = resetDate
+                    ? `<t:${Math.floor(resetDate.getTime() / 1000)}:R>`
+                    : 'soon';
+
+                return [
+                    '**Energy Reserves**',
+                    `• Remaining: ${energyStatus.remaining}/${energyStatus.maxPoints}`,
+                    `• Spent this cycle: ${energyStatus.used}`,
+                    `• Window: ${config.energy.windowMinutes} minutes`,
+                    `• Next refill: ${resetText}`
+                ].join('\n');
+            };
+
             if (isSlash && interaction?.commandName === "profile") {
                 const subcommand = interaction.options.getSubcommand();
 
@@ -1060,6 +1119,10 @@ EXECUTION PIPELINE
                     const key = interaction.options.getString("key");
                     const value = interaction.options.getString("value");
                     return await handleSet(key, value);
+                }
+
+                if (subcommand === "energy") {
+                    return await handleEnergy();
                 }
             } else {
                 const parts = rawInput.split(/\s+/);
@@ -1074,6 +1137,10 @@ EXECUTION PIPELINE
                     const valueIndex = key ? rawInput.indexOf(key) : -1;
                     const value = valueIndex >= 0 ? rawInput.substring(valueIndex + key.length).trim() : "";
                     return await handleSet(key, value);
+                }
+
+                if (action.toLowerCase() === "energy") {
+                    return await handleEnergy();
                 }
             }
 
@@ -1199,6 +1266,99 @@ EXECUTION PIPELINE
                 highlightLines.length ? "• Highlights:" : null,
                 highlightLines.length ? highlightLines.join("\n") : null
             ].filter(Boolean).join("\n");
+        }
+
+        if (cmd === "digest" || cmd.startsWith("digest")) {
+            if (!database.isConnected) {
+                return 'Unable to compile a digest, sir. Database offline.';
+            }
+
+            const digestWindows = {
+                "6h": { label: "6 hours", duration: 6 * 60 * 60 * 1000 },
+                "24h": { label: "24 hours", duration: 24 * 60 * 60 * 1000 },
+                "7d": { label: "7 days", duration: 7 * 24 * 60 * 60 * 1000 }
+            };
+
+            let windowKey = "24h";
+            let highlightCount = 5;
+
+            if (isSlash && interaction?.commandName === "digest") {
+                windowKey = interaction.options.getString("window") || windowKey;
+                highlightCount = interaction.options.getInteger("highlights") || highlightCount;
+            } else {
+                const [, windowMatch] = rawInput.match(/digest\s+(6h|24h|7d)/i) || [];
+                if (windowMatch) {
+                    windowKey = windowMatch.toLowerCase();
+                }
+            }
+
+            const windowConfig = digestWindows[windowKey] || digestWindows["24h"];
+            const since = new Date(Date.now() - windowConfig.duration);
+
+            let conversations = [];
+            if (effectiveGuildId) {
+                conversations = await database.getGuildConversationsSince(effectiveGuildId, since, { limit: 200 });
+            } else if (userId) {
+                conversations = await database.getConversationsSince(userId, since);
+            }
+
+            if (!conversations.length) {
+                return `No notable activity in the last ${windowConfig.label}, sir.`;
+            }
+
+            const sample = conversations.slice(-50);
+            const participantIds = new Set(sample.map((entry) => entry.userId || entry.userName || 'unknown'));
+
+            const formattedLogs = sample.map((entry) => {
+                const timestamp = entry.timestamp || entry.createdAt;
+                const stamp = timestamp ? new Date(timestamp).toISOString() : 'unknown time';
+                const userPrompt = (entry.userMessage || '').replace(/\s+/g, ' ').trim().slice(0, 280);
+                const jarvisResponse = (entry.jarvisResponse || '').replace(/\s+/g, ' ').trim().slice(0, 280);
+                return [
+                    `Time: ${stamp}`,
+                    `User: ${entry.userName || entry.userId || 'anonymous'}`,
+                    `Prompt: ${userPrompt || '(empty)'}`,
+                    `Response: ${jarvisResponse || '(empty)'}`
+                ].join('\n');
+            }).join('\n\n');
+
+            const statsLines = [
+                `• Interactions analysed: ${conversations.length}`,
+                `• Active participants: ${participantIds.size}`,
+                `• Window: ${windowConfig.label}`
+            ];
+
+            const highlightTarget = Math.min(Math.max(highlightCount, 3), 10);
+
+            const systemPrompt = [
+                'You are Jarvis, providing a concise operational digest for server moderators.',
+                'Summaries should be clear, action-oriented, and respectful.',
+                `Return ${highlightTarget} highlights with bullet markers.`,
+                'Mention emerging topics, noteworthy actions, and follow-up suggestions when relevant.',
+                'If information is sparse, note that honestly. Keep the entire response under 2200 characters.'
+            ].join(' ');
+
+            const userPrompt = [
+                `Compile a digest for the past ${windowConfig.label}.`,
+                `Focus on ${highlightTarget} highlights and call out open loops (questions without answers, unresolved issues).`,
+                '',
+                formattedLogs
+            ].join('\n');
+
+            try {
+                const summary = await aiManager.generateResponse(systemPrompt, userPrompt, 500);
+                const digestBody = summary?.content?.trim() || 'Digest generation yielded no content, sir.';
+
+                return [
+                    `**${windowConfig.label} Digest**`,
+                    ...statsLines,
+                    '',
+                    digestBody
+                ].join('\n');
+            } catch (error) {
+                console.error('Failed to generate digest:', error);
+                return 'I could not synthesize a digest at this time, sir.';
+            }
         }
 
         if (cmd === "encode" || cmd.startsWith("encode ")) {

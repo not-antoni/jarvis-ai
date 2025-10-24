@@ -34,7 +34,9 @@ const rawConfig = {
             tickets: 'tickets',
             ticketTranscripts: 'ticketTranscripts',
             knowledgeBase: 'knowledgeBaseEntries',
-            counters: 'counters'
+            counters: 'counters',
+            newsCache: 'newsCache',
+            energyLevels: 'energyLevels'
         }
     },
 
@@ -50,6 +52,18 @@ const rawConfig = {
         // Provider selection: "auto" for random selection, or specific provider type
         // Options: "auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"
         provider: process.env.AI_PROVIDER || "auto",
+    },
+
+    // Energy system configuration
+    energy: {
+        enabled: process.env.ENERGY_ENABLED ? process.env.ENERGY_ENABLED !== 'false' : true,
+        maxPoints: Number(process.env.ENERGY_MAX_POINTS || 12),
+        windowMinutes: Number(process.env.ENERGY_WINDOW_MINUTES || 60),
+        costs: {
+            default: Number(process.env.ENERGY_COST_DEFAULT || 1),
+            digest: Number(process.env.ENERGY_COST_DIGEST || 2),
+            recap: Number(process.env.ENERGY_COST_RECAP || 1)
+        }
     },
 
     // Server Configuration
@@ -80,6 +94,27 @@ const rawConfig = {
     // Brave Search API Configuration
     brave: {
         apiKey: process.env.BRAVE_API_KEY
+    },
+
+    // Feature Toggles (can be overridden via FEATURE_* environment variables)
+    features: {
+        coreChat: true,
+        utilities: true,
+        providers: true,
+        reset: true,
+        invite: true,
+        clipping: true,
+        reactionRoles: true,
+        automod: true,
+        serverStats: true,
+        memberLog: true,
+        tickets: true,
+        knowledgeBase: true,
+        knowledgeAsk: true,
+        digests: true,
+        newsBriefings: true,
+        macroReplies: true,
+        energyMeter: true
     }
 };
 

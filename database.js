@@ -45,6 +45,8 @@ class DatabaseManager {
             const ticketTranscripts = this.db.collection(config.database.collections.ticketTranscripts);
             const knowledgeBase = this.db.collection(config.database.collections.knowledgeBase);
             const counters = this.db.collection(config.database.collections.counters);
+            const newsCache = this.db.collection(config.database.collections.newsCache);
+            const energyLevels = this.db.collection(config.database.collections.energyLevels);
 
             await conversations.createIndex({ userId: 1, guildId: 1, createdAt: -1 });
             await conversations.createIndex(
@@ -85,6 +87,15 @@ class DatabaseManager {
             await knowledgeBase.createIndex({ guildId: 1, tags: 1 });
 
             await counters.createIndex({ key: 1 }, { unique: true });
+
+            await newsCache.createIndex({ topic: 1 }, { unique: true });
+            await newsCache.createIndex(
+                { createdAt: 1 },
+                { expireAfterSeconds: 3 * 60 * 60, name: 'ttl_newsCache_createdAt' }
+            );
+
+            await energyLevels.createIndex({ userId: 1, guildId: 1 }, { unique: true });
+            await energyLevels.createIndex({ updatedAt: -1 });
 
             console.log('Database indexes created successfully');
         } catch (error) {
@@ -148,6 +159,25 @@ class DatabaseManager {
             .toArray();
 
         return conversations;
+    }
+
+    async getGuildConversationsSince(guildId, since, { limit = 200 } = {}) {
+        if (!this.isConnected || !guildId) return [];
+
+        const query = {
+            guildId,
+            $or: [
+                { createdAt: { $gte: since } },
+                { createdAt: { $exists: false }, timestamp: { $gte: since } }
+            ]
+        };
+
+        return this.db
+            .collection(config.database.collections.conversations)
+            .find(query)
+            .sort({ createdAt: 1, timestamp: 1 })
+            .limit(limit)
+            .toArray();
     }
 
     async saveConversation(userId, userName, userInput, jarvisResponse, guildId = null) {
@@ -558,6 +588,20 @@ class DatabaseManager {
             .toArray();
     }
 
+    async getKnowledgeEntriesByTag(guildId, tag, limit = 10) {
+        if (!this.isConnected || !tag) return [];
+
+        return this.db
+            .collection(config.database.collections.knowledgeBase)
+            .find({
+                guildId,
+                tags: tag
+            })
+            .sort({ updatedAt: -1, createdAt: -1 })
+            .limit(limit)
+            .toArray();
+    }
+
     async getKnowledgeEntryById(guildId, entryId) {
         if (!this.isConnected) return null;
 
@@ -578,6 +622,39 @@ class DatabaseManager {
             .deleteOne({ _id: id, guildId });
 
         return result.deletedCount > 0;
+    }
+
+    async getNewsDigest(topic) {
+        if (!this.isConnected || !topic) return null;
+
+        return this.db
+            .collection(config.database.collections.newsCache)
+            .findOne({ topic: topic.toLowerCase() });
+    }
+
+    async saveNewsDigest(topic, articles, metadata = {}) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const now = new Date();
+        const sanitizedArticles = Array.isArray(articles) ? articles.slice(0, 10) : [];
+
+        const payload = {
+            topic: topic.toLowerCase(),
+            articles: sanitizedArticles,
+            metadata,
+            createdAt: now,
+            updatedAt: now
+        };
+
+        await this.db
+            .collection(config.database.collections.newsCache)
+            .updateOne(
+                { topic: payload.topic },
+                { $set: payload },
+                { upsert: true }
+            );
+
+        return payload;
     }
 
     async getServerStatsConfig(guildId) {
@@ -683,6 +760,116 @@ class DatabaseManager {
         await this.db
             .collection(config.database.collections.memberLogs)
             .deleteOne({ guildId });
+    }
+
+    async consumeEnergy(userId, guildId, { maxPoints, windowMinutes, cost = 1 }) {
+        if (!this.isConnected || !userId || !guildId) {
+            return { ok: true, remaining: maxPoints };
+        }
+
+        const collection = this.db.collection(config.database.collections.energyLevels);
+        const now = new Date();
+        const windowMs = Math.max(1, windowMinutes) * 60 * 1000;
+        const charge = Math.max(1, cost);
+
+        const record = await collection.findOne({ userId, guildId });
+        const windowStart = record?.windowStart ? new Date(record.windowStart) : null;
+        const resetsAt = windowStart ? new Date(windowStart.getTime() + windowMs) : null;
+
+        if (!record || !windowStart || (resetsAt && now >= resetsAt)) {
+            const newWindow = now;
+            await collection.updateOne(
+                { userId, guildId },
+                {
+                    $set: {
+                        userId,
+                        guildId,
+                        windowStart: newWindow,
+                        used: charge,
+                        maxPoints,
+                        updatedAt: now
+                    }
+                },
+                { upsert: true }
+            );
+
+            return {
+                ok: true,
+                remaining: Math.max(0, maxPoints - charge),
+                resetsAt: new Date(newWindow.getTime() + windowMs)
+            };
+        }
+
+        const used = record.used || 0;
+        if (used >= maxPoints || used + charge > maxPoints) {
+            return {
+                ok: false,
+                remaining: 0,
+                resetsAt
+            };
+        }
+
+        const newUsed = used + charge;
+        await collection.updateOne(
+            { _id: record._id },
+            {
+                $set: {
+                    used: newUsed,
+                    maxPoints,
+                    updatedAt: now
+                }
+            }
+        );
+
+        return {
+            ok: true,
+            remaining: Math.max(0, maxPoints - newUsed),
+            resetsAt
+        };
+    }
+
+    async getEnergyStatus(userId, guildId, { maxPoints, windowMinutes }) {
+        if (!this.isConnected || !userId || !guildId) {
+            return {
+                used: 0,
+                remaining: maxPoints,
+                maxPoints,
+                resetsAt: null
+            };
+        }
+
+        const collection = this.db.collection(config.database.collections.energyLevels);
+        const record = await collection.findOne({ userId, guildId });
+        if (!record) {
+            return {
+                used: 0,
+                remaining: maxPoints,
+                maxPoints,
+                resetsAt: null
+            };
+        }
+
+        const windowMs = Math.max(1, windowMinutes) * 60 * 1000;
+        const windowStart = record.windowStart ? new Date(record.windowStart) : null;
+        const resetsAt = windowStart ? new Date(windowStart.getTime() + windowMs) : null;
+        const now = Date.now();
+
+        if (resetsAt && now >= resetsAt.getTime()) {
+            return {
+                used: 0,
+                remaining: maxPoints,
+                maxPoints,
+                resetsAt: new Date(now + windowMs)
+            };
+        }
+
+        const used = record.used || 0;
+        return {
+            used,
+            remaining: Math.max(0, maxPoints - used),
+            maxPoints: record.maxPoints || maxPoints,
+            resetsAt
+        };
     }
 
     async disconnect() {
