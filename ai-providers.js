@@ -179,6 +179,14 @@ class AIProviderManager {
                 }
             }
 
+            if (typeof data.openRouterGlobalFailure === 'boolean') {
+                this.openRouterGlobalFailure = data.openRouterGlobalFailure;
+            }
+
+            if (typeof data.openRouterFailureCount === 'number') {
+                this.openRouterFailureCount = data.openRouterFailureCount;
+            }
+
             console.log('Restored AI provider cache from disk');
         } catch (error) {
             console.warn('Failed to restore AI provider cache:', error);
@@ -679,10 +687,3 @@ class AIProviderManager {
 }
 
 module.exports = new AIProviderManager();
-            if (typeof data.openRouterGlobalFailure === 'boolean') {
-                this.openRouterGlobalFailure = data.openRouterGlobalFailure;
-            }
-
-            if (typeof data.openRouterFailureCount === 'number') {
-                this.openRouterFailureCount = data.openRouterFailureCount;
-            }
