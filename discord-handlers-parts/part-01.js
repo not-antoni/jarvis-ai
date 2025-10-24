@@ -5,6 +5,488 @@
         }
     }
 
+    async handleTicketCommand(interaction) {
+        const guild = interaction.guild;
+
+        if (!guild) {
+            await interaction.editReply('Ticket operations must be run inside a server, sir.');
+            return;
+        }
+
+        if (!database.isConnected) {
+            await interaction.editReply('Database uplink offline, sir. Ticketing is unavailable.');
+            return;
+        }
+
+        const subcommand = interaction.options.getSubcommand();
+        const me = guild.members.me || await guild.members.fetchMe().catch(() => null);
+
+        if (!me || !me.permissions.has(PermissionsBitField.Flags.ManageChannels)) {
+            await interaction.editReply('I require the "Manage Channels" permission to manage tickets, sir.');
+            return;
+        }
+
+        if (subcommand === 'open') {
+            const reasonInput = interaction.options.getString('reason') || 'No reason provided.';
+            const reason = reasonInput.length > 500 ? `${reasonInput.slice(0, 497)}…` : reasonInput;
+
+            const existing = await database.getOpenTicket(guild.id, interaction.user.id);
+            if (existing) {
+                await interaction.editReply(`You already have an open ticket, sir: <#${existing.channelId}>.`);
+                return;
+            }
+
+            const category = await this.ensureTicketCategory(guild);
+            if (!category) {
+                await interaction.editReply('I could not prepare the ticket workspace due to missing permissions, sir.');
+                return;
+            }
+
+            const staffRoleIds = this.getTicketStaffRoleIds(guild);
+            const ticketNumber = await database.reserveCounter(`ticket:${guild.id}`);
+            const channelName = `ticket-${String(ticketNumber).padStart(4, '0')}`;
+
+            const overwrites = [
+                { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                {
+                    id: interaction.user.id,
+                    allow: [
+                        PermissionsBitField.Flags.ViewChannel,
+                        PermissionsBitField.Flags.SendMessages,
+                        PermissionsBitField.Flags.ReadMessageHistory,
+                        PermissionsBitField.Flags.AttachFiles
+                    ]
+                },
+                {
+                    id: me.id,
+                    allow: [
+                        PermissionsBitField.Flags.ViewChannel,
+                        PermissionsBitField.Flags.SendMessages,
+                        PermissionsBitField.Flags.ManageChannels,
+                        PermissionsBitField.Flags.ReadMessageHistory,
+                        PermissionsBitField.Flags.AttachFiles
+                    ]
+                }
+            ];
+
+            for (const roleId of staffRoleIds) {
+                overwrites.push({
+                    id: roleId,
+                    allow: [
+                        PermissionsBitField.Flags.ViewChannel,
+                        PermissionsBitField.Flags.SendMessages,
+                        PermissionsBitField.Flags.ReadMessageHistory,
+                        PermissionsBitField.Flags.AttachFiles
+                    ]
+                });
+            }
+
+            let channel;
+            try {
+                channel = await guild.channels.create({
+                    name: channelName,
+                    type: ChannelType.GuildText,
+                    parent: category.id,
+                    reason: `Support ticket for ${interaction.user.tag}`,
+                    permissionOverwrites: overwrites
+                });
+            } catch (error) {
+                console.error('Failed to create ticket channel:', error);
+                await interaction.editReply('Ticket bay doors jammed, sir. I could not create a private channel.');
+                return;
+            }
+
+            try {
+                const ticketRecord = await database.createTicket({
+                    guildId: guild.id,
+                    openerId: interaction.user.id,
+                    channelId: channel.id,
+                    ticketNumber,
+                    reason,
+                    staffRoleIds
+                });
+
+                const staffMentions = staffRoleIds.length
+                    ? staffRoleIds.map((id) => `<@&${id}>`).join(' ')
+                    : null;
+
+                const headerLines = [
+                    `Hello <@${interaction.user.id}>, I have opened ticket #${String(ticketRecord.ticketNumber).padStart(4, '0')} for you.`,
+                    'Please describe the issue in detail so the staff can assist.'
+                ];
+                if (staffMentions) {
+                    headerLines.push(`Staff notified: ${staffMentions}`);
+                }
+
+                await channel.send({
+                    content: headerLines.join('\n'),
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle('Ticket opened')
+                            .setDescription(reason)
+                            .setColor(0x5865f2)
+                            .setFooter({ text: 'Use /ticket close when finished.' })
+                    ]
+                });
+
+                await interaction.editReply(`Ticket #${String(ticketRecord.ticketNumber).padStart(4, '0')} ready, sir: ${channel}.`);
+            } catch (error) {
+                console.error('Failed to persist ticket record:', error);
+                try {
+                    await channel.delete('Rolling back failed ticket creation');
+                } catch (deleteError) {
+                    console.warn('Failed to delete ticket channel during rollback:', deleteError);
+                }
+                await interaction.editReply('I could not store that ticket in the database, sir.');
+            }
+
+            return;
+        }
+
+        const member = interaction.member;
+        const channel = interaction.channel;
+        let ticket = null;
+
+        if (subcommand === 'close' || subcommand === 'export') {
+            const ticketId = interaction.options.getString('ticket_id');
+            if (ticketId) {
+                ticket = await database.getTicketById(ticketId.trim());
+            }
+
+            if (!ticket && channel) {
+                ticket = await database.getTicketByChannel(channel.id);
+            }
+
+            if (!ticket) {
+                await interaction.editReply('I could not locate a ticket record for this request, sir.');
+                return;
+            }
+        }
+
+        const isStaffMember = () => {
+            if (!member) {
+                return false;
+            }
+
+            if (ticket && member.id === ticket.openerId) {
+                return true;
+            }
+
+            if (member.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
+                member.permissions?.has(PermissionsBitField.Flags.ManageChannels) ||
+                member.permissions?.has(PermissionsBitField.Flags.Administrator)) {
+                return true;
+            }
+
+            if (ticket?.staffRoleIds?.some((id) => member.roles?.cache?.has(id))) {
+                return true;
+            }
+
+            return false;
+        };
+
+        if (subcommand === 'close') {
+            if (!isStaffMember()) {
+                await interaction.editReply('Only the opener or server staff may close this ticket, sir.');
+                return;
+            }
+
+            if (ticket.status === 'closed') {
+                await interaction.editReply('This ticket was already closed, sir.');
+                return;
+            }
+
+            const transcriptMessages = channel ? await this.collectTicketTranscript(channel) : [];
+            const summary = `Ticket #${String(ticket.ticketNumber).padStart(4, '0')} closed by ${interaction.user.tag}.`;
+
+            try {
+                await database.saveTicketTranscript(ticket._id, {
+                    messages: transcriptMessages,
+                    messageCount: transcriptMessages.length,
+                    summary
+                });
+                await database.closeTicket(ticket._id, { closedBy: interaction.user.id });
+            } catch (error) {
+                console.error('Failed to archive ticket transcript:', error);
+                await interaction.editReply('I could not archive this ticket, sir. Try again shortly.');
+                return;
+            }
+
+            if (channel) {
+                try {
+                    if (ticket.openerId) {
+                        await channel.permissionOverwrites.edit(ticket.openerId, { SendMessages: false }).catch(() => null);
+                    }
+                    await channel.permissionOverwrites.edit(interaction.user.id, { SendMessages: false }).catch(() => null);
+                    await channel.send({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setTitle('Ticket closed')
+                                .setDescription(`Closed by ${interaction.user.tag}. Transcript archived.`)
+                                .setColor(0xffa200)
+                                .setTimestamp(new Date())
+                        ]
+                    });
+                } catch (error) {
+                    console.warn('Failed to lock ticket channel:', error);
+                }
+            }
+
+            try {
+                const opener = await interaction.client.users.fetch(ticket.openerId);
+                if (opener) {
+                    await opener.send([
+                        `Your ticket #${String(ticket.ticketNumber).padStart(4, '0')} has been closed by ${interaction.user.tag}.`,
+                        `Reason: ${ticket.reason || 'No reason provided.'}`,
+                        `Messages captured: ${transcriptMessages.length}`
+                    ].join('\n'));
+                }
+            } catch (error) {
+                console.warn('Failed to DM ticket summary to opener:', error);
+            }
+
+            await interaction.editReply('Ticket closed and archived, sir.');
+            return;
+        }
+
+        if (subcommand === 'export') {
+            if (!isStaffMember()) {
+                await interaction.editReply('Only staff members may export ticket transcripts, sir.');
+                return;
+            }
+
+            let transcript = await database.getTicketTranscript(ticket._id);
+
+            if (!transcript) {
+                let ticketChannel = null;
+                if (ticket.channelId) {
+                    try {
+                        ticketChannel = await guild.channels.fetch(ticket.channelId);
+                    } catch (error) {
+                        console.warn('Unable to fetch ticket channel for export:', error);
+                    }
+                }
+
+                const messages = ticketChannel ? await this.collectTicketTranscript(ticketChannel) : [];
+                transcript = {
+                    messages,
+                    messageCount: messages.length,
+                    summary: `Transcript exported for ticket #${String(ticket.ticketNumber).padStart(4, '0')}`
+                };
+
+                try {
+                    await database.saveTicketTranscript(ticket._id, transcript);
+                } catch (error) {
+                    console.warn('Failed to persist freshly generated transcript:', error);
+                }
+            }
+
+            const header = [
+                `Ticket: ${String(ticket.ticketNumber).padStart(4, '0')}`,
+                `Opened by: ${ticket.openerId}`,
+                `Reason: ${ticket.reason || 'No reason provided.'}`,
+                `Status: ${ticket.status}`,
+                `Messages archived: ${transcript?.messageCount || 0}`,
+                '---'
+            ];
+
+            const lines = [...header];
+            if (transcript?.messages?.length) {
+                for (const message of transcript.messages) {
+                    const attachments = (message.attachments || [])
+                        .map((att) => ` [attachment: ${att.name} ${att.url}]`)
+                        .join('');
+                    lines.push(`[${message.createdAt}] ${message.authorTag}: ${message.content || ''}${attachments}`.trim());
+                }
+            } else {
+                lines.push('No transcript data available.');
+            }
+
+            const buffer = Buffer.from(lines.join('\n'), 'utf8');
+            const attachment = new AttachmentBuilder(buffer, {
+                name: `ticket-${String(ticket.ticketNumber).padStart(4, '0')}.txt`
+            });
+
+            await interaction.editReply({
+                content: `Transcript for ticket #${String(ticket.ticketNumber).padStart(4, '0')}, sir.`,
+                files: [attachment]
+            });
+            return;
+        }
+
+        await interaction.editReply('I am not certain how to handle that ticket request, sir.');
+    }
+
+    async handleKnowledgeBaseCommand(interaction) {
+        const guild = interaction.guild;
+
+        if (!guild) {
+            await interaction.editReply('Knowledge base controls only work inside a server, sir.');
+            return;
+        }
+
+        if (!database.isConnected) {
+            await interaction.editReply('Database uplink offline, sir. Knowledge base unavailable.');
+            return;
+        }
+
+        if (!embeddingSystem.isAvailable) {
+            await interaction.editReply('OPENAI is not configured, sir. I cannot manage embeddings.');
+            return;
+        }
+
+        const member = interaction.member;
+        const hasAuthority = member?.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
+            member?.permissions?.has(PermissionsBitField.Flags.Administrator);
+
+        if (!hasAuthority) {
+            await interaction.editReply('Only administrators may adjust the knowledge base, sir.');
+            return;
+        }
+
+        const subcommand = interaction.options.getSubcommand();
+
+        if (subcommand === 'add') {
+            const title = interaction.options.getString('title', true);
+            const textContent = interaction.options.getString('content');
+            const attachment = interaction.options.getAttachment('file');
+
+            const contentPieces = [];
+            if (textContent && textContent.trim()) {
+                contentPieces.push(textContent.trim());
+            }
+
+            if (attachment) {
+                if (attachment.size && attachment.size > 5 * 1024 * 1024) {
+                    await interaction.editReply('That file is larger than 5MB, sir. Please provide a smaller document.');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(attachment.url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const arrayBuffer = await response.arrayBuffer();
+                    const buffer = Buffer.from(arrayBuffer);
+
+                    let extracted = '';
+                    const isPdf = (attachment.contentType && attachment.contentType.includes('pdf')) || attachment.name.endsWith('.pdf');
+
+                    if (isPdf) {
+                        const parsed = await pdfParse(buffer);
+                        extracted = parsed.text || '';
+                    } else {
+                        extracted = buffer.toString('utf8');
+                    }
+
+                    if (extracted.trim()) {
+                        contentPieces.push(extracted.trim());
+                    }
+                } catch (error) {
+                    console.error('Failed to ingest knowledge base attachment:', error);
+                    await interaction.editReply('I could not read that file, sir. Ensure it is a UTF-8 text, markdown, or PDF document.');
+                    return;
+                }
+            }
+
+            const combined = contentPieces.join('\n\n').trim();
+            if (!combined) {
+                await interaction.editReply('I need either the content field or an attachment to store, sir.');
+                return;
+            }
+
+            try {
+                const entry = await embeddingSystem.ingestGuildDocument({
+                    guildId: guild.id,
+                    userId: interaction.user.id,
+                    title,
+                    text: combined,
+                    source: attachment ? 'upload' : 'manual'
+                });
+
+                await interaction.editReply(`Filed under ID \`${entry._id}\`, sir. Knowledge base updated.`);
+            } catch (error) {
+                console.error('Failed to store knowledge base entry:', error);
+                await interaction.editReply('Knowledge base ingestion failed, sir.');
+            }
+            return;
+        }
+
+        if (subcommand === 'search') {
+            const query = interaction.options.getString('query', true);
+            const limit = interaction.options.getInteger('limit') || 5;
+
+            try {
+                const { message } = await embeddingSystem.formatSearchResults(guild.id, query, { limit });
+                await interaction.editReply(message);
+            } catch (error) {
+                console.error('Knowledge search failed:', error);
+                await interaction.editReply('The knowledge scanners malfunctioned, sir.');
+            }
+            return;
+        }
+
+        if (subcommand === 'delete') {
+            const entryId = interaction.options.getString('entry_id', true);
+
+            try {
+                const removed = await database.deleteKnowledgeEntry(guild.id, entryId.trim());
+                if (removed) {
+                    await interaction.editReply('Entry removed from the knowledge archive, sir.');
+                } else {
+                    await interaction.editReply('I could not locate that entry, sir.');
+                }
+            } catch (error) {
+                console.error('Failed to delete knowledge entry:', error);
+                await interaction.editReply('Knowledge base deletion failed, sir.');
+            }
+            return;
+        }
+
+        await interaction.editReply('I am not certain how to handle that knowledge base request, sir.');
+    }
+
+    async handleAskCommand(interaction) {
+        const guild = interaction.guild;
+
+        if (!guild) {
+            await interaction.editReply('This command only works within a server, sir.');
+            return;
+        }
+
+        if (!database.isConnected) {
+            await interaction.editReply('Database uplink offline, sir. I cannot consult the archives.');
+            return;
+        }
+
+        if (!embeddingSystem.isAvailable) {
+            await interaction.editReply('OPENAI is not configured, sir. I cannot search the knowledge base.');
+            return;
+        }
+
+        const query = interaction.options.getString('query', true);
+
+        try {
+            const { answer, sources } = await embeddingSystem.answerGuildQuestion({
+                guildId: guild.id,
+                userId: interaction.user.id,
+                query
+            });
+
+            const lines = [answer];
+            if (sources.length) {
+                lines.push('\nSources:', ...sources.map((source) => `${source.label} (ID: ${source.id})`));
+            }
+
+            await interaction.editReply(lines.join('\n'));
+        } catch (error) {
+            console.error('Knowledge answer generation failed:', error);
+            await interaction.editReply('My knowledge synthesis failed, sir. Please try again later.');
+        }
+    }
+
     async refreshAllServerStats(client) {
         if (!client || !database.isConnected) {
             return;
