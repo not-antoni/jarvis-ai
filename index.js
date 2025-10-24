@@ -222,6 +222,13 @@ const commands = [
                         .setDescription('Ticket identifier to export (optional when used inside a ticket channel)')
                         .setRequired(false)
                 )
+                .addIntegerOption((option) =>
+                    option
+                        .setName('ticket_number')
+                        .setDescription('Ticket number to export (alternative to ticket_id)')
+                        .setRequired(false)
+                        .setMinValue(1)
+                )
         )
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
