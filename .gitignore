@@ -9,3 +9,4 @@ data/
 *.db
 .vscode/
 .idea/
+provider-state.json

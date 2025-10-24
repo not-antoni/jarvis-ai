@@ -916,6 +916,17 @@
     }
 
     async handleSlashCommand(interaction) {
+        if (!isCommandEnabled(interaction.commandName)) {
+            try {
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ content: 'That module is disabled in this deployment, sir.', ephemeral: true });
+                }
+            } catch (error) {
+                console.warn('Failed to send disabled command notice:', error);
+            }
+            return;
+        }
+
         const userId = interaction.user.id;
 
         if (this.isOnCooldown(userId)) {
@@ -928,7 +939,7 @@
             return await this.handleSlashCommandClip(interaction);
         }
 
-        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
+        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "digest", "macro", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
 
         try {
@@ -970,6 +981,15 @@
                     prompt = prompt.substring(0, config.ai.maxInputLength) + "...";
                 }
 
+                const energyResult = await this.ensureEnergyAvailability({
+                    interaction,
+                    cost: this.energyConfig.costs?.default
+                });
+
+                if (!energyResult.ok) {
+                    return;
+                }
+
                 response = await this.jarvis.generateResponse(interaction, prompt, true);
             } else if (interaction.commandName === "roll") {
                 const sides = interaction.options.getInteger("sides") || 6;
@@ -978,7 +998,8 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "time") {
                 response = await this.jarvis.handleUtilityCommand(
@@ -986,7 +1007,8 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "reset") {
                 response = await this.jarvis.handleUtilityCommand(
@@ -994,7 +1016,8 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "help") {
                 response = await this.jarvis.handleUtilityCommand(
@@ -1002,7 +1025,8 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "profile") {
                 response = await this.jarvis.handleUtilityCommand(
@@ -1010,7 +1034,8 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "history") {
                 response = await this.jarvis.handleUtilityCommand(
@@ -1018,7 +1043,8 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "recap") {
                 response = await this.jarvis.handleUtilityCommand(
@@ -1026,7 +1052,26 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
+                );
+            } else if (interaction.commandName === "digest") {
+                const energyResult = await this.ensureEnergyAvailability({
+                    interaction,
+                    cost: this.energyConfig.costs?.digest
+                });
+
+                if (!energyResult.ok) {
+                    return;
+                }
+
+                response = await this.jarvis.handleUtilityCommand(
+                    "digest",
+                    interaction.user.username,
+                    interaction.user.id,
+                    true,
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "ticket") {
                 await this.handleTicketCommand(interaction);
@@ -1038,6 +1083,10 @@
                 return;
             } else if (interaction.commandName === "ask") {
                 await this.handleAskCommand(interaction);
+                this.setCooldown(userId);
+                return;
+            } else if (interaction.commandName === "macro") {
+                await this.handleMacroCommand(interaction);
                 this.setCooldown(userId);
                 return;
             } else if (interaction.commandName === "reactionrole") {
@@ -1056,13 +1105,18 @@
                 await this.handleMemberLogCommand(interaction);
                 this.setCooldown(userId);
                 return;
+            } else if (interaction.commandName === "news") {
+                await this.handleNewsCommand(interaction);
+                this.setCooldown(userId);
+                return;
             } else if (interaction.commandName === "encode") {
                 response = await this.jarvis.handleUtilityCommand(
                     "encode",
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "decode") {
                 response = await this.jarvis.handleUtilityCommand(
@@ -1070,7 +1124,8 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             } else {
                 response = await this.jarvis.handleUtilityCommand(
@@ -1078,7 +1133,8 @@
                     interaction.user.username,
                     interaction.user.id,
                     true,
-                    interaction
+                    interaction,
+                    interaction.guild?.id || null
                 );
             }
 
