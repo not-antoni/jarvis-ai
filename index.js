@@ -800,7 +800,11 @@ app.get("/", async (req, res) => {
                     ? ['Enabled:', ...optionalEnabled.map((name) => `- ${name}`)]
                     : ['Enabled: None']
             )
-        ].join('\\n');
+        ];
+
+        const envSummaryHtml = envSummaryLines
+            .map((line) => line.startsWith('- ') ? `&bull; ${line.slice(2)}` : line)
+            .join('<br>');
 
         const dbLines = [
             `Connected: ${databaseStatus.connected ? '✅ Yes' : '❌ No'}`,
@@ -979,8 +983,8 @@ app.get("/", async (req, res) => {
 
             <div class="status-card">
                 <h3>🧪 ENVIRONMENT</h3>
-                <div style="white-space: pre;">
-${envSummaryLines}
+                <div style="line-height: 1.6;">
+${envSummaryHtml}
                 </div>
             </div>
             
