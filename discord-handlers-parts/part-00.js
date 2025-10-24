@@ -50,7 +50,8 @@ const commandFeatureMap = new Map([
     ['reactionrole', 'reactionRoles'],
     ['automod', 'automod'],
     ['serverstats', 'serverStats'],
-    ['memberlog', 'memberLog']
+    ['memberlog', 'memberLog'],
+    ['config', 'config']
 ]);
 
 const featureFlags = config.features || {};
@@ -102,6 +103,8 @@ class DiscordHandlers {
                 recap: config.energy?.costs?.recap ?? 1
             }
         };
+        this.defaultPrefix = config.legacy?.defaultPrefix || '!';
+        this.prefixCache = new Map();
         this.defaultJoinMessages = [
             '🛰️ {mention} has entered {server}.',
             '🎉 A new arrival! Welcome {mention} — population now {membercount}.',
@@ -232,6 +235,113 @@ class DiscordHandlers {
         const error = new Error(message);
         error.isFriendly = true;
         return error;
+    }
+
+    normalizePrefixValue(prefix) {
+        if (typeof prefix !== 'string') {
+            return null;
+        }
+
+        const trimmed = prefix.trim();
+        if (!trimmed) {
+            return null;
+        }
+
+        if (/\s/.test(trimmed)) {
+            return null;
+        }
+
+        if (trimmed.length > 5) {
+            return null;
+        }
+
+        return trimmed;
+    }
+
+    getDefaultPrefix() {
+        return this.defaultPrefix;
+    }
+
+    setCachedPrefix(guildId, prefix) {
+        if (!guildId) {
+            return;
+        }
+
+        const normalized = this.normalizePrefixValue(prefix) || this.defaultPrefix;
+        this.prefixCache.set(guildId, normalized);
+    }
+
+    clearCachedPrefix(guildId) {
+        if (!guildId) {
+            return;
+        }
+
+        this.prefixCache.delete(guildId);
+    }
+
+    async getGuildPrefix(guildId, { refresh = false } = {}) {
+        if (!guildId) {
+            return this.defaultPrefix;
+        }
+
+        if (!refresh && this.prefixCache.has(guildId)) {
+            return this.prefixCache.get(guildId);
+        }
+
+        if (!database.isConnected) {
+            return this.defaultPrefix;
+        }
+
+        try {
+            const guildConfig = await database.getGuildConfig(guildId);
+            const normalized = this.normalizePrefixValue(guildConfig?.prefix) || this.defaultPrefix;
+            this.prefixCache.set(guildId, normalized);
+            return normalized;
+        } catch (error) {
+            console.error('Failed to fetch guild prefix:', error);
+            return this.defaultPrefix;
+        }
+    }
+
+    async updateGuildPrefix(guildId, prefix) {
+        if (!guildId) {
+            throw this.createFriendlyError('Guild context required.');
+        }
+
+        const normalized = this.normalizePrefixValue(prefix) || this.defaultPrefix;
+
+        if (database.isConnected) {
+            try {
+                await database.setGuildPrefix(guildId, normalized);
+            } catch (error) {
+                console.error('Failed to persist guild prefix:', error);
+                throw this.createFriendlyError('I could not update the prefix in the database, sir.');
+            }
+        }
+
+        this.setCachedPrefix(guildId, normalized);
+        return normalized;
+    }
+
+    normalizeLegacyInput(text, prefix) {
+        if (typeof text !== 'string' || !text.length) {
+            return text;
+        }
+
+        if (!prefix || typeof prefix !== 'string' || !prefix.length) {
+            return text;
+        }
+
+        const lowerText = text.toLowerCase();
+        const lowerPrefix = prefix.toLowerCase();
+
+        if (lowerText.startsWith(lowerPrefix)) {
+            const remainder = text.slice(prefix.length);
+            const normalizedRemainder = remainder.startsWith(' ') ? remainder.slice(1) : remainder;
+            return `${this.getDefaultPrefix()}${normalizedRemainder}`;
+        }
+
+        return text;
     }
 
     isEnergyEnabled() {

@@ -66,6 +66,11 @@ const rawConfig = {
         }
     },
 
+    // Legacy Command Configuration
+    legacy: {
+        defaultPrefix: process.env.JARVIS_LEGACY_PREFIX || '!'
+    },
+
     // Server Configuration
     server: {
         port: process.env.PORT || 3000,
@@ -114,7 +119,8 @@ const rawConfig = {
         digests: true,
         newsBriefings: true,
         macroReplies: true,
-        energyMeter: true
+        energyMeter: true,
+        config: true
     }
 };
 

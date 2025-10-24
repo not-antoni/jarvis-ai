@@ -658,6 +658,27 @@ const allCommands = [
                             { name: "Leave", value: "leave" }
                         )))
         .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName("config")
+        .setDescription("Configure Jarvis server settings")
+        .addSubcommandGroup(group =>
+            group
+                .setName("prefix")
+                .setDescription("Manage the legacy command prefix")
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("show")
+                        .setDescription("Display the current command prefix"))
+                .addSubcommand(subcommand =>
+                    subcommand
+                        .setName("set")
+                        .setDescription("Update the command prefix for legacy commands")
+                        .addStringOption(option =>
+                            option
+                                .setName("value")
+                                .setDescription("Prefix to use (1-5 visible characters, no spaces)")
+                                .setRequired(true))))
+        .setContexts([InteractionContextType.Guild]),
 ];
 
 const commandFeatureMap = new Map([
@@ -684,7 +705,8 @@ const commandFeatureMap = new Map([
     ['reactionrole', 'reactionRoles'],
     ['automod', 'automod'],
     ['serverstats', 'serverStats'],
-    ['memberlog', 'memberLog']
+    ['memberlog', 'memberLog'],
+    ['config', 'config']
 ]);
 
 const featureFlags = config.features || {};
@@ -731,6 +753,16 @@ async function registerSlashCommands() {
     console.log(
         `Successfully registered ${registered.size ?? commandData.length} global slash commands: ${registeredNames.join(', ')}`
     );
+
+    const guilds = Array.from(client.guilds.cache.values());
+    for (const guild of guilds) {
+        try {
+            await guild.commands.set([]);
+            console.log(`Cleared guild-specific commands for ${guild.name ?? 'Unknown'} (${guild.id})`);
+        } catch (error) {
+            console.warn(`Failed to clear guild-specific commands for ${guild.id}:`, error);
+        }
+    }
 
     return registeredNames;
 }
