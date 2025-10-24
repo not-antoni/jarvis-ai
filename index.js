@@ -732,6 +732,16 @@ async function registerSlashCommands() {
         `Successfully registered ${registered.size ?? commandData.length} global slash commands: ${registeredNames.join(', ')}`
     );
 
+    const guilds = Array.from(client.guilds.cache.values());
+    for (const guild of guilds) {
+        try {
+            await guild.commands.set([]);
+            console.log(`Cleared guild-specific commands for ${guild.name ?? 'Unknown'} (${guild.id})`);
+        } catch (error) {
+            console.warn(`Failed to clear guild-specific commands for ${guild.id}:`, error);
+        }
+    }
+
     return registeredNames;
 }
 
