@@ -710,22 +710,6 @@ function buildCommandData() {
     return commands.map((command) => command.toJSON());
 }
 
-async function registerSlashCommandsForGuild(guild, commandData = null) {
-    if (!guild) {
-        return null;
-    }
-
-    const resolvedGuild = guild.commands ? guild : await client.guilds.fetch(guild.id);
-    const data = commandData || buildCommandData();
-
-    const registered = await resolvedGuild.commands.set(data);
-    console.log(
-        `Synchronized ${registered.size ?? data.length} slash commands for guild ${resolvedGuild.name ?? 'Unknown'} (${resolvedGuild.id})`
-    );
-
-    return registered;
-}
-
 const serverStatsRefreshJob = cron.schedule('*/10 * * * *', async () => {
     try {
         await discordHandlers.refreshAllServerStats(client);
@@ -747,28 +731,6 @@ async function registerSlashCommands() {
     console.log(
         `Successfully registered ${registered.size ?? commandData.length} global slash commands: ${registeredNames.join(', ')}`
     );
-
-    let guildSuccessCount = 0;
-    const guildFailures = [];
-
-    for (const guild of client.guilds.cache.values()) {
-        try {
-            await registerSlashCommandsForGuild(guild, commandData);
-            guildSuccessCount += 1;
-        } catch (error) {
-            guildFailures.push({ guildId: guild.id, error });
-        }
-    }
-
-    if (guildSuccessCount) {
-        console.log(`Synchronized slash commands for ${guildSuccessCount} guild(s).`);
-    }
-
-    if (guildFailures.length) {
-        for (const failure of guildFailures) {
-            console.error(`Failed to synchronize slash commands for guild ${failure.guildId}:`, failure.error);
-        }
-    }
 
     return registeredNames;
 }
@@ -833,7 +795,11 @@ app.get("/", async (req, res) => {
             `Required: ${envRequiredCount}/${envRequiredTotal}`,
             missingRequired.length ? `Missing: ${missingRequired.join(', ')}` : 'Missing: None',
             `Optional: ${optionalConfigured}/${optionalTotal}`,
-            optionalEnabled.length ? `Enabled: ${optionalEnabled.join(', ')}` : 'Enabled: None'
+            ...(
+                optionalEnabled.length
+                    ? ['Enabled:', ...optionalEnabled.map((name) => `- ${name}`)]
+                    : ['Enabled: None']
+            )
         ].join('\\n');
 
         const dbLines = [
@@ -1361,11 +1327,6 @@ client.once("ready", async () => {
 
 client.on("guildCreate", async (guild) => {
     console.log(`Joined new guild ${guild.name ?? 'Unknown'} (${guild.id}). Synchronizing slash commands.`);
-    try {
-        await registerSlashCommandsForGuild(guild);
-    } catch (error) {
-        console.error(`Failed to register slash commands for new guild ${guild.id}:`, error);
-    }
 
     console.log("Provider status on startup:", aiManager.getProviderStatus());
 });
