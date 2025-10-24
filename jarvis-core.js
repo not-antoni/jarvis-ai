@@ -1089,12 +1089,18 @@ EXECUTION PIPELINE
                 : `Quite right, sir, you rolled a ${result}! 🎲`;
         }
 
+        const guildIdFromInteraction = interaction?.guildId || null;
+
         if (cmd.startsWith("!t ")) {
             const query = rawInput.substring(3).trim(); // Remove "!t " prefix
             if (!query) return "Please provide a search query, sir.";
 
+            if (!guildIdFromInteraction) {
+                return "Knowledge base search is only available inside a server, sir.";
+            }
+
             try {
-                const searchResults = await embeddingSystem.searchAndFormat(query, 3);
+                const searchResults = await embeddingSystem.searchAndFormat(query, 3, guildIdFromInteraction);
                 return searchResults;
             } catch (error) {
                 console.error("Embedding search error:", error);
@@ -1315,7 +1321,11 @@ EXECUTION PIPELINE
                 const query = userInput.substring(3).trim();
                 if (query) {
                     try {
-                        const searchResults = await embeddingSystem.searchAndFormat(query, 3);
+                        const guildId = guildIdFromInteraction || interaction?.guildId || null;
+                        if (!guildId) {
+                            throw new Error('Guild context missing');
+                        }
+                        const searchResults = await embeddingSystem.searchAndFormat(query, 3, guildId);
                         embeddingContext = `\n\nKNOWLEDGE BASE SEARCH RESULTS (to help answer the user's question):\n${searchResults}\n\n`;
                         processedInput = userInput;
                     } catch {

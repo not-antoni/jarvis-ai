@@ -928,7 +928,7 @@
             return await this.handleSlashCommandClip(interaction);
         }
 
-        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "reactionrole", "automod", "serverstats", "memberlog"]);
+        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
 
         try {
@@ -1028,6 +1028,18 @@
                     true,
                     interaction
                 );
+            } else if (interaction.commandName === "ticket") {
+                await this.handleTicketCommand(interaction);
+                this.setCooldown(userId);
+                return;
+            } else if (interaction.commandName === "kb") {
+                await this.handleKnowledgeBaseCommand(interaction);
+                this.setCooldown(userId);
+                return;
+            } else if (interaction.commandName === "ask") {
+                await this.handleAskCommand(interaction);
+                this.setCooldown(userId);
+                return;
             } else if (interaction.commandName === "reactionrole") {
                 await this.handleReactionRoleCommand(interaction);
                 this.setCooldown(userId);
