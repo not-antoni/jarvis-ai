@@ -748,28 +748,6 @@ async function registerSlashCommands() {
         `Successfully registered ${registered.size ?? commandData.length} global slash commands: ${registeredNames.join(', ')}`
     );
 
-    let guildSuccessCount = 0;
-    const guildFailures = [];
-
-    for (const guild of client.guilds.cache.values()) {
-        try {
-            await registerSlashCommandsForGuild(guild, commandData);
-            guildSuccessCount += 1;
-        } catch (error) {
-            guildFailures.push({ guildId: guild.id, error });
-        }
-    }
-
-    if (guildSuccessCount) {
-        console.log(`Synchronized slash commands for ${guildSuccessCount} guild(s).`);
-    }
-
-    if (guildFailures.length) {
-        for (const failure of guildFailures) {
-            console.error(`Failed to synchronize slash commands for guild ${failure.guildId}:`, failure.error);
-        }
-    }
-
     return registeredNames;
 }
 
@@ -834,13 +812,13 @@ app.get("/", async (req, res) => {
             missingRequired.length ? `Missing: ${missingRequired.join(', ')}` : 'Missing: None',
             `Optional: ${optionalConfigured}/${optionalTotal}`,
             optionalEnabled.length ? `Enabled: ${optionalEnabled.join(', ')}` : 'Enabled: None'
-        ].join('\\n');
+        ].join('\n');
 
         const dbLines = [
             `Connected: ${databaseStatus.connected ? '✅ Yes' : '❌ No'}`,
             `Ping: ${databaseStatus.ping}`,
             databaseStatus.error ? `Last error: ${databaseStatus.error}` : null
-        ].filter(Boolean).join('\\n');
+        ].filter(Boolean).join('\n');
 
         const uptimeText = `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m ${uptimeSeconds % 60}s`;
         const memoryText = `${Math.round(memory.heapUsed / 1024 / 1024)}MB / ${Math.round(memory.heapTotal / 1024 / 1024)}MB`;
@@ -1361,12 +1339,6 @@ client.once("ready", async () => {
 
 client.on("guildCreate", async (guild) => {
     console.log(`Joined new guild ${guild.name ?? 'Unknown'} (${guild.id}). Synchronizing slash commands.`);
-    try {
-        await registerSlashCommandsForGuild(guild);
-    } catch (error) {
-        console.error(`Failed to register slash commands for new guild ${guild.id}:`, error);
-    }
-
     console.log("Provider status on startup:", aiManager.getProviderStatus());
 });
 
