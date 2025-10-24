@@ -795,11 +795,8 @@ app.get("/", async (req, res) => {
             `Required: ${envRequiredCount}/${envRequiredTotal}`,
             missingRequired.length ? `Missing: ${missingRequired.join(', ')}` : 'Missing: None',
             `Optional: ${optionalConfigured}/${optionalTotal}`,
-            ...(
-                optionalEnabled.length
-                    ? ['Enabled:', ...optionalEnabled.map((name) => `- ${name}`)]
-                    : ['Enabled: None']
-            )
+            `Enabled: ${optionalEnabled.length}`,
+            ...optionalEnabled.map((name) => `- ${name}`)
         ].join('\\n');
 
         const dbLines = [
