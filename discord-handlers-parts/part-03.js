@@ -92,10 +92,24 @@
         }
 
         try {
+            if (cleanContent.toLowerCase().startsWith('digest')) {
+                const energyResult = await this.ensureEnergyAvailability({
+                    message,
+                    cost: this.energyConfig.costs?.digest
+                });
+
+                if (!energyResult.ok) {
+                    return;
+                }
+            }
+
             const utilityResponse = await this.jarvis.handleUtilityCommand(
                 cleanContent,
                 message.author.username,
-                message.author.id
+                message.author.id,
+                false,
+                null,
+                message.guild?.id || null
             );
 
             if (utilityResponse) {
@@ -104,6 +118,15 @@
                 } else {
                     await message.reply("Utility functions misbehaving, sir. Try another?");
                 }
+                return;
+            }
+
+            const energyResult = await this.ensureEnergyAvailability({
+                message,
+                cost: this.energyConfig.costs?.default
+            });
+
+            if (!energyResult.ok) {
                 return;
             }
 
@@ -196,6 +219,48 @@
 
                 await this.updateServerStats(guild, existing);
                 await interaction.editReply('Server statistics channels refreshed, sir.');
+                return;
+            }
+
+            if (subcommand === 'report') {
+                const publish = interaction.options.getBoolean('public') || false;
+                const stats = await this.collectGuildMemberStats(guild);
+
+                const summaryLines = [
+                    `**${guild.name || 'Server'} Snapshot**`,
+                    `• Members: ${this.formatServerStatsValue(stats.total)}`,
+                    `• Humans: ${this.formatServerStatsValue(stats.userCount)}`,
+                    `• Bots: ${this.formatServerStatsValue(stats.botCount)}`,
+                    `• Online Humans: ${this.formatServerStatsValue(stats.onlineUserCount)}`,
+                    `• Offline Humans: ${this.formatServerStatsValue(stats.offlineUserCount)}`,
+                    `• Channels: ${this.formatServerStatsValue(stats.channelCount)}`,
+                    `• Roles: ${this.formatServerStatsValue(stats.roleCount)}`
+                ];
+
+                let chartBuffer = null;
+                try {
+                    chartBuffer = this.renderServerStatsChart(stats, guild.name || 'Server Snapshot');
+                } catch (error) {
+                    console.warn('Failed to render server stats chart:', error);
+                }
+
+                if (publish) {
+                    await interaction.editReply('Compiling your report, sir...');
+                    if (chartBuffer) {
+                        const attachment = new AttachmentBuilder(chartBuffer, { name: 'server-report.png' });
+                        await interaction.channel.send({ content: summaryLines.join('\n'), files: [attachment] });
+                    } else {
+                        await interaction.channel.send(summaryLines.join('\n'));
+                    }
+                    await interaction.editReply('Report posted to the channel, sir.');
+                } else {
+                    if (chartBuffer) {
+                        const attachment = new AttachmentBuilder(chartBuffer, { name: 'server-report.png' });
+                        await interaction.editReply({ content: summaryLines.join('\n'), files: [attachment] });
+                    } else {
+                        await interaction.editReply(summaryLines.join('\n'));
+                    }
+                }
                 return;
             }
 

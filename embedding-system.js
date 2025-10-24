@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const fetch = require('node-fetch');
 const crypto = require('crypto');
 
 const database = require('./database');
@@ -7,17 +8,19 @@ const aiManager = require('./ai-providers');
 class EmbeddingSystem {
     constructor() {
         this.client = null;
-        this.isAvailable = Boolean(process.env.OPENAI);
+        this.localEndpoint = process.env.LOCAL_EMBEDDING_URL || null;
+        this.openAiKey = process.env.OPENAI || null;
+        this.isAvailable = Boolean(this.openAiKey || this.localEndpoint);
         this.embeddingCache = new Map();
     }
 
     ensureClient() {
-        if (!this.isAvailable) {
+        if (!this.openAiKey) {
             throw new Error('OPENAI environment variable not set. Embedding operations are unavailable.');
         }
 
         if (!this.client) {
-            this.client = new OpenAI({ apiKey: process.env.OPENAI });
+            this.client = new OpenAI({ apiKey: this.openAiKey });
         }
 
         return this.client;
@@ -43,13 +46,41 @@ class EmbeddingSystem {
         return total;
     }
 
+    async embedWithLocal(text) {
+        if (!this.localEndpoint) {
+            throw new Error('Local embedding endpoint not configured.');
+        }
+
+        const response = await fetch(this.localEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => response.statusText);
+            throw new Error(`Local embedding request failed: ${response.status} ${errorText}`);
+        }
+
+        const payload = await response.json();
+        const vector = Array.isArray(payload?.embedding)
+            ? payload.embedding.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+            : null;
+
+        if (!vector || vector.length === 0) {
+            throw new Error('Local embedding service returned an invalid vector.');
+        }
+
+        return vector;
+    }
+
     async embedText(text) {
         if (!text || !text.trim()) {
             throw new Error('Cannot embed empty text');
         }
 
         if (!this.isAvailable) {
-            throw new Error('OPENAI environment variable not set.');
+            throw new Error('No embedding provider configured. Set OPENAI or LOCAL_EMBEDDING_URL.');
         }
 
         const cacheKey = crypto.createHash('sha256').update(text).digest('hex');
@@ -57,17 +88,52 @@ class EmbeddingSystem {
             return this.embeddingCache.get(cacheKey);
         }
 
-        const client = this.ensureClient();
-        const response = await client.embeddings.create({
-            model: 'text-embedding-3-large',
-            input: text
-        });
+        let vector = null;
 
-        const vector = response.data?.[0]?.embedding || [];
+        if (this.localEndpoint) {
+            try {
+                vector = await this.embedWithLocal(text);
+            } catch (error) {
+                console.warn('Local embedding service failed, considering OpenAI fallback:', error.message);
+                if (!this.openAiKey) {
+                    throw error;
+                }
+            }
+        }
+
+        if (!vector) {
+            const client = this.ensureClient();
+            const response = await client.embeddings.create({
+                model: 'text-embedding-3-large',
+                input: text
+            });
+
+            vector = response.data?.[0]?.embedding || [];
+        }
+
         const normalized = this.normalizeVector(vector);
         this.embeddingCache.set(cacheKey, normalized);
 
         return normalized;
+    }
+
+    async generateSummary(title, text) {
+        const trimmed = text.length > 6000 ? text.slice(0, 6000) : text;
+        const systemPrompt = [
+            'You are Jarvis, summarizing documents for a server knowledge base.',
+            'Provide a concise summary (max 120 words) highlighting key points and actions.',
+            'Avoid filler phrases and mention if important details seem missing.'
+        ].join(' ');
+
+        const userPrompt = [`Title: ${title || 'Untitled'}`, '', trimmed].join('\n');
+
+        try {
+            const response = await aiManager.generateResponse(systemPrompt, userPrompt, 200);
+            return response?.content?.trim() || null;
+        } catch (error) {
+            console.warn('Failed to generate knowledge summary:', error.message);
+            return null;
+        }
     }
 
     async ingestGuildDocument({ guildId, userId, title, text, tags = [], source = 'manual' }) {
@@ -80,14 +146,24 @@ class EmbeddingSystem {
         }
 
         const embedding = await this.embedText(text);
+        const normalizedTags = Array.isArray(tags)
+            ? Array.from(new Set(tags.map((tag) => String(tag).trim()).filter(Boolean)))
+            : [];
+
+        let summary = null;
+        if (text.length > 280) {
+            summary = await this.generateSummary(title, text);
+        }
 
         const entry = await database.saveKnowledgeEntry({
             guildId,
             userId,
             title: title || 'Untitled document',
             text,
-            tags,
+            tags: normalizedTags,
             source,
+            summary,
+            summaryGeneratedAt: summary ? new Date() : null,
             embedding
         });
 
@@ -125,7 +201,10 @@ class EmbeddingSystem {
         }
 
         const lines = results.map(({ entry, score }, index) => {
-            const preview = entry.text.length > 240 ? `${entry.text.slice(0, 237)}…` : entry.text;
+            const snippetSource = entry.summary && entry.summary.trim().length >= 20
+                ? entry.summary
+                : entry.text;
+            const preview = snippetSource.length > 240 ? `${snippetSource.slice(0, 237)}…` : snippetSource;
             const createdAt = entry.createdAt ? `<t:${Math.floor(new Date(entry.createdAt).getTime() / 1000)}:R>` : 'unknown';
             return `**${index + 1}. ${entry.title || 'Untitled'}** — ${(score * 100).toFixed(1)}% similarity\nID: ${entry._id}\nSaved ${createdAt}\n${preview}`;
         });

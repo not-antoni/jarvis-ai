@@ -1,7 +1,25 @@
+const fs = require('fs');
+const path = require('path');
 const OpenAI = require("openai");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { createOpenAI } = require("@ai-sdk/openai");
 const config = require('./config');
+const fsp = fs.promises;
+
+const PROVIDER_STATE_PATH = path.join(__dirname, 'provider-state.json');
+const COST_PRIORITY = {
+    free: 0,
+    freemium: 1,
+    paid: 2
+};
+
+function resolveCostPriority(provider) {
+    const tier = provider.costTier || 'paid';
+    if (Object.prototype.hasOwnProperty.call(COST_PRIORITY, tier)) {
+        return COST_PRIORITY[tier];
+    }
+    return COST_PRIORITY.paid;
+}
 
 class AIProviderManager {
     constructor() {
@@ -13,7 +31,11 @@ class AIProviderManager {
         this.openRouterGlobalFailure = false; // Track if OpenRouter is globally failing
         this.openRouterFailureCount = 0; // Count consecutive OpenRouter failures
         this.selectedProviderType = config.ai.provider || "auto"; // Get provider selection from config
+        this.stateSaveTimer = null;
+        this.stateSaveDebounceMs = 1500;
+        this.stateDirty = false;
         this.setupProviders();
+        this.loadState();
     }
 
     setupProviders() {
@@ -47,6 +69,8 @@ class AIProviderManager {
                 }),
                 model: "deepseek/deepseek-chat-v3.1:free",
                 type: "openai-chat",
+                family: "openrouter",
+                costTier: "free",
             });
         });
 
@@ -69,6 +93,8 @@ class AIProviderManager {
                 }),
                 model: "llama-3.1-8b-instant",
                 type: "openai-chat",
+                family: "groq",
+                costTier: "free",
             });
         });
 
@@ -84,6 +110,8 @@ class AIProviderManager {
                 client: new GoogleGenerativeAI(key),
                 model: "gemini-2.5-flash-lite",
                 type: "google",
+                family: "google",
+                costTier: "free",
             });
         });
 
@@ -96,12 +124,99 @@ class AIProviderManager {
                 }),
                 model: "gpt-5-nano",
                 type: "gpt5-nano",
+                family: "openai",
+                costTier: "paid",
             });
         }
+
+        this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
 
         console.log(`Initialized ${this.providers.length} AI providers`);
         console.log(`Provider selection mode: ${this.useRandomSelection ? 'Random' : 'Ranked'}`);
         console.log(`Selected provider type: ${this.selectedProviderType}`);
+    }
+
+    loadState() {
+        try {
+            if (!fs.existsSync(PROVIDER_STATE_PATH)) {
+                return;
+            }
+
+            const raw = fs.readFileSync(PROVIDER_STATE_PATH, 'utf8');
+            if (!raw.trim()) {
+                return;
+            }
+
+            const data = JSON.parse(raw);
+
+            if (data.metrics && typeof data.metrics === 'object') {
+                for (const [name, metric] of Object.entries(data.metrics)) {
+                    if (this.providers.find((provider) => provider.name === name) && metric) {
+                        this.metrics.set(name, {
+                            successes: Number(metric.successes) || 0,
+                            failures: Number(metric.failures) || 0,
+                            avgLatencyMs: Number(metric.avgLatencyMs) || 0,
+                        });
+                    }
+                }
+            }
+
+            if (data.disabledProviders && typeof data.disabledProviders === 'object') {
+                const now = Date.now();
+                for (const [name, disabledUntil] of Object.entries(data.disabledProviders)) {
+                    const parsed = Number(disabledUntil);
+                    if (Number.isFinite(parsed) && parsed > now && this.providers.find((provider) => provider.name === name)) {
+                        this.disabledProviders.set(name, parsed);
+                    }
+                }
+            }
+
+            if (data.providerErrors && typeof data.providerErrors === 'object') {
+                for (const [name, errorInfo] of Object.entries(data.providerErrors)) {
+                    if (errorInfo && typeof errorInfo === 'object' && this.providers.find((provider) => provider.name === name)) {
+                        this.providerErrors.set(name, errorInfo);
+                    }
+                }
+            }
+
+            console.log('Restored AI provider cache from disk');
+        } catch (error) {
+            console.warn('Failed to restore AI provider cache:', error);
+        }
+    }
+
+    async saveState() {
+        try {
+            const payload = {
+                metrics: Object.fromEntries(this.metrics),
+                disabledProviders: Object.fromEntries(this.disabledProviders),
+                providerErrors: Object.fromEntries(this.providerErrors),
+                openRouterGlobalFailure: this.openRouterGlobalFailure,
+                openRouterFailureCount: this.openRouterFailureCount,
+                savedAt: new Date().toISOString(),
+            };
+
+            await fsp.writeFile(PROVIDER_STATE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+        } catch (error) {
+            console.warn('Failed to persist AI provider cache:', error);
+        }
+    }
+
+    scheduleStateSave() {
+        this.stateDirty = true;
+        if (this.stateSaveTimer) {
+            return;
+        }
+
+        this.stateSaveTimer = setTimeout(async () => {
+            this.stateSaveTimer = null;
+            if (!this.stateDirty) {
+                return;
+            }
+
+            this.stateDirty = false;
+            await this.saveState();
+        }, this.stateSaveDebounceMs);
     }
 
     _filterProvidersByType(providers) {
@@ -162,7 +277,12 @@ class AIProviderManager {
                     const latencyScore = 1 / Math.max(m.avgLatencyMs, 1);
                     return successRate * 0.7 + latencyScore * 0.3;
                 };
-                
+
+                const priorityDelta = resolveCostPriority(a) - resolveCostPriority(b);
+                if (priorityDelta !== 0) {
+                    return priorityDelta;
+                }
+
                 return score(mb) - score(ma);
             });
     }
@@ -186,10 +306,14 @@ class AIProviderManager {
         if (availableProviders.length === 0) {
             return null;
         }
+
+        const minPriority = Math.min(...availableProviders.map((provider) => resolveCostPriority(provider)));
+        const preferredProviders = availableProviders.filter((provider) => resolveCostPriority(provider) === minPriority);
+        const pool = preferredProviders.length ? preferredProviders : availableProviders;
         
         // Select a random provider from available ones
-        const randomIndex = Math.floor(Math.random() * availableProviders.length);
-        return availableProviders[randomIndex];
+        const randomIndex = Math.floor(Math.random() * pool.length);
+        return pool[randomIndex];
     }
 
     _recordMetric(name, ok, latencyMs) {
@@ -202,8 +326,14 @@ class AIProviderManager {
         if (ok) m.successes += 1;
         else m.failures += 1;
         
-        m.avgLatencyMs = m.avgLatencyMs * 0.7 + latencyMs * 0.3;
+        if (!Number.isFinite(m.avgLatencyMs) || m.avgLatencyMs <= 0) {
+            m.avgLatencyMs = latencyMs;
+        } else {
+            m.avgLatencyMs = m.avgLatencyMs * 0.7 + latencyMs * 0.3;
+        }
+
         this.metrics.set(name, m);
+        this.scheduleStateSave();
     }
 
     async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai.maxTokens) {
@@ -308,9 +438,12 @@ class AIProviderManager {
                     }
                 }
                 
-                this.providerErrors.delete(provider.name);
+                const cleared = this.providerErrors.delete(provider.name);
                 const latency = Date.now() - started;
                 this._recordMetric(provider.name, true, latency);
+                if (cleared) {
+                    this.scheduleStateSave();
+                }
                 
                 if (provider.name.startsWith('OpenRouter')) {
                     this.openRouterFailureCount = 0;
@@ -330,6 +463,7 @@ class AIProviderManager {
                     timestamp: Date.now(),
                     status: error.status,
                 });
+                this.scheduleStateSave();
                 
                 console.error(`Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`);
                 lastError = error;
@@ -339,6 +473,7 @@ class AIProviderManager {
                 const disableDuration = isEmptyResponse ? 6 * 60 * 60 * 1000 : 12 * 60 * 60 * 1000;
                 const hours = disableDuration / (60 * 60 * 1000);
                 this.disabledProviders.set(provider.name, Date.now() + disableDuration);
+                this.scheduleStateSave();
                 console.log(`${provider.name} disabled for ${hours} hours due to ${isEmptyResponse ? 'empty response' : 'error'}`);
 
                 // Handle OpenRouter empty response counting
@@ -349,9 +484,11 @@ class AIProviderManager {
                         this.openRouterGlobalFailure = true;
                         console.log(`OpenRouter global failure detected - disabling all OpenRouter providers for ${hours} hours`);
                         this.openRouterFailureCount = 0;
+                        this.scheduleStateSave();
                         setTimeout(() => {
                             this.openRouterGlobalFailure = false;
                             console.log(`OpenRouter global failure cleared - re-enabling OpenRouter providers`);
+                            this.scheduleStateSave();
                         }, disableDuration);
                     }
                 }
@@ -362,31 +499,86 @@ class AIProviderManager {
     }
 
     getProviderStatus() {
-        return this.providers.map((p) => ({
-            name: p.name,
-            model: p.model,
-            hasError: this.providerErrors.has(p.name),
-            lastError: this.providerErrors.get(p.name) || null,
-            metrics: this.metrics.get(p.name) || {
+        const now = Date.now();
+
+        return this.providers.map((p) => {
+            const metrics = this.metrics.get(p.name) || {
                 successes: 0,
                 failures: 0,
                 avgLatencyMs: null,
-            },
-        }));
+            };
+            const total = metrics.successes + metrics.failures;
+            const disabledUntil = this.disabledProviders.get(p.name) || null;
+
+            return {
+                name: p.name,
+                model: p.model,
+                type: p.type,
+                family: p.family || null,
+                costTier: p.costTier || 'unknown',
+                priority: resolveCostPriority(p),
+                hasError: this.providerErrors.has(p.name),
+                lastError: this.providerErrors.get(p.name) || null,
+                disabledUntil,
+                isDisabled: disabledUntil ? disabledUntil > now : false,
+                metrics: {
+                    successes: metrics.successes,
+                    failures: metrics.failures,
+                    totalRequests: total,
+                    successRate: total ? metrics.successes / total : null,
+                    avgLatencyMs: metrics.avgLatencyMs,
+                },
+            };
+        }).sort((a, b) => {
+            if (a.priority !== b.priority) {
+                return a.priority - b.priority;
+            }
+
+            const rateA = a.metrics.successRate ?? -1;
+            const rateB = b.metrics.successRate ?? -1;
+            if (rateA !== rateB) {
+                return rateB - rateA;
+            }
+
+            return (a.metrics.avgLatencyMs ?? Number.POSITIVE_INFINITY) - (b.metrics.avgLatencyMs ?? Number.POSITIVE_INFINITY);
+        });
     }
 
     getRedactedProviderStatus() {
-        return this.providers.map((p) => ({
+        return this.getProviderStatus().map((p) => ({
+            ...p,
             name: this._redactProviderName(p.name),
             model: this._redactModelName(p.model),
-            hasError: this.providerErrors.has(p.name),
-            lastError: this.providerErrors.get(p.name) ? '[REDACTED]' : null,
-            metrics: this.metrics.get(p.name) || {
-                successes: 0,
-                failures: 0,
-                avgLatencyMs: null,
-            },
+            lastError: p.hasError ? '[REDACTED]' : null,
         }));
+    }
+
+    getProviderAnalytics() {
+        return this.getProviderStatus().map((provider) => {
+            const uptimePercentage = provider.metrics.successRate != null
+                ? (provider.metrics.successRate * 100)
+                : null;
+
+            return {
+                name: provider.name,
+                model: provider.model,
+                type: provider.type,
+                family: provider.family,
+                costTier: provider.costTier,
+                priority: provider.priority,
+                metrics: {
+                    successes: provider.metrics.successes,
+                    failures: provider.metrics.failures,
+                    total: provider.metrics.totalRequests,
+                    successRate: uptimePercentage,
+                    avgLatencyMs: provider.metrics.avgLatencyMs,
+                },
+                disabledUntil: provider.disabledUntil,
+                isDisabled: provider.isDisabled,
+                hasError: provider.hasError,
+                lastError: provider.lastError,
+            };
+        });
     }
 
     _redactProviderName(name) {
@@ -487,3 +679,10 @@ class AIProviderManager {
 }
 
 module.exports = new AIProviderManager();
+            if (typeof data.openRouterGlobalFailure === 'boolean') {
+                this.openRouterGlobalFailure = data.openRouterGlobalFailure;
+            }
+
+            if (typeof data.openRouterFailureCount === 'number') {
+                this.openRouterFailureCount = data.openRouterFailureCount;
+            }

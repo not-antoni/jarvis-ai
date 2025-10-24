@@ -1,11 +1,12 @@
 const { z } = require('zod');
 
-const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_PW', 'OPENAI'];
+const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_PW'];
 
 const envSchema = z.object({
     DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
     MONGO_PW: z.string().min(1, 'MONGO_PW is required'),
-    OPENAI: z.string().min(1, 'OPENAI is required'),
+    OPENAI: z.string().optional(),
+    LOCAL_EMBEDDING_URL: z.string().optional(),
     YOUTUBE_API_KEY: z.string().optional(),
     BRAVE_API_KEY: z.string().optional(),
 }).passthrough();
@@ -25,6 +26,38 @@ function coerceAndDeduplicateChannelIds(ids) {
     return Array.from(new Set(normalized));
 }
 
+function parseBooleanEnv(key, fallback) {
+    const value = process.env[key];
+    if (value == null) {
+        return Boolean(fallback);
+    }
+
+    const normalized = String(value).trim().toLowerCase();
+    if (!normalized) {
+        return Boolean(fallback);
+    }
+
+    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {
+        return true;
+    }
+    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {
+        return false;
+    }
+
+    return Boolean(fallback);
+}
+
+function normalizeFeatureFlags(features = {}) {
+    const normalized = {};
+
+    for (const [key, defaultValue] of Object.entries(features)) {
+        const envKey = `FEATURE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`;
+        normalized[key] = parseBooleanEnv(envKey, defaultValue);
+    }
+
+    return normalized;
+}
+
 function validateConfig(rawConfig) {
     const envResult = envSchema.safeParse(process.env);
 
@@ -41,6 +74,10 @@ function validateConfig(rawConfig) {
         if (!env[key]) {
             throw new Error(`Missing required environment variable: ${key}`);
         }
+    }
+
+    if (!env.OPENAI && !env.LOCAL_EMBEDDING_URL) {
+        console.warn('Warning: Neither OPENAI nor LOCAL_EMBEDDING_URL is configured. Embedding features will be unavailable.');
     }
 
     ['YOUTUBE_API_KEY', 'BRAVE_API_KEY'].forEach((optionalKey) => {
@@ -69,6 +106,7 @@ function validateConfig(rawConfig) {
             ...commands,
             whitelistedChannelIds: coerceAndDeduplicateChannelIds(commands.whitelistedChannelIds),
         },
+        features: normalizeFeatureFlags(rawConfig.features || {})
     };
 }
 

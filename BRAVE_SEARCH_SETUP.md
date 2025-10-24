@@ -33,3 +33,7 @@ The token is available from the Brave Search developer dashboard. The bot uses t
 - Jarvis displays the top three results and links back to the original sources.
 - When the API key is missing or the request fails, Jarvis will let the user know that the web search is temporarily unavailable.
 - Link-style buttons are limited to the first five results to stay within Discord component limits.
+
+## News Briefings
+
+With `BRAVE_API_KEY` configured you can also use the `/news` slash command to retrieve the latest headlines for topics such as technology, AI, gaming, crypto, science, or world news. Jarvis caches the digest for three hours to minimise API calls; pass `fresh:true` if you want to bypass the cache.
