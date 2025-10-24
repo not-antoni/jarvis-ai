@@ -617,7 +617,7 @@
             }
 
             if (!entries.length) {
-                await interaction.editReply(tag ? `No macros found with tag \\`${tag}\\`, sir.` : 'No macros recorded yet, sir. Add some via /kb add.');
+                await interaction.editReply(tag ? `No macros found with tag "${tag}", sir.` : 'No macros recorded yet, sir. Add some via /kb add.');
                 return;
             }
 
