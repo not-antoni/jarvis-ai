@@ -1,184 +1,186 @@
-/**
- * Text Embedding System for Jarvis
- * Uses OpenAI embeddings to search through JSONL data
- */
-
-const fs = require('fs');
-const path = require('path');
 const OpenAI = require('openai');
+const crypto = require('crypto');
+
+const database = require('./database');
 const aiManager = require('./ai-providers');
 
 class EmbeddingSystem {
     constructor() {
-        if (!process.env.OPENAI) {
-            console.error('OPENAI environment variable not set. Embedding system will not work.');
-            this.isLoaded = false;
-            return;
+        this.client = null;
+        this.isAvailable = Boolean(process.env.OPENAI);
+        this.embeddingCache = new Map();
+    }
+
+    ensureClient() {
+        if (!this.isAvailable) {
+            throw new Error('OPENAI environment variable not set. Embedding operations are unavailable.');
         }
-        
-        this.openai = new OpenAI({
-            apiKey: process.env.OPENAI,
+
+        if (!this.client) {
+            this.client = new OpenAI({ apiKey: process.env.OPENAI });
+        }
+
+        return this.client;
+    }
+
+    normalizeVector(vector) {
+        const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+        if (!magnitude || !Number.isFinite(magnitude)) {
+            return vector.map(() => 0);
+        }
+
+        return vector.map((value) => value / magnitude);
+    }
+
+    dotProduct(a, b) {
+        const length = Math.min(a.length, b.length);
+        let total = 0;
+
+        for (let index = 0; index < length; index += 1) {
+            total += a[index] * b[index];
+        }
+
+        return total;
+    }
+
+    async embedText(text) {
+        if (!text || !text.trim()) {
+            throw new Error('Cannot embed empty text');
+        }
+
+        if (!this.isAvailable) {
+            throw new Error('OPENAI environment variable not set.');
+        }
+
+        const cacheKey = crypto.createHash('sha256').update(text).digest('hex');
+        if (this.embeddingCache.has(cacheKey)) {
+            return this.embeddingCache.get(cacheKey);
+        }
+
+        const client = this.ensureClient();
+        const response = await client.embeddings.create({
+            model: 'text-embedding-3-large',
+            input: text
         });
-        this.embeddings = [];
-        this.data = [];
-        this.isLoaded = false;
-        this.loadData();
+
+        const vector = response.data?.[0]?.embedding || [];
+        const normalized = this.normalizeVector(vector);
+        this.embeddingCache.set(cacheKey, normalized);
+
+        return normalized;
     }
 
-    async loadData() {
-        try {
-            const dataPath = path.join(__dirname, 'data.jsonl');
-            const fileContent = fs.readFileSync(dataPath, 'utf8');
-            const lines = fileContent.trim().split('\n');
-            
-            this.data = lines.map(line => JSON.parse(line));
-            console.log(`Loaded ${this.data.length} entries from data.jsonl`);
-            
-            // Generate embeddings for all text entries
-            await this.generateEmbeddings();
-            this.isLoaded = true;
-        } catch (error) {
-            console.error('Error loading data.jsonl:', error);
-            this.isLoaded = false;
-        }
-    }
-
-    async generateEmbeddings() {
-        try {
-            console.log('Generating embeddings for all entries...');
-            
-            // Process in batches to avoid rate limits
-            const batchSize = 10;
-            for (let i = 0; i < this.data.length; i += batchSize) {
-                const batch = this.data.slice(i, i + batchSize);
-                const texts = batch.map(item => item.content);
-                
-                const response = await this.openai.embeddings.create({
-                    model: "text-embedding-3-large", // More powerful embedding model
-                    input: texts,
-                });
-                
-                // Store embeddings with their corresponding data
-                batch.forEach((item, index) => {
-                    this.embeddings.push({
-                        embedding: response.data[index].embedding,
-                        text: item.content,
-                        metadata: { title: item.title },
-                        index: i + index
-                    });
-                });
-                
-                // Small delay to avoid rate limits
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-            
-            console.log(`Generated ${this.embeddings.length} embeddings`);
-        } catch (error) {
-            console.error('Error generating embeddings:', error);
-        }
-    }
-
-    // Calculate cosine similarity between two vectors
-    cosineSimilarity(a, b) {
-        const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
-        const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-        const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-        return dotProduct / (magnitudeA * magnitudeB);
-    }
-
-    async search(query, topK = 3) {
-        if (!this.isLoaded) {
-            return { error: 'Embedding system not loaded - check OPENAI environment variable' };
+    async ingestGuildDocument({ guildId, userId, title, text, tags = [], source = 'manual' }) {
+        if (!database.isConnected) {
+            throw new Error('Database not connected');
         }
 
+        if (!text || !text.trim()) {
+            throw new Error('Cannot ingest empty content');
+        }
+
+        const embedding = await this.embedText(text);
+
+        const entry = await database.saveKnowledgeEntry({
+            guildId,
+            userId,
+            title: title || 'Untitled document',
+            text,
+            tags,
+            source,
+            embedding
+        });
+
+        return entry;
+    }
+
+    async searchGuildKnowledge(guildId, query, { limit = 5, threshold = 0.15 } = {}) {
+        if (!database.isConnected) {
+            throw new Error('Database not connected');
+        }
+
+        const entries = await database.getKnowledgeEntriesForGuild(guildId);
+        if (!entries.length) {
+            return [];
+        }
+
+        const queryEmbedding = await this.embedText(query);
+
+        const scored = entries
+            .map((entry) => ({
+                entry,
+                score: this.dotProduct(queryEmbedding, entry.embedding || [])
+            }))
+            .filter((item) => Number.isFinite(item.score) && item.score >= threshold)
+            .sort((a, b) => b.score - a.score);
+
+        return scored.slice(0, limit);
+    }
+
+    async formatSearchResults(guildId, query, options = {}) {
+        const results = await this.searchGuildKnowledge(guildId, query, options);
+
+        if (!results.length) {
+            return { message: `No knowledge base entries matched "${query}".`, results: [] };
+        }
+
+        const lines = results.map(({ entry, score }, index) => {
+            const preview = entry.text.length > 240 ? `${entry.text.slice(0, 237)}…` : entry.text;
+            const createdAt = entry.createdAt ? `<t:${Math.floor(new Date(entry.createdAt).getTime() / 1000)}:R>` : 'unknown';
+            return `**${index + 1}. ${entry.title || 'Untitled'}** — ${(score * 100).toFixed(1)}% similarity\nID: ${entry._id}\nSaved ${createdAt}\n${preview}`;
+        });
+
+        return {
+            message: [`Top knowledge base matches for "${query}":`, ...lines].join('\n\n'),
+            results
+        };
+    }
+
+    async searchAndFormat(query, topK = 3, guildId = null) {
+        if (!guildId) {
+            throw new Error('Guild context required for knowledge search');
+        }
+
+        const { message } = await this.formatSearchResults(guildId, query, { limit: topK });
+        return message;
+    }
+
+    async answerGuildQuestion({ guildId, userId, query, limit = 3 }) {
+        const { results } = await this.formatSearchResults(guildId, query, { limit });
+
+        if (!results.length) {
+            return {
+                answer: `I do not have any saved knowledge for "${query}" yet, but you can add some via /kb add.`,
+                sources: []
+            };
+        }
+
+        const contextBlocks = results.map(({ entry, score }, index) => {
+            return [
+                `Source ${index + 1}: ${entry.title || 'Untitled'} (ID: ${entry._id}, similarity ${(score * 100).toFixed(1)}%)`,
+                entry.text
+            ].join('\n');
+        });
+
+        const systemPrompt = 'You are Jarvis, an assistant that answers questions using provided server knowledge. Respond concisely, cite sources using [Sx] markers matching the provided source order, and mention when information is missing.';
+        const userPrompt = [`Question: ${query}`, '', ...contextBlocks].join('\n');
+
         try {
-            // Generate embedding for the query
-            const response = await this.openai.embeddings.create({
-                model: "text-embedding-3-large",
-                input: query,
-            });
+            const response = await aiManager.generateResponse(systemPrompt, userPrompt, 450);
 
-            const queryEmbedding = response.data[0].embedding;
-
-            // Calculate similarities
-            const similarities = this.embeddings.map(item => ({
-                ...item,
-                similarity: this.cosineSimilarity(queryEmbedding, item.embedding)
+            const answer = response?.content?.trim() || 'I encountered an issue while generating an answer, sir.';
+            const sources = results.map(({ entry }, index) => ({
+                label: `[S${index + 1}] ${entry.title || 'Untitled'}`,
+                id: entry._id
             }));
 
-            // Sort by similarity and return top K results
-            const results = similarities
-                .sort((a, b) => b.similarity - a.similarity)
-                .slice(0, topK)
-                .filter(item => item.similarity > 0.1); // Filter out very low similarities
-
+            return { answer, sources };
+        } catch (error) {
+            console.error('Failed to generate knowledge-based answer:', error);
             return {
-                query,
-                results: results.map(item => ({
-                    text: item.text,
-                    metadata: item.metadata,
-                    similarity: item.similarity
-                }))
+                answer: 'I could not generate an answer from the knowledge base at this time, sir.',
+                sources: []
             };
-        } catch (error) {
-            console.error('Error searching embeddings:', error);
-            return { error: 'Search failed' };
-        }
-    }
-
-    async searchAndFormat(query, topK = 1) {
-        console.log(`Embedding search for: "${query}"`);
-        const searchResult = await this.search(query, topK);
-        
-        if (searchResult.error) {
-            console.log(`Embedding search error: ${searchResult.error}`);
-            return searchResult.error;
-        }
-
-        if (searchResult.results.length === 0) {
-            console.log(`No results found for: "${query}"`);
-            return `No relevant information found for "${query}"`;
-        }
-
-        // Get only the best result (highest relevance)
-        const bestResult = searchResult.results[0];
-        console.log(`Found best result for: "${query}" - ${(bestResult.similarity * 100).toFixed(1)}% relevance`);
-        
-        // Format the raw result for summarization
-        let rawContent = `**Best Match: ${bestResult.metadata.title}** (relevance: ${(bestResult.similarity * 100).toFixed(1)}%)\n\n`;
-        
-        // Use full text for summarization (no truncation yet)
-        rawContent += bestResult.text;
-
-        // Now summarize the content using random AI provider
-        try {
-            console.log(`Summarizing content for query: "${query}"`);
-            const summarizedResponse = await aiManager.generateResponse(
-                "You are a technical documentation summarizer. Summarize the following content concisely while preserving all important technical details, specifications, and key information. Keep it clear and informative.",
-                `Query: "${query}"\n\nContent to summarize:\n\n${rawContent}`,
-                300 // Limit output tokens for concise summary
-            );
-            
-            if (summarizedResponse && summarizedResponse.content) {
-                console.log(`Successfully summarized content for: "${query}"`);
-                return summarizedResponse.content.trim();
-            } else {
-                console.log(`Summarization failed for: "${query}", returning truncated original`);
-                // Fallback to truncated original if summarization fails
-                const maxTextLength = 1500;
-                const truncatedText = bestResult.text.length > maxTextLength 
-                    ? bestResult.text.substring(0, maxTextLength) + "..."
-                    : bestResult.text;
-                return `**Best Match: ${bestResult.metadata.title}** (relevance: ${(bestResult.similarity * 100).toFixed(1)}%)\n\n${truncatedText}`;
-            }
-        } catch (error) {
-            console.error(`Summarization error for query "${query}":`, error);
-            // Fallback to truncated original if summarization fails
-            const maxTextLength = 1500;
-            const truncatedText = bestResult.text.length > maxTextLength 
-                ? bestResult.text.substring(0, maxTextLength) + "..."
-                : bestResult.text;
-            return `**Best Match: ${bestResult.metadata.title}** (relevance: ${(bestResult.similarity * 100).toFixed(1)}%)\n\n${truncatedText}`;
         }
     }
 }
