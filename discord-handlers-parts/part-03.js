@@ -104,12 +104,13 @@
             }
 
             const utilityResponse = await this.jarvis.handleUtilityCommand(
-                cleanContent,
+                canonicalContent,
                 message.author.username,
                 message.author.id,
                 false,
                 null,
-                message.guild?.id || null
+                message.guild?.id || null,
+                prefix
             );
 
             if (utilityResponse) {
@@ -130,7 +131,7 @@
                 return;
             }
 
-            const response = await this.jarvis.generateResponse(message, cleanContent, false, contextualMemory);
+            const response = await this.jarvis.generateResponse(message, canonicalContent, false, contextualMemory, prefix);
 
             if (typeof response === "string" && response.trim()) {
                 await message.reply(response);
@@ -145,6 +146,60 @@
                 console.error("Failed to send error reply:", err);
             }
         }
+    }
+
+    async handleConfigCommand(interaction) {
+        const guild = interaction.guild;
+
+        if (!guild) {
+            await interaction.editReply('Configuration commands only work inside a server, sir.');
+            return;
+        }
+
+        if (!database.isConnected) {
+            await interaction.editReply('Database uplink offline, sir. Configuration unavailable.');
+            return;
+        }
+
+        const subcommandGroup = interaction.options.getSubcommandGroup(false);
+        const subcommand = interaction.options.getSubcommand();
+
+        if (subcommandGroup !== 'prefix') {
+            await interaction.editReply('I do not recognize that configuration group, sir.');
+            return;
+        }
+
+        if (subcommand === 'show') {
+            const prefix = await this.getGuildPrefix(guild.id);
+            await interaction.editReply(`Current legacy command prefix: \`${prefix}\`, sir.`);
+            return;
+        }
+
+        if (subcommand === 'set') {
+            const member = interaction.member;
+            const hasPermission = member?.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
+                member?.permissions?.has(PermissionsBitField.Flags.Administrator) ||
+                interaction.user.id === guild.ownerId;
+
+            if (!hasPermission) {
+                await interaction.editReply('Only administrators may adjust the prefix, sir.');
+                return;
+            }
+
+            const requested = interaction.options.getString('value', true);
+            const normalized = this.normalizePrefixValue(requested);
+
+            if (!normalized) {
+                await interaction.editReply('Prefixes must be 1-5 visible characters without spaces, sir.');
+                return;
+            }
+
+            const updated = await this.updateGuildPrefix(guild.id, normalized);
+            await interaction.editReply(`Legacy command prefix updated to \`${updated}\`, sir.`);
+            return;
+        }
+
+        await interaction.editReply('I am not certain how to handle that configuration request, sir.');
     }
 
     async handleServerStatsCommand(interaction) {
