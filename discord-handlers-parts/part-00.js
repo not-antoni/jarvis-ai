@@ -23,6 +23,8 @@ const fs = require('fs');
 const path = require('path');
 const database = require('./database');
 const fetch = require('node-fetch');
+const pdfParse = require('pdf-parse');
+const embeddingSystem = require('./embedding-system');
 
 class DiscordHandlers {
     constructor() {
@@ -56,6 +58,96 @@ class DiscordHandlers {
             '⚠️ {mention} has left the server. Recalibrating member count to {membercount}.',
             '😔 {mention} disconnected from {server}. Until we meet again.'
         ];
+    }
+
+    getTicketStaffRoleIds(guild) {
+        if (!guild?.roles?.cache) {
+            return [];
+        }
+
+        return guild.roles.cache
+            .filter((role) => !role.managed && role.editable && (
+                role.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
+                role.permissions.has(PermissionsBitField.Flags.ManageChannels) ||
+                role.permissions.has(PermissionsBitField.Flags.ManageMessages) ||
+                role.permissions.has(PermissionsBitField.Flags.Administrator)
+            ))
+            .map((role) => role.id);
+    }
+
+    async ensureTicketCategory(guild) {
+        if (!guild) {
+            return null;
+        }
+
+        const existing = guild.channels.cache.find((channel) =>
+            channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === 'tickets'
+        );
+
+        if (existing) {
+            return existing;
+        }
+
+        try {
+            const created = await guild.channels.create({
+                name: 'Tickets',
+                type: ChannelType.GuildCategory,
+                reason: 'Initializing ticket workspace for Jarvis'
+            });
+            return created;
+        } catch (error) {
+            console.error('Failed to create ticket category:', error);
+            return null;
+        }
+    }
+
+    async collectTicketTranscript(channel) {
+        const collected = [];
+
+        if (!channel?.messages) {
+            return collected;
+        }
+
+        let beforeId = null;
+        const maxIterations = 100;
+        let iterations = 0;
+
+        while (iterations < maxIterations) {
+            iterations += 1;
+            try {
+                const fetched = await channel.messages.fetch({ limit: 100, before: beforeId });
+                if (!fetched.size) {
+                    break;
+                }
+
+                const batch = [...fetched.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+                for (const message of batch) {
+                    collected.push({
+                        id: message.id,
+                        authorId: message.author?.id || null,
+                        authorTag: message.author?.tag || message.author?.username || 'Unknown',
+                        createdAt: message.createdAt?.toISOString() || new Date().toISOString(),
+                        content: message.cleanContent || message.content || '',
+                        attachments: message.attachments?.map((attachment) => ({
+                            id: attachment.id,
+                            name: attachment.name,
+                            url: attachment.url,
+                            contentType: attachment.contentType || null
+                        })) || []
+                    });
+                }
+
+                beforeId = batch[0]?.id;
+                if (!beforeId) {
+                    break;
+                }
+            } catch (error) {
+                console.error('Failed to fetch ticket transcript messages:', error);
+                break;
+            }
+        }
+
+        return collected;
     }
 
     // Clean up old cooldowns to prevent memory leaks

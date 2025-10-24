@@ -2,7 +2,7 @@
  * Database connection and operations for Jarvis Bot
  */
 
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const config = require('./config');
 
 class DatabaseManager {
@@ -41,6 +41,10 @@ class DatabaseManager {
             const reactionRoles = this.db.collection(config.database.collections.reactionRoles);
             const autoModeration = this.db.collection(config.database.collections.autoModeration);
             const serverStats = this.db.collection(config.database.collections.serverStats);
+            const tickets = this.db.collection(config.database.collections.tickets);
+            const ticketTranscripts = this.db.collection(config.database.collections.ticketTranscripts);
+            const knowledgeBase = this.db.collection(config.database.collections.knowledgeBase);
+            const counters = this.db.collection(config.database.collections.counters);
 
             await conversations.createIndex({ userId: 1, guildId: 1, createdAt: -1 });
             await conversations.createIndex(
@@ -70,6 +74,17 @@ class DatabaseManager {
                     partialFilterExpression: { isConfig: { $ne: true }, createdAt: { $exists: true } }
                 }
             );
+
+            await tickets.createIndex({ guildId: 1, channelId: 1 }, { unique: true });
+            await tickets.createIndex({ guildId: 1, openerId: 1, status: 1 });
+            await tickets.createIndex({ createdAt: -1 });
+
+            await ticketTranscripts.createIndex({ ticketId: 1 }, { unique: true });
+
+            await knowledgeBase.createIndex({ guildId: 1, createdAt: -1 });
+            await knowledgeBase.createIndex({ guildId: 1, tags: 1 });
+
+            await counters.createIndex({ key: 1 }, { unique: true });
 
             console.log('Database indexes created successfully');
         } catch (error) {
@@ -391,6 +406,170 @@ class DatabaseManager {
         await this.db
             .collection(config.database.collections.autoModeration)
             .deleteOne({ guildId });
+    }
+
+    async reserveCounter(key) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const result = await this.db
+            .collection(config.database.collections.counters)
+            .findOneAndUpdate(
+                { key },
+                { $inc: { value: 1 } },
+                { upsert: true, returnDocument: 'after' }
+            );
+
+        const value = result?.value?.value ?? 1;
+        return value;
+    }
+
+    async createTicket(ticket) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const now = new Date();
+        const payload = {
+            ...ticket,
+            status: ticket.status || 'open',
+            createdAt: now,
+            updatedAt: now
+        };
+
+        const result = await this.db
+            .collection(config.database.collections.tickets)
+            .insertOne(payload);
+
+        return { ...payload, _id: result.insertedId };
+    }
+
+    async getOpenTicket(guildId, openerId) {
+        if (!this.isConnected) return null;
+
+        return this.db
+            .collection(config.database.collections.tickets)
+            .findOne({ guildId, openerId, status: 'open' });
+    }
+
+    async getTicketByChannel(channelId) {
+        if (!this.isConnected) return null;
+
+        return this.db
+            .collection(config.database.collections.tickets)
+            .findOne({ channelId });
+    }
+
+    async getTicketById(ticketId) {
+        if (!this.isConnected) return null;
+
+        const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
+
+        return this.db
+            .collection(config.database.collections.tickets)
+            .findOne({ _id: id });
+    }
+
+    async closeTicket(ticketId, updates = {}) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
+        const now = new Date();
+
+        const result = await this.db
+            .collection(config.database.collections.tickets)
+            .findOneAndUpdate(
+                { _id: id },
+                {
+                    $set: {
+                        status: 'closed',
+                        closedAt: now,
+                        updatedAt: now,
+                        ...updates
+                    }
+                },
+                { returnDocument: 'after' }
+            );
+
+        return result?.value || null;
+    }
+
+    async saveTicketTranscript(ticketId, transcript) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
+
+        await this.db
+            .collection(config.database.collections.ticketTranscripts)
+            .updateOne(
+                { ticketId: id },
+                {
+                    $set: {
+                        ticketId: id,
+                        messages: transcript.messages,
+                        exportedAt: new Date(),
+                        messageCount: transcript.messageCount,
+                        summary: transcript.summary || null
+                    }
+                },
+                { upsert: true }
+            );
+    }
+
+    async getTicketTranscript(ticketId) {
+        if (!this.isConnected) return null;
+
+        const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
+
+        return this.db
+            .collection(config.database.collections.ticketTranscripts)
+            .findOne({ ticketId: id });
+    }
+
+    async saveKnowledgeEntry(entry) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const now = new Date();
+        const payload = {
+            ...entry,
+            createdAt: entry.createdAt || now,
+            updatedAt: now
+        };
+
+        const result = await this.db
+            .collection(config.database.collections.knowledgeBase)
+            .insertOne(payload);
+
+        return { ...payload, _id: result.insertedId };
+    }
+
+    async getKnowledgeEntriesForGuild(guildId) {
+        if (!this.isConnected) return [];
+
+        return this.db
+            .collection(config.database.collections.knowledgeBase)
+            .find({ guildId })
+            .sort({ createdAt: -1 })
+            .toArray();
+    }
+
+    async getKnowledgeEntryById(guildId, entryId) {
+        if (!this.isConnected) return null;
+
+        const id = typeof entryId === 'string' ? new ObjectId(entryId) : entryId;
+
+        return this.db
+            .collection(config.database.collections.knowledgeBase)
+            .findOne({ _id: id, guildId });
+    }
+
+    async deleteKnowledgeEntry(guildId, entryId) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const id = typeof entryId === 'string' ? new ObjectId(entryId) : entryId;
+
+        const result = await this.db
+            .collection(config.database.collections.knowledgeBase)
+            .deleteOne({ _id: id, guildId });
+
+        return result.deletedCount > 0;
     }
 
     async getServerStatsConfig(guildId) {
