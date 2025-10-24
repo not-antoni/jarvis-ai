@@ -567,18 +567,20 @@ const serverStatsRefreshJob = cron.schedule('*/10 * * * *', async () => {
 }, { scheduled: false });
 
 async function registerSlashCommands() {
-    try {
-        const commandData = commands.map(command => command.toJSON());
+    const commandData = commands.map((command) => command.toJSON());
 
-        if (!client.application?.id) {
-            await client.application?.fetch();
-        }
-
-        await client.application.commands.set(commandData);
-        console.log(`Successfully registered ${commandData.length} global slash commands.`);
-    } catch (error) {
-        console.error("Failed to register slash commands:", error);
+    if (!client.application?.id) {
+        await client.application?.fetch();
     }
+
+    const registered = await client.application.commands.set(commandData);
+    const registeredNames = Array.from(registered.values(), (cmd) => cmd.name);
+
+    console.log(
+        `Successfully registered ${registered.size ?? commandData.length} global slash commands: ${registeredNames.join(', ')}`
+    );
+
+    return registeredNames;
 }
 
 // ------------------------ Uptime Server ------------------------
@@ -839,17 +841,35 @@ app.get("/health", (req, res) => {
 // ------------------------ Event Handlers ------------------------
 client.once("ready", async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
+    client.user.setActivity("over the digital realm", { type: "WATCHING" });
+
+    let databaseConnected = false;
 
     try {
         await database.connect();
-        client.user.setActivity("over the digital realm", { type: "WATCHING" });
-        await registerSlashCommands();
-        serverStatsRefreshJob.start();
-        await discordHandlers.refreshAllServerStats(client);
-        console.log("Provider status on startup:", aiManager.getProviderStatus());
+        databaseConnected = true;
     } catch (error) {
-        console.error("Failed to initialize:", error);
+        console.error("Failed to connect to MongoDB on startup:", error);
     }
+
+    try {
+        await registerSlashCommands();
+    } catch (error) {
+        console.error("Failed to register slash commands on startup:", error);
+    }
+
+    if (databaseConnected) {
+        serverStatsRefreshJob.start();
+        try {
+            await discordHandlers.refreshAllServerStats(client);
+        } catch (error) {
+            console.error("Failed to refresh server stats on startup:", error);
+        }
+    } else {
+        console.warn("Skipping server stats initialization because the database connection was not established.");
+    }
+
+    console.log("Provider status on startup:", aiManager.getProviderStatus());
 });
 
 client.on("messageCreate", async (message) => {
