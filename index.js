@@ -12,6 +12,7 @@ const config = require('./config');
 const database = require('./database');
 const aiManager = require('./ai-providers');
 const discordHandlers = require('./discord-handlers');
+const { gatherHealthSnapshot } = require('./diagnostics');
 
 // ------------------------ Discord Client Setup ------------------------
 const client = new Client({
@@ -26,7 +27,7 @@ const client = new Client({
 });
 
 // ------------------------ Slash Command Registration ------------------------
-const commands = [
+const allCommands = [
     new SlashCommandBuilder()
         .setName("jarvis")
         .setDescription("Interact with Jarvis, Tony Stark's AI assistant")
@@ -107,6 +108,10 @@ const commands = [
                         .setName("value")
                         .setDescription("Value to store for the preference")
                         .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("energy")
+                .setDescription("Check your current energy status"))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("history")
@@ -131,6 +136,27 @@ const commands = [
                     { name: "Last 24 hours", value: "24h" },
                     { name: "Last 7 days", value: "7d" }
                 ))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("digest")
+        .setDescription("Summarize recent activity for this server")
+        .addStringOption(option =>
+            option
+                .setName("window")
+                .setDescription("Time range to summarize")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Last 6 hours", value: "6h" },
+                    { name: "Last 24 hours", value: "24h" },
+                    { name: "Last 7 days", value: "7d" }
+                ))
+        .addIntegerOption(option =>
+            option
+                .setName("highlights")
+                .setDescription("Approximate number of highlights to surface (default 5)")
+                .setRequired(false)
+                .setMinValue(3)
+                .setMaxValue(10))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("decode")
@@ -182,6 +208,28 @@ const commands = [
                     { name: "Punycode", value: "punycode" },
                     { name: "Morse code", value: "morse" }
                 ))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("news")
+        .setDescription("Fetch curated headlines for a topic")
+        .addStringOption(option =>
+            option
+                .setName("topic")
+                .setDescription("Which news desk to pull from")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Technology", value: "technology" },
+                    { name: "Artificial Intelligence", value: "ai" },
+                    { name: "Gaming", value: "gaming" },
+                    { name: "Crypto", value: "crypto" },
+                    { name: "Science", value: "science" },
+                    { name: "World", value: "world" }
+                ))
+        .addBooleanOption(option =>
+            option
+                .setName("fresh")
+                .setDescription("Bypass cache and fetch fresh headlines")
+                .setRequired(false))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("clip")
@@ -294,6 +342,44 @@ const commands = [
                 .setName('query')
                 .setDescription('What would you like to know?')
                 .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('macro')
+        .setDescription('Send reusable knowledge base responses')
+        .addSubcommand((sub) =>
+            sub
+                .setName('list')
+                .setDescription('List macros available for this server')
+                .addStringOption((option) =>
+                    option
+                        .setName('tag')
+                        .setDescription('Filter macros by tag')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('send')
+                .setDescription('Send a macro response from the knowledge base')
+                .addStringOption((option) =>
+                    option
+                        .setName('entry_id')
+                        .setDescription('Knowledge base entry identifier to send')
+                        .setRequired(false)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('tag')
+                        .setDescription('Fallback tag if entry id is not provided')
+                        .setRequired(false)
+                )
+                .addChannelOption((option) =>
+                    option
+                        .setName('channel')
+                        .setDescription('Channel to send the macro to (defaults to here)')
+                        .setRequired(false)
+                        .addChannelTypes(ChannelType.GuildText))
         )
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
@@ -467,6 +553,15 @@ const commands = [
                 .setDescription("Refresh the server stats counts immediately"))
         .addSubcommand(subcommand =>
             subcommand
+                .setName("report")
+                .setDescription("Generate a snapshot report with charts")
+                .addBooleanOption(option =>
+                    option
+                        .setName("public")
+                        .setDescription("Post the report in the channel instead of privately")
+                        .setRequired(false)))
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName("disable")
                 .setDescription("Remove the server stats channels"))
         .setContexts([InteractionContextType.Guild]),
@@ -565,6 +660,52 @@ const commands = [
         .setContexts([InteractionContextType.Guild]),
 ];
 
+const commandFeatureMap = new Map([
+    ['jarvis', 'coreChat'],
+    ['status', 'coreChat'],
+    ['roll', 'utilities'],
+    ['time', 'utilities'],
+    ['providers', 'providers'],
+    ['reset', 'reset'],
+    ['help', 'coreChat'],
+    ['invite', 'invite'],
+    ['profile', 'coreChat'],
+    ['history', 'coreChat'],
+    ['recap', 'coreChat'],
+    ['digest', 'digests'],
+    ['decode', 'utilities'],
+    ['encode', 'utilities'],
+    ['news', 'newsBriefings'],
+    ['clip', 'clipping'],
+    ['ticket', 'tickets'],
+    ['kb', 'knowledgeBase'],
+    ['ask', 'knowledgeAsk'],
+    ['macro', 'macroReplies'],
+    ['reactionrole', 'reactionRoles'],
+    ['automod', 'automod'],
+    ['serverstats', 'serverStats'],
+    ['memberlog', 'memberLog']
+]);
+
+const featureFlags = config.features || {};
+
+const isFeatureEnabled = (flag, fallback = true) => {
+    if (!flag) {
+        return fallback;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(featureFlags, flag)) {
+        return Boolean(featureFlags[flag]);
+    }
+
+    return fallback;
+};
+
+const commands = allCommands.filter((builder) => {
+    const featureKey = commandFeatureMap.get(builder.name);
+    return isFeatureEnabled(featureKey);
+});
+
 function buildCommandData() {
     return commands.map((command) => command.toJSON());
 }
@@ -636,13 +777,75 @@ async function registerSlashCommands() {
 const app = express();
 
 // Main endpoint - ASCII Animation Page
-app.get("/", (req, res) => {
-    const providerStatus = aiManager.getRedactedProviderStatus();
-    const workingProviders = providerStatus.filter(p => !p.hasError).length;
-    const uptime = Math.floor(process.uptime());
-    const memory = process.memoryUsage();
-    
-    res.send(`
+app.get("/", async (req, res) => {
+    try {
+        const snapshot = await gatherHealthSnapshot({
+            includeProviders: true,
+            redactProviders: true,
+            pingDatabase: false
+        });
+
+        const providerStatus = snapshot.providers;
+        const workingProviders = providerStatus.filter(p => !p.hasError && !p.isDisabled).length;
+        const uptimeSeconds = Math.floor(snapshot.system.uptimeSeconds);
+        const memory = snapshot.system.memory;
+        const envRequiredCount = snapshot.env.required.filter(item => item.present).length;
+        const envRequiredTotal = snapshot.env.required.length;
+        const optionalConfigured = snapshot.env.optionalConfigured;
+        const optionalTotal = snapshot.env.optionalTotal;
+        const missingRequired = snapshot.env.required.filter(item => !item.present).map(item => item.name);
+        const optionalEnabled = snapshot.env.optional.filter(item => item.present).map(item => item.name);
+        const databaseStatus = snapshot.database;
+
+        const providerList = providerStatus.map(provider => {
+            const uptimePercent = provider.metrics.successRate != null
+                ? `${(provider.metrics.successRate * 100).toFixed(1)}%`
+                : 'n/a';
+            const latency = Number.isFinite(provider.metrics.avgLatencyMs)
+                ? `${Math.round(provider.metrics.avgLatencyMs)}ms`
+                : 'n/a';
+            let statusClass = 'online';
+            let statusLabel = '✅ OK';
+
+            if (provider.isDisabled) {
+                statusClass = 'offline';
+                statusLabel = '⛔ Paused';
+            } else if (provider.hasError) {
+                statusClass = 'warning';
+                statusLabel = '⚠️ Error';
+            }
+
+            const disabledInfo = provider.isDisabled && provider.disabledUntil
+                ? ` • resumes ${new Date(provider.disabledUntil).toLocaleString()}`
+                : '';
+
+            return `
+                        <div class="provider-item">
+                            <div>
+                                <div class="provider-name">${provider.name}</div>
+                                <div class="provider-meta">Uptime ${uptimePercent} • Latency ${latency}${disabledInfo}</div>
+                            </div>
+                            <span class="provider-status ${statusClass}">${statusLabel}</span>
+                        </div>`;
+        }).join('') || '<div class="provider-item"><span class="provider-name">No providers configured</span></div>';
+
+        const envSummaryLines = [
+            `Required: ${envRequiredCount}/${envRequiredTotal}`,
+            missingRequired.length ? `Missing: ${missingRequired.join(', ')}` : 'Missing: None',
+            `Optional: ${optionalConfigured}/${optionalTotal}`,
+            optionalEnabled.length ? `Enabled: ${optionalEnabled.join(', ')}` : 'Enabled: None'
+        ].join('\\n');
+
+        const dbLines = [
+            `Connected: ${databaseStatus.connected ? '✅ Yes' : '❌ No'}`,
+            `Ping: ${databaseStatus.ping}`,
+            databaseStatus.error ? `Last error: ${databaseStatus.error}` : null
+        ].filter(Boolean).join('\\n');
+
+        const uptimeText = `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m ${uptimeSeconds % 60}s`;
+        const memoryText = `${Math.round(memory.heapUsed / 1024 / 1024)}MB / ${Math.round(memory.heapTotal / 1024 / 1024)}MB`;
+
+        res.send(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -715,6 +918,11 @@ app.get("/", (req, res) => {
         
         .provider-name {
             color: #ffffff;
+        }
+        
+        .provider-meta {
+            font-size: 12px;
+            color: #66ff66;
         }
         
         .provider-status {
@@ -796,27 +1004,27 @@ app.get("/", (req, res) => {
             <div class="status-card">
                 <h3>🤖 AI PROVIDERS</h3>
                 <div class="provider-list">
-                    ${providerStatus.map(provider => `
-                        <div class="provider-item">
-                            <span class="provider-name">${provider.name}</span>
-                            <span class="provider-status ${provider.hasError ? 'offline' : 'online'}">
-                                ${provider.hasError ? '❌ OFFLINE' : '✅ ONLINE'}
-                            </span>
-                        </div>
-                    `).join('')}
+                    ${providerList}
                 </div>
                 <div style="margin-top: 10px; text-align: center;">
                     <strong>${workingProviders}/${providerStatus.length} Active</strong>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <h3>🧪 ENVIRONMENT</h3>
+                <div style="white-space: pre;">
+${envSummaryLines}
                 </div>
             </div>
             
             <div class="status-card">
                 <h3>💾 SYSTEM INFO</h3>
                 <div style="white-space: pre;">
-Database: ${database.isConnected ? '✅ Connected' : '❌ Disconnected'}
-Uptime: ${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m ${uptime % 60}s
-Memory: ${Math.round(memory.heapUsed / 1024 / 1024)}MB / ${Math.round(memory.heapTotal / 1024 / 1024)}MB
-Status: <span class="online">OPERATIONAL</span>
+Database:
+${dbLines}
+Uptime: ${uptimeText}
+Memory: ${memoryText}
                 </div>
             </div>
         </div>
@@ -830,6 +1038,9 @@ Status: <span class="online">OPERATIONAL</span>
         
         <button class="refresh-btn" onclick="location.reload()">
             🔄 REFRESH STATUS
+        </button>
+        <button class="refresh-btn" onclick="location.href='/dashboard'">
+            📊 OPEN DASHBOARD
         </button>
         
         <div class="footer">
@@ -865,26 +1076,253 @@ Status: <span class="online">OPERATIONAL</span>
     </script>
 </body>
 </html>
-    `);
+        `);
+    } catch (error) {
+        console.error('Failed to render status page:', error);
+        res.status(500).send('Jarvis uplink is initializing. Please try again shortly.');
+    }
+});
+
+app.get("/dashboard", async (req, res) => {
+    const deep = ['1', 'true', 'yes', 'deep'].includes(String(req.query.deep || '').toLowerCase());
+
+    try {
+        const snapshot = await gatherHealthSnapshot({
+            includeProviders: true,
+            redactProviders: false,
+            pingDatabase: deep,
+            attemptReconnect: deep
+        });
+
+        const providerRows = snapshot.providers.map((provider, index) => {
+            const uptimePercent = provider.metrics.successRate != null
+                ? `${provider.metrics.successRate.toFixed(1)}%`
+                : 'n/a';
+            const latency = Number.isFinite(provider.metrics.avgLatencyMs)
+                ? `${Math.round(provider.metrics.avgLatencyMs)} ms`
+                : 'n/a';
+            const totalCalls = provider.metrics.total ?? (provider.metrics.successes + provider.metrics.failures);
+            const status = provider.isDisabled
+                ? 'Paused'
+                : provider.hasError
+                    ? 'Error'
+                    : 'Healthy';
+            const disabledUntil = provider.isDisabled && provider.disabledUntil
+                ? new Date(provider.disabledUntil).toLocaleString()
+                : '-';
+
+            return `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${provider.name}</td>
+                        <td>${provider.model}</td>
+                        <td>${provider.costTier}</td>
+                        <td class="${status.toLowerCase()}">${status}</td>
+                        <td>${uptimePercent}</td>
+                        <td>${latency}</td>
+                        <td>${totalCalls}</td>
+                        <td>${disabledUntil}</td>
+                    </tr>`;
+        }).join('') || '<tr><td colspan="9">No providers configured</td></tr>';
+
+        const requiredRows = snapshot.env.required.map((item) => `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td class="${item.present ? 'healthy' : 'error'}">${item.present ? 'Present' : 'Missing'}</td>
+                    </tr>
+        `).join('');
+
+        const optionalRows = snapshot.env.optional.map((item) => `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td class="${item.present ? 'healthy' : 'paused'}">${item.present ? 'Configured' : 'Not set'}</td>
+                    </tr>
+        `).join('');
+
+        const healthyProviders = snapshot.providers.filter(p => !p.hasError && !p.isDisabled).length;
+
+        res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis Dashboard</title>
+    <style>
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #00ffff;
+            text-align: center;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: rgba(0, 255, 255, 0.04);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #00ffff;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: left;
+        }
+        th {
+            background: rgba(0, 255, 255, 0.1);
+        }
+        .healthy {
+            color: #00ff7f;
+        }
+        .error {
+            color: #ff6b6b;
+        }
+        .paused {
+            color: #ffd166;
+        }
+        .actions {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .actions a {
+            color: #00ffff;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Jarvis Operations Dashboard</h1>
+
+    <div class="grid">
+        <div class="card">
+            <h2>System</h2>
+            <p>Uptime: ${Math.round(snapshot.system.uptimeSeconds / 60)} minutes</p>
+            <p>Node: ${snapshot.system.nodeVersion}</p>
+            <p>Memory: ${Math.round(snapshot.system.memory.heapUsed / 1024 / 1024)}MB used</p>
+            <p>Timestamp: ${snapshot.system.timestamp}</p>
+        </div>
+        <div class="card">
+            <h2>Database</h2>
+            <p>Status: ${snapshot.database.connected ? '<span class="healthy">Connected</span>' : '<span class="error">Disconnected</span>'}</p>
+            <p>Ping: ${snapshot.database.ping}</p>
+            ${snapshot.database.error ? `<p>Error: ${snapshot.database.error}</p>` : ''}
+        </div>
+        <div class="card">
+            <h2>Providers</h2>
+            <p>Total: ${snapshot.providers.length}</p>
+            <p>Healthy: ${healthyProviders}</p>
+            <p>Mode: free tiers prioritized</p>
+        </div>
+    </div>
+
+    <h2>AI Providers</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Model</th>
+                <th>Tier</th>
+                <th>Status</th>
+                <th>Uptime</th>
+                <th>Latency</th>
+                <th>Calls</th>
+                <th>Disabled Until</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${providerRows}
+        </tbody>
+    </table>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Required Environment</h2>
+            <table>
+                <tbody>
+                    ${requiredRows}
+                </tbody>
+            </table>
+        </div>
+        <div class="card">
+            <h2>Optional Environment</h2>
+            <table>
+                <tbody>
+                    ${optionalRows}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="actions">
+        <a href="/">Back to Status Page</a> •
+        <a href="/health${deep ? '' : '?deep=1'}">JSON Health Check${deep ? '' : ' (deep)'}</a>
+    </div>
+</body>
+</html>
+        `);
+    } catch (error) {
+        console.error('Failed to render dashboard:', error);
+        res.status(500).send('Dashboard unavailable while diagnostics recalibrate.');
+    }
 });
 
 // Health check endpoint (for monitoring)
-app.get("/health", (req, res) => {
-    const providerStatus = aiManager.getRedactedProviderStatus();
-    const workingProviders = providerStatus.filter(p => !p.hasError).length;
-    
-    res.json({
-        status: "healthy",
-        database: database.isConnected ? "connected" : "disconnected",
-        aiProviders: {
-            total: providerStatus.length,
-            working: workingProviders,
-            status: providerStatus
-        },
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        timestamp: new Date().toISOString()
-    });
+app.get("/health", async (req, res) => {
+    const deep = ['1', 'true', 'yes', 'deep'].includes(String(req.query.deep || '').toLowerCase());
+
+    try {
+        const snapshot = await gatherHealthSnapshot({
+            includeProviders: true,
+            redactProviders: false,
+            pingDatabase: deep,
+            attemptReconnect: deep
+        });
+
+        const healthyProviders = snapshot.providers.filter(p => !p.hasError && !p.isDisabled).length;
+        const status =
+            snapshot.env.hasAllRequired && snapshot.database.connected && healthyProviders > 0
+                ? 'ok'
+                : 'degraded';
+
+        res.json({
+            status,
+            env: snapshot.env,
+            database: snapshot.database,
+            providers: snapshot.providers,
+            system: snapshot.system,
+            counts: {
+                providersTotal: snapshot.providers.length,
+                providersHealthy: healthyProviders
+            }
+        });
+    } catch (error) {
+        console.error('Health endpoint failed:', error);
+        res.status(500).json({
+            status: 'error',
+            error: error.message
+        });
+    }
 });
 
 // ------------------------ Event Handlers ------------------------

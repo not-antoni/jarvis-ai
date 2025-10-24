@@ -621,6 +621,7 @@ class BraveSearch {
     constructor() {
         this.apiKey = process.env.BRAVE_API_KEY;
         this.endpoint = 'https://api.search.brave.com/res/v1/web/search';
+        this.newsEndpoint = 'https://api.search.brave.com/res/v1/news/search';
 
         if (!this.apiKey) {
             console.warn('Brave Search API key not found. Brave web search will be disabled.');
@@ -1045,6 +1046,78 @@ class BraveSearch {
         }
 
         return safeResults;
+    }
+
+    async fetchNews(topic = 'technology', { count = 5 } = {}) {
+        if (!this.apiKey) {
+            throw new Error('Brave Search API not configured. Please set BRAVE_API_KEY environment variable.');
+        }
+
+        const normalizedTopic = this.sanitizeUserQuery(topic) || 'technology';
+        const requestedCount = Math.min(Math.max(Number(count) || 5, 1), 10);
+
+        const url = new URL(this.newsEndpoint);
+        url.searchParams.set('q', normalizedTopic);
+        url.searchParams.set('count', String(requestedCount));
+        url.searchParams.set('safesearch', 'strict');
+
+        const response = await fetch(url.toString(), {
+            headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'JarvisDiscordBot/1.0',
+                'X-Subscription-Token': this.apiKey
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Brave News request failed: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        const results = Array.isArray(data?.news?.results) ? data.news.results : [];
+
+        return results
+            .filter((result) => result && (result.url || result.clickUrl || result.link))
+            .slice(0, requestedCount)
+            .map((result) => {
+                const publishedRaw = result.publishedDate || result.date || result.created || result.age || null;
+                let published = null;
+                if (publishedRaw) {
+                    const date = new Date(publishedRaw);
+                    if (!Number.isNaN(date.getTime())) {
+                        published = date;
+                    }
+                }
+
+                return {
+                    title: this.truncate(result.title || result.name || 'Untitled', 120),
+                    url: result.url || result.clickUrl || result.link,
+                    excerpt: this.truncate(result.description || result.snippet || result.excerpt || '', 180),
+                    source: result.source?.title || result.profile?.name || result.publisher?.name || result.publisher || null,
+                    published,
+                    thumbnail: result.thumbnail?.src || result.image?.thumbnail?.contentUrl || null
+                };
+            });
+    }
+
+    formatNewsDigest(topic, articles) {
+        if (!Array.isArray(articles) || articles.length === 0) {
+            return `No recent headlines for ${topic}, sir.`;
+        }
+
+        const titleCaseTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
+        const lines = articles.map((article, index) => {
+            const rank = index + 1;
+            const source = article.source ? ` — ${article.source}` : '';
+            const publishedText = article.published
+                ? ` · <t:${Math.floor(article.published.getTime() / 1000)}:R>`
+                : '';
+            const excerpt = article.excerpt ? `\n${article.excerpt}` : '';
+            return `**${rank}. [${this.truncate(article.title, 90)}](${article.url})**${source}${publishedText}${excerpt}`;
+        });
+
+        return [`**${titleCaseTopic} Briefing**`, ...lines].join('\n\n');
     }
 
     formatSearchResponse(query, results) {

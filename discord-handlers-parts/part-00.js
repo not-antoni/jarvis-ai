@@ -26,6 +26,52 @@ const fetch = require('node-fetch');
 const pdfParse = require('pdf-parse');
 const embeddingSystem = require('./embedding-system');
 
+const commandFeatureMap = new Map([
+    ['jarvis', 'coreChat'],
+    ['status', 'coreChat'],
+    ['roll', 'utilities'],
+    ['time', 'utilities'],
+    ['providers', 'providers'],
+    ['reset', 'reset'],
+    ['help', 'coreChat'],
+    ['invite', 'invite'],
+    ['profile', 'coreChat'],
+    ['history', 'coreChat'],
+    ['recap', 'coreChat'],
+    ['digest', 'digests'],
+    ['decode', 'utilities'],
+    ['encode', 'utilities'],
+    ['news', 'newsBriefings'],
+    ['clip', 'clipping'],
+    ['ticket', 'tickets'],
+    ['kb', 'knowledgeBase'],
+    ['ask', 'knowledgeAsk'],
+    ['macro', 'macroReplies'],
+    ['reactionrole', 'reactionRoles'],
+    ['automod', 'automod'],
+    ['serverstats', 'serverStats'],
+    ['memberlog', 'memberLog']
+]);
+
+const featureFlags = config.features || {};
+
+function isFeatureEnabled(flag, fallback = true) {
+    if (!flag) {
+        return fallback;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(featureFlags, flag)) {
+        return Boolean(featureFlags[flag]);
+    }
+
+    return fallback;
+}
+
+function isCommandEnabled(commandName) {
+    const featureKey = commandFeatureMap.get(commandName);
+    return isFeatureEnabled(featureKey);
+}
+
 class DiscordHandlers {
     constructor() {
         this.jarvis = new JarvisAI();
@@ -46,6 +92,16 @@ class DiscordHandlers {
         this.memberLogCache = new Map();
         this.maxMemberLogVariations = 20;
         this.maxMemberLogMessageLength = 400;
+        this.energyConfig = {
+            enabled: Boolean(config.features?.energyMeter && config.energy?.enabled),
+            maxPoints: config.energy?.maxPoints ?? 12,
+            windowMinutes: config.energy?.windowMinutes ?? 60,
+            costs: {
+                default: config.energy?.costs?.default ?? 1,
+                digest: config.energy?.costs?.digest ?? 2,
+                recap: config.energy?.costs?.recap ?? 1
+            }
+        };
         this.defaultJoinMessages = [
             '🛰️ {mention} has entered {server}.',
             '🎉 A new arrival! Welcome {mention} — population now {membercount}.',
@@ -176,6 +232,73 @@ class DiscordHandlers {
         const error = new Error(message);
         error.isFriendly = true;
         return error;
+    }
+
+    isEnergyEnabled() {
+        return Boolean(this.energyConfig?.enabled && config.features?.energyMeter);
+    }
+
+    getEnergyKey(guildId, userId) {
+        if (guildId) {
+            return guildId;
+        }
+
+        return `dm:${userId}`;
+    }
+
+    async consumeEnergyFor(userId, guildId, cost) {
+        if (!this.isEnergyEnabled() || !database.isConnected) {
+            return { ok: true, remaining: Infinity };
+        }
+
+        const charge = cost ?? (this.energyConfig.costs?.default ?? 1);
+        return database.consumeEnergy(userId, this.getEnergyKey(guildId, userId), {
+            maxPoints: this.energyConfig.maxPoints,
+            windowMinutes: this.energyConfig.windowMinutes,
+            cost: charge
+        });
+    }
+
+    async ensureEnergyAvailability({ interaction = null, message = null, cost = null }) {
+        if (!this.isEnergyEnabled()) {
+            return { ok: true, remaining: Infinity };
+        }
+
+        const target = interaction || message;
+        if (!target) {
+            return { ok: true, remaining: Infinity };
+        }
+
+        const userId = interaction ? interaction.user.id : message.author.id;
+        const guildId = interaction?.guild?.id || message?.guild?.id || null;
+        const result = await this.consumeEnergyFor(userId, guildId, cost);
+
+        if (!result.ok) {
+            const resetText = result.resetsAt
+                ? `<t:${Math.floor(result.resetsAt.getTime() / 1000)}:R>`
+                : 'soon';
+            const notice = `Your energy reserves are depleted, sir. They will recover ${resetText}. Use /profile energy for the full ledger.`;
+
+            if (interaction) {
+                try {
+                    if (interaction.deferred || interaction.replied) {
+                        await interaction.editReply(notice);
+                    } else {
+                        await interaction.reply({ content: notice, ephemeral: true });
+                    }
+                } catch (error) {
+                    console.warn('Failed to send energy notice for interaction:', error);
+                }
+            } else if (message) {
+                try {
+                    await message.reply(notice);
+                } catch (error) {
+                    console.warn('Failed to send energy notice for message:', error);
+                }
+            }
+        }
+
+        return result;
     }
 
     formatServerStatsValue(value) {
@@ -1502,6 +1625,89 @@ class DiscordHandlers {
         offlineUserCount = Math.max(0, userCount - onlineUserCount);
 
         return { total, botCount, userCount, channelCount, roleCount, onlineUserCount, offlineUserCount };
+    }
+
+    renderServerStatsChart(stats, guildName = 'Server Snapshot') {
+        const width = 640;
+        const height = 360;
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#0b1221';
+        ctx.fillRect(0, 0, width, height);
+
+        const metrics = [
+            { key: 'total', label: 'Members', color: '#64b5f6' },
+            { key: 'userCount', label: 'Humans', color: '#81c784' },
+            { key: 'botCount', label: 'Bots', color: '#ffb74d' },
+            { key: 'onlineUserCount', label: 'Online', color: '#4dd0e1' },
+            { key: 'offlineUserCount', label: 'Offline', color: '#9575cd' },
+            { key: 'channelCount', label: 'Channels', color: '#f06292' },
+            { key: 'roleCount', label: 'Roles', color: '#ba68c8' }
+        ];
+
+        const values = metrics.map((metric) => Number(stats?.[metric.key]) || 0);
+        const maxValue = Math.max(...values, 1);
+
+        const padding = { top: 60, bottom: 70, left: 60, right: 40 };
+        const chartWidth = width - padding.left - padding.right;
+        const chartHeight = height - padding.top - padding.bottom;
+        const barSpacing = chartWidth / metrics.length;
+        const barWidth = barSpacing * 0.6;
+
+        ctx.strokeStyle = '#233044';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, padding.top);
+        ctx.lineTo(padding.left, padding.top + chartHeight);
+        ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+        ctx.stroke();
+
+        ctx.font = '20px \"Segoe UI\", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${guildName}`, width / 2, 34);
+        ctx.font = '16px \"Segoe UI\", sans-serif';
+        ctx.fillStyle = '#8aa4c1';
+        ctx.fillText('Server Health Snapshot', width / 2, 56);
+
+        ctx.font = '12px \"Segoe UI\", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#8aa4c1';
+        for (let i = 0; i <= 4; i += 1) {
+            const y = padding.top + (chartHeight * (i / 4));
+            const value = Math.round(maxValue * (1 - i / 4));
+            ctx.fillText(String(value), padding.left - 48, y + 4);
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(padding.left + chartWidth, y);
+            ctx.stroke();
+        }
+
+        metrics.forEach((metric, index) => {
+            const value = values[index];
+            const x = padding.left + barSpacing * index + (barSpacing - barWidth) / 2;
+            const heightRatio = value / maxValue;
+            const barHeight = Math.max(4, chartHeight * heightRatio);
+            const y = padding.top + chartHeight - barHeight;
+
+            ctx.fillStyle = metric.color;
+            ctx.beginPath();
+            ctx.roundRect(x, y, barWidth, barHeight, 6);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.font = '14px \"Segoe UI\", sans-serif';
+            ctx.fillText(value.toLocaleString(), x + barWidth / 2, y - 8);
+
+            ctx.fillStyle = '#8aa4c1';
+            ctx.font = '13px \"Segoe UI\", sans-serif';
+            ctx.fillText(metric.label, x + barWidth / 2, padding.top + chartHeight + 20);
+        });
+
+        return canvas.toBuffer('image/png');
     }
 
     async updateServerStats(guild, existingConfig = null) {

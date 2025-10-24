@@ -661,7 +661,10 @@
                 const response = await this.jarvis.handleUtilityCommand(
                     "help",
                     message.author.username,
-                    message.author.id
+                    message.author.id,
+                    false,
+                    null,
+                    message.guild?.id || null
                 );
                 if (typeof response === "string") {
                     await message.reply(response);
@@ -683,7 +686,10 @@
                 const response = await this.jarvis.handleUtilityCommand(
                     "invite",
                     message.author.username,
-                    message.author.id
+                    message.author.id,
+                    false,
+                    null,
+                    message.guild?.id || null
                 );
                 if (typeof response === "string") {
                     await message.reply(response);
@@ -705,7 +711,10 @@
                 const response = await this.jarvis.handleUtilityCommand(
                     rawContent.substring(1),
                     message.author.username,
-                    message.author.id
+                    message.author.id,
+                    false,
+                    null,
+                    message.guild?.id || null
                 );
                 await message.reply(response || "Profile command processed, sir.");
             } catch (error) {
@@ -721,7 +730,10 @@
                 const response = await this.jarvis.handleUtilityCommand(
                     rawContent.substring(1),
                     message.author.username,
-                    message.author.id
+                    message.author.id,
+                    false,
+                    null,
+                    message.guild?.id || null
                 );
                 await message.reply(response || "No history available yet, sir.");
             } catch (error) {
@@ -737,7 +749,10 @@
                 const response = await this.jarvis.handleUtilityCommand(
                     rawContent.substring(1),
                     message.author.username,
-                    message.author.id
+                    message.author.id,
+                    false,
+                    null,
+                    message.guild?.id || null
                 );
                 await message.reply(response || "Nothing to report just yet, sir.");
             } catch (error) {
@@ -753,7 +768,10 @@
                 const response = await this.jarvis.handleUtilityCommand(
                     rawContent.substring(1),
                     message.author.username,
-                    message.author.id
+                    message.author.id,
+                    false,
+                    null,
+                    message.guild?.id || null
                 );
                 await message.reply(response || "Encoding complete, sir.");
             } catch (error) {
@@ -769,7 +787,10 @@
                 const response = await this.jarvis.handleUtilityCommand(
                     rawContent.substring(1),
                     message.author.username,
-                    message.author.id
+                    message.author.id,
+                    false,
+                    null,
+                    message.guild?.id || null
                 );
                 await message.reply(response || "Decoding complete, sir.");
             } catch (error) {
@@ -793,7 +814,8 @@
                     message.author.username,
                     message.author.id,
                     false,
-                    { guildId: message.guildId }
+                    null,
+                    message.guild?.id || null
                 );
 
                 console.log(`!t command response: ${response}`);
