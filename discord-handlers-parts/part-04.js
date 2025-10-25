@@ -941,9 +941,11 @@
 
         const ephemeralCommands = new Set(["help", "profile", "history", "recap", "digest", "macro", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
+        const canUseEphemeral = Boolean(interaction.guild);
+        const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
 
         try {
-            await interaction.deferReply({ ephemeral: shouldBeEphemeral });
+            await interaction.deferReply({ ephemeral: deferEphemeral });
         } catch (error) {
             if (error.code === 10062) {
                 console.warn("Ignored unknown interaction during deferReply.");
