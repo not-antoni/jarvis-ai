@@ -922,9 +922,9 @@
             return; // Exit early, no AI response
         }
 
-        const mathCommandPattern = /^jarvis\s+math\s+(.+)$/i;
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
-        const mathMatch = cleanContent.match(mathCommandPattern);
+        const mathTriggerPattern = /\bjarvis\s+math\b/i;
+        const hasMathTrigger = mathTriggerPattern.test(cleanContent);
         const ytMatch = cleanContent.match(ytCommandPattern);
         let braveInvocation = defaultBraveInvocation;
 
@@ -943,11 +943,15 @@
             }
         }
 
-        if (mathMatch) {
-            const mathInput = mathMatch[1].trim();
+        if (hasMathTrigger) {
+            const triggerIndex = cleanContent.toLowerCase().indexOf('jarvis math');
+            const rawMathInput = triggerIndex >= 0
+                ? cleanContent.substring(triggerIndex + 'jarvis math'.length)
+                : '';
+            const mathInput = rawMathInput.replace(/^[\s,:-]+/, '').trim();
 
             if (!mathInput.length) {
-                await message.reply("Please provide a calculation after 'jarvis math', sir.");
+                await message.reply("Awaiting calculations, sir. Try `jarvis math solve 2x + 5 = 13`.");
                 this.setCooldown(message.author.id);
                 return;
             }

@@ -50,42 +50,53 @@ class MathSolver {
         if (/^solve\b/i.test(trimmed)) {
             const remainder = trimmed.replace(/^solve\b/i, '').trim();
             const { expression, variable } = this.extractVariableClause(remainder);
-            return { operation: 'solve', expression, variable };
+            const normalized = this.normalizeExpression(expression);
+            return { operation: 'solve', expression: normalized, rawExpression: expression.trim(), variable };
         }
 
         if (/^simplify\b/i.test(trimmed)) {
-            const expression = trimmed.replace(/^simplify\b/i, '').trim();
-            return { operation: 'simplify', expression };
+            const rawExpression = trimmed.replace(/^simplify\b/i, '').trim();
+            const expression = this.normalizeExpression(rawExpression);
+            return { operation: 'simplify', expression, rawExpression };
         }
 
         if (/^factor\b/i.test(trimmed)) {
-            const expression = trimmed.replace(/^factor\b/i, '').trim();
-            return { operation: 'factor', expression };
+            const rawExpression = trimmed.replace(/^factor\b/i, '').trim();
+            const expression = this.normalizeExpression(rawExpression);
+            return { operation: 'factor', expression, rawExpression };
         }
 
         if (/^expand\b/i.test(trimmed)) {
-            const expression = trimmed.replace(/^expand\b/i, '').trim();
-            return { operation: 'expand', expression };
+            const rawExpression = trimmed.replace(/^expand\b/i, '').trim();
+            const expression = this.normalizeExpression(rawExpression);
+            return { operation: 'expand', expression, rawExpression };
         }
 
         if (/^(differentiate|derivative|derive)\b/i.test(trimmed)) {
             const remainder = trimmed.replace(/^(differentiate|derivative|derive)\b/i, '').trim();
             const { expression, variable } = this.extractVariableClause(remainder);
-            return { operation: 'derivative', expression, variable };
+            const normalized = this.normalizeExpression(expression);
+            return { operation: 'derivative', expression: normalized, rawExpression: expression.trim(), variable };
         }
 
         if (/^(integrate|integral|antiderivative)\b/i.test(trimmed)) {
             const remainder = trimmed.replace(/^(integrate|integral|antiderivative)\b/i, '').trim();
             const { expression, variable } = this.extractVariableClause(remainder);
-            return { operation: 'integrate', expression, variable };
+            const normalized = this.normalizeExpression(expression);
+            return { operation: 'integrate', expression: normalized, rawExpression: expression.trim(), variable };
         }
 
         if (/^evaluate\b/i.test(trimmed)) {
-            const expression = trimmed.replace(/^evaluate\b/i, '').trim();
-            return { operation: 'evaluate', expression };
+            const rawExpression = trimmed.replace(/^evaluate\b/i, '').trim();
+            const expression = this.normalizeExpression(rawExpression);
+            return { operation: 'evaluate', expression, rawExpression };
         }
 
-        return { operation: 'evaluate', expression: trimmed };
+        return {
+            operation: 'evaluate',
+            expression: this.normalizeExpression(trimmed),
+            rawExpression: trimmed
+        };
     }
 
     extractVariableClause(input) {
@@ -131,75 +142,89 @@ class MathSolver {
         return Array.from(new Set(candidates));
     }
 
-    handleEvaluate({ expression }) {
+    normalizeExpression(expression = '') {
+        if (!expression) {
+            return expression;
+        }
+
+        let normalized = expression;
+
+        normalized = normalized.replace(/√\s*\(/g, 'sqrt(');
+        normalized = normalized.replace(/√\s*([a-zA-Z0-9._]+)/g, 'sqrt($1)');
+        normalized = normalized.replace(/\bsquare\s+root\s+of\s*\(([^)]+)\)/gi, 'sqrt($1)');
+        normalized = normalized.replace(/\bsquare\s+root\s+of\s+([a-zA-Z0-9._]+)/gi, 'sqrt($1)');
+        normalized = normalized.replace(/\bsqrt\s+of\s*\(([^)]+)\)/gi, 'sqrt($1)');
+        normalized = normalized.replace(/\bsqrt\s+of\s+([a-zA-Z0-9._]+)/gi, 'sqrt($1)');
+
+        return normalized;
+    }
+
+    handleEvaluate({ expression, rawExpression }) {
         if (!expression?.length) {
             return 'Please provide a valid expression after the math wake phrase, sir.';
         }
 
         try {
             const exact = nerdamer(expression).text();
-            let approx = null;
-
-            try {
-                approx = nerdamer(expression).evaluate().text();
-                if (approx === exact) {
-                    approx = null;
-                }
-            } catch {
-                approx = null;
-            }
-
-            const details = [`Exact: ${exact}`];
+            const approx = this.safeApproximate(expression, exact);
+            const display = this.getDisplayExpression(rawExpression, expression);
+            const lines = [display, `= ${exact}`];
             if (approx) {
-                details.push(`Approximation: ${approx}`);
+                lines.push(`≈ ${approx}`);
             }
 
-            return this.buildResponse('Evaluate', expression, details);
+            return this.finalizeResponse(lines);
         } catch (error) {
-            return this.reportFailure(error, expression);
+            return this.reportFailure(error, expression, rawExpression);
         }
     }
 
-    handleSimplify({ expression }) {
+    handleSimplify({ expression, rawExpression }) {
         if (!expression?.length) {
             return 'Please provide something to simplify after the command, sir.';
         }
 
         try {
             const simplified = nerdamer(expression).text();
-            return this.buildResponse('Simplify', expression, [`Result: ${simplified}`]);
+            const display = this.getDisplayExpression(rawExpression, expression);
+            const lines = [display, `= ${simplified}`];
+            return this.finalizeResponse(lines);
         } catch (error) {
-            return this.reportFailure(error, expression);
+            return this.reportFailure(error, expression, rawExpression);
         }
     }
 
-    handleFactor({ expression }) {
+    handleFactor({ expression, rawExpression }) {
         if (!expression?.length) {
             return 'Please provide an expression to factor, sir.';
         }
 
         try {
             const factored = nerdamer(`factor(${expression})`).text();
-            return this.buildResponse('Factor', expression, [`Result: ${factored}`]);
+            const display = this.getDisplayExpression(rawExpression, expression);
+            const lines = [display, `= ${factored}`];
+            return this.finalizeResponse(lines);
         } catch (error) {
-            return this.reportFailure(error, expression);
+            return this.reportFailure(error, expression, rawExpression);
         }
     }
 
-    handleExpand({ expression }) {
+    handleExpand({ expression, rawExpression }) {
         if (!expression?.length) {
             return 'Please provide an expression to expand, sir.';
         }
 
         try {
             const expanded = nerdamer(`expand(${expression})`).text();
-            return this.buildResponse('Expand', expression, [`Result: ${expanded}`]);
+            const display = this.getDisplayExpression(rawExpression, expression);
+            const lines = [display, `= ${expanded}`];
+            return this.finalizeResponse(lines);
         } catch (error) {
-            return this.reportFailure(error, expression);
+            return this.reportFailure(error, expression, rawExpression);
         }
     }
 
-    handleDerivative({ expression, variable }) {
+    handleDerivative({ expression, rawExpression, variable }) {
         if (!expression?.length) {
             return 'Please provide an expression to differentiate, sir.';
         }
@@ -218,13 +243,15 @@ class MathSolver {
 
         try {
             const derivative = nerdamer(`diff(${expression}, ${target})`).text();
-            return this.buildResponse('Derivative', expression, [`d/d${target}: ${derivative}`]);
+            const display = this.getDisplayExpression(rawExpression, expression);
+            const lines = [`d/d${target} (${display})`, `= ${derivative}`];
+            return this.finalizeResponse(lines);
         } catch (error) {
-            return this.reportFailure(error, expression);
+            return this.reportFailure(error, expression, rawExpression);
         }
     }
 
-    handleIntegral({ expression, variable }) {
+    handleIntegral({ expression, rawExpression, variable }) {
         if (!expression?.length) {
             return 'Please provide an expression to integrate, sir.';
         }
@@ -243,13 +270,15 @@ class MathSolver {
 
         try {
             const integral = nerdamer(`integrate(${expression}, ${target})`).text();
-            return this.buildResponse('Integrate', expression, [`Result: ${integral} + C`]);
+            const display = this.getDisplayExpression(rawExpression, expression);
+            const lines = [`Integral d${target} (${display})`, `= ${integral} + C`];
+            return this.finalizeResponse(lines);
         } catch (error) {
-            return this.reportFailure(error, expression);
+            return this.reportFailure(error, expression, rawExpression);
         }
     }
 
-    handleSolve({ expression, variable }) {
+    handleSolve({ expression, rawExpression, variable }) {
         if (!expression?.length) {
             return 'Please provide an equation to solve, sir.';
         }
@@ -269,7 +298,9 @@ class MathSolver {
         }
 
         if (!variables.length) {
-            return 'I could not detect any variables to solve for, sir.';
+            const display = this.getDisplayExpression(rawExpression, expression);
+            const lines = [display || 'Equation', 'Unable to detect a variable to solve for'];
+            return this.finalizeResponse(lines);
         }
 
         try {
@@ -280,24 +311,37 @@ class MathSolver {
                 const solutionStrings = this.unpackSolutionList(rawSolutions);
 
                 if (!solutionStrings.length) {
-                    return `No solution found for ${variables[0]}, sir.`;
+                    const display = this.prepareEquationDisplay(rawExpression, equations);
+                    const lines = [...display, `No solution found for ${variables[0]}`];
+                    return this.finalizeResponse(lines);
                 }
 
                 const formatted = this.formatSingleVariableSolutions(solutionStrings, variables[0]);
-                return this.buildResponse(`Solve for ${variables[0]}`, expression, formatted);
+                const display = this.prepareEquationDisplay(rawExpression, equations);
+                const lines = [...display, ...formatted];
+                return this.finalizeResponse(lines);
             }
 
             const systemSolutions = nerdamer.solveEquations(equations, variables);
             const parsedSolutions = this.unpackSystemSolutions(systemSolutions);
 
             if (!parsedSolutions.length) {
-                return 'No solution found for the provided system, sir.';
+                const display = this.prepareEquationDisplay(rawExpression, equations);
+                const lines = [...display, 'No solution found for the provided system'];
+                return this.finalizeResponse(lines);
             }
 
-            const details = parsedSolutions.map(({ variable: v, value }) => `${v} = ${value}`);
-            return this.buildResponse('Solve System', expression, details);
+            const display = this.prepareEquationDisplay(rawExpression, equations);
+            const details = parsedSolutions.map(({ variable: v, value }) => {
+                const approx = this.safeApproximate(value, value);
+                return approx && approx !== value
+                    ? `${v} = ${value} (≈ ${approx})`
+                    : `${v} = ${value}`;
+            });
+            const lines = [...display, ...details];
+            return this.finalizeResponse(lines);
         } catch (error) {
-            return this.reportFailure(error, expression);
+            return this.reportFailure(error, expression, rawExpression);
         }
     }
 
@@ -322,19 +366,12 @@ class MathSolver {
     }
 
     formatSingleVariableSolutions(solutions, variable) {
-        return solutions.map((solution, index) => {
-            let approx = null;
-            try {
-                approx = nerdamer(solution).evaluate().text();
-            } catch {
-                approx = null;
-            }
-
-            const label = solutions.length > 1 ? `${index + 1}) ${variable} = ${solution}` : `${variable} = ${solution}`;
-            if (approx && approx !== solution) {
-                return `${label} (≈ ${approx})`;
-            }
-            return label;
+        return solutions.map((solution) => {
+            const approx = this.safeApproximate(solution, solution);
+            const base = `${variable} = ${solution}`;
+            return approx && approx !== solution
+                ? `${base} (≈ ${approx})`
+                : base;
         });
     }
 
@@ -370,21 +407,64 @@ class MathSolver {
             .filter(Boolean);
     }
 
-    buildResponse(operation, expression, details = [], closing = 'Ready for the next challenge, sir.') {
-        const lines = ['**Mathematics Console**'];
-        lines.push(`- Operation: ${operation}`);
-        if (expression?.length) {
-            lines.push(`- Input: ${expression}`);
+    safeApproximate(expression, fallback = null) {
+        try {
+            const approx = nerdamer(expression).evaluate().text();
+            if (approx && approx !== fallback) {
+                return approx;
+            }
+        } catch {
+            return null;
         }
-        details.forEach(detail => lines.push(`- ${detail}`));
-        lines.push(closing);
-        return lines.join('\n');
+        return null;
     }
 
-    reportFailure(error, expression) {
+    getDisplayExpression(rawExpression, normalized) {
+        if (typeof rawExpression === 'string' && rawExpression.trim().length) {
+            return rawExpression.trim();
+        }
+        return normalized || '';
+    }
+
+    prepareEquationDisplay(rawExpression, normalizedEquations) {
+        const displaySource = typeof rawExpression === 'string' && rawExpression.trim().length
+            ? rawExpression
+            : normalizedEquations.join('\n');
+
+        return displaySource
+            .split(/[\n;]+/)
+            .map(segment => segment.trim())
+            .filter(Boolean)
+            .map(segment => (segment.includes('=') ? segment : `${segment} = 0`));
+    }
+
+    finalizeResponse(lines) {
+        const cleaned = Array.isArray(lines)
+            ? lines.map(line => (line || '').trim()).filter(line => line.length)
+            : [];
+
+        if (!cleaned.length) {
+            return 'Computation complete, sir.';
+        }
+
+        const lastIndex = cleaned.length - 1;
+        const lastLine = cleaned[lastIndex];
+        if (!/sir\./i.test(lastLine)) {
+            let base = lastLine;
+            if (base.endsWith('.')) {
+                base = base.slice(0, -1);
+            }
+            cleaned[lastIndex] = `${base}, sir.`;
+        }
+
+        return cleaned.join('\n');
+    }
+
+    reportFailure(error, expression, rawExpression) {
         const reason = error?.message ? error.message.replace(/^Error:\s*/i, '') : 'Unexpected error';
-        const details = [`Issue: ${reason}`];
-        return this.buildResponse('Error', expression, details, 'Please adjust the problem and try again, sir.');
+        const display = this.getDisplayExpression(rawExpression, expression) || 'Problem';
+        const lines = [display, `Error: ${reason}`, 'Please adjust the problem and try again'];
+        return this.finalizeResponse(lines);
     }
 }
 
