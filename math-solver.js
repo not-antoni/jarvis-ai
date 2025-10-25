@@ -9,6 +9,7 @@ const nerdamer = require('nerdamer/all');
 const RESERVED_KEYWORDS = new Set([
     'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
     'asin', 'acos', 'atan', 'acot', 'asec', 'acsc',
+    'arcsin', 'arccos', 'arctan', 'arccot', 'arcsec', 'arccsc',
     'sinh', 'cosh', 'tanh', 'coth', 'sech', 'csch',
     'log', 'ln', 'sqrt', 'abs', 'sign', 'sgn', 'exp',
     'floor', 'ceil', 'round', 'min', 'max', 'mod',
@@ -229,7 +230,125 @@ class MathSolver {
         normalized = normalized.replace(/\bsqrt\s+of\s*\(([^)]+)\)/gi, 'sqrt($1)');
         normalized = normalized.replace(/\bsqrt\s+of\s+([a-zA-Z0-9._]+)/gi, 'sqrt($1)');
 
+        normalized = normalized.replace(/\bln\s*\(/gi, 'log(');
+        normalized = normalized.replace(/\barcsin\s*\(/gi, 'asin(');
+        normalized = normalized.replace(/\barccos\s*\(/gi, 'acos(');
+        normalized = normalized.replace(/\barctan\s*\(/gi, 'atan(');
+        normalized = normalized.replace(/\barccot\s*\(/gi, 'acot(');
+        normalized = normalized.replace(/\barcsec\s*\(/gi, 'asec(');
+        normalized = normalized.replace(/\barccsc\s*\(/gi, 'acsc(');
+
         return normalized;
+    }
+
+    smartSimplify(expression, options = {}) {
+        if (!expression || typeof expression !== 'string') {
+            return expression;
+        }
+
+        const trimmed = expression.trim();
+        if (!trimmed.length) {
+            return trimmed;
+        }
+
+        const candidates = new Set();
+        const addCandidate = (value) => {
+            if (typeof value === 'string') {
+                const candidate = value.trim();
+                if (candidate.length) {
+                    candidates.add(candidate);
+                }
+            }
+        };
+
+        const attempt = (fn) => {
+            try {
+                const result = fn();
+                if (!result) {
+                    return;
+                }
+
+                if (typeof result === 'string') {
+                    addCandidate(result);
+                    return;
+                }
+
+                if (typeof result.text === 'function') {
+                    addCandidate(result.text());
+                    return;
+                }
+
+                addCandidate(String(result));
+            } catch (error) {
+                // Ignore simplification errors
+            }
+        };
+
+        addCandidate(trimmed);
+        attempt(() => nerdamer(trimmed).simplify().text());
+        attempt(() => nerdamer(`expand(${trimmed})`).text());
+        attempt(() => nerdamer(`expand(${trimmed})`).simplify().text());
+        attempt(() => {
+            const expandedSimplified = nerdamer(`expand(${trimmed})`).simplify().text();
+            return nerdamer(expandedSimplified).expand().text();
+        });
+
+        if (options.factor === true) {
+            attempt(() => nerdamer(`factor(${trimmed})`).text());
+        }
+
+        const best = this.chooseBestCandidate(Array.from(candidates));
+        return typeof best === 'string' && best.length ? best : trimmed;
+    }
+
+    chooseBestCandidate(candidates) {
+        if (!Array.isArray(candidates) || !candidates.length) {
+            return null;
+        }
+
+        const scored = candidates.map((text) => ({
+            text,
+            score: this.scoreExpression(text)
+        }));
+
+        scored.sort((a, b) => {
+            if (a.score !== b.score) {
+                return a.score - b.score;
+            }
+            return a.text.length - b.text.length;
+        });
+
+        return scored[0]?.text || null;
+    }
+
+    scoreExpression(text) {
+        if (!text || typeof text !== 'string') {
+            return Number.POSITIVE_INFINITY;
+        }
+
+        const compact = text.replace(/\s+/g, '');
+        let score = compact.length;
+
+        const penalties = [
+            { pattern: /cancel/i, weight: 100 },
+            { pattern: /\^\(-/i, weight: 30 },
+            { pattern: /sqrt\(1\)/i, weight: 15 },
+            { pattern: /√\(1\)/, weight: 15 },
+            { pattern: /·1\b|\b1·/, weight: 5 },
+            { pattern: /\bNaN\b/i, weight: 200 },
+            { pattern: /\bInfinity\b/i, weight: 200 },
+            { pattern: /\*\*/, weight: 10 },
+            { pattern: /sqrt\([^()]*sqrt\(/i, weight: 12 },
+            { pattern: /\)\^/g, weight: 12 }
+        ];
+
+        for (const { pattern, weight } of penalties) {
+            if (pattern.test(text)) {
+                score += weight;
+            }
+        }
+
+        return score;
     }
 
     injectPlaceholders(expression, placeholders = []) {
@@ -364,11 +483,11 @@ class MathSolver {
                 }
 
                 const assignmentObject = this.buildAssignmentObject(assignments);
-                const simplifiedNode = assignmentObject
-                    ? nerdamer(rightSegment, assignmentObject).simplify()
-                    : nerdamer(rightSegment).simplify();
-                const simplifiedRightRaw = simplifiedNode.text();
-                const approxRightRaw = this.safeApproximate(rightSegment, simplifiedRightRaw, assignments);
+                const substitutedRight = assignmentObject
+                    ? nerdamer(rightSegment, assignmentObject).text()
+                    : rightSegment;
+                const simplifiedRightRaw = this.smartSimplify(substitutedRight);
+                const approxRightRaw = this.safeApproximate(substitutedRight, simplifiedRightRaw, assignments);
 
                 const leftDisplay = this.restorePlaceholders(leftSegment, placeholders);
                 const originalRightDisplay = this.restorePlaceholders(rightSegment, placeholders);
@@ -449,9 +568,10 @@ class MathSolver {
         }
 
         try {
-            const simplified = nerdamer(expression).simplify().text();
+            const simplifiedRaw = this.smartSimplify(expression);
+            const simplifiedDisplay = this.restorePlaceholders(simplifiedRaw, placeholders);
             const display = this.getDisplayExpression(rawExpression, expression, placeholders);
-            const lines = [display, `= ${simplified}`];
+            const lines = [display, `= ${simplifiedDisplay}`];
             return this.finalizeResponse(lines, placeholders);
         } catch (error) {
             return this.reportFailure(error, expression, rawExpression, placeholders);
@@ -464,9 +584,10 @@ class MathSolver {
         }
 
         try {
-            const factored = nerdamer(`factor(${expression})`).text();
+            const factoredRaw = nerdamer(`factor(${expression})`).text();
+            const factoredDisplay = this.restorePlaceholders(factoredRaw, placeholders);
             const display = this.getDisplayExpression(rawExpression, expression, placeholders);
-            const lines = [display, `= ${factored}`];
+            const lines = [display, `= ${factoredDisplay}`];
             return this.finalizeResponse(lines, placeholders);
         } catch (error) {
             return this.reportFailure(error, expression, rawExpression, placeholders);
@@ -480,8 +601,9 @@ class MathSolver {
 
         try {
             const expanded = nerdamer(`expand(${expression})`).text();
+            const expandedDisplay = this.restorePlaceholders(expanded, placeholders);
             const display = this.getDisplayExpression(rawExpression, expression, placeholders);
-            const lines = [display, `= ${expanded}`];
+            const lines = [display, `= ${expandedDisplay}`];
             return this.finalizeResponse(lines, placeholders);
         } catch (error) {
             return this.reportFailure(error, expression, rawExpression, placeholders);
@@ -506,9 +628,11 @@ class MathSolver {
         const target = variable || variables[0];
 
         try {
-            const derivative = nerdamer(`diff(${expression}, ${target})`).text();
+            const derivativeRaw = nerdamer(`diff(${expression}, ${target})`).text();
+            const derivativeSimplified = this.smartSimplify(derivativeRaw);
+            const derivativeDisplay = this.restorePlaceholders(derivativeSimplified, placeholders);
             const display = this.getDisplayExpression(rawExpression, expression, placeholders);
-            const lines = [`d/d${target} (${display})`, `= ${derivative}`];
+            const lines = [`d/d${target} (${display})`, `= ${derivativeDisplay}`];
             return this.finalizeResponse(lines, placeholders);
         } catch (error) {
             return this.reportFailure(error, expression, rawExpression, placeholders);
@@ -533,9 +657,11 @@ class MathSolver {
         const target = variable || variables[0];
 
         try {
-            const integral = nerdamer(`integrate(${expression}, ${target})`).text();
+            const integralRaw = nerdamer(`integrate(${expression}, ${target})`).text();
+            const integralSimplified = this.smartSimplify(integralRaw);
+            const integralDisplay = this.restorePlaceholders(integralSimplified, placeholders);
             const display = this.getDisplayExpression(rawExpression, expression, placeholders);
-            const lines = [`Integral d${target} (${display})`, `= ${integral} + C`];
+            const lines = [`Integral d${target} (${display})`, `= ${integralDisplay} + C`];
             return this.finalizeResponse(lines, placeholders);
         } catch (error) {
             return this.reportFailure(error, expression, rawExpression, placeholders);
@@ -597,10 +723,11 @@ class MathSolver {
 
             const display = this.prepareEquationDisplay(rawExpression, equations, placeholders);
             const details = parsedSolutions.map(({ variable: v, value }) => {
-                const approx = this.safeApproximate(value, value);
-                return approx && approx !== value
-                    ? `${v} = ${value} (≈ ${approx})`
-                    : `${v} = ${value}`;
+                const simplifiedValue = this.smartSimplify(value);
+                const approx = this.safeApproximate(simplifiedValue, simplifiedValue);
+                return approx && approx !== simplifiedValue
+                    ? `${v} = ${simplifiedValue} (≈ ${approx})`
+                    : `${v} = ${simplifiedValue}`;
             });
             const lines = [...display, ...details];
             return this.finalizeResponse(lines, placeholders);
@@ -631,9 +758,10 @@ class MathSolver {
 
     formatSingleVariableSolutions(solutions, variable) {
         return solutions.map((solution) => {
-            const approx = this.safeApproximate(solution, solution);
-            const base = `${variable} = ${solution}`;
-            return approx && approx !== solution
+            const simplified = this.smartSimplify(solution);
+            const approx = this.safeApproximate(simplified, simplified);
+            const base = `${variable} = ${simplified}`;
+            return approx && approx !== simplified
                 ? `${base} (≈ ${approx})`
                 : base;
         });
@@ -710,12 +838,12 @@ class MathSolver {
 
     evaluateExpression(expression, assignments = []) {
         const assignmentObject = this.buildAssignmentObject(assignments);
-        const node = assignmentObject
-            ? nerdamer(expression, assignmentObject)
-            : nerdamer(expression);
+        const substituted = assignmentObject
+            ? nerdamer(expression, assignmentObject).text()
+            : expression;
 
-        const exact = node.evaluate().text();
-        const approx = this.safeApproximate(expression, exact, assignments);
+        const exact = this.smartSimplify(substituted);
+        const approx = this.safeApproximate(substituted, exact, assignments);
 
         return { exact, approx };
     }
@@ -739,7 +867,8 @@ class MathSolver {
         }
 
         const parts = assignments.map(({ variable, rawValue, value }) => {
-            const displayValue = rawValue || value || '';
+            const raw = rawValue || value || '';
+            const displayValue = this.formatForOutput(raw);
             return `${variable} = ${displayValue}`;
         });
 
@@ -852,10 +981,63 @@ class MathSolver {
 
         output = output.replace(/√\(([^()]+)\)\^\(-1\)/g, '1/√($1)');
         output = output.replace(/\*1\/√\(/g, ' / √(');
+        output = output.replace(/√\(\s*1\s*\)/g, '1');
+        output = output.replace(/1\/√\(\s*1\s*\)/g, '1');
+        output = output.replace(/√\(\s*1\s*\)\^\(-1\)/g, '1');
 
         output = output.replace(/([0-9A-Za-z)π√])\s*\*\s*([0-9A-Za-z(π√])/g, '$1·$2');
 
+        const isDisplayOnly = !/[=≈:]/.test(output);
+
+        let previousOutput;
+        do {
+            previousOutput = output;
+            output = output.replace(/√\(([^()]+?)\)·√\(([^()]+?)\)/g, '√($1·$2)');
+        } while (previousOutput !== output);
+
+        if (!isDisplayOnly) {
+            output = output.replace(/√\((\d+(?:\.\d+)?(?:·\d+(?:\.\d+)?)+)\)/g, (_, sequence) => {
+                const factors = sequence.split('·').map(Number);
+                if (factors.every(Number.isFinite)) {
+                    const product = factors.reduce((acc, val) => acc * val, 1);
+                    return `√(${product})`;
+                }
+                return `√(${sequence})`;
+            });
+
+            output = output.replace(/√\((\d+(?:\.\d+)?)·(\d+(?:\.\d+)?)\)/g, (_, a, b) => {
+                const product = Number(a) * Number(b);
+                if (Number.isFinite(product)) {
+                    return `√(${product})`;
+                }
+                return `√(${a}·${b})`;
+            });
+
+            output = output.replace(/√\((\d+(?:\.\d+)?)\)/g, (_, value) => {
+                const num = Number(value);
+                if (Number.isFinite(num)) {
+                    const root = Math.sqrt(num);
+                    if (Number.isInteger(root)) {
+                        return String(root);
+                    }
+                }
+                return `√(${value})`;
+            });
+        }
+
         output = output.replace(/\^([+-]?[0-9]+)/g, (_, digits) => this.toSuperscript(digits));
+
+        output = output.replace(/\blog(?!10)\s*\(/gi, 'ln(');
+        output = output.replace(/\basin\s*\(/gi, 'arcsin(');
+        output = output.replace(/\bacos\s*\(/gi, 'arccos(');
+        output = output.replace(/\batan\s*\(/gi, 'arctan(');
+        output = output.replace(/\bacot\s*\(/gi, 'arccot(');
+        output = output.replace(/\basec\s*\(/gi, 'arcsec(');
+        output = output.replace(/\bacsc\s*\(/gi, 'arccsc(');
+
+        output = output.replace(/·1\b/g, '');
+        output = output.replace(/\b1·/g, '');
+        output = output.replace(/\b1\/1\b/g, '1');
 
         return output;
     }
