@@ -201,7 +201,7 @@ class MathSolver {
             variable = variable || trailingFor[2];
         }
 
-        expression = expression.replace(/^[:=,-]+/, '').trim();
+        expression = expression.replace(/^[:=,]+/, '').trim();
 
         return { expression, variable };
     }
@@ -351,6 +351,168 @@ class MathSolver {
         return score;
     }
 
+    parseInequality(expression) {
+        if (!expression || typeof expression !== 'string') {
+            return null;
+        }
+
+        const match = expression.match(/^(.*?)(<=|>=|<|>)(.*)$/);
+        if (!match) {
+            return null;
+        }
+
+        const left = match[1].trim();
+        const operator = match[2];
+        const right = match[3].trim();
+
+        if (!left || !right) {
+            return null;
+        }
+
+        return { left, operator, right };
+    }
+
+    getInequalityDisplay(operator) {
+        switch (operator) {
+            case '<=':
+                return '≤';
+            case '>=':
+                return '≥';
+            default:
+                return operator;
+        }
+    }
+
+    flipInequalityOperator(operator) {
+        switch (operator) {
+            case '<':
+                return '>';
+            case '>':
+                return '<';
+            case '<=':
+                return '≥';
+            case '>=':
+                return '≤';
+            default:
+                return operator;
+        }
+    }
+
+    tryNumericValue(text) {
+        if (!text || typeof text !== 'string') {
+            return null;
+        }
+
+        try {
+            const numeric = Number(nerdamer(text).evaluate().text());
+            if (Number.isFinite(numeric)) {
+                return numeric;
+            }
+        } catch {
+            return null;
+        }
+
+        return null;
+    }
+
+    evaluateInequality({ left, right, operator, assignments = [], placeholders = [], rawExpression }) {
+        const displayLeft = this.formatForOutput(this.restorePlaceholders(left, placeholders));
+        const displayRight = this.formatForOutput(this.restorePlaceholders(right, placeholders));
+        const operatorDisplay = this.getInequalityDisplay(operator);
+
+        const leftEval = this.evaluateExpression(left, assignments);
+        const rightEval = this.evaluateExpression(right, assignments);
+
+        const leftNumeric = this.tryNumericValue(leftEval.exact) ?? this.tryNumericValue(leftEval.approx);
+        const rightNumeric = this.tryNumericValue(rightEval.exact) ?? this.tryNumericValue(rightEval.approx);
+
+        const lines = [`${displayLeft} ${operatorDisplay} ${displayRight}`];
+
+        if (leftNumeric !== null && rightNumeric !== null) {
+            let comparison = false;
+            switch (operator) {
+                case '>':
+                    comparison = leftNumeric > rightNumeric;
+                    break;
+                case '<':
+                    comparison = leftNumeric < rightNumeric;
+                    break;
+                case '>=':
+                    comparison = leftNumeric >= rightNumeric;
+                    break;
+                case '<=':
+                    comparison = leftNumeric <= rightNumeric;
+                    break;
+                default:
+                    comparison = false;
+            }
+
+            lines.push(`Result: ${comparison ? 'True' : 'False'}`);
+            return this.finalizeResponse(lines, placeholders);
+        }
+
+        lines.push('Unable to evaluate symbolically without numeric values.');
+        return this.finalizeResponse(lines, placeholders);
+    }
+
+    solveLinearInequality({ left, right, operator, variable, placeholders = [] }) {
+        const diffExpression = this.smartSimplify(`(${left})-(${right})`);
+        try {
+            const derivative = nerdamer.diff(diffExpression, variable).text();
+            const slope = this.tryNumericValue(derivative);
+            if (slope === null || Math.abs(slope) < 1e-9) {
+                return this.finalizeResponse(
+                    [
+                        `${this.formatForOutput(this.restorePlaceholders(left, placeholders))} ${this.getInequalityDisplay(operator)} ${this.formatForOutput(this.restorePlaceholders(right, placeholders))}`,
+                        'I can only solve single-variable linear inequalities at the moment.'
+                    ],
+                    placeholders
+                );
+            }
+
+            const solutions = nerdamer.solve(diffExpression, variable);
+            let rootRaw = Array.isArray(solutions) ? solutions[0] : solutions;
+            if (Array.isArray(rootRaw)) {
+                rootRaw = rootRaw[0];
+            }
+            if (!rootRaw) {
+                return this.finalizeResponse(
+                    [
+                        `${this.formatForOutput(this.restorePlaceholders(left, placeholders))} ${this.getInequalityDisplay(operator)} ${this.formatForOutput(this.restorePlaceholders(right, placeholders))}`,
+                        'Unable to isolate the variable, sir.'
+                    ],
+                    placeholders
+                );
+            }
+
+            let rootString = rootRaw && rootRaw.toString ? rootRaw.toString() : String(rootRaw);
+            if (rootString.startsWith('[') && rootString.endsWith(']')) {
+                rootString = rootString.slice(1, -1);
+            }
+            const rootSimplified = this.smartSimplify(rootString);
+            const rootDisplay = this.formatForOutput(this.restorePlaceholders(rootSimplified, placeholders));
+
+            let finalOperator = operator;
+            if (slope < 0) {
+                finalOperator = this.flipInequalityOperator(operator);
+            }
+
+            const inequalityLine = `${this.formatForOutput(this.restorePlaceholders(left, placeholders))} ${this.getInequalityDisplay(operator)} ${this.formatForOutput(this.restorePlaceholders(right, placeholders))}`;
+            const solutionLine = `${variable} ${this.getInequalityDisplay(finalOperator)} ${rootDisplay}`;
+
+            return this.finalizeResponse([inequalityLine, solutionLine], placeholders);
+        } catch (error) {
+            console.error('Failed to solve inequality:', error);
+            return this.finalizeResponse(
+                [
+                    `${this.formatForOutput(this.restorePlaceholders(left, placeholders))} ${this.getInequalityDisplay(operator)} ${this.formatForOutput(this.restorePlaceholders(right, placeholders))}`,
+                    'Unable to process that inequality, sir.'
+                ],
+                placeholders
+            );
+        }
+    }
+
     injectPlaceholders(expression, placeholders = []) {
         if (!expression || !expression.length) {
             return expression;
@@ -471,6 +633,16 @@ class MathSolver {
         }
 
         try {
+            const inequality = this.parseInequality(expression);
+            if (inequality) {
+                return this.evaluateInequality({
+                    ...inequality,
+                    assignments,
+                    placeholders,
+                    rawExpression
+                });
+            }
+
             const equalityIndex = this.findStandaloneEquals(expression);
 
             if (equalityIndex >= 0) {
@@ -671,6 +843,40 @@ class MathSolver {
     handleSolve({ expression, rawExpression, variable, placeholders = [] }) {
         if (!expression?.length) {
             return 'Please provide an equation to solve, sir.';
+        }
+
+        const inequality = this.parseInequality(expression);
+        if (inequality) {
+            const leftVariables = this.detectVariables(inequality.left);
+            const rightVariables = this.detectVariables(inequality.right);
+            const combined = Array.from(new Set([...leftVariables, ...rightVariables]));
+
+            if (!combined.length) {
+                return this.evaluateInequality({
+                    ...inequality,
+                    assignments: [],
+                    placeholders,
+                    rawExpression
+                });
+            }
+
+            if (combined.length > 1) {
+                return this.finalizeResponse(
+                    [
+                        `${this.formatForOutput(this.restorePlaceholders(inequality.left, placeholders))} ${this.getInequalityDisplay(inequality.operator)} ${this.formatForOutput(this.restorePlaceholders(inequality.right, placeholders))}`,
+                        'I can only solve inequalities with a single variable at the moment.'
+                    ],
+                    placeholders
+                );
+            }
+
+            return this.solveLinearInequality({
+                left: inequality.left,
+                right: inequality.right,
+                operator: inequality.operator,
+                variable: combined[0],
+                placeholders
+            });
         }
 
         const segments = expression
