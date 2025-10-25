@@ -37,7 +37,7 @@ const allCommands = [
                 .setDescription("Your message to Jarvis")
                 .setRequired(true),
         )
-        .setContexts([InteractionContextType.Guild]),
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("roll")
         .setDescription("Roll a die (e.g., /roll sides:20)")
