@@ -48,7 +48,10 @@ class MathSolver {
         }
 
         if (/^solve\b/i.test(trimmed)) {
-            const remainder = trimmed.replace(/^solve\b/i, '').trim();
+            let remainder = trimmed.replace(/^solve\b/i, '').trim();
+            if (/^system\b/i.test(remainder)) {
+                remainder = remainder.replace(/^system\b/i, '').trim();
+            }
             const { expression, variable } = this.extractVariableClause(remainder);
             const parsed = this.prepareParsedExpression(expression, variable);
             return { operation: 'solve', ...parsed };
@@ -96,11 +99,13 @@ class MathSolver {
         return { operation: 'evaluate', ...parsed };
     }
 
-    prepareParsedExpression(rawExpression, variable = null) {
+    prepareParsedExpression(rawInputExpression, variable = null) {
         const placeholders = [];
-        const cleanRaw = typeof rawExpression === 'string' ? rawExpression.trim() : '';
+        const cleanRaw = typeof rawInputExpression === 'string' ? rawInputExpression.trim() : '';
 
-        const normalizedExpression = this.normalizeExpression(cleanRaw);
+        const { expression: baseExpression, assignments } = this.extractAssignments(cleanRaw);
+
+        const normalizedExpression = this.normalizeExpression(baseExpression);
         const expression = this.injectPlaceholders(normalizedExpression, placeholders);
 
         let processedVariable = null;
@@ -111,10 +116,60 @@ class MathSolver {
 
         return {
             expression,
-            rawExpression: cleanRaw,
+            rawExpression: baseExpression,
             variable: processedVariable,
-            placeholders
+            placeholders,
+            assignments: assignments.map(item => ({
+                variable: item.variable,
+                value: this.normalizeExpression(item.value),
+                rawValue: item.rawValue
+            }))
         };
+    }
+
+    extractAssignments(input) {
+        if (!input || !input.length) {
+            return { expression: input, assignments: [] };
+        }
+
+        const assignmentPattern = /\b(?:at|where)\b\s+(.+)$/i;
+        const match = input.match(assignmentPattern);
+
+        if (!match) {
+            return { expression: input, assignments: [] };
+        }
+
+        const expression = input.slice(0, match.index).trim();
+        const assignmentSection = match[1].trim();
+
+        if (!assignmentSection.length) {
+            return { expression, assignments: [] };
+        }
+
+        const segments = assignmentSection.split(/[,;]+/);
+        const assignments = [];
+
+        for (const segment of segments) {
+            const trimmed = segment.trim();
+            if (!trimmed.length) {
+                continue;
+            }
+
+            const pairMatch = trimmed.match(/^([a-zA-Z][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+            if (!pairMatch) {
+                continue;
+            }
+
+            const variable = pairMatch[1];
+            const value = pairMatch[2].trim();
+            if (!value.length) {
+                continue;
+            }
+
+            assignments.push({ variable, value, rawValue: value });
+        }
+
+        return { expression, assignments };
     }
 
     extractVariableClause(input) {
@@ -291,7 +346,7 @@ class MathSolver {
         }, text);
     }
 
-    handleEvaluate({ expression, rawExpression, placeholders = [] }) {
+    handleEvaluate({ expression, rawExpression, placeholders = [], assignments = [] }) {
         if (!expression?.length) {
             return 'Please provide a valid expression after the math wake phrase, sir.';
         }
@@ -308,8 +363,12 @@ class MathSolver {
                     return this.finalizeResponse([display, '= Unable to process the right-hand side'], placeholders);
                 }
 
-                const simplifiedRightRaw = nerdamer(rightSegment).simplify().text();
-                const approxRightRaw = this.safeApproximate(rightSegment, simplifiedRightRaw);
+                const assignmentObject = this.buildAssignmentObject(assignments);
+                const simplifiedNode = assignmentObject
+                    ? nerdamer(rightSegment, assignmentObject).simplify()
+                    : nerdamer(rightSegment).simplify();
+                const simplifiedRightRaw = simplifiedNode.text();
+                const approxRightRaw = this.safeApproximate(rightSegment, simplifiedRightRaw, assignments);
 
                 const leftDisplay = this.restorePlaceholders(leftSegment, placeholders);
                 const originalRightDisplay = this.restorePlaceholders(rightSegment, placeholders);
@@ -359,16 +418,23 @@ class MathSolver {
                     }
                 }
 
+                if (assignments.length) {
+                    lines.push(`Given: ${this.formatAssignments(assignments)}`);
+                }
+
                 return this.finalizeResponse(lines, placeholders);
             }
 
             const display = this.getDisplayExpression(rawExpression, expression, placeholders);
-            const exact = nerdamer(expression).evaluate().text();
-            const approx = this.safeApproximate(expression, exact);
+            const { exact, approx } = this.evaluateExpression(expression, assignments);
 
             const lines = [display, `= ${exact}`];
             if (approx && approx !== exact) {
                 lines.push(`≈ ${approx}`);
+            }
+
+            if (assignments.length) {
+                lines.push(`Given: ${this.formatAssignments(assignments)}`);
             }
 
             return this.finalizeResponse(lines, placeholders);
@@ -578,6 +644,27 @@ class MathSolver {
             return [];
         }
 
+        if (Array.isArray(raw)) {
+            return raw
+                .map(entry => {
+                    if (Array.isArray(entry) && entry.length === 2) {
+                        const [variable, value] = entry;
+                        return {
+                            variable: typeof variable === 'string' ? variable : String(variable),
+                            value: typeof value === 'string' ? value : String(value)
+                        };
+                    }
+                    if (entry && typeof entry === 'object' && 'variable' in entry && 'value' in entry) {
+                        return {
+                            variable: String(entry.variable),
+                            value: String(entry.value)
+                        };
+                    }
+                    return null;
+                })
+                .filter(Boolean);
+        }
+
         const text = raw.toString().trim();
 
         if (!text.length || text === '[]') {
@@ -605,9 +692,13 @@ class MathSolver {
             .filter(Boolean);
     }
 
-    safeApproximate(expression, fallback = null) {
+    safeApproximate(expression, fallback = null, assignments = []) {
         try {
-            const approx = nerdamer(expression).evaluate().text();
+            const assignmentObject = this.buildAssignmentObject(assignments);
+            const approxNode = assignmentObject
+                ? nerdamer(expression, assignmentObject).evaluate()
+                : nerdamer(expression).evaluate();
+            const approx = approxNode.text();
             if (approx && approx !== fallback) {
                 return approx;
             }
@@ -615,6 +706,44 @@ class MathSolver {
             return null;
         }
         return null;
+    }
+
+    evaluateExpression(expression, assignments = []) {
+        const assignmentObject = this.buildAssignmentObject(assignments);
+        const node = assignmentObject
+            ? nerdamer(expression, assignmentObject)
+            : nerdamer(expression);
+
+        const exact = node.evaluate().text();
+        const approx = this.safeApproximate(expression, exact, assignments);
+
+        return { exact, approx };
+    }
+
+    buildAssignmentObject(assignments = []) {
+        if (!assignments || !assignments.length) {
+            return null;
+        }
+
+        return assignments.reduce((acc, { variable, value }) => {
+            if (variable && value) {
+                acc[variable] = value;
+            }
+            return acc;
+        }, {});
+    }
+
+    formatAssignments(assignments = []) {
+        if (!assignments || !assignments.length) {
+            return '';
+        }
+
+        const parts = assignments.map(({ variable, rawValue, value }) => {
+            const displayValue = rawValue || value || '';
+            return `${variable} = ${displayValue}`;
+        });
+
+        return parts.join(', ');
     }
 
     findStandaloneEquals(expression) {
@@ -724,7 +853,7 @@ class MathSolver {
         output = output.replace(/√\(([^()]+)\)\^\(-1\)/g, '1/√($1)');
         output = output.replace(/\*1\/√\(/g, ' / √(');
 
-        output = output.replace(/([0-9A-Za-z)])\s*\*\s*([0-9A-Za-z(])/g, '$1·$2');
+        output = output.replace(/([0-9A-Za-z)π√])\s*\*\s*([0-9A-Za-z(π√])/g, '$1·$2');
 
         output = output.replace(/\^([+-]?[0-9]+)/g, (_, digits) => this.toSuperscript(digits));
 
