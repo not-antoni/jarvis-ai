@@ -46,7 +46,6 @@ class DatabaseManager {
             const knowledgeBase = this.db.collection(config.database.collections.knowledgeBase);
             const counters = this.db.collection(config.database.collections.counters);
             const newsCache = this.db.collection(config.database.collections.newsCache);
-            const energyLevels = this.db.collection(config.database.collections.energyLevels);
 
             await conversations.createIndex({ userId: 1, guildId: 1, createdAt: -1 });
             await conversations.createIndex(
@@ -93,9 +92,6 @@ class DatabaseManager {
                 { createdAt: 1 },
                 { expireAfterSeconds: 3 * 60 * 60, name: 'ttl_newsCache_createdAt' }
             );
-
-            await energyLevels.createIndex({ userId: 1, guildId: 1 }, { unique: true });
-            await energyLevels.createIndex({ updatedAt: -1 });
 
             console.log('Database indexes created successfully');
         } catch (error) {
@@ -760,116 +756,6 @@ class DatabaseManager {
         await this.db
             .collection(config.database.collections.memberLogs)
             .deleteOne({ guildId });
-    }
-
-    async consumeEnergy(userId, guildId, { maxPoints, windowMinutes, cost = 1 }) {
-        if (!this.isConnected || !userId || !guildId) {
-            return { ok: true, remaining: maxPoints };
-        }
-
-        const collection = this.db.collection(config.database.collections.energyLevels);
-        const now = new Date();
-        const windowMs = Math.max(1, windowMinutes) * 60 * 1000;
-        const charge = Math.max(1, cost);
-
-        const record = await collection.findOne({ userId, guildId });
-        const windowStart = record?.windowStart ? new Date(record.windowStart) : null;
-        const resetsAt = windowStart ? new Date(windowStart.getTime() + windowMs) : null;
-
-        if (!record || !windowStart || (resetsAt && now >= resetsAt)) {
-            const newWindow = now;
-            await collection.updateOne(
-                { userId, guildId },
-                {
-                    $set: {
-                        userId,
-                        guildId,
-                        windowStart: newWindow,
-                        used: charge,
-                        maxPoints,
-                        updatedAt: now
-                    }
-                },
-                { upsert: true }
-            );
-
-            return {
-                ok: true,
-                remaining: Math.max(0, maxPoints - charge),
-                resetsAt: new Date(newWindow.getTime() + windowMs)
-            };
-        }
-
-        const used = record.used || 0;
-        if (used >= maxPoints || used + charge > maxPoints) {
-            return {
-                ok: false,
-                remaining: 0,
-                resetsAt
-            };
-        }
-
-        const newUsed = used + charge;
-        await collection.updateOne(
-            { _id: record._id },
-            {
-                $set: {
-                    used: newUsed,
-                    maxPoints,
-                    updatedAt: now
-                }
-            }
-        );
-
-        return {
-            ok: true,
-            remaining: Math.max(0, maxPoints - newUsed),
-            resetsAt
-        };
-    }
-
-    async getEnergyStatus(userId, guildId, { maxPoints, windowMinutes }) {
-        if (!this.isConnected || !userId || !guildId) {
-            return {
-                used: 0,
-                remaining: maxPoints,
-                maxPoints,
-                resetsAt: null
-            };
-        }
-
-        const collection = this.db.collection(config.database.collections.energyLevels);
-        const record = await collection.findOne({ userId, guildId });
-        if (!record) {
-            return {
-                used: 0,
-                remaining: maxPoints,
-                maxPoints,
-                resetsAt: null
-            };
-        }
-
-        const windowMs = Math.max(1, windowMinutes) * 60 * 1000;
-        const windowStart = record.windowStart ? new Date(record.windowStart) : null;
-        const resetsAt = windowStart ? new Date(windowStart.getTime() + windowMs) : null;
-        const now = Date.now();
-
-        if (resetsAt && now >= resetsAt.getTime()) {
-            return {
-                used: 0,
-                remaining: maxPoints,
-                maxPoints,
-                resetsAt: new Date(now + windowMs)
-            };
-        }
-
-        const used = record.used || 0;
-        return {
-            used,
-            remaining: Math.max(0, maxPoints - used),
-            maxPoints: record.maxPoints || maxPoints,
-            resetsAt
-        };
     }
 
     async disconnect() {

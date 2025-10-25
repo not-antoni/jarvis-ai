@@ -1090,34 +1090,6 @@ EXECUTION PIPELINE
                 return `Preference \`${key}\` updated to \`${value}\`, sir.`;
             };
 
-            const handleEnergy = async () => {
-                if (!config.features?.energyMeter || !config.energy?.enabled) {
-                    return 'Energy tracking is disabled for this deployment, sir.';
-                }
-
-                if (!database.isConnected) {
-                    return 'Energy telemetry offline, sir. Database unavailable.';
-                }
-
-                const energyStatus = await database.getEnergyStatus(userId, effectiveGuildId || `dm:${userId}`, {
-                    maxPoints: config.energy.maxPoints,
-                    windowMinutes: config.energy.windowMinutes
-                });
-
-                const resetDate = energyStatus.resetsAt ? new Date(energyStatus.resetsAt) : null;
-                const resetText = resetDate
-                    ? `<t:${Math.floor(resetDate.getTime() / 1000)}:R>`
-                    : 'soon';
-
-                return [
-                    '**Energy Reserves**',
-                    `• Remaining: ${energyStatus.remaining}/${energyStatus.maxPoints}`,
-                    `• Spent this cycle: ${energyStatus.used}`,
-                    `• Window: ${config.energy.windowMinutes} minutes`,
-                    `• Next refill: ${resetText}`
-                ].join('\n');
-            };
-
             if (isSlash && interaction?.commandName === "profile") {
                 const subcommand = interaction.options.getSubcommand();
 
@@ -1129,10 +1101,6 @@ EXECUTION PIPELINE
                     const key = interaction.options.getString("key");
                     const value = interaction.options.getString("value");
                     return await handleSet(key, value);
-                }
-
-                if (subcommand === "energy") {
-                    return await handleEnergy();
                 }
             } else {
                 const parts = rawInput.split(/\s+/);
@@ -1147,10 +1115,6 @@ EXECUTION PIPELINE
                     const valueIndex = key ? rawInput.indexOf(key) : -1;
                     const value = valueIndex >= 0 ? rawInput.substring(valueIndex + key.length).trim() : "";
                     return await handleSet(key, value);
-                }
-
-                if (action.toLowerCase() === "energy") {
-                    return await handleEnergy();
                 }
             }
 
