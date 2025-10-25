@@ -50,52 +50,70 @@ class MathSolver {
         if (/^solve\b/i.test(trimmed)) {
             const remainder = trimmed.replace(/^solve\b/i, '').trim();
             const { expression, variable } = this.extractVariableClause(remainder);
-            const normalized = this.normalizeExpression(expression);
-            return { operation: 'solve', expression: normalized, rawExpression: expression.trim(), variable };
+            const parsed = this.prepareParsedExpression(expression, variable);
+            return { operation: 'solve', ...parsed };
         }
 
         if (/^simplify\b/i.test(trimmed)) {
             const rawExpression = trimmed.replace(/^simplify\b/i, '').trim();
-            const expression = this.normalizeExpression(rawExpression);
-            return { operation: 'simplify', expression, rawExpression };
+            const parsed = this.prepareParsedExpression(rawExpression);
+            return { operation: 'simplify', ...parsed };
         }
 
         if (/^factor\b/i.test(trimmed)) {
             const rawExpression = trimmed.replace(/^factor\b/i, '').trim();
-            const expression = this.normalizeExpression(rawExpression);
-            return { operation: 'factor', expression, rawExpression };
+            const parsed = this.prepareParsedExpression(rawExpression);
+            return { operation: 'factor', ...parsed };
         }
 
         if (/^expand\b/i.test(trimmed)) {
             const rawExpression = trimmed.replace(/^expand\b/i, '').trim();
-            const expression = this.normalizeExpression(rawExpression);
-            return { operation: 'expand', expression, rawExpression };
+            const parsed = this.prepareParsedExpression(rawExpression);
+            return { operation: 'expand', ...parsed };
         }
 
         if (/^(differentiate|derivative|derive)\b/i.test(trimmed)) {
             const remainder = trimmed.replace(/^(differentiate|derivative|derive)\b/i, '').trim();
             const { expression, variable } = this.extractVariableClause(remainder);
-            const normalized = this.normalizeExpression(expression);
-            return { operation: 'derivative', expression: normalized, rawExpression: expression.trim(), variable };
+            const parsed = this.prepareParsedExpression(expression, variable);
+            return { operation: 'derivative', ...parsed };
         }
 
         if (/^(integrate|integral|antiderivative)\b/i.test(trimmed)) {
             const remainder = trimmed.replace(/^(integrate|integral|antiderivative)\b/i, '').trim();
             const { expression, variable } = this.extractVariableClause(remainder);
-            const normalized = this.normalizeExpression(expression);
-            return { operation: 'integrate', expression: normalized, rawExpression: expression.trim(), variable };
+            const parsed = this.prepareParsedExpression(expression, variable);
+            return { operation: 'integrate', ...parsed };
         }
 
         if (/^evaluate\b/i.test(trimmed)) {
             const rawExpression = trimmed.replace(/^evaluate\b/i, '').trim();
-            const expression = this.normalizeExpression(rawExpression);
-            return { operation: 'evaluate', expression, rawExpression };
+            const parsed = this.prepareParsedExpression(rawExpression);
+            return { operation: 'evaluate', ...parsed };
+        }
+
+        const parsed = this.prepareParsedExpression(trimmed);
+        return { operation: 'evaluate', ...parsed };
+    }
+
+    prepareParsedExpression(rawExpression, variable = null) {
+        const placeholders = [];
+        const cleanRaw = typeof rawExpression === 'string' ? rawExpression.trim() : '';
+
+        const normalizedExpression = this.normalizeExpression(cleanRaw);
+        const expression = this.injectPlaceholders(normalizedExpression, placeholders);
+
+        let processedVariable = null;
+        if (typeof variable === 'string' && variable.trim().length) {
+            const normalizedVariable = this.normalizeExpression(variable.trim());
+            processedVariable = this.injectPlaceholders(normalizedVariable, placeholders);
         }
 
         return {
-            operation: 'evaluate',
-            expression: this.normalizeExpression(trimmed),
-            rawExpression: trimmed
+            expression,
+            rawExpression: cleanRaw,
+            variable: processedVariable,
+            placeholders
         };
     }
 
@@ -133,7 +151,7 @@ class MathSolver {
     }
 
     detectVariables(expression) {
-        const tokens = expression.match(/[a-zA-Z]+/g) || [];
+        const tokens = expression.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
         const candidates = tokens
             .map(token => token.trim())
             .filter(token => token.length > 0)
@@ -159,7 +177,116 @@ class MathSolver {
         return normalized;
     }
 
-    handleEvaluate({ expression, rawExpression }) {
+    injectPlaceholders(expression, placeholders = []) {
+        if (!expression || !expression.length) {
+            return expression;
+        }
+
+        let result = '';
+        let index = 0;
+
+        while (index < expression.length) {
+            const match = this.matchUserFunction(expression, index);
+            if (match) {
+                const placeholder = this.getOrCreatePlaceholder(match.original, match.canonical, placeholders);
+                result += placeholder;
+                index = match.endIndex;
+            } else {
+                result += expression[index];
+                index += 1;
+            }
+        }
+
+        return result;
+    }
+
+    matchUserFunction(expression, startIndex) {
+        const firstChar = expression[startIndex];
+
+        if (!firstChar || !/[A-Za-z]/.test(firstChar)) {
+            return null;
+        }
+
+        let nameEnd = startIndex;
+        while (nameEnd < expression.length && /[A-Za-z0-9]/.test(expression[nameEnd])) {
+            nameEnd++;
+        }
+
+        const name = expression.slice(startIndex, nameEnd);
+        if (!name.length) {
+            return null;
+        }
+
+        if (name.length !== 1) {
+            return null;
+        }
+
+        const lowerName = name.toLowerCase();
+        if (RESERVED_KEYWORDS.has(lowerName)) {
+            return null;
+        }
+
+        let cursor = nameEnd;
+        while (cursor < expression.length && /\s/.test(expression[cursor])) {
+            cursor++;
+        }
+
+        if (cursor >= expression.length || expression[cursor] !== '(') {
+            return null;
+        }
+
+        let depth = 0;
+        let position = cursor;
+
+        while (position < expression.length) {
+            const char = expression[position];
+            if (char === '(') {
+                depth += 1;
+            } else if (char === ')') {
+                depth -= 1;
+                if (depth === 0) {
+                    position += 1;
+                    break;
+                }
+            }
+            position += 1;
+        }
+
+        if (depth !== 0) {
+            return null;
+        }
+
+        const original = expression.slice(startIndex, position);
+        const canonical = original.replace(/\s+/g, '');
+        return { name, endIndex: position, original, canonical };
+    }
+
+    getOrCreatePlaceholder(original, canonical, placeholders) {
+        if (!Array.isArray(placeholders)) {
+            return original;
+        }
+
+        const existing = placeholders.find(entry => entry.canonical === canonical);
+        if (existing) {
+            return existing.placeholder;
+        }
+
+        const placeholder = `__func${placeholders.length}__`;
+        placeholders.push({ placeholder, original, canonical });
+        return placeholder;
+    }
+
+    restorePlaceholders(text, placeholders) {
+        if (!text || !Array.isArray(placeholders) || !placeholders.length) {
+            return text;
+        }
+
+        return placeholders.reduce((output, entry) => {
+            return output.split(entry.placeholder).join(entry.original);
+        }, text);
+    }
+
+    handleEvaluate({ expression, rawExpression, placeholders = [] }) {
         if (!expression?.length) {
             return 'Please provide a valid expression after the math wake phrase, sir.';
         }
@@ -167,64 +294,64 @@ class MathSolver {
         try {
             const exact = nerdamer(expression).text();
             const approx = this.safeApproximate(expression, exact);
-            const display = this.getDisplayExpression(rawExpression, expression);
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const lines = [display, `= ${exact}`];
             if (approx) {
                 lines.push(`≈ ${approx}`);
             }
 
-            return this.finalizeResponse(lines);
+            return this.finalizeResponse(lines, placeholders);
         } catch (error) {
-            return this.reportFailure(error, expression, rawExpression);
+            return this.reportFailure(error, expression, rawExpression, placeholders);
         }
     }
 
-    handleSimplify({ expression, rawExpression }) {
+    handleSimplify({ expression, rawExpression, placeholders = [] }) {
         if (!expression?.length) {
             return 'Please provide something to simplify after the command, sir.';
         }
 
         try {
             const simplified = nerdamer(expression).text();
-            const display = this.getDisplayExpression(rawExpression, expression);
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const lines = [display, `= ${simplified}`];
-            return this.finalizeResponse(lines);
+            return this.finalizeResponse(lines, placeholders);
         } catch (error) {
-            return this.reportFailure(error, expression, rawExpression);
+            return this.reportFailure(error, expression, rawExpression, placeholders);
         }
     }
 
-    handleFactor({ expression, rawExpression }) {
+    handleFactor({ expression, rawExpression, placeholders = [] }) {
         if (!expression?.length) {
             return 'Please provide an expression to factor, sir.';
         }
 
         try {
             const factored = nerdamer(`factor(${expression})`).text();
-            const display = this.getDisplayExpression(rawExpression, expression);
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const lines = [display, `= ${factored}`];
-            return this.finalizeResponse(lines);
+            return this.finalizeResponse(lines, placeholders);
         } catch (error) {
-            return this.reportFailure(error, expression, rawExpression);
+            return this.reportFailure(error, expression, rawExpression, placeholders);
         }
     }
 
-    handleExpand({ expression, rawExpression }) {
+    handleExpand({ expression, rawExpression, placeholders = [] }) {
         if (!expression?.length) {
             return 'Please provide an expression to expand, sir.';
         }
 
         try {
             const expanded = nerdamer(`expand(${expression})`).text();
-            const display = this.getDisplayExpression(rawExpression, expression);
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const lines = [display, `= ${expanded}`];
-            return this.finalizeResponse(lines);
+            return this.finalizeResponse(lines, placeholders);
         } catch (error) {
-            return this.reportFailure(error, expression, rawExpression);
+            return this.reportFailure(error, expression, rawExpression, placeholders);
         }
     }
 
-    handleDerivative({ expression, rawExpression, variable }) {
+    handleDerivative({ expression, rawExpression, variable, placeholders = [] }) {
         if (!expression?.length) {
             return 'Please provide an expression to differentiate, sir.';
         }
@@ -243,15 +370,15 @@ class MathSolver {
 
         try {
             const derivative = nerdamer(`diff(${expression}, ${target})`).text();
-            const display = this.getDisplayExpression(rawExpression, expression);
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const lines = [`d/d${target} (${display})`, `= ${derivative}`];
-            return this.finalizeResponse(lines);
+            return this.finalizeResponse(lines, placeholders);
         } catch (error) {
-            return this.reportFailure(error, expression, rawExpression);
+            return this.reportFailure(error, expression, rawExpression, placeholders);
         }
     }
 
-    handleIntegral({ expression, rawExpression, variable }) {
+    handleIntegral({ expression, rawExpression, variable, placeholders = [] }) {
         if (!expression?.length) {
             return 'Please provide an expression to integrate, sir.';
         }
@@ -270,15 +397,15 @@ class MathSolver {
 
         try {
             const integral = nerdamer(`integrate(${expression}, ${target})`).text();
-            const display = this.getDisplayExpression(rawExpression, expression);
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const lines = [`Integral d${target} (${display})`, `= ${integral} + C`];
-            return this.finalizeResponse(lines);
+            return this.finalizeResponse(lines, placeholders);
         } catch (error) {
-            return this.reportFailure(error, expression, rawExpression);
+            return this.reportFailure(error, expression, rawExpression, placeholders);
         }
     }
 
-    handleSolve({ expression, rawExpression, variable }) {
+    handleSolve({ expression, rawExpression, variable, placeholders = [] }) {
         if (!expression?.length) {
             return 'Please provide an equation to solve, sir.';
         }
@@ -298,9 +425,9 @@ class MathSolver {
         }
 
         if (!variables.length) {
-            const display = this.getDisplayExpression(rawExpression, expression);
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const lines = [display || 'Equation', 'Unable to detect a variable to solve for'];
-            return this.finalizeResponse(lines);
+            return this.finalizeResponse(lines, placeholders);
         }
 
         try {
@@ -311,27 +438,27 @@ class MathSolver {
                 const solutionStrings = this.unpackSolutionList(rawSolutions);
 
                 if (!solutionStrings.length) {
-                    const display = this.prepareEquationDisplay(rawExpression, equations);
+                    const display = this.prepareEquationDisplay(rawExpression, equations, placeholders);
                     const lines = [...display, `No solution found for ${variables[0]}`];
-                    return this.finalizeResponse(lines);
+                    return this.finalizeResponse(lines, placeholders);
                 }
 
                 const formatted = this.formatSingleVariableSolutions(solutionStrings, variables[0]);
-                const display = this.prepareEquationDisplay(rawExpression, equations);
+                const display = this.prepareEquationDisplay(rawExpression, equations, placeholders);
                 const lines = [...display, ...formatted];
-                return this.finalizeResponse(lines);
+                return this.finalizeResponse(lines, placeholders);
             }
 
             const systemSolutions = nerdamer.solveEquations(equations, variables);
             const parsedSolutions = this.unpackSystemSolutions(systemSolutions);
 
             if (!parsedSolutions.length) {
-                const display = this.prepareEquationDisplay(rawExpression, equations);
+                const display = this.prepareEquationDisplay(rawExpression, equations, placeholders);
                 const lines = [...display, 'No solution found for the provided system'];
-                return this.finalizeResponse(lines);
+                return this.finalizeResponse(lines, placeholders);
             }
 
-            const display = this.prepareEquationDisplay(rawExpression, equations);
+            const display = this.prepareEquationDisplay(rawExpression, equations, placeholders);
             const details = parsedSolutions.map(({ variable: v, value }) => {
                 const approx = this.safeApproximate(value, value);
                 return approx && approx !== value
@@ -339,9 +466,9 @@ class MathSolver {
                     : `${v} = ${value}`;
             });
             const lines = [...display, ...details];
-            return this.finalizeResponse(lines);
+            return this.finalizeResponse(lines, placeholders);
         } catch (error) {
-            return this.reportFailure(error, expression, rawExpression);
+            return this.reportFailure(error, expression, rawExpression, placeholders);
         }
     }
 
@@ -419,26 +546,30 @@ class MathSolver {
         return null;
     }
 
-    getDisplayExpression(rawExpression, normalized) {
+    getDisplayExpression(rawExpression, normalized, placeholders) {
         if (typeof rawExpression === 'string' && rawExpression.trim().length) {
             return rawExpression.trim();
         }
-        return normalized || '';
+
+        const fallback = normalized || '';
+        return this.restorePlaceholders(fallback, placeholders).trim();
     }
 
-    prepareEquationDisplay(rawExpression, normalizedEquations) {
+    prepareEquationDisplay(rawExpression, normalizedEquations, placeholders) {
         const displaySource = typeof rawExpression === 'string' && rawExpression.trim().length
             ? rawExpression
             : normalizedEquations.join('\n');
 
-        return displaySource
+        const restored = this.restorePlaceholders(displaySource, placeholders);
+
+        return restored
             .split(/[\n;]+/)
             .map(segment => segment.trim())
             .filter(Boolean)
             .map(segment => (segment.includes('=') ? segment : `${segment} = 0`));
     }
 
-    finalizeResponse(lines) {
+    finalizeResponse(lines, placeholders = []) {
         const cleaned = Array.isArray(lines)
             ? lines.map(line => (line || '').trim()).filter(line => line.length)
             : [];
@@ -447,24 +578,32 @@ class MathSolver {
             return 'Computation complete, sir.';
         }
 
-        const lastIndex = cleaned.length - 1;
-        const lastLine = cleaned[lastIndex];
-        if (!/sir\./i.test(lastLine)) {
-            let base = lastLine;
+        const restored = cleaned
+            .map(line => this.restorePlaceholders(line, placeholders).trim())
+            .filter(line => line.length);
+
+        if (!restored.length) {
+            return 'Computation complete, sir.';
+        }
+
+        const lastIndex = restored.length - 1;
+        let lastLine = restored[lastIndex];
+        if (!/sir\.\s*$/i.test(lastLine)) {
+            let base = lastLine.replace(/\s+$/, '');
             if (base.endsWith('.')) {
                 base = base.slice(0, -1);
             }
-            cleaned[lastIndex] = `${base}, sir.`;
+            restored[lastIndex] = `${base}, sir.`;
         }
 
-        return cleaned.join('\n');
+        return restored.join('\n');
     }
 
-    reportFailure(error, expression, rawExpression) {
+    reportFailure(error, expression, rawExpression, placeholders) {
         const reason = error?.message ? error.message.replace(/^Error:\s*/i, '') : 'Unexpected error';
-        const display = this.getDisplayExpression(rawExpression, expression) || 'Problem';
+        const display = this.getDisplayExpression(rawExpression, expression, placeholders) || 'Problem';
         const lines = [display, `Error: ${reason}`, 'Please adjust the problem and try again'];
-        return this.finalizeResponse(lines);
+        return this.finalizeResponse(lines, placeholders);
     }
 }
 
