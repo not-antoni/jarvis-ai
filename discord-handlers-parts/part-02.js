@@ -574,7 +574,7 @@
     }
 
     async handleMessage(message, client) {
-        const allowedBotIds = ['984734399310467112', '1391010888915484672'];
+        const allowedBotIds = ['984734399310467112', '1391010888915484672', '247283454440374274'];
         if (message.author.id === client.user.id) return;
         if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
