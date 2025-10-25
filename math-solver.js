@@ -226,6 +226,11 @@ class MathSolver {
             return null;
         }
 
+        const prevChar = startIndex > 0 ? expression[startIndex - 1] : null;
+        if (prevChar && /[A-Za-z0-9_]/.test(prevChar)) {
+            return null;
+        }
+
         let cursor = nameEnd;
         while (cursor < expression.length && /\s/.test(expression[cursor])) {
             cursor++;
@@ -292,7 +297,6 @@ class MathSolver {
         }
 
         try {
-            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const equalityIndex = this.findStandaloneEquals(expression);
 
             if (equalityIndex >= 0) {
@@ -300,33 +304,70 @@ class MathSolver {
                 const rightSegment = expression.slice(equalityIndex + 1).trim();
 
                 if (!rightSegment.length) {
+                    const display = this.getDisplayExpression(rawExpression, expression, placeholders);
                     return this.finalizeResponse([display, '= Unable to process the right-hand side'], placeholders);
                 }
 
-                const exactRight = nerdamer(rightSegment).text();
-                const approxRight = this.safeApproximate(rightSegment, exactRight);
+                const simplifiedRightRaw = nerdamer(rightSegment).simplify().text();
+                const approxRightRaw = this.safeApproximate(rightSegment, simplifiedRightRaw);
 
-                const leftDisplay = this.restorePlaceholders(leftSegment, placeholders) || 'Result';
-                const rightDisplay = this.restorePlaceholders(exactRight, placeholders);
+                const leftDisplay = this.restorePlaceholders(leftSegment, placeholders);
+                const originalRightDisplay = this.restorePlaceholders(rightSegment, placeholders);
+                const simplifiedRightDisplay = this.restorePlaceholders(simplifiedRightRaw, placeholders);
+                const approxRightDisplay = approxRightRaw
+                    ? this.restorePlaceholders(approxRightRaw, placeholders)
+                    : null;
 
-                const lines = [
-                    display,
-                    `= ${leftDisplay} = ${rightDisplay}`
-                ];
+                const lines = [];
+                if (leftDisplay) {
+                    const originalCondensed = (originalRightDisplay || '').replace(/\s+/g, '');
+                    const simplifiedCondensed = (simplifiedRightDisplay || '').replace(/\s+/g, '');
 
-                if (approxRight && approxRight !== exactRight) {
-                    const approxDisplay = this.restorePlaceholders(approxRight, placeholders);
-                    lines.push(`≈ ${leftDisplay} ≈ ${approxDisplay}`);
+                    let includeSimplified = Boolean(simplifiedRightDisplay && simplifiedRightDisplay !== originalRightDisplay);
+                    if (includeSimplified && simplifiedCondensed.length >= originalCondensed.length) {
+                        includeSimplified = false;
+                    }
+
+                    let includeApprox = Boolean(
+                        approxRightDisplay
+                        && approxRightDisplay !== simplifiedRightDisplay
+                        && approxRightDisplay !== originalRightDisplay
+                    );
+                    if (includeApprox && /[A-Za-z]/.test(approxRightDisplay.replace(/[π]/g, ''))) {
+                        includeApprox = false;
+                    }
+
+                    lines.push(`${leftDisplay} = ${originalRightDisplay}`);
+                    if (includeSimplified) {
+                        lines.push(`${leftDisplay} = ${simplifiedRightDisplay}`);
+                    }
+                    if (includeApprox) {
+                        lines.push(`${leftDisplay} ≈ ${approxRightDisplay}`);
+                    }
+                } else {
+                    const display = this.getDisplayExpression(rawExpression, expression, placeholders);
+                    lines.push(display);
+                    const simplifiedCondensed = (simplifiedRightDisplay || '').replace(/\s+/g, '');
+                    const displayCondensed = display.replace(/\s+/g, '');
+
+                    if (simplifiedRightDisplay && simplifiedCondensed !== displayCondensed && simplifiedCondensed.length < displayCondensed.length) {
+                        lines.push(`= ${simplifiedRightDisplay}`);
+                    }
+
+                    if (approxRightDisplay && !/[A-Za-z]/.test(approxRightDisplay.replace(/[π]/g, ''))) {
+                        lines.push(`≈ ${approxRightDisplay}`);
+                    }
                 }
 
                 return this.finalizeResponse(lines, placeholders);
             }
 
-            const exact = nerdamer(expression).text();
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
+            const exact = nerdamer(expression).evaluate().text();
             const approx = this.safeApproximate(expression, exact);
 
             const lines = [display, `= ${exact}`];
-            if (approx) {
+            if (approx && approx !== exact) {
                 lines.push(`≈ ${approx}`);
             }
 
@@ -342,7 +383,7 @@ class MathSolver {
         }
 
         try {
-            const simplified = nerdamer(expression).text();
+            const simplified = nerdamer(expression).simplify().text();
             const display = this.getDisplayExpression(rawExpression, expression, placeholders);
             const lines = [display, `= ${simplified}`];
             return this.finalizeResponse(lines, placeholders);
@@ -679,6 +720,9 @@ class MathSolver {
         output = output.replace(/>=/g, '≥');
         output = output.replace(/!=/g, '≠');
         output = output.replace(/->/g, '→');
+
+        output = output.replace(/√\(([^()]+)\)\^\(-1\)/g, '1/√($1)');
+        output = output.replace(/\*1\/√\(/g, ' / √(');
 
         output = output.replace(/([0-9A-Za-z)])\s*\*\s*([0-9A-Za-z(])/g, '$1·$2');
 
