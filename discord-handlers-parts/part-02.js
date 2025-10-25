@@ -922,7 +922,9 @@
             return; // Exit early, no AI response
         }
 
+        const mathCommandPattern = /^jarvis\s+math\s+(.+)$/i;
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
+        const mathMatch = cleanContent.match(mathCommandPattern);
         const ytMatch = cleanContent.match(ytCommandPattern);
         let braveInvocation = defaultBraveInvocation;
 
@@ -939,6 +941,33 @@
                 console.error('Failed to parse cleaned Brave invocation:', error);
                 braveInvocation = defaultBraveInvocation;
             }
+        }
+
+        if (mathMatch) {
+            const mathInput = mathMatch[1].trim();
+
+            if (!mathInput.length) {
+                await message.reply("Please provide a calculation after 'jarvis math', sir.");
+                this.setCooldown(message.author.id);
+                return;
+            }
+
+            try {
+                await message.channel.sendTyping();
+            } catch (error) {
+                console.warn('Failed to send typing for math command:', error);
+            }
+
+            try {
+                const response = await this.jarvis.handleMathCommand(mathInput);
+                await message.reply(response || "Mathematics subsystem returned no output, sir.");
+            } catch (error) {
+                console.error("Math command error:", error);
+                await message.reply("Mathematics subsystem encountered an error, sir. Please verify the expression.");
+            }
+
+            this.setCooldown(message.author.id);
+            return;
         }
 
         if (ytMatch) {
