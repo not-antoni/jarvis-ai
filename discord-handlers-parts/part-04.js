@@ -981,15 +981,6 @@
                     prompt = prompt.substring(0, config.ai.maxInputLength) + "...";
                 }
 
-                const energyResult = await this.ensureEnergyAvailability({
-                    interaction,
-                    cost: this.energyConfig.costs?.default
-                });
-
-                if (!energyResult.ok) {
-                    return;
-                }
-
                 response = await this.jarvis.generateResponse(interaction, prompt, true);
             } else if (interaction.commandName === "roll") {
                 const sides = interaction.options.getInteger("sides") || 6;
@@ -1056,15 +1047,6 @@
                     interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "digest") {
-                const energyResult = await this.ensureEnergyAvailability({
-                    interaction,
-                    cost: this.energyConfig.costs?.digest
-                });
-
-                if (!energyResult.ok) {
-                    return;
-                }
-
                 response = await this.jarvis.handleUtilityCommand(
                     "digest",
                     interaction.user.username,
