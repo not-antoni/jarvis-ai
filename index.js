@@ -787,16 +787,21 @@ app.get("/", async (req, res) => {
                         </div>`;
         }).join('') || '<div class="provider-item"><span class="provider-name">No providers configured</span></div>';
 
-        const envSummaryLines = [
-            `Required: ${envRequiredCount}/${envRequiredTotal}`,
-            missingRequired.length ? `Missing: ${missingRequired.join(', ')}` : 'Missing: None',
-            `Optional: ${optionalConfigured}/${optionalTotal}`,
-            ...(
-                optionalEnabled.length
-                    ? ['Enabled:', ...optionalEnabled.map((name) => `- ${name}`)]
-                    : ['Enabled: None']
-            )
-        ].join('\\n');
+        const envSummaryItems = [
+            `<li><strong>Required:</strong> ${envRequiredCount}/${envRequiredTotal}</li>`,
+            `<li><strong>Missing:</strong> ${missingRequired.length ? missingRequired.join(', ') : 'None'}</li>`,
+            `<li><strong>Optional:</strong> ${optionalConfigured}/${optionalTotal}</li>`
+        ];
+
+        if (optionalEnabled.length) {
+            envSummaryItems.push(
+                `<li><strong>Enabled:</strong><ul class="env-summary-sublist">${optionalEnabled.map((name) => `<li>${name}</li>`).join('')}</ul></li>`
+            );
+        } else {
+            envSummaryItems.push(`<li><strong>Enabled:</strong> None</li>`);
+        }
+
+        const envSummaryHtml = `<ul class="env-summary">${envSummaryItems.join('')}</ul>`;
 
         const dbLines = [
             `Connected: ${databaseStatus.connected ? '✅ Yes' : '❌ No'}`,
@@ -857,6 +862,22 @@ app.get("/", async (req, res) => {
             border-radius: 5px;
             padding: 15px;
             font-family: 'Courier New', monospace;
+        }
+        
+        .env-summary {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+        
+        .env-summary > li {
+            margin-bottom: 6px;
+        }
+        
+        .env-summary-sublist {
+            list-style: disc;
+            margin: 6px 0 0 18px;
+            padding-left: 0;
         }
         
         .status-card h3 {
@@ -975,9 +996,7 @@ app.get("/", async (req, res) => {
 
             <div class="status-card">
                 <h3>🧪 ENVIRONMENT</h3>
-                <div style="white-space: pre;">
-${envSummaryLines}
-                </div>
+                ${envSummaryHtml}
             </div>
             
             <div class="status-card">
