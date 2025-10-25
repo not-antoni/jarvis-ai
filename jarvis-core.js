@@ -8,6 +8,7 @@ const config = require('./config');
 const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
+const mathSolver = require('./math-solver');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const punycode = require('node:punycode');
@@ -856,6 +857,15 @@ EXECUTION PIPELINE
         } catch (error) {
             console.error("YouTube search error:", error);
             return "YouTube search is currently unavailable, sir. Technical difficulties.";
+        }
+    }
+
+    async handleMathCommand(expression) {
+        try {
+            return mathSolver.solve(expression);
+        } catch (error) {
+            console.error("Math solver error:", error);
+            return "Mathematics subsystem encountered an error, sir. Please verify the expression.";
         }
     }
 
