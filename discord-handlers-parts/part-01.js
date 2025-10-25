@@ -494,15 +494,6 @@
 
         const query = interaction.options.getString('query', true);
 
-        const energyResult = await this.ensureEnergyAvailability({
-            interaction,
-            cost: this.energyConfig.costs?.default
-        });
-
-        if (!energyResult.ok) {
-            return;
-        }
-
         try {
             const { answer, sources } = await embeddingSystem.answerGuildQuestion({
                 guildId: guild.id,
