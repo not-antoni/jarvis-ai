@@ -292,9 +292,39 @@ class MathSolver {
         }
 
         try {
+            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
+            const equalityIndex = this.findStandaloneEquals(expression);
+
+            if (equalityIndex >= 0) {
+                const leftSegment = expression.slice(0, equalityIndex).trim();
+                const rightSegment = expression.slice(equalityIndex + 1).trim();
+
+                if (!rightSegment.length) {
+                    return this.finalizeResponse([display, '= Unable to process the right-hand side'], placeholders);
+                }
+
+                const exactRight = nerdamer(rightSegment).text();
+                const approxRight = this.safeApproximate(rightSegment, exactRight);
+
+                const leftDisplay = this.restorePlaceholders(leftSegment, placeholders) || 'Result';
+                const rightDisplay = this.restorePlaceholders(exactRight, placeholders);
+
+                const lines = [
+                    display,
+                    `= ${leftDisplay} = ${rightDisplay}`
+                ];
+
+                if (approxRight && approxRight !== exactRight) {
+                    const approxDisplay = this.restorePlaceholders(approxRight, placeholders);
+                    lines.push(`≈ ${leftDisplay} ≈ ${approxDisplay}`);
+                }
+
+                return this.finalizeResponse(lines, placeholders);
+            }
+
             const exact = nerdamer(expression).text();
             const approx = this.safeApproximate(expression, exact);
-            const display = this.getDisplayExpression(rawExpression, expression, placeholders);
+
             const lines = [display, `= ${exact}`];
             if (approx) {
                 lines.push(`≈ ${approx}`);
@@ -544,6 +574,33 @@ class MathSolver {
             return null;
         }
         return null;
+    }
+
+    findStandaloneEquals(expression) {
+        if (!expression || !expression.length) {
+            return -1;
+        }
+
+        for (let i = 0; i < expression.length; i++) {
+            if (expression[i] !== '=') {
+                continue;
+            }
+
+            const prev = i > 0 ? expression[i - 1] : null;
+            const next = i + 1 < expression.length ? expression[i + 1] : null;
+
+            if (prev === '<' || prev === '>' || prev === '!' || prev === '=') {
+                continue;
+            }
+
+            if (next === '=') {
+                continue;
+            }
+
+            return i;
+        }
+
+        return -1;
     }
 
     getDisplayExpression(rawExpression, normalized, placeholders) {
