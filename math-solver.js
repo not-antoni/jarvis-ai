@@ -586,17 +586,19 @@ class MathSolver {
             return 'Computation complete, sir.';
         }
 
-        const lastIndex = restored.length - 1;
-        let lastLine = restored[lastIndex];
+        const formatted = restored.map(line => this.formatForOutput(line));
+
+        const lastIndex = formatted.length - 1;
+        let lastLine = formatted[lastIndex];
         if (!/sir\.\s*$/i.test(lastLine)) {
             let base = lastLine.replace(/\s+$/, '');
             if (base.endsWith('.')) {
                 base = base.slice(0, -1);
             }
-            restored[lastIndex] = `${base}, sir.`;
+            formatted[lastIndex] = `${base}, sir.`;
         }
 
-        return restored.join('\n');
+        return formatted.join('\n');
     }
 
     reportFailure(error, expression, rawExpression, placeholders) {
@@ -604,6 +606,47 @@ class MathSolver {
         const display = this.getDisplayExpression(rawExpression, expression, placeholders) || 'Problem';
         const lines = [display, `Error: ${reason}`, 'Please adjust the problem and try again'];
         return this.finalizeResponse(lines, placeholders);
+    }
+
+    formatForOutput(text) {
+        if (!text) {
+            return text;
+        }
+
+        let output = text;
+
+        output = output.replace(/sqrt\s*\(/gi, '√(');
+        output = output.replace(/\bpi\b/gi, 'π');
+        output = output.replace(/abs\(([^()]+)\)/gi, '|$1|');
+        output = output.replace(/<=/g, '≤');
+        output = output.replace(/>=/g, '≥');
+        output = output.replace(/!=/g, '≠');
+        output = output.replace(/->/g, '→');
+
+        output = output.replace(/([0-9A-Za-z)])\s*\*\s*([0-9A-Za-z(])/g, '$1·$2');
+
+        output = output.replace(/\^([+-]?[0-9]+)/g, (_, digits) => this.toSuperscript(digits));
+
+        return output;
+    }
+
+    toSuperscript(digits) {
+        const SUPERSCRIPTS = {
+            '0': '⁰',
+            '1': '¹',
+            '2': '²',
+            '3': '³',
+            '4': '⁴',
+            '5': '⁵',
+            '6': '⁶',
+            '7': '⁷',
+            '8': '⁸',
+            '9': '⁹',
+            '+': '⁺',
+            '-': '⁻'
+        };
+
+        return digits.split('').map(char => SUPERSCRIPTS[char] || char).join('');
     }
 }
 
