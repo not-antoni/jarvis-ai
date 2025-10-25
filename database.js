@@ -5,6 +5,8 @@
 const { MongoClient, ObjectId } = require('mongodb');
 const config = require('./config');
 
+const DEFAULT_PREFIX = config.legacy?.defaultPrefix || '!';
+
 class DatabaseManager {
     constructor() {
         this.client = null;
@@ -290,22 +292,37 @@ class DatabaseManager {
                 ownerId: ownerId || null,
                 moderatorRoleIds: [],
                 moderatorUserIds: [],
+                prefix: DEFAULT_PREFIX,
                 createdAt: now,
                 updatedAt: now
             };
             await collection.insertOne(guildConfig);
-        } else if (ownerId && guildConfig.ownerId !== ownerId) {
-            guildConfig.ownerId = ownerId;
-            guildConfig.updatedAt = new Date();
-            await collection.updateOne(
-                { guildId },
-                {
-                    $set: {
-                        ownerId: guildConfig.ownerId,
-                        updatedAt: guildConfig.updatedAt
+        } else {
+            let shouldUpdate = false;
+
+            if (!guildConfig.prefix || typeof guildConfig.prefix !== 'string') {
+                guildConfig.prefix = DEFAULT_PREFIX;
+                shouldUpdate = true;
+            }
+
+            if (ownerId && guildConfig.ownerId !== ownerId) {
+                guildConfig.ownerId = ownerId;
+                shouldUpdate = true;
+            }
+
+            if (shouldUpdate) {
+                guildConfig.updatedAt = new Date();
+                await collection.updateOne(
+                    { guildId },
+                    {
+                        $set: {
+                            ownerId: guildConfig.ownerId,
+                            prefix: guildConfig.prefix,
+                            updatedAt: guildConfig.updatedAt
+                        }
                     }
-                }
-            );
+                );
+            }
         }
 
         return guildConfig;
@@ -327,6 +344,7 @@ class DatabaseManager {
                 },
                 $setOnInsert: {
                     moderatorUserIds: [],
+                    prefix: DEFAULT_PREFIX,
                     createdAt: now
                 }
             },
@@ -334,6 +352,47 @@ class DatabaseManager {
         );
 
         return this.getGuildConfig(guildId, ownerId);
+    }
+
+    async setGuildPrefix(guildId, prefix) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const collection = this.db.collection(config.database.collections.guildConfigs);
+        const now = new Date();
+
+        const sanitized = typeof prefix === 'string' && prefix.trim() ? prefix.trim() : DEFAULT_PREFIX;
+
+        await collection.updateOne(
+            { guildId },
+            {
+                $set: {
+                    prefix: sanitized,
+                    updatedAt: now
+                },
+                $setOnInsert: {
+                    ownerId: null,
+                    moderatorRoleIds: [],
+                    moderatorUserIds: [],
+                    createdAt: now
+                }
+            },
+            { upsert: true }
+        );
+
+        return sanitized;
+    }
+
+    async getGuildPrefix(guildId) {
+        if (!this.isConnected || !guildId) {
+            return DEFAULT_PREFIX;
+        }
+
+        const guildConfig = await this.getGuildConfig(guildId);
+        if (guildConfig && typeof guildConfig.prefix === 'string' && guildConfig.prefix.trim()) {
+            return guildConfig.prefix.trim();
+        }
+
+        return DEFAULT_PREFIX;
     }
 
     async saveReactionRoleMessage(reactionRole) {

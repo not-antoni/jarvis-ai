@@ -50,7 +50,8 @@ const commandFeatureMap = new Map([
     ['reactionrole', 'reactionRoles'],
     ['automod', 'automod'],
     ['serverstats', 'serverStats'],
-    ['memberlog', 'memberLog']
+    ['memberlog', 'memberLog'],
+    ['config', 'config']
 ]);
 
 const featureFlags = config.features || {};

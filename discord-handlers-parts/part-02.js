@@ -583,6 +583,9 @@
         }
 
         const userId = message.author.id;
+        const guildId = message.guild?.id || null;
+        const prefix = await this.getGuildPrefix(guildId);
+        const prefixLower = prefix.toLowerCase();
 
         const braveGuardedEarly = await this.enforceImmediateBraveGuard(message);
         if (braveGuardedEarly) {
@@ -601,7 +604,7 @@
         );
         const isReplyToJarvis = message.reference && message.reference.messageId;
         const isBot = message.author.bot;
-        const isTCommand = message.content.toLowerCase().trim().startsWith("!t ");
+        const isTCommand = message.content.toLowerCase().trim().startsWith(`${prefixLower}t `);
 
         if (isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
             if (this.isOnCooldown(userId)) {
@@ -611,16 +614,24 @@
             this.setCooldown(userId);
         }
 
-        if (await this.handleAdminCommands(message)) return;
-        if (await this.handleUtilityCommands(message)) return;
+        if (await this.handleAdminCommands(message, prefix)) return;
+        if (await this.handleUtilityCommands(message, prefix)) return;
 
-        await this.handleJarvisInteraction(message, client);
+        await this.handleJarvisInteraction(message, client, prefix);
     }
 
-    async handleAdminCommands(message) {
-        const content = message.content.trim().toLowerCase();
+    async handleAdminCommands(message, prefix) {
+        const rawContent = message.content.trim();
+        const content = rawContent.toLowerCase();
+        const prefixLower = prefix.toLowerCase();
 
-        if (content === "!cleardbsecret") {
+        if (!content.startsWith(prefixLower)) {
+            return false;
+        }
+
+        const commandLower = content.slice(prefixLower.length);
+
+        if (commandLower === "cleardbsecret") {
             if (message.author.id !== config.admin.userId) {
                 return false;
             }
@@ -639,11 +650,23 @@
         return false;
     }
 
-    async handleUtilityCommands(message) {
-        const content = message.content.trim().toLowerCase();
+    async handleUtilityCommands(message, prefix) {
         const rawContent = message.content.trim();
+        const contentLower = rawContent.toLowerCase();
+        const prefixLower = prefix.toLowerCase();
 
-        if (content === "!reset") {
+        if (!contentLower.startsWith(prefixLower)) {
+            return false;
+        }
+
+        const commandBodyRaw = rawContent.slice(prefix.length).trim();
+        const commandBodyLower = commandBodyRaw.toLowerCase();
+
+        if (!commandBodyRaw) {
+            return false;
+        }
+
+        if (commandBodyLower === "reset") {
             try {
                 await message.channel.sendTyping();
                 const { conv, prof } = await this.jarvis.resetUserData(message.author.id);
@@ -655,7 +678,7 @@
             return true;
         }
 
-        if (content === "!help") {
+        if (commandBodyLower === "help") {
             try {
                 await message.channel.sendTyping();
                 const response = await this.jarvis.handleUtilityCommand(
@@ -664,7 +687,8 @@
                     message.author.id,
                     false,
                     null,
-                    message.guild?.id || null
+                    message.guild?.id || null,
+                    prefix
                 );
                 if (typeof response === "string") {
                     await message.reply(response);
@@ -680,7 +704,7 @@
             return true;
         }
 
-        if (content === "!invite") {
+        if (commandBodyLower === "invite") {
             try {
                 await message.channel.sendTyping();
                 const response = await this.jarvis.handleUtilityCommand(
@@ -689,7 +713,8 @@
                     message.author.id,
                     false,
                     null,
-                    message.guild?.id || null
+                    message.guild?.id || null,
+                    prefix
                 );
                 if (typeof response === "string") {
                     await message.reply(response);
@@ -705,16 +730,17 @@
             return true;
         }
 
-        if (content.startsWith("!profile")) {
+        if (commandBodyLower.startsWith("profile")) {
             try {
                 await message.channel.sendTyping();
                 const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
+                    commandBodyRaw,
                     message.author.username,
                     message.author.id,
                     false,
                     null,
-                    message.guild?.id || null
+                    message.guild?.id || null,
+                    prefix
                 );
                 await message.reply(response || "Profile command processed, sir.");
             } catch (error) {
@@ -724,16 +750,17 @@
             return true;
         }
 
-        if (content.startsWith("!history")) {
+        if (commandBodyLower.startsWith("history")) {
             try {
                 await message.channel.sendTyping();
                 const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
+                    commandBodyRaw,
                     message.author.username,
                     message.author.id,
                     false,
                     null,
-                    message.guild?.id || null
+                    message.guild?.id || null,
+                    prefix
                 );
                 await message.reply(response || "No history available yet, sir.");
             } catch (error) {
@@ -743,16 +770,17 @@
             return true;
         }
 
-        if (content.startsWith("!recap")) {
+        if (commandBodyLower.startsWith("recap")) {
             try {
                 await message.channel.sendTyping();
                 const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
+                    commandBodyRaw,
                     message.author.username,
                     message.author.id,
                     false,
                     null,
-                    message.guild?.id || null
+                    message.guild?.id || null,
+                    prefix
                 );
                 await message.reply(response || "Nothing to report just yet, sir.");
             } catch (error) {
@@ -762,16 +790,17 @@
             return true;
         }
 
-        if (content.startsWith("!encode")) {
+        if (commandBodyLower.startsWith("encode")) {
             try {
                 await message.channel.sendTyping();
                 const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
+                    commandBodyRaw,
                     message.author.username,
                     message.author.id,
                     false,
                     null,
-                    message.guild?.id || null
+                    message.guild?.id || null,
+                    prefix
                 );
                 await message.reply(response || "Encoding complete, sir.");
             } catch (error) {
@@ -781,16 +810,17 @@
             return true;
         }
 
-        if (content.startsWith("!decode")) {
+        if (commandBodyLower.startsWith("decode")) {
             try {
                 await message.channel.sendTyping();
                 const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
+                    commandBodyRaw,
                     message.author.username,
                     message.author.id,
                     false,
                     null,
-                    message.guild?.id || null
+                    message.guild?.id || null,
+                    prefix
                 );
                 await message.reply(response || "Decoding complete, sir.");
             } catch (error) {
@@ -800,25 +830,26 @@
             return true;
         }
 
-        if (content.startsWith("!t ")) {
+        if (commandBodyLower.startsWith("t ")) {
             const whitelistedChannelIds = config.commands.whitelistedChannelIds;
             if (!whitelistedChannelIds.includes(message.channel.id)) {
                 return true;
             }
 
-            console.log(`!t command detected: ${message.content}`);
+            console.log(`Legacy search command detected: ${message.content}`);
             try {
                 await message.channel.sendTyping();
                 const response = await this.jarvis.handleUtilityCommand(
-                    message.content.trim(),
+                    `${this.getDefaultPrefix()}${commandBodyRaw}`.trim(),
                     message.author.username,
                     message.author.id,
                     false,
                     null,
-                    message.guild?.id || null
+                    message.guild?.id || null,
+                    prefix
                 );
 
-                console.log(`!t command response: ${response}`);
+                console.log(`Legacy search command response: ${response}`);
                 if (response) {
                     await message.reply(response);
                 } else {
@@ -834,7 +865,7 @@
         return false;
     }
 
-    async handleJarvisInteraction(message, client) {
+    async handleJarvisInteraction(message, client, prefix = this.getDefaultPrefix()) {
         const isMentioned = message.mentions.has(client.user);
         const isDM = message.channel.type === ChannelType.DM;
         const containsJarvis = config.wakeWords.some(trigger =>
@@ -915,6 +946,7 @@
             .replace(/@everyone/g, "") // NEW
             .replace(/@here/g, "")     // NEW
             .trim();
+        const canonicalContent = this.normalizeLegacyInput(cleanContent, prefix);
 
         // Check for clip command first (overrides AI response)
         if (await this.handleClipCommand(message, client)) {

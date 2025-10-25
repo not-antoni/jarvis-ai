@@ -939,7 +939,7 @@
             return await this.handleSlashCommandClip(interaction);
         }
 
-        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "digest", "macro", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
+        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "digest", "macro", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb", "config"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
 
         try {
@@ -1085,6 +1085,10 @@
                 return;
             } else if (interaction.commandName === "memberlog") {
                 await this.handleMemberLogCommand(interaction);
+                this.setCooldown(userId);
+                return;
+            } else if (interaction.commandName === "config") {
+                await this.handleConfigCommand(interaction);
                 this.setCooldown(userId);
                 return;
             } else if (interaction.commandName === "news") {
