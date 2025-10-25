@@ -92,16 +92,6 @@ class DiscordHandlers {
         this.memberLogCache = new Map();
         this.maxMemberLogVariations = 20;
         this.maxMemberLogMessageLength = 400;
-        this.energyConfig = {
-            enabled: Boolean(config.features?.energyMeter && config.energy?.enabled),
-            maxPoints: config.energy?.maxPoints ?? 12,
-            windowMinutes: config.energy?.windowMinutes ?? 60,
-            costs: {
-                default: config.energy?.costs?.default ?? 1,
-                digest: config.energy?.costs?.digest ?? 2,
-                recap: config.energy?.costs?.recap ?? 1
-            }
-        };
         this.defaultJoinMessages = [
             '🛰️ {mention} has entered {server}.',
             '🎉 A new arrival! Welcome {mention} — population now {membercount}.',
@@ -234,72 +224,6 @@ class DiscordHandlers {
         return error;
     }
 
-    isEnergyEnabled() {
-        return Boolean(this.energyConfig?.enabled && config.features?.energyMeter);
-    }
-
-    getEnergyKey(guildId, userId) {
-        if (guildId) {
-            return guildId;
-        }
-
-        return `dm:${userId}`;
-    }
-
-    async consumeEnergyFor(userId, guildId, cost) {
-        if (!this.isEnergyEnabled() || !database.isConnected) {
-            return { ok: true, remaining: Infinity };
-        }
-
-        const charge = cost ?? (this.energyConfig.costs?.default ?? 1);
-        return database.consumeEnergy(userId, this.getEnergyKey(guildId, userId), {
-            maxPoints: this.energyConfig.maxPoints,
-            windowMinutes: this.energyConfig.windowMinutes,
-            cost: charge
-        });
-    }
-
-    async ensureEnergyAvailability({ interaction = null, message = null, cost = null }) {
-        if (!this.isEnergyEnabled()) {
-            return { ok: true, remaining: Infinity };
-        }
-
-        const target = interaction || message;
-        if (!target) {
-            return { ok: true, remaining: Infinity };
-        }
-
-        const userId = interaction ? interaction.user.id : message.author.id;
-        const guildId = interaction?.guild?.id || message?.guild?.id || null;
-        const result = await this.consumeEnergyFor(userId, guildId, cost);
-
-        if (!result.ok) {
-            const resetText = result.resetsAt
-                ? `<t:${Math.floor(result.resetsAt.getTime() / 1000)}:R>`
-                : 'soon';
-            const notice = `Your energy reserves are depleted, sir. They will recover ${resetText}. Use /profile energy for the full ledger.`;
-
-            if (interaction) {
-                try {
-                    if (interaction.deferred || interaction.replied) {
-                        await interaction.editReply(notice);
-                    } else {
-                        await interaction.reply({ content: notice, ephemeral: true });
-                    }
-                } catch (error) {
-                    console.warn('Failed to send energy notice for interaction:', error);
-                }
-            } else if (message) {
-                try {
-                    await message.reply(notice);
-                } catch (error) {
-                    console.warn('Failed to send energy notice for message:', error);
-                }
-            }
-        }
-
-        return result;
-    }
 
     formatServerStatsValue(value) {
         if (typeof value !== 'number' || !Number.isFinite(value)) {

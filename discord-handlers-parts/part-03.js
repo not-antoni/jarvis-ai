@@ -92,17 +92,6 @@
         }
 
         try {
-            if (cleanContent.toLowerCase().startsWith('digest')) {
-                const energyResult = await this.ensureEnergyAvailability({
-                    message,
-                    cost: this.energyConfig.costs?.digest
-                });
-
-                if (!energyResult.ok) {
-                    return;
-                }
-            }
-
             const utilityResponse = await this.jarvis.handleUtilityCommand(
                 cleanContent,
                 message.author.username,
@@ -118,15 +107,6 @@
                 } else {
                     await message.reply("Utility functions misbehaving, sir. Try another?");
                 }
-                return;
-            }
-
-            const energyResult = await this.ensureEnergyAvailability({
-                message,
-                cost: this.energyConfig.costs?.default
-            });
-
-            if (!energyResult.ok) {
                 return;
             }
 

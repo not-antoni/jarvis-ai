@@ -35,8 +35,7 @@ const rawConfig = {
             ticketTranscripts: 'ticketTranscripts',
             knowledgeBase: 'knowledgeBaseEntries',
             counters: 'counters',
-            newsCache: 'newsCache',
-            energyLevels: 'energyLevels'
+            newsCache: 'newsCache'
         }
     },
 
@@ -52,18 +51,6 @@ const rawConfig = {
         // Provider selection: "auto" for random selection, or specific provider type
         // Options: "auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"
         provider: process.env.AI_PROVIDER || "auto",
-    },
-
-    // Energy system configuration
-    energy: {
-        enabled: process.env.ENERGY_ENABLED ? process.env.ENERGY_ENABLED !== 'false' : true,
-        maxPoints: Number(process.env.ENERGY_MAX_POINTS || 12),
-        windowMinutes: Number(process.env.ENERGY_WINDOW_MINUTES || 60),
-        costs: {
-            default: Number(process.env.ENERGY_COST_DEFAULT || 1),
-            digest: Number(process.env.ENERGY_COST_DIGEST || 2),
-            recap: Number(process.env.ENERGY_COST_RECAP || 1)
-        }
     },
 
     // Server Configuration
@@ -113,8 +100,7 @@ const rawConfig = {
         knowledgeAsk: true,
         digests: true,
         newsBriefings: true,
-        macroReplies: true,
-        energyMeter: true
+        macroReplies: true
     }
 };
 

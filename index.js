@@ -108,10 +108,6 @@ const allCommands = [
                         .setName("value")
                         .setDescription("Value to store for the preference")
                         .setRequired(true)))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("energy")
-                .setDescription("Check your current energy status"))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("history")
