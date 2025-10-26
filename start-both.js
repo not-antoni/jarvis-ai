@@ -1,7 +1,10 @@
 // Runs Lavalink (Java) and your Node bot side by side
 const { spawn } = require("child_process");
 
-const lavalinkHost = process.env.LAVALINK_HOST || "127.0.0.1";
+const isRenderEnvironment = Boolean(process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_NAME);
+const lavalinkHost = process.env.LAVALINK_HOST || (isRenderEnvironment ? "jarvis-lavalink" : "127.0.0.1");
+process.env.LAVALINK_HOST = lavalinkHost;
+process.env.LAVALINK_PORT = process.env.LAVALINK_PORT || process.env.PORT || "2333";
 const isLocalLavalinkHost = ["127.0.0.1", "localhost", "::1"].includes(
   lavalinkHost.trim().toLowerCase()
 );
