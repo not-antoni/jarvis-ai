@@ -11,5 +11,7 @@ data/
 .idea/
 provider-state.json
 Lavalink.jar
+.java-runtime/
+Lavalink.jar
 lavalink.jar:Zone.Identifier
 plugins/
