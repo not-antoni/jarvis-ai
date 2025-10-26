@@ -28,12 +28,20 @@ const client = new Client({
     ]
 });
 
+const isRenderEnvironment = Boolean(process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_NAME);
+const resolvedLavalinkHost = process.env.LAVALINK_HOST || (isRenderEnvironment ? "jarvis-lavalink" : "127.0.0.1");
+const resolvedLavalinkPort = Number(process.env.LAVALINK_PORT || 2333);
+
 const lavalinkConfig = {
-    host: process.env.LAVALINK_HOST || "127.0.0.1",
-    port: Number(process.env.LAVALINK_PORT || 2333),
-    password: process.env.LAVALINK_PASSWORD || "render_pass_123",
+    host: resolvedLavalinkHost,
+    port: resolvedLavalinkPort,
+    password: process.env.LAVALINK_PASSWORD || process.env.LAVALINK_SERVER_PASSWORD || "render_pass_123",
     secure: process.env.LAVALINK_SECURE === "true"
 };
+
+console.log(
+    `Lavalink node target => host: ${lavalinkConfig.host}, port: ${lavalinkConfig.port}, secure: ${lavalinkConfig.secure}`
+);
 
 // --- Lavalink setup ---
 client.manager = new Manager({
