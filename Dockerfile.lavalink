@@ -1,0 +1,14 @@
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
+ARG LAVALINK_VERSION=4.1.1
+
+RUN apk add --no-cache curl && \
+    curl -L -o Lavalink.jar "https://github.com/lavalink-devs/Lavalink/releases/download/${LAVALINK_VERSION}/Lavalink.jar"
+
+COPY application.yml .
+
+EXPOSE 2333
+
+CMD ["java", "-jar", "Lavalink.jar"]

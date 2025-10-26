@@ -2,10 +2,14 @@ services:
   - type: web
     name: jarvis-discord-bot
     runtime: node
-    repo: https://github.com/HustleSynth/jarvis-ai # Replace with your repo
+    repo: https://github.com/not-antoni/jarvis-ai
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: npm start
     envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: JAVA_VERSION
+        value: 17
       - key: DISCORD_TOKEN
         sync: false
       - key: MONGO_PW
@@ -50,3 +54,22 @@ services:
         sync: false
       - key: PORT
         generateValue: true
+      - key: LAVALINK_HOST
+        fromService:
+          type: worker
+          name: jarvis-lavalink
+          property: host
+      - key: LAVALINK_PORT
+        value: 2333
+      - key: LAVALINK_PASSWORD
+        value: render_pass_123
+  - type: worker
+    name: jarvis-lavalink
+    runtime: docker
+    repo: https://github.com/not-antoni/jarvis-ai
+    dockerfilePath: Dockerfile.lavalink
+    envVars:
+      - key: JAVA_TOOL_OPTIONS
+        value: -Xmx256m
+      - key: SERVER_PORT
+        value: 2333

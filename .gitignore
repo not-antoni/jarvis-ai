@@ -10,3 +10,6 @@ data/
 .vscode/
 .idea/
 provider-state.json
+Lavalink.jar
+lavalink.jar:Zone.Identifier
+plugins/
