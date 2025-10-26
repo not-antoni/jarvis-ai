@@ -3,6 +3,7 @@ const { spawn, execSync } = require("child_process");
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
+const net = require("net");
 
 const LAVALINK_VERSION = process.env.LAVALINK_VERSION || "4.1.1";
 const LAVALINK_JAR_PATH = path.join(__dirname, "Lavalink.jar");
@@ -153,15 +154,38 @@ const normalizeHost = (raw) => {
     return raw.endsWith(suffix) ? raw : `${raw}${suffix}`;
 };
 
+function waitForPort(host, port, timeoutMs = 20000) {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+
+        const tryConnect = () => {
+            const socket = net.createConnection({ host, port }, () => {
+                socket.end();
+                resolve();
+            });
+
+            socket.on("error", () => {
+                socket.destroy();
+                if (Date.now() - start > timeoutMs) {
+                    reject(new Error(`Timed out waiting for ${host}:${port}`));
+                } else {
+                    setTimeout(tryConnect, 500);
+                }
+            });
+        };
+
+        tryConnect();
+    });
+}
+
 async function main() {
-    const useExternal = String(process.env.LAVALINK_USE_EXTERNAL).toLowerCase() === "true";
+    const useExternal = String(process.env.LAVALINK_USE_EXTERNAL || "false").toLowerCase() === "true";
     let lavalinkProcess = null;
-    let resolvedPort = String(process.env.LAVALINK_PORT || "2333");
+    const resolvedPort = String(process.env.LAVALINK_PORT || "2333");
     process.env.LAVALINK_PORT = resolvedPort;
 
     if (!useExternal) {
-        const lavalinkHost = "127.0.0.1";
-        process.env.LAVALINK_HOST = lavalinkHost;
+        process.env.LAVALINK_HOST = "127.0.0.1";
 
         let javaCommand;
         try {
@@ -172,7 +196,7 @@ async function main() {
             process.exit(1);
         }
 
-        console.log(`Launching embedded Lavalink on ${lavalinkHost}:${resolvedPort}`);
+        console.log(`Launching embedded Lavalink on 127.0.0.1:${resolvedPort}`);
         lavalinkProcess = spawn(javaCommand, ["-jar", LAVALINK_JAR_PATH], {
             stdio: "inherit"
         });
@@ -184,10 +208,17 @@ async function main() {
         lavalinkProcess.on("error", (error) =>
             console.error("Failed to start Lavalink process:", error)
         );
+
+        try {
+            await waitForPort("127.0.0.1", Number(resolvedPort), 30000);
+            console.log("Lavalink is accepting connections.");
+        } catch (error) {
+            console.error("Lavalink did not become ready in time:", error);
+        }
     } else {
-        const lavalinkHost = normalizeHost(process.env.LAVALINK_HOST);
-        process.env.LAVALINK_HOST = lavalinkHost;
-        console.log(`Using external Lavalink at ${lavalinkHost}:${resolvedPort}`);
+        const externalHost = normalizeHost(process.env.LAVALINK_HOST);
+        process.env.LAVALINK_HOST = externalHost;
+        console.log(`Using external Lavalink at ${externalHost}:${resolvedPort}`);
     }
 
     const bot = spawn("node", ["index.js"], {
