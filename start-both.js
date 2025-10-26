@@ -74,13 +74,16 @@ async function main() {
 
   const lavalinkHost = normalizeHost(process.env.LAVALINK_HOST);
   process.env.LAVALINK_HOST = lavalinkHost;
-  process.env.LAVALINK_PORT = process.env.LAVALINK_PORT || "2333";
+  const resolvedPort = String(process.env.LAVALINK_PORT || process.env.PORT || "2333");
+  process.env.LAVALINK_PORT = resolvedPort;
 
   const isLocalLavalinkHost = ["127.0.0.1", "localhost", "::1"].includes(
     lavalinkHost.trim().toLowerCase()
   );
 
   let lavalink = null;
+
+  console.log(`Configured Lavalink endpoint: ${lavalinkHost}:${resolvedPort}`);
 
   // ---- Start Lavalink ----
   if (isLocalLavalinkHost) {
@@ -97,7 +100,7 @@ async function main() {
     );
   } else {
     console.log(
-      `Skipping embedded Lavalink launch; expecting external node at ${lavalinkHost}:${process.env.LAVALINK_PORT || 2333}`
+      `Skipping embedded Lavalink launch; expecting external node at ${lavalinkHost}:${resolvedPort}`
     );
   }
 
