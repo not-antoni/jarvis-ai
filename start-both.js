@@ -181,11 +181,11 @@ function waitForPort(host, port, timeoutMs = 20000) {
 async function main() {
     const useExternal = String(process.env.LAVALINK_USE_EXTERNAL || "false").toLowerCase() === "true";
     let lavalinkProcess = null;
-    const resolvedPort = String(process.env.LAVALINK_PORT || "2333");
-    process.env.LAVALINK_PORT = resolvedPort;
 
     if (!useExternal) {
+        const embedPort = Number(process.env.LAVALINK_EMBED_PORT || 2333);
         process.env.LAVALINK_HOST = "127.0.0.1";
+        process.env.LAVALINK_PORT = String(embedPort);
 
         let javaCommand;
         try {
@@ -196,7 +196,7 @@ async function main() {
             process.exit(1);
         }
 
-        console.log(`Launching embedded Lavalink on 127.0.0.1:${resolvedPort}`);
+        console.log(`Launching embedded Lavalink on 127.0.0.1:${embedPort}`);
         lavalinkProcess = spawn(javaCommand, ["-jar", LAVALINK_JAR_PATH], {
             stdio: "inherit"
         });
@@ -210,15 +210,18 @@ async function main() {
         );
 
         try {
-            await waitForPort("127.0.0.1", Number(resolvedPort), 30000);
-            console.log("Lavalink is accepting connections.");
+            await waitForPort("127.0.0.1", embedPort, 30000);
+            console.log("Embedded Lavalink is accepting connections.");
         } catch (error) {
-            console.error("Lavalink did not become ready in time:", error);
+            console.error("Embedded Lavalink did not become ready in time:", error);
         }
     } else {
+        if (!process.env.LAVALINK_PORT) {
+            throw new Error("LAVALINK_PORT must be set when LAVALINK_USE_EXTERNAL=true");
+        }
         const externalHost = normalizeHost(process.env.LAVALINK_HOST);
         process.env.LAVALINK_HOST = externalHost;
-        console.log(`Using external Lavalink at ${externalHost}:${resolvedPort}`);
+        console.log(`Using external Lavalink at ${externalHost}:${process.env.LAVALINK_PORT}`);
     }
 
     const bot = spawn("node", ["index.js"], {
