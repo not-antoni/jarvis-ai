@@ -28,12 +28,42 @@ const client = new Client({
     ]
 });
 
+const resolveLavalinkHost = () => {
+    const raw = (process.env.LAVALINK_HOST || "").trim();
+    if (!raw) {
+        return "127.0.0.1";
+    }
+
+    const lower = raw.toLowerCase();
+    if (["localhost", "127.0.0.1", "::1"].includes(lower)) {
+        return raw;
+    }
+
+    const isIpAddress = /^[\d.:]+$/.test(raw);
+    if (isIpAddress) {
+        return raw;
+    }
+
+    if (raw.includes(".")) {
+        return raw;
+    }
+
+    const suffix = (process.env.LAVALINK_HOST_SUFFIX || ".onrender.com").trim();
+    if (!suffix.length) {
+        return raw;
+    }
+
+    return raw.endsWith(suffix) ? raw : `${raw}${suffix}`;
+};
+
 const lavalinkConfig = {
-    host: process.env.LAVALINK_HOST || "127.0.0.1",
+    host: resolveLavalinkHost(),
     port: Number(process.env.LAVALINK_PORT || 2333),
     password: process.env.LAVALINK_PASSWORD || "render_pass_123",
     secure: process.env.LAVALINK_SECURE === "true"
 };
+
+console.log(`Lavalink targeting ${lavalinkConfig.host}:${lavalinkConfig.port} (secure=${lavalinkConfig.secure})`);
 
 // --- Lavalink setup ---
 client.manager = new Manager({
