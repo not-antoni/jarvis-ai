@@ -379,6 +379,7 @@ class AIProviderManager {
                         model: provider.model,
                         generationConfig: {
                             temperature: config.ai.temperature,
+                        ...(provider.family === "groq" ? { reasoning_effort: "none" } : {}), // 👈 disables reasoning for Groq
                             maxOutputTokens: maxTokens,
                         }
                     });
@@ -389,6 +390,7 @@ class AIProviderManager {
                         ],
                         generationConfig: {
                             temperature: config.ai.temperature,
+                        ...(provider.family === "groq" ? { reasoning_effort: "none" } : {}), // 👈 disables reasoning for Groq
                             maxOutputTokens: maxTokens
                         }
                     });
@@ -426,6 +428,7 @@ class AIProviderManager {
                         ],
                         max_tokens: maxTokens,
                         temperature: config.ai.temperature,
+                        ...(provider.family === "groq" ? { reasoning_effort: "none" } : {}), // 👈 disables reasoning for Groq
                     };
 
                     response = await provider.client.chat.completions.create(baseParams);
