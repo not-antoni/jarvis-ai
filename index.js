@@ -58,7 +58,7 @@ const resolveLavalinkHost = () => {
 
 const lavalinkConfig = {
     host: resolveLavalinkHost(),
-    port: Number(process.env.LAVALINK_PORT || 2333),
+    port: Number(process.env.LAVALINK_PORT || process.env.PORT || 2333),
     password: process.env.LAVALINK_PASSWORD || "render_pass_123",
     secure: process.env.LAVALINK_SECURE === "true"
 };
