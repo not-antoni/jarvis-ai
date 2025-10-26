@@ -154,43 +154,40 @@ const normalizeHost = (raw) => {
 };
 
 async function main() {
-    let javaCommand;
-    try {
-        javaCommand = await ensureJavaRuntime();
-        await ensureLavalinkJar();
-    } catch (error) {
-        console.error("Unable to prepare Lavalink runtime:", error);
-        process.exit(1);
-    }
-
-    const lavalinkHost = normalizeHost(process.env.LAVALINK_HOST);
-    process.env.LAVALINK_HOST = lavalinkHost;
-    const resolvedPort = String(process.env.LAVALINK_PORT || "2333");
+    const useExternal = String(process.env.LAVALINK_USE_EXTERNAL).toLowerCase() === "true";
+    let lavalinkProcess = null;
+    let resolvedPort = String(process.env.LAVALINK_PORT || "2333");
     process.env.LAVALINK_PORT = resolvedPort;
 
-    const isLocalLavalinkHost = ["127.0.0.1", "localhost", "::1"].includes(
-        lavalinkHost.trim().toLowerCase()
-    );
+    if (!useExternal) {
+        const lavalinkHost = "127.0.0.1";
+        process.env.LAVALINK_HOST = lavalinkHost;
 
-    let lavalink = null;
+        let javaCommand;
+        try {
+            javaCommand = await ensureJavaRuntime();
+            await ensureLavalinkJar();
+        } catch (error) {
+            console.error("Unable to prepare Lavalink runtime:", error);
+            process.exit(1);
+        }
 
-    if (isLocalLavalinkHost) {
         console.log(`Launching embedded Lavalink on ${lavalinkHost}:${resolvedPort}`);
-        lavalink = spawn(javaCommand, ["-jar", LAVALINK_JAR_PATH], {
+        lavalinkProcess = spawn(javaCommand, ["-jar", LAVALINK_JAR_PATH], {
             stdio: "inherit"
         });
 
-        lavalink.on("close", (code) =>
+        lavalinkProcess.on("close", (code) =>
             console.log(`Lavalink exited with code ${code}`)
         );
 
-        lavalink.on("error", (error) =>
+        lavalinkProcess.on("error", (error) =>
             console.error("Failed to start Lavalink process:", error)
         );
     } else {
-        console.log(
-            `Skipping embedded Lavalink launch; expecting external node at ${lavalinkHost}:${resolvedPort}`
-        );
+        const lavalinkHost = normalizeHost(process.env.LAVALINK_HOST);
+        process.env.LAVALINK_HOST = lavalinkHost;
+        console.log(`Using external Lavalink at ${lavalinkHost}:${resolvedPort}`);
     }
 
     const bot = spawn("node", ["index.js"], {
@@ -202,8 +199,8 @@ async function main() {
     );
 
     process.on("SIGINT", () => {
-        if (lavalink) {
-            lavalink.kill("SIGINT");
+        if (lavalinkProcess) {
+            lavalinkProcess.kill("SIGINT");
         }
         bot.kill("SIGINT");
         process.exit();
