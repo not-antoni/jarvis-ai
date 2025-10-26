@@ -28,20 +28,42 @@ const client = new Client({
     ]
 });
 
-const isRenderEnvironment = Boolean(process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_NAME);
-const resolvedLavalinkHost = process.env.LAVALINK_HOST || (isRenderEnvironment ? "jarvis-lavalink" : "127.0.0.1");
-const resolvedLavalinkPort = Number(process.env.LAVALINK_PORT || 2333);
+const resolveLavalinkHost = () => {
+    const raw = (process.env.LAVALINK_HOST || "").trim();
+    if (!raw) {
+        return "127.0.0.1";
+    }
+
+    const lower = raw.toLowerCase();
+    if (["localhost", "127.0.0.1", "::1"].includes(lower)) {
+        return raw;
+    }
+
+    const isIpAddress = /^[\d.:]+$/.test(raw);
+    if (isIpAddress) {
+        return raw;
+    }
+
+    if (raw.includes(".")) {
+        return raw;
+    }
+
+    const suffix = (process.env.LAVALINK_HOST_SUFFIX || ".onrender.com").trim();
+    if (!suffix.length) {
+        return raw;
+    }
+
+    return raw.endsWith(suffix) ? raw : `${raw}${suffix}`;
+};
 
 const lavalinkConfig = {
-    host: resolvedLavalinkHost,
-    port: resolvedLavalinkPort,
-    password: process.env.LAVALINK_PASSWORD || process.env.LAVALINK_SERVER_PASSWORD || "render_pass_123",
+    host: resolveLavalinkHost(),
+    port: Number(process.env.LAVALINK_PORT || 2333),
+    password: process.env.LAVALINK_PASSWORD || "render_pass_123",
     secure: process.env.LAVALINK_SECURE === "true"
 };
 
-console.log(
-    `Lavalink node target => host: ${lavalinkConfig.host}, port: ${lavalinkConfig.port}, secure: ${lavalinkConfig.secure}`
-);
+console.log(`Lavalink targeting ${lavalinkConfig.host}:${lavalinkConfig.port} (secure=${lavalinkConfig.secure})`);
 
 // --- Lavalink setup ---
 client.manager = new Manager({
