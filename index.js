@@ -56,14 +56,22 @@ const resolveLavalinkHost = () => {
     return raw.endsWith(suffix) ? raw : `${raw}${suffix}`;
 };
 
+const useExternalLavalink = String(process.env.LAVALINK_USE_EXTERNAL || "false").toLowerCase() === "true";
+
 const lavalinkConfig = {
-    host: resolveLavalinkHost(),
-    port: Number(process.env.LAVALINK_PORT || 2333),
+    host: useExternalLavalink ? resolveLavalinkHost() : "127.0.0.1",
+    port: Number(
+        useExternalLavalink
+            ? process.env.LAVALINK_PORT || 2333
+            : process.env.LAVALINK_EMBED_PORT || 2333
+    ),
     password: process.env.LAVALINK_PASSWORD || "render_pass_123",
     secure: process.env.LAVALINK_SECURE === "true"
 };
 
-console.log(`Lavalink targeting ${lavalinkConfig.host}:${lavalinkConfig.port} (secure=${lavalinkConfig.secure})`);
+console.log(
+    `Lavalink targeting ${lavalinkConfig.host}:${lavalinkConfig.port} (secure=${lavalinkConfig.secure}, external=${useExternalLavalink})`
+);
 
 // --- Lavalink setup ---
 client.manager = new Manager({
