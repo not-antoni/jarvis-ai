@@ -28,15 +28,22 @@ const client = new Client({
     ]
 });
 
+const lavalinkConfig = {
+    host: process.env.LAVALINK_HOST || "127.0.0.1",
+    port: Number(process.env.LAVALINK_PORT || 2333),
+    password: process.env.LAVALINK_PASSWORD || "render_pass_123",
+    secure: process.env.LAVALINK_SECURE === "true"
+};
+
 // --- Lavalink setup ---
 client.manager = new Manager({
     nodes: [
         {
             identifier: "LocalNode",
-            host: "localhost",
-            port: 2333,
-            password: "render_pass_123",
-            secure: false
+            host: lavalinkConfig.host,
+            port: lavalinkConfig.port,
+            password: lavalinkConfig.password,
+            secure: lavalinkConfig.secure
         }
     ],
     send: (id, payload) => {
@@ -1373,6 +1380,12 @@ client.on("interactionCreate", async (interaction) => {
         if (interaction.commandName === "play") {
             const focused = interaction.options.getFocused();
             if (!focused) {
+                await interaction.respond([]);
+                return;
+            }
+
+            const hasConnectedNode = Array.from(client.manager.nodes.values()).some(node => node.isConnected);
+            if (!hasConnectedNode) {
                 await interaction.respond([]);
                 return;
             }
