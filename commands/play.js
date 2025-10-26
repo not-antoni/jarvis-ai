@@ -18,6 +18,11 @@ module.exports = {
             return interaction.reply({ content: "❌ Join a voice channel first!", ephemeral: true });
         }
 
+        const hasConnectedNode = Array.from(client.manager.nodes.values()).some(node => node.isConnected);
+        if (!hasConnectedNode) {
+            return interaction.reply({ content: "❌ Lavalink is offline. Please try again shortly.", ephemeral: true });
+        }
+
         const query = interaction.options.getString("query");
 
         let player = client.manager.players.get(interaction.guild.id);
@@ -30,14 +35,21 @@ module.exports = {
             player.connect();
         }
 
-        const res = await client.manager.search(query, interaction.user);
-        if (!res.tracks.length) {
+        let res;
+        try {
+            res = await client.manager.search(query, interaction.user);
+        } catch (error) {
+            console.error("Lavalink search failed:", error);
+            return interaction.reply({ content: "❌ Unable to reach the music node right now.", ephemeral: true });
+        }
+
+        if (!res?.tracks?.length) {
             return interaction.reply({ content: "❌ No results found.", ephemeral: true });
         }
 
         const track = res.tracks[0];
         player.queue.add(track);
-        if (!player.playing && !player.paused && !player.queue.size) player.play();
+        if (!player.playing && !player.paused) player.play();
 
         return interaction.reply(`🎶 Now playing **${track.title}**`);
     }
