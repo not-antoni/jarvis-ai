@@ -165,7 +165,7 @@ async function main() {
 
     const lavalinkHost = normalizeHost(process.env.LAVALINK_HOST);
     process.env.LAVALINK_HOST = lavalinkHost;
-    const resolvedPort = String(process.env.LAVALINK_PORT || process.env.PORT || "2333");
+    const resolvedPort = String(process.env.LAVALINK_PORT || "2333");
     process.env.LAVALINK_PORT = resolvedPort;
 
     const isLocalLavalinkHost = ["127.0.0.1", "localhost", "::1"].includes(
