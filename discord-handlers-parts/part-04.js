@@ -939,6 +939,25 @@
             return await this.handleSlashCommandClip(interaction);
         }
 
+        if (interaction.commandName === "play") {
+            try {
+                await playCommand.execute(interaction, interaction.client);
+            } catch (error) {
+                console.error("Error handling play command:", error);
+                try {
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: "❌ Unable to play that track right now.", ephemeral: true });
+                    } else if (!interaction.replied) {
+                        await interaction.followUp({ content: "❌ Unable to play that track right now.", ephemeral: true });
+                    }
+                } catch (responseError) {
+                    console.error("Failed to send play command error response:", responseError);
+                }
+            }
+            this.setCooldown(userId);
+            return;
+        }
+
         const ephemeralCommands = new Set(["help", "profile", "history", "recap", "digest", "macro", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
         const canUseEphemeral = Boolean(interaction.guild);
