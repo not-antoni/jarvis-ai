@@ -67,7 +67,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://openrouter.ai/api/v1",
                 }),
-                model: "meta-llama/llama-3.3-8b-instruct:free",
+                model: "meta-llama/llama-3.3-70b-instruct:free",
                 type: "openai-chat",
                 family: "openrouter",
                 costTier: "free",
