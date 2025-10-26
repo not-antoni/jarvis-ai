@@ -2,7 +2,7 @@
  * Jarvis Discord Bot - Main Entry Point
  * Refactored for better organization and maintainability
  */
-
+require("dotenv").config();
 const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials } = require("discord.js");
 const { Manager } = require("erela.js");
 const express = require("express");
@@ -93,9 +93,18 @@ client.manager = new Manager({
 client.manager.on("nodeConnect", node =>
     console.log(`✅ Lavalink connected: ${node.options.identifier}`)
 );
-client.manager.on("nodeError", (node, err) =>
-    console.error(`❌ Lavalink error: ${err.message}`)
-);
+client.manager.on("nodeError", (node, err) => {
+    if (err?.message?.includes('Unexpected op "ready"')) {
+        console.log(`ℹ️ Lavalink node ready handshake acknowledged for ${node.options.identifier}`);
+        return;
+    }
+    console.error(`❌ Lavalink error: ${err.message}`);
+});
+client.manager.on("nodeRaw", payload => {
+    if (payload?.op === "ready" && payload?.sessionId) {
+        console.log("ℹ️ Lavalink session established.");
+    }
+});
 client.on("raw", d => client.manager.updateVoiceState(d));
 
 // ------------------------ Slash Command Registration ------------------------
