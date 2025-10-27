@@ -58,6 +58,7 @@ class AIProviderManager {
             process.env.OPENROUTER_API_KEY15,
             process.env.OPENROUTER_API_KEY16,
             process.env.OPENROUTER_API_KEY17,
+			process.env.OPENROUTER_API_KEY18,
         ].filter(Boolean);
         
         openRouterKeys.forEach((key, index) => {
@@ -67,7 +68,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: "https://openrouter.ai/api/v1",
                 }),
-                model: "meta-llama/llama-3.3-70b-instruct:free",
+                model: "qwen/qwen3-235b-a22b:free",
                 type: "openai-chat",
                 family: "openrouter",
                 costTier: "free",
@@ -405,6 +406,7 @@ deepseekGatewayKeys.forEach((key, index) => {
                         model: provider.model,
                         generationConfig: {
                             temperature: config.ai.temperature,
+                        ...(supportsReasoning ? { reasoning_effort: "none" } : {}),
                         ...(provider.family === "groq" ? { reasoning_effort: "none" } : {}), // 👈 disables reasoning for Groq
                             maxOutputTokens: maxTokens,
                         }
@@ -416,6 +418,7 @@ deepseekGatewayKeys.forEach((key, index) => {
                         ],
                         generationConfig: {
                             temperature: config.ai.temperature,
+                        ...(supportsReasoning ? { reasoning_effort: "none" } : {}),
                         ...(provider.family === "groq" ? { reasoning_effort: "none" } : {}), // 👈 disables reasoning for Groq
                             maxOutputTokens: maxTokens
                         }
@@ -446,6 +449,7 @@ deepseekGatewayKeys.forEach((key, index) => {
                         throw new Error(`Invalid response format from ${provider.name}`);
                     }
                 } else {
+                    const supportsReasoning = /(o1|o1-preview|o1-mini|gpt-4\.2|gpt-4\.2-reasoning|deepseek-r1|qwen3-235b|a22b)/i.test(provider.model);
                     const baseParams = {
                         model: provider.model,
                         messages: [
@@ -454,6 +458,7 @@ deepseekGatewayKeys.forEach((key, index) => {
                         ],
                         max_tokens: maxTokens,
                         temperature: config.ai.temperature,
+                        ...(supportsReasoning ? { reasoning_effort: "none" } : {}),
                         ...(provider.family === "groq" ? { reasoning_effort: "none" } : {}), // 👈 disables reasoning for Groq
                     };
 
@@ -638,6 +643,7 @@ deepseekGatewayKeys.forEach((key, index) => {
             'OpenRouter15': '[REDACTED]',
             'OpenRouter16': '[REDACTED]',
             'OpenRouter17': '[REDACTED]',
+			'OpenRouter18': '[REDACTED]',
             'Groq1': '[REDACTED]',
             'Groq2': '[REDACTED]',
             'Groq3': '[REDACTED]',
