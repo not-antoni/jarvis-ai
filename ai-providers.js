@@ -117,29 +117,29 @@ class AIProviderManager {
         });
 
         
-// DeepSeek providers (Vercel AI SDK compatible via OpenAI schema)
-const deepseekKeys = [
-    process.env.DEEPSEEK_API_KEY,
-    process.env.DEEPSEEK_API_KEY2,
+
+// DeepSeek via Vercel AI Gateway (OpenAI-compatible)
+const deepseekGatewayKeys = [
+    process.env.AI_GATEWAY_API_KEY,
+    process.env.AI_GATEWAY_API_KEY2,
 ].filter(Boolean);
 
-deepseekKeys.forEach((key, index) => {
+deepseekGatewayKeys.forEach((key, index) => {
     this.providers.push({
-        name: `GatewayDeepSeek${index + 1}`,
+        name: `deepseek-gateway-${index + 1}`,
         client: new OpenAI({
             apiKey: key,
-            // DeepSeek is OpenAI-compatible; both base URLs below work. Prefer the canonical one:
             baseURL: "https://ai-gateway.vercel.sh/v1/ai",
         }),
-        // Use DeepSeek's latest experimental chat model; change here if you prefer deepseek-chat or deepseek-reasoner.
+        // Vercel Gateway uses provider/model format
         model: "deepseek/deepseek-v3.2-exp",
-        type: "openai-chat",
+        type: "deepseek",
         family: "deepseek",
         costTier: "paid",
     });
 });
 
-        // GPT-5 Nano provider
+// GPT-5 Nano provider
         if (process.env.OPENAI) {
             this.providers.push({
                 name: "GPT5Nano",
@@ -267,7 +267,8 @@ deepseekKeys.forEach((key, index) => {
                 case "openrouter":
                     return providerName.startsWith("openrouter");
                 case "deepseek":
-                    return providerName.startsWith("deepseek");
+                    return providerName && providerName.toLowerCase().startsWith("deepseek");
+
                 case "google":
                     return providerName.startsWith("googleai");
                 default:
@@ -647,8 +648,8 @@ deepseekKeys.forEach((key, index) => {
             'GoogleAI1': '[REDACTED]',
             'GoogleAI2': '[REDACTED]',
             'GPT5Nano': '[REDACTED]',
-            'GatewayDeepSeek1': '[REDACTED]',
-            'GatewayDeepSeek2': '[REDACTED]'
+            'deepseek-gateway-1': '[REDACTED]',
+            'deepseek-gateway-2': '[REDACTED]'
         };
         return redactionMap[name] || '[REDACTED]';
     }
@@ -692,9 +693,9 @@ deepseekKeys.forEach((key, index) => {
                 types.add("openrouter");
             } else if (name.startsWith("googleai")) {
                 types.add("google");
-            } else if (name.startsWith("deepseek")) {
-                types.add("deepseek");
-                types.add("google");
+            }
+            else if (name.toLowerCase().startsWith(\"deepseek\")) {
+                types.add(\"deepseek\");
             }
         });
         
