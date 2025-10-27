@@ -1074,7 +1074,7 @@
                     interaction.user.id,
                     true,
                     interaction,
-                    interaction.guild?.id || null
+                    interaction.guild?.id || true
                 );
             } else if (interaction.commandName === "ticket") {
                 await this.handleTicketCommand(interaction);
