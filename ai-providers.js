@@ -694,8 +694,8 @@ deepseekGatewayKeys.forEach((key, index) => {
             } else if (name.startsWith("googleai")) {
                 types.add("google");
             }
-            else if (name.toLowerCase().startsWith(\"deepseek\")) {
-                types.add(\"deepseek\");
+            else if (name.toLowerCase().startsWith("deepseek")) {
+                types.add("deepseek");
             }
         });
         
