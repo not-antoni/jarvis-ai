@@ -958,7 +958,7 @@
             return;
         }
 
-        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "digest", "macro", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
+        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "macro", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
         const canUseEphemeral = Boolean(interaction.guild);
         const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
@@ -1074,7 +1074,7 @@
                     interaction.user.id,
                     true,
                     interaction,
-                    interaction.guild?.id || true
+                    interaction.guild?.id || null
                 );
             } else if (interaction.commandName === "ticket") {
                 await this.handleTicketCommand(interaction);
