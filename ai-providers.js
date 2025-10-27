@@ -116,6 +116,29 @@ class AIProviderManager {
             });
         });
 
+        
+// DeepSeek providers (Vercel AI SDK compatible via OpenAI schema)
+const deepseekKeys = [
+    process.env.DEEPSEEK_API_KEY,
+    process.env.DEEPSEEK_API_KEY2,
+].filter(Boolean);
+
+deepseekKeys.forEach((key, index) => {
+    this.providers.push({
+        name: `GatewayDeepSeek${index + 1}`,
+        client: new OpenAI({
+            apiKey: key,
+            // DeepSeek is OpenAI-compatible; both base URLs below work. Prefer the canonical one:
+            baseURL: "https://ai-gateway.vercel.sh/v1/ai",
+        }),
+        // Use DeepSeek's latest experimental chat model; change here if you prefer deepseek-chat or deepseek-reasoner.
+        model: "deepseek/deepseek-v3.2-exp",
+        type: "openai-chat",
+        family: "deepseek",
+        costTier: "paid",
+    });
+});
+
         // GPT-5 Nano provider
         if (process.env.OPENAI) {
             this.providers.push({
@@ -243,6 +266,8 @@ class AIProviderManager {
                     return providerName.startsWith("groq");
                 case "openrouter":
                     return providerName.startsWith("openrouter");
+                case "deepseek":
+                    return providerName.startsWith("deepseek");
                 case "google":
                     return providerName.startsWith("googleai");
                 default:
@@ -621,7 +646,9 @@ class AIProviderManager {
 			'Groq7': '[REDACTED]',
             'GoogleAI1': '[REDACTED]',
             'GoogleAI2': '[REDACTED]',
-            'GPT5Nano': '[REDACTED]'
+            'GPT5Nano': '[REDACTED]',
+            'GatewayDeepSeek1': '[REDACTED]',
+            'GatewayDeepSeek2': '[REDACTED]'
         };
         return redactionMap[name] || '[REDACTED]';
     }
@@ -640,7 +667,7 @@ class AIProviderManager {
     }
 
     setProviderType(providerType) {
-        const validTypes = ["auto", "openai", "groq", "openrouter", "google"];
+        const validTypes = ["auto", "openai", "groq", "openrouter", "google", "deepseek"];
         if (!validTypes.includes(providerType.toLowerCase())) {
             throw new Error(`Invalid provider type. Valid options: ${validTypes.join(", ")}`);
         }
@@ -664,6 +691,9 @@ class AIProviderManager {
             } else if (name.startsWith("openrouter")) {
                 types.add("openrouter");
             } else if (name.startsWith("googleai")) {
+                types.add("google");
+            } else if (name.startsWith("deepseek")) {
+                types.add("deepseek");
                 types.add("google");
             }
         });
