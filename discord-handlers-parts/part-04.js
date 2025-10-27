@@ -958,7 +958,7 @@
             return;
         }
 
-        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "macro", "reactionrole", "automod", "serverstats", "memberlog", "ticket", "kb"]);
+        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "macro", "reactionrole", "automod", "digest", "serverstats", "memberlog", "ticket", "kb"]);
         const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
         const canUseEphemeral = Boolean(interaction.guild);
         const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
