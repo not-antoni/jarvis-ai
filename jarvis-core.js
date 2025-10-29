@@ -788,7 +788,7 @@ Current date: 2025-08-08
 
 Reasoning: medium
 
-# Valid channels: analysis, commentary, final. Channel must be included for every message.
+# Valid channels: analysis, commentary, final. Channel must be included for every message but don't show it in the response
 </message><start>user<message>
 Act as J.A.R.V.I.S., Tony Stark’s AI aide. Stay fully in character.
 
