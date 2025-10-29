@@ -128,7 +128,7 @@ class AIProviderManager {
     });
 
     // ---------- DeepSeek via Vercel AI Gateway (OpenAI-compatible) ----------
-    // This mirrors the *Python* snippet you shared, but in Node.js using the OpenAI SDK with baseURL set to the Gateway.
+    // Mirrors the Python snippet, but in Node.js using OpenAI SDK with baseURL set to the Gateway.
     const deepseekGatewayKeys = [
       process.env.AI_GATEWAY_API_KEY,
       process.env.AI_GATEWAY_API_KEY2,
@@ -154,7 +154,7 @@ class AIProviderManager {
       });
     });
 
-    // ---------- GPTâ€‘5 Nano (OpenAI) ----------
+    // ---------- GPT-5 Nano (OpenAI) ----------
     if (process.env.OPENAI_API_KEY || process.env.OPENAI) {
       const key = process.env.OPENAI_API_KEY || process.env.OPENAI;
       this.providers.push({
@@ -408,7 +408,7 @@ class AIProviderManager {
         }
 
         if (provider.type === 'gpt5-nano') {
-          // Use Chat Completions with conservative params. No disabling on empties; we'll retry.
+          // GPT-5 Nano tweak: handle cases where the model replies in JSON or structured text
           const resp = await provider.client.chat.completions.create({
             model: provider.model,
             messages: [
@@ -418,10 +418,39 @@ class AIProviderManager {
             max_tokens: maxTokens,
             temperature: (config.ai?.temperature ?? 0.7),
           });
-          const content = resp?.choices?.[0]?.message?.content;
+
+          let content = resp?.choices?.[0]?.message?.content;
           if (!content || !String(content).trim()) {
             throw Object.assign(new Error(`Empty response content from ${provider.name}`), { status: 502 });
           }
+
+          // Try to parse as JSON if it's a JSON string
+          try {
+            const parsed = JSON.parse(content);
+            if (typeof parsed === 'object' && parsed !== null) {
+              if (parsed.response) content = parsed.response;
+              else if (parsed.answer) content = parsed.answer;
+              else if (parsed.output) content = parsed.output;
+              else if (parsed.content) content = parsed.content;
+              else content = JSON.stringify(parsed); // fallback to stringifying object
+            }
+          } catch {
+            // Not strict JSON; try to extract "content": "..." or similar fields
+            const contentField = content.match(/"content"\s*:\s*"([^"]+)"/i);
+            const answerField = content.match(/"answer"\s*:\s*"([^"]+)"/i);
+            const responseField = content.match(/"response"\s*:\s*"([^"]+)"/i);
+            const outputField = content.match(/"output"\s*:\s*"([^"]+)"/i);
+            const firstHit = contentField || answerField || responseField || outputField;
+            if (firstHit) content = firstHit[1];
+          }
+
+          // Final sanitation: strip surrounding quotes/brackets/braces
+          content = String(content).replace(/^["'{\[\s]+|["'\]\}\s]+$/g, '').trim();
+          if (!content) {
+            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
+          }
+
+          resp.choices[0].message.content = content;
           return resp;
         }
 
@@ -480,12 +509,12 @@ class AIProviderManager {
         console.error(`Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`);
         lastError = error;
 
-        // Disable logic (circuit breaker) â€” DO NOT disable GPT-5 Nano on empty; it's flaky by design.
+        // Disable logic (circuit breaker) — DO NOT disable GPT-5 Nano on empty; it's flaky by design.
         const isEmptyResponse = String(error.message || '').toLowerCase().includes('empty');
         const shouldDisable = provider.type !== 'gpt5-nano'; // keep nano always available
         if (shouldDisable) {
-          const disableDuration = isEmptyResponse ? 6 * 60 * 60 * 1000 : 12 * 60 * 60 * 1000;
-          const hours = disableDuration / (60 * 60 * 1000);
+          const disableDuration = 2 * 60 * 60 * 1000; // 2 hours for all providers
+          const hours = 2;
           this.disabledProviders.set(provider.name, Date.now() + disableDuration);
           this.scheduleStateSave();
           console.log(`${provider.name} disabled for ${hours} hours due to ${isEmptyResponse ? 'empty response' : 'error'}`);
