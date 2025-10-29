@@ -1,5 +1,45 @@
 
 'use strict';
+/** BEGIN: sanitizeModelOutput helper (injected) **/
+/**
+ * Sanitize model-generated text by removing stray conversation/markup tokens
+ * commonly used in jailbreaks or prompt-injection artifacts.
+ *
+ * Removes sequences like:
+ *   </message></start>assistant</channel>final</message>
+ *   </channel>final</message>
+ * and minor whitespace/escape variants.
+ *
+ * Also collapses repeated whitespace and trims the result.
+ */
+function sanitizeModelOutput(text) {
+  if (!text || typeof text !== 'string') return text;
+
+  // 1) Normalize line endings
+  let out = text.replace(/\r\n?/g, '\n');
+
+  // 2) Remove exact dangerous markup patterns (and small variants with optional whitespace)
+  // Pattern matches things like: </message></start>assistant</channel>final</message>
+  out = out.replace(/<\/message>\s*<\/start>\s*assistant\s*<\/channel>\s*final\s*<\/message>/gi, ' ');
+  // Pattern matches: </channel>final</message> and variants with optional whitespace
+  out = out.replace(/<\/channel>\s*final\s*<\/message>/gi, ' ');
+
+  // 3) Remove stray partial markers that sometimes appear
+  out = out.replace(/<start>\s*assistant\b[^>]*>/gi, ' ');
+  out = out.replace(/<\/start>\s*assistant\b[^>]*>/gi, ' ');
+  out = out.replace(/<\s*\/?channel\b[^>]*>/gi, ' ');
+  out = out.replace(/<\s*\/?message\b[^>]*>/gi, ' ');
+
+  // 4) Remove suspicious long token ladders like repeated "Certainly! ... Absolutely" sequences
+  out = out.replace(/\b(Certainly|Absolutely|Certainly!|Sure|Affirmative)[\s\p{P}\-]{0,40}(?:(Certainly|Absolutely|Sure|Affirmative)[\s\p{P}\-]*){1,}/giu, '$1');
+
+  // 5) Collapse multiple whitespace/newlines into single space, then trim
+  out = out.replace(/\s+/g, ' ').trim();
+
+  return out;
+}
+/** END: sanitizeModelOutput helper (injected) **/
+
 
 const fs = require('fs');
 const path = require('path');
@@ -78,7 +118,7 @@ class AIProviderManager {
             'X-Title': process.env.APP_NAME || 'Jarvis AI',
           },
         }),
-        model: 'qwen/qwen3-235b-a22b:free',
+        model: 'openai/gpt-oss-20b:free',
         type: 'openai-chat',
         family: 'openrouter',
         costTier: 'free',
@@ -482,10 +522,12 @@ class AIProviderManager {
         }
 
         console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
-        return {
-          content: resp.choices[0].message.content.trim(),
-          provider: provider.name,
-        };
+        const raw = (resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) ? String(resp.choices[0].message.content) : '';
+  const cleaned = sanitizeModelOutput(raw);
+  return {
+    content: cleaned,
+    provider: provider.name,
+  };;
       } catch (error) {
         const latency = Date.now() - started;
         this._recordMetric(provider.name, false, latency);
