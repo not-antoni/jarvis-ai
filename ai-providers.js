@@ -351,20 +351,13 @@ class AIProviderManager {
     return new Promise((res) => setTimeout(res, ms));
   }
 
-  async _retry(fn, { retries = 2, baseDelay = 500, jitter = true, providerName = '' } = {}) {
-    let lastErr;
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        return await fn(attempt);
-      } catch (err) {
-        lastErr = err;
-        if (!this._isRetryable(err) || attempt === retries) break;
-        const delay = jitter ? baseDelay * Math.pow(2, attempt) + Math.floor(Math.random() * 150) : baseDelay * Math.pow(2, attempt);
-        console.warn(`Retrying ${providerName} in ${delay}ms (attempt ${attempt + 1} of ${retries + 1})...`, err.message);
-        await this._sleep(delay);
-      }
+  async _retry(fn, { retries = 0, baseDelay = 0, jitter = false, providerName = '' } = {}) {
+    // With retries=0, we just call once and surface the error immediately.
+    try {
+      return await fn(0);
+    } catch (err) {
+      throw err;
     }
-    throw lastErr;
   }
 
   async generateResponse(systemPrompt, userPrompt, maxTokens = (config.ai?.maxTokens || 1024)) {
@@ -473,14 +466,11 @@ class AIProviderManager {
       };
 
       try {
-        // Retry policy:
-        // - GPT5Nano: up to 3 attempts (0,1,2) with small jitter (non-strict, no disable on empties)
-        // - Others: up to 2 attempts
-        const retries = provider.type === 'gpt5-nano' ? 2 : 1;
+        // Retry policy disabled (retries = 0) — call once per provider
         const resp = await this._retry(callOnce, {
-          retries,
-          baseDelay: 500,
-          jitter: true,
+          retries: 0,
+          baseDelay: 0,
+          jitter: false,
           providerName: provider.name,
         });
 
@@ -524,12 +514,12 @@ class AIProviderManager {
         if (isEmptyResponse && provider.name.startsWith('OpenRouter')) {
           this.openRouterFailureCount += 1;
           if (this.openRouterFailureCount >= 2) {
-            this.openRouterGlobalFailure = true;
-            this.openRouterFailureCount = 0;
+            self.openRouterGlobalFailure = true;
+            self.openRouterFailureCount = 0;
             console.log('OpenRouter global failure detected - disabling all OpenRouter providers temporarily');
             const clearAfter = 6 * 60 * 60 * 1000;
             setTimeout(() => {
-              this.openRouterGlobalFailure = false;
+              self.openRouterGlobalFailure = false;
               console.log('OpenRouter global failure cleared - re-enabling OpenRouter providers');
               this.scheduleStateSave();
             }, clearAfter).unref?.();
