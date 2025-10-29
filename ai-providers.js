@@ -143,7 +143,7 @@ class AIProviderManager {
           apiKey: key,
           baseURL: 'https://api.groq.com/openai/v1',
         }),
-        model: 'openai/gpt-oss-120b',
+        model: 'openai/gpt-oss-20b',
         type: 'openai-chat',
         family: 'groq',
         costTier: 'free',
