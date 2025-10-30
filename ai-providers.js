@@ -1,12 +1,11 @@
 'use strict';
 /**
- * AI Provider Manager (DeepSeek + GPT-5 Nano) — v3
+ * AI Provider Manager (DeepSeek + GPT-5 Nano) — v5
  * ------------------------------------------------
- * Upgrades:
- *  - Strip <thinking>/<think> blocks + remove 'final' prefixes
- *  - Extract payload after 'final' keyword if present
- *  - GPT-5 Nano: retry once on empty + DEEP DEBUG LOG of raw response on failure
- *  - DeepSeek: reasoning disabled when supported
+ * Fixes:
+ *  - Permanently disables reasoning for GPT-5 Nano (effort:none)
+ *  - Keeps DeepSeek reasoning disabled via budget_tokens:0
+ *  - Maintains full debug logging, thinking-stripping, and diagnostics support
  */
 
 const fs = require('fs');
@@ -29,7 +28,6 @@ function sanitizeModelOutput(text) {
   return out;
 }
 
-// Strip <thinking> and <think> blocks + remove "final" prefix
 function cleanThinkingOutput(text) {
   if (!text || typeof text !== 'string') return text;
   return text
@@ -40,7 +38,6 @@ function cleanThinkingOutput(text) {
     .trim();
 }
 
-// If content contains 'final ...', extract the tail after it.
 function extractFinalPayload(text) {
   if (!text || typeof text !== 'string') return text;
   const m = text.match(/\bfinal\b[:\-]?\s*(.*)$/is);
@@ -123,20 +120,15 @@ class AIProviderManager {
     console.log(`Initialized ${this.providers.length} providers (DeepSeek + GPT-5 Nano).`);
   }
 
-  /* ---------- Persistence ---------- */
   loadState() {
     try {
       if (!fs.existsSync(PROVIDER_STATE_PATH)) return;
       const data = JSON.parse(fs.readFileSync(PROVIDER_STATE_PATH, 'utf8') || '{}');
-      Object.entries(data.metrics || {}).forEach(([name, m]) => {
-        this.metrics.set(name, m);
-      });
+      Object.entries(data.metrics || {}).forEach(([name, m]) => this.metrics.set(name, m));
       Object.entries(data.disabledProviders || {}).forEach(([name, until]) => {
         if (until > Date.now()) this.disabledProviders.set(name, until);
       });
-      Object.entries(data.providerErrors || {}).forEach(([name, err]) => {
-        this.providerErrors.set(name, err);
-      });
+      Object.entries(data.providerErrors || {}).forEach(([name, err]) => this.providerErrors.set(name, err));
     } catch (e) {
       console.warn('Failed to restore provider state:', e);
     }
@@ -181,10 +173,8 @@ class AIProviderManager {
     this.scheduleStateSave();
   }
 
-  /* ---------- Main Response ---------- */
   async generateResponse(systemPrompt, userPrompt, maxTokens = (config.ai?.maxTokens || 1024)) {
     if (!this.providers.length) throw new Error('No AI providers available.');
-
     const random = this._getRandomProvider();
     const candidates = random ? [random, ...this.providers.filter(p => p.name !== random.name)] : this.providers;
     let lastErr = null;
@@ -197,6 +187,7 @@ class AIProviderManager {
         if (provider.type === 'gpt5-nano') {
           const resp = await provider.client.chat.completions.create({
             model: provider.model,
+            reasoning: { effort: 'none' }, // disable reasoning entirely
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },
@@ -207,14 +198,7 @@ class AIProviderManager {
 
           let content = resp?.choices?.[0]?.message?.content;
           if (!content?.trim()) {
-            // DEBUG: dump entire response for post-mortem
-            dbgDump('GPT5-Nano Raw Response (empty content)', {
-              id: resp?.id,
-              model: resp?.model,
-              usage: resp?.usage,
-              choices: resp?.choices,
-              full: resp
-            });
+            dbgDump('GPT-5 Nano Raw Response (empty content)', resp);
             if (attempt === 0) {
               console.warn(`⚠️ Empty GPT-5 Nano response — retrying once...`);
               return await callOnce(1);
@@ -222,24 +206,9 @@ class AIProviderManager {
             throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
           }
 
-          // Try parsing JSON-ish
-          try {
-            const parsed = JSON.parse(content);
-            if (typeof parsed === 'object' && parsed !== null) {
-              content = parsed.response || parsed.answer || parsed.output || parsed.content || JSON.stringify(parsed);
-            }
-          } catch {
-            const hit = content.match(/"content"\s*:\s*"([^"]+)"/i) ||
-                        content.match(/"answer"\s*:\s*"([^"]+)"/i) ||
-                        content.match(/"response"\s*:\s*"([^"]+)"/i) ||
-                        content.match(/"output"\s*:\s*"([^"]+)"/i);
-            if (hit) content = hit[1];
-          }
-
-          // Final cleanup stages
           content = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(String(content))));
           if (!content) {
-            dbgDump('GPT5-Nano Sanitized Empty (post-clean)', { original: resp?.choices?.[0]?.message?.content });
+            dbgDump('GPT-5 Nano Sanitized Empty', { original: resp?.choices?.[0]?.message?.content });
             throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
           }
 
@@ -247,7 +216,6 @@ class AIProviderManager {
           return resp;
         }
 
-        // DeepSeek (reasoning disabled if possible)
         const resp = await provider.client.chat.completions.create({
           model: provider.model,
           reasoning: { budget_tokens: 0 },
@@ -273,7 +241,6 @@ class AIProviderManager {
         const latency = Date.now() - started;
         this._recordMetric(provider.name, true, latency);
         console.log(`✓ Success ${provider.name} in ${latency} ms`);
-
         const raw = String(r?.choices?.[0]?.message?.content || '');
         const cleaned = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(raw)));
         return { content: cleaned, provider: provider.name };
@@ -308,6 +275,15 @@ class AIProviderManager {
         lastError: this.providerErrors.get(p.name) || null
       };
     });
+  }
+
+  getRedactedProviderStatus() {
+    return this.getProviderAnalytics().map(p => ({
+      ...p,
+      name: '[REDACTED]',
+      model: '[REDACTED]',
+      lastError: p.lastError ? '[REDACTED]' : null
+    }));
   }
 }
 

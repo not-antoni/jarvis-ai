@@ -1,4 +1,5 @@
 node_modules
+.crdownload
 .env
 .env.local
 .DS_Store
@@ -21,3 +22,4 @@ Unconfirmed 373934.crdownload
 Unconfirmed 145729.crdownload
 Unconfirmed 120334.crdownload
 Unconfirmed 860463.crdownload
+Unconfirmed 468472.crdownload
