@@ -1,11 +1,12 @@
 'use strict';
 /**
- * AI Provider Manager (DeepSeek + GPT-5 Nano) — v5
+ * AI Provider Manager (DeepSeek + GPT-5 Nano) — v7
  * ------------------------------------------------
  * Fixes:
- *  - Permanently disables reasoning for GPT-5 Nano (effort:none)
+ *  - Removes all unsupported parameters for GPT-5 Nano
  *  - Keeps DeepSeek reasoning disabled via budget_tokens:0
- *  - Maintains full debug logging, thinking-stripping, and diagnostics support
+ *  - Adds safety guards for diagnostics (no undefined metrics)
+ *  - Keeps full debug logging + output cleaning
  */
 
 const fs = require('fs');
@@ -83,7 +84,6 @@ class AIProviderManager {
   }
 
   setupProviders() {
-    // --- DeepSeek via Vercel Gateway ---
     const deepseekKeys = [process.env.AI_GATEWAY_API_KEY, process.env.AI_GATEWAY_API_KEY2].filter(Boolean);
     deepseekKeys.forEach((key, i) => {
       this.providers.push({
@@ -103,7 +103,6 @@ class AIProviderManager {
       });
     });
 
-    // --- GPT-5 Nano (OpenAI official) ---
     if (process.env.OPENAI) {
       const key = process.env.OPENAI;
       this.providers.push({
@@ -147,17 +146,6 @@ class AIProviderManager {
     }
   }
 
-  scheduleStateSave() {
-    this.stateDirty = true;
-    if (this.stateSaveTimer) return;
-    this.stateSaveTimer = setTimeout(() => {
-      this.stateSaveTimer = null;
-      if (!this.stateDirty) return;
-      this.stateDirty = false;
-      this.saveState();
-    }, this.stateSaveDebounceMs);
-  }
-
   _getRandomProvider() {
     const now = Date.now();
     const avail = this.providers.filter(p => !(this.disabledProviders.get(p.name) > now));
@@ -170,7 +158,7 @@ class AIProviderManager {
     if (ok) m.successes++; else m.failures++;
     m.avgLatencyMs = !m.avgLatencyMs ? latency : m.avgLatencyMs * 0.7 + latency * 0.3;
     this.metrics.set(name, m);
-    this.scheduleStateSave();
+    this.saveState();
   }
 
   async generateResponse(systemPrompt, userPrompt, maxTokens = (config.ai?.maxTokens || 1024)) {
@@ -187,7 +175,6 @@ class AIProviderManager {
         if (provider.type === 'gpt5-nano') {
           const resp = await provider.client.chat.completions.create({
             model: provider.model,
-            reasoning: { effort: 'none' }, // disable reasoning entirely
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },
@@ -196,22 +183,15 @@ class AIProviderManager {
             temperature: config.ai?.temperature ?? 0.7,
           });
 
-          let content = resp?.choices?.[0]?.message?.content;
-          if (!content?.trim()) {
-            dbgDump('GPT-5 Nano Raw Response (empty content)', resp);
-            if (attempt === 0) {
-              console.warn(`⚠️ Empty GPT-5 Nano response — retrying once...`);
-              return await callOnce(1);
-            }
-            throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
+          let content = resp?.choices?.[0]?.message?.content || '';
+          if (!content.trim()) {
+            dbgDump('GPT-5 Nano Raw Response (empty)', resp);
+            if (attempt === 0) return await callOnce(1);
+            throw new Error(`Empty GPT-5 Nano output`);
           }
 
-          content = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(String(content))));
-          if (!content) {
-            dbgDump('GPT-5 Nano Sanitized Empty', { original: resp?.choices?.[0]?.message?.content });
-            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
-          }
-
+          content = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(content)));
+          if (!content.trim()) throw new Error(`Sanitized empty GPT-5 Nano content`);
           resp.choices[0].message.content = content;
           return resp;
         }
@@ -231,7 +211,7 @@ class AIProviderManager {
         const txt = resp?.choices?.[0]?.message?.content;
         if (!txt?.trim()) {
           dbgDump('DeepSeek Raw Response (empty content)', resp);
-          throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
+          throw new Error(`Empty response from ${provider.name}`);
         }
         return resp;
       };
@@ -248,12 +228,11 @@ class AIProviderManager {
         const latency = Date.now() - started;
         this._recordMetric(provider.name, false, latency);
         this.providerErrors.set(provider.name, { error: err.message, timestamp: Date.now(), status: err.status });
-        this.scheduleStateSave();
         console.error(`✗ Failed ${provider.name} (${provider.model}) ${err.message}`);
         lastErr = err;
         if (provider.type !== 'gpt5-nano') {
           this.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
-          this.scheduleStateSave();
+          this.saveState();
         }
       }
     }
@@ -264,15 +243,16 @@ class AIProviderManager {
     const now = Date.now();
     return this.providers.map(p => {
       const m = this.metrics.get(p.name) || { successes: 0, failures: 0, avgLatencyMs: 0 };
-      const total = m.successes + m.failures;
+      const total = (m.successes ?? 0) + (m.failures ?? 0);
+      const successRate = total > 0 ? (m.successes / total) * 100 : 0;
       return {
         name: p.name,
         model: p.model,
         type: p.type,
-        successRate: total ? (m.successes / total) * 100 : null,
+        successRate,
         avgLatencyMs: m.avgLatencyMs,
         isDisabled: this.disabledProviders.get(p.name) > now,
-        lastError: this.providerErrors.get(p.name) || null
+        lastError: this.providerErrors.get(p.name) || null,
       };
     });
   }
@@ -282,7 +262,7 @@ class AIProviderManager {
       ...p,
       name: '[REDACTED]',
       model: '[REDACTED]',
-      lastError: p.lastError ? '[REDACTED]' : null
+      lastError: p.lastError ? '[REDACTED]' : null,
     }));
   }
 }
