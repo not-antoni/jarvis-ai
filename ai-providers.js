@@ -1,17 +1,19 @@
 'use strict';
 /**
- * AI Provider Manager (DeepSeek + GPT-5 Nano)
- * --------------------------------------------
+ * AI Provider Manager (DeepSeek + GPT-5 Nano) — Fixed
+ * ---------------------------------------------------
  * Providers:
- *   - OpenAI GPT-5 Nano (official)
- *   - Vercel AI Gateway DeepSeek (OpenAI-compatible)
+ *   - OpenAI GPT-5 Nano (official)   -> uses max_completion_tokens
+ *   - Vercel AI Gateway DeepSeek     -> disables reasoning/thinking when supported
  *
- * Key features:
- *   • Random-first fallback
- *   • Circuit-breaker on DeepSeek (Nano always available)
- *   • Zero retries (fail-fast)
- *   • Output sanitation + tolerant JSON parsing
- *   • Persistent metrics/errors/disable states
+ * Guarantees:
+ *   • Only process.env.OPENAI is used for OpenAI API key
+ *   • Random-first selection + ranked fallback
+ *   • Circuit-breaker for DeepSeek (2h). GPT-5 Nano is never disabled.
+ *   • Zero retries (fail-fast as requested)
+ *   • Output sanitation + tolerant JSON-ish parsing for Nano
+ *   • Persistent metrics/errors/disabledProviders
+ *   • getProviderAnalytics() exported (for diagnostics/health endpoint)
  */
 
 const fs = require('fs');
@@ -63,7 +65,7 @@ class AIProviderManager {
   }
 
   setupProviders() {
-    // --- DeepSeek via Vercel AI Gateway ---
+    // --- DeepSeek via Vercel AI Gateway (OpenAI-compatible) ---
     const deepseekKeys = [
       process.env.AI_GATEWAY_API_KEY,
       process.env.AI_GATEWAY_API_KEY2,
@@ -92,7 +94,7 @@ class AIProviderManager {
       const key = process.env.OPENAI;
       this.providers.push({
         name: 'GPT5Nano',
-        client: new OpenAI({ apiKey: key }),
+        client: new OpenAI({ apiKey: key }), // https://api.openai.com/v1
         model: 'gpt-5-nano',
         type: 'gpt5-nano',
         family: 'openai',
@@ -113,17 +115,25 @@ class AIProviderManager {
       const data = JSON.parse(raw);
 
       for (const [name, m] of Object.entries(data.metrics || {})) {
-        if (this.providers.find(p => p.name === name))
-          this.metrics.set(name, m);
+        if (this.providers.find(p => p.name === name)) {
+          this.metrics.set(name, {
+            successes: Number(m.successes) || 0,
+            failures: Number(m.failures) || 0,
+            avgLatencyMs: Number(m.avgLatencyMs) || 0,
+          });
+        }
       }
       const now = Date.now();
       for (const [name, until] of Object.entries(data.disabledProviders || {})) {
-        if (until > now && this.providers.find(p => p.name === name))
-          this.disabledProviders.set(name, until);
+        const parsed = Number(until);
+        if (Number.isFinite(parsed) && parsed > now && this.providers.find(p => p.name === name)) {
+          this.disabledProviders.set(name, parsed);
+        }
       }
       for (const [name, err] of Object.entries(data.providerErrors || {})) {
-        if (this.providers.find(p => p.name === name))
+        if (this.providers.find(p => p.name === name) && err && typeof err === 'object') {
           this.providerErrors.set(name, err);
+        }
       }
       console.log('Restored provider cache.');
     } catch (e) { console.warn('Failed to restore cache:', e); }
@@ -193,7 +203,8 @@ class AIProviderManager {
   _recordMetric(name, ok, latency) {
     const m = this.metrics.get(name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };
     if (ok) m.successes++; else m.failures++;
-    m.avgLatencyMs = !m.avgLatencyMs ? latency : m.avgLatencyMs * 0.7 + latency * 0.3;
+    if (!Number.isFinite(m.avgLatencyMs) || m.avgLatencyMs <= 0) m.avgLatencyMs = latency;
+    else m.avgLatencyMs = m.avgLatencyMs * 0.7 + latency * 0.3;
     this.metrics.set(name, m);
     this.scheduleStateSave();
   }
@@ -218,7 +229,7 @@ class AIProviderManager {
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt },
             ],
-            max_completion_tokens: maxTokens,
+            max_completion_tokens: maxTokens,  // <-- required by GPT-5 Nano
             temperature: config.ai?.temperature ?? 0.7,
           });
 
@@ -228,13 +239,14 @@ class AIProviderManager {
 
           try {
             const parsed = JSON.parse(content);
-            if (typeof parsed === 'object') {
+            if (typeof parsed === 'object' && parsed !== null) {
               content = parsed.response || parsed.answer || parsed.output || parsed.content || JSON.stringify(parsed);
             }
           } catch {
             const hit = content.match(/"content"\s*:\s*"([^"]+)"/i) ||
                         content.match(/"answer"\s*:\s*"([^"]+)"/i) ||
-                        content.match(/"response"\s*:\s*"([^"]+)"/i);
+                        content.match(/"response"\s*:\s*"([^"]+)"/i) ||
+                        content.match(/"output"\s*:\s*"([^"]+)"/i);
             if (hit) content = hit[1];
           }
 
@@ -249,8 +261,9 @@ class AIProviderManager {
         // DeepSeek (Vercel AI Gateway)
         const resp = await provider.client.chat.completions.create({
           model: provider.model,
-          reasoning: { budget_tokens: 0 }, // disable reasoning
-          thinking: false,                 // disable “thinking” outputs if supported
+          // These fields are ignored if unsupported; when supported, they disable reasoning outputs
+          reasoning: { budget_tokens: 0 },
+          thinking: false,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -287,6 +300,128 @@ class AIProviderManager {
     }
 
     throw new Error(`All providers failed: ${lastErr?.message || 'Unknown'}`);
+  }
+
+  /* ---------- Admin / Telemetry ---------- */
+  getProviderStatus() {
+    const now = Date.now();
+    return this.providers
+      .map((p) => {
+        const m = this.metrics.get(p.name) || { successes: 0, failures: 0, avgLatencyMs: null };
+        const total = m.successes + m.failures;
+        const disabledUntil = this.disabledProviders.get(p.name) || null;
+        return {
+          name: p.name,
+          model: p.model,
+          type: p.type,
+          family: p.family || null,
+          costTier: p.costTier || 'unknown',
+          priority: resolveCostPriority(p),
+          hasError: this.providerErrors.has(p.name),
+          lastError: this.providerErrors.get(p.name) || null,
+          disabledUntil,
+          isDisabled: disabledUntil ? disabledUntil > now : false,
+          metrics: {
+            successes: m.successes,
+            failures: m.failures,
+            totalRequests: total,
+            successRate: total ? m.successes / total : null,
+            avgLatencyMs: m.avgLatencyMs,
+          },
+        };
+      })
+      .sort((a, b) => {
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        const rateA = a.metrics.successRate ?? -1;
+        const rateB = b.metrics.successRate ?? -1;
+        if (rateA !== rateB) return rateB - rateA;
+        return (a.metrics.avgLatencyMs ?? Number.POSITIVE_INFINITY) - (b.metrics.avgLatencyMs ?? Number.POSITIVE_INFINITY);
+      });
+  }
+
+  getRedactedProviderStatus() {
+    return this.getProviderStatus().map((p) => ({
+      ...p,
+      name: this._redactProviderName(p.name),
+      model: this._redactModelName(p.model),
+      lastError: p.hasError ? '[REDACTED]' : null,
+    }));
+  }
+
+  getProviderAnalytics() {
+    return this.getProviderStatus().map((p) => {
+      const uptimePercentage = p.metrics.successRate != null ? (p.metrics.successRate * 100) : null;
+      return {
+        name: p.name,
+        model: p.model,
+        type: p.type,
+        family: p.family,
+        costTier: p.costTier,
+        priority: p.priority,
+        metrics: {
+          successes: p.metrics.successes,
+          failures: p.metrics.failures,
+          total: p.metrics.totalRequests,
+          successRate: uptimePercentage,
+          avgLatencyMs: p.metrics.avgLatencyMs,
+        },
+        disabledUntil: p.disabledUntil,
+        isDisabled: p.isDisabled,
+        hasError: p.hasError,
+        lastError: p.lastError,
+      };
+    });
+  }
+
+  _redactProviderName(name) {
+    const map = {
+      'GPT5Nano': '[REDACTED]',
+      'deepseek-gateway-1': '[REDACTED]',
+      'deepseek-gateway-2': '[REDACTED]',
+    };
+    return map[name] || '[REDACTED]';
+  }
+
+  _redactModelName(_m) { return '[REDACTED]'; }
+
+  setRandomSelection(enabled) {
+    this.useRandomSelection = !!enabled;
+    console.log(`Selection mode: ${enabled ? 'Random-first' : 'Ranked'}`);
+  }
+  getSelectionMode() { return this.useRandomSelection ? 'random' : 'ranked'; }
+
+  setProviderType(providerType) {
+    const valid = ['auto', 'openai', 'deepseek'];
+    const t = String(providerType || '').toLowerCase();
+    if (!valid.includes(t)) {
+      throw new Error(`Invalid provider type. Valid options: ${valid.join(', ')}`);
+    }
+    this.selectedProviderType = t;
+    console.log(`Provider type changed to: ${this.selectedProviderType}`);
+  }
+  getProviderType() { return this.selectedProviderType; }
+
+  getAvailableProviderTypes() {
+    const types = new Set();
+    this.providers.forEach((p) => {
+      const n = p.name.toLowerCase();
+      if (n === 'gpt5nano') types.add('openai');
+      else if (n.startsWith('deepseek-gateway-')) types.add('deepseek');
+    });
+    const arr = Array.from(types).sort();
+    arr.unshift('auto');
+    return arr;
+  }
+
+  cleanupOldMetrics() {
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000;
+    for (const [name, err] of this.providerErrors.entries()) {
+      if (now - (err?.timestamp || 0) > maxAge) this.providerErrors.delete(name);
+    }
+    for (const [name, until] of this.disabledProviders.entries()) {
+      if (until <= now) this.disabledProviders.delete(name);
+    }
   }
 }
 
