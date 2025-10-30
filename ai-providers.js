@@ -2,11 +2,10 @@
 /**
  * AI Provider Manager (DeepSeek + GPT-4o-mini)
  * --------------------------------------------
- * Fixes:
- *  - Switches GPT-5-Nano → GPT-4o-mini (OpenAI official lightweight model)
- *  - Removes unsupported parameters (no reasoning/thinking)
- *  - Adds safety guards for diagnostics (prevents successRate undefined)
- *  - Retains DeepSeek reasoning: { budget_tokens: 0 } for compatibility
+ * - OpenAI: gpt-4o-mini (no reasoning/thinking params)
+ * - DeepSeek (Vercel): reasoning budget set to 0 (hint, ignored if unsupported)
+ * - Robust diagnostics: getProviderStatus(), getProviderAnalytics(), getRedactedProviderStatus()
+ * - Safe successRate computation (never undefined)
  */
 
 const fs = require('fs');
@@ -18,6 +17,7 @@ const config = require('./config');
 function sanitizeModelOutput(text) {
   if (!text || typeof text !== 'string') return text;
   let out = text.replace(/\r\n?/g, '\n');
+  // scrub stray protocol tags
   out = out.replace(/<\/message>\s*<\/start>\s*assistant\s*<\/channel>\s*final\s*<\/message>/gi, ' ');
   out = out.replace(/<\/channel>\s*final\s*<\/message>/gi, ' ');
   out = out.replace(/<start>\s*assistant\b[^>]*>/gi, ' ');
@@ -70,10 +70,8 @@ class AIProviderManager {
   constructor() {
     this.providers = [];
     this.providerErrors = new Map();
-    this.metrics = new Map();
-    this.disabledProviders = new Map();
-    this.useRandomSelection = true;
-    this.selectedProviderType = (config.ai?.provider || 'auto');
+    this.metrics = new Map(); // name -> { successes, failures, avgLatencyMs }
+    this.disabledProviders = new Map(); // name -> timestamp
     this.stateSaveDebounceMs = 1500;
     this.stateSaveTimer = null;
     this.stateDirty = false;
@@ -83,7 +81,7 @@ class AIProviderManager {
   }
 
   setupProviders() {
-    // --- DeepSeek ---
+    // --- DeepSeek via Vercel Gateway ---
     const deepseekKeys = [process.env.AI_GATEWAY_API_KEY, process.env.AI_GATEWAY_API_KEY2].filter(Boolean);
     deepseekKeys.forEach((key, i) => {
       this.providers.push({
@@ -103,12 +101,12 @@ class AIProviderManager {
       });
     });
 
-    // --- GPT-4o-mini ---
+    // --- OpenAI: GPT-4o-mini ---
     if (process.env.OPENAI) {
-      const key = process.env.OPENAI;
+      const key = process.env.OPENAI; // per your env naming
       this.providers.push({
         name: 'GPT4oMini',
-        client: new OpenAI({ apiKey: key }),
+        client: new OpenAI({ apiKey: key }), // https://api.openai.com/v1
         model: 'gpt-4o-mini',
         type: 'gpt4o-mini',
         family: 'openai',
@@ -116,21 +114,38 @@ class AIProviderManager {
       });
     }
 
+    // Sort by cost tier (cheapest first)
     this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
     console.log(`Initialized ${this.providers.length} providers (DeepSeek + GPT-4o-mini).`);
   }
 
+  /* ---------- Persistence ---------- */
   loadState() {
     try {
       if (!fs.existsSync(PROVIDER_STATE_PATH)) return;
       const data = JSON.parse(fs.readFileSync(PROVIDER_STATE_PATH, 'utf8') || '{}');
-      Object.entries(data.metrics || {}).forEach(([name, m]) => this.metrics.set(name, m));
-      Object.entries(data.disabledProviders || {}).forEach(([name, until]) => {
-        if (until > Date.now()) this.disabledProviders.set(name, until);
-      });
-      Object.entries(data.providerErrors || {}).forEach(([name, err]) => this.providerErrors.set(name, err));
+
+      const mIn = data.metrics || {};
+      for (const [name, m] of Object.entries(mIn)) {
+        this.metrics.set(name, {
+          successes: Number(m.successes) || 0,
+          failures: Number(m.failures) || 0,
+          avgLatencyMs: Number(m.avgLatencyMs) || 0,
+        });
+      }
+      const dIn = data.disabledProviders || {};
+      const now = Date.now();
+      for (const [name, until] of Object.entries(dIn)) {
+        const ts = Number(until);
+        if (Number.isFinite(ts) && ts > now) this.disabledProviders.set(name, ts);
+      }
+      const eIn = data.providerErrors || {};
+      for (const [name, err] of Object.entries(eIn)) {
+        if (err && typeof err === 'object') this.providerErrors.set(name, err);
+      }
+      console.log('Restored provider cache.');
     } catch (e) {
-      console.warn('Failed to restore provider state:', e);
+      console.warn('Failed to restore provider cache:', e);
     }
   }
 
@@ -140,32 +155,44 @@ class AIProviderManager {
         metrics: Object.fromEntries(this.metrics),
         disabledProviders: Object.fromEntries(this.disabledProviders),
         providerErrors: Object.fromEntries(this.providerErrors),
+        savedAt: new Date().toISOString(),
       };
       await fsp.writeFile(PROVIDER_STATE_PATH, JSON.stringify(payload, null, 2), 'utf8');
     } catch (e) {
-      console.warn('Failed to save provider state:', e);
+      console.warn('Failed to save cache:', e);
     }
   }
+  scheduleStateSave() {
+    this.stateDirty = true;
+    if (this.stateSaveTimer) return;
+    this.stateSaveTimer = setTimeout(async () => {
+      this.stateSaveTimer = null;
+      if (!this.stateDirty) return;
+      this.stateDirty = false;
+      await this.saveState();
+    }, this.stateSaveDebounceMs);
+  }
 
-  _getRandomProvider() {
+  /* ---------- Selection & Metrics ---------- */
+  _availableProviders() {
     const now = Date.now();
-    const avail = this.providers.filter(p => !(this.disabledProviders.get(p.name) > now));
-    if (!avail.length) return null;
-    return avail[Math.floor(Math.random() * avail.length)];
+    return this.providers.filter(p => !(this.disabledProviders.get(p.name) > now));
   }
 
   _recordMetric(name, ok, latency) {
-    const m = this.metrics.get(name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };
+    const m = this.metrics.get(name) || { successes: 0, failures: 0, avgLatencyMs: 0 };
     if (ok) m.successes++; else m.failures++;
-    m.avgLatencyMs = !m.avgLatencyMs ? latency : m.avgLatencyMs * 0.7 + latency * 0.3;
+    if (!Number.isFinite(m.avgLatencyMs) || m.avgLatencyMs <= 0) m.avgLatencyMs = latency;
+    else m.avgLatencyMs = m.avgLatencyMs * 0.7 + latency * 0.3;
     this.metrics.set(name, m);
-    this.saveState();
+    this.scheduleStateSave();
   }
 
+  /* ---------- Core Call ---------- */
   async generateResponse(systemPrompt, userPrompt, maxTokens = (config.ai?.maxTokens || 1024)) {
-    if (!this.providers.length) throw new Error('No AI providers available.');
-    const random = this._getRandomProvider();
-    const candidates = random ? [random, ...this.providers.filter(p => p.name !== random.name)] : this.providers;
+    const candidates = this._availableProviders();
+    if (!candidates.length) throw new Error('No AI providers available.');
+
     let lastErr = null;
 
     for (const provider of candidates) {
@@ -187,20 +214,26 @@ class AIProviderManager {
           let content = resp?.choices?.[0]?.message?.content || '';
           if (!content.trim()) {
             dbgDump('GPT-4o-mini Raw Response (empty)', resp);
-            if (attempt === 0) return await callOnce(1);
+            if (attempt === 0) {
+              console.warn(`⚠️ Empty GPT-4o-mini response — retrying once...`);
+              return await callOnce(1);
+            }
             throw new Error(`Empty GPT-4o-mini output`);
           }
 
           content = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(content)));
-          if (!content.trim()) throw new Error(`Sanitized empty GPT-4o-mini content`);
+          if (!content.trim()) {
+            dbgDump('GPT-4o-mini Sanitized Empty', { original: resp?.choices?.[0]?.message?.content });
+            throw new Error('Sanitized empty GPT-4o-mini content');
+          }
           resp.choices[0].message.content = content;
           return resp;
         }
 
+        // DeepSeek via Vercel Gateway
         const resp = await provider.client.chat.completions.create({
           model: provider.model,
-          reasoning: { budget_tokens: 0 },
-          thinking: false,
+          reasoning: { budget_tokens: 0 }, // hint; ignored if unsupported
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -211,7 +244,7 @@ class AIProviderManager {
 
         const txt = resp?.choices?.[0]?.message?.content;
         if (!txt?.trim()) {
-          dbgDump('DeepSeek Raw Response (empty content)', resp);
+          dbgDump('DeepSeek Raw Response (empty)', resp);
           throw new Error(`Empty response from ${provider.name}`);
         }
         return resp;
@@ -228,43 +261,80 @@ class AIProviderManager {
       } catch (err) {
         const latency = Date.now() - started;
         this._recordMetric(provider.name, false, latency);
-        this.providerErrors.set(provider.name, { error: err.message, timestamp: Date.now(), status: err.status });
+        this.providerErrors.set(provider.name, { error: err.message, timestamp: Date.now() });
         console.error(`✗ Failed ${provider.name} (${provider.model}) ${err.message}`);
-        lastErr = err;
-        if (provider.type !== 'gpt4o-mini') {
+
+        // Circuit-breaker for non-OpenAI to avoid flapping
+        if (provider.family !== 'openai') {
           this.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
-          this.saveState();
         }
+        this.scheduleStateSave();
+        lastErr = err;
       }
     }
+
     throw new Error(`All providers failed: ${lastErr?.message || 'Unknown error'}`);
   }
 
-  getProviderAnalytics() {
-    const now = Date.now();
-    return this.providers.map(p => {
-      const m = this.metrics.get(p.name) || { successes: 0, failures: 0, avgLatencyMs: 0 };
-      const total = (m.successes ?? 0) + (m.failures ?? 0);
-      const successRate = total > 0 ? (m.successes / total) * 100 : 0;
-      return {
-        name: p.name,
-        model: p.model,
-        type: p.type,
-        successRate,
+  /* ---------- Diagnostics ---------- */
+  _statusRow(p) {
+    const m = this.metrics.get(p.name) || { successes: 0, failures: 0, avgLatencyMs: 0 };
+    const total = (m.successes ?? 0) + (m.failures ?? 0);
+    const successRate = total > 0 ? (m.successes / total) * 100 : 0;
+    const disabledUntil = this.disabledProviders.get(p.name) || null;
+    const isDisabled = disabledUntil ? disabledUntil > Date.now() : false;
+
+    return {
+      name: p.name,
+      model: p.model,
+      type: p.type,
+      family: p.family || null,
+      costTier: p.costTier || 'paid',
+      metrics: {
+        successes: m.successes,
+        failures: m.failures,
+        totalRequests: total,
+        successRate,                 // <-- always defined number
         avgLatencyMs: m.avgLatencyMs,
-        isDisabled: this.disabledProviders.get(p.name) > now,
-        lastError: this.providerErrors.get(p.name) || null,
+      },
+      disabledUntil,
+      isDisabled,
+      lastError: this.providerErrors.get(p.name) || null,
+    };
+  }
+
+  getProviderStatus() {
+    // Full, non-redacted status used by internal dashboards
+    return this.providers.map(p => this._statusRow(p));
+  }
+
+  getProviderAnalytics() {
+    // Lightweight analytics summary (older callers may use this)
+    return this.providers.map(p => {
+      const row = this._statusRow(p);
+      return {
+        name: row.name,
+        model: row.model,
+        type: row.type,
+        successRate: row.metrics.successRate,
+        avgLatencyMs: row.metrics.avgLatencyMs,
+        isDisabled: row.isDisabled,
+        lastError: row.lastError,
       };
     });
   }
 
   getRedactedProviderStatus() {
-    return this.getProviderAnalytics().map(p => ({
-      ...p,
-      name: '[REDACTED]',
-      model: '[REDACTED]',
-      lastError: p.lastError ? '[REDACTED]' : null,
-    }));
+    // Safe for public status pages
+    return this.providers.map(p => {
+      const row = this._statusRow(p);
+      return {
+        ...row,
+        name: '[REDACTED]',
+        model: '[REDACTED]',
+        lastError: row.lastError ? '[REDACTED]' : null,
+      };
+    });
   }
 }
 
