@@ -1,11 +1,12 @@
 'use strict';
 /**
- * AI Provider Manager (DeepSeek + GPT-5 Nano) — Final Patched
- * -----------------------------------------------------------
- * Fixes:
- *  - Strips <thinking> / <think> ... </thinking> blocks and 'final' prefixes
- *  - GPT-5 Nano now retries once if content empty (handles malformed JSON)
- *  - DeepSeek reasoning disabled (still may output structured reasoning but stripped)
+ * AI Provider Manager (DeepSeek + GPT-5 Nano) — v3
+ * ------------------------------------------------
+ * Upgrades:
+ *  - Strip <thinking>/<think> blocks + remove 'final' prefixes
+ *  - Extract payload after 'final' keyword if present
+ *  - GPT-5 Nano: retry once on empty + DEEP DEBUG LOG of raw response on failure
+ *  - DeepSeek: reasoning disabled when supported
  */
 
 const fs = require('fs');
@@ -37,6 +38,24 @@ function cleanThinkingOutput(text) {
     .replace(/\bfinal\b[:\-]?\s*/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// If content contains 'final ...', extract the tail after it.
+function extractFinalPayload(text) {
+  if (!text || typeof text !== 'string') return text;
+  const m = text.match(/\bfinal\b[:\-]?\s*(.*)$/is);
+  if (m && m[1]) return m[1].trim();
+  return text.trim();
+}
+
+function dbgDump(label, obj, max = 8000) {
+  try {
+    const json = JSON.stringify(obj, null, 2);
+    const out = json.length > max ? json.slice(0, max) + '...<truncated>' : json;
+    console.error(`\n===== DEBUG ${label} =====\n${out}\n===== END DEBUG =====\n`);
+  } catch (e) {
+    console.error(`\n===== DEBUG ${label} (stringify failed) =====\n${String(obj)}\n===== END DEBUG =====\n`);
+  }
 }
 
 const fsp = fs.promises;
@@ -188,6 +207,14 @@ class AIProviderManager {
 
           let content = resp?.choices?.[0]?.message?.content;
           if (!content?.trim()) {
+            // DEBUG: dump entire response for post-mortem
+            dbgDump('GPT5-Nano Raw Response (empty content)', {
+              id: resp?.id,
+              model: resp?.model,
+              usage: resp?.usage,
+              choices: resp?.choices,
+              full: resp
+            });
             if (attempt === 0) {
               console.warn(`⚠️ Empty GPT-5 Nano response — retrying once...`);
               return await callOnce(1);
@@ -195,6 +222,7 @@ class AIProviderManager {
             throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
           }
 
+          // Try parsing JSON-ish
           try {
             const parsed = JSON.parse(content);
             if (typeof parsed === 'object' && parsed !== null) {
@@ -203,11 +231,17 @@ class AIProviderManager {
           } catch {
             const hit = content.match(/"content"\s*:\s*"([^"]+)"/i) ||
                         content.match(/"answer"\s*:\s*"([^"]+)"/i) ||
-                        content.match(/"response"\s*:\s*"([^"]+)"/i);
+                        content.match(/"response"\s*:\s*"([^"]+)"/i) ||
+                        content.match(/"output"\s*:\s*"([^"]+)"/i);
             if (hit) content = hit[1];
           }
-          content = String(content).replace(/^["'{\[\s]+|["'\]\}\s]+$/g, '').trim();
-          if (!content) throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
+
+          // Final cleanup stages
+          content = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(String(content))));
+          if (!content) {
+            dbgDump('GPT5-Nano Sanitized Empty (post-clean)', { original: resp?.choices?.[0]?.message?.content });
+            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
+          }
 
           resp.choices[0].message.content = content;
           return resp;
@@ -227,7 +261,10 @@ class AIProviderManager {
         });
 
         const txt = resp?.choices?.[0]?.message?.content;
-        if (!txt?.trim()) throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
+        if (!txt?.trim()) {
+          dbgDump('DeepSeek Raw Response (empty content)', resp);
+          throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
+        }
         return resp;
       };
 
@@ -238,7 +275,7 @@ class AIProviderManager {
         console.log(`✓ Success ${provider.name} in ${latency} ms`);
 
         const raw = String(r?.choices?.[0]?.message?.content || '');
-        const cleaned = cleanThinkingOutput(sanitizeModelOutput(raw));
+        const cleaned = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(raw)));
         return { content: cleaned, provider: provider.name };
       } catch (err) {
         const latency = Date.now() - started;
