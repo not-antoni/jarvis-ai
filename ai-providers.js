@@ -1,63 +1,55 @@
-
 'use strict';
-/** BEGIN: sanitizeModelOutput helper (injected) **/
 /**
- * Sanitize model-generated text by removing stray conversation/markup tokens
- * commonly used in jailbreaks or prompt-injection artifacts.
+ * AI Provider Manager (Slim & Robust)
+ * -----------------------------------
+ * Providers kept:
+ *   - OpenAI: gpt-5-nano (official endpoint)
+ *   - Vercel AI Gateway: deepseek/deepseek-v3.2-exp (OpenAI-compatible)
  *
- * Removes sequences like:
- *   </message></start>assistant</channel>final</message>
- *   </channel>final</message>
- * and minor whitespace/escape variants.
+ * Features:
+ *   - Random-first selection with ranked fallback (cost + success/latency score)
+ *   - Circuit breaker (2h) for non-Nano providers; Nano is never disabled
+ *   - Zero retries by design (surface errors fast, per user's preference)
+ *   - Output sanitation + tolerant JSON/structured parsing for Nano
+ *   - State persistence for metrics/errors/disabledProviders
  *
- * Also collapses repeated whitespace and trims the result.
+ * Env:
+ *   - OPENAI_API_KEY (or OPENAI)         => for GPT-5 Nano
+ *   - AI_GATEWAY_API_KEY (and ...KEY2)   => for Vercel DeepSeek
+ *   - APP_URL / APP_NAME (optional analytics headers for gateway)
+
  */
-function sanitizeModelOutput(text) {
-  if (!text || typeof text !== 'string') return text;
-
-  // 1) Normalize line endings
-  let out = text.replace(/\r\n?/g, '\n');
-
-  // 2) Remove exact dangerous markup patterns (and small variants with optional whitespace)
-  // Pattern matches things like: </message></start>assistant</channel>final</message>
-  out = out.replace(/<\/message>\s*<\/start>\s*assistant\s*<\/channel>\s*final\s*<\/message>/gi, ' ');
-  // Pattern matches: </channel>final</message> and variants with optional whitespace
-  out = out.replace(/<\/channel>\s*final\s*<\/message>/gi, ' ');
-
-  // 3) Remove stray partial markers that sometimes appear
-  out = out.replace(/<start>\s*assistant\b[^>]*>/gi, ' ');
-  out = out.replace(/<\/start>\s*assistant\b[^>]*>/gi, ' ');
-  out = out.replace(/<\s*\/?channel\b[^>]*>/gi, ' ');
-  out = out.replace(/<\s*\/?message\b[^>]*>/gi, ' ');
-
-  // 4) Remove suspicious long token ladders like repeated "Certainly! ... Absolutely" sequences
-  out = out.replace(/\b(Certainly|Absolutely|Certainly!|Sure|Affirmative)[\s\p{P}\-]{0,40}(?:(Certainly|Absolutely|Sure|Affirmative)[\s\p{P}\-]*){1,}/giu, '$1');
-
-  // 5) Collapse multiple whitespace/newlines into single space, then trim
-  out = out.replace(/\s+/g, ' ').trim();
-
-  return out;
-}
-/** END: sanitizeModelOutput helper (injected) **/
-
 
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('./config');
 
-const fsp = fs.promises;
+/** BEGIN: sanitizeModelOutput helper (injected) **/
+function sanitizeModelOutput(text) {
+  if (!text || typeof text !== 'string') return text;
+  let out = text.replace(/\r\n?/g, '\n');
+  out = out.replace(/<\/message>\s*<\/start>\s*assistant\s*<\/channel>\s*final\s*<\/message>/gi, ' ');
+  out = out.replace(/<\/channel>\s*final\s*<\/message>/gi, ' ');
+  out = out.replace(/<start>\s*assistant\b[^>]*>/gi, ' ');
+  out = out.replace(/<\/start>\s*assistant\b[^>]*>/gi, ' ');
+  out = out.replace(/<\s*\/?channel\b[^>]*>/gi, ' ');
+  out = out.replace(/<\s*\/?message\b[^>]*>/gi, ' ');
+  out = out.replace(/\b(Certainly|Absolutely|Certainly!|Sure|Affirmative)[\s\p{P}\-]{0,40}(?:(Certainly|Absolutely|Sure|Affirmative)[\s\p{P}\-]*){1,}/giu, '$1');
+  out = out.replace(/\s+/g, ' ').trim();
+  return out;
+}
+/** END: sanitizeModelOutput helper (injected) **/
 
+const fsp = fs.promises;
 const PROVIDER_STATE_PATH = path.join(__dirname, 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
 
-function resolveCostPriority(provider) {
-  const tier = provider.costTier || 'paid';
-  if (Object.prototype.hasOwnProperty.call(COST_PRIORITY, tier)) {
-    return COST_PRIORITY[tier];
-  }
-  return COST_PRIORITY.paid;
+function resolveCostPriority(p) {
+  const tier = p.costTier || 'paid';
+  return Object.prototype.hasOwnProperty.call(COST_PRIORITY, tier)
+    ? COST_PRIORITY[tier]
+    : COST_PRIORITY.paid;
 }
 
 class AIProviderManager {
@@ -68,12 +60,8 @@ class AIProviderManager {
     this.disabledProviders = new Map();
 
     // Selection & routing flags
-    this.useRandomSelection = true; // Default to random selection
-    this.selectedProviderType = (config.ai?.provider || 'auto'); // 'auto' | 'openai' | 'groq' | 'openrouter' | 'google' | 'deepseek'
-
-    // OpenRouter rolling outage guardrails
-    this.openRouterGlobalFailure = false;
-    this.openRouterFailureCount = 0;
+    this.useRandomSelection = true; // random-first, then ranked fallback
+    this.selectedProviderType = (config.ai?.provider || 'auto'); // 'auto' | 'openai' | 'deepseek'
 
     // Persistence
     this.stateSaveTimer = null;
@@ -85,117 +73,32 @@ class AIProviderManager {
   }
 
   setupProviders() {
-    // ---------- OpenRouter providers ----------
-    const openRouterKeys = [
-      process.env.OPENROUTER_API_KEY,
-      process.env.OPENROUTER_API_KEY2,
-      process.env.OPENROUTER_API_KEY3,
-      process.env.OPENROUTER_API_KEY4,
-      process.env.OPENROUTER_API_KEY5,
-      process.env.OPENROUTER_API_KEY6,
-      process.env.OPENROUTER_API_KEY7,
-      process.env.OPENROUTER_API_KEY8,
-      process.env.OPENROUTER_API_KEY9,
-      process.env.OPENROUTER_API_KEY10,
-      process.env.OPENROUTER_API_KEY11,
-      process.env.OPENROUTER_API_KEY12,
-      process.env.OPENROUTER_API_KEY13,
-      process.env.OPENROUTER_API_KEY14,
-      process.env.OPENROUTER_API_KEY15,
-      process.env.OPENROUTER_API_KEY16,
-      process.env.OPENROUTER_API_KEY17,
-      process.env.OPENROUTER_API_KEY18,
-    ].filter(Boolean);
-
-    openRouterKeys.forEach((key, index) => {
-      this.providers.push({
-        name: `OpenRouter${index + 1}`,
-        client: new OpenAI({
-          apiKey: key,
-          baseURL: 'https://openrouter.ai/api/v1',
-          defaultHeaders: {
-            'HTTP-Referer': process.env.APP_URL || 'https://localhost',
-            'X-Title': process.env.APP_NAME || 'Jarvis AI',
-          },
-        }),
-        model: 'openai/gpt-oss-20b:free',
-        type: 'openai-chat',
-        family: 'openrouter',
-        costTier: 'free',
-      });
-    });
-
-    // ---------- Groq providers (OpenAI-compatible) ----------
-    const groqKeys = [
-      process.env.GROQ_API_KEY,
-      process.env.GROQ_API_KEY2,
-      process.env.GROQ_API_KEY3,
-      process.env.GROQ_API_KEY4,
-      process.env.GROQ_API_KEY5,
-      process.env.GROQ_API_KEY6,
-      process.env.GROQ_API_KEY7,
-    ].filter(Boolean);
-
-    groqKeys.forEach((key, index) => {
-      this.providers.push({
-        name: `Groq${index + 1}`,
-        client: new OpenAI({
-          apiKey: key,
-          baseURL: 'https://api.groq.com/openai/v1',
-        }),
-        model: 'openai/gpt-oss-20b',
-        type: 'openai-chat',
-        family: 'groq',
-        costTier: 'free',
-      });
-    });
-
-    // ---------- Google AI (native SDK) ----------
-    const googleKeys = [
-      process.env.GOOGLE_AI_API_KEY,
-      process.env.GOOGLE_AI_API_KEY2,
-    ].filter(Boolean);
-
-    googleKeys.forEach((key, index) => {
-      this.providers.push({
-        name: `GoogleAI${index + 1}`,
-        client: new GoogleGenerativeAI(key),
-        model: 'gemini-2.5-flash',
-        type: 'google',
-        family: 'google',
-        costTier: 'free',
-      });
-    });
-
     // ---------- DeepSeek via Vercel AI Gateway (OpenAI-compatible) ----------
-    // Mirrors the Python snippet, but in Node.js using OpenAI SDK with baseURL set to the Gateway.
-    const deepseekGatewayKeys = [
+    const deepseekKeys = [
       process.env.AI_GATEWAY_API_KEY,
       process.env.AI_GATEWAY_API_KEY2,
     ].filter(Boolean);
 
-    deepseekGatewayKeys.forEach((key, index) => {
+    deepseekKeys.forEach((key, i) => {
       this.providers.push({
-        name: `deepseek-gateway-${index + 1}`,
+        name: `deepseek-gateway-${i + 1}`,
         client: new OpenAI({
           apiKey: key,
           baseURL: 'https://ai-gateway.vercel.sh/v1',
           defaultHeaders: {
-            // Optional, but recommended for Gateway analytics
             'HTTP-Referer': process.env.APP_URL || 'https://localhost',
             'X-Title': process.env.APP_NAME || 'Jarvis AI',
           },
         }),
-        // IMPORTANT: Use provider/model id as required by the Gateway
         model: 'deepseek/deepseek-v3.2-exp',
-        type: 'openai-chat',
+        type: 'deepseek',    // OpenAI-compatible
         family: 'deepseek',
         costTier: 'paid',
       });
     });
 
-    // ---------- GPT-5 Nano (OpenAI) ----------
-    if (process.env.OPENAI_API_KEY || process.env.OPENAI) {
+    // ---------- GPT-5 Nano (OpenAI official) ----------
+    if (process.env.OPENAI || process.env.OPENAI) {
       const key = process.env.OPENAI_API_KEY || process.env.OPENAI;
       this.providers.push({
         name: 'GPT5Nano',
@@ -207,14 +110,15 @@ class AIProviderManager {
       });
     }
 
-    // Rank cheapest first by default
+    // Prefer cheaper first (if any become freemium), then dynamic score
     this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
 
-    console.log(`Initialized ${this.providers.length} AI providers`);
-    console.log(`Provider selection mode: ${this.useRandomSelection ? 'Random' : 'Ranked'}`);
-    console.log(`Selected provider type: ${this.selectedProviderType}`);
+    console.log(`Initialized ${this.providers.length} AI providers (DeepSeek + GPT-5 Nano only)`);
+    console.log(`Selection mode: ${this.useRandomSelection ? 'Random-first' : 'Ranked'}`);
+    console.log(`Provider filter: ${this.selectedProviderType}`);
   }
 
+  // -------------------- Persistence --------------------
   loadState() {
     try {
       if (!fs.existsSync(PROVIDER_STATE_PATH)) return;
@@ -245,24 +149,16 @@ class AIProviderManager {
       }
 
       if (data.providerErrors && typeof data.providerErrors === 'object') {
-        for (const [name, errorInfo] of Object.entries(data.providerErrors)) {
-          if (errorInfo && typeof errorInfo === 'object' && this.providers.find((p) => p.name === name)) {
-            this.providerErrors.set(name, errorInfo);
+        for (const [name, err] of Object.entries(data.providerErrors)) {
+          if (err && typeof err === 'object' && this.providers.find((p) => p.name === name)) {
+            this.providerErrors.set(name, err);
           }
         }
       }
 
-      if (typeof data.openRouterGlobalFailure === 'boolean') {
-        this.openRouterGlobalFailure = data.openRouterGlobalFailure;
-      }
-
-      if (typeof data.openRouterFailureCount === 'number') {
-        this.openRouterFailureCount = data.openRouterFailureCount;
-      }
-
-      console.log('Restored AI provider cache from disk');
+      console.log('Restored provider cache from disk');
     } catch (error) {
-      console.warn('Failed to restore AI provider cache:', error);
+      console.warn('Failed to restore provider cache:', error);
     }
   }
 
@@ -272,13 +168,11 @@ class AIProviderManager {
         metrics: Object.fromEntries(this.metrics),
         disabledProviders: Object.fromEntries(this.disabledProviders),
         providerErrors: Object.fromEntries(this.providerErrors),
-        openRouterGlobalFailure: this.openRouterGlobalFailure,
-        openRouterFailureCount: this.openRouterFailureCount,
         savedAt: new Date().toISOString(),
       };
       await fsp.writeFile(PROVIDER_STATE_PATH, JSON.stringify(payload, null, 2), 'utf8');
     } catch (error) {
-      console.warn('Failed to persist AI provider cache:', error);
+      console.warn('Failed to persist provider cache:', error);
     }
   }
 
@@ -293,24 +187,17 @@ class AIProviderManager {
     }, this.stateSaveDebounceMs);
   }
 
+  // -------------------- Selection --------------------
   _filterProvidersByType(providers) {
-    if (this.selectedProviderType === 'auto') return providers;
-
-    return providers.filter((provider) => {
-      const providerName = provider.name.toLowerCase();
-      switch (this.selectedProviderType.toLowerCase()) {
-        case 'openai':
-          return providerName === 'gpt5nano';
-        case 'groq':
-          return providerName.startsWith('groq');
-        case 'openrouter':
-          return providerName.startsWith('openrouter');
-        case 'deepseek':
-          return providerName.startsWith('deepseek');
-        case 'google':
-          return providerName.startsWith('googleai');
+    const t = String(this.selectedProviderType || 'auto').toLowerCase();
+    if (t === 'auto') return providers;
+    return providers.filter((p) => {
+      const n = p.name.toLowerCase();
+      switch (t) {
+        case 'openai': return n === 'gpt5nano';
+        case 'deepseek': return n.startsWith('deepseek-gateway-');
         default:
-          console.warn(`Unknown provider type: ${this.selectedProviderType}, falling back to auto mode`);
+          console.warn(`Unknown provider type: ${t}, falling back to auto`);
           return true;
       }
     });
@@ -318,26 +205,21 @@ class AIProviderManager {
 
   _rankedProviders() {
     const now = Date.now();
-    const filteredProviders = this._filterProvidersByType(this.providers);
-
-    return filteredProviders
+    const filtered = this._filterProvidersByType(this.providers);
+    return filtered
       .filter((p) => {
-        const disabledUntil = this.disabledProviders.get(p.name);
-        const isDisabled = disabledUntil && disabledUntil > now;
-        if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) return false;
-        return !isDisabled;
+        const until = this.disabledProviders.get(p.name);
+        return !(until && until > now);
       })
       .sort((a, b) => {
         const ma = this.metrics.get(a.name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };
         const mb = this.metrics.get(b.name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };
-
         const score = (m) => {
           const trials = m.successes + m.failures || 1;
           const successRate = m.successes / trials;
           const latencyScore = 1 / Math.max(m.avgLatencyMs, 1);
           return successRate * 0.7 + latencyScore * 0.3;
         };
-
         const priorityDelta = resolveCostPriority(a) - resolveCostPriority(b);
         if (priorityDelta !== 0) return priorityDelta;
         return score(mb) - score(ma);
@@ -346,58 +228,40 @@ class AIProviderManager {
 
   _getRandomProvider() {
     const now = Date.now();
-    const filteredProviders = this._filterProvidersByType(this.providers);
-
-    const availableProviders = filteredProviders.filter((p) => {
-      const disabledUntil = this.disabledProviders.get(p.name);
-      const isDisabled = disabledUntil && disabledUntil > now;
-      if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) return false;
-      return !isDisabled;
+    const filtered = this._filterProvidersByType(this.providers);
+    const available = filtered.filter((p) => {
+      const until = this.disabledProviders.get(p.name);
+      return !(until && until > now);
     });
-
-    if (availableProviders.length === 0) return null;
-
-    const minPriority = Math.min(...availableProviders.map((p) => resolveCostPriority(p)));
-    const preferred = availableProviders.filter((p) => resolveCostPriority(p) === minPriority);
-    const pool = preferred.length ? preferred : availableProviders;
-    const randomIndex = Math.floor(Math.random() * pool.length);
-    return pool[randomIndex];
+    if (!available.length) return null;
+    const minPriority = Math.min(...available.map(resolveCostPriority));
+    const preferred = available.filter((p) => resolveCostPriority(p) === minPriority);
+    const pool = preferred.length ? preferred : available;
+    const idx = Math.floor(Math.random() * pool.length);
+    return pool[idx];
   }
 
   _recordMetric(name, ok, latencyMs) {
     const m = this.metrics.get(name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };
-    if (ok) m.successes += 1;
-    else m.failures += 1;
-
-    if (!Number.isFinite(m.avgLatencyMs) || m.avgLatencyMs <= 0) {
-      m.avgLatencyMs = latencyMs;
-    } else {
-      m.avgLatencyMs = m.avgLatencyMs * 0.7 + latencyMs * 0.3;
-    }
-
+    if (ok) m.successes += 1; else m.failures += 1;
+    if (!Number.isFinite(m.avgLatencyMs) || m.avgLatencyMs <= 0) m.avgLatencyMs = latencyMs;
+    else m.avgLatencyMs = m.avgLatencyMs * 0.7 + latencyMs * 0.3;
     this.metrics.set(name, m);
     this.scheduleStateSave();
   }
 
-  _isRetryable(error) {
-    const status = error?.status || error?.response?.status;
-    const message = String(error?.message || '').toLowerCase();
+  // -------------------- Invoke --------------------
+  _isRetryable(err) {
+    const status = err?.status || err?.response?.status;
+    const message = String(err?.message || '').toLowerCase();
     if (status && [408, 409, 429, 500, 502, 503, 504].includes(status)) return true;
     if (message.includes('empty') || message.includes('timeout') || message.includes('overloaded')) return true;
     return false;
   }
 
-  async _sleep(ms) {
-    return new Promise((res) => setTimeout(res, ms));
-  }
-
-  async _retry(fn, { retries = 0, baseDelay = 0, jitter = false, providerName = '' } = {}) {
-    // With retries=0, we just call once and surface the error immediately.
-    try {
-      return await fn(0);
-    } catch (err) {
-      throw err;
-    }
+  async _retry(fn, { retries = 0 } = {}) {
+    // Intentionally single-shot (retries=0) per user's preference.
+    return fn(0);
   }
 
   async generateResponse(systemPrompt, userPrompt, maxTokens = (config.ai?.maxTokens || 1024)) {
@@ -407,9 +271,9 @@ class AIProviderManager {
 
     let candidates;
     if (this.useRandomSelection) {
-      const randomProvider = this._getRandomProvider();
-      const rankedProviders = this._rankedProviders();
-      candidates = randomProvider ? [randomProvider, ...rankedProviders.filter((p) => p.name !== randomProvider.name)] : rankedProviders;
+      const r = this._getRandomProvider();
+      const ranked = this._rankedProviders();
+      candidates = r ? [r, ...ranked.filter((p) => p.name !== r.name)] : ranked;
     } else {
       candidates = this._rankedProviders();
     }
@@ -423,25 +287,8 @@ class AIProviderManager {
       console.log(`Attempting AI request with ${provider.name} (${provider.model}) [${selectionType}] ${providerTypeInfo}`);
 
       const callOnce = async () => {
-        if (provider.type === 'google') {
-          // NOTE: Reasoning flags are not used for Gemini here; keep it simple & stable
-          const model = provider.client.getGenerativeModel({ model: provider.model });
-          const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-            generationConfig: {
-              temperature: (config.ai?.temperature ?? 0.7),
-              maxOutputTokens: maxTokens,
-            },
-          });
-          const text = result?.response?.text?.();
-          if (!text || typeof text !== 'string' || !text.trim()) {
-            throw Object.assign(new Error(`Invalid or empty response from ${provider.name}`), { status: 502 });
-          }
-          return { choices: [{ message: { content: text } }] };
-        }
-
         if (provider.type === 'gpt5-nano') {
-          // GPT-5 Nano tweak: handle cases where the model replies in JSON or structured text
+          // GPT-5 Nano: tolerant to non-standard JSON-ish outputs
           const resp = await provider.client.chat.completions.create({
             model: provider.model,
             messages: [
@@ -457,7 +304,7 @@ class AIProviderManager {
             throw Object.assign(new Error(`Empty response content from ${provider.name}`), { status: 502 });
           }
 
-          // Try to parse as JSON if it's a JSON string
+          // Try strict JSON parse
           try {
             const parsed = JSON.parse(content);
             if (typeof parsed === 'object' && parsed !== null) {
@@ -465,29 +312,27 @@ class AIProviderManager {
               else if (parsed.answer) content = parsed.answer;
               else if (parsed.output) content = parsed.output;
               else if (parsed.content) content = parsed.content;
-              else content = JSON.stringify(parsed); // fallback to stringifying object
+              else content = JSON.stringify(parsed);
             }
           } catch {
-            // Not strict JSON; try to extract "content": "..." or similar fields
-            const contentField = content.match(/"content"\s*:\s*"([^"]+)"/i);
-            const answerField = content.match(/"answer"\s*:\s*"([^"]+)"/i);
-            const responseField = content.match(/"response"\s*:\s*"([^"]+)"/i);
-            const outputField = content.match(/"output"\s*:\s*"([^"]+)"/i);
-            const firstHit = contentField || answerField || responseField || outputField;
-            if (firstHit) content = firstHit[1];
+            // Heuristic field extraction
+            const hit =
+              content.match(/"content"\s*:\s*"([^"]+)"/i) ||
+              content.match(/"answer"\s*:\s*"([^"]+)"/i) ||
+              content.match(/"response"\s*:\s*"([^"]+)"/i) ||
+              content.match(/"output"\s*:\s*"([^"]+)"/i);
+            if (hit) content = hit[1];
           }
 
-          // Final sanitation: strip surrounding quotes/brackets/braces
+          // Strip surrounding quotes/brackets/braces
           content = String(content).replace(/^["'{\[\s]+|["'\]\}\s]+$/g, '').trim();
-          if (!content) {
-            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
-          }
+          if (!content) throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
 
           resp.choices[0].message.content = content;
           return resp;
         }
 
-        // OpenAI-compatible providers (OpenRouter, Groq, DeepSeek via Vercel AI Gateway)
+        // DeepSeek via Vercel Gateway (OpenAI-compatible)
         const resp = await provider.client.chat.completions.create({
           model: provider.model,
           messages: [
@@ -506,28 +351,13 @@ class AIProviderManager {
       };
 
       try {
-        // Retry policy disabled (retries = 0) — call once per provider
-        const resp = await this._retry(callOnce, {
-          retries: 0,
-          baseDelay: 0,
-          jitter: false,
-          providerName: provider.name,
-        });
-
+        const resp = await this._retry(callOnce, { retries: 0 });
         const latency = Date.now() - started;
         this._recordMetric(provider.name, true, latency);
-
-        if (provider.name.startsWith('OpenRouter')) {
-          this.openRouterFailureCount = 0;
-        }
-
         console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
-        const raw = (resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) ? String(resp.choices[0].message.content) : '';
-  const cleaned = sanitizeModelOutput(raw);
-  return {
-    content: cleaned,
-    provider: provider.name,
-  };;
+        const raw = String(resp?.choices?.[0]?.message?.content || '');
+        const cleaned = sanitizeModelOutput(raw);
+        return { content: cleaned, provider: provider.name };
       } catch (error) {
         const latency = Date.now() - started;
         this._recordMetric(provider.name, false, latency);
@@ -537,35 +367,16 @@ class AIProviderManager {
           status: error.status,
         });
         this.scheduleStateSave();
-
         console.error(`Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`);
         lastError = error;
 
-        // Disable logic (circuit breaker) — DO NOT disable GPT-5 Nano on empty; it's flaky by design.
-        const isEmptyResponse = String(error.message || '').toLowerCase().includes('empty');
-        const shouldDisable = provider.type !== 'gpt5-nano'; // keep nano always available
+        // Circuit-breaker: disable for 2h unless it's Nano (keep Nano always available)
+        const shouldDisable = provider.type !== 'gpt5-nano';
         if (shouldDisable) {
-          const disableDuration = 2 * 60 * 60 * 1000; // 2 hours for all providers
-          const hours = 2;
-          this.disabledProviders.set(provider.name, Date.now() + disableDuration);
+          const disableMs = 2 * 60 * 60 * 1000;
+          this.disabledProviders.set(provider.name, Date.now() + disableMs);
           this.scheduleStateSave();
-          console.log(`${provider.name} disabled for ${hours} hours due to ${isEmptyResponse ? 'empty response' : 'error'}`);
-        }
-
-        // Track OpenRouter consecutive empties to toggle global failure
-        if (isEmptyResponse && provider.name.startsWith('OpenRouter')) {
-          this.openRouterFailureCount += 1;
-          if (this.openRouterFailureCount >= 2) {
-            self.openRouterGlobalFailure = true;
-            self.openRouterFailureCount = 0;
-            console.log('OpenRouter global failure detected - disabling all OpenRouter providers temporarily');
-            const clearAfter = 6 * 60 * 60 * 1000;
-            setTimeout(() => {
-              self.openRouterGlobalFailure = false;
-              console.log('OpenRouter global failure cleared - re-enabling OpenRouter providers');
-              this.scheduleStateSave();
-            }, clearAfter).unref?.();
-          }
+          console.log(`${provider.name} disabled for 2 hours due to error`);
         }
       }
     }
@@ -573,12 +384,13 @@ class AIProviderManager {
     throw new Error(`All AI providers failed: ${lastError?.message || 'Unknown error'}`);
   }
 
+  // -------------------- Admin / Telemetry --------------------
   getProviderStatus() {
     const now = Date.now();
     return this.providers
       .map((p) => {
-        const metrics = this.metrics.get(p.name) || { successes: 0, failures: 0, avgLatencyMs: null };
-        const total = metrics.successes + metrics.failures;
+        const m = this.metrics.get(p.name) || { successes: 0, failures: 0, avgLatencyMs: null };
+        const total = m.successes + m.failures;
         const disabledUntil = this.disabledProviders.get(p.name) || null;
         return {
           name: p.name,
@@ -592,11 +404,11 @@ class AIProviderManager {
           disabledUntil,
           isDisabled: disabledUntil ? disabledUntil > now : false,
           metrics: {
-            successes: metrics.successes,
-            failures: metrics.failures,
+            successes: m.successes,
+            failures: m.failures,
             totalRequests: total,
-            successRate: total ? metrics.successes / total : null,
-            avgLatencyMs: metrics.avgLatencyMs,
+            successRate: total ? m.successes / total : null,
+            avgLatencyMs: m.avgLatencyMs,
           },
         };
       })
@@ -619,73 +431,43 @@ class AIProviderManager {
   }
 
   getProviderAnalytics() {
-    return this.getProviderStatus().map((provider) => {
-      const uptimePercentage = provider.metrics.successRate != null ? (provider.metrics.successRate * 100) : null;
-      return {
-        name: provider.name,
-        model: provider.model,
-        type: provider.type,
-        family: provider.family,
-        costTier: provider.costTier,
-        priority: provider.priority,
-        metrics: {
-          successes: provider.metrics.successes,
-          failures: provider.metrics.failures,
-          total: provider.metrics.totalRequests,
-          successRate: uptimePercentage,
-          avgLatencyMs: provider.metrics.avgLatencyMs,
-        },
-        disabledUntil: provider.disabledUntil,
-        isDisabled: provider.isDisabled,
-        hasError: provider.hasError,
-        lastError: provider.lastError,
-      };
-    });
+    return this.getProviderStatus().map((p) => ({
+      name: p.name,
+      model: p.model,
+      type: p.type,
+      family: p.family,
+      costTier: p.costTier,
+      priority: p.priority,
+      metrics: {
+        successes: p.metrics.successes,
+        failures: p.metrics.failures,
+        total: p.metrics.totalRequests,
+        successRate: p.metrics.successRate != null ? p.metrics.successRate * 100 : null,
+        avgLatencyMs: p.metrics.avgLatencyMs,
+      },
+      disabledUntil: p.disabledUntil,
+      isDisabled: p.isDisabled,
+      hasError: p.hasError,
+      lastError: p.lastError,
+    }));
   }
 
   _redactProviderName(name) {
-    const redactionMap = {
-      'OpenRouter1': '[REDACTED]',
-      'OpenRouter2': '[REDACTED]',
-      'OpenRouter3': '[REDACTED]',
-      'OpenRouter4': '[REDACTED]',
-      'OpenRouter5': '[REDACTED]',
-      'OpenRouter6': '[REDACTED]',
-      'OpenRouter7': '[REDACTED]',
-      'OpenRouter8': '[REDACTED]',
-      'OpenRouter9': '[REDACTED]',
-      'OpenRouter10': '[REDACTED]',
-      'OpenRouter11': '[REDACTED]',
-      'OpenRouter12': '[REDACTED]',
-      'OpenRouter13': '[REDACTED]',
-      'OpenRouter14': '[REDACTED]',
-      'OpenRouter15': '[REDACTED]',
-      'OpenRouter16': '[REDACTED]',
-      'OpenRouter17': '[REDACTED]',
-      'OpenRouter18': '[REDACTED]',
-      'Groq1': '[REDACTED]',
-      'Groq2': '[REDACTED]',
-      'Groq3': '[REDACTED]',
-      'Groq4': '[REDACTED]',
-      'Groq5': '[REDACTED]',
-      'Groq6': '[REDACTED]',
-      'Groq7': '[REDACTED]',
-      'GoogleAI1': '[REDACTED]',
-      'GoogleAI2': '[REDACTED]',
+    const map = {
       'GPT5Nano': '[REDACTED]',
       'deepseek-gateway-1': '[REDACTED]',
       'deepseek-gateway-2': '[REDACTED]',
     };
-    return redactionMap[name] || '[REDACTED]';
+    return map[name] || '[REDACTED]';
   }
 
-  _redactModelName(_model) {
+  _redactModelName(_m) {
     return '[REDACTED]';
   }
 
   setRandomSelection(enabled) {
     this.useRandomSelection = !!enabled;
-    console.log(`Provider selection mode changed to: ${enabled ? 'Random' : 'Ranked'}`);
+    console.log(`Selection mode: ${enabled ? 'Random-first' : 'Ranked'}`);
   }
 
   getSelectionMode() {
@@ -693,11 +475,12 @@ class AIProviderManager {
   }
 
   setProviderType(providerType) {
-    const validTypes = ['auto', 'openai', 'groq', 'openrouter', 'google', 'deepseek'];
-    if (!validTypes.includes(String(providerType).toLowerCase())) {
-      throw new Error(`Invalid provider type. Valid options: ${validTypes.join(', ')}`);
+    const valid = ['auto', 'openai', 'deepseek'];
+    const t = String(providerType || '').toLowerCase();
+    if (!valid.includes(t)) {
+      throw new Error(`Invalid provider type. Valid options: ${valid.join(', ')}`);
     }
-    this.selectedProviderType = providerType.toLowerCase();
+    this.selectedProviderType = t;
     console.log(`Provider type changed to: ${this.selectedProviderType}`);
   }
 
@@ -707,27 +490,24 @@ class AIProviderManager {
 
   getAvailableProviderTypes() {
     const types = new Set();
-    this.providers.forEach((provider) => {
-      const name = provider.name.toLowerCase();
-      if (name === 'gpt5nano') types.add('openai');
-      else if (name.startsWith('groq')) types.add('groq');
-      else if (name.startsWith('openrouter')) types.add('openrouter');
-      else if (name.startsWith('googleai')) types.add('google');
-      else if (name.startsWith('deepseek')) types.add('deepseek');
+    this.providers.forEach((p) => {
+      const n = p.name.toLowerCase();
+      if (n === 'gpt5nano') types.add('openai');
+      else if (n.startsWith('deepseek-gateway-')) types.add('deepseek');
     });
-    const available = Array.from(types).sort();
-    available.unshift('auto');
-    return available;
+    const arr = Array.from(types).sort();
+    arr.unshift('auto');
+    return arr;
   }
 
   cleanupOldMetrics() {
     const now = Date.now();
     const maxAge = 24 * 60 * 60 * 1000;
-    for (const [name, error] of this.providerErrors.entries()) {
-      if (now - (error?.timestamp || 0) > maxAge) this.providerErrors.delete(name);
+    for (const [name, err] of this.providerErrors.entries()) {
+      if (now - (err?.timestamp || 0) > maxAge) this.providerErrors.delete(name);
     }
-    for (const [name, disabledUntil] of this.disabledProviders.entries()) {
-      if (disabledUntil <= now) this.disabledProviders.delete(name);
+    for (const [name, until] of this.disabledProviders.entries()) {
+      if (until <= now) this.disabledProviders.delete(name);
     }
   }
 }
