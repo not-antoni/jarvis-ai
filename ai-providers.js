@@ -1,12 +1,12 @@
 'use strict';
 /**
- * AI Provider Manager (DeepSeek + GPT-5 Nano) — v7
- * ------------------------------------------------
+ * AI Provider Manager (DeepSeek + GPT-4o-mini)
+ * --------------------------------------------
  * Fixes:
- *  - Removes all unsupported parameters for GPT-5 Nano
- *  - Keeps DeepSeek reasoning disabled via budget_tokens:0
- *  - Adds safety guards for diagnostics (no undefined metrics)
- *  - Keeps full debug logging + output cleaning
+ *  - Switches GPT-5-Nano → GPT-4o-mini (OpenAI official lightweight model)
+ *  - Removes unsupported parameters (no reasoning/thinking)
+ *  - Adds safety guards for diagnostics (prevents successRate undefined)
+ *  - Retains DeepSeek reasoning: { budget_tokens: 0 } for compatibility
  */
 
 const fs = require('fs');
@@ -24,7 +24,6 @@ function sanitizeModelOutput(text) {
   out = out.replace(/<\/start>\s*assistant\b[^>]*>/gi, ' ');
   out = out.replace(/<\s*\/?channel\b[^>]*>/gi, ' ');
   out = out.replace(/<\s*\/?message\b[^>]*>/gi, ' ');
-  out = out.replace(/\b(Certainly|Absolutely|Sure|Affirmative)[\s\p{P}\-]{0,40}(?:(Certainly|Absolutely|Sure|Affirmative)[\s\p{P}\-]*){1,}/giu, '$1');
   out = out.replace(/\s+/g, ' ').trim();
   return out;
 }
@@ -84,6 +83,7 @@ class AIProviderManager {
   }
 
   setupProviders() {
+    // --- DeepSeek ---
     const deepseekKeys = [process.env.AI_GATEWAY_API_KEY, process.env.AI_GATEWAY_API_KEY2].filter(Boolean);
     deepseekKeys.forEach((key, i) => {
       this.providers.push({
@@ -103,20 +103,21 @@ class AIProviderManager {
       });
     });
 
+    // --- GPT-4o-mini ---
     if (process.env.OPENAI) {
       const key = process.env.OPENAI;
       this.providers.push({
-        name: 'GPT5Nano',
+        name: 'GPT4oMini',
         client: new OpenAI({ apiKey: key }),
-        model: 'gpt-5-nano',
-        type: 'gpt5-nano',
+        model: 'gpt-4o-mini',
+        type: 'gpt4o-mini',
         family: 'openai',
         costTier: 'paid',
       });
     }
 
     this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
-    console.log(`Initialized ${this.providers.length} providers (DeepSeek + GPT-5 Nano).`);
+    console.log(`Initialized ${this.providers.length} providers (DeepSeek + GPT-4o-mini).`);
   }
 
   loadState() {
@@ -172,7 +173,7 @@ class AIProviderManager {
       console.log(`→ Using ${provider.name} (${provider.model})`);
 
       const callOnce = async (attempt = 0) => {
-        if (provider.type === 'gpt5-nano') {
+        if (provider.type === 'gpt4o-mini') {
           const resp = await provider.client.chat.completions.create({
             model: provider.model,
             messages: [
@@ -185,13 +186,13 @@ class AIProviderManager {
 
           let content = resp?.choices?.[0]?.message?.content || '';
           if (!content.trim()) {
-            dbgDump('GPT-5 Nano Raw Response (empty)', resp);
+            dbgDump('GPT-4o-mini Raw Response (empty)', resp);
             if (attempt === 0) return await callOnce(1);
-            throw new Error(`Empty GPT-5 Nano output`);
+            throw new Error(`Empty GPT-4o-mini output`);
           }
 
           content = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(content)));
-          if (!content.trim()) throw new Error(`Sanitized empty GPT-5 Nano content`);
+          if (!content.trim()) throw new Error(`Sanitized empty GPT-4o-mini content`);
           resp.choices[0].message.content = content;
           return resp;
         }
@@ -230,7 +231,7 @@ class AIProviderManager {
         this.providerErrors.set(provider.name, { error: err.message, timestamp: Date.now(), status: err.status });
         console.error(`✗ Failed ${provider.name} (${provider.model}) ${err.message}`);
         lastErr = err;
-        if (provider.type !== 'gpt5-nano') {
+        if (provider.type !== 'gpt4o-mini') {
           this.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
           this.saveState();
         }
