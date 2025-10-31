@@ -1,4 +1,7 @@
 process.env.YTDL_NO_UPDATE = process.env.YTDL_NO_UPDATE || '1';
+if (typeof global.File === 'undefined') {
+    global.File = class File {};
+}
 
 const {
     joinVoiceChannel,
