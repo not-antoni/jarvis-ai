@@ -939,19 +939,22 @@
             return await this.handleSlashCommandClip(interaction);
         }
 
-        if (interaction.commandName === "play") {
+        const musicCommand = musicCommandMap.get(interaction.commandName);
+        if (musicCommand) {
             try {
-                await playCommand.execute(interaction, interaction.client);
+                await musicCommand.execute(interaction);
             } catch (error) {
-                console.error("Error handling play command:", error);
+                console.error(`Error executing /${interaction.commandName}:`, error);
                 try {
-                    if (!interaction.replied && !interaction.deferred) {
-                        await interaction.reply({ content: "❌ Unable to play that track right now.", ephemeral: true });
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.reply('⚠️ Unable to process that request right now, sir.');
                     } else if (!interaction.replied) {
-                        await interaction.followUp({ content: "❌ Unable to play that track right now.", ephemeral: true });
+                        await interaction.editReply('⚠️ Unable to process that request right now, sir.');
+                    } else {
+                        await interaction.followUp('⚠️ Unable to process that request right now, sir.');
                     }
                 } catch (responseError) {
-                    console.error("Failed to send play command error response:", responseError);
+                    console.error("Failed to send music command error response:", responseError);
                 }
             }
             this.setCooldown(userId);

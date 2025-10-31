@@ -1,0 +1,14 @@
+# YouTube Playback Refactor References
+
+## YouTube API
+- https://developers.google.com/youtube/v3
+- https://developers.google.com/youtube/v3/docs
+- https://console.cloud.google.com/apis/library/youtube.googleapis.com
+
+## Discord Audio
+- https://discordjs.guide/voice/audio-resources
+- https://discordjs.guide/creating-your-bot/slash-commands
+
+## Library Docs
+- https://github.com/play-dl/play-dl
+
