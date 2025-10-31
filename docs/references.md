@@ -10,5 +10,4 @@
 - https://discordjs.guide/creating-your-bot/slash-commands
 
 ## Library Docs
-- https://github.com/play-dl/play-dl
-
+- https://github.com/distubejs/ytdl-core
