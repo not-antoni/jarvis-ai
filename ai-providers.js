@@ -121,6 +121,7 @@ class AIProviderManager {
       process.env.OPENROUTER_API_KEY16,
       process.env.OPENROUTER_API_KEY17,
       process.env.OPENROUTER_API_KEY18,
+	  process.env.OPENROUTER_API_KEY19,
     ].filter(Boolean);
 
     openRouterKeys.forEach((key, index) => {
@@ -134,7 +135,7 @@ class AIProviderManager {
             'X-Title': process.env.APP_NAME || 'Jarvis AI',
           },
         }),
-        model: 'openai/gpt-oss-20b:free',
+        model: 'nvidia/nemotron-nano-9b-v2:free',
         type: 'openai-chat',
         family: 'openrouter',
         costTier: 'free',
@@ -159,7 +160,7 @@ class AIProviderManager {
           apiKey: key,
           baseURL: 'https://api.groq.com/openai/v1',
         }),
-        model: 'openai/gpt-oss-20b',
+        model: 'llama-3.3-70b-versatile',
         type: 'openai-chat',
         family: 'groq',
         costTier: 'free',
