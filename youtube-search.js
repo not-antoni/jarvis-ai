@@ -7,7 +7,7 @@ const { google } = require('googleapis');
 class YouTubeSearch {
     constructor() {
         this.youtube = null;
-        this.apiKey = process.env.YOUTUBE_API_KEY;
+        this.apiKey = process.env.YT_API_KEY || process.env.YOUTUBE_API_KEY;
         
         if (this.apiKey) {
             this.youtube = google.youtube({

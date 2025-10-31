@@ -4,7 +4,6 @@
  */
 
 const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials } = require("discord.js");
-const { Manager } = require("erela.js");
 const express = require("express");
 const cron = require("node-cron");
 
@@ -14,7 +13,7 @@ const database = require('./database');
 const aiManager = require('./ai-providers');
 const discordHandlers = require('./discord-handlers');
 const { gatherHealthSnapshot } = require('./diagnostics');
-const playCommand = require("./commands/play");
+const { commandList: musicCommandList } = require("./src/commands/music");
 
 // ------------------------ Discord Client Setup ------------------------
 const client = new Client({
@@ -27,68 +26,6 @@ const client = new Client({
         Partials.GuildMember
     ]
 });
-
-const resolveLavalinkHost = () => {
-    const raw = (process.env.LAVALINK_HOST || "").trim();
-    if (!raw) {
-        return "127.0.0.1";
-    }
-
-    const lower = raw.toLowerCase();
-    if (["localhost", "127.0.0.1", "::1"].includes(lower)) {
-        return raw;
-    }
-
-    const isIpAddress = /^[\d.:]+$/.test(raw);
-    if (isIpAddress) {
-        return raw;
-    }
-
-    if (raw.includes(".")) {
-        return raw;
-    }
-
-    const suffix = (process.env.LAVALINK_HOST_SUFFIX || ".onrender.com").trim();
-    if (!suffix.length) {
-        return raw;
-    }
-
-    return raw.endsWith(suffix) ? raw : `${raw}${suffix}`;
-};
-
-const lavalinkConfig = {
-    host: resolveLavalinkHost(),
-    port: Number(process.env.LAVALINK_PORT || 2333),
-    password: process.env.LAVALINK_PASSWORD || "render_pass_123",
-    secure: process.env.LAVALINK_SECURE === "true"
-};
-
-console.log(`Lavalink targeting ${lavalinkConfig.host}:${lavalinkConfig.port} (secure=${lavalinkConfig.secure})`);
-
-// --- Lavalink setup ---
-client.manager = new Manager({
-    nodes: [
-        {
-            identifier: "LocalNode",
-            host: lavalinkConfig.host,
-            port: lavalinkConfig.port,
-            password: lavalinkConfig.password,
-            secure: lavalinkConfig.secure
-        }
-    ],
-    send: (id, payload) => {
-        const guild = client.guilds.cache.get(id);
-        if (guild) guild.shard.send(payload);
-    }
-});
-
-client.manager.on("nodeConnect", node =>
-    console.log(`✅ Lavalink connected: ${node.options.identifier}`)
-);
-client.manager.on("nodeError", (node, err) =>
-    console.error(`❌ Lavalink error: ${err.message}`)
-);
-client.on("raw", d => client.manager.updateVoiceState(d));
 
 // ------------------------ Slash Command Registration ------------------------
 const allCommands = [
@@ -718,7 +655,7 @@ const allCommands = [
                             { name: "Leave", value: "leave" }
                         )))
         .setContexts([InteractionContextType.Guild]),
-    playCommand.data
+    ...musicCommandList.map((command) => command.data)
 ];
 
 const commandFeatureMap = new Map([
@@ -745,7 +682,13 @@ const commandFeatureMap = new Map([
     ['reactionrole', 'reactionRoles'],
     ['automod', 'automod'],
     ['serverstats', 'serverStats'],
-    ['memberlog', 'memberLog']
+    ['memberlog', 'memberLog'],
+    ['play', 'music'],
+    ['skip', 'music'],
+    ['pause', 'music'],
+    ['resume', 'music'],
+    ['stop', 'music'],
+    ['queue', 'music']
 ]);
 
 const featureFlags = config.features || {};
@@ -1390,8 +1333,6 @@ client.once("ready", async () => {
         console.warn("Skipping server stats initialization because the database connection was not established.");
     }
 
-    client.manager.init(client.user.id);
-
     console.log("Provider status on startup:", aiManager.getProviderStatus());
 });
 
@@ -1406,35 +1347,6 @@ client.on("messageCreate", async (message) => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-    if (interaction.isAutocomplete()) {
-        if (interaction.commandName === "play") {
-            const focused = interaction.options.getFocused();
-            if (!focused) {
-                await interaction.respond([]);
-                return;
-            }
-
-            const hasConnectedNode = Array.from(client.manager.nodes.values()).some(node => node.isConnected);
-            if (!hasConnectedNode) {
-                await interaction.respond([]);
-                return;
-            }
-
-            try {
-                const res = await client.manager.search(focused, interaction.user);
-                const choices = res.tracks.slice(0, 10).map(t => ({
-                    name: t.title.substring(0, 100),
-                    value: t.uri
-                }));
-                await interaction.respond(choices);
-            } catch (err) {
-                console.error("Autocomplete error:", err);
-                await interaction.respond([]);
-            }
-        }
-        return;
-    }
-
     if (!interaction.isCommand()) return;
     await discordHandlers.handleSlashCommand(interaction);
 });

@@ -25,7 +25,7 @@ const database = require('./database');
 const fetch = require('node-fetch');
 const pdfParse = require('pdf-parse');
 const embeddingSystem = require('./embedding-system');
-const playCommand = require('./commands/play');
+const { commandMap: musicCommandMap } = require('./src/commands/music');
 
 const commandFeatureMap = new Map([
     ['jarvis', 'coreChat'],
@@ -52,7 +52,12 @@ const commandFeatureMap = new Map([
     ['automod', 'automod'],
     ['serverstats', 'serverStats'],
     ['memberlog', 'memberLog'],
-    ['play', 'music']
+    ['play', 'music'],
+    ['skip', 'music'],
+    ['pause', 'music'],
+    ['resume', 'music'],
+    ['stop', 'music'],
+    ['queue', 'music']
 ]);
 
 const featureFlags = config.features || {};
