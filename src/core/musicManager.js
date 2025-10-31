@@ -1,3 +1,23 @@
+process.env.YTDL_NO_UPDATE = process.env.YTDL_NO_UPDATE || '1';
+if (typeof global.File === 'undefined') {
+    global.File = class File {};
+}
+
+const COOKIE_ENV_KEYS = [
+    'YT_COOKIE',
+    'YTDL_COOKIE',
+    'YTDL_COOKIES',
+    'YOUTUBE_COOKIE',
+    'YOUTUBE_COOKIES'
+];
+const DEFAULT_COOKIE_TEMPLATE = {
+    domain: '.youtube.com',
+    path: '/',
+    secure: true,
+    httpOnly: false,
+    sameSite: 'no_restriction'
+};
+
 const {
     joinVoiceChannel,
     createAudioPlayer,
@@ -247,6 +267,277 @@ class MusicManager {
         }
 
         return lines.length ? lines.join('\n') : 'Queue is empty.';
+    }
+
+    getStreamOptions(overrides = {}) {
+        const mergedRequestOptions = {
+            ...YTDL_BASE_OPTIONS.requestOptions,
+            ...(overrides.requestOptions || {})
+        };
+
+        return {
+            ...YTDL_BASE_OPTIONS,
+            ...overrides,
+            agent: this.youtubeAgent ?? undefined,
+            requestOptions: mergedRequestOptions
+        };
+    }
+
+    getInfoOptions(overrides = {}) {
+        return {
+            agent: this.youtubeAgent ?? undefined,
+            requestOptions: {
+                ...YTDL_BASE_OPTIONS.requestOptions,
+                ...(overrides.requestOptions || {})
+            },
+            playerClients: YTDL_PLAYER_CLIENTS,
+            ...overrides
+        };
+    }
+
+    async createYouTubeStream(videoUrl) {
+        const streamOptions = this.getStreamOptions();
+
+        try {
+            return await this.tryWithRetries(() => this.probeStream(() => ytdl(videoUrl, streamOptions)));
+        } catch (error) {
+            if (!this.isRecoverableYouTubeError(error)) {
+                throw error;
+            }
+
+            return await this.tryWithRetries(async () => {
+                const info = await ytdl.getInfo(videoUrl, this.getInfoOptions());
+
+                const audioFormat = ytdl.chooseFormat(info.formats, {
+                    quality: streamOptions.quality,
+                    filter: streamOptions.filter
+                });
+
+                if (!audioFormat || !audioFormat.url) {
+                    throw new Error('No suitable audio format found.');
+                }
+
+                return await this.probeStream(() =>
+                    ytdl.downloadFromInfo(info, this.getStreamOptions({ format: audioFormat }))
+                );
+            });
+        }
+    }
+
+    async probeStream(factory) {
+        return new Promise((resolve, reject) => {
+            let sourceStream;
+
+            const finalize = () => {
+                if (sourceStream) {
+                    sourceStream.removeListener('error', handleError);
+                }
+            };
+
+            const handleError = (error) => {
+                finalize();
+                if (sourceStream && typeof sourceStream.destroy === 'function') {
+                    try {
+                        sourceStream.destroy(error);
+                    } catch (destroyError) {
+                        console.error('Failed to destroy YouTube stream:', destroyError);
+                    }
+                }
+                reject(error);
+            };
+
+            try {
+                sourceStream = factory();
+            } catch (factoryError) {
+                reject(factoryError);
+                return;
+            }
+
+            sourceStream.once('error', handleError);
+
+            demuxProbe(sourceStream)
+                .then(({ stream, type }) => {
+                    finalize();
+                    resolve({ stream, type });
+                })
+                .catch(handleError);
+        });
+    }
+
+    isRecoverableYouTubeError(error) {
+        if (!error) {
+            return false;
+        }
+
+        if (typeof error.statusCode === 'number' && [403, 410, 429].includes(error.statusCode)) {
+            return true;
+        }
+
+        const message = String(error.message || '').toLowerCase();
+        return ['410', '403', '429', 'throttle', 'signature', 'error checking for updates'].some((token) =>
+            message.includes(token)
+        );
+    }
+
+    async tryWithRetries(factory, maxAttempts = RETRY_DELAYS_MS.length + 1) {
+        let attempt = 0;
+        let lastError;
+
+        while (attempt < maxAttempts) {
+            try {
+                return await factory();
+            } catch (error) {
+                lastError = error;
+                if (!this.isRecoverableYouTubeError(error) || attempt >= maxAttempts - 1) {
+                    throw lastError;
+                }
+
+                const delayMs = RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
+                await this.wait(delayMs + Math.floor(Math.random() * 250));
+                attempt += 1;
+            }
+        }
+
+        throw lastError ?? new Error('Unknown YouTube streaming error.');
+    }
+
+    wait(ms) {
+        if (ms <= 0) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            setTimeout(resolve, ms);
+        });
+    }
+
+    createYouTubeAgent() {
+        const cookies = this.loadCookiesFromEnv();
+        if (!cookies || cookies.length === 0) {
+            return null;
+        }
+
+        try {
+            return ytdl.createAgent(cookies);
+        } catch (error) {
+            console.warn('Failed to initialize YouTube cookie agent:', error?.message || error);
+            return null;
+        }
+    }
+
+    loadCookiesFromEnv() {
+        for (const key of COOKIE_ENV_KEYS) {
+            const rawValue = process.env[key];
+            if (typeof rawValue !== 'string') {
+                continue;
+            }
+
+            const trimmed = rawValue.trim();
+            if (!trimmed.length) {
+                continue;
+            }
+
+            const parsed = this.normalizeCookies(trimmed);
+            if (parsed?.length) {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    normalizeCookies(raw) {
+        if (!raw) {
+            return null;
+        }
+
+        if (raw.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(raw);
+                return this.normalizeCookieArray(parsed);
+            } catch (error) {
+                console.warn('Failed to parse JSON cookie string:', error?.message || error);
+                return null;
+            }
+        }
+
+        if (raw.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed?.cookies)) {
+                    return this.normalizeCookieArray(parsed.cookies);
+                }
+            } catch (error) {
+                // fall back to legacy parsing below
+            }
+        }
+
+        return this.convertLegacyCookieString(raw);
+    }
+
+    normalizeCookieArray(input) {
+        if (!Array.isArray(input)) {
+            return null;
+        }
+
+        const normalized = input
+            .map((cookie) => {
+                if (!cookie || typeof cookie !== 'object') {
+                    return null;
+                }
+
+                const name = cookie.name ?? cookie.key;
+                const value = cookie.value ?? cookie.val ?? cookie.content;
+
+                if (!name || typeof value === 'undefined') {
+                    return null;
+                }
+
+                return {
+                    ...DEFAULT_COOKIE_TEMPLATE,
+                    ...cookie,
+                    name: String(name),
+                    value: String(value)
+                };
+            })
+            .filter(Boolean);
+
+        return normalized.length ? normalized : null;
+    }
+
+    convertLegacyCookieString(raw) {
+        const segments = raw
+            .split(/;\s*/)
+            .map((segment) => segment.trim())
+            .filter(Boolean);
+
+        if (!segments.length) {
+            return null;
+        }
+
+        const cookies = segments
+            .map((segment) => {
+                const [namePart, ...valueParts] = segment.split('=');
+                if (!namePart || valueParts.length === 0) {
+                    return null;
+                }
+
+                const name = namePart.trim();
+                const value = valueParts.join('=').trim();
+
+                if (!name || !value) {
+                    return null;
+                }
+
+                return {
+                    ...DEFAULT_COOKIE_TEMPLATE,
+                    name,
+                    value
+                };
+            })
+            .filter(Boolean);
+
+        return cookies.length ? cookies : null;
     }
 
     async createConnection(guildId, voiceChannel) {
