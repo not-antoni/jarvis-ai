@@ -14,6 +14,9 @@ const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 class MusicManager {
     constructor() {
         this.queues = new Map(); // guildId -> state
+        this.playCookiesApplied = false;
+        this.freeClientPromise = null;
+        this.ensurePlaybackEnvironment();
     }
 
     getState(guildId) {
@@ -71,17 +74,9 @@ class MusicManager {
             state.timeout = null;
         }
 
-        try {
-            if (typeof play.is_expired === 'function' && typeof play.refreshToken === 'function') {
-                try {
-                    if (play.is_expired()) {
-                        await play.refreshToken();
-                    }
-                } catch (tokenError) {
-                    console.warn('play-dl token refresh skipped:', tokenError?.message || tokenError);
-                }
-            }
+        this.ensurePlaybackEnvironment();
 
+        try {
             const stream = await play.stream(video.url, { discordPlayerCompatibility: true });
             const resource = createAudioResource(stream.stream, { inputType: stream.type });
 
@@ -99,7 +94,14 @@ class MusicManager {
             }
         } catch (error) {
             console.error('Music playback error:', error);
-            const failureMessage = `⚠️ Could not play **${video.title}**.`;
+            const isRateLimited = typeof error?.message === 'string' && error.message.includes('429');
+            if (isRateLimited) {
+                this.ensurePlaybackEnvironment(true);
+            }
+
+            const failureMessage = isRateLimited
+                ? '⚠️ YouTube temporarily rate limited playback. Try again in a moment, sir.'
+                : `⚠️ Could not play **${video.title}**.`;
 
             if (announce === 'command') {
                 return failureMessage;
@@ -287,6 +289,48 @@ class MusicManager {
         }
 
         this.queues.delete(guildId);
+    }
+
+    ensurePlaybackEnvironment(force = false) {
+        const cookie =
+            process.env.YT_COOKIE ||
+            process.env.YOUTUBE_COOKIE ||
+            process.env.YOUTUBE_COOKIES ||
+            null;
+
+        if (cookie && (force || !this.playCookiesApplied)) {
+            try {
+                play.setToken({
+                    youtube: {
+                        cookie
+                    }
+                });
+                this.playCookiesApplied = true;
+            } catch (error) {
+                this.playCookiesApplied = false;
+                console.warn('Failed to apply YouTube cookie for play-dl:', error?.message || error);
+            }
+        }
+
+        if (typeof play.getFreeClientID === 'function') {
+            if (force) {
+                this.freeClientPromise = null;
+            }
+
+            if (!this.freeClientPromise) {
+                const request = play.getFreeClientID()
+                    .catch((error) => {
+                        console.warn('play-dl free client ID fetch failed:', error?.message || error);
+                    })
+                    .finally(() => {
+                        if (this.freeClientPromise === request) {
+                            this.freeClientPromise = null;
+                        }
+                    });
+
+                this.freeClientPromise = request;
+            }
+        }
     }
 }
 
