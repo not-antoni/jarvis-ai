@@ -21,6 +21,7 @@
   "license": "ISC",
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
+    "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.16.1",
     "@distube/ytdl-core": "^4.16.12",
     "@google/generative-ai": "^0.24.1",
@@ -37,6 +38,7 @@
     "mongodb": "^6.19.0",
     "nerdamer": "^1.1.13",
     "node-cron": "^4.2.1",
+    "libsodium-wrappers": "^0.7.13",
     "node-fetch": "^2.6.7",
     "openai": "^5.20.1",
     "pdf-parse": "^1.1.2",
