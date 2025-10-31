@@ -18,6 +18,11 @@ class MusicManager {
         this.queues = new Map(); // guildId -> state
     }
 
+    // Legacy helper retained for compatibility with older runtime references.
+    buildCookieHeaderFromEnv() {
+        return null;
+    }
+
     getState(guildId) {
         return this.queues.get(guildId) ?? null;
     }
