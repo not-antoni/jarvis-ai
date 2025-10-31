@@ -10,4 +10,4 @@
 - https://discordjs.guide/creating-your-bot/slash-commands
 
 ## Library Docs
-- https://github.com/fent/node-ytdl-core
+- https://github.com/distubejs/ytdl-core
