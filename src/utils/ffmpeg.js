@@ -6,6 +6,15 @@ const { pipeline } = require('stream/promises');
 const extract = require('extract-zip');
 const tar = require('tar');
 
+let ffmpegStatic = null;
+try {
+    // Prefer the precompiled binary provided by the dependency when available.
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    ffmpegStatic = require('ffmpeg-static');
+} catch {
+    ffmpegStatic = null;
+}
+
 const BIN_DIR = path.join(os.tmpdir(), 'jarvis-tools');
 
 const RELEASES = {
@@ -89,6 +98,10 @@ async function downloadAsset(url, destination) {
 }
 
 async function ensureFfmpeg() {
+    if (ffmpegStatic) {
+        return ffmpegStatic;
+    }
+
     await ensureDirectories();
 
     const releaseConfig = RELEASES[process.platform];
@@ -106,14 +119,25 @@ async function ensureFfmpeg() {
         // continue to download
     }
 
-    const release = await fetchJson('https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest');
-    const asset = (release.assets || []).find(item => item.name === releaseConfig.assetName);
-    if (!asset?.browser_download_url) {
-        throw new Error(`Could not locate ffmpeg asset ${releaseConfig.assetName}`);
+    // Attempt to fetch metadata from GitHub; if we hit rate limits fall back to the
+    // static "latest" download URLs that redirect to the most recent build.
+    let assetUrl = null;
+    try {
+        const release = await fetchJson('https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest');
+        const asset = (release.assets || []).find(item => item.name === releaseConfig.assetName);
+        if (asset?.browser_download_url) {
+            assetUrl = asset.browser_download_url;
+        }
+    } catch (error) {
+        console.warn('Failed to query GitHub release API for ffmpeg:', error?.message || error);
     }
 
-    const archivePath = path.join(BIN_DIR, asset.name);
-    await downloadAsset(asset.browser_download_url, archivePath);
+    if (!assetUrl) {
+        assetUrl = `https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${releaseConfig.assetName}`;
+    }
+
+    const archivePath = path.join(BIN_DIR, releaseConfig.assetName);
+    await downloadAsset(assetUrl, archivePath);
 
     if (releaseConfig.archiveType === 'zip') {
         await extract(archivePath, { dir: BIN_DIR });
