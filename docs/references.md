@@ -9,5 +9,5 @@
 - https://discordjs.guide/voice/audio-resources
 - https://discordjs.guide/creating-your-bot/slash-commands
 
-## InnerTube Reference
-- https://github.com/TeamNewPipe/documentation/blob/master/Doc/yt_api_v1.md
+## yt-dlp Reference
+- https://github.com/yt-dlp/yt-dlp

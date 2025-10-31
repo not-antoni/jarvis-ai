@@ -1,23 +1,4 @@
-process.env.YTDL_NO_UPDATE = process.env.YTDL_NO_UPDATE || '1';
-if (typeof global.File === 'undefined') {
-    global.File = class File {};
-}
-
-const COOKIE_ENV_KEYS = [
-    'YT_COOKIE',
-    'YTDL_COOKIE',
-    'YTDL_COOKIES',
-    'YOUTUBE_COOKIE',
-    'YOUTUBE_COOKIES'
-];
-const DEFAULT_COOKIE_TEMPLATE = {
-    domain: '.youtube.com',
-    path: '/',
-    secure: true,
-    httpOnly: false,
-    sameSite: 'no_restriction'
-};
-
+const fs = require('fs');
 const {
     joinVoiceChannel,
     createAudioPlayer,
@@ -26,9 +7,9 @@ const {
     NoSubscriberBehavior,
     VoiceConnectionStatus,
     entersState,
-    demuxProbe
+    StreamType
 } = require('@discordjs/voice');
-const { request } = require('undici');
+const { acquireAudio } = require('../utils/ytDlp');
 
 const SETTINGS = Object.freeze({
     idleTimeoutMs: 5 * 60 * 1000,
@@ -124,7 +105,8 @@ class MusicManager {
                 connection,
                 player,
                 queue: [],
-                current: null,
+                currentVideo: null,
+                currentRelease: null,
                 timeout: null,
                 textChannel: interaction.channel ?? null,
                 voiceChannelId: voiceChannel.id
@@ -141,7 +123,7 @@ class MusicManager {
             state.timeout = null;
         }
 
-        if (!state.current) {
+        if (!state.currentVideo) {
             const message = await this.play(guildId, video, { announce: 'command' });
             return message || `🎶 Now playing: **${video.title}**\n${video.url}`;
         }
@@ -162,12 +144,24 @@ class MusicManager {
             state.timeout = null;
         }
 
+        let ticket;
         try {
-            const { stream, type } = await this.createYouTubeStream(video.url);
-            const resource = createAudioResource(stream, { inputType: type });
+            const videoId = this.extractVideoId(video.url);
+            ticket = await acquireAudio(videoId ?? video.url, video.url);
+        } catch (error) {
+            console.error('yt-dlp download failed:', error);
+            return '⚠️ Unable to prepare that track right now, sir.';
+        }
+
+        try {
+            const stream = fs.createReadStream(ticket.filePath);
+            const resource = createAudioResource(stream, { inputType: StreamType.OggOpus });
+
+            this.releaseCurrent(state);
 
             state.player.play(resource);
-            state.current = video;
+            state.currentVideo = video;
+            state.currentRelease = ticket.release;
 
             const message = `🎶 Now playing: **${video.title}**\n${video.url}`;
 
@@ -180,15 +174,11 @@ class MusicManager {
             }
         } catch (error) {
             console.error('Music playback error:', error);
-            const isRateLimited = this.isRecoverableYouTubeError(error);
-
-            if (isRateLimited) {
-                this.rateLimitUntil = Date.now() + 15_000;
+            if (ticket) {
+                ticket.release();
             }
 
-            const failureMessage = isRateLimited
-                ? '⚠️ YouTube is throttling requests right now. Please try again in a moment, sir.'
-                : `⚠️ Could not play **${video.title}**.`;
+            const failureMessage = `⚠️ Could not play **${video.title}**.`;
 
             if (announce === 'command') {
                 return failureMessage;
@@ -256,8 +246,8 @@ class MusicManager {
 
         const lines = [];
 
-        if (state.current) {
-            lines.push(`• Now playing: **${state.current.title}**`);
+        if (state.currentVideo) {
+            lines.push(`• Now playing: **${state.currentVideo.title}**`);
         }
 
         if (state.queue.length) {
@@ -591,7 +581,7 @@ class MusicManager {
                 return;
             }
 
-            state.current = null;
+            this.releaseCurrent(state);
 
             if (state.queue.length > 0) {
                 const next = state.queue.shift();
@@ -621,268 +611,46 @@ class MusicManager {
         return player;
     }
 
-    async createYouTubeStream(videoUrl) {
-        const videoId = this.extractVideoId(videoUrl);
-        if (!videoId) {
-            throw new Error('Unable to determine video identifier, sir.');
-        }
-
-        const cached = this.streamCache.get(videoId);
-        if (cached && cached.expiresAt > Date.now()) {
-            const client = SETTINGS.playerClients.find(entry => entry.name === cached.clientName) ?? SETTINGS.playerClients[0];
+    releaseCurrent(state) {
+        if (state.currentRelease) {
             try {
-                return await this.probeStream(() => this.requestStream(cached.url, client));
-            } catch {
-                this.streamCache.delete(videoId);
-            }
-        }
-
-        if (this.rateLimitUntil > Date.now()) {
-            await this.wait(this.rateLimitUntil - Date.now());
-        }
-
-        let lastError = null;
-        const clientCount = SETTINGS.playerClients.length;
-
-        for (let offset = 0; offset < clientCount; offset += 1) {
-            const client = SETTINGS.playerClients[(this.clientCursor + offset) % clientCount];
-            try {
-                const response = await this.callPlayerApiWithRetries(videoId, client);
-                const format = this.selectAudioFormat(response);
-
-                if (!format) {
-                    throw new Error('No audio formats available, sir.');
-                }
-
-                const streamUrl = this.resolveFormatUrl(format);
-                if (!streamUrl) {
-                    throw new Error('Unable to resolve audio stream url, sir.');
-                }
-
-                const { stream, type } = await this.probeStream(() => this.requestStream(streamUrl, client));
-
-                this.streamCache.set(videoId, {
-                    url: streamUrl,
-                    clientName: client.name,
-                    expiresAt: Date.now() + SETTINGS.streamCacheTtlMs
-                });
-
-                this.clientCursor = (this.clientCursor + offset) % clientCount;
-                this.rateLimitUntil = 0;
-
-                return { stream, type };
+                state.currentRelease();
             } catch (error) {
-                lastError = error;
-                if (!this.isRecoverableYouTubeError(error)) {
-                    break;
-                }
-
-                const delay = SETTINGS.retryDelaysMs[Math.min(offset, SETTINGS.retryDelaysMs.length - 1)];
-                await this.wait(delay + Math.floor(Math.random() * 250));
+                console.warn('Failed to release cached audio:', error?.message || error);
             }
         }
-
-        throw lastError ?? new Error('Unable to establish a YouTube audio stream, sir.');
+        state.currentRelease = null;
+        state.currentVideo = null;
     }
 
-    async callPlayerApiWithRetries(videoId, client) {
-        let attempt = 0;
-        let lastError = null;
-
-        while (attempt < SETTINGS.retryDelaysMs.length + 1) {
-            try {
-                return await this.callPlayerApi(videoId, client);
-            } catch (error) {
-                lastError = error;
-                if (!this.isRecoverableYouTubeError(error) || attempt >= SETTINGS.retryDelaysMs.length) {
-                    throw lastError;
-                }
-
-                const waitMs = SETTINGS.retryDelaysMs[attempt] + Math.floor(Math.random() * 250);
-                await this.wait(waitMs);
-                attempt += 1;
-            }
+    cleanup(guildId) {
+        const state = this.queues.get(guildId);
+        if (!state) {
+            return;
         }
 
-        throw lastError ?? new Error('Unable to reach YouTube player API, sir.');
-    }
+        this.releaseCurrent(state);
 
-    async callPlayerApi(videoId, client) {
-        const body = {
-            context: {
-                client: {
-                    ...client.payload,
-                    hl: client.payload.hl ?? 'en',
-                    gl: client.payload.gl ?? 'US'
-                },
-                user: {
-                    lockedSafetyMode: false
-                },
-                request: {
-                    internalExperimentFlags: [],
-                    useSsl: true
-                }
-            },
-            videoId,
-            playbackContext: {
-                contentPlaybackContext: {
-                    html5Preference: 'HTML5_PREF_WANTS'
-                }
-            },
-            contentCheckOk: true,
-            racyCheckOk: true
-        };
+        state.queue = [];
 
-        const response = await fetch(`https://youtubei.googleapis.com/youtubei/v1/player?key=${client.key}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': client.headers['User-Agent'],
-                Origin: client.headers.Origin,
-                Referer: client.headers.Origin,
-                ...(this.cookieHeader ? { Cookie: this.cookieHeader } : {})
-            },
-            body: JSON.stringify(body)
-        });
-
-        if (response.status === 429) {
-            const error = new Error('YouTube responded with HTTP 429.');
-            error.statusCode = 429;
-            throw error;
+        if (state.timeout) {
+            clearTimeout(state.timeout);
+            state.timeout = null;
         }
 
-        if (response.status >= 400) {
-            const error = new Error(`YouTube returned HTTP ${response.status}.`);
-            error.statusCode = response.status;
-            throw error;
+        try {
+            state.player.stop();
+        } catch (error) {
+            console.error('Error stopping player:', error);
         }
 
-        const payload = await response.json();
-        const playabilityStatus = payload?.playabilityStatus?.status ?? 'OK';
-        if (!['OK', 'LIVE_STREAM_OFFLINE'].includes(playabilityStatus)) {
-            const reason = payload?.playabilityStatus?.reason || 'The requested video is unavailable, sir.';
-            const error = new Error(reason);
-            error.statusCode = response.status;
-            throw error;
+        try {
+            state.connection.destroy();
+        } catch (error) {
+            console.error('Error destroying connection:', error);
         }
 
-        return payload;
-    }
-
-    selectAudioFormat(playerResponse) {
-        const adaptiveFormats = playerResponse?.streamingData?.adaptiveFormats ?? [];
-        const candidates = adaptiveFormats.filter(format => (format.mimeType || '').includes('audio/'));
-        if (!candidates.length) {
-            return null;
-        }
-
-        candidates.sort((a, b) => {
-            const bitrateA = Number(a.averageBitrate ?? a.bitrate ?? 0);
-            const bitrateB = Number(b.averageBitrate ?? b.bitrate ?? 0);
-            return bitrateB - bitrateA;
-        });
-
-        return candidates.find(format => this.resolveFormatUrl(format)) ?? candidates[0];
-    }
-
-    resolveFormatUrl(format) {
-        if (format?.url) {
-            return format.url;
-        }
-
-        if (typeof format?.signatureCipher === 'string') {
-            const params = new URLSearchParams(format.signatureCipher);
-            const url = params.get('url');
-            const sig = params.get('sig');
-            const sp = params.get('sp') || 'signature';
-
-            if (url && sig) {
-                return `${url}&${sp}=${sig}`;
-            }
-        }
-
-        return null;
-    }
-
-    async requestStream(streamUrl, client) {
-        const { body, statusCode } = await request(streamUrl, {
-            headers: {
-                'User-Agent': client.headers['User-Agent'],
-                Origin: client.headers.Origin,
-                Referer: client.headers.Origin,
-                Range: 'bytes=0-'
-            }
-        });
-
-        if (statusCode >= 400) {
-            try {
-                body.resume();
-            } catch {
-                // ignore
-            }
-
-            const error = new Error(`YouTube stream responded with HTTP ${statusCode}.`);
-            error.statusCode = statusCode;
-            throw error;
-        }
-
-        return body;
-    }
-
-    async probeStream(factory) {
-        return new Promise((resolve, reject) => {
-            let sourceStream;
-
-            const handleError = error => {
-                if (sourceStream) {
-                    sourceStream.removeListener('error', handleError);
-                    try {
-                        sourceStream.destroy(error);
-                    } catch {
-                        // ignore
-                    }
-                }
-                reject(error);
-            };
-
-            try {
-                sourceStream = factory();
-            } catch (error) {
-                return reject(error);
-            }
-
-            sourceStream.once('error', handleError);
-
-            demuxProbe(sourceStream)
-                .then(probed => {
-                    sourceStream.removeListener('error', handleError);
-                    resolve(probed);
-                })
-                .catch(handleError);
-        });
-    }
-
-    isRecoverableYouTubeError(error) {
-        if (!error) {
-            return false;
-        }
-
-        if (error.statusCode && [403, 410, 429].includes(error.statusCode)) {
-            return true;
-        }
-
-        const message = String(error.message || '').toLowerCase();
-        return ['429', 'throttle', 'quota', 'too many', 'rate'].some(token => message.includes(token));
-    }
-
-    wait(ms) {
-        if (!ms || ms <= 0) {
-            return Promise.resolve();
-        }
-
-        return new Promise(resolve => {
-            setTimeout(resolve, ms);
-        });
+        this.queues.delete(guildId);
     }
 
     extractVideoId(input) {
@@ -890,7 +658,7 @@ class MusicManager {
             return null;
         }
 
-        const trimmed = input.trim();
+        const trimmed = String(input).trim();
         if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
             return trimmed;
         }
@@ -915,125 +683,12 @@ class MusicManager {
             return segments[1];
         }
 
-        if (segments[segments.length - 1]?.length === 11) {
-            return segments[segments.length - 1];
+        const last = segments[segments.length - 1];
+        if (last && last.length === 11) {
+            return last;
         }
 
         return null;
-    }
-
-    buildCookieHeaderFromEnv() {
-        for (const key of SETTINGS.cookieEnvKeys) {
-            const raw = process.env[key];
-            if (!raw || typeof raw !== 'string') {
-                continue;
-            }
-
-            const trimmed = raw.trim();
-            if (!trimmed.length) {
-                continue;
-            }
-
-            const normalised = this.normaliseCookies(trimmed);
-            if (normalised && normalised.length) {
-                return normalised.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
-            }
-        }
-
-        return null;
-    }
-
-    normaliseCookies(raw) {
-        if (raw.startsWith('[')) {
-            try {
-                const parsed = JSON.parse(raw);
-                return this.normaliseCookieArray(parsed);
-            } catch (error) {
-                console.warn('Failed to parse cookie JSON:', error?.message || error);
-                return null;
-            }
-        }
-
-        if (raw.startsWith('{')) {
-            try {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed?.cookies)) {
-                    return this.normaliseCookieArray(parsed.cookies);
-                }
-            } catch (error) {
-                console.warn('Failed to parse cookie object:', error?.message || error);
-                return null;
-            }
-        }
-
-        return raw
-            .split(/;+/)
-            .map(entry => entry.trim())
-            .filter(Boolean)
-            .map(entry => {
-                const [name, ...valueParts] = entry.split('=');
-                if (!name || valueParts.length === 0) {
-                    return null;
-                }
-                return {
-                    name: name.trim(),
-                    value: valueParts.join('=').trim()
-                };
-            })
-            .filter(Boolean);
-    }
-
-    normaliseCookieArray(cookies) {
-        if (!Array.isArray(cookies)) {
-            return null;
-        }
-
-        return cookies
-            .map(cookie => {
-                if (!cookie || typeof cookie !== 'object') {
-                    return null;
-                }
-
-                const name = cookie.name ?? cookie.key;
-                const value = cookie.value ?? cookie.val ?? cookie.content;
-                if (!name || typeof value === 'undefined') {
-                    return null;
-                }
-
-                return {
-                    name: String(name),
-                    value: String(value)
-                };
-            })
-            .filter(Boolean);
-    }
-
-    cleanup(guildId) {
-        const state = this.queues.get(guildId);
-        if (!state) {
-            return;
-        }
-
-        state.queue = [];
-        state.current = null;
-
-        if (state.timeout) {
-            clearTimeout(state.timeout);
-        }
-
-        try {
-            state.player.stop();
-        } catch (error) {
-            console.error('Error stopping player:', error);
-        }
-
-        try {
-            state.connection.destroy();
-        } catch (error) {
-            console.error('Error destroying connection:', error);
-        }
-
-        this.queues.delete(guildId);
     }
 }
 
