@@ -100,7 +100,8 @@ const rawConfig = {
         knowledgeAsk: true,
         digests: true,
         newsBriefings: true,
-        macroReplies: true
+        macroReplies: true,
+        music: true
     }
 };
 
