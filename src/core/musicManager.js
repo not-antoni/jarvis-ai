@@ -1,3 +1,5 @@
+process.env.YTDL_NO_UPDATE = process.env.YTDL_NO_UPDATE || '1';
+
 const {
     joinVoiceChannel,
     createAudioPlayer,
@@ -5,9 +7,28 @@ const {
     AudioPlayerStatus,
     NoSubscriberBehavior,
     VoiceConnectionStatus,
-    entersState
+    entersState,
+    demuxProbe
 } = require('@discordjs/voice');
-const play = require('play-dl');
+const ytdl = require('@distube/ytdl-core');
+
+const USER_AGENT =
+    process.env.YTDL_USER_AGENT ||
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+const YTDL_BASE_OPTIONS = {
+    filter: 'audioonly',
+    quality: 'highestaudio',
+    dlChunkSize: 0,
+    highWaterMark: 1 << 25,
+    liveBuffer: 1 << 17,
+    requestOptions: {
+        headers: {
+            'User-Agent': USER_AGENT,
+            'Accept-Language': 'en-US,en;q=0.9',
+            Referer: 'https://www.youtube.com/'
+        }
+    }
+};
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -72,18 +93,8 @@ class MusicManager {
         }
 
         try {
-            if (typeof play.is_expired === 'function' && typeof play.refreshToken === 'function') {
-                try {
-                    if (play.is_expired()) {
-                        await play.refreshToken();
-                    }
-                } catch (tokenError) {
-                    console.warn('play-dl token refresh skipped:', tokenError?.message || tokenError);
-                }
-            }
-
-            const stream = await play.stream(video.url, { discordPlayerCompatibility: true });
-            const resource = createAudioResource(stream.stream, { inputType: stream.type });
+            const { stream, type } = await this.createYouTubeStream(video.url);
+            const resource = createAudioResource(stream, { inputType: type });
 
             state.player.play(resource);
             state.current = video;
@@ -99,7 +110,10 @@ class MusicManager {
             }
         } catch (error) {
             console.error('Music playback error:', error);
-            const failureMessage = `⚠️ Could not play **${video.title}**.`;
+            const isRateLimited = this.isRecoverableYouTubeError(error);
+            const failureMessage = isRateLimited
+                ? '⚠️ YouTube is throttling requests right now. Please try again in a moment, sir.'
+                : `⚠️ Could not play **${video.title}**.`;
 
             if (announce === 'command') {
                 return failureMessage;
@@ -178,6 +192,109 @@ class MusicManager {
         }
 
         return lines.length ? lines.join('\n') : 'Queue is empty.';
+    }
+
+    getYTDLOptions(overrides = {}) {
+        const mergedRequestOptions = {
+            ...YTDL_BASE_OPTIONS.requestOptions,
+            ...(overrides.requestOptions || {})
+        };
+
+        return {
+            ...YTDL_BASE_OPTIONS,
+            ...overrides,
+            requestOptions: mergedRequestOptions
+        };
+    }
+
+    async createYouTubeStream(videoUrl) {
+        const baseOptions = this.getYTDLOptions();
+
+        try {
+            return await this.probeStream(() => ytdl(videoUrl, baseOptions));
+        } catch (error) {
+            if (!this.isRecoverableYouTubeError(error)) {
+                throw error;
+            }
+
+            try {
+                const info = await ytdl.getInfo(videoUrl, {
+                    requestOptions: baseOptions.requestOptions,
+                    lang: 'en'
+                });
+
+                const audioFormat = ytdl.chooseFormat(info.formats, {
+                    quality: baseOptions.quality,
+                    filter: baseOptions.filter
+                });
+
+                if (!audioFormat || !audioFormat.url) {
+                    throw error;
+                }
+
+                return await this.probeStream(() =>
+                    ytdl.downloadFromInfo(info, this.getYTDLOptions({ format: audioFormat }))
+                );
+            } catch (secondaryError) {
+                secondaryError.previous = error;
+                throw secondaryError;
+            }
+        }
+    }
+
+    async probeStream(factory) {
+        return new Promise((resolve, reject) => {
+            let sourceStream;
+
+            const finalize = () => {
+                if (sourceStream) {
+                    sourceStream.removeListener('error', handleError);
+                }
+            };
+
+            const handleError = (error) => {
+                finalize();
+                if (sourceStream && typeof sourceStream.destroy === 'function') {
+                    try {
+                        sourceStream.destroy(error);
+                    } catch (destroyError) {
+                        console.error('Failed to destroy YouTube stream:', destroyError);
+                    }
+                }
+                reject(error);
+            };
+
+            try {
+                sourceStream = factory();
+            } catch (factoryError) {
+                reject(factoryError);
+                return;
+            }
+
+            sourceStream.once('error', handleError);
+
+            demuxProbe(sourceStream)
+                .then(({ stream, type }) => {
+                    finalize();
+                    resolve({ stream, type });
+                })
+                .catch(handleError);
+        });
+    }
+
+    isRecoverableYouTubeError(error) {
+        if (!error) {
+            return false;
+        }
+
+        if (typeof error.statusCode === 'number' && [403, 410, 429].includes(error.statusCode)) {
+            return true;
+        }
+
+        const message = String(error.message || '').toLowerCase();
+        return ['410', '403', '429', 'throttle', 'signature', 'error checking for updates'].some((token) =>
+            message.includes(token)
+        );
     }
 
     async createConnection(guildId, voiceChannel) {
