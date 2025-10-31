@@ -12,6 +12,7 @@ const rawConfig = {
             'Guilds',
             'GuildMessages',
             'MessageContent',
+            'GuildVoiceStates',
             'GuildMembers',
             'DirectMessages',
             'GuildMessageReactions',
