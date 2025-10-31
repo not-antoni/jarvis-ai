@@ -30,73 +30,73 @@ const {
 } = require('@discordjs/voice');
 const { request } = require('undici');
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-const STREAM_CACHE_TTL_MS = 10 * 60 * 1000;
-const RETRY_DELAYS_MS = [500, 1500, 4000];
-
-const COOKIE_ENV_KEYS = [
-    'YT_COOKIE',
-    'YT_COOKIES',
-    'YTDL_COOKIE',
-    'YTDL_COOKIES',
-    'YOUTUBE_COOKIE',
-    'YOUTUBE_COOKIES'
-];
-
-const PLAYER_CLIENTS = [
-    {
-        name: 'ANDROID',
-        key: 'AIzaSyA1bryuAMG9PG0t1gCFuQ8k0A4vTQ0nXJM',
-        headers: {
-            'User-Agent': 'com.google.android.youtube/19.44.38 (Linux; U; Android 11)',
-            Origin: 'https://www.youtube.com'
+const SETTINGS = Object.freeze({
+    idleTimeoutMs: 5 * 60 * 1000,
+    streamCacheTtlMs: 10 * 60 * 1000,
+    retryDelaysMs: [500, 1500, 4000],
+    cookieEnvKeys: [
+        'YT_COOKIE',
+        'YT_COOKIES',
+        'YTDL_COOKIE',
+        'YTDL_COOKIES',
+        'YOUTUBE_COOKIE',
+        'YOUTUBE_COOKIES'
+    ],
+    playerClients: [
+        {
+            name: 'ANDROID',
+            key: 'AIzaSyA1bryuAMG9PG0t1gCFuQ8k0A4vTQ0nXJM',
+            headers: {
+                'User-Agent': 'com.google.android.youtube/19.44.38 (Linux; U; Android 11)',
+                Origin: 'https://www.youtube.com'
+            },
+            payload: {
+                clientName: 'ANDROID',
+                clientVersion: '19.44.38',
+                platform: 'MOBILE',
+                osName: 'Android',
+                osVersion: '11',
+                androidSdkVersion: 30,
+                hl: 'en',
+                gl: 'US'
+            }
         },
-        payload: {
-            clientName: 'ANDROID',
-            clientVersion: '19.44.38',
-            platform: 'MOBILE',
-            osName: 'Android',
-            osVersion: '11',
-            androidSdkVersion: 30,
-            hl: 'en',
-            gl: 'US'
-        }
-    },
-    {
-        name: 'IOS',
-        key: 'AIzaSyB9yMuPGcl021sZPX91CGqF2N8ttWhJS9g',
-        headers: {
-            'User-Agent': 'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; en_US)',
-            Origin: 'https://www.youtube.com'
+        {
+            name: 'IOS',
+            key: 'AIzaSyB9yMuPGcl021sZPX91CGqF2N8ttWhJS9g',
+            headers: {
+                'User-Agent': 'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; en_US)',
+                Origin: 'https://www.youtube.com'
+            },
+            payload: {
+                clientName: 'IOS',
+                clientVersion: '19.45.4',
+                deviceMake: 'Apple',
+                deviceModel: 'iPhone16,2',
+                platform: 'MOBILE',
+                osName: 'IOS',
+                osVersion: '17.5.1',
+                hl: 'en',
+                gl: 'US'
+            }
         },
-        payload: {
-            clientName: 'IOS',
-            clientVersion: '19.45.4',
-            deviceMake: 'Apple',
-            deviceModel: 'iPhone16,2',
-            platform: 'MOBILE',
-            osName: 'IOS',
-            osVersion: '17.5.1',
-            hl: 'en',
-            gl: 'US'
+        {
+            name: 'WEB',
+            key: 'AIzaSyAOqaUZ5hYjDUwcZnAcsFYEs7f38nPhe8',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+                Origin: 'https://www.youtube.com'
+            },
+            payload: {
+                clientName: 'WEB',
+                clientVersion: '2.20241210.01.00',
+                hl: 'en',
+                gl: 'US',
+                utcOffsetMinutes: 0
+            }
         }
-    },
-    {
-        name: 'WEB',
-        key: 'AIzaSyAOqaUZ5hYjDUwcZnAcsFYEs7f38nPhe8',
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-            Origin: 'https://www.youtube.com'
-        },
-        payload: {
-            clientName: 'WEB',
-            clientVersion: '2.20241210.01.00',
-            hl: 'en',
-            gl: 'US',
-            utcOffsetMinutes: 0
-        }
-    }
-];
+    ]
+});
 
 class MusicManager {
     constructor() {
@@ -605,7 +605,7 @@ class MusicManager {
                         }
                         this.cleanup(guildId);
                     }
-                }, IDLE_TIMEOUT_MS);
+                }, SETTINGS.idleTimeoutMs);
             }
         });
 
@@ -629,7 +629,7 @@ class MusicManager {
 
         const cached = this.streamCache.get(videoId);
         if (cached && cached.expiresAt > Date.now()) {
-            const client = PLAYER_CLIENTS.find(entry => entry.name === cached.clientName) ?? PLAYER_CLIENTS[0];
+            const client = SETTINGS.playerClients.find(entry => entry.name === cached.clientName) ?? SETTINGS.playerClients[0];
             try {
                 return await this.probeStream(() => this.requestStream(cached.url, client));
             } catch {
@@ -642,10 +642,10 @@ class MusicManager {
         }
 
         let lastError = null;
-        const clientCount = PLAYER_CLIENTS.length;
+        const clientCount = SETTINGS.playerClients.length;
 
         for (let offset = 0; offset < clientCount; offset += 1) {
-            const client = PLAYER_CLIENTS[(this.clientCursor + offset) % clientCount];
+            const client = SETTINGS.playerClients[(this.clientCursor + offset) % clientCount];
             try {
                 const response = await this.callPlayerApiWithRetries(videoId, client);
                 const format = this.selectAudioFormat(response);
@@ -664,7 +664,7 @@ class MusicManager {
                 this.streamCache.set(videoId, {
                     url: streamUrl,
                     clientName: client.name,
-                    expiresAt: Date.now() + STREAM_CACHE_TTL_MS
+                    expiresAt: Date.now() + SETTINGS.streamCacheTtlMs
                 });
 
                 this.clientCursor = (this.clientCursor + offset) % clientCount;
@@ -677,7 +677,7 @@ class MusicManager {
                     break;
                 }
 
-                const delay = RETRY_DELAYS_MS[Math.min(offset, RETRY_DELAYS_MS.length - 1)];
+                const delay = SETTINGS.retryDelaysMs[Math.min(offset, SETTINGS.retryDelaysMs.length - 1)];
                 await this.wait(delay + Math.floor(Math.random() * 250));
             }
         }
@@ -689,16 +689,16 @@ class MusicManager {
         let attempt = 0;
         let lastError = null;
 
-        while (attempt < RETRY_DELAYS_MS.length + 1) {
+        while (attempt < SETTINGS.retryDelaysMs.length + 1) {
             try {
                 return await this.callPlayerApi(videoId, client);
             } catch (error) {
                 lastError = error;
-                if (!this.isRecoverableYouTubeError(error) || attempt >= RETRY_DELAYS_MS.length) {
+                if (!this.isRecoverableYouTubeError(error) || attempt >= SETTINGS.retryDelaysMs.length) {
                     throw lastError;
                 }
 
-                const waitMs = RETRY_DELAYS_MS[attempt] + Math.floor(Math.random() * 250);
+                const waitMs = SETTINGS.retryDelaysMs[attempt] + Math.floor(Math.random() * 250);
                 await this.wait(waitMs);
                 attempt += 1;
             }
@@ -923,7 +923,7 @@ class MusicManager {
     }
 
     buildCookieHeaderFromEnv() {
-        for (const key of COOKIE_ENV_KEYS) {
+        for (const key of SETTINGS.cookieEnvKeys) {
             const raw = process.env[key];
             if (!raw || typeof raw !== 'string') {
                 continue;
