@@ -55,31 +55,35 @@ async function ensureBinary() {
     const tempPath = path.join(BIN_DIR, `${binaryName}.download`);
 
     await new Promise((resolve, reject) => {
-        const request = https.get(downloadUrl, (res) => {
-            if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                // follow redirect
+        const onResponse = (res) => {
+            const status = res.statusCode || 0;
+
+            if (status >= 300 && status < 400 && res.headers.location) {
+                const location = res.headers.location.startsWith('http')
+                    ? res.headers.location
+                    : new URL(res.headers.location, 'https://github.com').toString();
+
                 res.destroy();
-                https.get(res.headers.location, response => handleResponse(response, resolve, reject));
+
+                const nextRequest = https.get(location, onResponse);
+                nextRequest.on('error', reject);
                 return;
             }
 
-            handleResponse(res, resolve, reject);
-        });
-
-        request.on('error', reject);
-
-        function handleResponse(res, resolveCb, rejectCb) {
-            if (res.statusCode !== 200) {
-                rejectCb(new Error(`Failed to download yt-dlp (status ${res.statusCode}).`));
+            if (status !== 200) {
                 res.resume();
+                reject(new Error(`Failed to download yt-dlp (status ${status}).`));
                 return;
             }
 
             const fileStream = fs.createWriteStream(tempPath, { mode: 0o755 });
             pipeline(res, fileStream)
-                .then(resolveCb)
-                .catch(rejectCb);
-        }
+                .then(resolve)
+                .catch(reject);
+        };
+
+        const request = https.get(downloadUrl, onResponse);
+        request.on('error', reject);
     });
 
     await fs.promises.rename(tempPath, binaryPath);
