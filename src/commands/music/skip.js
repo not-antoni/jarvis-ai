@@ -24,7 +24,7 @@ module.exports = {
 
         const state = musicManager.getState(interaction.guild.id);
 
-        if (!state || !state.current) {
+        if (!state || (!state.currentVideo && !state.pendingVideoId)) {
             await interaction.reply('⚠️ Nothing is playing right now, sir.');
             return;
         }
