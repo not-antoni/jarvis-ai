@@ -894,10 +894,10 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
 
     async handleMathCommand(expression) {
         try {
-            return mathSolver.solve(expression);
+            return await mathSolver.solve(expression);
         } catch (error) {
             console.error("Math solver error:", error);
-            return "Mathematics subsystem encountered an error, sir. Please verify the expression.";
+            return error?.message || "Mathematics subsystem encountered an error, sir.";
         }
     }
 

@@ -2,7 +2,7 @@
  * Jarvis Discord Bot - Main Entry Point
  * Refactored for better organization and maintainability
  */
-
+require("dotenv").config();
 const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials } = require("discord.js");
 const express = require("express");
 const cron = require("node-cron");
