@@ -16,7 +16,9 @@ class MusicManager {
         this.queues = new Map(); // guildId -> state
         this.playCookiesApplied = false;
         this.freeClientPromise = null;
-        this.ensurePlaybackEnvironment();
+        this.ensurePlaybackEnvironment().catch(error => {
+            console.warn('Initial play-dl environment prep failed:', error?.message || error);
+        });
     }
 
     getState(guildId) {
@@ -74,7 +76,7 @@ class MusicManager {
             state.timeout = null;
         }
 
-        this.ensurePlaybackEnvironment();
+        await this.ensurePlaybackEnvironment();
 
         try {
             const stream = await play.stream(video.url, { discordPlayerCompatibility: true });
@@ -96,7 +98,7 @@ class MusicManager {
             console.error('Music playback error:', error);
             const isRateLimited = typeof error?.message === 'string' && error.message.includes('429');
             if (isRateLimited) {
-                this.ensurePlaybackEnvironment(true);
+                await this.ensurePlaybackEnvironment(true);
             }
 
             const failureMessage = isRateLimited
@@ -291,7 +293,7 @@ class MusicManager {
         this.queues.delete(guildId);
     }
 
-    ensurePlaybackEnvironment(force = false) {
+    async ensurePlaybackEnvironment(force = false) {
         const cookie =
             process.env.YT_COOKIE ||
             process.env.YOUTUBE_COOKIE ||
@@ -329,6 +331,10 @@ class MusicManager {
                     });
 
                 this.freeClientPromise = request;
+            }
+
+            if (this.freeClientPromise) {
+                await this.freeClientPromise;
             }
         }
     }
