@@ -9,6 +9,5 @@
 - https://discordjs.guide/voice/audio-resources
 - https://discordjs.guide/creating-your-bot/slash-commands
 
-## Library Docs
-- https://github.com/play-dl/play-dl
-
+## InnerTube Reference
+- https://github.com/TeamNewPipe/documentation/blob/master/Doc/yt_api_v1.md
