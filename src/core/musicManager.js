@@ -72,8 +72,14 @@ class MusicManager {
         }
 
         try {
-            if (play.is_expired?.()) {
-                await play.refreshToken();
+            if (typeof play.is_expired === 'function' && typeof play.refreshToken === 'function') {
+                try {
+                    if (play.is_expired()) {
+                        await play.refreshToken();
+                    }
+                } catch (tokenError) {
+                    console.warn('play-dl token refresh skipped:', tokenError?.message || tokenError);
+                }
             }
 
             const stream = await play.stream(video.url, { discordPlayerCompatibility: true });
