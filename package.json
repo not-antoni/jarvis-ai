@@ -4,7 +4,7 @@
   "description": "Jarvis - A sentient Discord bot with AI capabilities",
   "main": "index.js",
   "scripts": {
-    "start": "node start-both.js",
+    "start": "node index.js",
     "verify": "node deploy.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test-puter": "node test-puter.js",
@@ -21,13 +21,13 @@
   "license": "ISC",
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
+    "@discordjs/voice": "^0.16.1",
     "@google/generative-ai": "^0.24.1",
     "canvas": "^3.2.0",
     "cohere-ai": "^7.19.0",
     "discord-interactions": "^3.2.0",
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.2",
-    "erela.js": "^2.4.0",
     "express": "^4.18.2",
     "ffmpeg-static": "^5.2.0",
     "fs-extra": "^11.3.1",
@@ -38,6 +38,7 @@
     "node-fetch": "^2.6.7",
     "openai": "^5.20.1",
     "pdf-parse": "^1.1.2",
+    "play-dl": "^1.9.7",
     "sharp": "^0.34.4",
     "zod": "^3.25.76"
   }
