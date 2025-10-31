@@ -9,6 +9,5 @@
 - https://discordjs.guide/voice/audio-resources
 - https://discordjs.guide/creating-your-bot/slash-commands
 
-## Library Docs
-- https://github.com/play-dl/play-dl
-
+## yt-dlp Reference
+- https://github.com/yt-dlp/yt-dlp

@@ -1,3 +1,4 @@
+const fs = require('fs');
 const {
     joinVoiceChannel,
     createAudioPlayer,
@@ -5,9 +6,10 @@ const {
     AudioPlayerStatus,
     NoSubscriberBehavior,
     VoiceConnectionStatus,
-    entersState
+    entersState,
+    StreamType
 } = require('@discordjs/voice');
-const play = require('play-dl');
+const { acquireAudio } = require('../utils/ytDlp');
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -33,7 +35,8 @@ class MusicManager {
                 connection,
                 player,
                 queue: [],
-                current: null,
+                currentVideo: null,
+                currentRelease: null,
                 timeout: null,
                 textChannel: interaction.channel ?? null,
                 voiceChannelId: voiceChannel.id
@@ -50,7 +53,7 @@ class MusicManager {
             state.timeout = null;
         }
 
-        if (!state.current) {
+        if (!state.currentVideo) {
             const message = await this.play(guildId, video, { announce: 'command' });
             return message || `🎶 Now playing: **${video.title}**\n${video.url}`;
         }
@@ -71,22 +74,24 @@ class MusicManager {
             state.timeout = null;
         }
 
+        let ticket;
         try {
-            if (typeof play.is_expired === 'function' && typeof play.refreshToken === 'function') {
-                try {
-                    if (play.is_expired()) {
-                        await play.refreshToken();
-                    }
-                } catch (tokenError) {
-                    console.warn('play-dl token refresh skipped:', tokenError?.message || tokenError);
-                }
-            }
+            const videoId = this.extractVideoId(video.url);
+            ticket = await acquireAudio(videoId ?? video.url, video.url);
+        } catch (error) {
+            console.error('yt-dlp download failed:', error);
+            return '⚠️ Unable to prepare that track right now, sir.';
+        }
 
-            const stream = await play.stream(video.url, { discordPlayerCompatibility: true });
-            const resource = createAudioResource(stream.stream, { inputType: stream.type });
+        try {
+            const stream = fs.createReadStream(ticket.filePath);
+            const resource = createAudioResource(stream, { inputType: StreamType.OggOpus });
+
+            this.releaseCurrent(state);
 
             state.player.play(resource);
-            state.current = video;
+            state.currentVideo = video;
+            state.currentRelease = ticket.release;
 
             const message = `🎶 Now playing: **${video.title}**\n${video.url}`;
 
@@ -99,6 +104,10 @@ class MusicManager {
             }
         } catch (error) {
             console.error('Music playback error:', error);
+            if (ticket) {
+                ticket.release();
+            }
+
             const failureMessage = `⚠️ Could not play **${video.title}**.`;
 
             if (announce === 'command') {
@@ -167,8 +176,8 @@ class MusicManager {
 
         const lines = [];
 
-        if (state.current) {
-            lines.push(`• Now playing: **${state.current.title}**`);
+        if (state.currentVideo) {
+            lines.push(`• Now playing: **${state.currentVideo.title}**`);
         }
 
         if (state.queue.length) {
@@ -231,7 +240,7 @@ class MusicManager {
                 return;
             }
 
-            state.current = null;
+            this.releaseCurrent(state);
 
             if (state.queue.length > 0) {
                 const next = state.queue.shift();
@@ -261,17 +270,31 @@ class MusicManager {
         return player;
     }
 
+    releaseCurrent(state) {
+        if (state.currentRelease) {
+            try {
+                state.currentRelease();
+            } catch (error) {
+                console.warn('Failed to release cached audio:', error?.message || error);
+            }
+        }
+        state.currentRelease = null;
+        state.currentVideo = null;
+    }
+
     cleanup(guildId) {
         const state = this.queues.get(guildId);
         if (!state) {
             return;
         }
 
+        this.releaseCurrent(state);
+
         state.queue = [];
-        state.current = null;
 
         if (state.timeout) {
             clearTimeout(state.timeout);
+            state.timeout = null;
         }
 
         try {
@@ -287,6 +310,44 @@ class MusicManager {
         }
 
         this.queues.delete(guildId);
+    }
+
+    extractVideoId(input) {
+        if (!input) {
+            return null;
+        }
+
+        const trimmed = String(input).trim();
+        if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+            return trimmed;
+        }
+
+        let url;
+        try {
+            url = new URL(trimmed);
+        } catch {
+            return null;
+        }
+
+        if (url.hostname === 'youtu.be') {
+            return url.pathname.slice(1);
+        }
+
+        if (url.searchParams.has('v')) {
+            return url.searchParams.get('v');
+        }
+
+        const segments = url.pathname.split('/').filter(Boolean);
+        if (segments[0] === 'shorts' && segments[1]) {
+            return segments[1];
+        }
+
+        const last = segments[segments.length - 1];
+        if (last && last.length === 11) {
+            return last;
+        }
+
+        return null;
     }
 }
 
