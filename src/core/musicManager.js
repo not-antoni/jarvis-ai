@@ -10,6 +10,7 @@ const {
     StreamType
 } = require('@discordjs/voice');
 const { acquireAudio, cancelDownload } = require('../utils/ytDlp');
+const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -23,6 +24,10 @@ class MusicManager {
     }
 
     async enqueue(guildId, voiceChannel, video, interaction) {
+        if (!isGuildAllowed(guildId)) {
+            return '⚠️ Music playback is not enabled for this server, sir.';
+        }
+
         let state = this.queues.get(guildId);
 
         if (!state) {

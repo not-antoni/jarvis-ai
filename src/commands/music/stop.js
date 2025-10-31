@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const { musicManager } = require('../../core/musicManager');
+const { isGuildAllowed } = require('../../utils/musicGuildWhitelist');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -11,6 +12,11 @@ module.exports = {
     async execute(interaction) {
         if (!interaction.guild) {
             await interaction.reply('⚠️ This command is only available inside servers, sir.');
+            return;
+        }
+
+        if (!isGuildAllowed(interaction.guild.id)) {
+            await interaction.reply('⚠️ Music playback is not enabled for this server, sir.');
             return;
         }
 
