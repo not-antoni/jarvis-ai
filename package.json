@@ -38,6 +38,7 @@
     "mongodb": "^6.19.0",
     "nerdamer": "^1.1.13",
     "node-cron": "^4.2.1",
+    "libsodium-wrappers": "^0.7.13",
     "node-fetch": "^2.6.7",
     "openai": "^5.20.1",
     "opusscript": "^0.1.1",
