@@ -9,6 +9,6 @@
 - https://discordjs.guide/voice/audio-resources
 - https://discordjs.guide/creating-your-bot/slash-commands
 
-## Library Docs
-- https://github.com/play-dl/play-dl
-
+## yt-dlp Reference
+- https://github.com/yt-dlp/yt-dlp
+- Jarvis expects an EditThisCookie JSON export stored in `YTDLP_COOKIES_JSON` (or `YT_COOKIES_JSON`) when YouTube requires authentication.
