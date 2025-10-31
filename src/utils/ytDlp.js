@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const https = require('https');
 const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
-const https = require('https');
+const { ensureFfmpeg } = require('./ffmpeg');
 
 const BINARY_NAMES = {
     linux: 'yt-dlp',
@@ -114,7 +115,7 @@ async function ensureCookiesFile() {
     ];
 
     for (const cookie of cookies) {
-        const domain = cookie.domain?.startsWith('.') ? cookie.domain : `.${cookie.domain?.replace(/^\./, '')}`;
+        const domain = cookie.domain?.startsWith('.') ? cookie.domain : `.${cookie.domain?.replace(/\.*/, '')}`;
         const hostOnly = cookie.hostOnly ? 'FALSE' : 'TRUE';
         const pathValue = cookie.path ?? '/';
         const secure = cookie.secure ? 'TRUE' : 'FALSE';
@@ -156,7 +157,6 @@ function readCookiesFromEnv() {
             continue;
         }
 
-        // JSON export from EditThisCookie or similar extensions.
         if (trimmed.startsWith('[')) {
             try {
                 const parsed = JSON.parse(trimmed);
@@ -219,7 +219,7 @@ function normaliseCookieArray(input) {
 
 function convertLegacyCookieString(raw) {
     const segments = raw
-        .split(/;\\s*/g)
+        .split(/;\s*/g)
         .map(segment => segment.trim())
         .filter(Boolean);
 
@@ -272,12 +272,12 @@ async function fileIsFresh(filePath) {
 
 async function downloadAudio(videoId, videoUrl) {
     const binaryPath = await ensureBinary();
+    const ffmpegPath = await ensureFfmpeg();
     const { base, finalPath } = getTargetPaths(videoId);
     const cookieFile = await ensureCookiesFile();
 
-    // Clean up lingering files
     await fs.promises.rm(`${base}.opus`, { force: true }).catch(() => {});
-    await fs.promises.rm(`${base}.m4a`, { force: true }).catch(() => {});
+    await fs.promises.rm(`${base}.mp4`, { force: true }).catch(() => {});
     await fs.promises.rm(`${base}.webm`, { force: true }).catch(() => {});
     await fs.promises.rm(`${base}.part`, { force: true }).catch(() => {});
 
@@ -289,6 +289,7 @@ async function downloadAudio(videoId, videoUrl) {
         '--audio-quality', '0',
         '--output', `${base}.%(ext)s`,
         '--no-progress',
+        '--ffmpeg-location', ffmpegPath,
         videoUrl
     ];
 
@@ -313,7 +314,16 @@ async function downloadAudio(videoId, videoUrl) {
         });
     });
 
-    await fs.promises.access(finalPath, fs.constants.R_OK);
+    const possibleOutputs = await fs.promises.readdir(path.dirname(base));
+    const matchingOutput = possibleOutputs
+        .map(file => path.join(TEMP_DIR, file))
+        .find(file => file.startsWith(base) && file.endsWith('.opus'));
+
+    if (!matchingOutput) {
+        throw new Error('Extraction finished without producing an Opus file.');
+    }
+
+    await fs.promises.rename(matchingOutput, finalPath);
     return finalPath;
 }
 
