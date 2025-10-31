@@ -22,6 +22,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
     "@discordjs/voice": "^0.16.1",
+    "@distube/ytdl-core": "^4.16.12",
     "@google/generative-ai": "^0.24.1",
     "canvas": "^3.2.0",
     "cohere-ai": "^7.19.0",
