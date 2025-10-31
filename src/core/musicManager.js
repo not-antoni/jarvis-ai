@@ -5,18 +5,16 @@ const {
     AudioPlayerStatus,
     NoSubscriberBehavior,
     VoiceConnectionStatus,
-    entersState
+    entersState,
+    demuxProbe
 } = require('@discordjs/voice');
-const play = require('play-dl');
+const ytdl = require('ytdl-core');
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 class MusicManager {
     constructor() {
         this.queues = new Map(); // guildId -> state
-        this.playCookiesApplied = false;
-        this.freeClientPromise = null;
-        this.ensurePlaybackEnvironment();
     }
 
     getState(guildId) {
@@ -74,11 +72,27 @@ class MusicManager {
             state.timeout = null;
         }
 
-        this.ensurePlaybackEnvironment();
-
         try {
-            const stream = await play.stream(video.url, { discordPlayerCompatibility: true });
-            const resource = createAudioResource(stream.stream, { inputType: stream.type });
+            const ytdlStream = ytdl(video.url, {
+                filter: 'audioonly',
+                quality: 'highestaudio',
+                dlChunkSize: 0,
+                highWaterMark: 1 << 25,
+                liveBuffer: 1 << 17
+            });
+
+            ytdlStream.once('error', (streamError) => {
+                console.error('YouTube stream error:', streamError);
+                try {
+                    ytdlStream.destroy(streamError);
+                } catch (destroyError) {
+                    console.error('Failed to destroy YouTube stream:', destroyError);
+                }
+                state.player.stop();
+            });
+
+            const { stream, type } = await demuxProbe(ytdlStream);
+            const resource = createAudioResource(stream, { inputType: type });
 
             state.player.play(resource);
             state.current = video;
@@ -94,13 +108,8 @@ class MusicManager {
             }
         } catch (error) {
             console.error('Music playback error:', error);
-            const isRateLimited = typeof error?.message === 'string' && error.message.includes('429');
-            if (isRateLimited) {
-                this.ensurePlaybackEnvironment(true);
-            }
-
-            const failureMessage = isRateLimited
-                ? '⚠️ YouTube temporarily rate limited playback. Try again in a moment, sir.'
+            const failureMessage = typeof error?.message === 'string' && error.message.includes('429')
+                ? '⚠️ YouTube is throttling requests right now. Please try again in a moment, sir.'
                 : `⚠️ Could not play **${video.title}**.`;
 
             if (announce === 'command') {
@@ -289,48 +298,6 @@ class MusicManager {
         }
 
         this.queues.delete(guildId);
-    }
-
-    ensurePlaybackEnvironment(force = false) {
-        const cookie =
-            process.env.YT_COOKIE ||
-            process.env.YOUTUBE_COOKIE ||
-            process.env.YOUTUBE_COOKIES ||
-            null;
-
-        if (cookie && (force || !this.playCookiesApplied)) {
-            try {
-                play.setToken({
-                    youtube: {
-                        cookie
-                    }
-                });
-                this.playCookiesApplied = true;
-            } catch (error) {
-                this.playCookiesApplied = false;
-                console.warn('Failed to apply YouTube cookie for play-dl:', error?.message || error);
-            }
-        }
-
-        if (typeof play.getFreeClientID === 'function') {
-            if (force) {
-                this.freeClientPromise = null;
-            }
-
-            if (!this.freeClientPromise) {
-                const request = play.getFreeClientID()
-                    .catch((error) => {
-                        console.warn('play-dl free client ID fetch failed:', error?.message || error);
-                    })
-                    .finally(() => {
-                        if (this.freeClientPromise === request) {
-                            this.freeClientPromise = null;
-                        }
-                    });
-
-                this.freeClientPromise = request;
-            }
-        }
     }
 }
 
