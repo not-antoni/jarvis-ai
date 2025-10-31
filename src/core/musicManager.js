@@ -9,93 +9,13 @@ const {
     entersState,
     StreamType
 } = require('@discordjs/voice');
-const { acquireAudio } = require('../utils/ytDlp');
+const { acquireAudio, cancelDownload } = require('../utils/ytDlp');
 
-const SETTINGS = Object.freeze({
-    idleTimeoutMs: 5 * 60 * 1000,
-    streamCacheTtlMs: 10 * 60 * 1000,
-    retryDelaysMs: [500, 1500, 4000],
-    cookieEnvKeys: [
-        'YT_COOKIE',
-        'YT_COOKIES',
-        'YTDL_COOKIE',
-        'YTDL_COOKIES',
-        'YOUTUBE_COOKIE',
-        'YOUTUBE_COOKIES'
-    ],
-    playerClients: [
-        {
-            name: 'ANDROID',
-            key: 'AIzaSyA1bryuAMG9PG0t1gCFuQ8k0A4vTQ0nXJM',
-            headers: {
-                'User-Agent': 'com.google.android.youtube/19.44.38 (Linux; U; Android 11)',
-                Origin: 'https://www.youtube.com'
-            },
-            payload: {
-                clientName: 'ANDROID',
-                clientVersion: '19.44.38',
-                platform: 'MOBILE',
-                osName: 'Android',
-                osVersion: '11',
-                androidSdkVersion: 30,
-                hl: 'en',
-                gl: 'US'
-            }
-        },
-        {
-            name: 'IOS',
-            key: 'AIzaSyB9yMuPGcl021sZPX91CGqF2N8ttWhJS9g',
-            headers: {
-                'User-Agent': 'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; en_US)',
-                Origin: 'https://www.youtube.com'
-            },
-            payload: {
-                clientName: 'IOS',
-                clientVersion: '19.45.4',
-                deviceMake: 'Apple',
-                deviceModel: 'iPhone16,2',
-                platform: 'MOBILE',
-                osName: 'IOS',
-                osVersion: '17.5.1',
-                hl: 'en',
-                gl: 'US'
-            }
-        },
-        {
-            name: 'WEB',
-            key: 'AIzaSyAOqaUZ5hYjDUwcZnAcsFYEs7f38nPhe8',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
-                Origin: 'https://www.youtube.com'
-            },
-            payload: {
-                clientName: 'WEB',
-                clientVersion: '2.20241210.01.00',
-                hl: 'en',
-                gl: 'US',
-                utcOffsetMinutes: 0
-            }
-        }
-    ]
-});
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 class MusicManager {
     constructor() {
         this.queues = new Map(); // guildId -> state
-        this.streamCache = new Map(); // videoId -> { url, expiresAt, clientName }
-        this.clientCursor = 0;
-        this.rateLimitUntil = 0;
-        this.cookieHeader = this.buildCookieHeaderFromEnv();
-    }
-
-    // Legacy helper retained for compatibility with older runtime references.
-    buildCookieHeaderFromEnv() {
-        return null;
-    }
-
-    // Legacy helper retained for compatibility with older runtime references.
-    buildCookieHeaderFromEnv() {
-        return null;
     }
 
     getState(guildId) {
@@ -117,6 +37,8 @@ class MusicManager {
                 queue: [],
                 currentVideo: null,
                 currentRelease: null,
+                pendingVideoId: null,
+                skipInProgress: false,
                 timeout: null,
                 textChannel: interaction.channel ?? null,
                 voiceChannelId: voiceChannel.id
@@ -133,7 +55,7 @@ class MusicManager {
             state.timeout = null;
         }
 
-        if (!state.currentVideo) {
+        if (!state.currentVideo && !state.pendingVideoId) {
             const message = await this.play(guildId, video, { announce: 'command' });
             return message || `🎶 Now playing: **${video.title}**\n${video.url}`;
         }
@@ -154,11 +76,18 @@ class MusicManager {
             state.timeout = null;
         }
 
+        const videoId = this.extractVideoId(video.url) ?? video.url;
+        state.pendingVideoId = videoId;
+
         let ticket;
         try {
-            const videoId = this.extractVideoId(video.url);
-            ticket = await acquireAudio(videoId ?? video.url, video.url);
+            ticket = await acquireAudio(videoId, video.url);
+            state.pendingVideoId = null;
         } catch (error) {
+            state.pendingVideoId = null;
+            if (error.message === 'Download cancelled') {
+                return null;
+            }
             console.error('yt-dlp download failed:', error);
             return '⚠️ Unable to prepare that track right now, sir.';
         }
@@ -184,12 +113,9 @@ class MusicManager {
             }
         } catch (error) {
             console.error('Music playback error:', error);
-            if (ticket) {
-                ticket.release();
-            }
+            ticket.release();
 
             const failureMessage = `⚠️ Could not play **${video.title}**.`;
-
             if (announce === 'command') {
                 return failureMessage;
             }
@@ -199,23 +125,37 @@ class MusicManager {
             }
 
             this.cleanup(guildId);
+            return failureMessage;
         }
+
+        return null;
     }
 
     async skip(guildId) {
         const state = this.queues.get(guildId);
-        if (!state || !state.player) {
+        if (!state) {
             return '⚠️ Nothing is playing, sir.';
         }
 
-        if (state.queue.length > 0) {
-            const next = state.queue.shift();
-            const message = await this.play(guildId, next, { announce: 'command' });
-            return message || `🎶 Now playing: **${next.title}**`;
+        const hasActive = Boolean(state.currentVideo) || Boolean(state.pendingVideoId);
+        if (!hasActive) {
+            return '⚠️ Nothing is playing, sir.';
         }
 
-        this.cleanup(guildId);
-        return '⏭️ Skipped — queue empty.';
+        this.cancelPendingDownload(state);
+        this.releaseCurrent(state);
+
+        const upcoming = state.queue[0] ?? null;
+
+        state.skipInProgress = true;
+        state.player.stop(true);
+
+        if (!upcoming) {
+            this.cleanup(guildId);
+            return '⏭️ Skipped — queue empty.';
+        }
+
+        return `⏭️ Skipping to **${upcoming.title}**…`;
     }
 
     stop(guildId) {
@@ -269,277 +209,6 @@ class MusicManager {
         return lines.length ? lines.join('\n') : 'Queue is empty.';
     }
 
-    getStreamOptions(overrides = {}) {
-        const mergedRequestOptions = {
-            ...YTDL_BASE_OPTIONS.requestOptions,
-            ...(overrides.requestOptions || {})
-        };
-
-        return {
-            ...YTDL_BASE_OPTIONS,
-            ...overrides,
-            agent: this.youtubeAgent ?? undefined,
-            requestOptions: mergedRequestOptions
-        };
-    }
-
-    getInfoOptions(overrides = {}) {
-        return {
-            agent: this.youtubeAgent ?? undefined,
-            requestOptions: {
-                ...YTDL_BASE_OPTIONS.requestOptions,
-                ...(overrides.requestOptions || {})
-            },
-            playerClients: YTDL_PLAYER_CLIENTS,
-            ...overrides
-        };
-    }
-
-    async createYouTubeStream(videoUrl) {
-        const streamOptions = this.getStreamOptions();
-
-        try {
-            return await this.tryWithRetries(() => this.probeStream(() => ytdl(videoUrl, streamOptions)));
-        } catch (error) {
-            if (!this.isRecoverableYouTubeError(error)) {
-                throw error;
-            }
-
-            return await this.tryWithRetries(async () => {
-                const info = await ytdl.getInfo(videoUrl, this.getInfoOptions());
-
-                const audioFormat = ytdl.chooseFormat(info.formats, {
-                    quality: streamOptions.quality,
-                    filter: streamOptions.filter
-                });
-
-                if (!audioFormat || !audioFormat.url) {
-                    throw new Error('No suitable audio format found.');
-                }
-
-                return await this.probeStream(() =>
-                    ytdl.downloadFromInfo(info, this.getStreamOptions({ format: audioFormat }))
-                );
-            });
-        }
-    }
-
-    async probeStream(factory) {
-        return new Promise((resolve, reject) => {
-            let sourceStream;
-
-            const finalize = () => {
-                if (sourceStream) {
-                    sourceStream.removeListener('error', handleError);
-                }
-            };
-
-            const handleError = (error) => {
-                finalize();
-                if (sourceStream && typeof sourceStream.destroy === 'function') {
-                    try {
-                        sourceStream.destroy(error);
-                    } catch (destroyError) {
-                        console.error('Failed to destroy YouTube stream:', destroyError);
-                    }
-                }
-                reject(error);
-            };
-
-            try {
-                sourceStream = factory();
-            } catch (factoryError) {
-                reject(factoryError);
-                return;
-            }
-
-            sourceStream.once('error', handleError);
-
-            demuxProbe(sourceStream)
-                .then(({ stream, type }) => {
-                    finalize();
-                    resolve({ stream, type });
-                })
-                .catch(handleError);
-        });
-    }
-
-    isRecoverableYouTubeError(error) {
-        if (!error) {
-            return false;
-        }
-
-        if (typeof error.statusCode === 'number' && [403, 410, 429].includes(error.statusCode)) {
-            return true;
-        }
-
-        const message = String(error.message || '').toLowerCase();
-        return ['410', '403', '429', 'throttle', 'signature', 'error checking for updates'].some((token) =>
-            message.includes(token)
-        );
-    }
-
-    async tryWithRetries(factory, maxAttempts = RETRY_DELAYS_MS.length + 1) {
-        let attempt = 0;
-        let lastError;
-
-        while (attempt < maxAttempts) {
-            try {
-                return await factory();
-            } catch (error) {
-                lastError = error;
-                if (!this.isRecoverableYouTubeError(error) || attempt >= maxAttempts - 1) {
-                    throw lastError;
-                }
-
-                const delayMs = RETRY_DELAYS_MS[Math.min(attempt, RETRY_DELAYS_MS.length - 1)];
-                await this.wait(delayMs + Math.floor(Math.random() * 250));
-                attempt += 1;
-            }
-        }
-
-        throw lastError ?? new Error('Unknown YouTube streaming error.');
-    }
-
-    wait(ms) {
-        if (ms <= 0) {
-            return Promise.resolve();
-        }
-
-        return new Promise((resolve) => {
-            setTimeout(resolve, ms);
-        });
-    }
-
-    createYouTubeAgent() {
-        const cookies = this.loadCookiesFromEnv();
-        if (!cookies || cookies.length === 0) {
-            return null;
-        }
-
-        try {
-            return ytdl.createAgent(cookies);
-        } catch (error) {
-            console.warn('Failed to initialize YouTube cookie agent:', error?.message || error);
-            return null;
-        }
-    }
-
-    loadCookiesFromEnv() {
-        for (const key of COOKIE_ENV_KEYS) {
-            const rawValue = process.env[key];
-            if (typeof rawValue !== 'string') {
-                continue;
-            }
-
-            const trimmed = rawValue.trim();
-            if (!trimmed.length) {
-                continue;
-            }
-
-            const parsed = this.normalizeCookies(trimmed);
-            if (parsed?.length) {
-                return parsed;
-            }
-        }
-
-        return null;
-    }
-
-    normalizeCookies(raw) {
-        if (!raw) {
-            return null;
-        }
-
-        if (raw.startsWith('[')) {
-            try {
-                const parsed = JSON.parse(raw);
-                return this.normalizeCookieArray(parsed);
-            } catch (error) {
-                console.warn('Failed to parse JSON cookie string:', error?.message || error);
-                return null;
-            }
-        }
-
-        if (raw.startsWith('{')) {
-            try {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed?.cookies)) {
-                    return this.normalizeCookieArray(parsed.cookies);
-                }
-            } catch (error) {
-                // fall back to legacy parsing below
-            }
-        }
-
-        return this.convertLegacyCookieString(raw);
-    }
-
-    normalizeCookieArray(input) {
-        if (!Array.isArray(input)) {
-            return null;
-        }
-
-        const normalized = input
-            .map((cookie) => {
-                if (!cookie || typeof cookie !== 'object') {
-                    return null;
-                }
-
-                const name = cookie.name ?? cookie.key;
-                const value = cookie.value ?? cookie.val ?? cookie.content;
-
-                if (!name || typeof value === 'undefined') {
-                    return null;
-                }
-
-                return {
-                    ...DEFAULT_COOKIE_TEMPLATE,
-                    ...cookie,
-                    name: String(name),
-                    value: String(value)
-                };
-            })
-            .filter(Boolean);
-
-        return normalized.length ? normalized : null;
-    }
-
-    convertLegacyCookieString(raw) {
-        const segments = raw
-            .split(/;\s*/)
-            .map((segment) => segment.trim())
-            .filter(Boolean);
-
-        if (!segments.length) {
-            return null;
-        }
-
-        const cookies = segments
-            .map((segment) => {
-                const [namePart, ...valueParts] = segment.split('=');
-                if (!namePart || valueParts.length === 0) {
-                    return null;
-                }
-
-                const name = namePart.trim();
-                const value = valueParts.join('=').trim();
-
-                if (!name || !value) {
-                    return null;
-                }
-
-                return {
-                    ...DEFAULT_COOKIE_TEMPLATE,
-                    name,
-                    value
-                };
-            })
-            .filter(Boolean);
-
-        return cookies.length ? cookies : null;
-    }
-
     async createConnection(guildId, voiceChannel) {
         try {
             const connection = joinVoiceChannel({
@@ -591,7 +260,11 @@ class MusicManager {
                 return;
             }
 
-            this.releaseCurrent(state);
+            if (state.skipInProgress) {
+                state.skipInProgress = false;
+            } else {
+                this.releaseCurrent(state);
+            }
 
             if (state.queue.length > 0) {
                 const next = state.queue.shift();
@@ -605,7 +278,7 @@ class MusicManager {
                         }
                         this.cleanup(guildId);
                     }
-                }, SETTINGS.idleTimeoutMs);
+                }, IDLE_TIMEOUT_MS);
             }
         });
 
@@ -633,14 +306,21 @@ class MusicManager {
         state.currentVideo = null;
     }
 
+    cancelPendingDownload(state) {
+        if (state.pendingVideoId) {
+            cancelDownload(state.pendingVideoId);
+            state.pendingVideoId = null;
+        }
+    }
+
     cleanup(guildId) {
         const state = this.queues.get(guildId);
         if (!state) {
             return;
         }
 
+        this.cancelPendingDownload(state);
         this.releaseCurrent(state);
-
         state.queue = [];
 
         if (state.timeout) {
@@ -649,15 +329,15 @@ class MusicManager {
         }
 
         try {
-            state.player.stop();
+            state.player.stop(true);
         } catch (error) {
-            console.error('Error stopping player:', error);
+            console.warn('Failed to stop player:', error?.message || error);
         }
 
         try {
             state.connection.destroy();
         } catch (error) {
-            console.error('Error destroying connection:', error);
+            console.warn('Failed to destroy connection:', error?.message || error);
         }
 
         this.queues.delete(guildId);
