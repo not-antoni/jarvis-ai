@@ -18,7 +18,8 @@
 - You can tweak extractor behaviour with `YTDLP_EXTRACTOR_ARGS`; the default prefers Android/embedded clients to avoid `nsig` warnings.
 - The bundled binary auto-updates every 12 hours; override with `YTDLP_UPDATE_INTERVAL_MS` or disable the built-in GitHub check noise via `YTDL_NO_UPDATE=1`.
 - Use `scripts/minify_cookies.py` to compact either the `YTDLP_COOKIES_JSON` env value or a browser export into a single-line string for deployment.
-- Set `YTDLP_DISABLE_AUTO_UPDATE=1` to skip background update checks; add extra clients with `YTDLP_EXTRA_CLIENTS` if a region requires them.
+- Set `YTDLP_DISABLE_AUTO_UPDATE=1` to skip background update checks if you manage the binary manually.
+- Default extractor clients prefer `ios`, `web_embedded`, `web_safari`, `web`, and `tv_embedded`; append more with `YTDLP_EXTRA_CLIENTS` when regional variants are required.
 
 ## Guild Whitelist
 - Music commands are limited to guild IDs in `MUSIC_GUILD_WHITELIST` (defaults include `1403664986089324606` and `858444090374881301`).
