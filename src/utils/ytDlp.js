@@ -6,7 +6,8 @@ const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
 const { ensureFfmpeg } = require('./ffmpeg');
 
-const DEFAULT_EXTRACTOR_ARGS = 'youtube:player_client=android,web_embedded,web_remix';
+const ANDROID_CLIENT = 'android';
+const DEFAULT_WEB_CLIENTS = ['web_embedded', 'web_safari', 'web'];
 const UPDATE_RECORD_NAME = 'yt-dlp-update.json';
 const DEFAULT_UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -42,6 +43,14 @@ const pendingDownloads = new Map(); // videoId -> { promise, cancel }
 async function ensureDirectories() {
     await fs.promises.mkdir(TEMP_DIR, { recursive: true });
     await fs.promises.mkdir(BIN_DIR, { recursive: true });
+}
+
+function isAutoUpdateDisabled() {
+    const flag = process.env.YTDLP_DISABLE_AUTO_UPDATE || process.env.YTDL_NO_UPDATE;
+    if (!flag) {
+        return false;
+    }
+    return ['1', 'true', 'yes'].includes(String(flag).toLowerCase());
 }
 
 async function ensureBinary() {
@@ -188,11 +197,39 @@ function readCookiesFromEnv() {
     return null;
 }
 
+function buildExtractorArgs(hasCookies) {
+    const override = process.env.YTDLP_EXTRACTOR_ARGS;
+    if (override && override.trim().length) {
+        return override.trim();
+    }
+
+    const clients = [...DEFAULT_WEB_CLIENTS];
+
+    if (!hasCookies) {
+        clients.unshift(ANDROID_CLIENT);
+    }
+
+    if (process.env.YTDLP_EXTRA_CLIENTS) {
+        const extras = process.env.YTDLP_EXTRA_CLIENTS
+            .split(',')
+            .map(value => value.trim())
+            .filter(Boolean);
+        clients.push(...extras);
+    }
+
+    const uniqueClients = Array.from(new Set(clients));
+    return `youtube:player_client=${uniqueClients.join(',')}`;
+}
+
 let updateTask = null;
 
 async function autoUpdateBinary(binaryPath, options = {}) {
     const { force = false } = options;
     const markerPath = path.join(BIN_DIR, UPDATE_RECORD_NAME);
+
+    if (isAutoUpdateDisabled()) {
+        return;
+    }
 
     const runUpdate = async () => {
         let lastUpdate = 0;
@@ -229,7 +266,7 @@ async function autoUpdateBinary(binaryPath, options = {}) {
             });
 
             updater.on('close', code => {
-                if (code !== 0) {
+                if (code !== 0 && code !== 100) {
                     console.warn(`yt-dlp auto-update exited with code ${code}`);
                 }
                 resolve();
@@ -355,7 +392,7 @@ async function createDownloadTask(videoId, videoUrl) {
 
     await cleanupArtifacts(base);
 
-    const extractorArgs = process.env.YTDLP_EXTRACTOR_ARGS || DEFAULT_EXTRACTOR_ARGS;
+    const extractorArgs = buildExtractorArgs(Boolean(cookieFile));
 
     const args = [
         '--force-ipv4',
