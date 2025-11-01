@@ -5,7 +5,7 @@
     ctx.fillRect(0, 0, width, totalHeight);
 
     // Calculate centered positioning with more space for avatar and text
-    const avatarSize = 40;
+    const avatarSize = 48;
     const contentWidth = width - 80; // More margin
     const contentHeight = totalHeight - 20;
     const avatarX = 50; // Moved further to the right
@@ -60,7 +60,7 @@
 
     // Calculate text positioning - moved further right
     const textStartX = avatarX + avatarSize + 20; // Increased spacing
-        const textStartY = avatarY + 2;
+        const textStartY = avatarY + 3;
     const maxTextWidth = contentWidth - (avatarSize + 20) - 30; // More margin
 
     // Truncate username if too long to prevent timestamp overlap
@@ -68,7 +68,7 @@
 
         // Draw username in role color
     ctx.fillStyle = roleColor;
-        ctx.font = 'bold 14px Arial';
+        ctx.font = 'bold 16px Arial';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
     ctx.fillText(truncatedUsername, textStartX, textStartY);
@@ -77,12 +77,12 @@
 
         // Draw app tag if it's a bot
         if (isBot) {
-            const appTagWidth = 35;
-            const appTagHeight = 16;
+            const appTagWidth = 38;
+            const appTagHeight = 18;
             
             // Draw verification badge if verified (to the left of APP tag)
             if (isVerified) {
-                const badgeSize = 16;
+                const badgeSize = 18;
                 const badgeX = currentX;
                 this.drawVerifiedBadge(ctx, badgeX, textStartY, badgeSize);
                 currentX += badgeSize + 4;
@@ -94,35 +94,35 @@
             
             // App tag text
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 10px Arial';
-            ctx.fillText('APP', currentX + 2, textStartY + 2);
+            ctx.font = 'bold 11px Arial';
+            ctx.fillText('APP', currentX + 3, textStartY + 3);
             
             currentX += appTagWidth + 4;
         }
 
     // Draw timestamp with dynamic formatting
     const timestamp = message ? this.parseDiscordTimestamp(message) : '6:39 PM';
+    ctx.font = '13px Arial';
     const timestampWidth = ctx.measureText(timestamp).width;
     
     // Ensure timestamp doesn't overlap with username/bot tag
     const availableWidth = width - currentX - 20;
     if (timestampWidth <= availableWidth) {
         ctx.fillStyle = '#72767d';
-        ctx.font = '12px Arial';
-        ctx.fillText(timestamp, currentX, textStartY);
+        ctx.fillText(timestamp, currentX, textStartY + 1);
     } else {
         // If not enough space, put timestamp on next line
         ctx.fillStyle = '#72767d';
-        ctx.font = '12px Arial';
-        ctx.fillText(timestamp, textStartX, textStartY + 16);
+        ctx.fillText(timestamp, textStartX, textStartY + 18);
     }
 
     // Draw message content with formatting support
     // Position the message content immediately below the username. The username
-    // occupies approximately 14px of vertical space, so we add a 2px gap to
-    // separate the text from the header. This mirrors the 2px gap between text
-    // and images later on, keeping spacing consistent.
-    const messageStartY = textStartY + 16;
+    // occupies approximately 16px of vertical space, so we add a 4px gap to
+    // separate the text from the header. This keeps spacing consistent with the
+    // small margin before image attachments rendered later.
+    ctx.font = '15px Arial';
+    const messageStartY = textStartY + 20;
     await this.drawFormattedText(ctx, sanitizedText, textStartX, messageStartY, maxTextWidth, allEmojis, mentions);
 
     // Draw images if present (main canvas has enough height already)
@@ -131,7 +131,7 @@
         // reserved in calculateTextHeight (for username/timestamp) from the
         // measured textHeight to get only the height of the rendered lines. Then
         // add a small 2px gap so images sit flush beneath the message text.
-        const effectiveTextHeight = Math.max(0, textHeight - 40);
+        const effectiveTextHeight = Math.max(0, textHeight - 44);
         const imageY = messageStartY + effectiveTextHeight + 2;
         await this.drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
     }
@@ -162,13 +162,13 @@
     // Draw text with Discord formatting and emojis
     async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, mentions = []) {
         ctx.fillStyle = '#ffffff';
-        ctx.font = '14px Arial';
+        ctx.font = '15px Arial';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
 
         let currentY = startY;
-        const lineHeight = 20;
-        const emojiSize = 16;
+        const lineHeight = 22;
+        const emojiSize = 18;
 
         const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
 
@@ -206,7 +206,7 @@
                 if (segment.isUnicode) {
                     const emojiText = segment.name;
 
-                    ctx.font = '16px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
+                    ctx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
                     const textWidth = ctx.measureText(emojiText).width;
                     if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
                         advanceLine();
@@ -215,7 +215,7 @@
                     ctx.fillText(emojiText, startX + currentLineWidth, currentY);
                     currentLineWidth += textWidth;
 
-                    ctx.font = '14px Arial';
+                    ctx.font = '15px Arial';
                 } else {
                     try {
                         console.log('Loading emoji:', { name: segment.name, url: segment.url });
@@ -228,7 +228,7 @@
                         }
 
                         ctx.drawImage(emojiImg, startX + currentLineWidth, currentY, emojiWidth, emojiHeight);
-                        currentLineWidth += emojiWidth + 2;
+                        currentLineWidth += emojiWidth + 3;
                         console.log('Successfully rendered emoji:', segment.name);
                     } catch (error) {
                         console.warn('Failed to load emoji:', { name: segment.name, url: segment.url, error: error.message });
@@ -246,7 +246,7 @@
                                 }
 
                                 ctx.drawImage(emojiImg, startX + currentLineWidth, currentY, emojiWidth, emojiHeight);
-                                currentLineWidth += emojiWidth + 2;
+                                currentLineWidth += emojiWidth + 3;
                                 console.log('Successfully rendered emoji with alternative URL:', segment.name);
                             } else {
                                 throw new Error('Alternative URL same as original');
@@ -361,7 +361,7 @@
         
         // Draw the processed text
         ctx.fillStyle = '#ffffff';
-        ctx.font = '14px Arial';
+        ctx.font = '15px Arial';
         ctx.fillText(processedLine, x, y);
     }
 
