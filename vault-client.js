@@ -1,7 +1,20 @@
 const crypto = require('crypto');
-const LRUCache = require('lru-cache');
+const LruModule = require('lru-cache');
 const { connectVault, getVaultDb } = require('./db');
 const config = require('./config');
+
+const LRUCache =
+    typeof LruModule === 'function'
+        ? LruModule
+        : typeof LruModule?.LRUCache === 'function'
+            ? LruModule.LRUCache
+            : typeof LruModule?.default === 'function'
+                ? LruModule.default
+                : null;
+
+if (!LRUCache) {
+    throw new Error('Failed to load LRUCache constructor from lru-cache module');
+}
 
 const MASTER_KEY = Buffer.from(config.security.masterKeyBase64, 'base64');
 if (MASTER_KEY.length !== 32) {
