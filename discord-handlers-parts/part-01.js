@@ -952,6 +952,25 @@
 		}
 	}
 
+	async fetchEmojiImage(url) {
+		if (!url || typeof url !== 'string') return null;
+		const cached = this.emojiAssetCache.get(url);
+		if (cached) {
+			return cached;
+		}
+		const pending = loadImage(url)
+			.then((image) => {
+				this.emojiAssetCache.set(url, image);
+				return image;
+			})
+			.catch((error) => {
+				this.emojiAssetCache.delete(url);
+				throw error;
+			});
+		this.emojiAssetCache.set(url, pending);
+		return pending;
+	}
+
     // Parse Discord custom emojis using Discord API
     // This function extracts custom emojis from message text and gets their proper URLs
     // Uses guild emoji cache for accurate emoji data, falls back to CDN URLs
@@ -1003,6 +1022,8 @@
                 }
             }
             
+            emojiUrl = ensureDiscordEmojiSize(emojiUrl, DEFAULT_CUSTOM_EMOJI_SIZE);
+            
             emojis.push({
                 full: match[0],
                 name: name,
@@ -1026,11 +1047,13 @@
         let match;
         
         while ((match = unicodeEmojiRegex.exec(text)) !== null) {
+            const asset = buildUnicodeEmojiAsset(match[0]);
             emojis.push({
                 full: match[0],
                 name: match[0],
                 id: null,
-                url: null, // Unicode emojis don't have URLs
+                url: asset ? asset.svg : null,
+                fallbackUrl: asset ? asset.png : null,
                 isAnimated: false,
                 emojiObject: null,
                 start: match.index,
@@ -1359,7 +1382,13 @@
 
         for (const segment of segments) {
             if (segment.type === 'emoji') {
-                if (segment.isUnicode) {
+                const hasImageAsset = Boolean(segment.url);
+                if (hasImageAsset) {
+                    if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) {
+                        advanceLine();
+                    }
+                    currentLineWidth += emojiAdvance;
+                } else if (segment.isUnicode) {
                     const emojiText = segment.name;
                     tempCtx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
                     const width = tempCtx.measureText(emojiText).width;

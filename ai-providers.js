@@ -75,8 +75,18 @@ function stripWrappingQuotes(text) {
 }
 function stripJarvisSpeakerPrefix(text) {
   if (!text || typeof text !== 'string') return text;
-  const trimmed = text.trim();
-  return trimmed.replace(/^(jarvis):\s*/i, '').trimStart();
+  let trimmed = text.trim();
+  const patterns = [
+    /^\*\*\s*(jarvis)\s*:\s*\*\*\s*/i,
+    /^(jarvis)\s*:\s*/i,
+  ];
+  for (const pattern of patterns) {
+    if (pattern.test(trimmed)) {
+      trimmed = trimmed.replace(pattern, '').trimStart();
+      break;
+    }
+  }
+  return trimmed;
 }
 function sanitizeAssistantMessage(text) {
   if (!text || typeof text !== 'string') return text;
