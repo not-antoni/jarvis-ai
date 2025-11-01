@@ -169,6 +169,8 @@
         let currentY = startY;
         const lineHeight = 22;
         const emojiSize = 18;
+        const emojiSpacing = typeof this.clipEmojiSpacing === 'number' ? this.clipEmojiSpacing : 3;
+        const emojiAdvance = emojiSize + emojiSpacing;
 
         const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
 
@@ -265,12 +267,12 @@
                         const emojiWidth = emojiSize;
                         const emojiHeight = emojiSize;
 
-                        if (currentLineWidth + emojiWidth > maxWidth && currentLineWidth > 0) {
+                        if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) {
                             advanceLine();
                         }
 
                         ctx.drawImage(emojiImg, startX + currentLineWidth, currentY, emojiWidth, emojiHeight);
-                        currentLineWidth += emojiWidth + 3;
+                        currentLineWidth += emojiAdvance;
                         console.log('Successfully rendered emoji:', segment.name);
                     } catch (error) {
                         console.warn('Failed to load emoji:', { name: segment.name, url: segment.url, error: error.message });
@@ -283,12 +285,12 @@
                                 const emojiWidth = emojiSize;
                                 const emojiHeight = emojiSize;
 
-                                if (currentLineWidth + emojiWidth > maxWidth && currentLineWidth > 0) {
+                                if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) {
                                     advanceLine();
                                 }
 
                                 ctx.drawImage(emojiImg, startX + currentLineWidth, currentY, emojiWidth, emojiHeight);
-                                currentLineWidth += emojiWidth + 3;
+                                currentLineWidth += emojiAdvance;
                                 console.log('Successfully rendered emoji with alternative URL:', segment.name);
                             } else {
                                 throw new Error('Alternative URL same as original');
