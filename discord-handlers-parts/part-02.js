@@ -203,6 +203,49 @@
 
         for (const segment of segments) {
             if (segment.type === 'emoji') {
+                const hasImageAsset = Boolean(segment.url);
+                let rendered = false;
+
+                if (hasImageAsset) {
+                    if (currentLineWidth + emojiSize > maxWidth && currentLineWidth > 0) {
+                        advanceLine();
+                    }
+
+                    const drawX = startX + currentLineWidth;
+                    try {
+                        const emojiImg = await this.fetchEmojiImage(segment.url);
+                        ctx.drawImage(emojiImg, drawX, currentY, emojiSize, emojiSize);
+                        rendered = true;
+                    } catch (primaryError) {
+                        console.warn('Failed to load primary emoji asset:', { name: segment.name, url: segment.url, error: primaryError.message });
+                        if (segment.fallbackUrl) {
+                            try {
+                                const fallbackImg = await this.fetchEmojiImage(segment.fallbackUrl);
+                                ctx.drawImage(fallbackImg, drawX, currentY, emojiSize, emojiSize);
+                                rendered = true;
+                            } catch (fallbackError) {
+                                console.warn('Fallback emoji asset also failed:', { name: segment.name, url: segment.fallbackUrl, error: fallbackError.message });
+                            }
+                        } else if (segment.id) {
+                            const alternativeUrl = ensureDiscordEmojiSize(`https://cdn.discordapp.com/emojis/${segment.id}.png`, DEFAULT_CUSTOM_EMOJI_SIZE);
+                            if (alternativeUrl !== segment.url) {
+                                try {
+                                    const fallbackImg = await this.fetchEmojiImage(alternativeUrl);
+                                    ctx.drawImage(fallbackImg, drawX, currentY, emojiSize, emojiSize);
+                                    rendered = true;
+                                } catch (altError) {
+                                    console.warn('Alternative emoji URL also failed:', { name: segment.name, url: alternativeUrl, error: altError.message });
+                                }
+                            }
+                        }
+                    }
+
+                    if (rendered) {
+                        currentLineWidth += emojiAdvance;
+                        continue;
+                    }
+                }
+
                 if (segment.isUnicode) {
                     const emojiText = segment.name;
 
@@ -211,7 +254,6 @@
                     if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
                         advanceLine();
                     }
-
                     ctx.fillText(emojiText, startX + currentLineWidth, currentY);
                     currentLineWidth += textWidth;
 
@@ -319,7 +361,15 @@
             }
             if (entry.kind === 'emoji') {
                 const emoji = entry.item;
-                segments.push({ type: 'emoji', name: emoji.name, url: emoji.url, full: emoji.full, id: emoji.id, isUnicode: emoji.isUnicode });
+                segments.push({
+                    type: 'emoji',
+                    name: emoji.name,
+                    url: emoji.url,
+                    fallbackUrl: emoji.fallbackUrl,
+                    full: emoji.full,
+                    id: emoji.id,
+                    isUnicode: emoji.isUnicode
+                });
             } else {
                 const mention = entry.item;
                 segments.push({ type: 'mention', text: mention.display });
