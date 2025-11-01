@@ -22,8 +22,12 @@ const rawConfig = {
 
     // Database Configuration
     database: {
-        uri: `mongodb+srv://aiusr:${process.env.MONGO_PW}@cluster0ai.tmsdg3r.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0ai`,
-        name: 'jarvis_ai',
+        mainUri: process.env.MONGO_URI_MAIN,
+        vaultUri: process.env.MONGO_URI_VAULT,
+        names: {
+            main: process.env.MONGO_DB_MAIN_NAME || 'jarvis_ai',
+            vault: process.env.MONGO_DB_VAULT_NAME || 'jarvis_vault'
+        },
         collections: {
             conversations: 'conversations',
             userProfiles: 'userProfiles',
@@ -37,7 +41,15 @@ const rawConfig = {
             knowledgeBase: 'knowledgeBaseEntries',
             counters: 'counters',
             newsCache: 'newsCache'
+        },
+        vaultCollections: {
+            userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',
+            memories: process.env.VAULT_MEMORIES_COLLECTION || 'vaultMemories'
         }
+    },
+    security: {
+        masterKeyBase64: process.env.MASTER_KEY_BASE64,
+        vaultCacheTtlMs: process.env.VAULT_CACHE_TTL_MS ? Number(process.env.VAULT_CACHE_TTL_MS) : undefined
     },
 
     // AI Provider Configuration
