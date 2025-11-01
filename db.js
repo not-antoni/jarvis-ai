@@ -1,0 +1,123 @@
+const { MongoClient } = require('mongodb');
+const config = require('./config');
+
+const {
+    database: {
+        mainUri,
+        vaultUri,
+        names: { main: mainDbName, vault: vaultDbName }
+    }
+} = config;
+
+if (!mainUri) {
+    throw new Error('MONGO_URI_MAIN is not configured');
+}
+
+if (!vaultUri) {
+    throw new Error('MONGO_URI_VAULT is not configured');
+}
+
+const mainClient = new MongoClient(mainUri, {
+    maxPoolSize: 25,
+    minPoolSize: 2,
+    serverSelectionTimeoutMS: 5000
+});
+
+const vaultClient = new MongoClient(vaultUri, {
+    maxPoolSize: 20,
+    minPoolSize: 1,
+    serverSelectionTimeoutMS: 5000
+});
+
+let mainDb = null;
+let vaultDb = null;
+
+let mainConnectPromise = null;
+let vaultConnectPromise = null;
+
+async function connectMain() {
+    if (mainDb) {
+        return mainDb;
+    }
+
+    if (!mainConnectPromise) {
+        mainConnectPromise = mainClient.connect()
+            .then((client) => {
+                mainDb = client.db(mainDbName);
+                return mainDb;
+            })
+            .catch((error) => {
+                mainConnectPromise = null;
+                throw error;
+            });
+    }
+
+    return mainConnectPromise;
+}
+
+async function connectVault() {
+    if (vaultDb) {
+        return vaultDb;
+    }
+
+    if (!vaultConnectPromise) {
+        vaultConnectPromise = vaultClient.connect()
+            .then((client) => {
+                vaultDb = client.db(vaultDbName);
+                return vaultDb;
+            })
+            .catch((error) => {
+                vaultConnectPromise = null;
+                throw error;
+            });
+    }
+
+    return vaultConnectPromise;
+}
+
+async function initializeDatabaseClients() {
+    await Promise.all([connectMain(), connectVault()]);
+    return { jarvisDB: mainDb, vaultDB: vaultDb };
+}
+
+function getJarvisDb() {
+    if (!mainDb) {
+        throw new Error('Main database not connected. Call connectMain or initializeDatabaseClients first.');
+    }
+    return mainDb;
+}
+
+function getVaultDb() {
+    if (!vaultDb) {
+        throw new Error('Vault database not connected. Call connectVault or initializeDatabaseClients first.');
+    }
+    return vaultDb;
+}
+
+async function closeMain() {
+    if (mainClient) {
+        await mainClient.close();
+        mainDb = null;
+        mainConnectPromise = null;
+    }
+}
+
+async function closeVault() {
+    if (vaultClient) {
+        await vaultClient.close();
+        vaultDb = null;
+        vaultConnectPromise = null;
+    }
+}
+
+module.exports = {
+    mainClient,
+    vaultClient,
+    connectMain,
+    connectVault,
+    initializeDatabaseClients,
+    getJarvisDb,
+    getVaultDb,
+    closeMain,
+    closeVault
+};
