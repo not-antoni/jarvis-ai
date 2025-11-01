@@ -10,10 +10,15 @@ const cron = require("node-cron");
 // Import our modules
 const config = require('./config');
 const database = require('./database');
+const { initializeDatabaseClients } = require('./db');
 const aiManager = require('./ai-providers');
 const discordHandlers = require('./discord-handlers');
 const { gatherHealthSnapshot } = require('./diagnostics');
 const { commandList: musicCommandList } = require("./src/commands/music");
+
+initializeDatabaseClients()
+    .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
+    .catch((error) => console.error('Failed to initialize MongoDB clients at startup:', error));
 
 // ------------------------ Discord Client Setup ------------------------
 const client = new Client({

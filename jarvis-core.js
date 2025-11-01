@@ -4,6 +4,7 @@
 
 const aiManager = require('./ai-providers');
 const database = require('./database');
+const vaultClient = require('./vault-client');
 const config = require('./config');
 const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
@@ -1479,7 +1480,15 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
         if (gate.blocked) return gate.message;
 
         try {
-            const userProfile = await database.getUserProfile(userId, userName);
+            const [userProfile, secureMemories] = await Promise.all([
+                database.getUserProfile(userId, userName),
+                vaultClient
+                    .decryptMemories(userId, { limit: 12 })
+                    .catch((error) => {
+                        console.error('Secure memory retrieval failed for user', userId, error);
+                        return [];
+                    })
+            ]);
             let embeddingContext = "";
             let processedInput = userInput;
 
@@ -1503,8 +1512,48 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
             const calledGarmin = /garmin/i.test(userInput);
             const nameUsed = calledGarmin ? "Garmin" : this.personality.name;
 
-            const recentConversations = await database.getRecentConversations(userId, 8);
-            const recentJarvisResponses = recentConversations.map(conv => conv.jarvisResponse).slice(0, 3);
+            let conversationEntries = Array.isArray(secureMemories) ? secureMemories : [];
+            if (!conversationEntries.length) {
+                const fallbackConversations = await database.getRecentConversations(userId, 8);
+                conversationEntries = fallbackConversations.map((conv) => ({
+                    createdAt: conv.createdAt || conv.timestamp,
+                    data: {
+                        userMessage: conv.userMessage,
+                        jarvisResponse: conv.jarvisResponse,
+                        userName: conv.userName
+                    }
+                }));
+            }
+
+            const chronologicalEntries = conversationEntries
+                .map((entry) => ({
+                    createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date(),
+                    data: entry.data || {}
+                }))
+                .sort((a, b) => a.createdAt - b.createdAt);
+
+            const historyBlock = chronologicalEntries.length
+                ? chronologicalEntries.map((entry) => {
+                    const timestamp = entry.createdAt.toLocaleString();
+                    const payload = entry.data || {};
+                    const rawPrompt = typeof payload.userMessage === 'string' ? payload.userMessage : '';
+                    const rawReply = typeof payload.jarvisResponse === 'string' ? payload.jarvisResponse : '';
+                    const prompt = rawPrompt.replace(/\s+/g, ' ').trim();
+                    const reply = rawReply.replace(/\s+/g, ' ').trim();
+                    const truncatedPrompt = prompt.length > 400 ? `${prompt.slice(0, 397)}...` : prompt;
+                    const truncatedReply = reply.length > 400 ? `${reply.slice(0, 397)}...` : reply;
+                    const author = payload.userName || userName;
+                    return `${timestamp}: ${author}: ${truncatedPrompt}\n${nameUsed}: ${truncatedReply}`;
+                }).join("\n")
+                : "No prior conversations stored in secure memory.";
+
+            const recentJarvisResponses = chronologicalEntries
+                .slice(-3)
+                .map((entry) => {
+                    const payload = entry.data || {};
+                    return typeof payload.jarvisResponse === 'string' ? payload.jarvisResponse : null;
+                })
+                .filter(Boolean);
 
             const context = `
 User Profile - ${userName}:
@@ -1514,10 +1563,10 @@ User Profile - ${userName}:
 - Last seen: ${userProfile?.lastSeen ? new Date(userProfile.lastSeen).toLocaleDateString() : "today"}
 
 Recent conversation history:
-${recentConversations.map((conv) => `${new Date(conv.timestamp).toLocaleString()}: ${conv.userName}: ${conv.userMessage}\n${nameUsed}: ${conv.jarvisResponse}`).join("\n")}
+${historyBlock}
 ${embeddingContext}
 
-ANTI-REPETITION WARNING: Your last few responses were: ${recentJarvisResponses.join(" | ")}
+ANTI-REPETITION WARNING: Your last few responses were: ${recentJarvisResponses.length ? recentJarvisResponses.join(" | ") : "No secure responses recorded."}
 Current message: "${processedInput}"
 
 Respond as ${nameUsed}, maintaining all MCU Jarvis tone and brevity rules.`;
@@ -1530,6 +1579,21 @@ Respond as ${nameUsed}, maintaining all MCU Jarvis tone and brevity rules.`;
 
             const jarvisResponse = aiResponse.content?.trim();
             await database.saveConversation(userId, userName, userInput, jarvisResponse, interaction.guild?.id);
+            if (jarvisResponse) {
+                const secureRecord = {
+                    userName,
+                    userMessage: userInput,
+                    jarvisResponse,
+                    guildId: interaction.guild?.id || null,
+                    timestamp: new Date().toISOString()
+                };
+
+                try {
+                    await vaultClient.encryptMemory(userId, secureRecord);
+                } catch (error) {
+                    console.error('Failed to persist secure memory for user', userId, error);
+                }
+            }
             this.lastActivity = Date.now();
 
             return jarvisResponse || this.getFallbackResponse(userInput, userName);
