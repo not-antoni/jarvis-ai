@@ -1325,11 +1325,11 @@
     calculateTextHeight(text, maxWidth, customEmojis = [], mentions = []) {
         const tempCanvas = createCanvas(1, 1);
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.font = '14px Arial';
+        tempCtx.font = '15px Arial';
 
         const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
-        const lineHeight = 20;
-        const emojiSize = 16;
+        const lineHeight = 22;
+        const emojiSize = 18;
 
         let lineCount = 1;
         let currentLineWidth = 0;
@@ -1361,15 +1361,15 @@
             if (segment.type === 'emoji') {
                 if (segment.isUnicode) {
                     const emojiText = segment.name;
-                    tempCtx.font = '16px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
+                    tempCtx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
                     const width = tempCtx.measureText(emojiText).width;
-                    tempCtx.font = '14px Arial';
+                    tempCtx.font = '15px Arial';
                     if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
                         advanceLine();
                     }
                     currentLineWidth += width;
                 } else {
-                    const width = emojiSize + 2;
+                    const width = emojiSize + 3;
                     if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
                         advanceLine();
                     }
@@ -1406,7 +1406,7 @@
             }
         }
 
-        const baseHeight = 40;
+        const baseHeight = 44;
         return baseHeight + (lineCount * lineHeight);
     }
 
