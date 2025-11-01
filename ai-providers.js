@@ -55,6 +55,34 @@ function extractFinalPayload(text) {
   if (m && m[1]) return m[1].trim();
   return text.trim();
 }
+function stripWrappingQuotes(text) {
+  if (!text || typeof text !== 'string') return text;
+  let trimmed = text.trim();
+  const pairs = [
+    ['"', '"'],
+    ['“', '”'],
+    ['„', '”'],
+    ['«', '»'],
+    ["'", "'"],
+  ];
+  for (const [start, end] of pairs) {
+    if (trimmed.startsWith(start) && trimmed.endsWith(end) && trimmed.length >= start.length + end.length) {
+      trimmed = trimmed.slice(start.length, trimmed.length - end.length).trim();
+      break;
+    }
+  }
+  return trimmed;
+}
+function stripJarvisSpeakerPrefix(text) {
+  if (!text || typeof text !== 'string') return text;
+  const trimmed = text.trim();
+  return trimmed.replace(/^(jarvis):\s*/i, '').trimStart();
+}
+function sanitizeAssistantMessage(text) {
+  if (!text || typeof text !== 'string') return text;
+  const layered = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(text)));
+  return stripWrappingQuotes(stripJarvisSpeakerPrefix(layered));
+}
 /** END: minimal thinking/final scrub helpers (added) **/
 
 const fs = require('fs');
@@ -477,7 +505,7 @@ class AIProviderManager {
           }
 
           // Final sanitation & thinking-strip
-          content = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(String(content))));
+          content = sanitizeAssistantMessage(String(content));
           if (!content) {
             throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
           }
@@ -522,7 +550,7 @@ class AIProviderManager {
 
         console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
         const raw = (resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) ? String(resp.choices[0].message.content) : '';
-        const cleaned = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(raw)));
+        const cleaned = sanitizeAssistantMessage(raw);
         return {
           content: cleaned,
           provider: provider.name,
