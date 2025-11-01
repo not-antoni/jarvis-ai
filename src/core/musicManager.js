@@ -10,6 +10,7 @@ const {
     StreamType
 } = require('@discordjs/voice');
 const { acquireAudio, cancelDownload } = require('../utils/ytDlp');
+const { extractVideoId } = require('../utils/youtube');
 const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -81,7 +82,7 @@ class MusicManager {
             state.timeout = null;
         }
 
-        const videoId = this.extractVideoId(video.url) ?? video.url;
+        const videoId = extractVideoId(video.url) ?? video.url;
         state.pendingVideoId = videoId;
 
         let ticket;
@@ -348,43 +349,6 @@ class MusicManager {
         this.queues.delete(guildId);
     }
 
-    extractVideoId(input) {
-        if (!input) {
-            return null;
-        }
-
-        const trimmed = String(input).trim();
-        if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
-            return trimmed;
-        }
-
-        let url;
-        try {
-            url = new URL(trimmed);
-        } catch {
-            return null;
-        }
-
-        if (url.hostname === 'youtu.be') {
-            return url.pathname.slice(1);
-        }
-
-        if (url.searchParams.has('v')) {
-            return url.searchParams.get('v');
-        }
-
-        const segments = url.pathname.split('/').filter(Boolean);
-        if (segments[0] === 'shorts' && segments[1]) {
-            return segments[1];
-        }
-
-        const last = segments[segments.length - 1];
-        if (last && last.length === 11) {
-            return last;
-        }
-
-        return null;
-    }
 }
 
 module.exports = {

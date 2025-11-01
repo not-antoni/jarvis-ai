@@ -8,6 +8,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.12.0
+      - key: NPM_CONFIG_OPTIONAL
+        value: "false"
       - key: DISCORD_TOKEN
         sync: false
       - key: MONGO_PW

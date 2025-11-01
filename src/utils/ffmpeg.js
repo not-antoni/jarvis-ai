@@ -6,23 +6,42 @@ const { pipeline } = require('stream/promises');
 const extract = require('extract-zip');
 const tar = require('tar');
 
+let ffmpegStatic = null;
+let ffprobeStatic = null;
+
+try {
+    ffmpegStatic = require('ffmpeg-static');
+} catch {
+    ffmpegStatic = null;
+}
+
+try {
+    // eslint-disable-next-line import/no-extraneous-dependencies
+    ffprobeStatic = require('ffprobe-static')?.path ?? null;
+} catch {
+    ffprobeStatic = null;
+}
+
 const BIN_DIR = path.join(os.tmpdir(), 'jarvis-tools');
 
 const RELEASES = {
     linux: {
         assetName: 'ffmpeg-master-latest-linux64-gpl-shared.tar.xz',
         archiveType: 'tar.xz',
-        binaryPath: 'ffmpeg-master-latest-linux64-gpl-shared/bin/ffmpeg'
+        binaryPath: 'ffmpeg-master-latest-linux64-gpl-shared/bin/ffmpeg',
+        ffprobePath: 'ffmpeg-master-latest-linux64-gpl-shared/bin/ffprobe'
     },
     darwin: {
         assetName: 'ffmpeg-master-latest-macOS64-gpl-shared.zip',
         archiveType: 'zip',
-        binaryPath: 'ffmpeg'
+        binaryPath: 'ffmpeg',
+        ffprobePath: 'ffprobe'
     },
     win32: {
         assetName: 'ffmpeg-master-latest-win64-gpl-shared.zip',
         archiveType: 'zip',
-        binaryPath: 'ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe'
+        binaryPath: 'ffmpeg-master-latest-win64-gpl-shared/bin/ffmpeg.exe',
+        ffprobePath: 'ffmpeg-master-latest-win64-gpl-shared/bin/ffprobe.exe'
     }
 };
 
@@ -89,6 +108,14 @@ async function downloadAsset(url, destination) {
 }
 
 async function ensureFfmpeg() {
+    if (ffmpegStatic) {
+        const ffprobePath = ffprobeStatic ?? null;
+        return {
+            ffmpegPath: ffmpegStatic,
+            ffprobePath
+        };
+    }
+
     await ensureDirectories();
 
     const releaseConfig = RELEASES[process.platform];
@@ -98,22 +125,40 @@ async function ensureFfmpeg() {
 
     const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
     const binaryPath = path.join(BIN_DIR, binaryName);
+    const ffprobeName = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+    const ffprobeTarget = path.join(BIN_DIR, ffprobeName);
 
     try {
         await fs.promises.access(binaryPath, fs.constants.X_OK);
-        return binaryPath;
+        const hasProbe = await fs.promises
+            .access(ffprobeTarget, fs.constants.X_OK)
+            .then(() => true)
+            .catch(() => false);
+        return {
+            ffmpegPath: binaryPath,
+            ffprobePath: hasProbe ? ffprobeTarget : null
+        };
     } catch {
         // continue to download
     }
 
-    const release = await fetchJson('https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest');
-    const asset = (release.assets || []).find(item => item.name === releaseConfig.assetName);
-    if (!asset?.browser_download_url) {
-        throw new Error(`Could not locate ffmpeg asset ${releaseConfig.assetName}`);
+    let assetUrl = null;
+    try {
+        const release = await fetchJson('https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest');
+        const asset = (release.assets || []).find(item => item.name === releaseConfig.assetName);
+        if (asset?.browser_download_url) {
+            assetUrl = asset.browser_download_url;
+        }
+    } catch (error) {
+        console.warn('GitHub API rate limited when fetching ffmpeg builds:', error?.message || error);
     }
 
-    const archivePath = path.join(BIN_DIR, asset.name);
-    await downloadAsset(asset.browser_download_url, archivePath);
+    if (!assetUrl) {
+        assetUrl = `https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${releaseConfig.assetName}`;
+    }
+
+    const archivePath = path.join(BIN_DIR, releaseConfig.assetName);
+    await downloadAsset(assetUrl, archivePath);
 
     if (releaseConfig.archiveType === 'zip') {
         await extract(archivePath, { dir: BIN_DIR });
@@ -125,12 +170,27 @@ async function ensureFfmpeg() {
 
     await fs.promises.rm(archivePath, { force: true });
 
-    const extractedPath = path.join(BIN_DIR, releaseConfig.binaryPath);
-    await fs.promises.access(extractedPath, fs.constants.R_OK);
-    await fs.promises.copyFile(extractedPath, binaryPath);
+    const extractedFfmpeg = path.join(BIN_DIR, releaseConfig.binaryPath);
+    await fs.promises.access(extractedFfmpeg, fs.constants.R_OK);
+    await fs.promises.copyFile(extractedFfmpeg, binaryPath);
     await fs.promises.chmod(binaryPath, 0o755);
 
-    return binaryPath;
+    let extractedFfprobe = null;
+    if (releaseConfig.ffprobePath) {
+        extractedFfprobe = path.join(BIN_DIR, releaseConfig.ffprobePath);
+        try {
+            await fs.promises.access(extractedFfprobe, fs.constants.R_OK);
+            await fs.promises.copyFile(extractedFfprobe, ffprobeTarget);
+            await fs.promises.chmod(ffprobeTarget, 0o755);
+        } catch (error) {
+            console.warn('FFprobe extraction failed:', error?.message || error);
+        }
+    }
+
+    return {
+        ffmpegPath: binaryPath,
+        ffprobePath: extractedFfprobe ? ffprobeTarget : ffprobeStatic
+    };
 }
 
 module.exports = {
