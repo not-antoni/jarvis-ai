@@ -381,14 +381,15 @@ async function createDownloadTask(videoId, videoUrl) {
         args.splice(args.length - 1, 0, '--cookies', cookieFile);
     }
 
+    let cancelled = false;
+    const envVars = { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' };
     if (ffprobePath) {
-        args.splice(args.length - 1, 0, '--ffprobe-location', ffprobePath);
+        envVars.FFPROBE = ffprobePath;
     }
 
-    let cancelled = false;
     const child = spawn(binaryPath, args, {
         stdio: ['ignore', 'inherit', 'inherit'],
-        env: { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' }
+        env: envVars
     });
 
     const promise = new Promise((resolve, reject) => {
