@@ -79,6 +79,38 @@ function isCommandEnabled(commandName) {
     return isFeatureEnabled(featureKey);
 }
 
+const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
+const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
+const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
+
+function ensureDiscordEmojiSize(url, size = DEFAULT_CUSTOM_EMOJI_SIZE) {
+    if (!url || typeof url !== 'string') return url;
+    const base = url.split('?')[0];
+    return `${base}?size=${size}&quality=lossless`;
+}
+
+function unicodeEmojiToCodePoints(emoji) {
+    if (!emoji) return null;
+    const codePoints = [];
+    for (const symbol of Array.from(emoji)) {
+        const codePoint = symbol.codePointAt(0);
+        if (typeof codePoint === 'number') {
+            const hex = codePoint.toString(16).toLowerCase();
+            codePoints.push(hex.padStart(codePoint > 0xffff ? hex.length : 4, '0'));
+        }
+    }
+    return codePoints.length ? codePoints.join('-') : null;
+}
+
+function buildUnicodeEmojiAsset(emoji) {
+    const code = unicodeEmojiToCodePoints(emoji);
+    if (!code) return null;
+    return {
+        svg: `${TWEMOJI_SVG_BASE}/${code}.svg`,
+        png: `${TWEMOJI_PNG_BASE}/${code}.png`
+    };
+}
+
 class DiscordHandlers {
     constructor() {
         this.jarvis = new JarvisAI();
@@ -111,6 +143,10 @@ class DiscordHandlers {
             '⚠️ {mention} has left the server. Recalibrating member count to {membercount}.',
             '😔 {mention} disconnected from {server}. Until we meet again.'
         ];
+        this.emojiAssetCache = new Map();
+        this.clipEmojiRenderSize = 22;
+        this.clipEmojiSpacing = 4;
+        this.clipLineHeight = 24;
     }
 
     getTicketStaffRoleIds(guild) {
