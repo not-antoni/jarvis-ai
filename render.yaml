@@ -12,8 +12,16 @@ services:
         value: "false"
       - key: DISCORD_TOKEN
         sync: false
-      - key: MONGO_PW
+      - key: MONGO_URI_MAIN
         sync: false
+      - key: MONGO_URI_VAULT
+        sync: false
+      - key: MASTER_KEY_BASE64
+        sync: false
+      - key: UV_THREADPOOL_SIZE
+        value: "64"
+      - key: VAULT_CACHE_TTL_MS
+        value: "180000"
       - key: GOOGLE_AI_API_KEY
         sync: false
       - key: GROQ_API_KEY

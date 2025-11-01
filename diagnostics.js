@@ -2,7 +2,7 @@ const config = require('./config');
 const aiManager = require('./ai-providers');
 const database = require('./database');
 
-const REQUIRED_ENV_VARS = ['DISCORD_TOKEN', 'MONGO_PW'];
+const REQUIRED_ENV_VARS = ['DISCORD_TOKEN', 'MONGO_URI_MAIN', 'MONGO_URI_VAULT', 'MASTER_KEY_BASE64'];
 const OPTIONAL_ENV_VARS = [
     'OPENROUTER_API_KEY',
     'GROQ_API_KEY',
@@ -11,7 +11,9 @@ const OPTIONAL_ENV_VARS = [
     'HF_TOKEN',
     'OPENAI_API_KEY',
     'OPENAI',
-    'LOCAL_EMBEDDING_URL'
+    'LOCAL_EMBEDDING_URL',
+    'UV_THREADPOOL_SIZE',
+    'VAULT_CACHE_TTL_MS'
 ];
 
 function evaluateEnvironment() {
@@ -100,7 +102,7 @@ async function gatherHealthSnapshot(options = {}) {
                 if (database.db?.command) {
                     await database.db.command({ ping: 1 });
                 } else if (database.client?.db) {
-                    await database.client.db(config.database.name).command({ ping: 1 });
+                    await database.client.db(config.database.names.main).command({ ping: 1 });
                 }
                 snapshot.database.ping = 'ok';
             } catch (error) {

@@ -2,8 +2,10 @@
  * Database connection and operations for Jarvis Bot
  */
 
-const { MongoClient, ObjectId } = require('mongodb');
+const { ObjectId } = require('mongodb');
 const config = require('./config');
+const vaultClient = require('./vault-client');
+const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
 
 class DatabaseManager {
     constructor() {
@@ -13,10 +15,13 @@ class DatabaseManager {
     }
 
     async connect() {
+        if (this.isConnected) {
+            return;
+        }
         try {
-            this.client = new MongoClient(config.database.uri);
-            await this.client.connect();
-            this.db = this.client.db(config.database.name);
+            await connectMain();
+            this.client = mainClient;
+            this.db = getJarvisDb();
             this.isConnected = true;
 
             console.log('MongoDB connected successfully for Jarvis++');
@@ -231,11 +236,17 @@ class DatabaseManager {
         const convResult = await this.db
             .collection(config.database.collections.conversations)
             .deleteMany({ userId });
-            
+
         const profileResult = await this.db
             .collection(config.database.collections.userProfiles)
             .deleteOne({ userId });
-            
+
+        try {
+            await vaultClient.purgeUserMemories(userId);
+        } catch (error) {
+            console.error('Failed to purge vault memories for user', userId, error);
+        }
+        
         return {
             conv: convResult.deletedCount,
             prof: profileResult.deletedCount
@@ -759,8 +770,10 @@ class DatabaseManager {
     }
 
     async disconnect() {
-        if (this.client) {
-            await this.client.close();
+        if (this.isConnected) {
+            await closeMain();
+            this.client = null;
+            this.db = null;
             this.isConnected = false;
             console.log('MongoDB disconnected');
         }
