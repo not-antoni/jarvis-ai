@@ -387,87 +387,116 @@ async function createDownloadTask(videoId, videoUrl) {
     const binaryPath = await ensureBinary();
     const { ffmpegPath, ffprobePath } = await ensureFfmpeg();
     const { base, finalPath } = getTargetPaths(videoId);
-    const cookieFile = await ensureCookiesFile();
+    let currentChild = null;
 
-    await cleanupArtifacts(base);
+    const runOnce = async (useCookies) => {
+        await cleanupArtifacts(base);
 
-    const extractorArgs = buildExtractorArgs(Boolean(cookieFile));
+        const cookieFile = useCookies ? await ensureCookiesFile() : null;
+        const extractorArgs = buildExtractorArgs(Boolean(cookieFile));
 
-    const args = [
-        '--force-ipv4',
-        '--ignore-errors',
-        '--no-continue',
-        '--no-overwrites',
-        '--no-part',
-        '--no-mtime',
-        '-f', 'bestaudio/best',
-        '--no-playlist',
-        '--extract-audio',
-        '--audio-format', 'opus',
-        '--audio-quality', '0',
-        '--output', `${base}.%(ext)s`,
-        '--no-progress',
-        '--concurrent-fragments', '4',
-        '--extractor-args', extractorArgs,
-        '--ffmpeg-location', ffmpegPath,
-        videoUrl
-    ];
+        const args = [
+            '--force-ipv4',
+            '--ignore-errors',
+            '--no-continue',
+            '--no-overwrites',
+            '--no-part',
+            '--no-mtime',
+            '-f', 'bestaudio/best',
+            '--no-playlist',
+            '--extract-audio',
+            '--audio-format', 'opus',
+            '--audio-quality', '0',
+            '--output', `${base}.%(ext)s`,
+            '--no-progress',
+            '--concurrent-fragments', '4',
+            '--extractor-args', extractorArgs,
+            '--ffmpeg-location', ffmpegPath,
+            videoUrl
+        ];
 
-    if (cookieFile) {
-        args.splice(args.length - 1, 0, '--cookies', cookieFile);
-    }
+        if (cookieFile) {
+            args.splice(args.length - 1, 0, '--cookies', cookieFile);
+        }
 
-    let cancelled = false;
-    const envVars = { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' };
-    if (ffprobePath) {
-        envVars.FFPROBE = ffprobePath;
-    }
+        const envVars = { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' };
+        if (ffprobePath) {
+            envVars.FFPROBE = ffprobePath;
+        }
 
-    const child = spawn(binaryPath, args, {
-        stdio: ['ignore', 'inherit', 'inherit'],
-        env: envVars
-    });
+        const stderrChunks = [];
 
-    const promise = new Promise((resolve, reject) => {
-        const finalize = async (error) => {
-            await cleanupArtifacts(base);
-            reject(error);
-        };
+        currentChild = spawn(binaryPath, args, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: envVars
+        });
 
-        child.on('error', finalize);
-        child.on('close', async (code) => {
-            if (cancelled) {
-                await finalize(new Error('Download cancelled'));
-                return;
-            }
+        if (currentChild.stdout) {
+            currentChild.stdout.on('data', chunk => {
+                process.stdout.write(chunk);
+            });
+        }
 
-            if (code !== 0) {
-                await finalize(new Error(`yt-dlp exited with code ${code}`));
-                return;
-            }
+        if (currentChild.stderr) {
+            currentChild.stderr.on('data', chunk => {
+                stderrChunks.push(chunk.toString());
+                process.stderr.write(chunk);
+            });
+        }
 
-            try {
-                const files = await fs.promises.readdir(TEMP_DIR);
-                const output = files
-                    .map(file => path.join(TEMP_DIR, file))
-                    .find(file => file.startsWith(base) && file.endsWith('.opus'));
+        const awaitCompletion = () => new Promise((resolve, reject) => {
+            const handleError = async (error) => {
+                await cleanupArtifacts(base).catch(() => {});
+                error.stderr = stderrChunks.join('');
+                reject(error);
+            };
 
-                if (!output) {
-                    throw new Error('Extraction finished without producing an Opus file.');
+            currentChild.on('error', handleError);
+            currentChild.on('close', async (code) => {
+                if (code !== 0) {
+                    await handleError(new Error(`yt-dlp exited with code ${code}`));
+                    return;
                 }
 
-                await fs.promises.rename(output, finalPath);
-                resolve(finalPath);
-            } catch (error) {
-                await finalize(error);
-            }
+                try {
+                    const files = await fs.promises.readdir(TEMP_DIR);
+                    const output = files
+                        .map(file => path.join(TEMP_DIR, file))
+                        .find(file => file.startsWith(base) && file.endsWith('.opus'));
+
+                    if (!output) {
+                        throw new Error('Extraction finished without producing an Opus file.');
+                    }
+
+                    await fs.promises.rename(output, finalPath);
+                    resolve(finalPath);
+                } catch (error) {
+                    await handleError(error);
+                }
+            });
         });
-    });
+
+        try {
+            return await awaitCompletion();
+        } finally {
+            currentChild = null;
+        }
+    };
+
+    const promise = (async () => {
+        try {
+            return await runOnce(true);
+        } catch (error) {
+            if (shouldRetryWithoutCookies(error)) {
+                return runOnce(false);
+            }
+            throw error;
+        }
+    })();
 
     const cancel = () => {
-        if (!cancelled) {
-            cancelled = true;
-            child.kill('SIGKILL');
+        if (currentChild) {
+            currentChild.kill('SIGKILL');
         }
     };
 
@@ -577,6 +606,26 @@ function releaseAudio(videoId) {
     if (entry.refs === 0) {
         scheduleCleanup(videoId, entry);
     }
+}
+
+function shouldRetryWithoutCookies(error) {
+    if (!error) {
+        return false;
+    }
+    const stderr = String(error.stderr || '').toLowerCase();
+    if (!stderr) {
+        return false;
+    }
+
+    const retryIndicators = [
+        'cookies are no longer valid',
+        'watch video on youtube',
+        'error 153',
+        'player configuration error',
+        'signature extraction failed'
+    ];
+
+    return retryIndicators.some(indicator => stderr.includes(indicator));
 }
 
 module.exports = {
