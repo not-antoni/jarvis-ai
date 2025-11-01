@@ -81,7 +81,9 @@ function stripJarvisSpeakerPrefix(text) {
 function sanitizeAssistantMessage(text) {
   if (!text || typeof text !== 'string') return text;
   const layered = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(text)));
-  return stripWrappingQuotes(stripJarvisSpeakerPrefix(layered));
+  const noOuterQuotes = stripWrappingQuotes(layered);
+  const withoutPrefix = stripJarvisSpeakerPrefix(noOuterQuotes);
+  return stripWrappingQuotes(withoutPrefix);
 }
 /** END: minimal thinking/final scrub helpers (added) **/
 
