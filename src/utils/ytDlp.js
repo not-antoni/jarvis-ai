@@ -6,8 +6,7 @@ const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
 const { ensureFfmpeg } = require('./ffmpeg');
 
-const ANDROID_CLIENT = 'android';
-const DEFAULT_WEB_CLIENTS = ['web_embedded', 'web_safari', 'web'];
+const { CLIENTS: DEFAULT_CLIENTS, FALLBACK_CLIENTS } = require('./youtubeClients');
 const UPDATE_RECORD_NAME = 'yt-dlp-update.json';
 const DEFAULT_UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -203,10 +202,10 @@ function buildExtractorArgs(hasCookies) {
         return override.trim();
     }
 
-    const clients = [...DEFAULT_WEB_CLIENTS];
+    const clients = [...DEFAULT_CLIENTS];
 
-    if (!hasCookies) {
-        clients.unshift(ANDROID_CLIENT);
+    if (!hasCookies && FALLBACK_CLIENTS.length) {
+        clients.unshift(...FALLBACK_CLIENTS);
     }
 
     if (process.env.YTDLP_EXTRA_CLIENTS) {
