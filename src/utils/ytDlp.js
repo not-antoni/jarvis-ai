@@ -6,6 +6,10 @@ const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
 const { ensureFfmpeg } = require('./ffmpeg');
 
+const DEFAULT_EXTRACTOR_ARGS = 'youtube:player_client=android,web_embedded,web_remix';
+const UPDATE_RECORD_NAME = 'yt-dlp-update.json';
+const DEFAULT_UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
 const BINARY_NAMES = {
     linux: 'yt-dlp',
     darwin: 'yt-dlp_macos',
@@ -51,6 +55,7 @@ async function ensureBinary() {
     const binaryPath = path.join(BIN_DIR, binaryName);
     try {
         await fs.promises.access(binaryPath, fs.constants.X_OK);
+        await autoUpdateBinary(binaryPath);
         return binaryPath;
     } catch {
         // continue to download
@@ -94,6 +99,8 @@ async function ensureBinary() {
 
     await fs.promises.rename(tempPath, binaryPath);
     await fs.promises.chmod(binaryPath, 0o755);
+
+    await autoUpdateBinary(binaryPath, { force: true });
 
     return binaryPath;
 }
@@ -179,6 +186,74 @@ function readCookiesFromEnv() {
     }
 
     return null;
+}
+
+let updateTask = null;
+
+async function autoUpdateBinary(binaryPath, options = {}) {
+    const { force = false } = options;
+    const markerPath = path.join(BIN_DIR, UPDATE_RECORD_NAME);
+
+    const runUpdate = async () => {
+        let lastUpdate = 0;
+
+        if (!force) {
+            try {
+                const raw = await fs.promises.readFile(markerPath, 'utf8');
+                const data = JSON.parse(raw);
+                if (typeof data?.timestamp === 'number') {
+                    lastUpdate = data.timestamp;
+                }
+            } catch {
+                // ignore
+            }
+        }
+
+        const interval = Number(process.env.YTDLP_UPDATE_INTERVAL_MS) || DEFAULT_UPDATE_INTERVAL_MS;
+        if (!force && Date.now() - lastUpdate < interval) {
+            return;
+        }
+
+        await new Promise(resolve => {
+            const updater = spawn(binaryPath, ['-U'], {
+                stdio: ['ignore', 'ignore', 'inherit'],
+                env: {
+                    ...process.env,
+                    YTDLP_NO_CHECK: '1'
+                }
+            });
+
+            updater.on('error', error => {
+                console.warn('yt-dlp auto-update failed:', error?.message || error);
+                resolve();
+            });
+
+            updater.on('close', code => {
+                if (code !== 0) {
+                    console.warn(`yt-dlp auto-update exited with code ${code}`);
+                }
+                resolve();
+            });
+        });
+
+        try {
+            await fs.promises.writeFile(markerPath, JSON.stringify({ timestamp: Date.now() }), 'utf8');
+        } catch (error) {
+            console.warn('Unable to persist yt-dlp update marker:', error?.message || error);
+        }
+    };
+
+    if (force) {
+        return runUpdate();
+    }
+
+    if (!updateTask) {
+        updateTask = runUpdate().finally(() => {
+            updateTask = null;
+        });
+    }
+
+    return updateTask;
 }
 
 function normaliseCookieArray(input) {
@@ -274,13 +349,21 @@ async function cleanupArtifacts(base) {
 
 async function createDownloadTask(videoId, videoUrl) {
     const binaryPath = await ensureBinary();
-    const ffmpegPath = await ensureFfmpeg();
+    const { ffmpegPath, ffprobePath } = await ensureFfmpeg();
     const { base, finalPath } = getTargetPaths(videoId);
     const cookieFile = await ensureCookiesFile();
 
     await cleanupArtifacts(base);
 
+    const extractorArgs = process.env.YTDLP_EXTRACTOR_ARGS || DEFAULT_EXTRACTOR_ARGS;
+
     const args = [
+        '--force-ipv4',
+        '--ignore-errors',
+        '--no-continue',
+        '--no-overwrites',
+        '--no-part',
+        '--no-mtime',
         '-f', 'bestaudio/best',
         '--no-playlist',
         '--extract-audio',
@@ -288,6 +371,8 @@ async function createDownloadTask(videoId, videoUrl) {
         '--audio-quality', '0',
         '--output', `${base}.%(ext)s`,
         '--no-progress',
+        '--concurrent-fragments', '4',
+        '--extractor-args', extractorArgs,
         '--ffmpeg-location', ffmpegPath,
         videoUrl
     ];
@@ -296,10 +381,14 @@ async function createDownloadTask(videoId, videoUrl) {
         args.splice(args.length - 1, 0, '--cookies', cookieFile);
     }
 
+    if (ffprobePath) {
+        args.splice(args.length - 1, 0, '--ffprobe-location', ffprobePath);
+    }
+
     let cancelled = false;
     const child = spawn(binaryPath, args, {
         stdio: ['ignore', 'inherit', 'inherit'],
-        env: { ...process.env, YTDLP_NO_CHECK: '1' }
+        env: { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' }
     });
 
     const promise = new Promise((resolve, reject) => {

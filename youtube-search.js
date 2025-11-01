@@ -60,6 +60,59 @@ class YouTubeSearch {
 
         return videoData.url;
     }
+
+    async getVideoById(videoId) {
+        if (!this.youtube) {
+            throw new Error('YouTube API not configured. Please set YOUTUBE_API_KEY environment variable.');
+        }
+
+        try {
+            const response = await this.youtube.videos.list({
+                part: 'snippet,contentDetails',
+                id: videoId,
+                maxResults: 1
+            });
+
+            const item = response.data.items?.[0];
+            if (!item) {
+                return null;
+            }
+
+            return {
+                title: item.snippet.title,
+                channel: item.snippet.channelTitle,
+                description: item.snippet.description?.substring(0, 200) ?? null,
+                url: `https://www.youtube.com/watch?v=${videoId}`,
+                thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || null,
+                duration: parseISODuration(item.contentDetails?.duration)
+            };
+        } catch (error) {
+            console.error('YouTube video lookup error:', error);
+            throw new Error('Failed to fetch YouTube video details. Please try again later.');
+        }
+    }
+}
+
+function parseISODuration(isoValue) {
+    if (!isoValue) {
+        return null;
+    }
+
+    const match = isoValue.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) {
+        return isoValue;
+    }
+
+    const hours = parseInt(match[1] || '0', 10);
+    const minutes = parseInt(match[2] || '0', 10);
+    const seconds = parseInt(match[3] || '0', 10);
+
+    const parts = [];
+    if (hours) parts.push(hours);
+    parts.push(hours ? String(minutes).padStart(2, '0') : minutes);
+    parts.push(String(seconds).padStart(2, '0'));
+
+    return parts.join(':');
 }
 
 module.exports = new YouTubeSearch();
