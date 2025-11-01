@@ -1353,6 +1353,8 @@
         const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
         const lineHeight = 22;
         const emojiSize = 18;
+        const emojiSpacing = typeof this.clipEmojiSpacing === 'number' ? this.clipEmojiSpacing : 3;
+        const emojiAdvance = emojiSize + emojiSpacing;
 
         let lineCount = 1;
         let currentLineWidth = 0;
@@ -1398,11 +1400,10 @@
                     }
                     currentLineWidth += width;
                 } else {
-                    const width = emojiSize + 3;
-                    if (currentLineWidth + width > maxWidth && currentLineWidth > 0) {
+                    if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) {
                         advanceLine();
                     }
-                    currentLineWidth += width;
+                    currentLineWidth += emojiAdvance;
                 }
             } else if (segment.type === 'mention') {
                 const mentionTokens = segment.text.split(/(\n|\s+)/);
