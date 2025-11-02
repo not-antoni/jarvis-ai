@@ -40,7 +40,10 @@ const rawConfig = {
             ticketTranscripts: 'ticketTranscripts',
             knowledgeBase: 'knowledgeBaseEntries',
             counters: 'counters',
-            newsCache: 'newsCache'
+            newsCache: 'newsCache',
+            migrations: 'migrations',
+            xpUsers: 'xp_users',
+            xpRewards: 'xp_rewards'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',
@@ -114,7 +117,9 @@ const rawConfig = {
         digests: true,
         newsBriefings: true,
         macroReplies: true,
-        music: true
+        music: true,
+        leveling: true,
+        levelingVoice: false
     }
 };
 
