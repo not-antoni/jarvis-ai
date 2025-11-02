@@ -1697,6 +1697,25 @@ ${summary}`
 
         try {
             switch (subcommand) {
+                case 'info': {
+                    const embed = new EmbedBuilder()
+                        .setTitle('StarkTokens Activation Guide')
+                        .setColor(0xf59e0b)
+                        .setDescription(
+                            guild
+                                ? 'Economy commands are available in channels where an admin runs `/econ config enable`. Use `/econ config status` to review authorised channels.'
+                                : 'In direct messages you already have access to StarkTokens. In servers, ask an administrator to run `/econ config enable` in the desired channel.'
+                        )
+                        .addFields(
+                            { name: 'Daily Rewards', value: '`/econ daily` • claim once every 24h', inline: true },
+                            { name: 'Work Contracts', value: '`/econ work` • available hourly', inline: true },
+                            { name: 'Supply Crates', value: '`/econ crate` • open every 2h', inline: true }
+                        )
+                        .setFooter({ text: 'Buttons below provide quick access to the most common actions.' });
+
+                    await interaction.editReply({ embeds: [embed], components });
+                    break;
+                }
                 case 'balance': {
                     const profile = await this.economy.getBalance(scopeId, targetUser.id);
                     const embed = new EmbedBuilder()
