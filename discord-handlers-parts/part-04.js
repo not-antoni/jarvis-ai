@@ -1835,8 +1835,6 @@ ${summary}`
                     await interaction.editReply('Prices must be greater than zero StarkTokens, sir.');
                     return;
                 }
-                return;
-            }
 
                 let roleId = null;
                 if (role) {
@@ -1851,8 +1849,6 @@ ${summary}`
                     }
                     roleId = role.id;
                 }
-                return;
-            }
 
                 await this.economy.addShopItem(guild.id, sku, {
                     name,
