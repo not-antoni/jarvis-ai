@@ -275,6 +275,37 @@ const allCommands = [
                 ))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('eightball')
+        .setDescription('Consult Stark Industries magic eight ball')
+        .addStringOption((option) =>
+            option
+                .setName('question')
+                .setDescription('Ask anything')
+                .setRequired(true)
+                .setMaxLength(200)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('vibecheck')
+        .setDescription('Evaluate the vibe levels of a comrade')
+        .addUserOption((option) =>
+            option
+                .setName('user')
+                .setDescription('Optional target (defaults to you)')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('bonk')
+        .setDescription('Deliver a comedic corrective bonk')
+        .addUserOption((option) =>
+            option
+                .setName('target')
+                .setDescription('Who deserves the bonk?')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("news")
         .setDescription("Fetch curated headlines for a topic")
         .addStringOption(option =>
@@ -496,6 +527,67 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('econ')
         .setDescription('Interact with the StarkTokens economy')
+        .addSubcommandGroup((group) =>
+            group
+                .setName('config')
+                .setDescription('Configure where economy commands are allowed')
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('enable')
+                        .setDescription('Enable StarkTokens in this channel or a specified one')
+                        .addChannelOption((option) =>
+                            option
+                                .setName('channel')
+                                .setDescription('Channel to enable (defaults to current)')
+                                .setRequired(false)
+                                .addChannelTypes(
+                                    ChannelType.GuildText,
+                                    ChannelType.GuildAnnouncement,
+                                    ChannelType.PublicThread,
+                                    ChannelType.PrivateThread,
+                                    ChannelType.GuildVoice
+                                )
+                        )
+                )
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('disable')
+                        .setDescription('Disable StarkTokens in a channel')
+                        .addChannelOption((option) =>
+                            option
+                                .setName('channel')
+                                .setDescription('Channel to disable (defaults to current)')
+                                .setRequired(false)
+                                .addChannelTypes(
+                                    ChannelType.GuildText,
+                                    ChannelType.GuildAnnouncement,
+                                    ChannelType.PublicThread,
+                                    ChannelType.PrivateThread,
+                                    ChannelType.GuildVoice
+                                )
+                        )
+                )
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('status')
+                        .setDescription('List channels where StarkTokens is enabled')
+                )
+        )
+        .addSubcommandGroup((group) =>
+            group
+                .setName('boss')
+                .setDescription('Launch Stark Industries boss events')
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('spawn')
+                        .setDescription('Deploy a training boss in this channel')
+                )
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('status')
+                        .setDescription('Check the current boss status')
+                )
+        )
         .addSubcommand((sub) =>
             sub
                 .setName('balance')
@@ -550,7 +642,7 @@ const allCommands = [
                 .setName('leaderboard')
                 .setDescription('Show the richest StarkToken holders')
         )
-        .setContexts([InteractionContextType.Guild]),
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('shop')
         .setDescription('Browse or manage the Stark shop')
@@ -1548,8 +1640,22 @@ client.on("messageCreate", async (message) => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isCommand()) return;
-    await discordHandlers.handleSlashCommand(interaction);
+    try {
+        if (interaction.isChatInputCommand()) {
+            await discordHandlers.handleSlashCommand(interaction);
+        } else if (interaction.isButton()) {
+            await discordHandlers.handleComponentInteraction(interaction);
+        }
+    } catch (error) {
+        console.error('Interaction handler error:', error);
+        if (typeof interaction.isRepliable === 'function' && interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'Technical difficulties, sir.', ephemeral: true }).catch(() => {});
+        }
+    }
+});
+
+client.on("voiceStateUpdate", async (oldState, newState) => {
+    await discordHandlers.handleVoiceStateUpdate(oldState, newState);
 });
 
 client.on("voiceStateUpdate", async (oldState, newState) => {

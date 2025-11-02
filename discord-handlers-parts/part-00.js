@@ -8,6 +8,9 @@ const {
     UserFlags,
     PermissionsBitField,
     EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
     parseEmoji,
     AutoModerationActionType,
     AutoModerationRuleEventType,
@@ -77,6 +80,9 @@ class DiscordHandlers {
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
         this.leveling = levelingManager;
         this.economy = economyManager;
+        this.economyConfigCache = new Map();
+        this.economyConfigTtlMs = 60 * 1000;
+        this.activeBosses = new Map();
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
         this.autoModRuleName = 'Jarvis Blacklist Filter';
@@ -145,6 +151,20 @@ class DiscordHandlers {
         return isFeatureEnabledForGuild(featureKey, guildConfig, true);
     }
 
+    async isEconomyChannelEnabled(guild, channelId) {
+        if (!guild || !channelId) {
+            return true;
+        }
+
+        try {
+            const config = await this.getEconomyConfig(guild);
+            return config.channelIds.includes(String(channelId));
+        } catch (error) {
+            console.error('Failed to resolve economy channel permissions:', error);
+            return false;
+        }
+    }
+
     extractInteractionRoute(interaction) {
         if (!interaction?.options) {
             return null;
@@ -170,6 +190,54 @@ class DiscordHandlers {
         }
 
         return sub || group || null;
+    }
+
+    buildEconomyButtons({ includeLeader = true, includeShop = true } = {}) {
+        const row = new ActionRowBuilder();
+        row.addComponents(
+            new ButtonBuilder().setCustomId('econ:daily').setLabel('Daily').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('econ:work').setLabel('Work').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('econ:crate').setLabel('Crate').setStyle(ButtonStyle.Secondary)
+        );
+
+        const extraRow = new ActionRowBuilder();
+
+        if (includeLeader) {
+            extraRow.addComponents(
+                new ButtonBuilder().setCustomId('econ:leaderboard').setLabel('Leaderboard').setStyle(ButtonStyle.Secondary)
+            );
+        }
+
+        if (includeShop) {
+            extraRow.addComponents(
+                new ButtonBuilder().setCustomId('econ:shop').setLabel('Shop').setStyle(ButtonStyle.Success)
+            );
+        }
+
+        return extraRow.components.length ? [row, extraRow] : [row];
+    }
+
+    buildBossButtons() {
+        const row = new ActionRowBuilder();
+        row.addComponents(
+            new ButtonBuilder().setCustomId('boss:attack').setLabel('Attack').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('boss:boost').setLabel('Motivate').setStyle(ButtonStyle.Primary)
+        );
+        return [row];
+    }
+
+    pickRandom(items) {
+        if (!Array.isArray(items) || !items.length) {
+            return null;
+        }
+        const index = Math.floor(Math.random() * items.length);
+        return items[index];
+    }
+
+    randomInRange(min, max) {
+        const low = Math.ceil(min);
+        const high = Math.floor(max);
+        return Math.floor(Math.random() * (high - low + 1)) + low;
     }
 
     getTicketStaffRoleIds(guild) {
@@ -1246,6 +1314,12 @@ class DiscordHandlers {
         }
     }
 
+    invalidateEconomyConfig(guildId) {
+        if (guildId) {
+            this.economyConfigCache.delete(guildId);
+        }
+    }
+
     async getGuildConfig(guild) {
         if (!guild || !database.isConnected) {
             return null;
@@ -1264,6 +1338,27 @@ class DiscordHandlers {
         } catch (error) {
             console.error('Failed to fetch guild configuration:', error);
             return null;
+        }
+    }
+
+    async getEconomyConfig(guild) {
+        if (!guild || !database.isConnected) {
+            return { channelIds: [] };
+        }
+
+        const guildId = guild.id;
+        const cached = this.economyConfigCache.get(guildId);
+        if (cached && (Date.now() - cached.fetchedAt) < this.economyConfigTtlMs) {
+            return cached.config;
+        }
+
+        try {
+            const config = await database.getEconomySettings(guildId);
+            this.economyConfigCache.set(guildId, { config, fetchedAt: Date.now() });
+            return config;
+        } catch (error) {
+            console.error('Failed to fetch economy configuration:', error);
+            return { channelIds: [] };
         }
     }
 

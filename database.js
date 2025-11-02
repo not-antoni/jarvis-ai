@@ -25,6 +25,18 @@ class DatabaseManager {
         return defaults;
     }
 
+    normalizeEconomyConfig(input) {
+        if (!input || typeof input !== 'object') {
+            return { channelIds: [] };
+        }
+
+        const channelIds = Array.from(new Set((input.channelIds || []).map((id) => String(id)))).filter(Boolean);
+
+        return {
+            channelIds
+        };
+    }
+
     async connect() {
         if (this.isConnected) {
             return;
@@ -337,6 +349,7 @@ class DatabaseManager {
                 moderatorRoleIds: [],
                 moderatorUserIds: [],
                 features: { ...defaultFeatures },
+                economyConfig: { channelIds: [] },
                 createdAt: now,
                 updatedAt: now
             };
@@ -381,6 +394,16 @@ class DatabaseManager {
             needsUpdate = true;
         }
 
+        const normalizedEconomy = this.normalizeEconomyConfig(guildConfig.economyConfig);
+        const previousEconomy = Array.isArray(guildConfig.economyConfig?.channelIds)
+            ? new Set(guildConfig.economyConfig.channelIds.map((id) => String(id)))
+            : new Set();
+        const normalizedEconomySet = new Set(normalizedEconomy.channelIds);
+        if (previousEconomy.size !== normalizedEconomySet.size || normalizedEconomy.channelIds.some((id) => !previousEconomy.has(id))) {
+            needsUpdate = true;
+        }
+        guildConfig.economyConfig = normalizedEconomy;
+
         if (!guildConfig.createdAt) {
             guildConfig.createdAt = now;
             needsUpdate = true;
@@ -396,6 +419,7 @@ class DatabaseManager {
                         features: guildConfig.features,
                         moderatorRoleIds: Array.isArray(guildConfig.moderatorRoleIds) ? guildConfig.moderatorRoleIds : [],
                         moderatorUserIds: Array.isArray(guildConfig.moderatorUserIds) ? guildConfig.moderatorUserIds : [],
+                        economyConfig: guildConfig.economyConfig,
                         updatedAt: guildConfig.updatedAt
                     },
                     $setOnInsert: {
@@ -470,6 +494,7 @@ class DatabaseManager {
                         moderatorRoleIds: [],
                         moderatorUserIds: [],
                         features: mergedDefaults,
+                        economyConfig: { channelIds: [] },
                         createdAt: now
                     }
                 },
@@ -564,10 +589,12 @@ class DatabaseManager {
 
         if (lastMessageAt !== undefined) {
             update.$set.lastMsgAt = lastMessageAt;
+            delete update.$setOnInsert.lastMsgAt;
         }
 
         if (joinedVoiceAt !== undefined) {
             update.$set.joinedVoiceAt = joinedVoiceAt;
+            delete update.$setOnInsert.joinedVoiceAt;
         }
 
         if (Number.isFinite(xpDelta) && xpDelta !== 0) {
@@ -828,6 +855,48 @@ class DatabaseManager {
             .sort({ balance: -1, updatedAt: -1 })
             .limit(Math.max(1, Math.min(50, limit)))
             .toArray();
+    }
+
+    async getEconomySettings(guildId) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const configRecord = await this.getGuildConfig(guildId);
+        return this.normalizeEconomyConfig(configRecord.economyConfig);
+    }
+
+    async setEconomyChannel(guildId, channelId, enabled) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const economy = await this.getEconomySettings(guildId);
+        const channelSet = new Set(economy.channelIds);
+
+        if (enabled) {
+            channelSet.add(String(channelId));
+        } else {
+            channelSet.delete(String(channelId));
+        }
+
+        const now = new Date();
+
+        await this.db
+            .collection(config.database.collections.guildConfigs)
+            .updateOne(
+                { guildId },
+                {
+                    $set: {
+                        'economyConfig.channelIds': Array.from(channelSet),
+                        updatedAt: now
+                    }
+                },
+                { upsert: true }
+            );
+
+        return Array.from(channelSet);
+    }
+
+    async isEconomyChannelEnabled(guildId, channelId) {
+        const economy = await this.getEconomySettings(guildId);
+        return economy.channelIds.includes(String(channelId));
     }
 
     async upsertShopItem(guildId, sku, data) {

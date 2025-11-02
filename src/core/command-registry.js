@@ -149,6 +149,30 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'eightball',
+        description: 'Ask the oracle of Stark for guidance.',
+        category: 'Fun',
+        usage: '/eightball "Should I deploy?"',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'vibecheck',
+        description: 'Audit the vibes of a comrade.',
+        category: 'Fun',
+        usage: '/vibecheck [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'bonk',
+        description: 'Deliver comedic corrective action.',
+        category: 'Fun',
+        usage: '/bonk <user>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
         name: 'ticket',
         description: 'Open, close, or export support tickets.',
         category: 'Operations',
