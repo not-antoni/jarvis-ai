@@ -1212,10 +1212,146 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
         }
     }
 
-    async handleEconomyCommand(interaction) {
+    async handleEconomyConfigCommand(interaction) {
         const guild = interaction.guild;
         if (!guild) {
-            await interaction.editReply('Economy commands are available inside servers only, sir.');
+            await interaction.editReply('Economy configuration is only available inside servers, sir.');
+            return;
+        }
+
+        const member = interaction.member;
+        const isOwner = guild.ownerId === interaction.user.id;
+        if (!isOwner && !member?.permissions?.has(PermissionsBitField.Flags.ManageGuild)) {
+            await interaction.editReply('Only administrators may rewire the StarkTokens network, sir.');
+            return;
+        }
+
+        const action = interaction.options.getSubcommand();
+        const channelOption = interaction.options.getChannel('channel');
+        const targetChannel = channelOption || interaction.channel;
+
+        if (!targetChannel) {
+            await interaction.editReply('I could not determine which channel to configure, sir.');
+            return;
+        }
+
+        if (targetChannel.guild?.id !== guild.id) {
+            await interaction.editReply('Please pick a channel from this server, sir.');
+            return;
+        }
+
+        if (typeof targetChannel.isTextBased === 'function' && !targetChannel.isTextBased()) {
+            await interaction.editReply('Please select a text-capable channel, sir.');
+            return;
+        }
+
+        try {
+            if (action === 'enable') {
+                await database.updateGuildFeatures(guild.id, { economy: true });
+                this.invalidateGuildConfig(guild.id);
+                const channels = await database.setEconomyChannel(guild.id, targetChannel.id, true);
+                this.invalidateEconomyConfig(guild.id);
+                await interaction.editReply(
+                    `StarkTokens enabled in ${targetChannel}, sir. Active channels: ${channels.map((id) => `<#${id}>`).join(', ')}`
+                );
+                return;
+            }
+
+            if (action === 'disable') {
+                const channels = await database.setEconomyChannel(guild.id, targetChannel.id, false);
+                this.invalidateEconomyConfig(guild.id);
+                if (!channels.length) {
+                    await database.updateGuildFeatures(guild.id, { economy: false });
+                    this.invalidateGuildConfig(guild.id);
+                }
+
+                await interaction.editReply(
+                    channels.length
+                        ? `StarkTokens disabled in ${targetChannel}, sir. Remaining: ${channels.map((id) => `<#${id}>`).join(', ')}`
+                        : `StarkTokens disabled in ${targetChannel}. No other channels remain authorised, sir.`
+                );
+                return;
+            }
+
+            if (action === 'status') {
+                const config = await database.getEconomySettings(guild.id);
+                if (!config.channelIds.length) {
+                    await interaction.editReply('No channels currently authorise StarkTokens interactions, sir.');
+                    return;
+                }
+
+                await interaction.editReply(`StarkTokens active in: ${config.channelIds.map((id) => `<#${id}>`).join(', ')}`);
+                return;
+            }
+
+            await interaction.editReply('I am unsure how to process that configuration request, sir.');
+        } catch (error) {
+            console.error('Economy config command failed:', error);
+            await interaction.editReply('I could not update the StarkTokens configuration, sir.');
+        }
+    }
+
+    createBossState(guildId, channelId) {
+        const bossNames = [
+            'Ultron Drone Sigma',
+            'Gamma-Class Sentry',
+            'Runaway Hulkbuster',
+            'Arc Reactor Wraith'
+        ];
+        const name = this.pickRandom(bossNames) || 'Training Hive';
+        const maxHp = this.randomInRange(1400, 2400);
+
+        return {
+            id: `${guildId}:${channelId}:${Date.now()}`,
+            guildId,
+            channelId,
+            name,
+            maxHp,
+            hp: maxHp,
+            participants: new Map(),
+            supporters: new Map(),
+            spawnedAt: new Date(),
+            messageId: null
+        };
+    }
+
+    renderBossEmbed(boss, guild) {
+        const percent = Math.max(0, Math.round((boss.hp / boss.maxHp) * 100));
+        const barSegments = Math.max(1, Math.round(percent / 10));
+        const bar = '█'.repeat(barSegments).padEnd(10, '░');
+
+        const embed = new EmbedBuilder()
+            .setTitle(`⚙️ ${boss.name}`)
+            .setColor(percent > 60 ? 0xf97316 : percent > 30 ? 0xfacc15 : 0xef4444)
+            .setDescription(`Integrity: **${boss.hp.toLocaleString()} / ${boss.maxHp.toLocaleString()} HP** (${percent}%)\n${bar}`)
+            .setFooter({ text: 'Defeat the training drone to earn StarkTokens.' })
+            .setTimestamp(boss.spawnedAt);
+
+        const topDamage = [...boss.participants.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([userId, damage], index) => `#${index + 1} <@${userId}> — ${damage.toLocaleString()} dmg`);
+
+        if (topDamage.length) {
+            embed.addFields({ name: 'Top Operatives', value: topDamage.join('\n'), inline: false });
+        }
+
+        const topSupport = [...boss.supporters.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 2)
+            .map(([userId, heal]) => `<@${userId}> +${heal.toLocaleString()} integrity`);
+
+        if (topSupport.length) {
+            embed.addFields({ name: 'Support Crew', value: topSupport.join('\n'), inline: false });
+        }
+
+        return embed;
+    }
+
+    async handleEconomyBossCommand(interaction) {
+        const guild = interaction.guild;
+        if (!guild) {
+            await interaction.editReply('Boss simulations are only available inside servers, sir.');
             return;
         }
 
@@ -1224,13 +1360,345 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
             return;
         }
 
+        const enabled = await this.isEconomyChannelEnabled(guild, interaction.channelId);
+        if (!enabled) {
+            await interaction.editReply('Please enable StarkTokens in this channel before starting a boss simulation, sir.');
+            return;
+        }
+
         const subcommand = interaction.options.getSubcommand();
+        const key = `${guild.id}:${interaction.channelId}`;
+        const existing = this.activeBosses.get(key);
+
+        if (subcommand === 'spawn') {
+            const member = interaction.member;
+            const isOwner = guild.ownerId === interaction.user.id;
+            if (!isOwner && !member?.permissions?.has(PermissionsBitField.Flags.ManageGuild)) {
+                await interaction.editReply('Only administrators may initiate training scenarios, sir.');
+                return;
+            }
+
+            if (existing) {
+                await interaction.editReply('A training boss is already active in this channel, sir.');
+                return;
+            }
+
+            const boss = this.createBossState(guild.id, interaction.channelId);
+            const embed = this.renderBossEmbed(boss, guild);
+            const message = await interaction.editReply({ embeds: [embed], components: this.buildBossButtons() });
+            boss.messageId = message.id;
+            this.activeBosses.set(key, boss);
+            return;
+        }
+
+        if (subcommand === 'status') {
+            if (!existing) {
+                await interaction.editReply('No training boss is active in this channel, sir.');
+                return;
+            }
+
+            const embed = this.renderBossEmbed(existing, guild);
+            await interaction.editReply({ embeds: [embed] });
+            return;
+        }
+
+        await interaction.editReply('I am unsure how to process that boss command, sir.');
+    }
+
+    async finishBossFight(guild, boss, channel) {
+        const key = `${guild.id}:${boss.channelId}`;
+        this.activeBosses.delete(key);
+
+        const participants = [...boss.participants.entries()];
+        const supporters = [...boss.supporters.entries()];
+        const totalDamage = participants.reduce((sum, [, dmg]) => sum + dmg, 0);
+
+        const payouts = [];
+        for (const [userId, damage] of participants) {
+            const share = totalDamage > 0 ? Math.max(150, Math.round((damage / totalDamage) * 600)) : 150;
+            payouts.push({ userId, amount: share, reason: `Boss ${boss.name} defeat reward` });
+        }
+
+        for (const [userId, heal] of supporters) {
+            const existing = payouts.find((entry) => entry.userId === userId);
+            const bonus = Math.max(50, Math.round(heal / 3));
+            if (existing) {
+                existing.amount += bonus;
+            } else {
+                payouts.push({ userId, amount: bonus, reason: `Support bonus against ${boss.name}` });
+            }
+        }
+
+        const rewardLines = [];
+        for (const payout of payouts) {
+            try {
+                await this.economy.adjustEconomyBalance(guild.id, payout.userId, payout.amount, {
+                    type: 'boss_reward',
+                    reason: payout.reason
+                });
+                rewardLines.push(`<@${payout.userId}> — ${payout.amount.toLocaleString()} tokens`);
+            } catch (error) {
+                console.error('Failed to pay boss reward:', error);
+            }
+        }
+
+        if (channel) {
+            const summary = rewardLines.length
+                ? rewardLines.join('\n')
+                : 'No operators registered enough damage for a payout.';
+            await channel.send({
+                content: `✅ **${boss.name} neutralised.** StarkTokens distributed:
+${summary}`
+            }).catch(() => {});
+        }
+    }
+
+    async handleEconomyButton(interaction, action) {
+        const guild = interaction.guild;
+
+        if (guild && !(await this.isFeatureActive('economy', guild))) {
+            await interaction.reply({ content: 'The StarkTokens economy is disabled for this server, sir.', ephemeral: true });
+            return;
+        }
+
+        if (guild) {
+            const enabled = await this.isEconomyChannelEnabled(guild, interaction.channelId);
+            if (!enabled) {
+                await interaction.reply({ content: 'Economy is not enabled in this channel, sir.', ephemeral: true });
+                return;
+            }
+        }
+
+        const scopeId = guild ? guild.id : `dm:${interaction.user.id}`;
+
+        try {
+            if (action === 'daily') {
+                const { reward, streak } = await this.economy.claimDaily(scopeId, interaction.user.id);
+                await interaction.reply({
+                    content: `Daily ration secured: **${reward.toLocaleString()}** tokens (streak ${streak}).`,
+                    ephemeral: true
+                });
+                return;
+            }
+
+            if (action === 'work') {
+                const { reward } = await this.economy.doWork(scopeId, interaction.user.id);
+                await interaction.reply({
+                    content: `Shift complete. Earned **${reward.toLocaleString()}** StarkTokens.`,
+                    ephemeral: true
+                });
+                return;
+            }
+
+            if (action === 'crate') {
+                const { reward, message } = await this.economy.openCrate(scopeId, interaction.user.id);
+                await interaction.reply({
+                    content: `${message} Loot worth **${reward.toLocaleString()}** tokens recovered.`,
+                    ephemeral: true
+                });
+                return;
+            }
+
+            if (action === 'leaderboard') {
+                if (!guild) {
+                    await interaction.reply({ content: 'Leaderboards require a server context, sir.', ephemeral: true });
+                    return;
+                }
+                const top = await this.economy.getLeaderboard(guild.id, 5);
+                if (!top.length) {
+                    await interaction.reply({ content: 'No StarkToken activity recorded yet, sir.', ephemeral: true });
+                    return;
+                }
+                const lines = top.map((entry, index) => {
+                    const mention = guild.members.cache.get(entry.userId)
+                        ? `<@${entry.userId}>`
+                        : `User ${entry.userId}`;
+                    return `#${index + 1} ${mention} — ${entry.balance.toLocaleString()} tokens`;
+                });
+                await interaction.reply({ content: lines.join('\n'), ephemeral: true });
+                return;
+            }
+
+            if (action === 'shop') {
+                await interaction.reply({ content: 'Use `/shop list` to browse the catalog, sir.', ephemeral: true });
+                return;
+            }
+
+            await interaction.reply({ content: 'I do not recognise that control, sir.', ephemeral: true });
+        } catch (error) {
+            console.error('Economy button failed:', error);
+            if (error.code === this.economy.ERROR_CODES.COOLDOWN) {
+                await interaction.reply({ content: error.message, ephemeral: true });
+            } else if (error.code === this.economy.ERROR_CODES.INSUFFICIENT_FUNDS) {
+                await interaction.reply({ content: error.message || 'Balance too low, sir.', ephemeral: true });
+            } else {
+                await interaction.reply({ content: 'That control malfunctioned, sir.', ephemeral: true });
+            }
+        }
+    }
+
+    async handleBossButton(interaction, action) {
+        const guild = interaction.guild;
+        if (!guild) {
+            await interaction.reply({ content: 'Boss simulations are only available inside servers, sir.', ephemeral: true });
+            return;
+        }
+
+        const key = `${guild.id}:${interaction.channelId}`;
+        const boss = this.activeBosses.get(key);
+        if (!boss) {
+            await interaction.reply({ content: 'No training boss is active right now, sir.', ephemeral: true });
+            return;
+        }
+
+        if (action === 'attack') {
+            const damage = this.randomInRange(80, 160);
+            boss.hp = Math.max(0, boss.hp - damage);
+            boss.participants.set(interaction.user.id, (boss.participants.get(interaction.user.id) || 0) + damage);
+
+            await interaction.reply({ content: `You dealt **${damage}** damage, sir!`, ephemeral: true });
+
+            const embed = this.renderBossEmbed(boss, guild);
+            const components = boss.hp > 0 ? this.buildBossButtons() : [];
+            await interaction.message.edit({ embeds: [embed], components }).catch(() => {});
+
+            if (boss.hp <= 0) {
+                await this.finishBossFight(guild, boss, interaction.channel);
+            }
+            return;
+        }
+
+        if (action === 'boost') {
+            const heal = this.randomInRange(40, 90);
+            boss.hp = Math.min(boss.maxHp, boss.hp + heal);
+            boss.supporters.set(interaction.user.id, (boss.supporters.get(interaction.user.id) || 0) + heal);
+
+            try {
+                await this.economy.adjustEconomyBalance(guild.id, interaction.user.id, 35, {
+                    type: 'boss_support',
+                    reason: 'Supported the training boss strike'
+                });
+            } catch (error) {
+                console.warn('Failed to grant support bonus:', error);
+            }
+
+            await interaction.reply({ content: `Integrity restored by ${heal} HP. +35 StarkTokens credited.`, ephemeral: true });
+
+            const embed = this.renderBossEmbed(boss, guild);
+            await interaction.message.edit({ embeds: [embed], components: this.buildBossButtons() }).catch(() => {});
+            return;
+        }
+
+        await interaction.reply({ content: 'I do not recognise that control, sir.', ephemeral: true });
+    }
+
+    async handleComponentInteraction(interaction) {
+        if (!interaction.isButton()) {
+            return;
+        }
+
+        const [domain, action] = interaction.customId.split(':');
+
+        if (domain === 'econ') {
+            await this.handleEconomyButton(interaction, action);
+            return;
+        }
+
+        if (domain === 'boss') {
+            await this.handleBossButton(interaction, action);
+            return;
+        }
+
+        await interaction.reply({ content: 'Unknown control, sir.', ephemeral: true });
+    }
+
+    async handleEightBallCommand(interaction) {
+        const question = interaction.options.getString('question', true);
+        const responses = [
+            'Absolutely, sir.',
+            'My sensors say no.',
+            'Prospects hazy — rerun diagnostics.',
+            'Proceed with extreme style.',
+            'I would not bet Stark stock on it.',
+            'All systems green.',
+            'Ask again after a caffeine refill.',
+            'Outcome classified — sorry, sir.'
+        ];
+        const answer = this.pickRandom(responses) || 'Systems offline, try later.';
+        await interaction.editReply(`🎱 ${answer}`);
+    }
+
+    async handleVibeCheckCommand(interaction) {
+        const target = interaction.options.getUser('user') || interaction.user;
+        const score = this.randomInRange(0, 100);
+        const verdicts = [
+            'Radiant energy detected.',
+            'Stable but watch the sarcasm levels.',
+            'Chaotic neutral vibes.',
+            'Vibe anomaly detected — recommend snacks.',
+            'Off the charts. Prepare confetti.'
+        ];
+        const verdict = this.pickRandom(verdicts) || 'Unable to parse vibes.';
+        const embed = new EmbedBuilder()
+            .setTitle('Vibe Diagnostic')
+            .setDescription(`<@${target.id}> registers at **${score}%** vibe integrity. ${verdict}`)
+            .setColor(score > 70 ? 0x22c55e : score > 40 ? 0xfacc15 : 0xef4444);
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    async handleBonkCommand(interaction) {
+        const target = interaction.options.getUser('target');
+        const implementsOfBonk = [
+            'vibranium mallet',
+            'foam hammer',
+            'Stark-brand pool noodle',
+            'holographic newspaper',
+            'Mjölnir (training mode)'
+        ];
+        const tool = this.pickRandom(implementsOfBonk) || 'nanotech boop-stick';
+        await interaction.editReply(`🔨 Bonk delivered to <@${target.id}> with the ${tool}. Order restored, sir.`);
+    }
+
+    async handleEconomyCommand(interaction) {
+        const guild = interaction.guild;
+        const subcommandGroup = interaction.options.getSubcommandGroup(false);
+        const subcommand = interaction.options.getSubcommand();
+        const isDm = !guild;
+
+        if (guild && !(await this.isFeatureActive('economy', guild))) {
+            await interaction.editReply('The StarkTokens economy is disabled for this server, sir.');
+            return;
+        }
+
+        if (subcommandGroup === 'config') {
+            await this.handleEconomyConfigCommand(interaction);
+            return;
+        }
+
+        if (subcommandGroup === 'boss') {
+            await this.handleEconomyBossCommand(interaction);
+            return;
+        }
+
+        if (guild) {
+            const enabled = await this.isEconomyChannelEnabled(guild, interaction.channelId);
+            if (!enabled) {
+                await interaction.editReply('Economy is not enabled in this channel, sir. Ask an administrator to run `/econ config enable` here.');
+                return;
+            }
+        }
+
         const targetUser = interaction.options.getUser('user') || interaction.user;
+        const components = this.buildEconomyButtons({
+            includeLeader: Boolean(guild),
+            includeShop: Boolean(guild)
+        });
+        const scopeId = guild ? guild.id : `dm:${interaction.user.id}`;
 
         try {
             switch (subcommand) {
                 case 'balance': {
-                    const profile = await this.economy.getBalance(guild.id, targetUser.id);
+                    const profile = await this.economy.getBalance(scopeId, targetUser.id);
                     const embed = new EmbedBuilder()
                         .setTitle(`${targetUser.username}'s Stark wallet`)
                         .setColor(0xf59e0b)
@@ -1248,50 +1716,59 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
                         });
                     }
 
-                    await interaction.editReply({ embeds: [embed] });
+                    await interaction.editReply({ embeds: [embed], components });
                     break;
                 }
                 case 'daily': {
-                    const { reward, streak, profile } = await this.economy.claimDaily(guild.id, interaction.user.id);
-                    await interaction.editReply(
-                        `Daily rations delivered: **${reward.toLocaleString()}** StarkTokens. ` +
-                        `Current streak: ${streak} day${streak === 1 ? '' : 's'}. ` +
-                        `Balance: ${profile.balance.toLocaleString()} tokens.`
-                    );
+                    const { reward, streak, profile } = await this.economy.claimDaily(scopeId, interaction.user.id);
+                    await interaction.editReply({
+                        content: `Daily rations delivered: **${reward.toLocaleString()}** StarkTokens. ` +
+                            `Current streak: ${streak} day${streak === 1 ? '' : 's'}. ` +
+                            `Balance: ${profile.balance.toLocaleString()} tokens.`,
+                        components
+                    });
                     break;
                 }
                 case 'work': {
-                    const { reward, profile } = await this.economy.doWork(guild.id, interaction.user.id);
-                    await interaction.editReply(
-                        `Shift complete. Credited **${reward.toLocaleString()}** StarkTokens. ` +
-                        `Balance: ${profile.balance.toLocaleString()} tokens.`
-                    );
+                    const { reward, profile } = await this.economy.doWork(scopeId, interaction.user.id);
+                    await interaction.editReply({
+                        content: `Shift complete. Credited **${reward.toLocaleString()}** StarkTokens. ` +
+                            `Balance: ${profile.balance.toLocaleString()} tokens.`,
+                        components
+                    });
                     break;
                 }
                 case 'coinflip': {
                     const amount = interaction.options.getInteger('amount', true);
                     const side = interaction.options.getString('side', true);
-                    const result = await this.economy.coinflip(guild.id, interaction.user.id, amount, side);
+                    const result = await this.economy.coinflip(scopeId, interaction.user.id, amount, side);
                     const summary = result.didWin
                         ? `Victory! Coin landed **${result.outcome}**. ${amount.toLocaleString()} tokens added.`
                         : `Coin landed **${result.outcome}**. Wager lost (${amount.toLocaleString()} tokens).`;
-                    await interaction.editReply(
-                        `${summary} Balance: ${result.profile.balance.toLocaleString()} StarkTokens.`
-                    );
+                    await interaction.editReply({
+                        content: `${summary} Balance: ${result.profile.balance.toLocaleString()} StarkTokens.`,
+                        components
+                    });
                     break;
                 }
                 case 'crate': {
-                    const { reward, message, profile } = await this.economy.openCrate(guild.id, interaction.user.id);
-                    await interaction.editReply(
-                        `${message} Loot contained **${reward.toLocaleString()}** StarkTokens. ` +
-                        `Balance: ${profile.balance.toLocaleString()} tokens.`
-                    );
+                    const { reward, message, profile } = await this.economy.openCrate(scopeId, interaction.user.id);
+                    await interaction.editReply({
+                        content: `${message} Loot contained **${reward.toLocaleString()}** StarkTokens. ` +
+                            `Balance: ${profile.balance.toLocaleString()} tokens.`,
+                        components
+                    });
                     break;
                 }
                 case 'leaderboard': {
+                    if (!guild) {
+                        await interaction.editReply('Leaderboards require a server context, sir.');
+                        return;
+                    }
+
                     const top = await this.economy.getLeaderboard(guild.id, 10);
                     if (!top.length) {
-                        await interaction.editReply('No StarkToken activity recorded yet, sir.');
+                        await interaction.editReply({ content: 'No StarkToken activity recorded yet, sir.', components });
                         return;
                     }
 
@@ -1307,21 +1784,21 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
                         .setColor(0xf59e0b)
                         .setDescription(lines.join('\n'));
 
-                    await interaction.editReply({ embeds: [embed] });
+                    await interaction.editReply({ embeds: [embed], components });
                     break;
                 }
                 default: {
-                    await interaction.editReply('I am unsure how to process that economy request, sir.');
+                    await interaction.editReply({ content: 'I am unsure how to process that economy request, sir.', components });
                 }
             }
         } catch (error) {
             console.error('Economy command failed:', error);
             if (error.code === this.economy.ERROR_CODES.COOLDOWN) {
-                await interaction.editReply(error.message);
+                await interaction.editReply({ content: error.message, components });
             } else if (error.code === this.economy.ERROR_CODES.INSUFFICIENT_FUNDS) {
-                await interaction.editReply(error.message || 'Balance too low, sir.');
+                await interaction.editReply({ content: error.message || 'Balance too low, sir.', components });
             } else {
-                await interaction.editReply('Economy systems encountered an unexpected fault, sir.');
+                await interaction.editReply({ content: 'Economy systems encountered an unexpected fault, sir.', components });
             }
         }
     }
@@ -1360,14 +1837,6 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
                 }
                 return;
             }
-
-            if (this.isOnCooldown(userId, cooldownScope)) {
-                telemetryStatus = 'error';
-                telemetryMetadata.reason = 'rate_limited';
-                return;
-            }
-
-            telemetrySubcommand = this.extractInteractionRoute(interaction);
 
                 let roleId = null;
                 if (role) {
@@ -1679,6 +2148,21 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
             }
 
             switch (commandName) {
+                case 'eightball': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleEightBallCommand(interaction);
+                    return;
+                }
+                case 'vibecheck': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleVibeCheckCommand(interaction);
+                    return;
+                }
+                case 'bonk': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleBonkCommand(interaction);
+                    return;
+                }
                 case 'caption': {
                     telemetryMetadata.category = 'memes';
                     await this.handleCaptionCommand(interaction);
