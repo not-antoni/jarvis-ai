@@ -43,7 +43,10 @@ const rawConfig = {
             newsCache: 'newsCache',
             migrations: 'migrations',
             xpUsers: 'xp_users',
-            xpRewards: 'xp_rewards'
+            xpRewards: 'xp_rewards',
+            economyUsers: 'econ_users',
+            economyShop: 'econ_shop',
+            economyTransactions: 'econ_tx'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',
@@ -119,7 +122,9 @@ const rawConfig = {
         macroReplies: true,
         music: true,
         leveling: true,
-        levelingVoice: false
+        levelingVoice: false,
+        memeTools: true,
+        economy: true
     }
 };
 

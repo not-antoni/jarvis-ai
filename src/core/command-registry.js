@@ -133,6 +133,22 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'caption',
+        description: 'Add a meme-style caption to an image.',
+        category: 'Meme Lab',
+        usage: '/caption text:<caption> image:<attachment>',
+        feature: 'memeTools',
+        ephemeral: false
+    },
+    {
+        name: 'meme',
+        description: 'Generate meme variations with top and bottom text.',
+        category: 'Meme Lab',
+        usage: '/meme impact top:<text> bottom:<text> image:<attachment>',
+        feature: 'memeTools',
+        ephemeral: false
+    },
+    {
         name: 'ticket',
         description: 'Open, close, or export support tickets.',
         category: 'Operations',
@@ -195,6 +211,22 @@ const commandDefinitions = [
         usage: '/macro list',
         feature: 'macroReplies',
         ephemeral: true
+    },
+    {
+        name: 'econ',
+        description: 'Interact with the Stark Tokens economy.',
+        category: 'Economy',
+        usage: '/econ balance|daily|work|coinflip|crate',
+        feature: 'economy',
+        ephemeral: false
+    },
+    {
+        name: 'shop',
+        description: 'Manage and browse the Stark Tokens shop.',
+        category: 'Economy',
+        usage: '/shop add|remove|list|buy',
+        feature: 'economy',
+        ephemeral: false
     },
     {
         name: 'rank',

@@ -1122,6 +1122,393 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
         await interaction.editReply('I did not recognise that subcommand, sir.');
     }
 
+    async fetchAttachmentBuffer(attachment) {
+        if (!attachment?.url) {
+            throw new Error('Attachment missing URL');
+        }
+
+        const res = await fetch(attachment.url);
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        const arrayBuffer = await res.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+    }
+
+    async handleCaptionCommand(interaction) {
+        const guild = interaction.guild;
+        if (guild && !(await this.isFeatureActive('memeTools', guild))) {
+            await interaction.editReply('Meme systems are disabled for this server, sir.');
+            return;
+        }
+
+        const text = interaction.options.getString('text', true).trim();
+        const attachment = interaction.options.getAttachment('image', true);
+
+        if (!text.length) {
+            await interaction.editReply('Please provide a caption, sir.');
+            return;
+        }
+
+        if (text.length > 200) {
+            await interaction.editReply('Caption must be 200 characters or fewer, sir.');
+            return;
+        }
+
+        const contentType = (attachment.contentType || '').toLowerCase();
+        if (!contentType.startsWith('image/')) {
+            await interaction.editReply('That file does not appear to be an image, sir.');
+            return;
+        }
+
+        try {
+            const buffer = await this.fetchAttachmentBuffer(attachment);
+            const rendered = await memeCanvas.createCaptionImage(buffer, text);
+            const file = new AttachmentBuilder(rendered, { name: 'caption.png' });
+            await interaction.editReply({ files: [file] });
+        } catch (error) {
+            console.error('Caption command failed:', error);
+            await interaction.editReply('Caption generator misfired, sir. Try another image.');
+        }
+    }
+
+    async handleMemeCommand(interaction) {
+        const guild = interaction.guild;
+        if (guild && !(await this.isFeatureActive('memeTools', guild))) {
+            await interaction.editReply('Meme systems are disabled for this server, sir.');
+            return;
+        }
+
+        const subcommand = interaction.options.getSubcommand();
+        if (subcommand !== 'impact') {
+            await interaction.editReply('I have not memorised that meme pattern yet, sir.');
+            return;
+        }
+
+        const attachment = interaction.options.getAttachment('image', true);
+        const top = (interaction.options.getString('top') || '').trim();
+        const bottom = (interaction.options.getString('bottom') || '').trim();
+
+        if (top.length > 120 || bottom.length > 120) {
+            await interaction.editReply('Each text block must be 120 characters or fewer, sir.');
+            return;
+        }
+
+        const contentType = (attachment.contentType || '').toLowerCase();
+        if (!contentType.startsWith('image/')) {
+            await interaction.editReply('That file does not appear to be an image, sir.');
+            return;
+        }
+
+        try {
+            const buffer = await this.fetchAttachmentBuffer(attachment);
+            const rendered = await memeCanvas.createImpactMemeImage(buffer, top, bottom);
+            const file = new AttachmentBuilder(rendered, { name: 'meme.png' });
+            await interaction.editReply({ files: [file] });
+        } catch (error) {
+            console.error('Impact meme command failed:', error);
+            await interaction.editReply('Impact meme generators overheated, sir. Try again shortly.');
+        }
+    }
+
+    async handleEconomyCommand(interaction) {
+        const guild = interaction.guild;
+        if (!guild) {
+            await interaction.editReply('Economy commands are available inside servers only, sir.');
+            return;
+        }
+
+        if (!(await this.isFeatureActive('economy', guild))) {
+            await interaction.editReply('The StarkTokens economy is disabled for this server, sir.');
+            return;
+        }
+
+        const subcommand = interaction.options.getSubcommand();
+        const targetUser = interaction.options.getUser('user') || interaction.user;
+
+        try {
+            switch (subcommand) {
+                case 'balance': {
+                    const profile = await this.economy.getBalance(guild.id, targetUser.id);
+                    const embed = new EmbedBuilder()
+                        .setTitle(`${targetUser.username}'s Stark wallet`)
+                        .setColor(0xf59e0b)
+                        .addFields(
+                            { name: 'Balance', value: `${(profile.balance || 0).toLocaleString()} tokens`, inline: true },
+                            { name: 'Daily streak', value: `${profile.streak || 0} day${profile.streak === 1 ? '' : 's'}`, inline: true }
+                        )
+                        .setFooter({ text: 'Earn tokens with /econ daily, /econ work, and Stark-approved wagers.' });
+
+                    if (profile.lastDailyAt) {
+                        embed.addFields({
+                            name: 'Last daily',
+                            value: `<t:${Math.floor(new Date(profile.lastDailyAt).getTime() / 1000)}:R>`,
+                            inline: true
+                        });
+                    }
+
+                    await interaction.editReply({ embeds: [embed] });
+                    break;
+                }
+                case 'daily': {
+                    const { reward, streak, profile } = await this.economy.claimDaily(guild.id, interaction.user.id);
+                    await interaction.editReply(
+                        `Daily rations delivered: **${reward.toLocaleString()}** StarkTokens. ` +
+                        `Current streak: ${streak} day${streak === 1 ? '' : 's'}. ` +
+                        `Balance: ${profile.balance.toLocaleString()} tokens.`
+                    );
+                    break;
+                }
+                case 'work': {
+                    const { reward, profile } = await this.economy.doWork(guild.id, interaction.user.id);
+                    await interaction.editReply(
+                        `Shift complete. Credited **${reward.toLocaleString()}** StarkTokens. ` +
+                        `Balance: ${profile.balance.toLocaleString()} tokens.`
+                    );
+                    break;
+                }
+                case 'coinflip': {
+                    const amount = interaction.options.getInteger('amount', true);
+                    const side = interaction.options.getString('side', true);
+                    const result = await this.economy.coinflip(guild.id, interaction.user.id, amount, side);
+                    const summary = result.didWin
+                        ? `Victory! Coin landed **${result.outcome}**. ${amount.toLocaleString()} tokens added.`
+                        : `Coin landed **${result.outcome}**. Wager lost (${amount.toLocaleString()} tokens).`;
+                    await interaction.editReply(
+                        `${summary} Balance: ${result.profile.balance.toLocaleString()} StarkTokens.`
+                    );
+                    break;
+                }
+                case 'crate': {
+                    const { reward, message, profile } = await this.economy.openCrate(guild.id, interaction.user.id);
+                    await interaction.editReply(
+                        `${message} Loot contained **${reward.toLocaleString()}** StarkTokens. ` +
+                        `Balance: ${profile.balance.toLocaleString()} tokens.`
+                    );
+                    break;
+                }
+                case 'leaderboard': {
+                    const top = await this.economy.getLeaderboard(guild.id, 10);
+                    if (!top.length) {
+                        await interaction.editReply('No StarkToken activity recorded yet, sir.');
+                        return;
+                    }
+
+                    const lines = top.map((entry, index) => {
+                        const mention = guild.members.cache.get(entry.userId)
+                            ? `<@${entry.userId}>`
+                            : `User ${entry.userId}`;
+                        return `**#${index + 1}** ${mention} — ${entry.balance.toLocaleString()} tokens`;
+                    });
+
+                    const embed = new EmbedBuilder()
+                        .setTitle(`${guild.name} — StarkTokens leaderboard`)
+                        .setColor(0xf59e0b)
+                        .setDescription(lines.join('\n'));
+
+                    await interaction.editReply({ embeds: [embed] });
+                    break;
+                }
+                default: {
+                    await interaction.editReply('I am unsure how to process that economy request, sir.');
+                }
+            }
+        } catch (error) {
+            console.error('Economy command failed:', error);
+            if (error.code === this.economy.ERROR_CODES.COOLDOWN) {
+                await interaction.editReply(error.message);
+            } else if (error.code === this.economy.ERROR_CODES.INSUFFICIENT_FUNDS) {
+                await interaction.editReply(error.message || 'Balance too low, sir.');
+            } else {
+                await interaction.editReply('Economy systems encountered an unexpected fault, sir.');
+            }
+        }
+    }
+
+    async handleShopCommand(interaction) {
+        const guild = interaction.guild;
+        if (!guild) {
+            await interaction.editReply('The Stark shop is available within servers only, sir.');
+            return;
+        }
+
+        if (!(await this.isFeatureActive('economy', guild))) {
+            await interaction.editReply('The Stark shop is disabled for this server, sir.');
+            return;
+        }
+
+        const subcommand = interaction.options.getSubcommand();
+
+        try {
+            if (subcommand === 'add') {
+                const member = interaction.member;
+                if (!member?.permissions?.has(PermissionsBitField.Flags.ManageGuild)) {
+                    await interaction.editReply('Only facility managers may add shop inventory, sir.');
+                    return;
+                }
+
+                const sku = interaction.options.getString('sku', true).trim();
+                const price = interaction.options.getInteger('price', true);
+                const name = interaction.options.getString('name', true).trim();
+                const description = (interaction.options.getString('description') || '').trim() || null;
+                const role = interaction.options.getRole('role');
+
+                if (price <= 0) {
+                    await interaction.editReply('Prices must be greater than zero StarkTokens, sir.');
+                    return;
+                }
+                return;
+            }
+
+            if (this.isOnCooldown(userId, cooldownScope)) {
+                telemetryStatus = 'error';
+                telemetryMetadata.reason = 'rate_limited';
+                return;
+            }
+
+            telemetrySubcommand = this.extractInteractionRoute(interaction);
+
+                let roleId = null;
+                if (role) {
+                    const me = guild.members.me || await guild.members.fetchMe();
+                    if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+                        await interaction.editReply('I require Manage Roles to distribute that reward, sir.');
+                        return;
+                    }
+                    if (me.roles.highest.comparePositionTo(role) <= 0) {
+                        await interaction.editReply('My highest role must sit above that reward role, sir.');
+                        return;
+                    }
+                    roleId = role.id;
+                }
+                return;
+            }
+
+                await this.economy.addShopItem(guild.id, sku, {
+                    name,
+                    price,
+                    description,
+                    roleId
+                });
+
+                await interaction.editReply(
+                    `Catalog updated. SKU **${sku}** priced at ${price.toLocaleString()} tokens${roleId ? ` (grants <@&${roleId}>)` : ''}.`
+                );
+                return;
+            }
+
+            if (subcommand === 'remove') {
+                const member = interaction.member;
+                if (!member?.permissions?.has(PermissionsBitField.Flags.ManageGuild)) {
+                    await interaction.editReply('Only facility managers may remove shop inventory, sir.');
+                    return;
+                }
+
+                const sku = interaction.options.getString('sku', true).trim();
+                const removed = await this.economy.removeShopItem(guild.id, sku);
+                if (!removed) {
+                    await interaction.editReply('No catalog entry found for that SKU, sir.');
+                    return;
+                }
+
+                await interaction.editReply(`SKU **${sku}** removed from the catalog.`);
+                return;
+            }
+
+            if (subcommand === 'list') {
+                const items = await this.economy.listShopItems(guild.id);
+                if (!items.length) {
+                    await interaction.editReply('The Stark shop is currently empty, sir.');
+                    return;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`${guild.name} — Stark shop`)
+                    .setColor(0xf59e0b);
+
+                items.slice(0, 25).forEach((item) => {
+                    const lines = [
+                        `Price: ${item.price.toLocaleString()} tokens`,
+                        item.description ? item.description : null,
+                        item.roleId ? `Reward: <@&${item.roleId}>` : null
+                    ].filter(Boolean);
+
+                    embed.addFields({
+                        name: `${item.sku} — ${item.name}`,
+                        value: lines.join('\n') || 'No details provided.'
+                    });
+                });
+
+                await interaction.editReply({ embeds: [embed] });
+                return;
+            }
+
+            if (subcommand === 'buy') {
+                const sku = interaction.options.getString('sku', true).trim();
+                const { item, profile } = await this.economy.buyItem({
+                    guildId: guild.id,
+                    userId: interaction.user.id,
+                    sku
+                });
+
+                let roleApplied = false;
+                let roleStatus = null;
+                if (item.roleId) {
+                    const rewardRole = guild.roles.cache.get(item.roleId);
+                    if (rewardRole) {
+                        try {
+                            const me = guild.members.me || await guild.members.fetchMe();
+                            if (!me.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+                                throw new Error('Missing Manage Roles permission.');
+                            }
+                            if (me.roles.highest.comparePositionTo(rewardRole) <= 0) {
+                                throw new Error('Role hierarchy prevents assignment.');
+                            }
+                            const member = await guild.members.fetch(interaction.user.id);
+                            if (!member.roles.cache.has(rewardRole.id)) {
+                                await member.roles.add(rewardRole, `Purchased ${item.sku}`);
+                                roleApplied = true;
+                            }
+                        } catch (error) {
+                            console.warn('Failed to apply shop role:', error);
+                            roleStatus = 'Unable to assign the role automatically — please check my permissions.';
+                        }
+                    } else {
+                        roleStatus = 'The configured reward role no longer exists, sir.';
+                    }
+                }
+
+                const lines = [
+                    `Transaction approved. **${item.name}** acquired for ${item.price.toLocaleString()} tokens.`,
+                    `Balance: ${profile.balance.toLocaleString()} tokens.`
+                ];
+
+                if (item.roleId) {
+                    if (roleApplied) {
+                        lines.push(`Role <@&${item.roleId}> assigned.`);
+                    } else if (roleStatus) {
+                        lines.push(roleStatus);
+                    }
+                }
+
+                await interaction.editReply(lines.join(' '));
+                return;
+            }
+
+            await interaction.editReply('I am unsure how to operate that shop subcommand, sir.');
+        } catch (error) {
+            console.error('Shop command failed:', error);
+            if (error.code === this.economy.ERROR_CODES.INSUFFICIENT_FUNDS) {
+                await interaction.editReply(error.message || 'Balance insufficient for that purchase, sir.');
+            } else if (error.code === this.economy.ERROR_CODES.UNKNOWN_ITEM) {
+                await interaction.editReply('That SKU is not in the catalog, sir.');
+            } else {
+                await interaction.editReply('Shop systems encountered an unexpected fault, sir.');
+            }
+        }
+    }
+
     async handleSlashCommand(interaction) {
         const commandName = interaction.commandName;
         const userId = interaction.user.id;
@@ -1292,6 +1679,26 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
             }
 
             switch (commandName) {
+                case 'caption': {
+                    telemetryMetadata.category = 'memes';
+                    await this.handleCaptionCommand(interaction);
+                    return;
+                }
+                case 'meme': {
+                    telemetryMetadata.category = 'memes';
+                    await this.handleMemeCommand(interaction);
+                    return;
+                }
+                case 'econ': {
+                    telemetryMetadata.category = 'economy';
+                    await this.handleEconomyCommand(interaction);
+                    return;
+                }
+                case 'shop': {
+                    telemetryMetadata.category = 'economy';
+                    await this.handleShopCommand(interaction);
+                    return;
+                }
                 case 'jarvis': {
                     let prompt = interaction.options.getString('prompt');
 
