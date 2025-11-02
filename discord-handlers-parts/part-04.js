@@ -1358,6 +1358,16 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
                     await interaction.editReply('Prices must be greater than zero StarkTokens, sir.');
                     return;
                 }
+                return;
+            }
+
+            if (this.isOnCooldown(userId, cooldownScope)) {
+                telemetryStatus = 'error';
+                telemetryMetadata.reason = 'rate_limited';
+                return;
+            }
+
+            telemetrySubcommand = this.extractInteractionRoute(interaction);
 
                 let roleId = null;
                 if (role) {
@@ -1372,6 +1382,8 @@ ${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
                     }
                     roleId = role.id;
                 }
+                return;
+            }
 
                 await this.economy.addShopItem(guild.id, sku, {
                     name,
