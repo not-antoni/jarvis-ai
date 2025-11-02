@@ -578,8 +578,6 @@ class DatabaseManager {
                 userId,
                 xp: 0,
                 level: 0,
-                lastMsgAt: null,
-                joinedVoiceAt: null,
                 createdAt: now
             },
             $set: {
@@ -589,12 +587,14 @@ class DatabaseManager {
 
         if (lastMessageAt !== undefined) {
             update.$set.lastMsgAt = lastMessageAt;
-            delete update.$setOnInsert.lastMsgAt;
+        } else {
+            update.$setOnInsert.lastMsgAt = null;
         }
 
         if (joinedVoiceAt !== undefined) {
             update.$set.joinedVoiceAt = joinedVoiceAt;
-            delete update.$setOnInsert.joinedVoiceAt;
+        } else {
+            update.$setOnInsert.joinedVoiceAt = null;
         }
 
         if (Number.isFinite(xpDelta) && xpDelta !== 0) {
