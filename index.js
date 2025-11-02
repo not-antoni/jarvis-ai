@@ -3,7 +3,7 @@
  * Refactored for better organization and maintainability
  */
 require("dotenv").config();
-const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials } = require("discord.js");
+const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials, PermissionsBitField } = require("discord.js");
 const express = require("express");
 const cron = require("node-cron");
 
@@ -15,6 +15,8 @@ const aiManager = require('./ai-providers');
 const discordHandlers = require('./discord-handlers');
 const { gatherHealthSnapshot } = require('./diagnostics');
 const { commandList: musicCommandList } = require("./src/commands/music");
+const { commandFeatureMap } = require('./src/core/command-registry');
+const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 
 initializeDatabaseClients()
     .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
@@ -161,6 +163,67 @@ const allCommands = [
                 .setMaxValue(10))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('rank')
+        .setDescription('Display a member\'s level progress')
+        .addUserOption(option =>
+            option
+                .setName('user')
+                .setDescription('Member to inspect')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('leaderboard')
+        .setDescription('Show the leveling leaderboard')
+        .addIntegerOption(option =>
+            option
+                .setName('page')
+                .setDescription('Leaderboard page (defaults to 1)')
+                .setRequired(false)
+                .setMinValue(1)
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('levelrole')
+        .setDescription('Configure automatic level reward roles')
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('add')
+                .setDescription('Grant a role when members reach a level')
+                .addIntegerOption(option =>
+                    option
+                        .setName('level')
+                        .setDescription('Level at which to grant the role')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+                .addRoleOption(option =>
+                    option
+                        .setName('role')
+                        .setDescription('Role to award')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('remove')
+                .setDescription('Remove a level reward role')
+                .addIntegerOption(option =>
+                    option
+                        .setName('level')
+                        .setDescription('Level to remove')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('list')
+                .setDescription('List configured level reward roles')
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
         .setName("decode")
         .setDescription("Decode encoded text")
         .addStringOption(option =>
@@ -212,6 +275,37 @@ const allCommands = [
                 ))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('eightball')
+        .setDescription('Consult Stark Industries magic eight ball')
+        .addStringOption((option) =>
+            option
+                .setName('question')
+                .setDescription('Ask anything')
+                .setRequired(true)
+                .setMaxLength(200)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('vibecheck')
+        .setDescription('Evaluate the vibe levels of a comrade')
+        .addUserOption((option) =>
+            option
+                .setName('user')
+                .setDescription('Optional target (defaults to you)')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('bonk')
+        .setDescription('Deliver a comedic corrective bonk')
+        .addUserOption((option) =>
+            option
+                .setName('target')
+                .setDescription('Who deserves the bonk?')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("news")
         .setDescription("Fetch curated headlines for a topic")
         .addStringOption(option =>
@@ -241,6 +335,52 @@ const allCommands = [
                 .setName("message_id")
                 .setDescription("ID of the message to clip")
                 .setRequired(true),
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('caption')
+        .setDescription('Add a meme caption above an image')
+        .addStringOption((option) =>
+            option
+                .setName('text')
+                .setDescription('Caption text (max 200 characters)')
+                .setRequired(true)
+                .setMaxLength(200)
+        )
+        .addAttachmentOption((option) =>
+            option
+                .setName('image')
+                .setDescription('Image to caption')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('meme')
+        .setDescription('Generate meme variants')
+        .addSubcommand((sub) =>
+            sub
+                .setName('impact')
+                .setDescription('Classic impact meme with top/bottom text')
+                .addAttachmentOption((option) =>
+                    option
+                        .setName('image')
+                        .setDescription('Image to memeify')
+                        .setRequired(true)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('top')
+                        .setDescription('Top text (optional)')
+                        .setRequired(false)
+                        .setMaxLength(120)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('bottom')
+                        .setDescription('Bottom text (optional)')
+                        .setRequired(false)
+                        .setMaxLength(120)
+                )
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
@@ -382,6 +522,201 @@ const allCommands = [
                         .setDescription('Channel to send the macro to (defaults to here)')
                         .setRequired(false)
                         .addChannelTypes(ChannelType.GuildText))
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('econ')
+        .setDescription('Interact with the StarkTokens economy')
+        .addSubcommandGroup((group) =>
+            group
+                .setName('config')
+                .setDescription('Configure where economy commands are allowed')
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('enable')
+                        .setDescription('Enable StarkTokens in this channel or a specified one')
+                        .addChannelOption((option) =>
+                            option
+                                .setName('channel')
+                                .setDescription('Channel to enable (defaults to current)')
+                                .setRequired(false)
+                                .addChannelTypes(
+                                    ChannelType.GuildText,
+                                    ChannelType.GuildAnnouncement,
+                                    ChannelType.PublicThread,
+                                    ChannelType.PrivateThread,
+                                    ChannelType.GuildVoice
+                                )
+                        )
+                )
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('disable')
+                        .setDescription('Disable StarkTokens in a channel')
+                        .addChannelOption((option) =>
+                            option
+                                .setName('channel')
+                                .setDescription('Channel to disable (defaults to current)')
+                                .setRequired(false)
+                                .addChannelTypes(
+                                    ChannelType.GuildText,
+                                    ChannelType.GuildAnnouncement,
+                                    ChannelType.PublicThread,
+                                    ChannelType.PrivateThread,
+                                    ChannelType.GuildVoice
+                                )
+                        )
+                )
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('status')
+                        .setDescription('List channels where StarkTokens is enabled')
+                )
+        )
+        .addSubcommandGroup((group) =>
+            group
+                .setName('boss')
+                .setDescription('Launch Stark Industries boss events')
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('spawn')
+                        .setDescription('Deploy a training boss in this channel')
+                )
+                .addSubcommand((sub) =>
+                    sub
+                        .setName('status')
+                        .setDescription('Check the current boss status')
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('balance')
+                .setDescription('Check a user\'s token balance')
+                .addUserOption((option) =>
+                    option
+                        .setName('user')
+                        .setDescription('Member to inspect')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('daily')
+                .setDescription('Claim your StarkTokens daily stipend')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('work')
+                .setDescription('Complete a Stark Industries contract for pay')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('coinflip')
+                .setDescription('Wager StarkTokens on a coin flip')
+                .addIntegerOption((option) =>
+                    option
+                        .setName('amount')
+                        .setDescription('Amount to wager')
+                        .setRequired(true)
+                        .setMinValue(1)
+                        .setMaxValue(1000000)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('side')
+                        .setDescription('Heads or tails')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'Heads', value: 'heads' },
+                            { name: 'Tails', value: 'tails' }
+                        )
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('crate')
+                .setDescription('Open a Stark supply crate')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('leaderboard')
+                .setDescription('Show the richest StarkToken holders')
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('shop')
+        .setDescription('Browse or manage the Stark shop')
+        .addSubcommand((sub) =>
+            sub
+                .setName('add')
+                .setDescription('Add an item to the shop catalog')
+                .addStringOption((option) =>
+                    option
+                        .setName('sku')
+                        .setDescription('Unique identifier (letters, numbers, dashes)')
+                        .setRequired(true)
+                        .setMinLength(1)
+                        .setMaxLength(32)
+                )
+                .addIntegerOption((option) =>
+                    option
+                        .setName('price')
+                        .setDescription('Purchase price in StarkTokens')
+                        .setRequired(true)
+                        .setMinValue(1)
+                        .setMaxValue(1000000)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('name')
+                        .setDescription('Display name for the item')
+                        .setRequired(true)
+                        .setMaxLength(80)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('description')
+                        .setDescription('Optional short description')
+                        .setRequired(false)
+                        .setMaxLength(200)
+                )
+                .addRoleOption((option) =>
+                    option
+                        .setName('role')
+                        .setDescription('Role granted when purchased')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('remove')
+                .setDescription('Remove a SKU from the catalog')
+                .addStringOption((option) =>
+                    option
+                        .setName('sku')
+                        .setDescription('Identifier to remove')
+                        .setRequired(true)
+                        .setMinLength(1)
+                        .setMaxLength(32)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('list')
+                .setDescription('List available shop items')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('buy')
+                .setDescription('Purchase an item')
+                .addStringOption((option) =>
+                    option
+                        .setName('sku')
+                        .setDescription('Identifier to purchase')
+                        .setRequired(true)
+                        .setMinLength(1)
+                        .setMaxLength(32)
+                )
         )
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
@@ -663,56 +998,9 @@ const allCommands = [
     ...musicCommandList.map((command) => command.data)
 ];
 
-const commandFeatureMap = new Map([
-    ['jarvis', 'coreChat'],
-    ['status', 'coreChat'],
-    ['roll', 'utilities'],
-    ['time', 'utilities'],
-    ['providers', 'providers'],
-    ['reset', 'reset'],
-    ['help', 'coreChat'],
-    ['invite', 'invite'],
-    ['profile', 'coreChat'],
-    ['history', 'coreChat'],
-    ['recap', 'coreChat'],
-    ['digest', 'digests'],
-    ['decode', 'utilities'],
-    ['encode', 'utilities'],
-    ['news', 'newsBriefings'],
-    ['clip', 'clipping'],
-    ['ticket', 'tickets'],
-    ['kb', 'knowledgeBase'],
-    ['ask', 'knowledgeAsk'],
-    ['macro', 'macroReplies'],
-    ['reactionrole', 'reactionRoles'],
-    ['automod', 'automod'],
-    ['serverstats', 'serverStats'],
-    ['memberlog', 'memberLog'],
-    ['play', 'music'],
-    ['skip', 'music'],
-    ['pause', 'music'],
-    ['resume', 'music'],
-    ['stop', 'music'],
-    ['queue', 'music']
-]);
-
-const featureFlags = config.features || {};
-
-const isFeatureEnabled = (flag, fallback = true) => {
-    if (!flag) {
-        return fallback;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(featureFlags, flag)) {
-        return Boolean(featureFlags[flag]);
-    }
-
-    return fallback;
-};
-
 const commands = allCommands.filter((builder) => {
     const featureKey = commandFeatureMap.get(builder.name);
-    return isFeatureEnabled(featureKey);
+    return isFeatureGloballyEnabled(featureKey, true);
 });
 
 function buildCommandData() {
@@ -1352,8 +1640,22 @@ client.on("messageCreate", async (message) => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isCommand()) return;
-    await discordHandlers.handleSlashCommand(interaction);
+    try {
+        if (interaction.isChatInputCommand()) {
+            await discordHandlers.handleSlashCommand(interaction);
+        } else if (interaction.isButton()) {
+            await discordHandlers.handleComponentInteraction(interaction);
+        }
+    } catch (error) {
+        console.error('Interaction handler error:', error);
+        if (typeof interaction.isRepliable === 'function' && interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'Technical difficulties, sir.', ephemeral: true }).catch(() => {});
+        }
+    }
+});
+
+client.on("voiceStateUpdate", async (oldState, newState) => {
+    await discordHandlers.handleVoiceStateUpdate(oldState, newState);
 });
 
 client.on("messageReactionAdd", async (reaction, user) => {

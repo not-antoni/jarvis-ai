@@ -1,0 +1,363 @@
+/**
+ * Central registry describing Jarvis slash commands.
+ * Used for feature gating, help generation, and future auto-registration.
+ */
+
+const commandDefinitions = [
+    {
+        name: 'jarvis',
+        description: 'Chat with Jarvis or request on-demand assistance.',
+        category: 'Core Systems',
+        usage: '/jarvis <prompt>',
+        feature: 'coreChat',
+        ephemeral: false
+    },
+    {
+        name: 'help',
+        description: 'Show command categories and support resources.',
+        category: 'Core Systems',
+        usage: '/help',
+        feature: 'coreChat',
+        ephemeral: true
+    },
+    {
+        name: 'invite',
+        description: 'Grab the Jarvis HQ support server invite.',
+        category: 'Core Systems',
+        usage: '/invite',
+        feature: 'invite',
+        ephemeral: false
+    },
+    {
+        name: 'status',
+        description: 'Check Jarvis subsystem health.',
+        category: 'Core Systems',
+        usage: '/status',
+        feature: 'coreChat',
+        ephemeral: false
+    },
+    {
+        name: 'providers',
+        description: 'List available AI providers and rotation status.',
+        category: 'Core Systems',
+        usage: '/providers',
+        feature: 'providers',
+        ephemeral: false
+    },
+    {
+        name: 'reset',
+        description: 'Clear your conversation history and profile.',
+        category: 'Core Systems',
+        usage: '/reset',
+        feature: 'reset',
+        ephemeral: false
+    },
+    {
+        name: 'profile',
+        description: 'View or update your saved preferences.',
+        category: 'Personal Tools',
+        usage: '/profile show',
+        feature: 'coreChat',
+        ephemeral: true
+    },
+    {
+        name: 'history',
+        description: 'Review your recent prompts with Jarvis.',
+        category: 'Personal Tools',
+        usage: '/history [count]',
+        feature: 'coreChat',
+        ephemeral: true
+    },
+    {
+        name: 'recap',
+        description: 'Summary of recent conversations.',
+        category: 'Personal Tools',
+        usage: '/recap [window]',
+        feature: 'coreChat',
+        ephemeral: true
+    },
+    {
+        name: 'digest',
+        description: 'Summarize recent server activity.',
+        category: 'Personal Tools',
+        usage: '/digest [window] [highlights]',
+        feature: 'digests',
+        ephemeral: true
+    },
+    {
+        name: 'roll',
+        description: 'Roll a virtual die.',
+        category: 'Utilities',
+        usage: '/roll [sides]',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
+        name: 'time',
+        description: 'Render a Discord timestamp in your timezone.',
+        category: 'Utilities',
+        usage: '/time [format]',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
+        name: 'encode',
+        description: 'Encode plain text in various formats.',
+        category: 'Utilities',
+        usage: '/encode text:<value> format:<type>',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
+        name: 'decode',
+        description: 'Decode text back to plaintext.',
+        category: 'Utilities',
+        usage: '/decode text:<value> format:<type>',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
+        name: 'news',
+        description: 'Fetch curated headlines via Brave Search.',
+        category: 'Utilities',
+        usage: '/news <topic>',
+        feature: 'newsBriefings',
+        ephemeral: false
+    },
+    {
+        name: 'clip',
+        description: 'Render a message as a clean PNG.',
+        category: 'Utilities',
+        usage: '/clip message:<link>',
+        feature: 'clipping',
+        ephemeral: false
+    },
+    {
+        name: 'caption',
+        description: 'Add a meme-style caption to an image.',
+        category: 'Meme Lab',
+        usage: '/caption text:<caption> image:<attachment>',
+        feature: 'memeTools',
+        ephemeral: false
+    },
+    {
+        name: 'meme',
+        description: 'Generate meme variations with top and bottom text.',
+        category: 'Meme Lab',
+        usage: '/meme impact top:<text> bottom:<text> image:<attachment>',
+        feature: 'memeTools',
+        ephemeral: false
+    },
+    {
+        name: 'eightball',
+        description: 'Ask the oracle of Stark for guidance.',
+        category: 'Fun',
+        usage: '/eightball "Should I deploy?"',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'vibecheck',
+        description: 'Audit the vibes of a comrade.',
+        category: 'Fun',
+        usage: '/vibecheck [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'bonk',
+        description: 'Deliver comedic corrective action.',
+        category: 'Fun',
+        usage: '/bonk <user>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'ticket',
+        description: 'Open, close, or export support tickets.',
+        category: 'Operations',
+        usage: '/ticket open',
+        feature: 'tickets',
+        ephemeral: true
+    },
+    {
+        name: 'reactionrole',
+        description: 'Configure reaction role menus.',
+        category: 'Operations',
+        usage: '/reactionrole create',
+        feature: 'reactionRoles',
+        ephemeral: true
+    },
+    {
+        name: 'automod',
+        description: 'Manage blacklist filters and automod rules.',
+        category: 'Operations',
+        usage: '/automod status',
+        feature: 'automod',
+        ephemeral: true
+    },
+    {
+        name: 'serverstats',
+        description: 'Maintain live member counters.',
+        category: 'Operations',
+        usage: '/serverstats enable',
+        feature: 'serverStats',
+        ephemeral: true
+    },
+    {
+        name: 'memberlog',
+        description: 'Customize join and leave announcements.',
+        category: 'Operations',
+        usage: '/memberlog enable',
+        feature: 'memberLog',
+        ephemeral: true
+    },
+    {
+        name: 'kb',
+        description: 'Manage the knowledge base.',
+        category: 'Operations',
+        usage: '/kb add',
+        feature: 'knowledgeBase',
+        ephemeral: true
+    },
+    {
+        name: 'ask',
+        description: 'Query the knowledge base.',
+        category: 'Operations',
+        usage: '/ask <question>',
+        feature: 'knowledgeAsk',
+        ephemeral: false
+    },
+    {
+        name: 'macro',
+        description: 'Set up canned responses.',
+        category: 'Operations',
+        usage: '/macro list',
+        feature: 'macroReplies',
+        ephemeral: true
+    },
+    {
+        name: 'econ',
+        description: 'Interact with the Stark Tokens economy.',
+        category: 'Economy',
+        usage: '/econ balance|daily|work|coinflip|crate',
+        feature: 'economy',
+        ephemeral: false
+    },
+    {
+        name: 'shop',
+        description: 'Manage and browse the Stark Tokens shop.',
+        category: 'Economy',
+        usage: '/shop add|remove|list|buy',
+        feature: 'economy',
+        ephemeral: false
+    },
+    {
+        name: 'rank',
+        description: 'View a member\'s level progress.',
+        category: 'Progression',
+        usage: '/rank [user]',
+        feature: 'leveling',
+        ephemeral: false
+    },
+    {
+        name: 'leaderboard',
+        description: 'Show the top members by XP.',
+        category: 'Progression',
+        usage: '/leaderboard [page]',
+        feature: 'leveling',
+        ephemeral: false
+    },
+    {
+        name: 'levelrole',
+        description: 'Manage automatic level reward roles.',
+        category: 'Progression',
+        usage: '/levelrole add <level> <role>',
+        feature: 'leveling',
+        ephemeral: true
+    },
+    {
+        name: 'play',
+        description: 'Queue music from YouTube and other sources.',
+        category: 'Music',
+        usage: '/play <song>',
+        feature: 'music',
+        ephemeral: false
+    },
+    {
+        name: 'skip',
+        description: 'Skip the current track.',
+        category: 'Music',
+        usage: '/skip',
+        feature: 'music',
+        ephemeral: false
+    },
+    {
+        name: 'pause',
+        description: 'Pause playback.',
+        category: 'Music',
+        usage: '/pause',
+        feature: 'music',
+        ephemeral: false
+    },
+    {
+        name: 'resume',
+        description: 'Resume playback.',
+        category: 'Music',
+        usage: '/resume',
+        feature: 'music',
+        ephemeral: false
+    },
+    {
+        name: 'stop',
+        description: 'Stop playback and clear queue.',
+        category: 'Music',
+        usage: '/stop',
+        feature: 'music',
+        ephemeral: false
+    },
+    {
+        name: 'queue',
+        description: 'Show the current song queue.',
+        category: 'Music',
+        usage: '/queue',
+        feature: 'music',
+        ephemeral: false
+    }
+];
+
+const commandFeatureMap = new Map(
+    commandDefinitions.map((definition) => [definition.name, definition.feature || null])
+);
+
+const SLASH_EPHEMERAL_COMMANDS = new Set(
+    commandDefinitions.filter((definition) => definition.ephemeral).map((definition) => definition.name)
+);
+
+function buildHelpCatalog() {
+    const categoryMap = new Map();
+
+    for (const definition of commandDefinitions) {
+        if (definition.hidden) {
+            continue;
+        }
+
+        const category = definition.category || 'Miscellaneous';
+        if (!categoryMap.has(category)) {
+            categoryMap.set(category, []);
+        }
+        categoryMap.get(category).push(definition);
+    }
+
+    return [...categoryMap.entries()].map(([category, commands]) => ({
+        category,
+        commands: commands.sort((a, b) => a.name.localeCompare(b.name))
+    }));
+}
+
+module.exports = {
+    commandDefinitions,
+    commandFeatureMap,
+    SLASH_EPHEMERAL_COMMANDS,
+    buildHelpCatalog
+};
