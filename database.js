@@ -65,6 +65,9 @@ class DatabaseManager {
             const migrations = this.db.collection(config.database.collections.migrations);
             const xpUsers = this.db.collection(config.database.collections.xpUsers);
             const xpRewards = this.db.collection(config.database.collections.xpRewards);
+            const economyUsers = this.db.collection(config.database.collections.economyUsers);
+            const economyShop = this.db.collection(config.database.collections.economyShop);
+            const economyTransactions = this.db.collection(config.database.collections.economyTransactions);
 
             await conversations.createIndex({ userId: 1, guildId: 1, createdAt: -1 });
             await conversations.createIndex(
@@ -119,6 +122,14 @@ class DatabaseManager {
             await xpUsers.createIndex({ guildId: 1, xp: -1 });
 
             await xpRewards.createIndex({ guildId: 1, level: 1 }, { unique: true });
+
+            await economyUsers.createIndex({ guildId: 1, userId: 1 }, { unique: true });
+            await economyUsers.createIndex({ guildId: 1, balance: -1 });
+
+            await economyShop.createIndex({ guildId: 1, sku: 1 }, { unique: true });
+
+            await economyTransactions.createIndex({ guildId: 1, userId: 1, ts: -1 });
+            await economyTransactions.createIndex({ guildId: 1, ts: -1 });
 
             console.log('Database indexes created successfully');
         } catch (error) {
@@ -683,6 +694,189 @@ class DatabaseManager {
                 },
                 { upsert: true }
             );
+    }
+
+    async ensureEconomyProfile(guildId, userId) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const collection = this.db.collection(config.database.collections.economyUsers);
+        const now = new Date();
+        const result = await collection.findOneAndUpdate(
+            { guildId, userId },
+            {
+                $set: { updatedAt: now },
+                $setOnInsert: {
+                    guildId,
+                    userId,
+                    balance: 0,
+                    streak: 0,
+                    lastDailyAt: null,
+                    lastWorkAt: null,
+                    lastCrateAt: null,
+                    createdAt: now
+                }
+            },
+            { upsert: true, returnDocument: 'after' }
+        );
+
+        return result.value;
+    }
+
+    async getEconomyProfile(guildId, userId) {
+        if (!this.isConnected) return null;
+
+        return this.db
+            .collection(config.database.collections.economyUsers)
+            .findOne({ guildId, userId });
+    }
+
+    async updateEconomyUser(guildId, userId, update = {}) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const collection = this.db.collection(config.database.collections.economyUsers);
+        const now = new Date();
+
+        const result = await collection.findOneAndUpdate(
+            { guildId, userId },
+            {
+                $set: {
+                    ...update,
+                    updatedAt: now
+                },
+                $setOnInsert: {
+                    guildId,
+                    userId,
+                    balance: 0,
+                    streak: 0,
+                    lastDailyAt: null,
+                    lastWorkAt: null,
+                    lastCrateAt: null,
+                    createdAt: now
+                }
+            },
+            { upsert: true, returnDocument: 'after' }
+        );
+
+        return result.value;
+    }
+
+    async adjustEconomyBalance(guildId, userId, delta, { type = 'adjust', reason = null, metadata = null } = {}) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        await this.ensureEconomyProfile(guildId, userId);
+
+        const collection = this.db.collection(config.database.collections.economyUsers);
+        const now = new Date();
+
+        const query = { guildId, userId };
+        if (delta < 0) {
+            query.balance = { $gte: Math.abs(delta) };
+        }
+
+        const result = await collection.findOneAndUpdate(
+            query,
+            {
+                $inc: { balance: delta },
+                $set: { updatedAt: now }
+            },
+            { returnDocument: 'after' }
+        );
+
+        if (!result.value) {
+            const error = new Error('Insufficient funds');
+            error.code = 'INSUFFICIENT_FUNDS';
+            throw error;
+        }
+
+        await this.logEconomyTransaction({
+            guildId,
+            userId,
+            type,
+            delta,
+            balance: result.value.balance,
+            reason,
+            metadata,
+            ts: now
+        });
+
+        return result.value;
+    }
+
+    async logEconomyTransaction({ guildId, userId, type, delta, balance, reason = null, metadata = null, ts = new Date() }) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        await this.db
+            .collection(config.database.collections.economyTransactions)
+            .insertOne({
+                guildId,
+                userId,
+                type,
+                delta,
+                balance,
+                reason,
+                metadata: metadata || null,
+                ts
+            });
+    }
+
+    async getEconomyLeaderboard(guildId, { limit = 10 } = {}) {
+        if (!this.isConnected) return [];
+
+        return this.db
+            .collection(config.database.collections.economyUsers)
+            .find({ guildId })
+            .sort({ balance: -1, updatedAt: -1 })
+            .limit(Math.max(1, Math.min(50, limit)))
+            .toArray();
+    }
+
+    async upsertShopItem(guildId, sku, data) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const collection = this.db.collection(config.database.collections.economyShop);
+        const now = new Date();
+
+        await collection.updateOne(
+            { guildId, sku },
+            {
+                $set: {
+                    ...data,
+                    guildId,
+                    sku,
+                    updatedAt: now
+                },
+                $setOnInsert: {
+                    createdAt: now
+                }
+            },
+            { upsert: true }
+        );
+    }
+
+    async removeShopItem(guildId, sku) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        await this.db
+            .collection(config.database.collections.economyShop)
+            .deleteOne({ guildId, sku });
+    }
+
+    async listShopItems(guildId) {
+        if (!this.isConnected) return [];
+
+        return this.db
+            .collection(config.database.collections.economyShop)
+            .find({ guildId })
+            .sort({ price: 1 })
+            .toArray();
+    }
+
+    async getShopItem(guildId, sku) {
+        if (!this.isConnected) return null;
+
+        return this.db
+            .collection(config.database.collections.economyShop)
+            .findOne({ guildId, sku });
     }
 
     async getAutoModConfig(guildId) {

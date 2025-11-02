@@ -31,6 +31,8 @@ const { recordCommandRun } = require('./src/utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('./src/core/feature-flags');
 const levelingManager = require('./src/core/leveling-manager');
+const economyManager = require('./src/core/economy-manager');
+const memeCanvas = require('./src/utils/meme-canvas');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -74,6 +76,7 @@ class DiscordHandlers {
         this.jarvis = new JarvisAI();
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
         this.leveling = levelingManager;
+        this.economy = economyManager;
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
         this.autoModRuleName = 'Jarvis Blacklist Filter';
