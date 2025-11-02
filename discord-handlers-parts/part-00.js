@@ -8,6 +8,9 @@ const {
     UserFlags,
     PermissionsBitField,
     EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
     parseEmoji,
     AutoModerationActionType,
     AutoModerationRuleEventType,
@@ -26,57 +29,17 @@ const fetch = require('node-fetch');
 const pdfParse = require('pdf-parse');
 const embeddingSystem = require('./embedding-system');
 const { commandMap: musicCommandMap } = require('./src/commands/music');
-
-const commandFeatureMap = new Map([
-    ['jarvis', 'coreChat'],
-    ['status', 'coreChat'],
-    ['roll', 'utilities'],
-    ['time', 'utilities'],
-    ['providers', 'providers'],
-    ['reset', 'reset'],
-    ['help', 'coreChat'],
-    ['invite', 'invite'],
-    ['profile', 'coreChat'],
-    ['history', 'coreChat'],
-    ['recap', 'coreChat'],
-    ['digest', 'digests'],
-    ['decode', 'utilities'],
-    ['encode', 'utilities'],
-    ['news', 'newsBriefings'],
-    ['clip', 'clipping'],
-    ['ticket', 'tickets'],
-    ['kb', 'knowledgeBase'],
-    ['ask', 'knowledgeAsk'],
-    ['macro', 'macroReplies'],
-    ['reactionrole', 'reactionRoles'],
-    ['automod', 'automod'],
-    ['serverstats', 'serverStats'],
-    ['memberlog', 'memberLog'],
-    ['play', 'music'],
-    ['skip', 'music'],
-    ['pause', 'music'],
-    ['resume', 'music'],
-    ['stop', 'music'],
-    ['queue', 'music']
-]);
-
-const featureFlags = config.features || {};
-
-function isFeatureEnabled(flag, fallback = true) {
-    if (!flag) {
-        return fallback;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(featureFlags, flag)) {
-        return Boolean(featureFlags[flag]);
-    }
-
-    return fallback;
-}
+const CooldownManager = require('./src/core/cooldown-manager');
+const { recordCommandRun } = require('./src/utils/telemetry');
+const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('./src/core/command-registry');
+const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('./src/core/feature-flags');
+const levelingManager = require('./src/core/leveling-manager');
+const economyManager = require('./src/core/economy-manager');
+const memeCanvas = require('./src/utils/meme-canvas');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
-    return isFeatureEnabled(featureKey);
+    return isFeatureGloballyEnabled(featureKey);
 }
 
 const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
@@ -114,7 +77,14 @@ function buildUnicodeEmojiAsset(emoji) {
 class DiscordHandlers {
     constructor() {
         this.jarvis = new JarvisAI();
-        this.userCooldowns = new Map();
+        this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
+        this.leveling = levelingManager;
+        this.economy = economyManager;
+        this.economyConfigCache = new Map();
+        this.economyConfigTtlMs = 60 * 1000;
+        this.activeBosses = new Map();
+        this.guildConfigCache = new Map();
+        this.guildConfigTtlMs = 60 * 1000;
         this.autoModRuleName = 'Jarvis Blacklist Filter';
         this.maxAutoModKeywordsPerRule = 1000;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
@@ -147,6 +117,127 @@ class DiscordHandlers {
         this.clipEmojiRenderSize = 22;
         this.clipEmojiSpacing = 4;
         this.clipLineHeight = 24;
+    }
+
+    async isCommandFeatureEnabled(commandName, guild = null) {
+        const featureKey = commandFeatureMap.get(commandName);
+
+        if (!featureKey) {
+            return true;
+        }
+
+        if (!isFeatureGloballyEnabled(featureKey)) {
+            return false;
+        }
+
+        if (!guild) {
+            return true;
+        }
+
+        const guildConfig = await this.getGuildConfig(guild);
+        return isFeatureEnabledForGuild(featureKey, guildConfig, true);
+    }
+
+    async isFeatureActive(featureKey, guild = null) {
+        if (!isFeatureGloballyEnabled(featureKey)) {
+            return false;
+        }
+
+        if (!guild) {
+            return true;
+        }
+
+        const guildConfig = await this.getGuildConfig(guild);
+        return isFeatureEnabledForGuild(featureKey, guildConfig, true);
+    }
+
+    async isEconomyChannelEnabled(guild, channelId) {
+        if (!guild || !channelId) {
+            return true;
+        }
+
+        try {
+            const config = await this.getEconomyConfig(guild);
+            return config.channelIds.includes(String(channelId));
+        } catch (error) {
+            console.error('Failed to resolve economy channel permissions:', error);
+            return false;
+        }
+    }
+
+    extractInteractionRoute(interaction) {
+        if (!interaction?.options) {
+            return null;
+        }
+
+        let group = null;
+        let sub = null;
+
+        try {
+            group = interaction.options.getSubcommandGroup(false);
+        } catch (error) {
+            group = null;
+        }
+
+        try {
+            sub = interaction.options.getSubcommand(false);
+        } catch (error) {
+            sub = null;
+        }
+
+        if (group && sub) {
+            return `${group}.${sub}`;
+        }
+
+        return sub || group || null;
+    }
+
+    buildEconomyButtons({ includeLeader = true, includeShop = true } = {}) {
+        const row = new ActionRowBuilder();
+        row.addComponents(
+            new ButtonBuilder().setCustomId('econ:daily').setLabel('Daily').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('econ:work').setLabel('Work').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId('econ:crate').setLabel('Crate').setStyle(ButtonStyle.Secondary)
+        );
+
+        const extraRow = new ActionRowBuilder();
+
+        if (includeLeader) {
+            extraRow.addComponents(
+                new ButtonBuilder().setCustomId('econ:leaderboard').setLabel('Leaderboard').setStyle(ButtonStyle.Secondary)
+            );
+        }
+
+        if (includeShop) {
+            extraRow.addComponents(
+                new ButtonBuilder().setCustomId('econ:shop').setLabel('Shop').setStyle(ButtonStyle.Success)
+            );
+        }
+
+        return extraRow.components.length ? [row, extraRow] : [row];
+    }
+
+    buildBossButtons() {
+        const row = new ActionRowBuilder();
+        row.addComponents(
+            new ButtonBuilder().setCustomId('boss:attack').setLabel('Attack').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('boss:boost').setLabel('Motivate').setStyle(ButtonStyle.Primary)
+        );
+        return [row];
+    }
+
+    pickRandom(items) {
+        if (!Array.isArray(items) || !items.length) {
+            return null;
+        }
+        const index = Math.floor(Math.random() * items.length);
+        return items[index];
+    }
+
+    randomInRange(min, max) {
+        const low = Math.ceil(min);
+        const high = Math.floor(max);
+        return Math.floor(Math.random() * (high - low + 1)) + low;
     }
 
     getTicketStaffRoleIds(guild) {
@@ -241,24 +332,30 @@ class DiscordHandlers {
 
     // Clean up old cooldowns to prevent memory leaks
     cleanupCooldowns() {
-        const now = Date.now();
-        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-
-        for (const [userId, timestamp] of this.userCooldowns.entries()) {
-            if (now - timestamp > maxAge) {
-                this.userCooldowns.delete(userId);
-            }
+        if (this.cooldowns) {
+            this.cooldowns.prune();
         }
     }
 
-    isOnCooldown(userId) {
-        const now = Date.now();
-        const lastMessageTime = this.userCooldowns.get(userId) || 0;
-        return now - lastMessageTime < config.ai.cooldownMs;
+    isOnCooldown(userId, scope = 'global', cooldownMs = null) {
+        if (!this.cooldowns) {
+            return false;
+        }
+        return this.cooldowns.isLimited(scope, userId, cooldownMs).limited;
     }
 
-    setCooldown(userId) {
-        this.userCooldowns.set(userId, Date.now());
+    hitCooldown(userId, scope = 'global', cooldownMs = null) {
+        if (!this.cooldowns) {
+            return { limited: false, remainingMs: 0 };
+        }
+        return this.cooldowns.hit(scope, userId, cooldownMs);
+    }
+
+    setCooldown(userId, scope = 'global') {
+        if (!this.cooldowns) {
+            return;
+        }
+        this.cooldowns.set(scope, userId);
     }
 
     createFriendlyError(message) {
@@ -1211,16 +1308,57 @@ class DiscordHandlers {
         }
     }
 
+    invalidateGuildConfig(guildId) {
+        if (guildId) {
+            this.guildConfigCache.delete(guildId);
+        }
+    }
+
+    invalidateEconomyConfig(guildId) {
+        if (guildId) {
+            this.economyConfigCache.delete(guildId);
+        }
+    }
+
     async getGuildConfig(guild) {
         if (!guild || !database.isConnected) {
             return null;
         }
 
+        const guildId = guild.id;
+        const cached = this.guildConfigCache.get(guildId);
+        if (cached && (Date.now() - cached.fetchedAt) < this.guildConfigTtlMs) {
+            return cached.config;
+        }
+
         try {
-            return await database.getGuildConfig(guild.id, guild.ownerId);
+            const guildConfig = await database.getGuildConfig(guild.id, guild.ownerId);
+            this.guildConfigCache.set(guildId, { config: guildConfig, fetchedAt: Date.now() });
+            return guildConfig;
         } catch (error) {
             console.error('Failed to fetch guild configuration:', error);
             return null;
+        }
+    }
+
+    async getEconomyConfig(guild) {
+        if (!guild || !database.isConnected) {
+            return { channelIds: [] };
+        }
+
+        const guildId = guild.id;
+        const cached = this.economyConfigCache.get(guildId);
+        if (cached && (Date.now() - cached.fetchedAt) < this.economyConfigTtlMs) {
+            return cached.config;
+        }
+
+        try {
+            const config = await database.getEconomySettings(guildId);
+            this.economyConfigCache.set(guildId, { config, fetchedAt: Date.now() });
+            return config;
+        } catch (error) {
+            console.error('Failed to fetch economy configuration:', error);
+            return { channelIds: [] };
         }
     }
 

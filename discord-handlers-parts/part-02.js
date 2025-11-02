@@ -635,10 +635,28 @@
         }
 
         const userId = message.author.id;
+        const messageScope = 'message:jarvis';
+
+        if (message.guild) {
+            try {
+                if (await this.isFeatureActive('leveling', message.guild)) {
+                    await this.leveling.handleMessageActivity(message);
+                }
+            } catch (error) {
+                console.error('Failed to process leveling XP for message:', error);
+            }
+
+            const chatEnabled = await this.isCommandFeatureEnabled('jarvis', message.guild);
+            if (!chatEnabled) {
+                return;
+            }
+        } else if (!isFeatureGloballyEnabled('coreChat')) {
+            return;
+        }
 
         const braveGuardedEarly = await this.enforceImmediateBraveGuard(message);
         if (braveGuardedEarly) {
-            this.setCooldown(userId);
+            this.setCooldown(userId, messageScope);
             return;
         }
 
@@ -656,17 +674,47 @@
         const isTCommand = message.content.toLowerCase().trim().startsWith("!t ");
 
         if (isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
-            if (this.isOnCooldown(userId)) {
+            const { limited } = this.hitCooldown(userId, messageScope);
+            if (limited) {
                 return;
             }
-
-            this.setCooldown(userId);
         }
 
         if (await this.handleAdminCommands(message)) return;
         if (await this.handleUtilityCommands(message)) return;
 
         await this.handleJarvisInteraction(message, client);
+    }
+
+    async handleVoiceStateUpdate(oldState, newState) {
+        const guild = newState?.guild || oldState?.guild || null;
+        const member = newState?.member || oldState?.member || null;
+
+        if (!guild || !member || member.user.bot) {
+            return;
+        }
+
+        let voiceEnabled = false;
+        try {
+            voiceEnabled = await this.isFeatureActive('levelingVoice', guild);
+        } catch (error) {
+            console.error('Failed to resolve levelingVoice feature flag:', error);
+        }
+
+        if (!voiceEnabled) {
+            try {
+                await this.leveling.clearVoiceJoin(guild.id, member.id);
+            } catch (error) {
+                console.error('Failed to clear stored voice join state:', error);
+            }
+            return;
+        }
+
+        try {
+            await this.leveling.handleVoiceStateUpdate(oldState, newState);
+        } catch (error) {
+            console.error('Failed to process voice leveling update:', error);
+        }
     }
 
     async handleAdminCommands(message) {
@@ -904,6 +952,8 @@
 
         const rawContent = typeof message.content === 'string' ? message.content : '';
 
+        const messageScope = 'message:jarvis';
+
         if (message.reference && message.reference.messageId) {
             try {
                 const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
@@ -957,7 +1007,7 @@
             } catch (error) {
                 console.error('Failed to reply to explicit Brave request:', error);
             }
-            this.setCooldown(message.author.id);
+            this.setCooldown(message.author.id, messageScope);
             return;
         }
 
@@ -970,7 +1020,7 @@
 
         // Check for clip command first (overrides AI response)
         if (await this.handleClipCommand(message, client)) {
-            this.setCooldown(message.author.id);
+            this.setCooldown(message.author.id, messageScope);
             return; // Exit early, no AI response
         }
 
@@ -1004,7 +1054,7 @@
 
             if (!mathInput.length) {
                 await message.reply("Awaiting calculations, sir. Try `jarvis math solve 2x + 5 = 13`.");
-                this.setCooldown(message.author.id);
+                this.setCooldown(message.author.id, messageScope);
                 return;
             }
 
@@ -1022,7 +1072,7 @@
                 await message.reply("Mathematics subsystem encountered an error, sir. Please verify the expression.");
             }
 
-            this.setCooldown(message.author.id);
+            this.setCooldown(message.author.id, messageScope);
             return;
         }
 
@@ -1033,12 +1083,12 @@
                     await message.channel.sendTyping();
                     const response = await this.jarvis.handleYouTubeSearch(searchQuery);
                     await message.reply(response);
-                    this.setCooldown(message.author.id);
+                    this.setCooldown(message.author.id, messageScope);
                     return;
                 } catch (error) {
                     console.error("YouTube search error:", error);
                     await message.reply("YouTube search failed, sir. Technical difficulties.");
-                    this.setCooldown(message.author.id);
+                    this.setCooldown(message.author.id, messageScope);
                     return;
                 }
             }
@@ -1075,7 +1125,7 @@
                         ? braveSearch.getExplicitQueryMessage()
                         : 'I must decline that request, sir. My safety filters forbid it.'
                 });
-                this.setCooldown(message.author.id);
+                this.setCooldown(message.author.id, messageScope);
                 return;
             }
 

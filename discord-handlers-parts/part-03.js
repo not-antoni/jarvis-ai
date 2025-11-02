@@ -20,7 +20,7 @@
                                 ? braveSearch.getExplicitQueryMessage()
                                 : 'I must decline that request, sir. My safety filters forbid it.'
                         });
-                        this.setCooldown(message.author.id);
+                        this.setCooldown(message.author.id, messageScope);
                         return;
                     }
 
@@ -35,17 +35,17 @@
                         explicit: explicitDetected
                     });
                     await message.reply(response);
-                    this.setCooldown(message.author.id);
+                    this.setCooldown(message.author.id, messageScope);
                     return;
                 } catch (error) {
                     console.error("Brave search error:", error);
                     await message.reply("Web search failed, sir. Technical difficulties.");
-                    this.setCooldown(message.author.id);
+                    this.setCooldown(message.author.id, messageScope);
                     return;
                 }
             } else {
                 await message.reply("Please provide a web search query after 'jarvis search', sir.");
-                this.setCooldown(message.author.id);
+                this.setCooldown(message.author.id, messageScope);
                 return;
             }
         }
@@ -83,7 +83,7 @@
             } catch (err) {
                 console.error("Failed to reply (permissions?):", err);
             }
-            this.setCooldown(message.author.id);
+            this.setCooldown(message.author.id, messageScope);
             return;
         }
 
