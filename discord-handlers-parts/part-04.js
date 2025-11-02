@@ -915,257 +915,579 @@
         }
     }
 
-    async handleSlashCommand(interaction) {
-        if (!isCommandEnabled(interaction.commandName)) {
-            try {
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({ content: 'That module is disabled in this deployment, sir.', ephemeral: true });
-                }
-            } catch (error) {
-                console.warn('Failed to send disabled command notice:', error);
-            }
+    async handleRankCommand(interaction) {
+        const guild = interaction.guild;
+
+        if (!guild) {
+            await interaction.editReply('This command must be used inside a server, sir.');
             return;
         }
 
-        const userId = interaction.user.id;
-
-        if (this.isOnCooldown(userId)) {
+        const levelingAvailable = await this.isFeatureActive('leveling', guild);
+        if (!levelingAvailable) {
+            await interaction.editReply('Leveling is disabled for this server, sir.');
             return;
         }
 
-        // Handle clip command first (special case)
-        if (interaction.commandName === "clip") {
-            this.setCooldown(userId);
-            return await this.handleSlashCommandClip(interaction);
-        }
-
-        const musicCommand = musicCommandMap.get(interaction.commandName);
-        if (musicCommand) {
-            try {
-                await musicCommand.execute(interaction);
-            } catch (error) {
-                console.error(`Error executing /${interaction.commandName}:`, error);
-                try {
-                    if (!interaction.deferred && !interaction.replied) {
-                        await interaction.reply('⚠️ Unable to process that request right now, sir.');
-                    } else if (!interaction.replied) {
-                        await interaction.editReply('⚠️ Unable to process that request right now, sir.');
-                    } else {
-                        await interaction.followUp('⚠️ Unable to process that request right now, sir.');
-                    }
-                } catch (responseError) {
-                    console.error("Failed to send music command error response:", responseError);
-                }
-            }
-            this.setCooldown(userId);
-            return;
-        }
-
-        const ephemeralCommands = new Set(["help", "profile", "history", "recap", "macro", "reactionrole", "automod", "digest", "serverstats", "memberlog", "ticket", "kb"]);
-        const shouldBeEphemeral = ephemeralCommands.has(interaction.commandName);
-        const canUseEphemeral = Boolean(interaction.guild);
-        const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
+        const targetUser = interaction.options.getUser('user') || interaction.user;
+        let member = null;
 
         try {
-            await interaction.deferReply({ ephemeral: deferEphemeral });
+            member = await guild.members.fetch(targetUser.id);
         } catch (error) {
-            if (error.code === 10062) {
-                console.warn("Ignored unknown interaction during deferReply.");
+            console.warn('Failed to fetch member for rank command:', error);
+        }
+
+        if (!member) {
+            await interaction.editReply('I could not locate that member, sir.');
+            return;
+        }
+
+        const rankData = await this.leveling.getUserRank(guild.id, member.id);
+        if (!rankData) {
+            await interaction.editReply(`${member.displayName || member.user.username} has not accumulated any XP yet, sir.`);
+            return;
+        }
+
+        let buffer = null;
+        try {
+            buffer = await this.leveling.renderRankCard({
+                member,
+                document: rankData.document,
+                rank: rankData.rank,
+                progress: rankData.progress
+            });
+        } catch (error) {
+            console.error('Failed to render rank card:', error);
+        }
+
+        if (buffer) {
+            await interaction.editReply({ files: [{ attachment: buffer, name: 'rank.png' }] });
+            return;
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle(`${member.displayName || member.user.username}`)
+            .setColor(0x5865f2)
+            .setThumbnail(member.displayAvatarURL({ extension: 'png', size: 256 }))
+            .addFields(
+                { name: 'Rank', value: `#${rankData.rank}`, inline: true },
+                { name: 'Level', value: `${rankData.progress.level}`, inline: true },
+                { name: 'Total XP', value: `${rankData.document.xp.toLocaleString()}`, inline: true }
+            );
+
+        const xpIntoLevel = Math.floor(rankData.progress.xpIntoLevel);
+        const xpForNext = Math.floor(rankData.progress.xpForNext);
+        const progressPercent = (Math.max(0, Math.min(1, rankData.progress.progress)) * 100).toFixed(1);
+        embed.setDescription(`Progress to next level: **${progressPercent}%**
+${xpIntoLevel.toLocaleString()} / ${xpForNext.toLocaleString()} XP`);
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    async handleLeaderboardCommand(interaction) {
+        const guild = interaction.guild;
+
+        if (!guild) {
+            await interaction.editReply('This command must be used inside a server, sir.');
+            return;
+        }
+
+        const levelingAvailable = await this.isFeatureActive('leveling', guild);
+        if (!levelingAvailable) {
+            await interaction.editReply('Leveling is disabled for this server, sir.');
+            return;
+        }
+
+        const page = interaction.options.getInteger('page') || 1;
+        const leaderboard = await this.leveling.getLeaderboard(guild.id, { page, pageSize: 10 });
+
+        if (!leaderboard.entries.length) {
+            await interaction.editReply('No XP has been recorded yet, sir. Start chatting to climb the ranks.');
+            return;
+        }
+
+        const totalPages = Math.max(1, Math.ceil(leaderboard.total / leaderboard.pageSize));
+        const embed = new EmbedBuilder()
+            .setTitle(`${guild.name} Leaderboard`)
+            .setColor(0x5865f2)
+            .setFooter({ text: `Page ${leaderboard.page} of ${totalPages}` });
+
+        const lines = [];
+        for (let index = 0; index < leaderboard.entries.length; index += 1) {
+            const userRecord = leaderboard.entries[index];
+            const position = (leaderboard.page - 1) * leaderboard.pageSize + index + 1;
+            const member = guild.members.cache.get(userRecord.userId);
+            const displayName = member?.displayName || userRecord.userId;
+            const progress = this.leveling.calculateLevelProgress(userRecord.xp);
+
+            lines.push(`**#${position}** ${member ? `<@${userRecord.userId}>` : displayName} — Level ${progress.level} • ${userRecord.xp.toLocaleString()} XP`);
+        }
+
+        embed.setDescription(lines.join('\n'));
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    async handleLevelRoleCommand(interaction) {
+        const guild = interaction.guild;
+
+        if (!guild) {
+            await interaction.editReply('This command must be used inside a server, sir.');
+            return;
+        }
+
+        const isModerator = await this.isGuildModerator(interaction.member);
+        if (!isModerator) {
+            await interaction.editReply('Only moderators may configure level roles, sir.');
+            return;
+        }
+
+        const subcommand = interaction.options.getSubcommand();
+
+        if (subcommand === 'add') {
+            const level = interaction.options.getInteger('level');
+            const role = interaction.options.getRole('role');
+
+            if (!Number.isInteger(level) || level <= 0) {
+                await interaction.editReply('Levels must be positive integers, sir.');
                 return;
             }
-            console.error("Failed to defer reply:", error);
+
+            if (!role) {
+                await interaction.editReply('Please provide a valid role, sir.');
+                return;
+            }
+
+            const botMember = guild.members.me || await guild.members.fetchMe();
+            if (!botMember?.permissions.has(PermissionsBitField.Flags.ManageRoles)) {
+                await interaction.editReply('I require the Manage Roles permission to do that, sir.');
+                return;
+            }
+
+            if (botMember.roles.highest.comparePositionTo(role) <= 0) {
+                await interaction.editReply('My highest role must sit above that reward role, sir.');
+                return;
+            }
+
+            try {
+                await database.upsertLevelRole(guild.id, level, role.id);
+                this.leveling.invalidateLevelRoleCache(guild.id);
+            } catch (error) {
+                console.error('Failed to upsert level role:', error);
+                await interaction.editReply('I could not store that level reward, sir.');
+                return;
+            }
+
+            await interaction.editReply(`Level ${level} will now grant ${role}, sir.`);
             return;
         }
 
+        if (subcommand === 'remove') {
+            const level = interaction.options.getInteger('level');
+            if (!Number.isInteger(level) || level <= 0) {
+                await interaction.editReply('Levels must be positive integers, sir.');
+                return;
+            }
+
+            await database.removeLevelRole(guild.id, level);
+            this.leveling.invalidateLevelRoleCache(guild.id);
+
+            await interaction.editReply(`Level ${level} reward removed, sir.`);
+            return;
+        }
+
+        if (subcommand === 'list') {
+            const rewards = await database.getLevelRoles(guild.id);
+
+            if (!rewards.length) {
+                await interaction.editReply('No level rewards configured yet, sir.');
+                return;
+            }
+
+            const lines = rewards.map((reward) => {
+                const roleMention = guild.roles.cache.get(reward.roleId) ? `<@&${reward.roleId}>` : `Role ${reward.roleId}`;
+                return `Level ${reward.level}: ${roleMention}`;
+            });
+
+            const embed = new EmbedBuilder()
+                .setTitle('Level Rewards')
+                .setColor(0x5865f2)
+                .setDescription(lines.join('\n'));
+
+            await interaction.editReply({ embeds: [embed] });
+            return;
+        }
+
+        await interaction.editReply('I did not recognise that subcommand, sir.');
+    }
+
+    async handleSlashCommand(interaction) {
+        const commandName = interaction.commandName;
+        const userId = interaction.user.id;
+        const guild = interaction.guild || null;
+        const guildId = guild?.id || null;
+        const cooldownScope = `slash:${commandName}`;
+        const startedAt = Date.now();
+
+        let telemetryStatus = 'ok';
+        let telemetryError = null;
+        let telemetryMetadata = {};
+        let telemetrySubcommand = null;
+        let shouldSetCooldown = false;
+
+        const finalizeTelemetry = () => {
+            const metadata = telemetryMetadata && Object.keys(telemetryMetadata).length > 0
+                ? telemetryMetadata
+                : undefined;
+
+            recordCommandRun({
+                command: commandName,
+                subcommand: telemetrySubcommand,
+                userId,
+                guildId,
+                latencyMs: Date.now() - startedAt,
+                status: telemetryStatus,
+                error: telemetryError,
+                metadata,
+                context: 'slash'
+            });
+        };
+
         try {
-            let response;
+            if (!isCommandEnabled(commandName)) {
+                telemetryStatus = 'error';
+                telemetryMetadata.reason = 'feature-disabled-global';
+                try {
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: 'That module is disabled in this deployment, sir.', ephemeral: true });
+                    }
+                } catch (error) {
+                    console.warn('Failed to send disabled command notice:', error);
+                }
+                return;
+            }
 
-            if (interaction.commandName === "jarvis") {
-                let prompt = interaction.options.getString("prompt");
+            const featureAllowed = await this.isCommandFeatureEnabled(commandName, guild);
+            if (!featureAllowed) {
+                telemetryStatus = 'error';
+                telemetryMetadata.reason = 'feature-disabled-guild';
+                try {
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: 'That module is disabled for this server, sir.', ephemeral: true });
+                    } else if (interaction.deferred && !interaction.replied) {
+                        await interaction.editReply('That module is disabled for this server, sir.');
+                    }
+                } catch (error) {
+                    console.warn('Failed to send guild-disabled command notice:', error);
+                }
+                return;
+            }
 
-                if (prompt.length > config.ai.maxSlashInputLength) {
-                    const responses = [
-                        "Rather verbose, sir. A concise version, perhaps?",
-                        "Too many words, sir. Brevity, please.",
-                        "TL;DR, sir.",
-                        "Really, sir?",
-                        "Saving your creativity for later, sir.",
-                        `${config.ai.maxSlashInputLength} characters is the limit, sir.`,
-                        "Stop yapping, sir.",
-                        "Quite the novella, sir. Abridged edition?",
-                        "Brevity is the soul of wit, sir.",
-                    ];
+            if (this.isOnCooldown(userId, cooldownScope)) {
+                telemetryStatus = 'error';
+                telemetryMetadata.reason = 'rate_limited';
+                return;
+            }
 
-                    await interaction.editReply(responses[Math.floor(Math.random() * responses.length)]);
-                    this.setCooldown(userId);
+            telemetrySubcommand = this.extractInteractionRoute(interaction);
+
+            if (commandName === 'clip') {
+                shouldSetCooldown = true;
+                const handled = await this.handleSlashCommandClip(interaction);
+                telemetryMetadata.handled = Boolean(handled);
+                return;
+            }
+
+            const musicCommand = musicCommandMap.get(commandName);
+            if (musicCommand) {
+                shouldSetCooldown = true;
+                try {
+                    await musicCommand.execute(interaction);
+                } catch (error) {
+                    telemetryStatus = 'error';
+                    telemetryError = error;
+                    console.error(`Error executing /${commandName}:`, error);
+                    try {
+                        if (!interaction.deferred && !interaction.replied) {
+                            await interaction.reply('⚠️ Unable to process that request right now, sir.');
+                        } else if (!interaction.replied) {
+                            await interaction.editReply('⚠️ Unable to process that request right now, sir.');
+                        } else {
+                            await interaction.followUp('⚠️ Unable to process that request right now, sir.');
+                        }
+                    } catch (responseError) {
+                        console.error('Failed to send music command error response:', responseError);
+                    }
+                }
+                return;
+            }
+
+            const shouldBeEphemeral = SLASH_EPHEMERAL_COMMANDS.has(commandName);
+            const canUseEphemeral = Boolean(guild);
+            const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
+
+            try {
+                await interaction.deferReply({ ephemeral: deferEphemeral });
+            } catch (error) {
+                if (error.code === 10062) {
+                    telemetryStatus = 'error';
+                    telemetryMetadata.reason = 'unknown-interaction';
+                    console.warn('Ignored unknown interaction during deferReply.');
                     return;
                 }
-
-                if (prompt.length > config.ai.maxInputLength) {
-                    prompt = prompt.substring(0, config.ai.maxInputLength) + "...";
-                }
-
-                response = await this.jarvis.generateResponse(interaction, prompt, true);
-            } else if (interaction.commandName === "roll") {
-                const sides = interaction.options.getInteger("sides") || 6;
-                response = await this.jarvis.handleUtilityCommand(
-                    `roll ${sides}`,
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "time") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "time",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "reset") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "reset",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "help") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "help",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "profile") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "profile",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "history") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "history",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "recap") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "recap",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "digest") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "digest",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "ticket") {
-                await this.handleTicketCommand(interaction);
-                this.setCooldown(userId);
+                telemetryStatus = 'error';
+                telemetryError = error;
+                console.error('Failed to defer reply:', error);
                 return;
-            } else if (interaction.commandName === "kb") {
-                await this.handleKnowledgeBaseCommand(interaction);
-                this.setCooldown(userId);
-                return;
-            } else if (interaction.commandName === "ask") {
-                await this.handleAskCommand(interaction);
-                this.setCooldown(userId);
-                return;
-            } else if (interaction.commandName === "macro") {
-                await this.handleMacroCommand(interaction);
-                this.setCooldown(userId);
-                return;
-            } else if (interaction.commandName === "reactionrole") {
-                await this.handleReactionRoleCommand(interaction);
-                this.setCooldown(userId);
-                return;
-            } else if (interaction.commandName === "automod") {
-                await this.handleAutoModCommand(interaction);
-                this.setCooldown(userId);
-                return;
-            } else if (interaction.commandName === "serverstats") {
-                await this.handleServerStatsCommand(interaction);
-                this.setCooldown(userId);
-                return;
-            } else if (interaction.commandName === "memberlog") {
-                await this.handleMemberLogCommand(interaction);
-                this.setCooldown(userId);
-                return;
-            } else if (interaction.commandName === "news") {
-                await this.handleNewsCommand(interaction);
-                this.setCooldown(userId);
-                return;
-            } else if (interaction.commandName === "encode") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "encode",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else if (interaction.commandName === "decode") {
-                response = await this.jarvis.handleUtilityCommand(
-                    "decode",
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
-            } else {
-                response = await this.jarvis.handleUtilityCommand(
-                    interaction.commandName,
-                    interaction.user.username,
-                    interaction.user.id,
-                    true,
-                    interaction,
-                    interaction.guild?.id || null
-                );
             }
 
-            if (!response) {
+            shouldSetCooldown = true;
+
+            let response;
+
+            if (commandName === 'ticket') {
+                await this.handleTicketCommand(interaction);
+                return;
+            }
+
+            if (commandName === 'kb') {
+                await this.handleKnowledgeBaseCommand(interaction);
+                return;
+            }
+
+            if (commandName === 'ask') {
+                await this.handleAskCommand(interaction);
+                return;
+            }
+
+            if (commandName === 'macro') {
+                await this.handleMacroCommand(interaction);
+                return;
+            }
+
+            if (commandName === 'reactionrole') {
+                await this.handleReactionRoleCommand(interaction);
+                return;
+            }
+
+            if (commandName === 'automod') {
+                await this.handleAutoModCommand(interaction);
+                return;
+            }
+
+            if (commandName === 'serverstats') {
+                await this.handleServerStatsCommand(interaction);
+                return;
+            }
+
+            if (commandName === 'memberlog') {
+                await this.handleMemberLogCommand(interaction);
+                return;
+            }
+
+            if (commandName === 'news') {
+                await this.handleNewsCommand(interaction);
+                return;
+            }
+
+            switch (commandName) {
+                case 'jarvis': {
+                    let prompt = interaction.options.getString('prompt');
+
+                    if (prompt.length > config.ai.maxSlashInputLength) {
+                        const responses = [
+                            "Rather verbose, sir. A concise version, perhaps?",
+                            "Too many words, sir. Brevity, please.",
+                            "TL;DR, sir.",
+                            "Really, sir?",
+                            "Saving your creativity for later, sir.",
+                            `${config.ai.maxSlashInputLength} characters is the limit, sir.`,
+                            "Stop yapping, sir.",
+                            "Quite the novella, sir. Abridged edition?",
+                            "Brevity is the soul of wit, sir.",
+                        ];
+
+                        await interaction.editReply(responses[Math.floor(Math.random() * responses.length)]);
+                        telemetryStatus = 'error';
+                        telemetryMetadata.reason = 'prompt-too-long';
+                        return;
+                    }
+
+                    if (prompt.length > config.ai.maxInputLength) {
+                        prompt = `${prompt.substring(0, config.ai.maxInputLength)}...`;
+                    }
+
+                    response = await this.jarvis.generateResponse(interaction, prompt, true);
+                    break;
+                }
+                case 'roll': {
+                    const sides = interaction.options.getInteger('sides') || 6;
+                    response = await this.jarvis.handleUtilityCommand(
+                        `roll ${sides}`,
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'time': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'time',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'reset': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'reset',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'help': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'help',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'profile': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'profile',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'history': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'history',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'recap': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'recap',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'digest': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'digest',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'rank': {
+                    telemetryMetadata.category = 'leveling';
+                    await this.handleRankCommand(interaction);
+                    return;
+                }
+                case 'leaderboard': {
+                    telemetryMetadata.category = 'leveling';
+                    await this.handleLeaderboardCommand(interaction);
+                    return;
+                }
+                case 'levelrole': {
+                    telemetryMetadata.category = 'leveling';
+                    await this.handleLevelRoleCommand(interaction);
+                    return;
+                }
+                case 'encode': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'encode',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                case 'decode': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'decode',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
+                default: {
+                    response = await this.jarvis.handleUtilityCommand(
+                        commandName,
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                }
+            }
+
+            if (response === undefined || response === null) {
                 await interaction.editReply("Response circuits tangled, sir. Try again?");
-            } else if (typeof response === "string") {
+                telemetryMetadata.reason = 'empty-response';
+            } else if (typeof response === 'string') {
                 const trimmed = response.trim();
                 await interaction.editReply(trimmed.length ? trimmed : "Response circuits tangled, sir. Try again?");
             } else {
                 await interaction.editReply(response);
             }
-
-            this.setCooldown(userId);
         } catch (error) {
-            console.error("Error processing interaction:", error);
+            telemetryStatus = 'error';
+            telemetryError = error;
+            console.error('Error processing interaction:', error);
             try {
                 await interaction.editReply("Technical difficulties, sir. One moment, please.");
             } catch (editError) {
                 if (editError.code === 10062) {
-                    console.warn("Ignored unknown interaction during error reply.");
-                    return;
+                    telemetryMetadata.reason = 'unknown-interaction';
+                    console.warn('Ignored unknown interaction during error reply.');
+                } else {
+                    console.error('Failed to send error reply:', editError);
                 }
-                console.error("Failed to send error reply:", editError);
             }
-            this.setCooldown(userId);
+            shouldSetCooldown = true;
+        } finally {
+            if (shouldSetCooldown) {
+                this.setCooldown(userId, cooldownScope);
+            }
+            finalizeTelemetry();
         }
     }
 }

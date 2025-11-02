@@ -9,7 +9,9 @@
     "test": "node --test",
     "test-puter": "node test-puter.js",
     "chat-gpt5": "node gpt_nano.js",
-    "gpt5": "node gpt_nano.js"
+    "gpt5": "node gpt_nano.js",
+    "migrate": "node scripts/run-migrations.js",
+    "dump": "node scripts/nightly-dump.js"
   },
   "keywords": [
     "discord",

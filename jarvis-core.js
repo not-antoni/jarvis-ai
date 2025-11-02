@@ -11,6 +11,8 @@ const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 const mathSolver = require('./math-solver');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { buildHelpCatalog } = require('./src/core/command-registry');
+const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('./src/core/feature-flags');
 
 const punycode = require('node:punycode');
 
@@ -42,6 +44,16 @@ const SUPPORT_SERVER_URL = 'https://discord.gg/ksXzuBtmK5';
 
 function sanitizeForCodeBlock(text) {
     return text.replace(/```/g, '`\u200b``');
+}
+
+function buildSupportLinkRow() {
+    const supportButton = new ButtonBuilder()
+        .setLabel('Join the Support Server')
+        .setStyle(ButtonStyle.Link)
+        .setURL(SUPPORT_SERVER_URL)
+        .setEmoji('🤝');
+
+    return new ActionRowBuilder().addComponents(supportButton);
 }
 
 function buildSupportEmbed(includeGuide = false) {
@@ -94,15 +106,66 @@ function buildSupportEmbed(includeGuide = false) {
         embed.setFooter({ text: 'Share this link so everyone can reach Jarvis HQ when needed.' });
     }
 
-    const supportButton = new ButtonBuilder()
-        .setLabel('Join the Support Server')
-        .setStyle(ButtonStyle.Link)
-        .setURL(SUPPORT_SERVER_URL)
-        .setEmoji('🤝');
+    return { embeds: [embed], components: [buildSupportLinkRow()] };
+}
 
-    const row = new ActionRowBuilder().addComponents(supportButton);
+function buildHelpPayload(guildConfig = null) {
+    const catalog = buildHelpCatalog();
+    const embed = new EmbedBuilder()
+        .setTitle('Jarvis Command Index')
+        .setColor('#00BFFF')
+        .setDescription('Active slash commands for this server. Modules respect per-guild feature toggles.');
 
-    return { embeds: [embed], components: [row] };
+    let visibleCategories = 0;
+
+    for (const entry of catalog) {
+        const { category, commands } = entry;
+        const visible = commands.filter((command) => {
+            if (!command || !command.name) {
+                return false;
+            }
+
+            if (command.feature && !isFeatureGloballyEnabled(command.feature, true)) {
+                return false;
+            }
+
+            if (!command.feature || !guildConfig) {
+                return true;
+            }
+
+            return isFeatureEnabledForGuild(command.feature, guildConfig, true);
+        });
+
+        if (!visible.length) {
+            continue;
+        }
+
+        const lines = visible.map((command) => {
+            const label = command.name.startsWith('/') ? command.name : `/${command.name}`;
+            return `• **${label}** — ${command.description}`;
+        });
+
+        let value = lines.join('\n');
+        if (value.length > 1024) {
+            value = `${value.slice(0, 1019)}…`;
+        }
+
+        embed.addFields({ name: category, value });
+        visibleCategories += 1;
+    }
+
+    if (!visibleCategories) {
+        embed
+            .setDescription('All modules are currently disabled. Use `/features` to enable systems for this guild.')
+            .setColor('#f59e0b');
+    } else {
+        embed.setFooter({ text: 'Use /invite to share the support server link.' });
+    }
+
+    return {
+        embeds: [embed],
+        components: [buildSupportLinkRow()]
+    };
 }
 
 function isMostlyPrintable(text) {
@@ -1083,7 +1146,17 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
         }
 
         if (cmd === "help") {
-            return buildSupportEmbed(true);
+            let guildConfig = null;
+
+            if (database.isConnected && effectiveGuildId) {
+                try {
+                    guildConfig = await database.getGuildConfig(effectiveGuildId);
+                } catch (error) {
+                    console.error('Failed to load guild config for help:', error);
+                }
+            }
+
+            return buildHelpPayload(guildConfig);
         }
 
         if (cmd.startsWith("profile")) {
@@ -1338,10 +1411,11 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
 
             const systemPrompt = [
                 'You are Jarvis, providing a concise operational digest for server moderators.',
-                'Summaries should be clear, action-oriented, and respectful.',
+                'Summaries must be clear, action-oriented, and respectful.',
                 `Return ${highlightTarget} highlights with bullet markers.`,
                 'Mention emerging topics, noteworthy actions, and follow-up suggestions when relevant.',
-                'If information is sparse, note that honestly. Keep the entire response under 2200 characters.'
+                'Each highlight must be 180 characters or fewer.',
+                'Keep the entire digest under 1800 characters. If information is sparse, note that honestly.'
             ].join(' ');
 
             const userPrompt = [
@@ -1355,12 +1429,36 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
                 const summary = await aiManager.generateResponse(systemPrompt, userPrompt, 500);
                 const digestBody = summary?.content?.trim() || 'Digest generation yielded no content, sir.';
 
-                return [
-                    `**${windowConfig.label} Digest**`,
-                    ...statsLines,
+                const header = `**${windowConfig.label} Digest**`;
+                const statsBlock = statsLines.join('\n');
+                const plainOutput = [
+                    header,
+                    statsBlock,
                     '',
                     digestBody
                 ].join('\n');
+
+                if (plainOutput.length <= 1900) {
+                    return plainOutput;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`${windowConfig.label} Digest`)
+                    .setColor(0x5865f2)
+                    .addFields({ name: 'Stats', value: statsBlock });
+
+                const maxDescriptionLength = 3800;
+                const trimmedBody = digestBody.length > maxDescriptionLength
+                    ? `${digestBody.slice(0, maxDescriptionLength - 3)}...`
+                    : digestBody;
+
+                embed.setDescription(trimmedBody || 'No highlights generated.');
+
+                if (digestBody.length > maxDescriptionLength || plainOutput.length > 3900) {
+                    embed.setFooter({ text: 'Digest truncated to fit Discord limits.' });
+                }
+
+                return { embeds: [embed] };
             } catch (error) {
                 console.error('Failed to generate digest:', error);
                 return 'I could not synthesize a digest at this time, sir.';
