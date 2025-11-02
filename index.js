@@ -3,7 +3,7 @@
  * Refactored for better organization and maintainability
  */
 require("dotenv").config();
-const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials } = require("discord.js");
+const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials, PermissionsBitField } = require("discord.js");
 const express = require("express");
 const cron = require("node-cron");
 
@@ -15,6 +15,8 @@ const aiManager = require('./ai-providers');
 const discordHandlers = require('./discord-handlers');
 const { gatherHealthSnapshot } = require('./diagnostics');
 const { commandList: musicCommandList } = require("./src/commands/music");
+const { commandFeatureMap } = require('./src/core/command-registry');
+const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 
 initializeDatabaseClients()
     .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
@@ -160,6 +162,67 @@ const allCommands = [
                 .setMinValue(3)
                 .setMaxValue(10))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('rank')
+        .setDescription('Display a member\'s level progress')
+        .addUserOption(option =>
+            option
+                .setName('user')
+                .setDescription('Member to inspect')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('leaderboard')
+        .setDescription('Show the leveling leaderboard')
+        .addIntegerOption(option =>
+            option
+                .setName('page')
+                .setDescription('Leaderboard page (defaults to 1)')
+                .setRequired(false)
+                .setMinValue(1)
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('levelrole')
+        .setDescription('Configure automatic level reward roles')
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('add')
+                .setDescription('Grant a role when members reach a level')
+                .addIntegerOption(option =>
+                    option
+                        .setName('level')
+                        .setDescription('Level at which to grant the role')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+                .addRoleOption(option =>
+                    option
+                        .setName('role')
+                        .setDescription('Role to award')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('remove')
+                .setDescription('Remove a level reward role')
+                .addIntegerOption(option =>
+                    option
+                        .setName('level')
+                        .setDescription('Level to remove')
+                        .setRequired(true)
+                        .setMinValue(1)
+                )
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('list')
+                .setDescription('List configured level reward roles')
+        )
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("decode")
         .setDescription("Decode encoded text")
@@ -663,56 +726,9 @@ const allCommands = [
     ...musicCommandList.map((command) => command.data)
 ];
 
-const commandFeatureMap = new Map([
-    ['jarvis', 'coreChat'],
-    ['status', 'coreChat'],
-    ['roll', 'utilities'],
-    ['time', 'utilities'],
-    ['providers', 'providers'],
-    ['reset', 'reset'],
-    ['help', 'coreChat'],
-    ['invite', 'invite'],
-    ['profile', 'coreChat'],
-    ['history', 'coreChat'],
-    ['recap', 'coreChat'],
-    ['digest', 'digests'],
-    ['decode', 'utilities'],
-    ['encode', 'utilities'],
-    ['news', 'newsBriefings'],
-    ['clip', 'clipping'],
-    ['ticket', 'tickets'],
-    ['kb', 'knowledgeBase'],
-    ['ask', 'knowledgeAsk'],
-    ['macro', 'macroReplies'],
-    ['reactionrole', 'reactionRoles'],
-    ['automod', 'automod'],
-    ['serverstats', 'serverStats'],
-    ['memberlog', 'memberLog'],
-    ['play', 'music'],
-    ['skip', 'music'],
-    ['pause', 'music'],
-    ['resume', 'music'],
-    ['stop', 'music'],
-    ['queue', 'music']
-]);
-
-const featureFlags = config.features || {};
-
-const isFeatureEnabled = (flag, fallback = true) => {
-    if (!flag) {
-        return fallback;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(featureFlags, flag)) {
-        return Boolean(featureFlags[flag]);
-    }
-
-    return fallback;
-};
-
 const commands = allCommands.filter((builder) => {
     const featureKey = commandFeatureMap.get(builder.name);
-    return isFeatureEnabled(featureKey);
+    return isFeatureGloballyEnabled(featureKey, true);
 });
 
 function buildCommandData() {
@@ -1354,6 +1370,10 @@ client.on("messageCreate", async (message) => {
 client.on("interactionCreate", async (interaction) => {
     if (!interaction.isCommand()) return;
     await discordHandlers.handleSlashCommand(interaction);
+});
+
+client.on("voiceStateUpdate", async (oldState, newState) => {
+    await discordHandlers.handleVoiceStateUpdate(oldState, newState);
 });
 
 client.on("messageReactionAdd", async (reaction, user) => {
