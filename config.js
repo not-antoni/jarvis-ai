@@ -124,7 +124,7 @@ const rawConfig = {
         leveling: true,
         levelingVoice: false,
         memeTools: true,
-        economy: false,
+        economy: true,
         funUtilities: true
     }
 };
