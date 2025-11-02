@@ -642,6 +642,11 @@ const allCommands = [
                 .setName('leaderboard')
                 .setDescription('Show the richest StarkToken holders')
         )
+        .addSubcommand((sub) =>
+            sub
+                .setName('info')
+                .setDescription('Explain how to enable the StarkTokens economy')
+        )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('shop')
