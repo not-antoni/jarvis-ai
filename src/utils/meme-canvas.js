@@ -1,5 +1,86 @@
 const { createCanvas, loadImage } = require('canvas');
 
+const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
+const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
+
+const emojiImageCache = new Map();
+const unicodeAssetCache = new Map();
+let emojiImageLoader = null;
+
+function unicodeEmojiToCodePoints(emoji) {
+    if (!emoji) return null;
+    const cacheHit = unicodeAssetCache.get(emoji);
+    if (cacheHit !== undefined) {
+        return cacheHit;
+    }
+
+    const codePoints = [];
+    for (const symbol of Array.from(emoji)) {
+        const codePoint = symbol.codePointAt(0);
+        if (typeof codePoint === 'number') {
+            const hex = codePoint.toString(16).toLowerCase();
+            const padded = codePoint > 0xffff ? hex : hex.padStart(4, '0');
+            codePoints.push(padded);
+        }
+    }
+
+    const codeString = codePoints.length ? codePoints.join('-') : null;
+    unicodeAssetCache.set(emoji, codeString);
+    return codeString;
+}
+
+function buildUnicodeEmojiAsset(emoji) {
+    const code = unicodeEmojiToCodePoints(emoji);
+    if (!code) {
+        return null;
+    }
+
+    return {
+        svg: `${TWEMOJI_SVG_BASE}/${code}.svg`,
+        png: `${TWEMOJI_PNG_BASE}/${code}.png`
+    };
+}
+
+async function fetchEmojiImage(url) {
+    if (!url) {
+        return null;
+    }
+
+    const cached = emojiImageCache.get(url);
+    if (cached) {
+        return cached;
+    }
+
+    const pending = loadImage(url)
+        .then((image) => {
+            emojiImageCache.set(url, image);
+            return image;
+        })
+        .catch((error) => {
+            emojiImageCache.delete(url);
+            throw error;
+        });
+
+    emojiImageCache.set(url, pending);
+    return pending;
+}
+
+function setEmojiImageLoader(loader) {
+    if (typeof loader === 'function') {
+        emojiImageLoader = loader;
+    } else {
+        emojiImageLoader = null;
+    }
+}
+
+async function loadEmojiAsset(url) {
+    if (!url) {
+        return null;
+    }
+    const loader = emojiImageLoader || fetchEmojiImage;
+    return loader(url);
+}
+
 function normaliseText(text) {
     return (text || '').replace(/\s+/g, ' ').trim();
 }
@@ -174,19 +255,55 @@ async function createCaptionImage(imageBuffer, captionText) {
                 cursorX += segment.width;
             } else if (segment.type === 'emoji') {
                 if (segment.id) {
-                    const url = `https://cdn.discordapp.com/emojis/${segment.id}.${segment.animated ? 'gif' : 'png'}?size=96&quality=lossless`;
-                    try {
-                        const emojiImage = await loadImage(url);
-                        outCtx.drawImage(emojiImage, cursorX, cursorY + (lineHeight - emojiSize) / 2, emojiSize, emojiSize);
-                    } catch (error) {
+                    const baseUrl = `https://cdn.discordapp.com/emojis/${segment.id}.${segment.animated ? 'gif' : 'png'}?size=96&quality=lossless`;
+                    const fallbackUrl = `https://cdn.discordapp.com/emojis/${segment.id}.png?size=96&quality=lossless`;
+                    const candidateUrls = [baseUrl];
+                    if (segment.animated) {
+                        candidateUrls.push(fallbackUrl);
+                    }
+
+                    let rendered = false;
+                    for (const url of candidateUrls) {
+                        try {
+                            const emojiImage = await loadEmojiAsset(url);
+                            if (emojiImage) {
+                                outCtx.drawImage(emojiImage, cursorX, cursorY + (lineHeight - emojiSize) / 2, emojiSize, emojiSize);
+                                rendered = true;
+                                break;
+                            }
+                        } catch (error) {
+                            // Try next candidate
+                        }
+                    }
+
+                    if (!rendered) {
                         outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
                         outCtx.fillText(segment.value, cursorX, cursorY + (lineHeight - emojiSize) / 2);
                         outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
                     }
                 } else {
-                    outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-                    outCtx.fillText(segment.value, cursorX, cursorY + (lineHeight - emojiSize) / 2);
-                    outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
+                    const asset = buildUnicodeEmojiAsset(segment.value);
+                    const candidateUrls = asset ? [asset.svg, asset.png] : [];
+                    let rendered = false;
+
+                    for (const url of candidateUrls) {
+                        try {
+                            const emojiImage = await loadEmojiAsset(url);
+                            if (emojiImage) {
+                                outCtx.drawImage(emojiImage, cursorX, cursorY + (lineHeight - emojiSize) / 2, emojiSize, emojiSize);
+                                rendered = true;
+                                break;
+                            }
+                        } catch (error) {
+                            // Try next candidate
+                        }
+                    }
+
+                    if (!rendered) {
+                        outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+                        outCtx.fillText(segment.value, cursorX, cursorY + (lineHeight - emojiSize) / 2);
+                        outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
+                    }
                 }
                 cursorX += emojiSize;
             }
@@ -253,5 +370,13 @@ async function createImpactMemeImage(imageBuffer, topText = '', bottomText = '')
 
 module.exports = {
     createCaptionImage,
-    createImpactMemeImage
+    createImpactMemeImage,
+    _internal: {
+        unicodeEmojiToCodePoints,
+        buildUnicodeEmojiAsset,
+        fetchEmojiImage,
+        emojiImageCache,
+        setEmojiImageLoader,
+        loadEmojiAsset
+    }
 };
