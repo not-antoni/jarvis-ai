@@ -2037,7 +2037,9 @@ ${summary}`
                         await interaction.reply({ content: 'That module is disabled in this deployment, sir.', ephemeral: true });
                     }
                 } catch (error) {
-                    console.warn('Failed to send disabled command notice:', error);
+                    if (error?.code !== 10062) {
+                        console.warn('Failed to send disabled command notice:', error);
+                    }
                 }
                 return;
             }
@@ -2062,7 +2064,9 @@ ${summary}`
                             await interaction.editReply('That module is disabled for this server, sir.');
                         }
                     } catch (error) {
-                        console.warn('Failed to send guild-disabled command notice:', error);
+                        if (error?.code !== 10062) {
+                            console.warn('Failed to send guild-disabled command notice:', error);
+                        }
                     }
                     return;
                 }
