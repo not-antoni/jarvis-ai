@@ -1665,13 +1665,13 @@ ${summary}`
         const subcommand = interaction.options.getSubcommand();
         const isDm = !guild;
 
-        if (guild && !(await this.isFeatureActive('economy', guild))) {
-            await interaction.editReply('The StarkTokens economy is disabled for this server, sir.');
+        if (subcommandGroup === 'config') {
+            await this.handleEconomyConfigCommand(interaction);
             return;
         }
 
-        if (subcommandGroup === 'config') {
-            await this.handleEconomyConfigCommand(interaction);
+        if (guild && !(await this.isFeatureActive('economy', guild))) {
+            await interaction.editReply('The StarkTokens economy is disabled for this server, sir. Ask an administrator to run `/econ config enable` in a channel.');
             return;
         }
 
