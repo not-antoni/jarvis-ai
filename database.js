@@ -461,45 +461,44 @@ class DatabaseManager {
     async updateGuildFeatures(guildId, features = {}) {
         if (!this.isConnected) throw new Error("Database not connected");
 
-        const updates = {};
-        for (const [key, value] of Object.entries(features || {})) {
-            updates[`features.${key}`] = Boolean(value);
-        }
+        const normalized = Object.entries(features || {}).reduce((acc, [key, value]) => {
+            acc[key] = Boolean(value);
+            return acc;
+        }, {});
 
-        if (!Object.keys(updates).length) {
+        if (!Object.keys(normalized).length) {
             return this.getGuildConfig(guildId);
         }
 
+        const collection = this.db.collection(config.database.collections.guildConfigs);
         const now = new Date();
+        const existing = await collection.findOne({ guildId });
         const defaultFeatures = this.getDefaultFeatureFlags();
-        const mergedDefaults = { ...defaultFeatures };
+        const mergedFeatures = {
+            ...defaultFeatures,
+            ...(existing?.features || {}),
+            ...normalized
+        };
 
-        for (const [path, value] of Object.entries(updates)) {
-            const [, featureKey] = path.split('.');
-            mergedDefaults[featureKey] = Boolean(value);
-        }
-
-        await this.db
-            .collection(config.database.collections.guildConfigs)
-            .updateOne(
-                { guildId },
-                {
-                    $set: {
-                        ...updates,
-                        updatedAt: now
-                    },
-                    $setOnInsert: {
-                        guildId,
-                        ownerId: null,
-                        moderatorRoleIds: [],
-                        moderatorUserIds: [],
-                        features: mergedDefaults,
-                        economyConfig: { channelIds: [] },
-                        createdAt: now
-                    }
+        await collection.updateOne(
+            { guildId },
+            {
+                $set: {
+                    features: mergedFeatures,
+                    updatedAt: now
                 },
-                { upsert: true }
-            );
+                $setOnInsert: {
+                    guildId,
+                    ownerId: null,
+                    moderatorRoleIds: [],
+                    moderatorUserIds: [],
+                    features: mergedFeatures,
+                    economyConfig: { channelIds: [] },
+                    createdAt: now
+                }
+            },
+            { upsert: true }
+        );
 
         return this.getGuildConfig(guildId);
     }
