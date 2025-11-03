@@ -480,26 +480,31 @@ class DatabaseManager {
             ...normalized
         };
 
-        await collection.updateOne(
-            { guildId },
-            {
-                $set: {
-                    features: mergedFeatures,
-                    updatedAt: now
-                },
-                $setOnInsert: {
-                    guildId,
-                    ownerId: null,
-                    moderatorRoleIds: [],
-                    moderatorUserIds: [],
-                    features: mergedFeatures,
-                    economyConfig: { channelIds: [] },
-                    createdAt: now
-                }
-            },
-            { upsert: true }
-        );
+        const nextDocument = existing
+            ? { ...existing }
+            : {
+                  guildId,
+                  ownerId: null,
+                  moderatorRoleIds: [],
+                  moderatorUserIds: [],
+                  economyConfig: { channelIds: [] },
+                  createdAt: now
+              };
 
+        nextDocument.features = mergedFeatures;
+        nextDocument.updatedAt = now;
+
+        if (!nextDocument.createdAt) {
+            nextDocument.createdAt = now;
+        }
+
+        if (!nextDocument.economyConfig || typeof nextDocument.economyConfig !== "object") {
+            nextDocument.economyConfig = { channelIds: [] };
+        } else {
+            nextDocument.economyConfig = this.normalizeEconomyConfig(nextDocument.economyConfig);
+        }
+
+        await collection.replaceOne({ guildId }, nextDocument, { upsert: true });
         return this.getGuildConfig(guildId);
     }
 
@@ -561,64 +566,88 @@ class DatabaseManager {
             .findOne({ guildId, userId });
     }
 
-    async incrementXpUser(guildId, userId, {
-        xpDelta = 0,
-        lastMessageAt = undefined,
-        joinedVoiceAt = undefined
-    } = {}) {
+    async incrementXpUser(
+        guildId,
+        userId,
+        { xpDelta = 0, lastMessageAt = undefined, joinedVoiceAt = undefined } = {}
+    ) {
         if (!this.isConnected) throw new Error('Database not connected');
 
         const collection = this.db.collection(config.database.collections.xpUsers);
         const now = new Date();
+        const filter = { guildId, userId };
 
-        const update = {
-            $setOnInsert: {
-                guildId,
-                userId,
-                level: 0,
-                createdAt: now
-            },
-            $set: {
-                updatedAt: now
+        const updateExisting = async () => {
+            const update = {
+                $set: {
+                    updatedAt: now
+                }
+            };
+
+            if (lastMessageAt !== undefined) {
+                update.$set.lastMsgAt = lastMessageAt;
             }
+
+            if (joinedVoiceAt !== undefined) {
+                update.$set.joinedVoiceAt = joinedVoiceAt;
+            }
+
+            if (Number.isFinite(xpDelta) && xpDelta !== 0) {
+                update.$inc = { xp: xpDelta };
+            }
+
+            const result = await collection.findOneAndUpdate(filter, update, { returnDocument: 'after' });
+            return result.value;
         };
 
-        if (lastMessageAt !== undefined) {
-            update.$set.lastMsgAt = lastMessageAt;
+        let document = await collection.findOne(filter);
+
+        if (!document) {
+            const initialXp = Number.isFinite(xpDelta) ? Math.max(0, xpDelta) : 0;
+            const insertDoc = {
+                guildId,
+                userId,
+                xp: initialXp,
+                level: 0,
+                lastMsgAt: lastMessageAt !== undefined ? lastMessageAt : null,
+                joinedVoiceAt: joinedVoiceAt !== undefined ? joinedVoiceAt : null,
+                createdAt: now,
+                updatedAt: now
+            };
+
+            try {
+                const insertResult = await collection.insertOne(insertDoc);
+                insertDoc._id = insertResult.insertedId;
+                document = insertDoc;
+            } catch (error) {
+                if (error.code === 11000) {
+                    document = await updateExisting();
+                } else {
+                    throw error;
+                }
+            }
+
+            if (!document) {
+                document = await updateExisting();
+            } else if (Number.isFinite(xpDelta) && xpDelta !== 0) {
+                // XP already applied during insert; no further increment required.
+            } else if (lastMessageAt !== undefined || joinedVoiceAt !== undefined) {
+                // Insert already captured these fields.
+            }
         } else {
-            update.$setOnInsert.lastMsgAt = null;
+            document = await updateExisting();
         }
 
-        if (joinedVoiceAt !== undefined) {
-            update.$set.joinedVoiceAt = joinedVoiceAt;
-        } else {
-            update.$setOnInsert.joinedVoiceAt = null;
+        if (!document) {
+            document = await collection.findOne(filter);
+            if (!document) {
+                return null;
+            }
         }
-
-        if (Number.isFinite(xpDelta) && xpDelta !== 0) {
-            update.$inc = { xp: xpDelta };
-        } else {
-            update.$setOnInsert.xp = 0;
-        }
-
-        const result = await collection.findOneAndUpdate(
-            { guildId, userId },
-            update,
-            { upsert: true, returnDocument: 'after' }
-        );
-
-        if (!result.value) {
-            return null;
-        }
-
-        const document = result.value;
 
         if (document.xp < 0) {
             document.xp = 0;
-            await collection.updateOne(
-                { _id: document._id },
-                { $set: { xp: 0 } }
-            );
+            await collection.updateOne({ _id: document._id }, { $set: { xp: 0 } });
         }
 
         return document;
