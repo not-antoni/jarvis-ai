@@ -2026,6 +2026,9 @@ ${summary}`
         };
 
         try {
+            const extractedRoute = this.extractInteractionRoute(interaction);
+            telemetrySubcommand = extractedRoute;
+
             if (!isCommandEnabled(commandName)) {
                 telemetryStatus = 'error';
                 telemetryMetadata.reason = 'feature-disabled-global';
@@ -2041,18 +2044,28 @@ ${summary}`
 
             const featureAllowed = await this.isCommandFeatureEnabled(commandName, guild);
             if (!featureAllowed) {
-                telemetryStatus = 'error';
-                telemetryMetadata.reason = 'feature-disabled-guild';
-                try {
-                    if (!interaction.replied && !interaction.deferred) {
-                        await interaction.reply({ content: 'That module is disabled for this server, sir.', ephemeral: true });
-                    } else if (interaction.deferred && !interaction.replied) {
-                        await interaction.editReply('That module is disabled for this server, sir.');
-                    }
-                } catch (error) {
-                    console.warn('Failed to send guild-disabled command notice:', error);
+                let allowConfigOverride = false;
+                if (commandName === 'econ' && guild) {
+                    const isConfigRoute = extractedRoute && extractedRoute.startsWith('config');
+                    const isOwner = guild.ownerId === userId;
+                    const canManage = interaction.member?.permissions?.has(PermissionsBitField.Flags.ManageGuild);
+                    allowConfigOverride = Boolean(isConfigRoute && (isOwner || canManage));
                 }
-                return;
+
+                if (!allowConfigOverride) {
+                    telemetryStatus = 'error';
+                    telemetryMetadata.reason = 'feature-disabled-guild';
+                    try {
+                        if (!interaction.replied && !interaction.deferred) {
+                            await interaction.reply({ content: 'That module is disabled for this server, sir.', ephemeral: true });
+                        } else if (interaction.deferred && !interaction.replied) {
+                            await interaction.editReply('That module is disabled for this server, sir.');
+                        }
+                    } catch (error) {
+                        console.warn('Failed to send guild-disabled command notice:', error);
+                    }
+                    return;
+                }
             }
 
             if (this.isOnCooldown(userId, cooldownScope)) {
@@ -2060,8 +2073,6 @@ ${summary}`
                 telemetryMetadata.reason = 'rate_limited';
                 return;
             }
-
-            telemetrySubcommand = this.extractInteractionRoute(interaction);
 
             if (commandName === 'clip') {
                 shouldSetCooldown = true;
