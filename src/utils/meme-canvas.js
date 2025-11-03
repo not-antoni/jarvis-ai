@@ -66,28 +66,132 @@ async function createCaptionImage(imageBuffer, captionText) {
     const padding = Math.max(16, Math.round(width * 0.04));
     const maxWidth = Math.max(10, width - padding * 2);
 
-    const canvas = createCanvas(width, width); // temporary to measure
+    const canvas = createCanvas(width, width);
     const ctx = canvas.getContext('2d');
-    const { fontSize, lines } = calculateFontSize(ctx, caption, maxWidth, Math.max(32, Math.round(width / 14)));
+    ctx.font = `bold ${Math.max(32, Math.round(width / 14))}px "Impact", "Arial Black", sans-serif`;
+
+    const emojiRegex = /(<a?:\w+:(\d+)>|\p{Extended_Pictographic})/gu;
+    const tokens = [];
+    let match;
+    let lastIndex = 0;
+    while ((match = emojiRegex.exec(caption)) !== null) {
+        if (match.index > lastIndex) {
+            tokens.push({ type: 'text', value: caption.slice(lastIndex, match.index) });
+        }
+        tokens.push({
+            type: 'emoji',
+            value: match[1],
+            id: match[2] || null,
+            animated: match[1].startsWith('<a:')
+        });
+        lastIndex = emojiRegex.lastIndex;
+    }
+    if (lastIndex < caption.length) {
+        tokens.push({ type: 'text', value: caption.slice(lastIndex) });
+    }
+    if (!tokens.length) {
+        tokens.push({ type: 'text', value: caption });
+    }
+
+    const words = [];
+    for (const token of tokens) {
+        if (token.type === 'text') {
+            token.value.split(/(\s+)/).forEach((piece) => {
+                if (!piece) return;
+                words.push({ type: /\s+/.test(piece) ? 'space' : 'text', value: piece });
+            });
+        } else {
+            words.push(token);
+        }
+    }
+
+    const emojiSize = Math.max(32, Math.round(width / 18));
+    const lines = [];
+    let currentLine = [];
+    let currentWidth = 0;
+
+    const pushLine = () => {
+        if (currentLine.length) {
+            lines.push(currentLine);
+            currentLine = [];
+            currentWidth = 0;
+        }
+    };
+
+    const measureText = (text) => ctx.measureText(text).width;
+
+    for (const word of words) {
+        if (word.type === 'text') {
+            const widthToAdd = measureText(word.value);
+            if (currentWidth + widthToAdd > maxWidth && currentWidth > 0) {
+                pushLine();
+            }
+            currentLine.push({ ...word, width: widthToAdd });
+            currentWidth += widthToAdd;
+        } else if (word.type === 'space') {
+            const widthToAdd = measureText(word.value);
+            if (currentWidth + widthToAdd > maxWidth && currentWidth > 0) {
+                pushLine();
+            }
+            currentLine.push({ ...word, width: widthToAdd });
+            currentWidth += widthToAdd;
+        } else if (word.type === 'emoji') {
+            const widthToAdd = emojiSize;
+            if (currentWidth + widthToAdd > maxWidth && currentWidth > 0) {
+                pushLine();
+            }
+            currentLine.push({ ...word, width: widthToAdd });
+            currentWidth += widthToAdd;
+        }
+    }
+
+    pushLine();
+
+    const fontSize = Math.max(32, Math.round(width / 14));
     const lineHeight = fontSize * 1.15;
     const boxHeight = Math.round(lines.length * lineHeight + padding * 2);
 
     const output = createCanvas(width, image.height + boxHeight);
     const outCtx = output.getContext('2d');
-
     outCtx.fillStyle = '#ffffff';
     outCtx.fillRect(0, 0, width, boxHeight);
     outCtx.drawImage(image, 0, boxHeight);
 
+    outCtx.textAlign = 'left';
+    outCtx.textBaseline = 'top';
     outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
     outCtx.fillStyle = '#000000';
-    outCtx.textAlign = 'center';
-    outCtx.textBaseline = 'top';
 
-    lines.forEach((line, index) => {
-        const y = padding + index * lineHeight;
-        outCtx.fillText(line, width / 2, y);
-    });
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+        const line = lines[lineIndex];
+        const lineWidth = line.reduce((sum, segment) => sum + segment.width, 0);
+        let cursorX = Math.round((width - lineWidth) / 2);
+        const cursorY = Math.round(padding + lineIndex * lineHeight);
+
+        for (const segment of line) {
+            if (segment.type === 'text' || segment.type === 'space') {
+                outCtx.fillText(segment.value, cursorX, cursorY);
+                cursorX += segment.width;
+            } else if (segment.type === 'emoji') {
+                if (segment.id) {
+                    const url = `https://cdn.discordapp.com/emojis/${segment.id}.${segment.animated ? 'gif' : 'png'}?size=96&quality=lossless`;
+                    try {
+                        const emojiImage = await loadImage(url);
+                        outCtx.drawImage(emojiImage, cursorX, cursorY + (lineHeight - emojiSize) / 2, emojiSize, emojiSize);
+                    } catch (error) {
+                        outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+                        outCtx.fillText(segment.value, cursorX, cursorY + (lineHeight - emojiSize) / 2);
+                        outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
+                    }
+                } else {
+                    outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+                    outCtx.fillText(segment.value, cursorX, cursorY + (lineHeight - emojiSize) / 2);
+                    outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
+                }
+                cursorX += emojiSize;
+            }
+        }
+    }
 
     return output.toBuffer('image/png');
 }
