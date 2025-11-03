@@ -576,7 +576,6 @@ class DatabaseManager {
             $setOnInsert: {
                 guildId,
                 userId,
-                xp: 0,
                 level: 0,
                 createdAt: now
             },
@@ -599,6 +598,8 @@ class DatabaseManager {
 
         if (Number.isFinite(xpDelta) && xpDelta !== 0) {
             update.$inc = { xp: xpDelta };
+        } else {
+            update.$setOnInsert.xp = 0;
         }
 
         const result = await collection.findOneAndUpdate(
