@@ -15,7 +15,7 @@ function createManager() {
     return manager;
 }
 
-test('updateGuildFeatures merges defaults and normalises economy config', async () => {
+test('updateGuildFeatures updates individual flags without clobbering other fields', async () => {
     const manager = createManager();
 
     const existingDoc = {
@@ -30,15 +30,15 @@ test('updateGuildFeatures merges defaults and normalises economy config', async 
         updatedAt: new Date('2024-01-02T00:00:00.000Z')
     };
 
-    const replaceCalls = [];
+    const updateCalls = [];
 
     const mockCollection = {
         findOne: async (filter) => {
             assert.deepEqual(filter, { guildId: 'guild-1' });
             return existingDoc;
         },
-        replaceOne: async (filter, doc, options) => {
-            replaceCalls.push({ filter, doc, options });
+        updateOne: async (filter, update) => {
+            updateCalls.push({ filter, update });
         }
     };
 
@@ -54,22 +54,57 @@ test('updateGuildFeatures merges defaults and normalises economy config', async 
 
     await manager.updateGuildFeatures('guild-1', { economy: true, memeTools: false });
 
-    assert.equal(replaceCalls.length, 1);
-    const { filter, doc, options } = replaceCalls[0];
-
+    assert.equal(updateCalls.length, 1);
+    const { filter, update } = updateCalls[0];
     assert.deepEqual(filter, { guildId: 'guild-1' });
-    assert.equal(options.upsert, true);
-    assert.equal(doc.guildId, 'guild-1');
-    assert.ok(doc.updatedAt instanceof Date);
-    assert.equal(doc.createdAt.toISOString(), existingDoc.createdAt.toISOString());
-
-    assert.equal(doc.features.economy, true);
-    assert.equal(doc.features.memeTools, false);
-    assert.equal(doc.features.funUtilities, false);
-
-    assert.deepEqual(doc.economyConfig.channelIds, ['111', '222']);
-    assert.deepEqual(doc.moderatorRoleIds, existingDoc.moderatorRoleIds);
+    assert.ok(update.$set);
+    assert.equal(update.$set['features.economy'], true);
+    assert.equal(update.$set['features.memeTools'], false);
+    assert.ok(update.$set.updatedAt instanceof Date);
+    assert.strictEqual(update.$set.features, undefined);
     assert.strictEqual(returnedConfig.guildId, 'guild-1');
+});
+
+test('updateGuildFeatures inserts new guild config with defaults', async () => {
+    const manager = createManager();
+    const inserted = [];
+
+    const mockCollection = {
+        findOne: async () => null,
+        insertOne: async (doc) => {
+            inserted.push(doc);
+            return { insertedId: 'doc-new' };
+        }
+    };
+
+    manager.db = { collection: () => mockCollection };
+
+    let returnedConfig = null;
+    manager.getGuildConfig = async () => {
+        returnedConfig = { guildId: 'guild-new' };
+        return returnedConfig;
+    };
+
+    await manager.updateGuildFeatures('guild-new', { economy: false });
+
+    assert.equal(inserted.length, 1);
+    const doc = inserted[0];
+    assert.equal(doc.guildId, 'guild-new');
+    assert.ok(doc.createdAt instanceof Date);
+    assert.ok(doc.updatedAt instanceof Date);
+    assert.deepEqual(doc.economyConfig, { channelIds: [] });
+
+    const defaults = manager.getDefaultFeatureFlags();
+    for (const [key, value] of Object.entries(defaults)) {
+        assert.equal(typeof doc.features[key], 'boolean');
+        if (key === 'economy') {
+            assert.equal(doc.features[key], false);
+        } else {
+            assert.equal(doc.features[key], Boolean(value));
+        }
+    }
+
+    assert.strictEqual(returnedConfig.guildId, 'guild-new');
 });
 
 test('incrementXpUser inserts new profile and applies xp delta', async () => {
