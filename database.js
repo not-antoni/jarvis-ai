@@ -473,38 +473,41 @@ class DatabaseManager {
         const collection = this.db.collection(config.database.collections.guildConfigs);
         const now = new Date();
         const existing = await collection.findOne({ guildId });
-        const defaultFeatures = this.getDefaultFeatureFlags();
-        const mergedFeatures = {
-            ...defaultFeatures,
-            ...(existing?.features || {}),
-            ...normalized
-        };
 
-        const nextDocument = existing
-            ? { ...existing }
-            : {
-                  guildId,
-                  ownerId: null,
-                  moderatorRoleIds: [],
-                  moderatorUserIds: [],
-                  economyConfig: { channelIds: [] },
-                  createdAt: now
-              };
+        if (existing) {
+            const featureUpdates = Object.entries(normalized).reduce((acc, [key, value]) => {
+                acc[`features.${key}`] = value;
+                return acc;
+            }, {});
 
-        nextDocument.features = mergedFeatures;
-        nextDocument.updatedAt = now;
-
-        if (!nextDocument.createdAt) {
-            nextDocument.createdAt = now;
-        }
-
-        if (!nextDocument.economyConfig || typeof nextDocument.economyConfig !== "object") {
-            nextDocument.economyConfig = { channelIds: [] };
+            await collection.updateOne(
+                { guildId },
+                {
+                    $set: {
+                        ...featureUpdates,
+                        updatedAt: now
+                    }
+                }
+            );
         } else {
-            nextDocument.economyConfig = this.normalizeEconomyConfig(nextDocument.economyConfig);
+            const defaultFeatures = this.getDefaultFeatureFlags();
+            const mergedFeatures = {
+                ...defaultFeatures,
+                ...normalized
+            };
+
+            await collection.insertOne({
+                guildId,
+                ownerId: null,
+                moderatorRoleIds: [],
+                moderatorUserIds: [],
+                features: mergedFeatures,
+                economyConfig: { channelIds: [] },
+                createdAt: now,
+                updatedAt: now
+            });
         }
 
-        await collection.replaceOne({ guildId }, nextDocument, { upsert: true });
         return this.getGuildConfig(guildId);
     }
 
