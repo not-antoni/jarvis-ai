@@ -760,25 +760,59 @@ class DatabaseManager {
 
         const collection = this.db.collection(config.database.collections.economyUsers);
         const now = new Date();
-        const result = await collection.findOneAndUpdate(
-            { guildId, userId },
+        const filter = { guildId, userId };
+
+        const defaults = {
+            guildId,
+            userId,
+            balance: 0,
+            streak: 0,
+            lastDailyAt: null,
+            lastWorkAt: null,
+            lastCrateAt: null,
+            createdAt: now,
+            updatedAt: now
+        };
+
+        const updateResult = await collection.findOneAndUpdate(
+            filter,
             {
-                $set: { updatedAt: now },
-                $setOnInsert: {
-                    guildId,
-                    userId,
-                    balance: 0,
-                    streak: 0,
-                    lastDailyAt: null,
-                    lastWorkAt: null,
-                    lastCrateAt: null,
-                    createdAt: now
-                }
+                $setOnInsert: defaults,
+                $set: { updatedAt: now }
             },
             { upsert: true, returnDocument: 'after' }
         );
 
-        return result.value;
+        let profile = updateResult.value;
+
+        if (!profile) {
+            profile = await collection.findOne(filter);
+        }
+
+        if (!profile) {
+            try {
+                await collection.insertOne(defaults);
+                profile = defaults;
+            } catch (error) {
+                if (error.code === 11000) {
+                    profile = await collection.findOne(filter);
+                } else {
+                    throw error;
+                }
+            }
+        }
+
+        if (!profile) {
+            throw new Error('Failed to ensure economy profile');
+        }
+
+        if (profile.balance === undefined || profile.balance === null) profile.balance = 0;
+        if (profile.streak === undefined || profile.streak === null) profile.streak = 0;
+        if (!profile.hasOwnProperty('lastDailyAt')) profile.lastDailyAt = null;
+        if (!profile.hasOwnProperty('lastWorkAt')) profile.lastWorkAt = null;
+        if (!profile.hasOwnProperty('lastCrateAt')) profile.lastCrateAt = null;
+
+        return profile;
     }
 
     async getEconomyProfile(guildId, userId) {
@@ -795,28 +829,21 @@ class DatabaseManager {
         const collection = this.db.collection(config.database.collections.economyUsers);
         const now = new Date();
 
+        const filter = { guildId, userId };
+        const base = await this.ensureEconomyProfile(guildId, userId);
+
         const result = await collection.findOneAndUpdate(
-            { guildId, userId },
+            filter,
             {
                 $set: {
                     ...update,
                     updatedAt: now
-                },
-                $setOnInsert: {
-                    guildId,
-                    userId,
-                    balance: 0,
-                    streak: 0,
-                    lastDailyAt: null,
-                    lastWorkAt: null,
-                    lastCrateAt: null,
-                    createdAt: now
                 }
             },
-            { upsert: true, returnDocument: 'after' }
+            { returnDocument: 'after' }
         );
 
-        return result.value;
+        return result.value || { ...base, ...update, updatedAt: now };
     }
 
     async adjustEconomyBalance(guildId, userId, delta, { type = 'adjust', reason = null, metadata = null } = {}) {

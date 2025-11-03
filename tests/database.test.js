@@ -142,6 +142,73 @@ test('incrementXpUser inserts new profile and applies xp delta', async () => {
     assert.equal(result.xp, 25);
 });
 
+test('ensureEconomyProfile guarantees defaults when findOneAndUpdate returns no value', async () => {
+    const manager = createManager();
+
+    let callCount = 0;
+
+    const mockCollection = {
+        findOneAndUpdate: async () => {
+            callCount += 1;
+            return { value: null };
+        },
+        findOne: async () => null,
+        insertOne: async () => ({ insertedId: 'econ-1' })
+    };
+
+    manager.db = { collection: () => mockCollection };
+
+    const profile = await manager.ensureEconomyProfile('guild', 'user');
+    assert.ok(profile);
+    assert.equal(profile.guildId, 'guild');
+    assert.equal(profile.userId, 'user');
+    assert.equal(profile.balance, 0);
+    assert.equal(profile.streak, 0);
+    assert.equal(profile.lastDailyAt, null);
+    assert.equal(profile.lastWorkAt, null);
+    assert.equal(profile.lastCrateAt, null);
+    assert.ok(profile.createdAt instanceof Date);
+    assert.ok(profile.updatedAt instanceof Date);
+    assert.equal(callCount, 1);
+});
+
+test('ensureEconomyProfile retries after duplicate key errors', async () => {
+    const manager = createManager();
+
+    let inserted = false;
+    const stored = {
+        guildId: 'guild',
+        userId: 'user',
+        balance: 0,
+        streak: 0,
+        lastDailyAt: null,
+        lastWorkAt: null,
+        lastCrateAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    };
+
+    const mockCollection = {
+        findOneAndUpdate: async () => ({ value: null }),
+        findOne: async () => (inserted ? stored : null),
+        insertOne: async () => {
+            if (!inserted) {
+                inserted = true;
+                const error = new Error('duplicate');
+                error.code = 11000;
+                throw error;
+            }
+            return { insertedId: 'econ-dup' };
+        }
+    };
+
+    manager.db = { collection: () => mockCollection };
+
+    const profile = await manager.ensureEconomyProfile('guild', 'user');
+    assert.ok(profile);
+    assert.strictEqual(profile, stored);
+});
+
 test('incrementXpUser updates existing profile and clamps negative totals', async () => {
     const manager = createManager();
 
@@ -228,4 +295,36 @@ test('incrementXpUser handles duplicate insert race by retrying update', async (
     const result = await manager.incrementXpUser('guild', 'user', { xpDelta: 10 });
     assert.equal(updateCallCount, 1);
     assert.equal(result.xp, 10);
+});
+
+test('updateEconomyUser merges updates onto ensured profile', async () => {
+    const manager = createManager();
+
+    const baseProfile = {
+        guildId: 'guild',
+        userId: 'user',
+        balance: 0,
+        streak: 0,
+        lastDailyAt: null,
+        lastWorkAt: null,
+        lastCrateAt: null,
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2024-01-01T00:00:00.000Z')
+    };
+
+    const mockCollection = {
+        findOneAndUpdate: async (filter, update, options) => {
+            if (options?.returnDocument === 'after') {
+                return { value: { ...baseProfile, ...update.$setOnInsert, ...update.$set } };
+            }
+            return { value: { ...baseProfile, ...update.$set } };
+        }
+    };
+
+    manager.db = { collection: () => mockCollection };
+
+    const result = await manager.updateEconomyUser('guild', 'user', { lastDailyAt: new Date('2024-02-01T00:00:00.000Z') });
+    assert.ok(result);
+    assert.equal(result.guildId, 'guild');
+    assert.equal(result.lastDailyAt.toISOString(), '2024-02-01T00:00:00.000Z');
 });
