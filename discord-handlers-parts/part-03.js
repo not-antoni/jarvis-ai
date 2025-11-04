@@ -1,4 +1,10 @@
 
+            if (hasSearchTrigger) {
+                await message.reply('Web search is now handled by `/search`, sir.');
+                this.setCooldown(message.author.id, messageScope);
+                return;
+            }
+
             const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
                 ? braveSearch.prepareQueryForApi(querySource)
                 : (querySource || '').trim();
