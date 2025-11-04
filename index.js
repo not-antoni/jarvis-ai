@@ -84,6 +84,36 @@ const allCommands = [
         .setDescription("List available AI providers")
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
+        .setName('yt')
+        .setDescription('Search YouTube for a video')
+        .addStringOption(option =>
+            option
+                .setName('query')
+                .setDescription('Video search terms')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('search')
+        .setDescription('Run a Jarvis web search')
+        .addStringOption(option =>
+            option
+                .setName('query')
+                .setDescription('What should I look up?')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('math')
+        .setDescription('Solve a math expression or equation')
+        .addStringOption(option =>
+            option
+                .setName('expression')
+                .setDescription('Expression to evaluate')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("reset")
         .setDescription("Delete your conversation history and profile with Jarvis")
         .setContexts([InteractionContextType.Guild]),
@@ -162,67 +192,6 @@ const allCommands = [
                 .setMinValue(3)
                 .setMaxValue(10))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
-        .setName('rank')
-        .setDescription('Display a member\'s level progress')
-        .addUserOption(option =>
-            option
-                .setName('user')
-                .setDescription('Member to inspect')
-                .setRequired(false)
-        )
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
-        .setName('leaderboard')
-        .setDescription('Show the leveling leaderboard')
-        .addIntegerOption(option =>
-            option
-                .setName('page')
-                .setDescription('Leaderboard page (defaults to 1)')
-                .setRequired(false)
-                .setMinValue(1)
-        )
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
-        .setName('levelrole')
-        .setDescription('Configure automatic level reward roles')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('add')
-                .setDescription('Grant a role when members reach a level')
-                .addIntegerOption(option =>
-                    option
-                        .setName('level')
-                        .setDescription('Level at which to grant the role')
-                        .setRequired(true)
-                        .setMinValue(1)
-                )
-                .addRoleOption(option =>
-                    option
-                        .setName('role')
-                        .setDescription('Role to award')
-                        .setRequired(true)
-                )
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('remove')
-                .setDescription('Remove a level reward role')
-                .addIntegerOption(option =>
-                    option
-                        .setName('level')
-                        .setDescription('Level to remove')
-                        .setRequired(true)
-                        .setMinValue(1)
-                )
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('list')
-                .setDescription('List configured level reward roles')
-        )
-        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName("decode")
         .setDescription("Decode encoded text")
@@ -524,206 +493,8 @@ const allCommands = [
                         .addChannelTypes(ChannelType.GuildText))
         )
         .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
-        .setName('econ')
-        .setDescription('Interact with the StarkTokens economy')
-        .addSubcommandGroup((group) =>
-            group
-                .setName('config')
-                .setDescription('Configure where economy commands are allowed')
-                .addSubcommand((sub) =>
-                    sub
-                        .setName('enable')
-                        .setDescription('Enable StarkTokens in this channel or a specified one')
-                        .addChannelOption((option) =>
-                            option
-                                .setName('channel')
-                                .setDescription('Channel to enable (defaults to current)')
-                                .setRequired(false)
-                                .addChannelTypes(
-                                    ChannelType.GuildText,
-                                    ChannelType.GuildAnnouncement,
-                                    ChannelType.PublicThread,
-                                    ChannelType.PrivateThread,
-                                    ChannelType.GuildVoice
-                                )
-                        )
-                )
-                .addSubcommand((sub) =>
-                    sub
-                        .setName('disable')
-                        .setDescription('Disable StarkTokens in a channel')
-                        .addChannelOption((option) =>
-                            option
-                                .setName('channel')
-                                .setDescription('Channel to disable (defaults to current)')
-                                .setRequired(false)
-                                .addChannelTypes(
-                                    ChannelType.GuildText,
-                                    ChannelType.GuildAnnouncement,
-                                    ChannelType.PublicThread,
-                                    ChannelType.PrivateThread,
-                                    ChannelType.GuildVoice
-                                )
-                        )
-                )
-                .addSubcommand((sub) =>
-                    sub
-                        .setName('status')
-                        .setDescription('List channels where StarkTokens is enabled')
-                )
-        )
-        .addSubcommandGroup((group) =>
-            group
-                .setName('boss')
-                .setDescription('Launch Stark Industries boss events')
-                .addSubcommand((sub) =>
-                    sub
-                        .setName('spawn')
-                        .setDescription('Deploy a training boss in this channel')
-                )
-                .addSubcommand((sub) =>
-                    sub
-                        .setName('status')
-                        .setDescription('Check the current boss status')
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('balance')
-                .setDescription('Check a user\'s token balance')
-                .addUserOption((option) =>
-                    option
-                        .setName('user')
-                        .setDescription('Member to inspect')
-                        .setRequired(false)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('daily')
-                .setDescription('Claim your StarkTokens daily stipend')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('work')
-                .setDescription('Complete a Stark Industries contract for pay')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('coinflip')
-                .setDescription('Wager StarkTokens on a coin flip')
-                .addIntegerOption((option) =>
-                    option
-                        .setName('amount')
-                        .setDescription('Amount to wager')
-                        .setRequired(true)
-                        .setMinValue(1)
-                        .setMaxValue(1000000)
-                )
-                .addStringOption((option) =>
-                    option
-                        .setName('side')
-                        .setDescription('Heads or tails')
-                        .setRequired(true)
-                        .addChoices(
-                            { name: 'Heads', value: 'heads' },
-                            { name: 'Tails', value: 'tails' }
-                        )
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('crate')
-                .setDescription('Open a Stark supply crate')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('leaderboard')
-                .setDescription('Show the richest StarkToken holders')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('info')
-                .setDescription('Explain how to enable the StarkTokens economy')
-        )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
-        .setName('shop')
-        .setDescription('Browse or manage the Stark shop')
-        .addSubcommand((sub) =>
-            sub
-                .setName('add')
-                .setDescription('Add an item to the shop catalog')
-                .addStringOption((option) =>
-                    option
-                        .setName('sku')
-                        .setDescription('Unique identifier (letters, numbers, dashes)')
-                        .setRequired(true)
-                        .setMinLength(1)
-                        .setMaxLength(32)
-                )
-                .addIntegerOption((option) =>
-                    option
-                        .setName('price')
-                        .setDescription('Purchase price in StarkTokens')
-                        .setRequired(true)
-                        .setMinValue(1)
-                        .setMaxValue(1000000)
-                )
-                .addStringOption((option) =>
-                    option
-                        .setName('name')
-                        .setDescription('Display name for the item')
-                        .setRequired(true)
-                        .setMaxLength(80)
-                )
-                .addStringOption((option) =>
-                    option
-                        .setName('description')
-                        .setDescription('Optional short description')
-                        .setRequired(false)
-                        .setMaxLength(200)
-                )
-                .addRoleOption((option) =>
-                    option
-                        .setName('role')
-                        .setDescription('Role granted when purchased')
-                        .setRequired(false)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('remove')
-                .setDescription('Remove a SKU from the catalog')
-                .addStringOption((option) =>
-                    option
-                        .setName('sku')
-                        .setDescription('Identifier to remove')
-                        .setRequired(true)
-                        .setMinLength(1)
-                        .setMaxLength(32)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('list')
-                .setDescription('List available shop items')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('buy')
-                .setDescription('Purchase an item')
-                .addStringOption((option) =>
-                    option
-                        .setName('sku')
-                        .setDescription('Identifier to purchase')
-                        .setRequired(true)
-                        .setMinLength(1)
-                        .setMaxLength(32)
-                )
-        )
-        .setContexts([InteractionContextType.Guild]),
+    
+    
     new SlashCommandBuilder()
         .setName("reactionrole")
         .setDescription("Manage reaction role panels")

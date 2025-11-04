@@ -25,18 +25,6 @@ class DatabaseManager {
         return defaults;
     }
 
-    normalizeEconomyConfig(input) {
-        if (!input || typeof input !== 'object') {
-            return { channelIds: [] };
-        }
-
-        const channelIds = Array.from(new Set((input.channelIds || []).map((id) => String(id)))).filter(Boolean);
-
-        return {
-            channelIds
-        };
-    }
-
     async connect() {
         if (this.isConnected) {
             return;
@@ -75,11 +63,6 @@ class DatabaseManager {
             const counters = this.db.collection(config.database.collections.counters);
             const newsCache = this.db.collection(config.database.collections.newsCache);
             const migrations = this.db.collection(config.database.collections.migrations);
-            const xpUsers = this.db.collection(config.database.collections.xpUsers);
-            const xpRewards = this.db.collection(config.database.collections.xpRewards);
-            const economyUsers = this.db.collection(config.database.collections.economyUsers);
-            const economyShop = this.db.collection(config.database.collections.economyShop);
-            const economyTransactions = this.db.collection(config.database.collections.economyTransactions);
 
             await conversations.createIndex({ userId: 1, guildId: 1, createdAt: -1 });
             await conversations.createIndex(
@@ -130,18 +113,6 @@ class DatabaseManager {
             await migrations.createIndex({ id: 1 }, { unique: true });
             await migrations.createIndex({ appliedAt: -1 });
 
-            await xpUsers.createIndex({ guildId: 1, userId: 1 }, { unique: true });
-            await xpUsers.createIndex({ guildId: 1, xp: -1 });
-
-            await xpRewards.createIndex({ guildId: 1, level: 1 }, { unique: true });
-
-            await economyUsers.createIndex({ guildId: 1, userId: 1 }, { unique: true });
-            await economyUsers.createIndex({ guildId: 1, balance: -1 });
-
-            await economyShop.createIndex({ guildId: 1, sku: 1 }, { unique: true });
-
-            await economyTransactions.createIndex({ guildId: 1, userId: 1, ts: -1 });
-            await economyTransactions.createIndex({ guildId: 1, ts: -1 });
 
             console.log('Database indexes created successfully');
         } catch (error) {
@@ -349,7 +320,6 @@ class DatabaseManager {
                 moderatorRoleIds: [],
                 moderatorUserIds: [],
                 features: { ...defaultFeatures },
-                economyConfig: { channelIds: [] },
                 createdAt: now,
                 updatedAt: now
             };
@@ -394,16 +364,6 @@ class DatabaseManager {
             needsUpdate = true;
         }
 
-        const normalizedEconomy = this.normalizeEconomyConfig(guildConfig.economyConfig);
-        const previousEconomy = Array.isArray(guildConfig.economyConfig?.channelIds)
-            ? new Set(guildConfig.economyConfig.channelIds.map((id) => String(id)))
-            : new Set();
-        const normalizedEconomySet = new Set(normalizedEconomy.channelIds);
-        if (previousEconomy.size !== normalizedEconomySet.size || normalizedEconomy.channelIds.some((id) => !previousEconomy.has(id))) {
-            needsUpdate = true;
-        }
-        guildConfig.economyConfig = normalizedEconomy;
-
         if (!guildConfig.createdAt) {
             guildConfig.createdAt = now;
             needsUpdate = true;
@@ -419,7 +379,6 @@ class DatabaseManager {
                         features: guildConfig.features,
                         moderatorRoleIds: Array.isArray(guildConfig.moderatorRoleIds) ? guildConfig.moderatorRoleIds : [],
                         moderatorUserIds: Array.isArray(guildConfig.moderatorUserIds) ? guildConfig.moderatorUserIds : [],
-                        economyConfig: guildConfig.economyConfig,
                         updatedAt: guildConfig.updatedAt
                     },
                     $setOnInsert: {
@@ -502,7 +461,6 @@ class DatabaseManager {
                 moderatorRoleIds: [],
                 moderatorUserIds: [],
                 features: mergedFeatures,
-                economyConfig: { channelIds: [] },
                 createdAt: now,
                 updatedAt: now
             });
@@ -560,453 +518,6 @@ class DatabaseManager {
             .collection(config.database.collections.reactionRoles)
             .deleteOne({ messageId });
     }
-
-    async getXpUser(guildId, userId) {
-        if (!this.isConnected) return null;
-
-        return this.db
-            .collection(config.database.collections.xpUsers)
-            .findOne({ guildId, userId });
-    }
-
-    async incrementXpUser(
-        guildId,
-        userId,
-        { xpDelta = 0, lastMessageAt = undefined, joinedVoiceAt = undefined } = {}
-    ) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        const collection = this.db.collection(config.database.collections.xpUsers);
-        const now = new Date();
-        const filter = { guildId, userId };
-
-        const updateExisting = async () => {
-            const update = {
-                $set: {
-                    updatedAt: now
-                }
-            };
-
-            if (lastMessageAt !== undefined) {
-                update.$set.lastMsgAt = lastMessageAt;
-            }
-
-            if (joinedVoiceAt !== undefined) {
-                update.$set.joinedVoiceAt = joinedVoiceAt;
-            }
-
-            if (Number.isFinite(xpDelta) && xpDelta !== 0) {
-                update.$inc = { xp: xpDelta };
-            }
-
-            const result = await collection.findOneAndUpdate(filter, update, { returnDocument: 'after' });
-            return result.value;
-        };
-
-        let document = await collection.findOne(filter);
-
-        if (!document) {
-            const initialXp = Number.isFinite(xpDelta) ? Math.max(0, xpDelta) : 0;
-            const insertDoc = {
-                guildId,
-                userId,
-                xp: initialXp,
-                level: 0,
-                lastMsgAt: lastMessageAt !== undefined ? lastMessageAt : null,
-                joinedVoiceAt: joinedVoiceAt !== undefined ? joinedVoiceAt : null,
-                createdAt: now,
-                updatedAt: now
-            };
-
-            try {
-                const insertResult = await collection.insertOne(insertDoc);
-                insertDoc._id = insertResult.insertedId;
-                document = insertDoc;
-            } catch (error) {
-                if (error.code === 11000) {
-                    document = await updateExisting();
-                } else {
-                    throw error;
-                }
-            }
-
-            if (!document) {
-                document = await updateExisting();
-            } else if (Number.isFinite(xpDelta) && xpDelta !== 0) {
-                // XP already applied during insert; no further increment required.
-            } else if (lastMessageAt !== undefined || joinedVoiceAt !== undefined) {
-                // Insert already captured these fields.
-            }
-        } else {
-            document = await updateExisting();
-        }
-
-        if (!document) {
-            document = await collection.findOne(filter);
-            if (!document) {
-                return null;
-            }
-        }
-
-        if (document.xp < 0) {
-            document.xp = 0;
-            await collection.updateOne({ _id: document._id }, { $set: { xp: 0 } });
-        }
-
-        return document;
-    }
-
-    async setUserVoiceJoin(guildId, userId, joinedAt) {
-        return this.incrementXpUser(guildId, userId, { joinedVoiceAt: joinedAt });
-    }
-
-    async clearUserVoiceJoin(guildId, userId) {
-        return this.incrementXpUser(guildId, userId, { joinedVoiceAt: null });
-    }
-
-    async listGuildXpUsers(guildId, { skip = 0, limit = 10 } = {}) {
-        if (!this.isConnected) return [];
-
-        return this.db
-            .collection(config.database.collections.xpUsers)
-            .find({ guildId })
-            .sort({ xp: -1, updatedAt: -1 })
-            .skip(Math.max(0, skip))
-            .limit(Math.max(1, limit))
-            .toArray();
-    }
-
-    async countGuildXpUsers(guildId) {
-        if (!this.isConnected) return 0;
-
-        return this.db
-            .collection(config.database.collections.xpUsers)
-            .countDocuments({ guildId });
-    }
-
-    async countGuildXpUsersAbove(guildId, xp) {
-        if (!this.isConnected) return 0;
-
-        return this.db
-            .collection(config.database.collections.xpUsers)
-            .countDocuments({ guildId, xp: { $gt: xp } });
-    }
-
-    async getLevelRoles(guildId) {
-        if (!this.isConnected) return [];
-
-        return this.db
-            .collection(config.database.collections.xpRewards)
-            .find({ guildId })
-            .sort({ level: 1 })
-            .toArray();
-    }
-
-    async upsertLevelRole(guildId, level, roleId) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        const collection = this.db.collection(config.database.collections.xpRewards);
-        const now = new Date();
-
-        await collection.updateOne(
-            { guildId, level },
-            {
-                $set: {
-                    roleId,
-                    updatedAt: now
-                },
-                $setOnInsert: {
-                    createdAt: now
-                }
-            },
-            { upsert: true }
-        );
-    }
-
-    async removeLevelRole(guildId, level) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        await this.db
-            .collection(config.database.collections.xpRewards)
-            .deleteOne({ guildId, level });
-    }
-
-    async setUserLevel(guildId, userId, level) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        const now = new Date();
-        await this.db
-            .collection(config.database.collections.xpUsers)
-            .updateOne(
-                { guildId, userId },
-                {
-                    $set: {
-                        level,
-                        updatedAt: now
-                    },
-                    $setOnInsert: {
-                        xp: 0,
-                        lastMsgAt: null,
-                        joinedVoiceAt: null,
-                        createdAt: now
-                    }
-                },
-                { upsert: true }
-            );
-    }
-
-    async ensureEconomyProfile(guildId, userId) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        const collection = this.db.collection(config.database.collections.economyUsers);
-        const now = new Date();
-        const filter = { guildId, userId };
-
-        const defaults = {
-            guildId,
-            userId,
-            balance: 0,
-            streak: 0,
-            lastDailyAt: null,
-            lastWorkAt: null,
-            lastCrateAt: null,
-            createdAt: now,
-            updatedAt: now
-        };
-
-        const updateResult = await collection.findOneAndUpdate(
-            filter,
-            {
-                $setOnInsert: defaults,
-                $set: { updatedAt: now }
-            },
-            { upsert: true, returnDocument: 'after' }
-        );
-
-        let profile = updateResult.value;
-
-        if (!profile) {
-            profile = await collection.findOne(filter);
-        }
-
-        if (!profile) {
-            try {
-                await collection.insertOne(defaults);
-                profile = defaults;
-            } catch (error) {
-                if (error.code === 11000) {
-                    profile = await collection.findOne(filter);
-                } else {
-                    throw error;
-                }
-            }
-        }
-
-        if (!profile) {
-            throw new Error('Failed to ensure economy profile');
-        }
-
-        if (profile.balance === undefined || profile.balance === null) profile.balance = 0;
-        if (profile.streak === undefined || profile.streak === null) profile.streak = 0;
-        if (!profile.hasOwnProperty('lastDailyAt')) profile.lastDailyAt = null;
-        if (!profile.hasOwnProperty('lastWorkAt')) profile.lastWorkAt = null;
-        if (!profile.hasOwnProperty('lastCrateAt')) profile.lastCrateAt = null;
-
-        return profile;
-    }
-
-    async getEconomyProfile(guildId, userId) {
-        if (!this.isConnected) return null;
-
-        return this.db
-            .collection(config.database.collections.economyUsers)
-            .findOne({ guildId, userId });
-    }
-
-    async updateEconomyUser(guildId, userId, update = {}) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        const collection = this.db.collection(config.database.collections.economyUsers);
-        const now = new Date();
-
-        const filter = { guildId, userId };
-        const base = await this.ensureEconomyProfile(guildId, userId);
-
-        const result = await collection.findOneAndUpdate(
-            filter,
-            {
-                $set: {
-                    ...update,
-                    updatedAt: now
-                }
-            },
-            { returnDocument: 'after' }
-        );
-
-        return result.value || { ...base, ...update, updatedAt: now };
-    }
-
-    async adjustEconomyBalance(guildId, userId, delta, { type = 'adjust', reason = null, metadata = null } = {}) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        await this.ensureEconomyProfile(guildId, userId);
-
-        const collection = this.db.collection(config.database.collections.economyUsers);
-        const now = new Date();
-
-        const query = { guildId, userId };
-        if (delta < 0) {
-            query.balance = { $gte: Math.abs(delta) };
-        }
-
-        const result = await collection.findOneAndUpdate(
-            query,
-            {
-                $inc: { balance: delta },
-                $set: { updatedAt: now }
-            },
-            { returnDocument: 'after' }
-        );
-
-        if (!result.value) {
-            const error = new Error('Insufficient funds');
-            error.code = 'INSUFFICIENT_FUNDS';
-            throw error;
-        }
-
-        await this.logEconomyTransaction({
-            guildId,
-            userId,
-            type,
-            delta,
-            balance: result.value.balance,
-            reason,
-            metadata,
-            ts: now
-        });
-
-        return result.value;
-    }
-
-    async logEconomyTransaction({ guildId, userId, type, delta, balance, reason = null, metadata = null, ts = new Date() }) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        await this.db
-            .collection(config.database.collections.economyTransactions)
-            .insertOne({
-                guildId,
-                userId,
-                type,
-                delta,
-                balance,
-                reason,
-                metadata: metadata || null,
-                ts
-            });
-    }
-
-    async getEconomyLeaderboard(guildId, { limit = 10 } = {}) {
-        if (!this.isConnected) return [];
-
-        return this.db
-            .collection(config.database.collections.economyUsers)
-            .find({ guildId })
-            .sort({ balance: -1, updatedAt: -1 })
-            .limit(Math.max(1, Math.min(50, limit)))
-            .toArray();
-    }
-
-    async getEconomySettings(guildId) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        const configRecord = await this.getGuildConfig(guildId);
-        return this.normalizeEconomyConfig(configRecord.economyConfig);
-    }
-
-    async setEconomyChannel(guildId, channelId, enabled) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        const economy = await this.getEconomySettings(guildId);
-        const channelSet = new Set(economy.channelIds);
-
-        if (enabled) {
-            channelSet.add(String(channelId));
-        } else {
-            channelSet.delete(String(channelId));
-        }
-
-        const now = new Date();
-
-        await this.db
-            .collection(config.database.collections.guildConfigs)
-            .updateOne(
-                { guildId },
-                {
-                    $set: {
-                        'economyConfig.channelIds': Array.from(channelSet),
-                        updatedAt: now
-                    }
-                },
-                { upsert: true }
-            );
-
-        return Array.from(channelSet);
-    }
-
-    async isEconomyChannelEnabled(guildId, channelId) {
-        const economy = await this.getEconomySettings(guildId);
-        return economy.channelIds.includes(String(channelId));
-    }
-
-    async upsertShopItem(guildId, sku, data) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        const collection = this.db.collection(config.database.collections.economyShop);
-        const now = new Date();
-
-        await collection.updateOne(
-            { guildId, sku },
-            {
-                $set: {
-                    ...data,
-                    guildId,
-                    sku,
-                    updatedAt: now
-                },
-                $setOnInsert: {
-                    createdAt: now
-                }
-            },
-            { upsert: true }
-        );
-    }
-
-    async removeShopItem(guildId, sku) {
-        if (!this.isConnected) throw new Error('Database not connected');
-
-        await this.db
-            .collection(config.database.collections.economyShop)
-            .deleteOne({ guildId, sku });
-    }
-
-    async listShopItems(guildId) {
-        if (!this.isConnected) return [];
-
-        return this.db
-            .collection(config.database.collections.economyShop)
-            .find({ guildId })
-            .sort({ price: 1 })
-            .toArray();
-    }
-
-    async getShopItem(guildId, sku) {
-        if (!this.isConnected) return null;
-
-        return this.db
-            .collection(config.database.collections.economyShop)
-            .findOne({ guildId, sku });
-    }
-
     async getAutoModConfig(guildId) {
         if (!this.isConnected) return null;
 
