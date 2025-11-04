@@ -1006,6 +1006,108 @@
         }
     }
 
+    async handleCryptoCommand(interaction) {
+        const symbol = (interaction.options.getString('coin', true) || '').toUpperCase();
+        const convert = (interaction.options.getString('convert') || 'USD').toUpperCase();
+
+        if (!config.crypto?.apiKey) {
+            await interaction.editReply('Crypto market uplink offline, sir. Please configure CRYPTO_API_KEY.');
+            return;
+        }
+
+        const formatCurrency = (value) => {
+            const amount = Number(value);
+            if (!Number.isFinite(amount)) {
+                return `— ${convert}`;
+            }
+
+            const abs = Math.abs(amount);
+            const digits = abs >= 1000 ? 2 : abs >= 1 ? 3 : 6;
+
+            try {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: convert,
+                    minimumFractionDigits: digits,
+                    maximumFractionDigits: digits
+                }).format(amount);
+            } catch {
+                return `${amount.toFixed(digits)} ${convert}`;
+            }
+        };
+
+        const formatPercent = (value) => {
+            const num = Number(value);
+            if (!Number.isFinite(num)) {
+                return '—';
+            }
+            const direction = num >= 0 ? '▲' : '▼';
+            return `${direction} ${Math.abs(num).toFixed(2)}%`;
+        };
+
+        const formatNumber = (value, options = {}) => {
+            const num = Number(value);
+            if (!Number.isFinite(num)) {
+                return '—';
+            }
+            return new Intl.NumberFormat('en-US', options).format(num);
+        };
+
+        try {
+            const { asset, quote } = await this.crypto.getQuote({ symbol, convert });
+            const lastUpdated = quote.last_updated ? new Date(quote.last_updated) : null;
+
+            const embed = new EmbedBuilder()
+                .setTitle(`${asset.name} (${asset.symbol})`)
+                .setColor((quote.percent_change_24h || 0) >= 0 ? 0x22c55e : 0xef4444)
+                .setDescription(`Live telemetry converted to ${convert}.`)
+                .addFields(
+                    { name: 'Price', value: formatCurrency(quote.price), inline: true },
+                    { name: '24h Δ', value: formatPercent(quote.percent_change_24h), inline: true },
+                    { name: '7d Δ', value: formatPercent(quote.percent_change_7d), inline: true },
+                    { name: '1h Δ', value: formatPercent(quote.percent_change_1h), inline: true },
+                    { name: 'Market Cap', value: formatCurrency(quote.market_cap), inline: true },
+                    { name: '24h Volume', value: formatCurrency(quote.volume_24h), inline: true },
+                    {
+                        name: 'Supply',
+                        value: `${formatNumber(asset.circulating_supply, { maximumFractionDigits: 0 })} / ${asset.total_supply ? formatNumber(asset.total_supply, { maximumFractionDigits: 0 }) : '—'} ${asset.symbol}`,
+                        inline: true
+                    },
+                    { name: 'Rank', value: asset.cmc_rank ? `#${asset.cmc_rank}` : '—', inline: true }
+                );
+
+        if (asset.slug) {
+            embed.setURL(`https://coinmarketcap.com/currencies/${asset.slug}/`);
+        }
+
+            if (lastUpdated) {
+                embed.setTimestamp(lastUpdated);
+                embed.setFooter({ text: 'CoinMarketCap telemetry' });
+            }
+
+            await interaction.editReply({ embeds: [embed] });
+        } catch (error) {
+            console.error('Crypto command failed:', error);
+
+            if (error.code === 'CRYPTO_API_KEY_MISSING') {
+                await interaction.editReply('Crypto market uplink offline, sir. Please configure CRYPTO_API_KEY.');
+                return;
+            }
+
+            if (error.code === 'CRYPTO_UNKNOWN_SYMBOL') {
+                await interaction.editReply('I am not familiar with that asset ticker, sir.');
+                return;
+            }
+
+            if (error.code === 'CRYPTO_UNSUPPORTED_CONVERT') {
+                await interaction.editReply(`That convert currency is not supported for ${symbol}, sir.`);
+                return;
+            }
+
+            await interaction.editReply('Unable to retrieve market telemetry at this moment, sir.');
+        }
+    }
+
 
     async handleComponentInteraction(interaction) {
         if (!interaction.isButton()) {
@@ -1263,6 +1365,11 @@
                 case 'meme': {
                     telemetryMetadata.category = 'memes';
                     await this.handleMemeCommand(interaction);
+                    return;
+                }
+                case 'crypto': {
+                    telemetryMetadata.category = 'crypto';
+                    await this.handleCryptoCommand(interaction);
                     return;
                 }
                 case 'yt': {

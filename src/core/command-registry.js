@@ -69,6 +69,14 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'crypto',
+        description: 'Retrieve live market data for popular cryptocurrencies.',
+        category: 'Utilities',
+        usage: '/crypto coin:<symbol> convert:<currency>',
+        feature: 'crypto',
+        ephemeral: false
+    },
+    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',

@@ -134,6 +134,11 @@ const rawConfig = {
         apiKey: process.env.BRAVE_API_KEY
     },
 
+    // Crypto Market Data
+    crypto: {
+        apiKey: process.env.CRYPTO_API_KEY || null
+    },
+
     // Feature Toggles (can be overridden via FEATURE_* environment variables)
     features: {
         coreChat: true,
@@ -154,7 +159,8 @@ const rawConfig = {
         macroReplies: true,
         music: true,
         memeTools: true,
-        funUtilities: true
+        funUtilities: true,
+        crypto: true
     }
 };
 
