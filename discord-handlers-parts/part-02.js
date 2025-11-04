@@ -626,33 +626,21 @@
     }
 
     async handleMessage(message, client) {
-        const allowedBotIds = ['984734399310467112', '1391010888915484672',];
+        const allowedBotIds = ['984734399310467112', '1391010888915484672'];
         if (message.author.id === client.user.id) return;
         if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
-        if (message.channel?.type === ChannelType.DM) {
+        if (!message.guild) {
+            return;
+        }
+
+        const chatEnabled = await this.isCommandFeatureEnabled('jarvis', message.guild);
+        if (!chatEnabled || !isFeatureGloballyEnabled('coreChat')) {
             return;
         }
 
         const userId = message.author.id;
         const messageScope = 'message:jarvis';
-
-        if (message.guild) {
-            try {
-                if (await this.isFeatureActive('leveling', message.guild)) {
-                    await this.leveling.handleMessageActivity(message);
-                }
-            } catch (error) {
-                console.error('Failed to process leveling XP for message:', error);
-            }
-
-            const chatEnabled = await this.isCommandFeatureEnabled('jarvis', message.guild);
-            if (!chatEnabled) {
-                return;
-            }
-        } else if (!isFeatureGloballyEnabled('coreChat')) {
-            return;
-        }
 
         const braveGuardedEarly = await this.enforceImmediateBraveGuard(message);
         if (braveGuardedEarly) {
@@ -660,278 +648,38 @@
             return;
         }
 
-        // 🚫 Ignore mass mentions completely
         if (message.mentions.everyone) {
-            return; // NEW: do not respond to @everyone / @here
+            return;
         }
 
         const isMentioned = message.mentions.has(client.user);
-        const containsJarvis = config.wakeWords.some(trigger =>
-            message.content.toLowerCase().includes(trigger)
-        );
-        const isReplyToJarvis = message.reference && message.reference.messageId;
-        const isBot = message.author.bot;
-        const isTCommand = message.content.toLowerCase().trim().startsWith("!t ");
+        let isReplyToJarvis = false;
 
-        if (isMentioned || containsJarvis || isReplyToJarvis || isTCommand) {
-            const { limited } = this.hitCooldown(userId, messageScope);
-            if (limited) {
-                return;
+        if (!isMentioned && message.reference?.messageId) {
+            try {
+                const replied = await message.channel.messages.fetch(message.reference.messageId);
+                if (replied?.author?.id === client.user.id) {
+                    isReplyToJarvis = true;
+                }
+            } catch (error) {
+                console.error('Failed to inspect replied message for Jarvis mention:', error);
             }
         }
 
-        if (await this.handleAdminCommands(message)) return;
-        if (await this.handleUtilityCommands(message)) return;
+        if (!isMentioned && !isReplyToJarvis) {
+            return;
+        }
+
+        const { limited } = this.hitCooldown(userId, messageScope);
+        if (limited) {
+            return;
+        }
 
         await this.handleJarvisInteraction(message, client);
     }
 
-    async handleVoiceStateUpdate(oldState, newState) {
-        const guild = newState?.guild || oldState?.guild || null;
-        const member = newState?.member || oldState?.member || null;
-
-        if (!guild || !member || member.user.bot) {
-            return;
-        }
-
-        let voiceEnabled = false;
-        try {
-            voiceEnabled = await this.isFeatureActive('levelingVoice', guild);
-        } catch (error) {
-            console.error('Failed to resolve levelingVoice feature flag:', error);
-        }
-
-        if (!voiceEnabled) {
-            try {
-                await this.leveling.clearVoiceJoin(guild.id, member.id);
-            } catch (error) {
-                console.error('Failed to clear stored voice join state:', error);
-            }
-            return;
-        }
-
-        try {
-            await this.leveling.handleVoiceStateUpdate(oldState, newState);
-        } catch (error) {
-            console.error('Failed to process voice leveling update:', error);
-        }
-    }
-
-    async handleAdminCommands(message) {
-        const content = message.content.trim().toLowerCase();
-
-        if (content === "!cleardbsecret") {
-            if (message.author.id !== config.admin.userId) {
-                return false;
-            }
-
-            try {
-                await message.channel.sendTyping();
-                const { conv, prof } = await this.jarvis.clearDatabase();
-                await message.reply(`Database cleared, sir. Deleted ${conv} conversations and ${prof} profiles.`);
-            } catch (error) {
-                console.error("Clear DB error:", error);
-                await message.reply("Unable to clear database, sir. Technical issue.");
-            }
-            return true;
-        }
-
-        return false;
-    }
-
-    async handleUtilityCommands(message) {
-        const content = message.content.trim().toLowerCase();
-        const rawContent = message.content.trim();
-
-        if (content === "!reset") {
-            try {
-                await message.channel.sendTyping();
-                const { conv, prof } = await this.jarvis.resetUserData(message.author.id);
-                await message.reply(`Memories wiped, sir. Deleted ${conv} conversations and ${prof} profile${prof === 1 ? '' : 's'}.`);
-            } catch (error) {
-                console.error("Reset error:", error);
-                await message.reply("Unable to reset memories, sir. Technical issue.");
-            }
-            return true;
-        }
-
-        if (content === "!help") {
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    "help",
-                    message.author.username,
-                    message.author.id,
-                    false,
-                    null,
-                    message.guild?.id || null
-                );
-                if (typeof response === "string") {
-                    await message.reply(response);
-                } else if (response) {
-                    await message.reply(response);
-                } else {
-                    await message.reply("Unable to display help right now, sir.");
-                }
-            } catch (error) {
-                console.error("Help command error:", error);
-                await message.reply("Unable to display help right now, sir.");
-            }
-            return true;
-        }
-
-        if (content === "!invite") {
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    "invite",
-                    message.author.username,
-                    message.author.id,
-                    false,
-                    null,
-                    message.guild?.id || null
-                );
-                if (typeof response === "string") {
-                    await message.reply(response);
-                } else if (response) {
-                    await message.reply(response);
-                } else {
-                    await message.reply("Support invite unavailable right now, sir.");
-                }
-            } catch (error) {
-                console.error("Invite command error:", error);
-                await message.reply("Support invite unavailable right now, sir.");
-            }
-            return true;
-        }
-
-        if (content.startsWith("!profile")) {
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
-                    message.author.username,
-                    message.author.id,
-                    false,
-                    null,
-                    message.guild?.id || null
-                );
-                await message.reply(response || "Profile command processed, sir.");
-            } catch (error) {
-                console.error("Profile command error:", error);
-                await message.reply("Unable to access profile systems, sir.");
-            }
-            return true;
-        }
-
-        if (content.startsWith("!history")) {
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
-                    message.author.username,
-                    message.author.id,
-                    false,
-                    null,
-                    message.guild?.id || null
-                );
-                await message.reply(response || "No history available yet, sir.");
-            } catch (error) {
-                console.error("History command error:", error);
-                await message.reply("Unable to retrieve history, sir.");
-            }
-            return true;
-        }
-
-        if (content.startsWith("!recap")) {
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
-                    message.author.username,
-                    message.author.id,
-                    false,
-                    null,
-                    message.guild?.id || null
-                );
-                await message.reply(response || "Nothing to report just yet, sir.");
-            } catch (error) {
-                console.error("Recap command error:", error);
-                await message.reply("Unable to compile a recap, sir.");
-            }
-            return true;
-        }
-
-        if (content.startsWith("!encode")) {
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
-                    message.author.username,
-                    message.author.id,
-                    false,
-                    null,
-                    message.guild?.id || null
-                );
-                await message.reply(response || "Encoding complete, sir.");
-            } catch (error) {
-                console.error("Encode command error:", error);
-                await message.reply("Unable to encode that right now, sir.");
-            }
-            return true;
-        }
-
-        if (content.startsWith("!decode")) {
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    rawContent.substring(1),
-                    message.author.username,
-                    message.author.id,
-                    false,
-                    null,
-                    message.guild?.id || null
-                );
-                await message.reply(response || "Decoding complete, sir.");
-            } catch (error) {
-                console.error("Decode command error:", error);
-                await message.reply("Unable to decode that right now, sir.");
-            }
-            return true;
-        }
-
-        if (content.startsWith("!t ")) {
-            const whitelistedChannelIds = config.commands.whitelistedChannelIds;
-            if (!whitelistedChannelIds.includes(message.channel.id)) {
-                return true;
-            }
-
-            console.log(`!t command detected: ${message.content}`);
-            try {
-                await message.channel.sendTyping();
-                const response = await this.jarvis.handleUtilityCommand(
-                    message.content.trim(),
-                    message.author.username,
-                    message.author.id,
-                    false,
-                    null,
-                    message.guild?.id || null
-                );
-
-                console.log(`!t command response: ${response}`);
-                if (response) {
-                    await message.reply(response);
-                } else {
-                    await message.reply("Search system unavailable, sir. Technical difficulties.");
-                }
-            } catch (error) {
-                console.error("!t command error:", error);
-                await message.reply("Search failed, sir. Technical difficulties.");
-            }
-            return true;
-        }
-
-        return false;
+    async handleVoiceStateUpdate() {
+        return;
     }
 
     async handleJarvisInteraction(message, client) {

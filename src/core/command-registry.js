@@ -45,6 +45,30 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'yt',
+        description: 'Search YouTube for a relevant video.',
+        category: 'Utilities',
+        usage: '/yt <query>',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
+        name: 'search',
+        description: 'Perform a safety-filtered Brave web search.',
+        category: 'Utilities',
+        usage: '/search <query>',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
+        name: 'math',
+        description: 'Evaluate a mathematical expression or equation.',
+        category: 'Utilities',
+        usage: '/math <expression>',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',
@@ -234,46 +258,6 @@ const commandDefinitions = [
         category: 'Operations',
         usage: '/macro list',
         feature: 'macroReplies',
-        ephemeral: true
-    },
-    {
-        name: 'econ',
-        description: 'Interact with the Stark Tokens economy.',
-        category: 'Economy',
-        usage: '/econ balance|daily|work|coinflip|crate',
-        feature: 'economy',
-        ephemeral: false
-    },
-    {
-        name: 'shop',
-        description: 'Manage and browse the Stark Tokens shop.',
-        category: 'Economy',
-        usage: '/shop add|remove|list|buy',
-        feature: 'economy',
-        ephemeral: false
-    },
-    {
-        name: 'rank',
-        description: 'View a member\'s level progress.',
-        category: 'Progression',
-        usage: '/rank [user]',
-        feature: 'leveling',
-        ephemeral: false
-    },
-    {
-        name: 'leaderboard',
-        description: 'Show the top members by XP.',
-        category: 'Progression',
-        usage: '/leaderboard [page]',
-        feature: 'leveling',
-        ephemeral: false
-    },
-    {
-        name: 'levelrole',
-        description: 'Manage automatic level reward roles.',
-        category: 'Progression',
-        usage: '/levelrole add <level> <role>',
-        feature: 'leveling',
         ephemeral: true
     },
     {

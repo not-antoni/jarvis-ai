@@ -4,20 +4,57 @@
 
 const validateConfig = require('./config/validate');
 
+function parseBooleanEnv(envValue, fallback = false) {
+    if (envValue == null) {
+        return Boolean(fallback);
+    }
+
+    const normalized = String(envValue).trim().toLowerCase();
+    if (!normalized) {
+        return Boolean(fallback);
+    }
+
+    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {
+        return true;
+    }
+    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {
+        return false;
+    }
+
+    return Boolean(fallback);
+}
+
+const enableMessageContentIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_MESSAGE_CONTENT, false);
+const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE_INTENT, false);
+
+const baseIntents = [
+    'Guilds',
+    'GuildMessages',
+    'GuildVoiceStates',
+    'GuildMembers',
+    'DirectMessages',
+    'GuildMessageReactions'
+];
+
+if (enableMessageContentIntent) {
+    baseIntents.push('MessageContent');
+}
+
+if (enablePresenceIntent) {
+    baseIntents.push('GuildPresences');
+}
+
 const rawConfig = {
     // Discord Bot Configuration
     discord: {
         token: process.env.DISCORD_TOKEN,
-        intents: [
-            'Guilds',
-            'GuildMessages',
-            'MessageContent',
-            'GuildVoiceStates',
-            'GuildMembers',
-            'DirectMessages',
-            'GuildMessageReactions',
-            'GuildPresences'
-        ]
+        intents: baseIntents,
+        messageContent: {
+            enabled: enableMessageContentIntent
+        },
+        presenceIntent: {
+            enabled: enablePresenceIntent
+        }
     },
 
     // Database Configuration
@@ -42,11 +79,6 @@ const rawConfig = {
             counters: 'counters',
             newsCache: 'newsCache',
             migrations: 'migrations',
-            xpUsers: 'xp_users',
-            xpRewards: 'xp_rewards',
-            economyUsers: 'econ_users',
-            economyShop: 'econ_shop',
-            economyTransactions: 'econ_tx'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',
@@ -121,10 +153,7 @@ const rawConfig = {
         newsBriefings: true,
         macroReplies: true,
         music: true,
-        leveling: true,
-        levelingVoice: false,
         memeTools: true,
-        economy: true,
         funUtilities: true
     }
 };
