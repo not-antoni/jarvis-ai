@@ -796,153 +796,19 @@
         }
 
         if (hasMathTrigger) {
-            await message.reply('Mathematics routines are now routed through `/math`, sir.');
+            await message.reply('Mathematics routines are now available via `/math`, sir.');
             this.setCooldown(message.author.id, messageScope);
             return;
         }
 
         if (ytMatch) {
-            await message.reply('For video reconnaissance, deploy `/yt`, sir.');
+            await message.reply('For video reconnaissance, deploy `/yt` instead, sir.');
             this.setCooldown(message.author.id, messageScope);
             return;
         }
 
-        if (hasSearchTrigger) {
+        if (hasSearchTrigger || braveInvocation.triggered || rawBraveInvocation.triggered) {
             await message.reply('Web search is now handled by `/search`, sir.');
             this.setCooldown(message.author.id, messageScope);
             return;
         }
-
-        if (braveInvocation.triggered || rawBraveInvocation.triggered) {
-            const invocationContext =
-                (typeof braveInvocation.invocation === 'string' && braveInvocation.invocation.length > 0)
-                    ? braveInvocation.invocation
-                    : (typeof rawBraveInvocation.invocation === 'string' && rawBraveInvocation.invocation.length > 0)
-                        ? rawBraveInvocation.invocation
-                        : cleanContent;
-
-            const rawSegmentCandidate =
-                (typeof braveInvocation.rawQuery === 'string' && braveInvocation.rawQuery.length > 0)
-                    ? braveInvocation.rawQuery
-                    : (typeof rawBraveInvocation.rawQuery === 'string' && rawBraveInvocation.rawQuery.length > 0)
-                        ? rawBraveInvocation.rawQuery
-                        : invocationContext;
-
-            const explicitFromInvocation = (!braveInvocation.explicit && braveSearch.isExplicitQuery)
-                ? braveSearch.isExplicitQuery(invocationContext, { rawSegment: invocationContext })
-                : false;
-
-            const explicitDetected = (
-                braveInvocation.explicit === true
-                || rawBraveInvocation.explicit === true
-                || explicitFromInvocation === true
-            );
-
-            if (explicitDetected) {
-                await message.reply({
-                    content: braveSearch.getExplicitQueryMessage
-                        ? braveSearch.getExplicitQueryMessage()
-                        : 'I must decline that request, sir. My safety filters forbid it.'
-                });
-                this.setCooldown(message.author.id, messageScope);
-                return;
-            }
-
-            const querySource =
-                (typeof braveInvocation.query === 'string' && braveInvocation.query.length > 0)
-                    ? braveInvocation.query
-                    : (typeof rawBraveInvocation.query === 'string' && rawBraveInvocation.query.length > 0)
-                        ? rawBraveInvocation.query
-                        : rawSegmentCandidate;
-
-            const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
-                ? braveSearch.prepareQueryForApi(querySource)
-                : (querySource || '').trim();
-
-            if (preparedQuery) {
-                try {
-                    const rawSegmentForCheck = (typeof rawSegmentCandidate === 'string' && rawSegmentCandidate.length > 0)
-                        ? rawSegmentCandidate
-                        : ((typeof invocationContext === 'string' && invocationContext.length > 0)
-                            ? invocationContext
-                            : preparedQuery);
-
-                    if (braveSearch.isExplicitQuery && (
-                        braveSearch.isExplicitQuery(preparedQuery, { rawSegment: rawSegmentForCheck }) ||
-                        (rawSegmentForCheck && braveSearch.isExplicitQuery(rawSegmentForCheck, { rawSegment: rawSegmentForCheck }))
-                    )) {
-                        await message.reply({
-                            content: braveSearch.getExplicitQueryMessage
-                                ? braveSearch.getExplicitQueryMessage()
-                                : 'I must decline that request, sir. My safety filters forbid it.'
-                        });
-                        this.setCooldown(message.author.id, messageScope);
-                        return;
-                    }
-
-                    await message.channel.sendTyping();
-                    const response = await this.jarvis.handleBraveSearch({
-                        raw: rawSegmentForCheck,
-                        prepared: preparedQuery,
-                        invocation: invocationContext,
-                        content: cleanContent,
-                        rawMessage: rawContent,
-                        rawInvocation: rawBraveInvocation.invocation,
-                        explicit: explicitDetected
-                    });
-                    await message.reply(response);
-                    this.setCooldown(message.author.id, messageScope);
-                    return;
-                } catch (error) {
-                    console.error("Web search error:", error);
-                    await message.reply('Web search failed, sir. Technical difficulties.');
-                    this.setCooldown(message.author.id, messageScope);
-                    return;
-                }
-            } else {
-                await message.reply("Please provide a web search query after 'jarvis search', sir.");
-                this.setCooldown(message.author.id, messageScope);
-                return;
-            }
-        }
-
-            const invocationContext =
-                (typeof braveInvocation.invocation === 'string' && braveInvocation.invocation.length > 0)
-                    ? braveInvocation.invocation
-                    : (typeof rawBraveInvocation.invocation === 'string' && rawBraveInvocation.invocation.length > 0)
-                        ? rawBraveInvocation.invocation
-                        : cleanContent;
-
-            const rawSegmentCandidate =
-                (typeof braveInvocation.rawQuery === 'string' && braveInvocation.rawQuery.length > 0)
-                    ? braveInvocation.rawQuery
-                    : (typeof rawBraveInvocation.rawQuery === 'string' && rawBraveInvocation.rawQuery.length > 0)
-                        ? rawBraveInvocation.rawQuery
-                        : invocationContext;
-
-            const explicitFromInvocation = (!braveInvocation.explicit && braveSearch.isExplicitQuery)
-                ? braveSearch.isExplicitQuery(invocationContext, { rawSegment: invocationContext })
-                : false;
-
-            const explicitDetected = (
-                braveInvocation.explicit === true
-                || rawBraveInvocation.explicit === true
-                || explicitFromInvocation === true
-            );
-
-            if (explicitDetected) {
-                await message.reply({
-                    content: braveSearch.getExplicitQueryMessage
-                        ? braveSearch.getExplicitQueryMessage()
-                        : 'I must decline that request, sir. My safety filters forbid it.'
-                });
-                this.setCooldown(message.author.id, messageScope);
-                return;
-            }
-
-            const querySource =
-                (typeof braveInvocation.query === 'string' && braveInvocation.query.length > 0)
-                    ? braveInvocation.query
-                    : (typeof rawBraveInvocation.query === 'string' && rawBraveInvocation.query.length > 0)
-                        ? rawBraveInvocation.query
-                        : rawSegmentCandidate;
