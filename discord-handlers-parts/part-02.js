@@ -807,8 +807,4 @@
             return;
         }
 
-        if (hasSearchTrigger || braveInvocation.triggered || rawBraveInvocation.triggered) {
-            await message.reply('Web search is now handled by `/search`, sir.');
-            this.setCooldown(message.author.id, messageScope);
-            return;
-        }
+        if (braveInvocation.triggered || rawBraveInvocation.triggered) {
