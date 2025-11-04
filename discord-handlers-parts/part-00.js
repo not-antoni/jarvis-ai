@@ -34,6 +34,7 @@ const { recordCommandRun } = require('./src/utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('./src/core/feature-flags');
 const memeCanvas = require('./src/utils/meme-canvas');
+const cryptoClient = require('./crypto-client');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -76,6 +77,7 @@ class DiscordHandlers {
     constructor() {
         this.jarvis = new JarvisAI();
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
+        this.crypto = cryptoClient;
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
         this.autoModRuleName = 'Jarvis Blacklist Filter';

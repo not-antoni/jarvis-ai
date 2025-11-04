@@ -114,6 +114,39 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('crypto')
+        .setDescription('Retrieve live cryptocurrency market data')
+        .addStringOption(option =>
+            option
+                .setName('coin')
+                .setDescription('Which asset should I analyse?')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Bitcoin (BTC)', value: 'BTC' },
+                    { name: 'Ethereum (ETH)', value: 'ETH' },
+                    { name: 'BNB (BNB)', value: 'BNB' },
+                    { name: 'Solana (SOL)', value: 'SOL' },
+                    { name: 'XRP (XRP)', value: 'XRP' },
+                    { name: 'Cardano (ADA)', value: 'ADA' },
+                    { name: 'Dogecoin (DOGE)', value: 'DOGE' },
+                    { name: 'Polygon (MATIC)', value: 'MATIC' }
+                )
+        )
+        .addStringOption(option =>
+            option
+                .setName('convert')
+                .setDescription('Fiat currency to convert into (defaults to USD)')
+                .setRequired(false)
+                .addChoices(
+                    { name: 'US Dollar (USD)', value: 'USD' },
+                    { name: 'Euro (EUR)', value: 'EUR' },
+                    { name: 'British Pound (GBP)', value: 'GBP' },
+                    { name: 'Japanese Yen (JPY)', value: 'JPY' },
+                    { name: 'Australian Dollar (AUD)', value: 'AUD' }
+                )
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("reset")
         .setDescription("Delete your conversation history and profile with Jarvis")
         .setContexts([InteractionContextType.Guild]),

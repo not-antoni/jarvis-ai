@@ -774,8 +774,10 @@
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const mathTriggerPattern = /\bjarvis\s+math\b/i;
+        const searchTriggerPattern = /\bjarvis\s+search\b/i;
         const hasMathTrigger = mathTriggerPattern.test(cleanContent);
         const ytMatch = cleanContent.match(ytCommandPattern);
+        const hasSearchTrigger = searchTriggerPattern.test(cleanContent);
         let braveInvocation = defaultBraveInvocation;
 
         if (typeof braveSearch.extractSearchInvocation === 'function') {
@@ -794,92 +796,19 @@
         }
 
         if (hasMathTrigger) {
-            const triggerIndex = cleanContent.toLowerCase().indexOf('jarvis math');
-            const rawMathInput = triggerIndex >= 0
-                ? cleanContent.substring(triggerIndex + 'jarvis math'.length)
-                : '';
-            const mathInput = rawMathInput.replace(/^[\s,:-]+/, '').trim();
-
-            if (!mathInput.length) {
-                await message.reply("Awaiting calculations, sir. Try `jarvis math solve 2x + 5 = 13`.");
-                this.setCooldown(message.author.id, messageScope);
-                return;
-            }
-
-            try {
-                await message.channel.sendTyping();
-            } catch (error) {
-                console.warn('Failed to send typing for math command:', error);
-            }
-
-            try {
-                const response = await this.jarvis.handleMathCommand(mathInput);
-                await message.reply(response || "Mathematics subsystem returned no output, sir.");
-            } catch (error) {
-                console.error("Math command error:", error);
-                await message.reply("Mathematics subsystem encountered an error, sir. Please verify the expression.");
-            }
-
+            await message.reply('Mathematics routines are now available via `/math`, sir.');
             this.setCooldown(message.author.id, messageScope);
             return;
         }
 
         if (ytMatch) {
-            const searchQuery = ytMatch[1].trim();
-            if (searchQuery) {
-                try {
-                    await message.channel.sendTyping();
-                    const response = await this.jarvis.handleYouTubeSearch(searchQuery);
-                    await message.reply(response);
-                    this.setCooldown(message.author.id, messageScope);
-                    return;
-                } catch (error) {
-                    console.error("YouTube search error:", error);
-                    await message.reply("YouTube search failed, sir. Technical difficulties.");
-                    this.setCooldown(message.author.id, messageScope);
-                    return;
-                }
-            }
+            await message.reply('For video reconnaissance, deploy `/yt` instead, sir.');
+            this.setCooldown(message.author.id, messageScope);
+            return;
         }
 
-        if (braveInvocation.triggered || rawBraveInvocation.triggered) {
-            const invocationContext =
-                (typeof braveInvocation.invocation === 'string' && braveInvocation.invocation.length > 0)
-                    ? braveInvocation.invocation
-                    : (typeof rawBraveInvocation.invocation === 'string' && rawBraveInvocation.invocation.length > 0)
-                        ? rawBraveInvocation.invocation
-                        : cleanContent;
-
-            const rawSegmentCandidate =
-                (typeof braveInvocation.rawQuery === 'string' && braveInvocation.rawQuery.length > 0)
-                    ? braveInvocation.rawQuery
-                    : (typeof rawBraveInvocation.rawQuery === 'string' && rawBraveInvocation.rawQuery.length > 0)
-                        ? rawBraveInvocation.rawQuery
-                        : invocationContext;
-
-            const explicitFromInvocation = (!braveInvocation.explicit && braveSearch.isExplicitQuery)
-                ? braveSearch.isExplicitQuery(invocationContext, { rawSegment: invocationContext })
-                : false;
-
-            const explicitDetected = (
-                braveInvocation.explicit === true
-                || rawBraveInvocation.explicit === true
-                || explicitFromInvocation === true
-            );
-
-            if (explicitDetected) {
-                await message.reply({
-                    content: braveSearch.getExplicitQueryMessage
-                        ? braveSearch.getExplicitQueryMessage()
-                        : 'I must decline that request, sir. My safety filters forbid it.'
-                });
-                this.setCooldown(message.author.id, messageScope);
-                return;
-            }
-
-            const querySource =
-                (typeof braveInvocation.query === 'string' && braveInvocation.query.length > 0)
-                    ? braveInvocation.query
-                    : (typeof rawBraveInvocation.query === 'string' && rawBraveInvocation.query.length > 0)
-                        ? rawBraveInvocation.query
-                        : rawSegmentCandidate;
+        if (hasSearchTrigger || braveInvocation.triggered || rawBraveInvocation.triggered) {
+            await message.reply('Web search is now handled by `/search`, sir.');
+            this.setCooldown(message.author.id, messageScope);
+            return;
+        }

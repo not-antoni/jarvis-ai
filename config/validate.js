@@ -23,6 +23,7 @@ const envSchema = z.object({
     LOCAL_EMBEDDING_URL: z.string().optional(),
     YOUTUBE_API_KEY: z.string().optional(),
     BRAVE_API_KEY: z.string().optional(),
+    CRYPTO_API_KEY: z.string().optional(),
 }).passthrough();
 
 function coerceAndDeduplicateChannelIds(ids) {
@@ -125,6 +126,10 @@ function validateConfig(rawConfig) {
             console.warn(`Warning: ${optionalKey} is not set. Related features may be disabled.`);
         }
     });
+
+    if (!env.CRYPTO_API_KEY) {
+        console.warn('Warning: CRYPTO_API_KEY is not set. /crypto command will be unavailable.');
+    }
 
     const commands = rawConfig.commands || {};
 
