@@ -641,6 +641,12 @@
 
         const userId = message.author.id;
         const messageScope = 'message:jarvis';
+        const allowWakeWords = Boolean(config.discord?.messageContent?.enabled);
+        const rawContent = typeof message.content === 'string' ? message.content : '';
+        const normalizedContent = rawContent.toLowerCase();
+        const containsWakeWord = allowWakeWords && normalizedContent
+            ? config.wakeWords.some((trigger) => normalizedContent.includes(trigger))
+            : false;
 
         const braveGuardedEarly = await this.enforceImmediateBraveGuard(message);
         if (braveGuardedEarly) {
@@ -666,7 +672,7 @@
             }
         }
 
-        if (!isMentioned && !isReplyToJarvis) {
+        if (!isMentioned && !isReplyToJarvis && !containsWakeWord) {
             return;
         }
 
