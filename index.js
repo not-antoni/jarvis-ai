@@ -147,6 +147,20 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('opt')
+        .setDescription('Manage whether Jarvis retains your memories')
+        .addStringOption(option =>
+            option
+                .setName('mode')
+                .setDescription('Choose whether to opt-in or opt-out of memory storage')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Opt in to memory storage', value: 'in' },
+                    { name: 'Opt out of memory storage', value: 'out' }
+                )
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("reset")
         .setDescription("Delete your conversation history and profile with Jarvis")
         .setContexts([InteractionContextType.Guild]),

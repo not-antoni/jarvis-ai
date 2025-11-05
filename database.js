@@ -286,6 +286,24 @@ class DatabaseManager {
             );
     }
 
+    async clearUserMemories(userId) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        try {
+            await this.db
+                .collection(config.database.collections.conversations)
+                .deleteMany({ userId });
+        } catch (error) {
+            console.error('Failed to purge stored conversations for user', userId, error);
+        }
+
+        try {
+            await vaultClient.purgeUserMemories(userId);
+        } catch (error) {
+            console.error('Failed to purge secure memories for user', userId, error);
+        }
+    }
+
     async clearDatabase() {
         if (!this.isConnected) throw new Error("Database not connected");
 

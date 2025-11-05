@@ -8,6 +8,8 @@ process.env.MASTER_KEY_BASE64 = process.env.MASTER_KEY_BASE64 || Buffer.alloc(32
 
 const databaseSingleton = require('../database');
 const DatabaseManager = databaseSingleton.constructor;
+const config = require('../config');
+const vaultClient = require('../vault-client');
 
 function createManager() {
     const manager = new DatabaseManager();
@@ -99,4 +101,37 @@ test('updateGuildFeatures inserts new guild config with defaults', async () => {
     }
 
     assert.strictEqual(returnedConfig.guildId, 'guild-new');
+});
+
+test('clearUserMemories deletes conversations and vault records', async () => {
+    const manager = createManager();
+    const conversationsCollectionName = config.database.collections.conversations;
+
+    let deleteManyCalled = false;
+    manager.db = {
+        collection: (name) => {
+            assert.equal(name, conversationsCollectionName);
+            return {
+                deleteMany: async (filter) => {
+                    deleteManyCalled = true;
+                    assert.deepEqual(filter, { userId: 'user-42' });
+                }
+            };
+        }
+    };
+
+    const originalPurge = vaultClient.purgeUserMemories;
+    let purgeCalled = false;
+    vaultClient.purgeUserMemories = async (userId) => {
+        purgeCalled = true;
+        assert.equal(userId, 'user-42');
+    };
+
+    try {
+        await manager.clearUserMemories('user-42');
+        assert.ok(deleteManyCalled, 'expected conversations.deleteMany to be called');
+        assert.ok(purgeCalled, 'expected vaultClient.purgeUserMemories to be called');
+    } finally {
+        vaultClient.purgeUserMemories = originalPurge;
+    }
 });

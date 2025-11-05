@@ -1108,6 +1108,46 @@
         }
     }
 
+    async handleOptCommand(interaction) {
+        const selected = (interaction.options.getString('mode', true) || '').toLowerCase();
+        const userId = interaction.user.id;
+        const userName = interaction.user.displayName || interaction.user.username;
+
+        if (!database.isConnected) {
+            await interaction.editReply('Memory subsystem offline, sir. Unable to update preferences.');
+            return;
+        }
+
+        const optIn = selected === 'in';
+        const preferenceValue = optIn ? 'opt-in' : 'opt-out';
+
+        try {
+            await database.getUserProfile(userId, userName);
+        } catch (error) {
+            console.warn('Unable to load user profile prior to opt command:', error);
+        }
+
+        await database.setUserPreference(userId, 'memoryOpt', preferenceValue);
+
+        if (!optIn) {
+            await database.clearUserMemories(userId);
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('Memory Preference Updated')
+            .setColor(optIn ? 0x22c55e : 0x64748b)
+            .setDescription(optIn
+                ? 'Long-term memory storage restored. I will resume learning from our conversations, sir.'
+                : 'Memory retention disabled. I will respond normally, but I will not store new conversations, sir.')
+            .addFields(
+                { name: 'Status', value: optIn ? 'Opted **in** to memory storage.' : 'Opted **out** of memory storage.' },
+                { name: 'Contextual Replies', value: 'Reply threads and immediate context still function.' }
+            )
+            .setFooter({ text: 'You may change this at any time with /opt.' });
+
+        await interaction.editReply({ embeds: [embed], ephemeral: true });
+    }
+
 
     async handleComponentInteraction(interaction) {
         if (!interaction.isButton()) {
@@ -1370,6 +1410,11 @@
                 case 'crypto': {
                     telemetryMetadata.category = 'crypto';
                     await this.handleCryptoCommand(interaction);
+                    return;
+                }
+                case 'opt': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handleOptCommand(interaction);
                     return;
                 }
                 case 'yt': {
