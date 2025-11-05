@@ -77,6 +77,14 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'opt',
+        description: 'Control whether Jarvis stores your conversation history.',
+        category: 'Utilities',
+        usage: '/opt mode:<in|out>',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',

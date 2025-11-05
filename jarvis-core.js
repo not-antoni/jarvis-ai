@@ -1577,15 +1577,20 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
         if (gate.blocked) return gate.message;
 
         try {
-            const [userProfile, secureMemories] = await Promise.all([
-                database.getUserProfile(userId, userName),
-                vaultClient
+            const userProfile = await database.getUserProfile(userId, userName);
+            const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
+            const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
+            const allowsLongTermMemory = memoryPreference !== 'opt-out';
+
+            let secureMemories = [];
+            if (allowsLongTermMemory) {
+                secureMemories = await vaultClient
                     .decryptMemories(userId, { limit: 12 })
                     .catch((error) => {
                         console.error('Secure memory retrieval failed for user', userId, error);
                         return [];
-                    })
-            ]);
+                    });
+            }
             let embeddingContext = "";
             let processedInput = userInput;
 
@@ -1609,8 +1614,8 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
             const calledGarmin = /garmin/i.test(userInput);
             const nameUsed = calledGarmin ? "Garmin" : this.personality.name;
 
-            let conversationEntries = Array.isArray(secureMemories) ? secureMemories : [];
-            if (!conversationEntries.length) {
+            let conversationEntries = allowsLongTermMemory && Array.isArray(secureMemories) ? secureMemories : [];
+            if (allowsLongTermMemory && !conversationEntries.length) {
                 const fallbackConversations = await database.getRecentConversations(userId, 8);
                 conversationEntries = fallbackConversations.map((conv) => ({
                     createdAt: conv.createdAt || conv.timestamp,
@@ -1675,8 +1680,11 @@ Respond as ${nameUsed}, maintaining all MCU Jarvis tone and brevity rules.`;
             );
 
             const jarvisResponse = aiResponse.content?.trim();
-            await database.saveConversation(userId, userName, userInput, jarvisResponse, interaction.guild?.id);
-            if (jarvisResponse) {
+            if (allowsLongTermMemory) {
+                await database.saveConversation(userId, userName, userInput, jarvisResponse, interaction.guild?.id);
+            }
+
+            if (allowsLongTermMemory && jarvisResponse) {
                 const secureRecord = {
                     userName,
                     userMessage: userInput,
