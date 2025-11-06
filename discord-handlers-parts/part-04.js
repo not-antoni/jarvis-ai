@@ -1417,6 +1417,42 @@
                     await this.handleOptCommand(interaction);
                     return;
                 }
+                case 't': {
+                    telemetryMetadata.category = 'utilities';
+                    const query = (interaction.options.getString('query') || '').trim();
+
+                    if (!query.length) {
+                        telemetryStatus = 'error';
+                        telemetryMetadata.reason = 'missing-query';
+                        response = 'Please provide a search query, sir.';
+                        break;
+                    }
+
+                    const allowedChannelIds = (config.commands?.whitelistedChannelIds || []).map((id) => String(id));
+                    if (interaction.guild && !allowedChannelIds.includes(String(interaction.channelId))) {
+                        telemetryStatus = 'error';
+                        telemetryMetadata.reason = 'channel-restricted';
+                        response = 'This command is restricted to authorised channels, sir.';
+                        break;
+                    }
+
+                    try {
+                        response = await this.jarvis.handleUtilityCommand(
+                            `!t ${query}`,
+                            interaction.user.username,
+                            userId,
+                            true,
+                            interaction,
+                            guildId
+                        );
+                    } catch (error) {
+                        telemetryStatus = 'error';
+                        telemetryError = error;
+                        console.error('Knowledge search command failed:', error);
+                        response = 'Knowledge archives are unreachable right now, sir.';
+                    }
+                    break;
+                }
                 case 'yt': {
                     telemetryMetadata.category = 'search';
                     const query = (interaction.options.getString('query') || '').trim();

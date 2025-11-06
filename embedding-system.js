@@ -10,7 +10,9 @@ class EmbeddingSystem {
         this.client = null;
         this.localEndpoint = process.env.LOCAL_EMBEDDING_URL || null;
         this.openAiKey = process.env.OPENAI || null;
-        this.isAvailable = Boolean(this.openAiKey || this.localEndpoint);
+        this.hasExternalProvider = Boolean(this.openAiKey || this.localEndpoint);
+        this.vectorSize = 512;
+        this.isAvailable = true;
         this.embeddingCache = new Map();
     }
 
@@ -74,13 +76,32 @@ class EmbeddingSystem {
         return vector;
     }
 
+    computeBagOfWordsEmbedding(text) {
+        const tokens = String(text || '')
+            .toLowerCase()
+            .match(/[a-z0-9]+/g) || [];
+
+        if (!tokens.length) {
+            return new Array(this.vectorSize).fill(0);
+        }
+
+        const vector = new Float32Array(this.vectorSize);
+        for (const token of tokens) {
+            const digest = crypto.createHash('sha256').update(token).digest();
+            let index = 0;
+            for (let i = 0; i < 4; i += 1) {
+                index = (index << 8) + digest[i];
+            }
+            const slot = index % this.vectorSize;
+            vector[slot] += 1;
+        }
+
+        return Array.from(vector);
+    }
+
     async embedText(text) {
         if (!text || !text.trim()) {
             throw new Error('Cannot embed empty text');
-        }
-
-        if (!this.isAvailable) {
-            throw new Error('No embedding provider configured. Set OPENAI or LOCAL_EMBEDDING_URL.');
         }
 
         const cacheKey = crypto.createHash('sha256').update(text).digest('hex');
@@ -101,7 +122,7 @@ class EmbeddingSystem {
             }
         }
 
-        if (!vector) {
+        if (!vector && this.openAiKey) {
             const client = this.ensureClient();
             const response = await client.embeddings.create({
                 model: 'text-embedding-3-large',
@@ -109,6 +130,10 @@ class EmbeddingSystem {
             });
 
             vector = response.data?.[0]?.embedding || [];
+        }
+
+        if (!vector) {
+            vector = this.computeBagOfWordsEmbedding(text);
         }
 
         const normalized = this.normalizeVector(vector);
