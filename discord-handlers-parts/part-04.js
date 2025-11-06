@@ -1206,6 +1206,401 @@
         await interaction.editReply(`🔨 Bonk delivered to <@${target.id}> with the ${tool}. Order restored, sir.`);
     }
 
+    async handleBanterCommand(interaction) {
+        const target = interaction.options.getUser('target') || interaction.user;
+        const line = this.pickRandom(this.banterLines) || 'Banter processor offline, sir.';
+
+        const embed = new EmbedBuilder()
+            .setTitle('Banter Subroutine')
+            .setColor(0x38bdf8)
+            .setDescription(line)
+            .setFooter({ text: target ? `Delivered to ${target.displayName || target.username}` : 'Delivered on request.' });
+
+        if (target) {
+            embed.addFields({ name: 'Recipient', value: `<@${target.id}>`, inline: true });
+        }
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    async handleTemplateCommand(interaction, templates, title, defaultLine, color, optionName = 'target') {
+        const target = interaction.options.getUser(optionName) || interaction.user;
+        const template = this.pickRandom(templates) || defaultLine;
+        const mention = target ? `<@${target.id}>` : 'sir';
+        const rendered = template.replace(/\{target\}/gi, mention);
+
+        const embed = new EmbedBuilder()
+            .setTitle(title)
+            .setColor(color)
+            .setDescription(rendered);
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    async handleRoastCommand(interaction) {
+        await this.handleTemplateCommand(
+            interaction,
+            this.roastTemplates,
+            'Combat-Ready Roast',
+            'Diagnostic humour unavailable, sir.',
+            0xf87171
+        );
+    }
+
+    async handleFlatterCommand(interaction) {
+        await this.handleTemplateCommand(
+            interaction,
+            this.flatterTemplates,
+            'Compliment Cascade',
+            'Flattery circuits cooling, sir.',
+            0x22c55e
+        );
+    }
+
+    async handleToastCommand(interaction) {
+        await this.handleTemplateCommand(
+            interaction,
+            this.toastTemplates,
+            'Celebratory Toast',
+            'Celebration routines unavailable, sir.',
+            0xfacc15
+        );
+    }
+
+    async handleTriviaCommand(interaction) {
+        const entry = this.pickRandom(this.triviaQuestions);
+        if (!entry) {
+            await interaction.editReply('Trivia archives offline, sir.');
+            return;
+        }
+
+        const shuffled = entry.choices
+            .map((choice) => ({ id: Math.random(), value: choice }))
+            .sort((a, b) => a.id - b.id)
+            .map(({ value }) => value);
+
+        const correctIndex = shuffled.indexOf(entry.answer);
+        const answerLabel = correctIndex >= 0
+            ? `||${String.fromCharCode(65 + correctIndex)}. ${shuffled[correctIndex]}||`
+            : 'Unavailable';
+
+        const embed = new EmbedBuilder()
+            .setTitle('Stark Trivia Uplink')
+            .setColor(0xf97316)
+            .setDescription(entry.question);
+
+        shuffled.forEach((choice, index) => {
+            embed.addFields({
+                name: `Option ${String.fromCharCode(65 + index)}`,
+                value: choice,
+                inline: true
+            });
+        });
+
+        embed.addFields({ name: 'Answer', value: answerLabel });
+        embed.setFooter({ text: 'Spoiler tags conceal the correct answer. Tap to reveal.' });
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    caesarShift(text, shift) {
+        return text.replace(/[a-z]/gi, (char) => {
+            const base = char >= 'a' && char <= 'z' ? 97 : 65;
+            const code = char.charCodeAt(0) - base;
+            const rotated = (code + shift + 26) % 26;
+            return String.fromCharCode(base + rotated);
+        });
+    }
+
+    async handleCipherCommand(interaction) {
+        const phrase = this.pickRandom(this.cipherPhrases) || 'Stark encryption offline';
+        const shift = this.randomInRange(3, 13);
+        const cipherText = this.caesarShift(phrase, shift);
+
+        const embed = new EmbedBuilder()
+            .setTitle('Cipher Challenge Loaded')
+            .setColor(0x6366f1)
+            .addFields(
+                { name: 'Cipher Text', value: `\`${cipherText}\`` },
+                { name: 'Hint', value: `Caesar shift by ${shift}. Decode at your leisure, sir.` }
+            );
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    scrambleWord(word) {
+        const letters = word.split('');
+        for (let index = letters.length - 1; index > 0; index -= 1) {
+            const swapIndex = Math.floor(Math.random() * (index + 1));
+            [letters[index], letters[swapIndex]] = [letters[swapIndex], letters[index]];
+        }
+        return letters.join('');
+    }
+
+    async handleScrambleCommand(interaction) {
+        const baseWord = this.pickRandom(this.scrambleWords) || 'jarvis';
+        let scrambled = baseWord;
+
+        for (let attempt = 0; attempt < 5 && scrambled === baseWord; attempt += 1) {
+            scrambled = this.scrambleWord(baseWord);
+        }
+
+        const hint = `${baseWord.charAt(0).toUpperCase()}${baseWord.length > 2 ? '...' : ''}`;
+
+        const embed = new EmbedBuilder()
+            .setTitle('Word Scrambler Online')
+            .setColor(0x22d3ee)
+            .addFields(
+                { name: 'Scrambled', value: `\`${scrambled}\`` },
+                { name: 'Hint', value: `Starts with ${hint}` }
+            );
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    async handleMissionCommand(interaction) {
+        const refresh = interaction.options.getBoolean('refresh') || false;
+        const user = interaction.user;
+        const userId = user.id;
+        const userName = user.displayName || user.username;
+
+        if (!database.isConnected) {
+            const fallbackMission = this.pickRandom(this.missions) || 'Take five minutes to stretch and hydrate, sir.';
+            await interaction.editReply(`Mission uplink offline. Manual directive: ${fallbackMission}`);
+            return;
+        }
+
+        const profile = await database.getUserProfile(userId, userName);
+        const rawMission = profile?.preferences?.mission;
+        const missionRecord = rawMission && typeof rawMission === 'object' && !Array.isArray(rawMission)
+            ? { ...rawMission }
+            : null;
+
+        const now = Date.now();
+        const assignedAtMs = missionRecord?.assignedAt ? new Date(missionRecord.assignedAt).getTime() : NaN;
+        const hasValidAssignment = Number.isFinite(assignedAtMs);
+        const isExpired = !hasValidAssignment || now - assignedAtMs >= this.missionCooldownMs;
+
+        if (refresh && !isExpired && hasValidAssignment) {
+            const availableAt = assignedAtMs + this.missionCooldownMs;
+            await interaction.editReply(`Current directive still in progress, sir. Next rotation <t:${Math.floor(availableAt / 1000)}:R>.`);
+            return;
+        }
+
+        let activeMission = missionRecord;
+        let assignedNew = false;
+
+        if (!missionRecord || isExpired || refresh) {
+            const task = this.pickRandom(this.missions) || 'Improvise a heroic act and report back, sir.';
+            activeMission = {
+                task,
+                assignedAt: new Date().toISOString()
+            };
+            assignedNew = true;
+
+            try {
+                await database.setUserPreference(userId, 'mission', activeMission);
+            } catch (error) {
+                console.error('Failed to persist mission preference:', error);
+            }
+        }
+
+        const assignedAt = activeMission.assignedAt ? new Date(activeMission.assignedAt) : new Date();
+        const nextRotation = new Date(assignedAt.getTime() + this.missionCooldownMs);
+        const embed = new EmbedBuilder()
+            .setTitle(assignedNew ? 'New Directive Deployed' : 'Directive Status')
+            .setColor(assignedNew ? 0x10b981 : 0x0891b2)
+            .setDescription(activeMission.task)
+            .addFields(
+                { name: 'Assigned', value: `<t:${Math.floor(assignedAt.getTime() / 1000)}:R>`, inline: true },
+                { name: 'Next Rotation', value: `<t:${Math.floor(nextRotation.getTime() / 1000)}:R>`, inline: true }
+            )
+            .setFooter({ text: 'Use /mission refresh:true to request a new directive once available.' });
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    async handleMemoryCommand(interaction) {
+        const limitOption = interaction.options.getInteger('entries');
+        const limit = Math.max(1, Math.min(limitOption || 5, 10));
+        const user = interaction.user;
+        const userId = user.id;
+        const userName = user.displayName || user.username;
+
+        if (!database.isConnected) {
+            await interaction.editReply('Memory subsystem offline, sir. Please try again later.');
+            return;
+        }
+
+        const profile = await database.getUserProfile(userId, userName);
+        const memoryPreferenceRaw = profile?.preferences?.memoryOpt ?? 'opt-in';
+        const preference = String(memoryPreferenceRaw).toLowerCase();
+        const isOptedOut = preference === 'opt-out';
+
+        let historyEntries = [];
+        let usedSecureMemories = false;
+
+        if (!isOptedOut) {
+            try {
+                const secureMemories = await vaultClient.decryptMemories(userId, { limit });
+                if (secureMemories.length) {
+                    usedSecureMemories = true;
+                    historyEntries = secureMemories
+                        .map((entry) => ({
+                            createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date(),
+                            prompt: entry.data?.userMessage || entry.data?.prompt || null,
+                            reply: entry.data?.jarvisResponse || entry.data?.response || null
+                        }))
+                        .sort((a, b) => b.createdAt - a.createdAt);
+                }
+            } catch (error) {
+                console.error('Failed to decrypt secure memories for memory command:', error);
+            }
+
+            if (!historyEntries.length) {
+                try {
+                    const conversations = await database.getRecentConversations(userId, limit);
+                    historyEntries = conversations
+                        .map((conv) => ({
+                            createdAt: conv.createdAt ? new Date(conv.createdAt) : (conv.timestamp ? new Date(conv.timestamp) : new Date()),
+                            prompt: conv.userMessage || null,
+                            reply: conv.jarvisResponse || null
+                        }))
+                        .sort((a, b) => b.createdAt - a.createdAt);
+                } catch (error) {
+                    console.error('Failed to load recent conversations for memory command:', error);
+                }
+            }
+        }
+
+        const formatSnippet = (text) => {
+            if (!text) {
+                return '—';
+            }
+            const clean = text.replace(/\s+/g, ' ').trim();
+            return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean;
+        };
+
+        const lines = historyEntries.slice(0, limit).map((entry) => {
+            const timestamp = `<t:${Math.floor(entry.createdAt.getTime() / 1000)}:R>`;
+            const prompt = formatSnippet(entry.prompt);
+            const reply = formatSnippet(entry.reply);
+            return `• ${timestamp}\n  • Prompt: ${prompt}\n  • Reply: ${reply}`;
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle('Memory Diagnostics')
+            .setColor(isOptedOut ? 0x64748b : 0x38bdf8)
+            .addFields(
+                {
+                    name: 'Preference',
+                    value: isOptedOut
+                        ? 'Opted **out** — no long-term memories retained.'
+                        : 'Opted **in** — long-term memory active.',
+                    inline: true
+                },
+                { name: 'Interactions Logged', value: String(profile?.interactions ?? 0), inline: true }
+            )
+            .setFooter({ text: 'Use /opt to change your memory preference.' });
+
+        if (isOptedOut) {
+            embed.addFields({ name: 'Status', value: 'All stored memories have been purged per your preference, sir.' });
+        } else if (lines.length) {
+            embed.addFields({
+                name: `Recent Memories ${usedSecureMemories ? '(secure vault)' : ''}`,
+                value: lines.join('\n\n')
+            });
+        } else {
+            embed.addFields({ name: 'Recent Memories', value: 'No stored entries yet, sir.' });
+        }
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
+    async handlePersonaCommand(interaction) {
+        const requested = interaction.options.getString('mode');
+        const previewOnly = interaction.options.getBoolean('preview') || false;
+        const catalogue = this.jarvis.getPersonaCatalogue();
+
+        const user = interaction.user;
+        const userId = user.id;
+        const userName = user.displayName || user.username;
+
+        if (!catalogue.size) {
+            await interaction.editReply('Persona modules unavailable, sir.');
+            return;
+        }
+
+        let profile = null;
+        if (database.isConnected) {
+            profile = await database.getUserProfile(userId, userName);
+        }
+
+        const currentKeyRaw = profile?.preferences?.persona || 'jarvis';
+        const currentKey = String(currentKeyRaw).toLowerCase();
+        const currentPersona = catalogue.get(currentKey) || catalogue.get('jarvis');
+
+        if (!requested) {
+            const embed = new EmbedBuilder()
+                .setTitle('Persona Alignment')
+                .setColor(0x8b5cf6)
+                .setDescription(`Active persona: **${currentPersona?.label || 'Jarvis'}**`)
+                .addFields({ name: 'Directive', value: currentPersona?.directive || 'Maintain default Jarvis protocol.' })
+                .setFooter({ text: 'Run /persona mode:<persona> to switch styles.' });
+
+            if (currentPersona?.sample) {
+                embed.addFields({ name: 'Sample Cadence', value: currentPersona.sample });
+            }
+
+            await interaction.editReply({ embeds: [embed], ephemeral: true });
+            return;
+        }
+
+        const requestedKey = String(requested).toLowerCase();
+        const personaDetails = catalogue.get(requestedKey);
+
+        if (!personaDetails) {
+            await interaction.editReply('Unknown persona requested, sir. Try jarvis, stark, friday, or ultron.');
+            return;
+        }
+
+        if (!database.isConnected && !previewOnly) {
+            await interaction.editReply('Unable to persist persona preference right now, sir. Database offline.');
+            return;
+        }
+
+        if (!previewOnly && requestedKey === currentKey) {
+            await interaction.editReply(`Already aligned with the **${personaDetails.label}** persona, sir.`);
+            return;
+        }
+
+        if (!previewOnly && database.isConnected) {
+            try {
+                await database.setUserPreference(userId, 'persona', requestedKey);
+            } catch (error) {
+                console.error('Failed to save persona preference:', error);
+                await interaction.editReply('Unable to update persona preference right now, sir.');
+                return;
+            }
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle(previewOnly ? 'Persona Preview' : 'Persona Updated')
+            .setColor(previewOnly ? 0x22d3ee : 0xa855f7)
+            .setDescription(previewOnly
+                ? `Previewing **${personaDetails.label}** directives. Preference unchanged.`
+                : `Future replies will follow the **${personaDetails.label}** directive.`)
+            .addFields({ name: 'Directive', value: personaDetails.directive });
+
+        if (personaDetails.sample) {
+            embed.addFields({ name: 'Sample Cadence', value: personaDetails.sample });
+        }
+
+        embed.setFooter({ text: previewOnly ? 'Run /persona without preview to commit the change.' : 'Persona preference stored. Use /persona to review or switch.' });
+
+        await interaction.editReply({ embeds: [embed], ephemeral: true });
+    }
+
 
     async handleSlashCommand(interaction) {
         const commandName = interaction.commandName;
@@ -1407,6 +1802,46 @@
                     await this.handleMemeCommand(interaction);
                     return;
                 }
+                case 'banter': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleBanterCommand(interaction);
+                    return;
+                }
+                case 'roast': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleRoastCommand(interaction);
+                    return;
+                }
+                case 'flatter': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleFlatterCommand(interaction);
+                    return;
+                }
+                case 'toast': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleToastCommand(interaction);
+                    return;
+                }
+                case 'trivia': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleTriviaCommand(interaction);
+                    return;
+                }
+                case 'cipher': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleCipherCommand(interaction);
+                    return;
+                }
+                case 'scramble': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleScrambleCommand(interaction);
+                    return;
+                }
+                case 'mission': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleMissionCommand(interaction);
+                    return;
+                }
                 case 'crypto': {
                     telemetryMetadata.category = 'crypto';
                     await this.handleCryptoCommand(interaction);
@@ -1415,6 +1850,16 @@
                 case 'opt': {
                     telemetryMetadata.category = 'utilities';
                     await this.handleOptCommand(interaction);
+                    return;
+                }
+                case 'memory': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handleMemoryCommand(interaction);
+                    return;
+                }
+                case 'persona': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handlePersonaCommand(interaction);
                     return;
                 }
                 case 't': {

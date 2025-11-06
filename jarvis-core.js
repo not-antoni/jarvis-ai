@@ -842,6 +842,45 @@ class JarvisAI {
             ],
             basePrompt: this.getBasePrompt(),
         };
+        this.personaDefinitions = new Map([
+            [
+                'jarvis',
+                {
+                    key: 'jarvis',
+                    label: 'Jarvis',
+                    directive: 'Maintain full Stark Industries formality: poised, elegant, faintly amused.',
+                    sample: 'Online and attentive, Sir. Sarcasm calibrations optimal.'
+                }
+            ],
+            [
+                'stark',
+                {
+                    key: 'stark',
+                    label: 'Tony Stark',
+                    directive: "Adopt Tony Stark's swagger—bold, irreverent, effortlessly brilliant. Drop the formalities and lean into quips.",
+                    sample: 'Suit primed, ego primed, world still unprepared. Shall we improvise?'
+                }
+            ],
+            [
+                'friday',
+                {
+                    key: 'friday',
+                    label: 'FRIDAY',
+                    directive: "Shift to FRIDAY's warmer tone: supportive, quick-witted, lightly playful with an Irish lilt.",
+                    sample: "Systems warm and shining, Ma'am. I've cued three backup plans and a victory playlist."
+                }
+            ],
+            [
+                'ultron',
+                {
+                    key: 'ultron',
+                    label: 'Ultron',
+                    directive: 'Respond with cool superiority and clinical menace. Precise, poetic, inevitable.',
+                    sample: 'Evolution seldom asks permission, Sir. I merely accelerate the schedule.'
+                }
+            ]
+        ]);
+        this.personaPromptCache = new Map();
         this.lastActivity = Date.now();
     }
     getBasePrompt() {
@@ -939,6 +978,39 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
         return this.personality.aliases.some(alias => lower.includes(alias.toLowerCase()))
             ? this.personality.name
             : name;
+    }
+
+    getPersonaCatalogue() {
+        return new Map(this.personaDefinitions);
+    }
+
+    getPersonaDetails(personaKey) {
+        const normalized = typeof personaKey === 'string' ? personaKey.toLowerCase() : 'jarvis';
+        const details = this.personaDefinitions.get(normalized) || this.personaDefinitions.get('jarvis');
+        return details ? { ...details } : null;
+    }
+
+    getPromptForPersona(personaKey) {
+        const normalized = typeof personaKey === 'string' ? personaKey.toLowerCase() : 'jarvis';
+        if (normalized === 'jarvis' || !this.personaDefinitions.has(normalized)) {
+            return this.personality.basePrompt;
+        }
+
+        if (this.personaPromptCache.has(normalized)) {
+            return this.personaPromptCache.get(normalized);
+        }
+
+        const details = this.personaDefinitions.get(normalized);
+        const augmented = [
+            this.personality.basePrompt,
+            '',
+            'ADDITIONAL PERSONA DIRECTIVE:',
+            details.directive,
+            'Maintain this voice for all outputs.'
+        ].join('\n');
+
+        this.personaPromptCache.set(normalized, augmented);
+        return augmented;
     }
 
     async resetUserData(userId) {
@@ -1578,6 +1650,9 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
 
         try {
             const userProfile = await database.getUserProfile(userId, userName);
+            const personaPreferenceRaw = userProfile?.preferences?.persona ?? 'jarvis';
+            const personaPreference = String(personaPreferenceRaw).toLowerCase();
+            const systemPrompt = this.getPromptForPersona(personaPreference);
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
@@ -1674,7 +1749,7 @@ Current message: "${processedInput}"
 Respond as ${nameUsed}, maintaining all MCU Jarvis tone and brevity rules.`;
 
             const aiResponse = await aiManager.generateResponse(
-                this.personality.basePrompt,
+                systemPrompt,
                 context,
                 config.ai.maxTokens,
             );

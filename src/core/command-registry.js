@@ -85,6 +85,30 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
+        name: 'mission',
+        description: 'Receive a rotating daily directive from Jarvis.',
+        category: 'Fun',
+        usage: '/mission [refresh:true]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'memory',
+        description: 'Review the memories Jarvis currently retains for you.',
+        category: 'Personal Tools',
+        usage: '/memory [entries:5]',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
+        name: 'persona',
+        description: 'Preview or switch Jarvis into alternate personas.',
+        category: 'Personal Tools',
+        usage: '/persona mode:<persona> [preview:true]',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
         name: 't',
         description: 'Search the server knowledge base for stored context.',
         category: 'Utilities',
@@ -217,6 +241,62 @@ const commandDefinitions = [
         description: 'Deliver comedic corrective action.',
         category: 'Fun',
         usage: '/bonk <user>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'banter',
+        description: 'Trade a Stark-grade banter line.',
+        category: 'Fun',
+        usage: '/banter [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'roast',
+        description: 'Deploy a refined Jarvis roast.',
+        category: 'Fun',
+        usage: '/roast <user>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'flatter',
+        description: 'Deliver a premium compliment.',
+        category: 'Fun',
+        usage: '/flatter [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'toast',
+        description: 'Raise a celebratory toast.',
+        category: 'Fun',
+        usage: '/toast [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'trivia',
+        description: 'Answer Marvel/Stark trivia prompts.',
+        category: 'Fun',
+        usage: '/trivia',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'cipher',
+        description: 'Decode a rotating Stark cipher.',
+        category: 'Fun',
+        usage: '/cipher',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'scramble',
+        description: 'Unscramble a Stark Industries keyword.',
+        category: 'Fun',
+        usage: '/scramble',
         feature: 'funUtilities',
         ephemeral: false
     },

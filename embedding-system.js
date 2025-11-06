@@ -1,6 +1,8 @@
 const OpenAI = require('openai');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const database = require('./database');
 const aiManager = require('./ai-providers');
@@ -12,7 +14,10 @@ class EmbeddingSystem {
         this.openAiKey = process.env.OPENAI || null;
         this.hasExternalProvider = Boolean(this.openAiKey || this.localEndpoint);
         this.vectorSize = 512;
-        this.isAvailable = true;
+        this.isAvailable = Boolean(this.hasExternalProvider || fs.existsSync(path.join(__dirname, 'data.jsonl')));
+        this.staticDataPath = path.join(__dirname, 'data.jsonl');
+        this.staticKnowledge = null;
+        this.staticKnowledgeVectors = null;
         this.embeddingCache = new Map();
     }
 
@@ -97,6 +102,65 @@ class EmbeddingSystem {
         }
 
         return Array.from(vector);
+    }
+
+    loadStaticKnowledge() {
+        if (this.staticKnowledge) {
+            return this.staticKnowledge;
+        }
+
+        try {
+            if (!fs.existsSync(this.staticDataPath)) {
+                this.staticKnowledge = [];
+                return this.staticKnowledge;
+            }
+
+            const lines = fs.readFileSync(this.staticDataPath, 'utf8')
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean);
+
+            this.staticKnowledge = lines
+                .map((line, index) => {
+                    try {
+                        const parsed = JSON.parse(line);
+                        const title = String(parsed.title || `Entry ${index + 1}`);
+                        const content = String(parsed.content || '');
+                        return {
+                            _id: `static-${index}`,
+                            title,
+                            text: content,
+                            content,
+                            summary: parsed.summary || null,
+                            createdAt: null
+                        };
+                    } catch (error) {
+                        console.warn('Failed to parse static knowledge entry:', error?.message || error);
+                        return null;
+                    }
+                })
+                .filter(Boolean);
+        } catch (error) {
+            console.error('Failed to load static knowledge base:', error);
+            this.staticKnowledge = [];
+        }
+
+        return this.staticKnowledge;
+    }
+
+    getStaticKnowledgeVectors() {
+        if (this.staticKnowledgeVectors) {
+            return this.staticKnowledgeVectors;
+        }
+
+        const entries = this.loadStaticKnowledge();
+        this.staticKnowledgeVectors = entries.map((entry) => {
+            const combined = `${entry.title} ${entry.content}`;
+            const vector = this.normalizeVector(this.computeBagOfWordsEmbedding(combined));
+            return { entry, vector };
+        });
+
+        return this.staticKnowledgeVectors;
     }
 
     async embedText(text) {
@@ -196,13 +260,16 @@ class EmbeddingSystem {
     }
 
     async searchGuildKnowledge(guildId, query, { limit = 5, threshold = 0.15 } = {}) {
-        if (!database.isConnected) {
-            throw new Error('Database not connected');
-        }
+        let entries = [];
 
-        const entries = await database.getKnowledgeEntriesForGuild(guildId);
-        if (!entries.length) {
-            return [];
+        if (database.isConnected) {
+            try {
+                entries = await database.getKnowledgeEntriesForGuild(guildId);
+            } catch (error) {
+                console.error('Failed to load knowledge entries, using static corpus only:', error);
+            }
+        } else {
+            console.warn('Knowledge base database offline. Falling back to static corpus only.');
         }
 
         const queryEmbedding = await this.embedText(query);
@@ -215,7 +282,37 @@ class EmbeddingSystem {
             .filter((item) => Number.isFinite(item.score) && item.score >= threshold)
             .sort((a, b) => b.score - a.score);
 
-        return scored.slice(0, limit);
+        let results = scored.slice(0, limit);
+
+        if (results.length < limit) {
+            const staticVectors = this.getStaticKnowledgeVectors();
+            if (staticVectors.length) {
+                const staticScored = staticVectors
+                    .map(({ entry, vector }) => ({
+                        entry,
+                        score: this.dotProduct(queryEmbedding, vector)
+                    }))
+                    .filter((item) => Number.isFinite(item.score) && item.score >= 0.05)
+                    .sort((a, b) => b.score - a.score);
+
+                const missing = limit - results.length;
+                const addition = staticScored.slice(0, missing).map((item) => ({
+                    entry: {
+                        _id: item.entry._id,
+                        title: item.entry.title,
+                        text: item.entry.text,
+                        summary: item.entry.summary,
+                        createdAt: item.entry.createdAt,
+                        isStatic: true
+                    },
+                    score: item.score
+                }));
+
+                results = results.concat(addition);
+            }
+        }
+
+        return results.slice(0, limit);
     }
 
     async formatSearchResults(guildId, query, options = {}) {
@@ -231,7 +328,10 @@ class EmbeddingSystem {
                 : entry.text;
             const preview = snippetSource.length > 240 ? `${snippetSource.slice(0, 237)}…` : snippetSource;
             const createdAt = entry.createdAt ? `<t:${Math.floor(new Date(entry.createdAt).getTime() / 1000)}:R>` : 'unknown';
-            return `**${index + 1}. ${entry.title || 'Untitled'}** — ${(score * 100).toFixed(1)}% similarity\nID: ${entry._id}\nSaved ${createdAt}\n${preview}`;
+            const originLine = entry.isStatic
+                ? 'Source: static knowledge archive'
+                : `Saved ${createdAt}`;
+            return `**${index + 1}. ${entry.title || 'Untitled'}** — ${(score * 100).toFixed(1)}% similarity\nID: ${entry._id}\n${originLine}\n${preview}`;
         });
 
         return {
