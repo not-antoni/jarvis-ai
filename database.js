@@ -84,14 +84,20 @@ class DatabaseManager {
                 { guildId: 1 },
                 { unique: true, partialFilterExpression: { isConfig: true } }
             );
-            await memberLogs.createIndex(
-                { createdAt: 1 },
-                {
-                    expireAfterSeconds: sixtyDays,
-                    name: 'ttl_memberLogs_createdAt',
-                    partialFilterExpression: { isConfig: { $ne: true }, createdAt: { $exists: true } }
+        await memberLogs.createIndex(
+            { createdAt: 1 },
+            {
+                expireAfterSeconds: sixtyDays,
+                name: 'ttl_memberLogs_createdAt',
+                partialFilterExpression: {
+                    createdAt: { $exists: true },
+                    $or: [
+                        { isConfig: false },
+                        { isConfig: { $exists: false } }
+                    ]
                 }
-            );
+            }
+        );
 
             await tickets.createIndex({ guildId: 1, channelId: 1 }, { unique: true });
             await tickets.createIndex({ guildId: 1, openerId: 1, status: 1 });
