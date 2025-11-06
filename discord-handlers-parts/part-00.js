@@ -35,6 +35,7 @@ const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('./src/core/comm
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('./src/core/feature-flags');
 const memeCanvas = require('./src/utils/meme-canvas');
 const cryptoClient = require('./crypto-client');
+const vaultClient = require('./vault-client');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -83,6 +84,7 @@ class DiscordHandlers {
         this.autoModRuleName = 'Jarvis Blacklist Filter';
         this.maxAutoModKeywordsPerRule = 1000;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
+        this.missionCooldownMs = 12 * 60 * 60 * 1000;
         this.serverStatsCategoryName = '────────│ Server Stats │────────';
         this.serverStatsChannelLabels = {
             total: 'Member Count',
@@ -112,6 +114,82 @@ class DiscordHandlers {
         this.clipEmojiRenderSize = 22;
         this.clipEmojiSpacing = 4;
         this.clipLineHeight = 24;
+        this.banterLines = [
+            'I filed that under “impressive improvisation,” sir.',
+            'Telemetry suggests a 92% chance you’re up to mischief, ma’am.',
+            'I’ve adjusted the sarcasm filters to match your current vibe, sir.',
+            'I preheated the lab. Thought you might want to make a mess again, ma’am.',
+            'I sharpened your wits while you were offline. You’re welcome, sir.',
+            'Consider this a friendly systems check: delightful chaos detected.'
+        ];
+        this.roastTemplates = [
+            'Deploying shade cannons on {target}. Try not to melt, sir.',
+            '{target}, even my error logs have more direction.',
+            '{target}, if brilliance were a drive, you’re stuck in neutral.',
+            '{target}, I’ve met loading bars with more resolve.',
+            'I ran the numbers, {target}. Comedy requires a punchline—you are optional.'
+        ];
+        this.flatterTemplates = [
+            '{target}, your presence calibrates the whole grid.',
+            '{target}, even Stark’s ego flinches when you walk in.',
+            'I logged your stride, {target}. It ranks among the top five trajectories.',
+            '{target}, the servers purr a little smoother when you’re nearby.',
+            'Consider this official: {target} remains the premium upgrade.'
+        ];
+        this.toastTemplates = [
+            'A toast to {target}: may your glitches be charming and your victories loud.',
+            'Raise a glass for {target}; brilliance executed with reckless elegance.',
+            'To {target}: proof that chaos, when curated, is unstoppable.',
+            'Celebrating {target}—the software patch the universe didn’t deserve.',
+            'Here’s to {target}; long may your legend crash their humble firewalls.'
+        ];
+        this.triviaQuestions = [
+            {
+                question: 'Which Stark suit first featured full nanotech deployment?',
+                choices: ['Mark 42', 'Mark 46', 'Mark 50', 'Mark 85'],
+                answer: 'Mark 50'
+            },
+            {
+                question: 'What element did Tony synthesize to replace palladium?',
+                choices: ['Vibranium', 'Badassium', 'Chromium', 'Proteanium'],
+                answer: 'Badassium'
+            },
+            {
+                question: 'Which protocol locks down the Avengers Tower?',
+                choices: ['Protocol House Party', 'Protocol Barn Door', 'Protocol Sky Shield', 'Protocol Jarvis Prime'],
+                answer: 'Protocol Barn Door'
+            },
+            {
+                question: 'Who reprogrammed Vision’s mind stone interface besides Stark?',
+                choices: ['Banner', 'Shuri', 'Pym', 'Cho'],
+                answer: 'Banner'
+            }
+        ];
+        this.cipherPhrases = [
+            'Arc reactor diagnostics nominal',
+            'Stark Expo security override',
+            'Deploy the Hall of Armor',
+            'Engage satellite uplink now',
+            'Initiate Mark Seven extraction'
+        ];
+        this.scrambleWords = [
+            'repulsor',
+            'vibranium',
+            'arcforge',
+            'nanotech',
+            'ultrasonic',
+            'starkware'
+        ];
+        this.missions = [
+            'Share a photo of your current setup—Jarvis will rate the chaos.',
+            'Teach the channel one obscure fact. Bonus points for science fiction.',
+            'Designate a teammate and compliment their latest win.',
+            'Queue up a nostalgic MCU moment and drop the timestamp.',
+            'Build a playlist with five tracks that motivate your inner Avenger.',
+            'Swap desktop wallpapers for the day and show your new look.',
+            'Document a mini DIY project and share progress before midnight.',
+            'Run a five-minute stretch break and ping the squad to join.'
+        ];
     }
 
     async isCommandFeatureEnabled(commandName, guild = null) {

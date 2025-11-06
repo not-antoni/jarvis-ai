@@ -161,6 +161,50 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('mission')
+        .setDescription('Receive a fresh Stark Industries daily directive')
+        .addBooleanOption((option) =>
+            option
+                .setName('refresh')
+                .setDescription('Request a new mission (cooldown enforced)')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('memory')
+        .setDescription('Inspect your stored Jarvis memories')
+        .addIntegerOption((option) =>
+            option
+                .setName('entries')
+                .setDescription('Number of entries to review (1-10)')
+                .setRequired(false)
+                .setMinValue(1)
+                .setMaxValue(10)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('persona')
+        .setDescription('Switch Jarvis between alternate personas')
+        .addStringOption((option) =>
+            option
+                .setName('mode')
+                .setDescription('Persona to activate or preview')
+                .setRequired(false)
+                .addChoices(
+                    { name: 'Jarvis (default)', value: 'jarvis' },
+                    { name: 'Tony Stark', value: 'stark' },
+                    { name: 'FRIDAY', value: 'friday' },
+                    { name: 'Ultron', value: 'ultron' }
+                )
+        )
+        .addBooleanOption((option) =>
+            option
+                .setName('preview')
+                .setDescription('Preview tone without saving it')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName('t')
         .setDescription('Search the knowledge base for indexed context')
         .addStringOption(option =>
@@ -330,6 +374,58 @@ const allCommands = [
                 .setDescription('Who deserves the bonk?')
                 .setRequired(true)
         )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('banter')
+        .setDescription('Trade a line of Stark-grade banter')
+        .addUserOption((option) =>
+            option
+                .setName('target')
+                .setDescription('Optional recipient of the banter')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('roast')
+        .setDescription('Deploy a refined Stark Industries roast')
+        .addUserOption((option) =>
+            option
+                .setName('target')
+                .setDescription('Who should feel the burn?')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('flatter')
+        .setDescription('Deliver premium Jarvis-approved praise')
+        .addUserOption((option) =>
+            option
+                .setName('target')
+                .setDescription('Optional honoree')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('toast')
+        .setDescription('Raise a cinematic toast to an ally')
+        .addUserOption((option) =>
+            option
+                .setName('target')
+                .setDescription('Optional honoree')
+                .setRequired(false)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('trivia')
+        .setDescription('Challenge yourself with Stark trivia')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('cipher')
+        .setDescription('Crack a rotating Stark cipher')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('scramble')
+        .setDescription('Unscramble a Stark Industries keyword')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("news")
