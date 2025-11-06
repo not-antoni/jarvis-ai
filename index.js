@@ -161,6 +161,16 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('t')
+        .setDescription('Search the knowledge base for indexed context')
+        .addStringOption(option =>
+            option
+                .setName('query')
+                .setDescription('Terms to search within the knowledge archive')
+                .setRequired(true)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("reset")
         .setDescription("Delete your conversation history and profile with Jarvis")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),

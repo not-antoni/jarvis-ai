@@ -85,6 +85,14 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
+        name: 't',
+        description: 'Search the server knowledge base for stored context.',
+        category: 'Utilities',
+        usage: '/t <query>',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',
