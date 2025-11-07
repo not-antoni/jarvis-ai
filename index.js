@@ -532,7 +532,7 @@ const allCommands = [
         .addIntegerOption((option) =>
             option
                 .setName('intensity')
-                .setDescription('Optional intensity for pixelate, blur, and deep fry')
+                .setDescription('Optional intensity (varies by preset)')
                 .setRequired(false)
                 .setMinValue(1)
                 .setMaxValue(50)
