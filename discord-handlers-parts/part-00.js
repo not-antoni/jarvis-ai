@@ -88,7 +88,7 @@ class DiscordHandlers {
         this.maxAutoModKeywordsPerRule = 1000;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
         this.missionCooldownMs = 12 * 60 * 60 * 1000;
-        this.discordFileSizeLimit = 23 * 1024 * 1024;
+        this.discordFileSizeLimit = 10 * 1024 * 1024;
         this.serverStatsCategoryName = '────────│ Server Stats │────────';
         this.serverStatsChannelLabels = {
             total: 'Member Count',
