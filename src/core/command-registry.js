@@ -221,6 +221,14 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'filter',
+        description: 'Apply Jarvis cinematic filters to an image.',
+        category: 'Meme Lab',
+        usage: '/filter style:<preset> image:<attachment>',
+        feature: 'memeTools',
+        ephemeral: false
+    },
+    {
         name: 'eightball',
         description: 'Ask the oracle of Stark for guidance.',
         category: 'Fun',

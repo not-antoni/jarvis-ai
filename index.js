@@ -17,6 +17,7 @@ const { gatherHealthSnapshot } = require('./diagnostics');
 const { commandList: musicCommandList } = require("./src/commands/music");
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
+const imageEffects = require('./src/utils/image-effects');
 
 initializeDatabaseClients()
     .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
@@ -35,6 +36,8 @@ const client = new Client({
 });
 
 // ------------------------ Slash Command Registration ------------------------
+const imageFilterChoices = imageEffects.listEffects();
+
 const allCommands = [
     new SlashCommandBuilder()
         .setName("jarvis")
@@ -503,6 +506,36 @@ const allCommands = [
                         .setRequired(false)
                         .setMaxLength(120)
                 )
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('filter')
+        .setDescription('Apply cinematic filters to an image')
+        .addAttachmentOption((option) =>
+            option
+                .setName('image')
+                .setDescription('Image to transform')
+                .setRequired(true)
+        )
+        .addStringOption((option) => {
+            let builder = option
+                .setName('style')
+                .setDescription('Filter preset to apply')
+                .setRequired(true);
+
+            imageFilterChoices.forEach(({ key, label }) => {
+                builder = builder.addChoices({ name: label, value: key });
+            });
+
+            return builder;
+        })
+        .addIntegerOption((option) =>
+            option
+                .setName('intensity')
+                .setDescription('Optional intensity for pixelate, blur, and deep fry')
+                .setRequired(false)
+                .setMinValue(1)
+                .setMaxValue(50)
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()

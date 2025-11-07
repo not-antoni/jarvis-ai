@@ -34,6 +34,7 @@ const { recordCommandRun } = require('./src/utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('./src/core/feature-flags');
 const memeCanvas = require('./src/utils/meme-canvas');
+const imageEffects = require('./src/utils/image-effects');
 const cryptoClient = require('./crypto-client');
 const vaultClient = require('./vault-client');
 

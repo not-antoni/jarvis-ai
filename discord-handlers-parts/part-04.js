@@ -1006,6 +1006,56 @@
         }
     }
 
+    async handleFilterCommand(interaction) {
+        const guild = interaction.guild;
+        if (guild && !(await this.isFeatureActive('memeTools', guild))) {
+            await interaction.editReply('Image lab access is disabled for this server, sir.');
+            return;
+        }
+
+        const effectKey = interaction.options.getString('style', true);
+        const intensity = interaction.options.getInteger('intensity');
+        const attachment = interaction.options.getAttachment('image', true);
+
+        const definition = imageEffects.getEffectDefinition(effectKey);
+        if (!definition) {
+            await interaction.editReply('That filter preset is not available, sir.');
+            return;
+        }
+
+        if (intensity != null && !definition.supportsIntensity) {
+            await interaction.editReply('That filter does not accept an intensity value, sir.');
+            return;
+        }
+
+        const contentType = (attachment.contentType || '').toLowerCase();
+        if (!contentType.startsWith('image/')) {
+            await interaction.editReply('Please provide an image attachment for filtering, sir.');
+            return;
+        }
+
+        const maxBytes = 10 * 1024 * 1024;
+        if (attachment.size && attachment.size > maxBytes) {
+            await interaction.editReply('That file exceeds the 10MB processing ceiling, sir.');
+            return;
+        }
+
+        try {
+            const buffer = await this.fetchAttachmentBuffer(attachment);
+            const rendered = await imageEffects.applyEffect(effectKey, buffer, { intensity });
+            const filename = `${effectKey}.png`;
+            const file = new AttachmentBuilder(rendered, { name: filename });
+            const friendlyName = definition.label || effectKey;
+            await interaction.editReply({
+                content: `${friendlyName} filter deployed, sir.`,
+                files: [file]
+            });
+        } catch (error) {
+            console.error('Filter command failed:', error);
+            await interaction.editReply('Image filter engines overheated, sir. Try again shortly.');
+        }
+    }
+
     async handleCryptoCommand(interaction) {
         const symbol = (interaction.options.getString('coin', true) || '').toUpperCase();
         const convert = (interaction.options.getString('convert') || 'USD').toUpperCase();
@@ -1802,6 +1852,11 @@
                     await this.handleMemeCommand(interaction);
                     return;
                 }
+                case 'filter': {
+                    telemetryMetadata.category = 'memes';
+                    await this.handleFilterCommand(interaction);
+                    return;
+                 }
                 case 'banter': {
                     telemetryMetadata.category = 'fun';
                     await this.handleBanterCommand(interaction);
