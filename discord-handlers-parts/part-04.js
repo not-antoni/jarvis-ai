@@ -1092,7 +1092,7 @@
                 const fileName = await tempStorage.saveBuffer(result.buffer, result.type || 'png');
                 const baseUrl = process.env.TMP_DOMAIN || process.env.RENDER_EXTERNAL_URL || '';
                 if (baseUrl) {
-                    const publicUrl = `${baseUrl.replace(/\\/$/, '')}/tmp/${fileName}`;
+                    const publicUrl = `${baseUrl.replace(/\/$/, '')}/tmp/${fileName}`;
                     await interaction.editReply(`Output exceeded Discord’s upload limits, sir. Retrieve it here: ${publicUrl}`);
                 } else {
                     await interaction.editReply(`Output exceeded Discord’s upload limits, sir. Access it via /tmp/${fileName} on this server or configure TMP_DOMAIN.`);
