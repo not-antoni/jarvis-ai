@@ -259,7 +259,7 @@ class EmbeddingSystem {
         return entry;
     }
 
-    async searchGuildKnowledge(guildId, query, { limit = 5, threshold = 0.15 } = {}) {
+    async searchGuildKnowledge(guildId, query, { limit = 5, threshold = 0.05 } = {}) {
         let entries = [];
 
         if (database.isConnected) {

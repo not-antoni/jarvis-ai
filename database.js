@@ -741,6 +741,19 @@ class DatabaseManager {
             .toArray();
     }
 
+    async getRecentKnowledgeEntries(guildId, limit = 5) {
+        if (!this.isConnected) return [];
+
+        const sanitizedLimit = Math.max(1, Math.min(Number(limit) || 5, 25));
+
+        return this.db
+            .collection(config.database.collections.knowledgeBase)
+            .find({ guildId })
+            .sort({ createdAt: -1 })
+            .limit(sanitizedLimit)
+            .toArray();
+    }
+
     async getKnowledgeEntriesByTag(guildId, tag, limit = 10) {
         if (!this.isConnected || !tag) return [];
 

@@ -588,6 +588,17 @@ const allCommands = [
         )
         .addSubcommand((sub) =>
             sub
+                .setName('list')
+                .setDescription('List the most recent knowledge entries')
+                .addIntegerOption((option) =>
+                    option
+                        .setName('limit')
+                        .setDescription('How many entries to show (max 10)')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
                 .setName('delete')
                 .setDescription('Remove an entry from the knowledge base')
                 .addStringOption((option) =>
