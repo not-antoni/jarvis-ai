@@ -344,7 +344,7 @@ const commandDefinitions = [
         name: 'kb',
         description: 'Manage the knowledge base.',
         category: 'Operations',
-        usage: '/kb add',
+        usage: '/kb add|search|list',
         feature: 'knowledgeBase',
         ephemeral: true
     },

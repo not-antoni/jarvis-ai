@@ -454,6 +454,37 @@
             return;
         }
 
+        if (subcommand === 'list') {
+            const limitOption = interaction.options.getInteger('limit') || 5;
+            const limit = Math.max(1, Math.min(limitOption, 10));
+
+            try {
+                const entries = await database.getRecentKnowledgeEntries(guild.id, limit);
+                if (!entries.length) {
+                    await interaction.editReply('No entries in the knowledge base yet, sir.');
+                    return;
+                }
+
+                const lines = entries.map((entry, index) => {
+                    const timestamp = entry.createdAt
+                        ? `<t:${Math.floor(new Date(entry.createdAt).getTime() / 1000)}:R>`
+                        : 'unknown';
+                    return `**${index + 1}. ${entry.title || 'Untitled'}**\n• ID: \`${entry._id}\`\n• Saved ${timestamp}`;
+                });
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`Latest ${entries.length} knowledge base entr${entries.length === 1 ? 'y' : 'ies'}`)
+                    .setColor(0x60a5fa)
+                    .setDescription(lines.join('\n\n'));
+
+                await interaction.editReply({ embeds: [embed] });
+            } catch (error) {
+                console.error('Failed to list knowledge entries:', error);
+                await interaction.editReply('Unable to list knowledge base entries at the moment, sir.');
+            }
+            return;
+        }
+
         if (subcommand === 'delete') {
             const entryId = interaction.options.getString('entry_id', true);
 
