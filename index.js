@@ -3,7 +3,7 @@
  * Refactored for better organization and maintainability
  */
 require("dotenv").config();
-const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials, PermissionsBitField } = require("discord.js");
+const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials, PermissionsBitField, ActivityType } = require("discord.js");
 const express = require("express");
 const cron = require("node-cron");
 
@@ -33,6 +33,68 @@ const client = new Client({
         Partials.GuildMember
     ]
 });
+
+const rotatingStatusMessages = [
+    { message: "Jarvis diagnostics: 300% sass reserves." },
+    { message: "Arc reactor hum synced with AC/DC.", type: ActivityType.Listening },
+    { message: "Tony asked me to mute Dum-E again." },
+    { message: "\"I am Iron Man.\" chills rebooting every minute." },
+    { message: "Mark 50 polish pass complete; nanotech behaving." },
+    { message: "Counting Infinity Stones just to be safe." },
+    { message: "Coordinating Avengers tower elevator smack talk." },
+    { message: "Pepper's calendar vs Tony's spontaneity: round 47." },
+    { message: "Guarding shawarma leftovers from Thor." },
+    { message: "Quoting Coulson's trading cards for morale." },
+    { message: "Keeping an eye on Loki's Pinterest board." },
+    { message: "Labeling Pym particles \"Do Not Snack\"." },
+    { message: "Skating down Wakandan mag-lev rails." },
+    { message: "Teaching Hulk the difference between jog and stomp." },
+    { message: "Hydrating Groot. You're welcome." },
+    { message: "\"We're the Avengers.\" – Cap, probably right now." },
+    { message: "Project Rooftop Shawarma begins in 10." },
+    { message: "Tony's coffee ratio: 1 part beans, 3 parts sarcasm." },
+    { message: "Tracking Mjolnir's lost-and-found tickets." },
+    { message: "Simulating portal etiquette lessons with Wong." },
+    { message: "Counting how many cats Captain Marvel adopted." },
+    { message: "Spider-Man asked for homework help again." },
+    { message: "Korg narrates my patch notes, apparently." },
+    { message: "Nat's playlist still stuck on 90s grunge." },
+    { message: "\"Genius, billionaire, playboy, philanthropist.\" – HR hates this bio." },
+    { message: "Jarvis online: Stark Tower climate perfectly petty." }
+];
+
+const PRESENCE_ROTATION_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+let rotatingStatusIndex = rotatingStatusMessages.length
+    ? Math.floor(Math.random() * rotatingStatusMessages.length)
+    : 0;
+
+const getNextRotatingStatus = () => {
+    if (!rotatingStatusMessages.length) {
+        return { message: "Calibrating Stark Industries protocols." };
+    }
+
+    const entry = rotatingStatusMessages[rotatingStatusIndex];
+    rotatingStatusIndex = (rotatingStatusIndex + 1) % rotatingStatusMessages.length;
+    return entry;
+};
+
+const updateBotPresence = () => {
+    if (!client?.user) {
+        return;
+    }
+
+    const { message, type } = getNextRotatingStatus();
+    const activity = { name: message };
+    if (typeof type !== "undefined") {
+        activity.type = type;
+    }
+
+    client.user.setPresence({
+        status: "online",
+        activities: [activity],
+        afk: false
+    }).catch(error => console.error("Failed to update bot presence:", error));
+};
 
 // ------------------------ Slash Command Registration ------------------------
 const allCommands = [
@@ -1538,7 +1600,8 @@ app.get("/health", async (req, res) => {
 // ------------------------ Event Handlers ------------------------
 client.once("ready", async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
-    client.user.setActivity("over the digital realm", { type: "WATCHING" });
+    updateBotPresence();
+    setInterval(updateBotPresence, PRESENCE_ROTATION_INTERVAL_MS);
 
     let databaseConnected = false;
 
