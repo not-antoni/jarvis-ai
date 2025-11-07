@@ -1,0 +1,3894 @@
+[
+  {
+    "file": "blur.js",
+    "className": "BlurCommand",
+    "description": "Blurs an image",
+    "aliases": [],
+    "command": "blur",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "bounce.js",
+    "className": "BounceCommand",
+    "description": "Makes an image bounce up and down",
+    "aliases": [
+      "bouncy"
+    ],
+    "command": "bounce",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "caption.js",
+    "className": "CaptionCommand",
+    "description": "Adds a caption to an image",
+    "aliases": [
+      "gifc",
+      "gcaption",
+      "ifcaption",
+      "ifunnycaption"
+    ],
+    "command": "caption",
+    "requiresImage": true,
+    "requiresParam": true,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": true,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "noegg",
+        "description": "Disable... something. Not saying what it is though.",
+        "type": 5
+      },
+      {
+        "name": "font",
+        "type": 3,
+        "choices": [
+          {
+            "name": "futura",
+            "value": "futura"
+          },
+          {
+            "name": "impact",
+            "value": "impact"
+          },
+          {
+            "name": "helvetica",
+            "value": "helvetica"
+          },
+          {
+            "name": "arial",
+            "value": "arial"
+          },
+          {
+            "name": "roboto",
+            "value": "roboto"
+          },
+          {
+            "name": "noto",
+            "value": "noto"
+          },
+          {
+            "name": "times",
+            "value": "times"
+          },
+          {
+            "name": "comic sans ms",
+            "value": "comic sans ms"
+          },
+          {
+            "name": "ubuntu",
+            "value": "ubuntu"
+          }
+        ],
+        "description": "Specify the font you want to use (default: futura)"
+      }
+    ]
+  },
+  {
+    "file": "caption2.js",
+    "className": "CaptionTwoCommand",
+    "description": "Adds a bottom caption/tag list to an image",
+    "aliases": [
+      "tags2",
+      "meirl",
+      "memecaption",
+      "medotmecaption"
+    ],
+    "command": "captionTwo",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": true,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": false,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "top",
+        "description": "Put the caption on the top of an image instead of the bottom",
+        "type": 5
+      },
+      {
+        "name": "font",
+        "type": 3,
+        "choices": [
+          {
+            "name": "futura",
+            "value": "futura"
+          },
+          {
+            "name": "impact",
+            "value": "impact"
+          },
+          {
+            "name": "helvetica",
+            "value": "helvetica"
+          },
+          {
+            "name": "arial",
+            "value": "arial"
+          },
+          {
+            "name": "roboto",
+            "value": "roboto"
+          },
+          {
+            "name": "noto",
+            "value": "noto"
+          },
+          {
+            "name": "times",
+            "value": "times"
+          },
+          {
+            "name": "comic sans ms",
+            "value": "comic sans ms"
+          },
+          {
+            "name": "ubuntu",
+            "value": "ubuntu"
+          }
+        ],
+        "description": "Specify the font you want to use (default: helvetica)"
+      }
+    ]
+  },
+  {
+    "file": "circle.js",
+    "className": "CircleCommand",
+    "description": "Applies a radial blur effect on an image",
+    "aliases": [
+      "cblur",
+      "radial",
+      "radialblur"
+    ],
+    "command": "circle",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "crop.js",
+    "className": "CropCommand",
+    "description": "Crops an image to 1:1",
+    "aliases": [],
+    "command": "crop",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "deepfry.js",
+    "className": "DeepfryCommand",
+    "description": "Deep-fries an image",
+    "aliases": [
+      "fry",
+      "jpeg2",
+      "nuke",
+      "df"
+    ],
+    "command": "deepfry",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "explode.js",
+    "className": "ExplodeCommand",
+    "description": "Explodes an image",
+    "aliases": [
+      "exp"
+    ],
+    "command": "distort",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "fade.js",
+    "className": "FadeCommand",
+    "description": "Fades in an image",
+    "aliases": [
+      "fadein"
+    ],
+    "command": "fade",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "alpha",
+        "description": "Fade in from transparency",
+        "type": 5
+      }
+    ]
+  },
+  {
+    "file": "flag.js",
+    "className": "FlagCommand",
+    "description": "Overlays a flag onto an image",
+    "aliases": [],
+    "command": "flag",
+    "requiresImage": true,
+    "requiresParam": true,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": true,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "flip.js",
+    "className": "FlipCommand",
+    "description": "Flips an image",
+    "aliases": [],
+    "command": "flip",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "flop.js",
+    "className": "FlopCommand",
+    "description": "Flips an image",
+    "aliases": [
+      "flip2"
+    ],
+    "command": "flip",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "freeze.js",
+    "className": "FreezeCommand",
+    "description": "Makes an image sequence only play once",
+    "aliases": [
+      "noloop",
+      "once"
+    ],
+    "command": "freeze",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": true,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "endframe",
+        "type": 4,
+        "description": "Set the end frame (default: last frame)",
+        "minValue": 0,
+        "classic": true
+      }
+    ]
+  },
+  {
+    "file": "gamexplain.js",
+    "className": "GameXplainCommand",
+    "description": "Makes a GameXplain thumbnail from an image",
+    "aliases": [
+      "gx"
+    ],
+    "command": "gamexplain",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "gif.js",
+    "className": "GIFCommand",
+    "description": "Converts an image into a GIF",
+    "aliases": [
+      "gif",
+      "getgif",
+      "togif",
+      "tgif",
+      "gifify"
+    ],
+    "command": "togif",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "globe.js",
+    "className": "GlobeCommand",
+    "description": "Spins an image",
+    "aliases": [
+      "sphere"
+    ],
+    "command": "globe",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "grayscale.js",
+    "className": "GrayscaleCommand",
+    "description": "Adds a grayscale filter",
+    "aliases": [
+      "gray",
+      "greyscale",
+      "grey"
+    ],
+    "command": "colors",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "haah.js",
+    "className": "HaaHCommand",
+    "description": "Mirrors the left side of an image onto the right",
+    "aliases": [
+      "magik4",
+      "mirror2"
+    ],
+    "command": "mirror",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "hooh.js",
+    "className": "HooHCommand",
+    "description": "Mirrors the bottom of an image onto the top",
+    "aliases": [
+      "magik6",
+      "mirror4"
+    ],
+    "command": "mirror",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "hue.js",
+    "className": "HueCommand",
+    "description": "Hue shifts an image",
+    "aliases": [
+      "hueshift",
+      "recolor"
+    ],
+    "command": "colors",
+    "requiresImage": true,
+    "requiresParam": true,
+    "requiredParam": "shift",
+    "requiredParamType": 4,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "shift",
+        "type": 4,
+        "description": "Set the amount to shift by",
+        "minValue": -180,
+        "maxValue": 180,
+        "classic": true,
+        "required": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "implode.js",
+    "className": "ImplodeCommand",
+    "description": "Implodes an image",
+    "aliases": [
+      "imp"
+    ],
+    "command": "distort",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "invert.js",
+    "className": "InvertCommand",
+    "description": "Inverts an image",
+    "aliases": [
+      "inverse",
+      "negate",
+      "negative"
+    ],
+    "command": "invert",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "jpeg.js",
+    "className": "JPEGCommand",
+    "description": "Adds JPEG compression to an image",
+    "aliases": [
+      "needsmorejpeg",
+      "jpegify",
+      "magik2",
+      "morejpeg",
+      "jpg",
+      "quality"
+    ],
+    "command": "jpeg",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "quality",
+        "type": 4,
+        "description": "Set the JPEG quality (default: 1)",
+        "minValue": 1,
+        "maxValue": 100,
+        "classic": true
+      }
+    ]
+  },
+  {
+    "file": "magik.js",
+    "className": "MagikCommand",
+    "description": "Adds a content aware scale effect to an image",
+    "aliases": [
+      "imagemagic",
+      "imagemagick",
+      "imagemagik",
+      "magic",
+      "magick",
+      "cas",
+      "liquid"
+    ],
+    "command": "magik",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "meme.js",
+    "className": "MemeCommand",
+    "description": "Generates a meme from an image (separate top/bottom text with a comma)",
+    "aliases": [],
+    "command": "meme",
+    "requiresImage": true,
+    "requiresParam": true,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": true,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "case",
+        "description": "Make the meme text case-sensitive (allows for lowercase text)",
+        "type": 5
+      },
+      {
+        "name": "font",
+        "type": 3,
+        "choices": [
+          {
+            "name": "futura",
+            "value": "futura"
+          },
+          {
+            "name": "impact",
+            "value": "impact"
+          },
+          {
+            "name": "helvetica",
+            "value": "helvetica"
+          },
+          {
+            "name": "arial",
+            "value": "arial"
+          },
+          {
+            "name": "roboto",
+            "value": "roboto"
+          },
+          {
+            "name": "noto",
+            "value": "noto"
+          },
+          {
+            "name": "times",
+            "value": "times"
+          },
+          {
+            "name": "comic sans ms",
+            "value": "comic sans ms"
+          },
+          {
+            "name": "ubuntu",
+            "value": "ubuntu"
+          }
+        ],
+        "description": "Specify the font you want to use (default: impact)"
+      }
+    ]
+  },
+  {
+    "file": "motivate.js",
+    "className": "MotivateCommand",
+    "description": "Generates a motivational poster",
+    "aliases": [
+      "motivational",
+      "motiv",
+      "demotiv",
+      "demotivational",
+      "poster",
+      "motivation",
+      "demotivate"
+    ],
+    "command": "motivate",
+    "requiresImage": true,
+    "requiresParam": true,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": true,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "font",
+        "type": 3,
+        "choices": [
+          {
+            "name": "futura",
+            "value": "futura"
+          },
+          {
+            "name": "impact",
+            "value": "impact"
+          },
+          {
+            "name": "helvetica",
+            "value": "helvetica"
+          },
+          {
+            "name": "arial",
+            "value": "arial"
+          },
+          {
+            "name": "roboto",
+            "value": "roboto"
+          },
+          {
+            "name": "noto",
+            "value": "noto"
+          },
+          {
+            "name": "times",
+            "value": "times"
+          },
+          {
+            "name": "comic sans ms",
+            "value": "comic sans ms"
+          },
+          {
+            "name": "ubuntu",
+            "value": "ubuntu"
+          }
+        ],
+        "description": "Specify the font you want to use (default: times)"
+      }
+    ]
+  },
+  {
+    "file": "pixelate.js",
+    "className": "PixelateCommand",
+    "description": "Pixelates an image",
+    "aliases": [
+      "pixel",
+      "small"
+    ],
+    "command": "resize",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "reddit.js",
+    "className": "RedditCommand",
+    "description": "Adds a Reddit watermark to an image",
+    "aliases": [],
+    "command": "reddit",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": true,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": false,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "reverse.js",
+    "className": "ReverseCommand",
+    "description": "Reverses an image sequence",
+    "aliases": [
+      "backwards"
+    ],
+    "command": "reverse",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": true,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "scott.js",
+    "className": "ScottCommand",
+    "description": "Makes Scott the Woz show off an image",
+    "aliases": [
+      "woz",
+      "tv",
+      "porn"
+    ],
+    "command": "scott",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "sepia.js",
+    "className": "SepiaCommand",
+    "description": "Adds a sepia filter",
+    "aliases": [],
+    "command": "colors",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "sharpen.js",
+    "className": "SharpenCommand",
+    "description": "Sharpens an image",
+    "aliases": [
+      "sharp"
+    ],
+    "command": "blur",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "slide.js",
+    "className": "SlideCommand",
+    "description": "Slides an image in a direction",
+    "aliases": [
+      "shift"
+    ],
+    "command": "slide",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "vertical",
+        "type": 5,
+        "description": "Slides the image vertically",
+        "classic": true
+      },
+      {
+        "name": "reverse",
+        "type": 5,
+        "description": "Changes the direction the image slides in",
+        "classic": true
+      }
+    ]
+  },
+  {
+    "file": "slow.js",
+    "className": "SlowCommand",
+    "description": "Makes an image sequence slower",
+    "aliases": [
+      "slowdown",
+      "slower",
+      "gifspeed2"
+    ],
+    "command": "speed",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": true,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "multiplier",
+        "type": 4,
+        "description": "Set the speed multiplier (default: 2)",
+        "minValue": 1,
+        "classic": true
+      }
+    ]
+  },
+  {
+    "file": "snapchat.js",
+    "className": "SnapchatCommand",
+    "description": "Adds a Snapchat style caption to an image",
+    "aliases": [
+      "snap",
+      "caption3"
+    ],
+    "command": "snapchat",
+    "requiresImage": true,
+    "requiresParam": true,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": true,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "position",
+        "type": 10,
+        "description": "Set the position of the caption as a decimal (0.0 is top, 1.0 is bottom, default is 0.565)",
+        "minValue": 0,
+        "maxValue": 1
+      }
+    ]
+  },
+  {
+    "file": "soos.js",
+    "className": "SooSCommand",
+    "description": "\"Loops\" an image sequence by reversing it when it's finished",
+    "aliases": [
+      "boomerang"
+    ],
+    "command": "reverse",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": true,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "speechbubble.js",
+    "className": "SpeechBubbleCommand",
+    "description": "Adds a speech bubble to an image",
+    "aliases": [
+      "speech"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "alpha",
+        "description": "Make the top of the speech bubble transparent",
+        "type": 5
+      },
+      {
+        "name": "flip",
+        "description": "Flips the speech bubble",
+        "type": 5
+      },
+      {
+        "name": "bottom",
+        "description": "Puts the speech bubble on the bottom of the image",
+        "type": 5
+      },
+      {
+        "name": "scale",
+        "description": "A multiplier to resize the speech bubble (0.01 is smallest, 1.0 is largest, default is 0.2)",
+        "type": 10,
+        "minValue": 0.01,
+        "maxValue": 1
+      }
+    ]
+  },
+  {
+    "file": "speed.js",
+    "className": "SpeedCommand",
+    "description": "Makes an image sequence faster",
+    "aliases": [
+      "speedup",
+      "fast",
+      "gifspeed",
+      "faster"
+    ],
+    "command": "speed",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": true,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "multiplier",
+        "type": 4,
+        "description": "Set the speed multiplier (default: 2)",
+        "minValue": 1,
+        "maxValue": 1000,
+        "classic": true
+      }
+    ]
+  },
+  {
+    "file": "spin.js",
+    "className": "SpinCommand",
+    "description": "Spins an image",
+    "aliases": [
+      "rotate"
+    ],
+    "command": "spin",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "spotify.js",
+    "className": "SpotifyCommand",
+    "description": "Adds a Spotify \"This is\" header to an image",
+    "aliases": [],
+    "command": "spotify",
+    "requiresImage": true,
+    "requiresParam": true,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": true,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "squish.js",
+    "className": "SquishCommand",
+    "description": "Squishes/stretches an image",
+    "aliases": [
+      "squishy",
+      "squash"
+    ],
+    "command": "squish",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "stretch.js",
+    "className": "StretchCommand",
+    "description": "Stretches an image to a 1:1 aspect ratio",
+    "aliases": [
+      "aspect",
+      "ratio",
+      "aspect11",
+      "11"
+    ],
+    "command": "resize",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "swirl.js",
+    "className": "SwirlCommand",
+    "description": "Swirls an image",
+    "aliases": [
+      "whirlpool",
+      "distort"
+    ],
+    "command": "swirl",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "tile.js",
+    "className": "TileCommand",
+    "description": "Creates a tile pattern from an image",
+    "aliases": [
+      "wall2"
+    ],
+    "command": "tile",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "uncanny.js",
+    "className": "UncannyCommand",
+    "description": "Makes a Mr. Incredible Becomes Uncanny image (separate left/right text with a comma)",
+    "aliases": [
+      "canny",
+      "incredible",
+      "pain"
+    ],
+    "command": "uncanny",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": true,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": false,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "font",
+        "type": 3,
+        "choices": [
+          {
+            "name": "futura",
+            "value": "futura"
+          },
+          {
+            "name": "impact",
+            "value": "impact"
+          },
+          {
+            "name": "helvetica",
+            "value": "helvetica"
+          },
+          {
+            "name": "arial",
+            "value": "arial"
+          },
+          {
+            "name": "roboto",
+            "value": "roboto"
+          },
+          {
+            "name": "noto",
+            "value": "noto"
+          },
+          {
+            "name": "times",
+            "value": "times"
+          },
+          {
+            "name": "comic sans ms",
+            "value": "comic sans ms"
+          },
+          {
+            "name": "ubuntu",
+            "value": "ubuntu"
+          }
+        ],
+        "description": "Specify the font you want to use (default: helvetica)"
+      },
+      {
+        "name": "phase",
+        "type": 3,
+        "choices": [
+          {
+            "name": "baby",
+            "value": "baby"
+          },
+          {
+            "name": "canny",
+            "value": "canny"
+          },
+          {
+            "name": "canny2",
+            "value": "canny2"
+          },
+          {
+            "name": "canny3",
+            "value": "canny3"
+          },
+          {
+            "name": "canny4",
+            "value": "canny4"
+          },
+          {
+            "name": "canny5",
+            "value": "canny5"
+          },
+          {
+            "name": "canny6",
+            "value": "canny6"
+          },
+          {
+            "name": "canny7",
+            "value": "canny7"
+          },
+          {
+            "name": "canny8",
+            "value": "canny8"
+          },
+          {
+            "name": "goated",
+            "value": "goated"
+          },
+          {
+            "name": "nerd",
+            "value": "nerd"
+          },
+          {
+            "name": "normal",
+            "value": "normal"
+          },
+          {
+            "name": "uncanny",
+            "value": "uncanny"
+          },
+          {
+            "name": "uncanny2",
+            "value": "uncanny2"
+          },
+          {
+            "name": "uncanny3",
+            "value": "uncanny3"
+          },
+          {
+            "name": "uncanny4",
+            "value": "uncanny4"
+          },
+          {
+            "name": "uncanny5",
+            "value": "uncanny5"
+          },
+          {
+            "name": "uncanny6",
+            "value": "uncanny6"
+          },
+          {
+            "name": "uncanny7",
+            "value": "uncanny7"
+          },
+          {
+            "name": "uncanny8",
+            "value": "uncanny8"
+          },
+          {
+            "name": "uncle",
+            "value": "uncle"
+          },
+          {
+            "name": "young",
+            "value": "young"
+          }
+        ],
+        "description": "Specify the uncanny image you want to use"
+      }
+    ]
+  },
+  {
+    "file": "uncaption.js",
+    "className": "UncaptionCommand",
+    "description": "Removes the caption from an image",
+    "aliases": [],
+    "command": "uncaption",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "tolerance",
+        "type": 10,
+        "description": "Set the shade tolerance for the caption detection (0.0 is highest, 1.0 is lowest, default is 0.95)",
+        "minValue": 0,
+        "maxValue": 1
+      }
+    ]
+  },
+  {
+    "file": "unfreeze.js",
+    "className": "UnfreezeCommand",
+    "description": "Unfreezes an image sequence",
+    "aliases": [],
+    "command": "freeze",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": true,
+    "alwaysGIF": true,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "vignette.js",
+    "className": "VignetteCommand",
+    "description": "Adds a vignette to an image",
+    "aliases": [],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "waaw.js",
+    "className": "WaaWCommand",
+    "description": "Mirrors the right side of an image onto the left",
+    "aliases": [
+      "magik3",
+      "mirror"
+    ],
+    "command": "mirror",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "wall.js",
+    "className": "WallCommand",
+    "description": "Creates a wall from an image",
+    "aliases": [],
+    "command": "wall",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/9gag.js",
+    "className": "WatermarkNineGagCommand",
+    "description": "Adds the 9GAG watermark to an image",
+    "aliases": [
+      "9gag",
+      "ninegag",
+      "gag"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/avs4you.js",
+    "className": "WatermarkAVSCommand",
+    "description": "Adds the avs4you watermark to an image",
+    "aliases": [
+      "avs4you",
+      "a4y",
+      "avs"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/bandicam.js",
+    "className": "WatermarkBandicamCommand",
+    "description": "Adds the Bandicam watermark to an image",
+    "aliases": [
+      "bandicam",
+      "bandi"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/deviantart.js",
+    "className": "WatermarkDeviantArtCommand",
+    "description": "Adds a DeviantArt watermark to an image",
+    "aliases": [
+      "deviantart",
+      "da",
+      "deviant"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/funky.js",
+    "className": "WatermarkFunkyCommand",
+    "description": "Adds the New Funky Mode banner to an image",
+    "aliases": [
+      "funky",
+      "funkymode",
+      "newfunkymode",
+      "funkykong"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/hypercam.js",
+    "className": "WatermarkHypercamCommand",
+    "description": "Adds the Hypercam watermark to an image",
+    "aliases": [
+      "hypercam",
+      "hcam"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/ifunny.js",
+    "className": "WatermarkiFunnyCommand",
+    "description": "Adds the iFunny watermark to an image",
+    "aliases": [
+      "ifunny"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/kinemaster.js",
+    "className": "WatermarkKineMasterCommand",
+    "description": "Adds the KineMaster watermark to an image",
+    "aliases": [
+      "kinemaster",
+      "kine"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/memecenter.js",
+    "className": "WatermarkMemeCenterCommand",
+    "description": "Adds the MemeCenter watermark to an image",
+    "aliases": [
+      "memecenter",
+      "memec",
+      "mcenter"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/powerdirector.js",
+    "className": "WatermarkPowerDirectorCommand",
+    "description": "Adds the PowerDirector watermark to an image",
+    "aliases": [
+      "powerdirector",
+      "cyberlink"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark/shutterstock.js",
+    "className": "WatermarkShutterstockCommand",
+    "description": "Adds the Shutterstock watermark to an image",
+    "aliases": [
+      "shutterstock",
+      "stock",
+      "stockphoto"
+    ],
+    "command": "watermark",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "watermark.js",
+    "className": "WatermarkCommand",
+    "description": "Applies a watermark to an image",
+    "aliases": [],
+    "command": null,
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": null,
+    "requiredParamType": null,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": []
+  },
+  {
+    "file": "whisper.js",
+    "className": "WhisperCommand",
+    "description": "Adds a Whisper style caption to an image",
+    "aliases": [
+      "caption4"
+    ],
+    "command": "whisper",
+    "requiresImage": true,
+    "requiresParam": true,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "text",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "The text to put on the image",
+        "descriptionLocalizations": {},
+        "maxLength": 4096,
+        "required": true,
+        "classic": true
+      },
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  },
+  {
+    "file": "wide.js",
+    "className": "WideCommand",
+    "description": "Stretches an image to 19x its width",
+    "aliases": [
+      "w19",
+      "wide19"
+    ],
+    "command": "resize",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "scale",
+        "description": "The amount to widen the image by (1 is smallest, 19 is largest, default is 19)",
+        "type": 4,
+        "minValue": 1,
+        "maxValue": 19
+      }
+    ]
+  },
+  {
+    "file": "woow.js",
+    "className": "WooWCommand",
+    "description": "Mirrors the top of an image onto the bottom",
+    "aliases": [
+      "magik5",
+      "mirror3"
+    ],
+    "command": "mirror",
+    "requiresImage": true,
+    "requiresParam": false,
+    "requiredParam": "text",
+    "requiredParamType": 3,
+    "requiresAnim": false,
+    "alwaysGIF": false,
+    "textOptional": false,
+    "flags": [
+      {
+        "name": "image",
+        "nameLocalizations": {},
+        "type": 11,
+        "description": "An image/GIF attachment",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "link",
+        "nameLocalizations": {},
+        "type": 3,
+        "description": "An image/GIF URL",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "togif",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Force GIF output",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "spoiler",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as a spoiler",
+        "descriptionLocalizations": {}
+      },
+      {
+        "name": "ephemeral",
+        "nameLocalizations": {},
+        "type": 5,
+        "description": "Attempt to send output as an ephemeral/temporary response",
+        "descriptionLocalizations": {}
+      }
+    ]
+  }
+]

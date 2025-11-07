@@ -1056,6 +1056,138 @@
         }
     }
 
+    async handleEsmImageCommand(interaction, commandName) {
+        const definition = esmImageRunner.getCommandDefinition(commandName);
+        if (!definition) {
+            await interaction.editReply('I could not identify that effect, sir.');
+            return;
+        }
+
+        const optionValues = this.getEsmOptionValues(interaction, definition);
+        let attachmentData = null;
+
+        try {
+            attachmentData = await this.resolveEsmImageAttachment(interaction, definition, optionValues);
+        } catch (error) {
+            await interaction.editReply(error.message || 'Please provide an image, sir.');
+            return;
+        }
+
+        optionValues.__jobId = `${interaction.id}-${Date.now()}`;
+        optionValues.__userId = interaction.user.id;
+        optionValues.__userName = interaction.user.username || interaction.user.globalName || 'User';
+
+        try {
+            const result = await esmImageRunner.executeCommand(commandName, {
+                optionValues,
+                attachment: attachmentData
+            });
+
+            if (!result || !result.buffer || !result.buffer.length) {
+                await interaction.editReply('Image lab produced no output, sir.');
+                return;
+            }
+
+            if (result.buffer.length >= this.discordFileSizeLimit) {
+                const fileName = await tempStorage.saveBuffer(result.buffer, result.type || 'png');
+                const baseUrl = process.env.TMP_DOMAIN || process.env.RENDER_EXTERNAL_URL || '';
+                if (baseUrl) {
+                    const publicUrl = `${baseUrl.replace(/\\/$/, '')}/tmp/${fileName}`;
+                    await interaction.editReply(`Output exceeded Discord’s upload limits, sir. Retrieve it here: ${publicUrl}`);
+                } else {
+                    await interaction.editReply(`Output exceeded Discord’s upload limits, sir. Access it via /tmp/${fileName} on this server or configure TMP_DOMAIN.`);
+                }
+                return;
+            }
+
+            const fileExtension = result.type || 'png';
+            const attachment = new AttachmentBuilder(result.buffer, { name: `${commandName}.${fileExtension}` });
+            await interaction.editReply({ files: [attachment] });
+        } catch (error) {
+            console.error('Esm image command failed:', error);
+            await interaction.editReply('I could not process that effect, sir.');
+        }
+    }
+
+    getEsmOptionValues(interaction, definition) {
+        const values = {};
+        for (const flag of definition.flags) {
+            const optionKey = flag.name.toLowerCase();
+            let value = null;
+            switch (flag.type) {
+                case 3:
+                    value = interaction.options.getString(optionKey);
+                    break;
+                case 4:
+                    value = interaction.options.getInteger(optionKey);
+                    break;
+                case 5:
+                    value = interaction.options.getBoolean(optionKey);
+                    break;
+                case 10:
+                    value = interaction.options.getNumber(optionKey);
+                    break;
+                case 11:
+                    value = interaction.options.getAttachment(optionKey);
+                    break;
+                default:
+                    break;
+            }
+
+            if (value !== null && value !== undefined) {
+                values[flag.name] = value;
+            }
+        }
+        return values;
+    }
+
+    async resolveEsmImageAttachment(interaction, definition, optionValues) {
+        const attachment = interaction.options.getAttachment('image');
+        if (attachment) {
+            const buffer = await this.fetchAttachmentBuffer(attachment);
+            optionValues.image = attachment;
+            return {
+                buffer,
+                contentType: attachment.contentType || 'image/png',
+                url: attachment.url,
+                name: attachment.name || 'image'
+            };
+        }
+
+        const link = interaction.options.getString('link');
+        if (link) {
+            const remote = await this.downloadImageFromUrl(link);
+            optionValues.link = link;
+            return remote;
+        }
+
+        if (definition.requiresImage) {
+            throw new Error('Please provide an image attachment or link, sir.');
+        }
+
+        return null;
+    }
+
+    async downloadImageFromUrl(url) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Remote server responded with ${response.status}`);
+            }
+            const contentType = response.headers.get('content-type') || 'application/octet-stream';
+            const buffer = await response.buffer();
+            return {
+                buffer,
+                contentType,
+                url,
+                name: path.basename(new URL(url).pathname) || 'image'
+            };
+        } catch (error) {
+            console.error('Failed to download remote image:', error);
+            throw new Error('I could not fetch that image link, sir.');
+        }
+    }
+
     async handleCryptoCommand(interaction) {
         const symbol = (interaction.options.getString('coin', true) || '').toUpperCase();
         const convert = (interaction.options.getString('convert') || 'USD').toUpperCase();
@@ -1724,6 +1856,13 @@
             if (this.isOnCooldown(userId, cooldownScope)) {
                 telemetryStatus = 'error';
                 telemetryMetadata.reason = 'rate_limited';
+                return;
+            }
+
+            if (esmImageRunner.isEsmCommand(commandName)) {
+                shouldSetCooldown = true;
+                telemetryMetadata.category = 'memes';
+                await this.handleEsmImageCommand(interaction, commandName);
                 return;
             }
 

@@ -18,6 +18,8 @@ const { commandList: musicCommandList } = require("./src/commands/music");
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 const imageEffects = require('./src/utils/image-effects');
+const esmImageRunner = require('./src/utils/esm-image-runner');
+const { TEMP_DIR } = require('./src/utils/temp-storage');
 
 initializeDatabaseClients()
     .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
@@ -37,6 +39,75 @@ const client = new Client({
 
 // ------------------------ Slash Command Registration ------------------------
 const imageFilterChoices = imageEffects.listEffects();
+
+function buildEsmSlashCommand(entry) {
+    const builder = new SlashCommandBuilder()
+        .setName(entry.slashName)
+        .setDescription(entry.description || `Apply the ${entry.slashName} effect.`)
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]);
+
+    for (const flag of entry.flags) {
+        const optionName = flag.name.toLowerCase();
+        const description = flag.description || `Configure ${optionName}`;
+        switch (flag.type) {
+            case 3: { // string
+                builder.addStringOption((option) => {
+                    option.setName(optionName).setDescription(description).setRequired(Boolean(flag.required));
+                    if (Array.isArray(flag.choices)) {
+                        option.addChoices(
+                            ...flag.choices.slice(0, 25).map((choice) => ({
+                                name: choice.name || choice.value?.toString() || 'choice',
+                                value: choice.value?.toString() || choice.name
+                            }))
+                        );
+                    }
+                    if (typeof flag.minLength === 'number') option.setMinLength(flag.minLength);
+                    if (typeof flag.maxLength === 'number') option.setMaxLength(flag.maxLength);
+                    return option;
+                });
+                break;
+            }
+            case 4: { // integer
+                builder.addIntegerOption((option) => {
+                    option.setName(optionName).setDescription(description).setRequired(Boolean(flag.required));
+                    if (typeof flag.minValue === 'number') option.setMinValue(flag.minValue);
+                    if (typeof flag.maxValue === 'number') option.setMaxValue(flag.maxValue);
+                    return option;
+                });
+                break;
+            }
+            case 5: { // boolean
+                builder.addBooleanOption((option) =>
+                    option.setName(optionName).setDescription(description).setRequired(Boolean(flag.required))
+                );
+                break;
+            }
+            case 10: { // number
+                builder.addNumberOption((option) => {
+                    option.setName(optionName).setDescription(description).setRequired(Boolean(flag.required));
+                    if (typeof flag.minValue === 'number') option.setMinValue(flag.minValue);
+                    if (typeof flag.maxValue === 'number') option.setMaxValue(flag.maxValue);
+                    return option;
+                });
+                break;
+            }
+            case 11: { // attachment
+                builder.addAttachmentOption((option) =>
+                    option.setName(optionName).setDescription(description).setRequired(Boolean(flag.required))
+                );
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    return builder;
+}
 
 const allCommands = [
     new SlashCommandBuilder()
@@ -971,6 +1042,11 @@ const allCommands = [
     ...musicCommandList.map((command) => command.data)
 ];
 
+const esmSlashCommands = esmImageRunner
+    .getRegisteredCommands()
+    .map((entry) => buildEsmSlashCommand(entry));
+allCommands.push(...esmSlashCommands);
+
 const commands = allCommands.filter((builder) => {
     const featureKey = commandFeatureMap.get(builder.name);
     return isFeatureGloballyEnabled(featureKey, true);
@@ -1017,6 +1093,7 @@ async function registerSlashCommands() {
 
 // ------------------------ Uptime Server ------------------------
 const app = express();
+app.use('/tmp', express.static(TEMP_DIR, { maxAge: 5 * 60 * 1000 }));
 
 // Main endpoint - ASCII Animation Page
 app.get("/", async (req, res) => {

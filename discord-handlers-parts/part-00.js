@@ -37,6 +37,8 @@ const memeCanvas = require('./src/utils/meme-canvas');
 const imageEffects = require('./src/utils/image-effects');
 const cryptoClient = require('./crypto-client');
 const vaultClient = require('./vault-client');
+const esmImageRunner = require('./src/utils/esm-image-runner');
+const tempStorage = require('./src/utils/temp-storage');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -86,6 +88,7 @@ class DiscordHandlers {
         this.maxAutoModKeywordsPerRule = 1000;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
         this.missionCooldownMs = 12 * 60 * 60 * 1000;
+        this.discordFileSizeLimit = 23 * 1024 * 1024;
         this.serverStatsCategoryName = '────────│ Server Stats │────────';
         this.serverStatsChannelLabels = {
             total: 'Member Count',

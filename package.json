@@ -21,11 +21,15 @@
   ],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
     "@discordjs/voice": "^0.19.0",
     "@distube/ytdl-core": "^4.16.12",
     "@google/generative-ai": "^0.24.1",
+    "@snazzah/davey": "^0.1.2",
     "canvas": "^3.2.0",
     "cohere-ai": "^7.19.0",
     "discord-interactions": "^3.2.0",
@@ -34,23 +38,26 @@
     "express": "^4.18.2",
     "extract-zip": "^2.0.1",
     "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.0.0",
+    "file-type": "^21.0.0",
     "fs-extra": "^11.3.1",
     "googleapis": "^160.0.0",
-    "lru-cache": "^10.2.2",
     "libsodium-wrappers": "^0.7.13",
+    "lru-cache": "^10.2.2",
     "mongodb": "^6.19.0",
     "nerdamer": "^1.1.13",
     "node-cron": "^4.2.1",
-    "libsodium-wrappers": "^0.7.13",
     "node-fetch": "^2.6.7",
     "openai": "^5.20.1",
     "opusscript": "^0.1.1",
     "pdf-parse": "^1.1.2",
-    "@snazzah/davey": "^0.1.2",
     "sharp": "^0.34.4",
     "tar": "^7.5.2",
-    "@snazzah/davey": "^0.1.2",
-    "ffprobe-static": "^3.0.0",
+    "winston": "^3.18.3",
+    "winston-daily-rotate-file": "^5.0.0",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
   }
 }

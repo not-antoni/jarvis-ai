@@ -26,3 +26,7 @@ Unconfirmed 120334.crdownload
 Unconfirmed 860463.crdownload
 Unconfirmed 468472.crdownload
 Unconfirmed 418526.crdownload
+
+.cache/
+logs/
+tmp/
