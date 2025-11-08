@@ -3,7 +3,17 @@
  * Refactored for better organization and maintainability
  */
 require("dotenv").config();
-const { Client, GatewayIntentBits, SlashCommandBuilder, InteractionContextType, ChannelType, Partials, PermissionsBitField, ActivityType } = require("discord.js");
+const {
+    Client,
+    GatewayIntentBits,
+    SlashCommandBuilder,
+    InteractionContextType,
+    ChannelType,
+    Partials,
+    PermissionsBitField,
+    ActivityType,
+    Events
+} = require("discord.js");
 const express = require("express");
 const cron = require("node-cron");
 
@@ -89,11 +99,15 @@ const updateBotPresence = () => {
         activity.type = type;
     }
 
-    client.user.setPresence({
-        status: "online",
-        activities: [activity],
-        afk: false
-    }).catch(error => console.error("Failed to update bot presence:", error));
+    try {
+        client.user.setPresence({
+            status: "online",
+            activities: [activity],
+            afk: false
+        });
+    } catch (error) {
+        console.error("Failed to update bot presence:", error);
+    }
 };
 
 // ------------------------ Slash Command Registration ------------------------
@@ -1598,7 +1612,7 @@ app.get("/health", async (req, res) => {
 });
 
 // ------------------------ Event Handlers ------------------------
-client.once("ready", async () => {
+client.once(Events.ClientReady, async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
     updateBotPresence();
     setInterval(updateBotPresence, PRESENCE_ROTATION_INTERVAL_MS);
