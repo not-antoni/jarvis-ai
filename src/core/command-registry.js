@@ -45,6 +45,14 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'features',
+        description: 'Inspect which Jarvis modules are enabled globally and for the current guild.',
+        category: 'Core Systems',
+        usage: '/features',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
         name: 'yt',
         description: 'Search YouTube for a relevant video.',
         category: 'Utilities',

@@ -46,81 +46,151 @@ class DatabaseManager {
     async createIndexes() {
         if (!this.db) return;
 
-        try {
-            const ninetyDays = 60 * 60 * 24 * 90;
-            const sixtyDays = 60 * 60 * 24 * 60;
+        const ninetyDays = 60 * 60 * 24 * 90;
+        const sixtyDays = 60 * 60 * 24 * 60;
 
-            const conversations = this.db.collection(config.database.collections.conversations);
-            const userProfiles = this.db.collection(config.database.collections.userProfiles);
-            const guildConfigs = this.db.collection(config.database.collections.guildConfigs);
-            const memberLogs = this.db.collection(config.database.collections.memberLogs);
-            const reactionRoles = this.db.collection(config.database.collections.reactionRoles);
-            const autoModeration = this.db.collection(config.database.collections.autoModeration);
-            const serverStats = this.db.collection(config.database.collections.serverStats);
-            const tickets = this.db.collection(config.database.collections.tickets);
-            const ticketTranscripts = this.db.collection(config.database.collections.ticketTranscripts);
-            const knowledgeBase = this.db.collection(config.database.collections.knowledgeBase);
-            const counters = this.db.collection(config.database.collections.counters);
-            const newsCache = this.db.collection(config.database.collections.newsCache);
-            const migrations = this.db.collection(config.database.collections.migrations);
+        const collections = {
+            conversations: this.db.collection(config.database.collections.conversations),
+            userProfiles: this.db.collection(config.database.collections.userProfiles),
+            guildConfigs: this.db.collection(config.database.collections.guildConfigs),
+            memberLogs: this.db.collection(config.database.collections.memberLogs),
+            reactionRoles: this.db.collection(config.database.collections.reactionRoles),
+            autoModeration: this.db.collection(config.database.collections.autoModeration),
+            serverStats: this.db.collection(config.database.collections.serverStats),
+            tickets: this.db.collection(config.database.collections.tickets),
+            ticketTranscripts: this.db.collection(config.database.collections.ticketTranscripts),
+            knowledgeBase: this.db.collection(config.database.collections.knowledgeBase),
+            counters: this.db.collection(config.database.collections.counters),
+            newsCache: this.db.collection(config.database.collections.newsCache),
+            migrations: this.db.collection(config.database.collections.migrations),
+            statusMessages: this.db.collection(config.database.collections.statusMessages),
+        };
 
-            await conversations.createIndex({ userId: 1, guildId: 1, createdAt: -1 });
-            await conversations.createIndex(
-                { createdAt: 1 },
-                { expireAfterSeconds: ninetyDays, name: 'ttl_conversations_createdAt' }
-            );
-
-            await userProfiles.createIndex({ userId: 1 }, { unique: true });
-
-            await guildConfigs.createIndex({ guildId: 1, key: 1 }, { unique: true });
-
-            await reactionRoles.createIndex({ messageId: 1 }, { unique: true });
-            await reactionRoles.createIndex({ guildId: 1 });
-
-            await autoModeration.createIndex({ guildId: 1 }, { unique: true });
-            await serverStats.createIndex({ guildId: 1 }, { unique: true });
-
-            await memberLogs.createIndex(
-                { guildId: 1 },
-                { unique: true, partialFilterExpression: { isConfig: true } }
-            );
-            await memberLogs.createIndex(
-                { createdAt: 1 },
-                {
-                    expireAfterSeconds: sixtyDays,
-                    name: 'ttl_memberLogs_createdAt',
-                    partialFilterExpression: {
-                        createdAt: { $exists: true },
-                        isConfig: false // TTL applies only when explicitly marked as a log entry
+        const indexPlans = [
+            {
+                label: 'conversations',
+                collection: collections.conversations,
+                definitions: [
+                    { key: { userId: 1, guildId: 1, createdAt: -1 } },
+                    { key: { createdAt: 1 }, expireAfterSeconds: ninetyDays, name: 'ttl_conversations_createdAt' }
+                ]
+            },
+            {
+                label: 'userProfiles',
+                collection: collections.userProfiles,
+                definitions: [{ key: { userId: 1 }, unique: true }]
+            },
+            {
+                label: 'guildConfigs',
+                collection: collections.guildConfigs,
+                definitions: [{ key: { guildId: 1, key: 1 }, unique: true }]
+            },
+            {
+                label: 'reactionRoles',
+                collection: collections.reactionRoles,
+                definitions: [
+                    { key: { messageId: 1 }, unique: true },
+                    { key: { guildId: 1 } }
+                ]
+            },
+            {
+                label: 'autoModeration',
+                collection: collections.autoModeration,
+                definitions: [{ key: { guildId: 1 }, unique: true }]
+            },
+            {
+                label: 'serverStats',
+                collection: collections.serverStats,
+                definitions: [{ key: { guildId: 1 }, unique: true }]
+            },
+            {
+                label: 'memberLogs',
+                collection: collections.memberLogs,
+                definitions: [
+                    { key: { guildId: 1 }, unique: true, partialFilterExpression: { isConfig: true } },
+                    {
+                        key: { createdAt: 1 },
+                        expireAfterSeconds: sixtyDays,
+                        name: 'ttl_memberLogs_createdAt',
+                        partialFilterExpression: {
+                            createdAt: { $exists: true },
+                            isConfig: false
+                        }
                     }
-                }
-            );
+                ]
+            },
+            {
+                label: 'tickets',
+                collection: collections.tickets,
+                definitions: [
+                    { key: { guildId: 1, channelId: 1 }, unique: true },
+                    { key: { guildId: 1, openerId: 1, status: 1 } },
+                    { key: { createdAt: -1 } }
+                ]
+            },
+            {
+                label: 'ticketTranscripts',
+                collection: collections.ticketTranscripts,
+                definitions: [{ key: { ticketId: 1 }, unique: true }]
+            },
+            {
+                label: 'knowledgeBase',
+                collection: collections.knowledgeBase,
+                definitions: [
+                    { key: { guildId: 1, createdAt: -1 } },
+                    { key: { guildId: 1, tags: 1 } }
+                ]
+            },
+            {
+                label: 'counters',
+                collection: collections.counters,
+                definitions: [{ key: { key: 1 }, unique: true }]
+            },
+            {
+                label: 'newsCache',
+                collection: collections.newsCache,
+                definitions: [
+                    { key: { topic: 1 }, unique: true },
+                    { key: { createdAt: 1 }, expireAfterSeconds: 3 * 60 * 60, name: 'ttl_newsCache_createdAt' }
+                ]
+            },
+            {
+                label: 'migrations',
+                collection: collections.migrations,
+                definitions: [
+                    { key: { id: 1 }, unique: true },
+                    { key: { appliedAt: -1 } }
+                ]
+            },
+            {
+                label: 'statusMessages',
+                collection: collections.statusMessages,
+                definitions: [
+                    { key: { enabled: 1 }, name: 'statusMessages_enabled_idx' },
+                    { key: { priority: 1, createdAt: 1 }, name: 'statusMessages_priority_createdAt' }
+                ]
+            }
+        ];
 
-            await tickets.createIndex({ guildId: 1, channelId: 1 }, { unique: true });
-            await tickets.createIndex({ guildId: 1, openerId: 1, status: 1 });
-            await tickets.createIndex({ createdAt: -1 });
+        const failures = [];
 
-            await ticketTranscripts.createIndex({ ticketId: 1 }, { unique: true });
+        for (const plan of indexPlans) {
+            if (!plan?.collection || !Array.isArray(plan.definitions) || !plan.definitions.length) {
+                continue;
+            }
 
-            await knowledgeBase.createIndex({ guildId: 1, createdAt: -1 });
-            await knowledgeBase.createIndex({ guildId: 1, tags: 1 });
+            try {
+                await plan.collection.createIndexes(plan.definitions);
+            } catch (error) {
+                failures.push(plan.label);
+                console.warn(`Failed to create indexes for ${plan.label}:`, error);
+            }
+        }
 
-            await counters.createIndex({ key: 1 }, { unique: true });
-
-            await newsCache.createIndex({ topic: 1 }, { unique: true });
-            await newsCache.createIndex(
-                { createdAt: 1 },
-                { expireAfterSeconds: 3 * 60 * 60, name: 'ttl_newsCache_createdAt' }
-            );
-
-            await migrations.createIndex({ id: 1 }, { unique: true });
-            await migrations.createIndex({ appliedAt: -1 });
-
-
+        if (failures.length) {
+            console.warn(`Index creation completed with issues for: ${failures.join(', ')}`);
+        } else {
             console.log('Database indexes created successfully');
-        } catch (error) {
-            console.error('Failed to create indexes:', error);
-            throw error;
         }
     }
 
@@ -198,6 +268,26 @@ class DatabaseManager {
             .sort({ createdAt: 1, timestamp: 1 })
             .limit(limit)
             .toArray();
+    }
+
+    async getPresenceMessages() {
+        if (!this.isConnected) {
+            return [];
+        }
+
+        const collection = this.db.collection(config.database.collections.statusMessages);
+        const documents = await collection
+            .find({ enabled: { $ne: false } })
+            .sort({ priority: 1, createdAt: 1 })
+            .project({ message: 1, type: 1, _id: 0 })
+            .toArray();
+
+        return documents
+            .map((doc) => ({
+                message: typeof doc.message === 'string' ? doc.message.trim() : '',
+                type: doc.type
+            }))
+            .filter((entry) => Boolean(entry.message));
     }
 
     async saveConversation(userId, userName, userInput, jarvisResponse, guildId = null) {
