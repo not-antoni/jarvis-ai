@@ -1,6 +1,7 @@
 const { z } = require('zod');
 
 const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_URI_MAIN', 'MONGO_URI_VAULT', 'MASTER_KEY_BASE64'];
+const DEPLOYMENT_DOC_HINT = 'Refer to DEPLOYMENT.md (Environment Variables) for setup instructions.';
 
 const envSchema = z.object({
     DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
@@ -24,6 +25,7 @@ const envSchema = z.object({
     YOUTUBE_API_KEY: z.string().optional(),
     BRAVE_API_KEY: z.string().optional(),
     CRYPTO_API_KEY: z.string().optional(),
+    HEALTH_TOKEN: z.string().optional(),
 }).passthrough();
 
 function coerceAndDeduplicateChannelIds(ids) {
@@ -106,14 +108,14 @@ function validateConfig(rawConfig) {
         const formatted = envResult.error.errors
             .map((issue) => issue.message)
             .join(', ');
-        throw new Error(`Environment validation failed: ${formatted}`);
+        throw new Error(`Environment validation failed: ${formatted}. ${DEPLOYMENT_DOC_HINT}`);
     }
 
     const env = envResult.data;
 
     for (const key of requiredEnvVars) {
         if (!env[key]) {
-            throw new Error(`Missing required environment variable: ${key}`);
+            throw new Error(`Missing required environment variable: ${key}. ${DEPLOYMENT_DOC_HINT}`);
         }
     }
 
