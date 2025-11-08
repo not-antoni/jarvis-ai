@@ -421,8 +421,42 @@ class AIProviderManager {
     const minPriority = Math.min(...availableProviders.map((p) => resolveCostPriority(p)));
     const preferred = availableProviders.filter((p) => resolveCostPriority(p) === minPriority);
     const pool = preferred.length ? preferred : availableProviders;
-    const randomIndex = Math.floor(Math.random() * pool.length);
-    return pool[randomIndex];
+    return this._pickWeightedProvider(pool) || pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  _computeProviderWeight(provider) {
+    const metrics = this.metrics.get(provider.name) || { successes: 0, failures: 0, avgLatencyMs: null };
+    const total = (metrics.successes || 0) + (metrics.failures || 0);
+    const successRate = total > 0 ? metrics.successes / total : 0.85;
+    const latency = Math.max(metrics.avgLatencyMs || 1500, 150);
+    const errorPenalty = this.providerErrors.has(provider.name) ? 0.4 : 1;
+    return Math.max((successRate + 0.2) * (1 / latency) * errorPenalty, 0.0001);
+  }
+
+  _pickWeightedProvider(candidates) {
+    if (!candidates.length) {
+      return null;
+    }
+
+    const weighted = candidates.map((provider) => ({
+      provider,
+      weight: this._computeProviderWeight(provider),
+    }));
+
+    const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+    if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+      return candidates[Math.floor(Math.random() * candidates.length)];
+    }
+
+    let threshold = Math.random() * totalWeight;
+    for (const entry of weighted) {
+      threshold -= entry.weight;
+      if (threshold <= 0) {
+        return entry.provider;
+      }
+    }
+
+    return weighted[weighted.length - 1].provider;
   }
 
   _recordMetric(name, ok, latencyMs) {

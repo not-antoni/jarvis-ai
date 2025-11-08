@@ -79,6 +79,7 @@ const rawConfig = {
             counters: 'counters',
             newsCache: 'newsCache',
             migrations: 'migrations',
+            statusMessages: 'statusMessages'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',
@@ -107,7 +108,8 @@ const rawConfig = {
     // Server Configuration
     server: {
         port: process.env.PORT || 3000,
-        uptimeInterval: 300000 // 5 minutes
+        uptimeInterval: 300000, // 5 minutes
+        healthToken: process.env.HEALTH_TOKEN || null
     },
 
     // Wake Words

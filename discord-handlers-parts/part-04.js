@@ -1108,6 +1108,58 @@
         }
     }
 
+    async handleFeaturesCommand(interaction) {
+        const defaults = config.features || {};
+        const featureKeys = Object.keys(defaults).sort((a, b) => a.localeCompare(b));
+
+        if (!featureKeys.length) {
+            await interaction.editReply('No feature toggles are configured for this deployment, sir.');
+            return;
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('Jarvis Feature Flags')
+            .setColor(0x00bfff);
+
+        const globalLines = featureKeys.map((key) => `${defaults[key] ? '✅' : '⛔'} ${key}`);
+        const globalEnabled = globalLines.filter((line) => line.startsWith('✅')).length;
+        embed.setDescription(`${globalEnabled}/${featureKeys.length} modules enabled globally.`);
+
+        const addChunkedField = (label, lines) => {
+            const chunkSize = 12;
+            for (let i = 0; i < lines.length; i += chunkSize) {
+                const chunk = lines.slice(i, i + chunkSize);
+                const name = lines.length > chunkSize ? `${label} (${Math.floor(i / chunkSize) + 1})` : label;
+                embed.addFields({ name, value: chunk.join('\n') });
+            }
+        };
+
+        addChunkedField('Global Defaults', globalLines);
+
+        if (interaction.guild) {
+            const guildConfig = await this.getGuildConfig(interaction.guild);
+            const guildFeatures = guildConfig?.features || {};
+            const guildLines = featureKeys.map((key) => {
+                const hasOverride = Object.prototype.hasOwnProperty.call(guildFeatures, key);
+                const overrideValue = hasOverride ? Boolean(guildFeatures[key]) : undefined;
+                const effective = hasOverride ? overrideValue : Boolean(defaults[key]);
+                const origin = hasOverride
+                    ? (overrideValue ? 'override on' : 'override off')
+                    : `inherit (global ${defaults[key] ? 'on' : 'off'})`;
+                return `${effective ? '✅' : '⛔'} ${key} — ${origin}`;
+            });
+
+            const enabledCount = guildLines.filter((line) => line.startsWith('✅')).length;
+            embed.addFields({
+                name: 'Server Summary',
+                value: `${enabledCount}/${featureKeys.length} modules enabled for ${interaction.guild.name}.`
+            });
+            addChunkedField('This Server', guildLines);
+        }
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+
     async handleOptCommand(interaction) {
         const selected = (interaction.options.getString('mode', true) || '').toLowerCase();
         const userId = interaction.user.id;
@@ -1845,6 +1897,11 @@
                 case 'crypto': {
                     telemetryMetadata.category = 'crypto';
                     await this.handleCryptoCommand(interaction);
+                    return;
+                }
+                case 'features': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handleFeaturesCommand(interaction);
                     return;
                 }
                 case 'opt': {
