@@ -3,6 +3,9 @@
  * Refactored for better organization and maintainability
  */
 require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
 const {
     Client,
     GatewayIntentBits,
@@ -28,6 +31,40 @@ const { commandList: musicCommandList } = require("./src/commands/music");
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 
+const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
+if (configuredThreadpoolSize) {
+    console.log(`UV threadpool size configured to ${configuredThreadpoolSize}`);
+} else {
+    console.warn('UV_THREADPOOL_SIZE not set; Node default threadpool (4) is active.');
+}
+
+const DATA_DIR = path.join(__dirname, 'data');
+const COMMAND_SYNC_STATE_PATH = path.join(DATA_DIR, 'command-sync-state.json');
+const HEALTH_TOKEN = config.server.healthToken || null;
+
+function safeReadJson(filePath, fallback) {
+    try {
+        if (!fs.existsSync(filePath)) {
+            return fallback;
+        }
+        const raw = fs.readFileSync(filePath, 'utf8');
+        return raw ? JSON.parse(raw) : fallback;
+    } catch (error) {
+        console.warn(`Failed to read ${path.basename(filePath)}:`, error);
+        return fallback;
+    }
+}
+
+function writeJsonAtomic(filePath, value) {
+    const dir = path.dirname(filePath);
+    fs.mkdirSync(dir, { recursive: true });
+    const tempPath = `${filePath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(value, null, 2));
+    fs.renameSync(tempPath, filePath);
+}
+
+let commandSyncState = safeReadJson(COMMAND_SYNC_STATE_PATH, null);
+
 initializeDatabaseClients()
     .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
     .catch((error) => console.error('Failed to initialize MongoDB clients at startup:', error));
@@ -44,7 +81,7 @@ const client = new Client({
     ]
 });
 
-const rotatingStatusMessages = [
+const DEFAULT_STATUS_MESSAGES = [
     { message: "Jarvis diagnostics: 300% sass reserves." },
     { message: "Arc reactor hum synced with AC/DC.", type: ActivityType.Listening },
     { message: "Tony asked me to mute Dum-E again." },
@@ -73,10 +110,71 @@ const rotatingStatusMessages = [
     { message: "Jarvis online: Stark Tower climate perfectly petty." }
 ];
 
+let rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
 const PRESENCE_ROTATION_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 let rotatingStatusIndex = rotatingStatusMessages.length
     ? Math.floor(Math.random() * rotatingStatusMessages.length)
     : 0;
+
+const activityTypeEntries = Object.entries(ActivityType);
+function resolveActivityType(value) {
+    if (typeof value === "number" && activityTypeEntries.some(([, enumValue]) => enumValue === value)) {
+        return value;
+    }
+    if (typeof value === "string" && value.trim()) {
+        const normalized = value.trim().replace(/\s+/g, "").toUpperCase();
+        const entry = activityTypeEntries.find(([name]) => name.toUpperCase() === normalized);
+        return entry ? entry[1] : undefined;
+    }
+    return undefined;
+}
+
+async function refreshPresenceMessages(forceFallback = false) {
+    if (!database.isConnected) {
+        if (forceFallback) {
+            rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
+        }
+        return false;
+    }
+
+    try {
+        const records = await database.getPresenceMessages();
+        const normalized = records.map((record) => {
+            const activityType = resolveActivityType(record.type);
+            return typeof record.message === "string"
+                ? { message: record.message.trim(), type: activityType }
+                : null;
+        }).filter((entry) => entry && entry.message.length);
+
+        if (normalized.length) {
+            rotatingStatusMessages = normalized;
+            rotatingStatusIndex = Math.floor(Math.random() * rotatingStatusMessages.length);
+            console.log(`Loaded ${normalized.length} custom presence message(s) from MongoDB.`);
+            return true;
+        }
+    } catch (error) {
+        console.error("Failed to load custom presence messages:", error);
+    }
+
+    if (forceFallback) {
+        rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
+        rotatingStatusIndex = rotatingStatusMessages.length
+            ? Math.floor(Math.random() * rotatingStatusMessages.length)
+            : 0;
+    }
+    return false;
+}
+
+function extractBearerToken(req) {
+    const authHeader = req.headers?.authorization;
+    if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+        return authHeader.slice(7).trim();
+    }
+    if (typeof req.query?.token === "string") {
+        return req.query.token;
+    }
+    return null;
+}
 
 const getNextRotatingStatus = () => {
     if (!rotatingStatusMessages.length) {
@@ -159,6 +257,10 @@ const allCommands = [
         .setName("providers")
         .setDescription("List available AI providers")
         .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName("features")
+        .setDescription("Show which Jarvis modules are enabled globally and within this server")
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('yt')
         .setDescription('Search YouTube for a video')
@@ -1023,6 +1125,24 @@ function buildCommandData() {
     return commands.map((command) => command.toJSON());
 }
 
+function ensureCommandSyncState() {
+    if (!commandSyncState || typeof commandSyncState !== 'object') {
+        commandSyncState = {};
+    }
+    if (!commandSyncState.guildClears || typeof commandSyncState.guildClears !== 'object') {
+        commandSyncState.guildClears = {};
+    }
+    return commandSyncState;
+}
+
+function persistCommandSyncState() {
+    try {
+        writeJsonAtomic(COMMAND_SYNC_STATE_PATH, commandSyncState);
+    } catch (error) {
+        console.warn('Failed to persist command sync state:', error);
+    }
+}
+
 const serverStatsRefreshJob = cron.schedule('*/10 * * * *', async () => {
     try {
         await discordHandlers.refreshAllServerStats(client);
@@ -1033,26 +1153,55 @@ const serverStatsRefreshJob = cron.schedule('*/10 * * * *', async () => {
 
 async function registerSlashCommands() {
     const commandData = buildCommandData();
+    const commandHash = crypto.createHash('sha256').update(JSON.stringify(commandData)).digest('hex');
+    const state = ensureCommandSyncState();
+    let registeredNames = commandData.map((cmd) => cmd.name);
 
-    if (!client.application?.id) {
-        await client.application?.fetch();
+    if (state.globalHash !== commandHash) {
+        if (!client.application?.id) {
+            await client.application?.fetch();
+        }
+
+        const registered = await client.application.commands.set(commandData);
+        registeredNames = Array.from(registered.values(), (cmd) => cmd.name);
+
+        console.log(
+            `Successfully registered ${registered.size ?? commandData.length} global slash commands: ${registeredNames.join(', ')}`
+        );
+
+        state.globalHash = commandHash;
+        state.lastRegisteredAt = new Date().toISOString();
+        state.guildClears = {};
+        persistCommandSyncState();
+    } else {
+        console.log('Slash command definitions unchanged; skipping global command re-sync.');
     }
 
-    const registered = await client.application.commands.set(commandData);
-    const registeredNames = Array.from(registered.values(), (cmd) => cmd.name);
-
-    console.log(
-        `Successfully registered ${registered.size ?? commandData.length} global slash commands: ${registeredNames.join(', ')}`
-    );
-
     const guilds = Array.from(client.guilds.cache.values());
+    if (!guilds.length) {
+        return registeredNames;
+    }
+
+    let clearedCount = 0;
     for (const guild of guilds) {
         try {
+            if (state.guildClears[guild.id] === commandHash) {
+                continue;
+            }
             await guild.commands.set([]);
             console.log(`Cleared guild-specific commands for ${guild.name ?? 'Unknown'} (${guild.id})`);
+            state.guildClears[guild.id] = commandHash;
+            clearedCount += 1;
         } catch (error) {
             console.warn(`Failed to clear guild-specific commands for ${guild.id}:`, error);
         }
+    }
+
+    if (clearedCount > 0) {
+        state.lastGuildClearAt = new Date().toISOString();
+        persistCommandSyncState();
+    } else {
+        console.log('Guild-specific commands already cleared for current command version.');
     }
 
     return registeredNames;
@@ -1575,6 +1724,16 @@ app.get("/dashboard", async (req, res) => {
 
 // Health check endpoint (for monitoring)
 app.get("/health", async (req, res) => {
+    if (HEALTH_TOKEN) {
+        const providedToken = extractBearerToken(req);
+        if (providedToken !== HEALTH_TOKEN) {
+            return res.status(401).json({
+                status: 'unauthorized',
+                error: 'Valid bearer token required'
+            });
+        }
+    }
+
     const deep = ['1', 'true', 'yes', 'deep'].includes(String(req.query.deep || '').toLowerCase());
 
     try {
@@ -1614,17 +1773,24 @@ app.get("/health", async (req, res) => {
 // ------------------------ Event Handlers ------------------------
 client.once(Events.ClientReady, async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
+
+    let databaseConnected = database.isConnected;
+
+    if (!databaseConnected) {
+        try {
+            await database.connect();
+            databaseConnected = true;
+        } catch (error) {
+            console.error("Failed to connect to MongoDB on startup:", error);
+        }
+    }
+
+    if (databaseConnected) {
+        await refreshPresenceMessages();
+    }
+
     updateBotPresence();
     setInterval(updateBotPresence, PRESENCE_ROTATION_INTERVAL_MS);
-
-    let databaseConnected = false;
-
-    try {
-        await database.connect();
-        databaseConnected = true;
-    } catch (error) {
-        console.error("Failed to connect to MongoDB on startup:", error);
-    }
 
     try {
         await registerSlashCommands();
@@ -1749,6 +1915,10 @@ async function startBot() {
         app.listen(config.server.port, '0.0.0.0', () => {
             console.log(`Uptime server listening on port ${config.server.port}`);
         });
+
+        // Warm up MongoDB before we touch Discord
+        await database.connect();
+        await refreshPresenceMessages(true);
 
         // Start Discord bot
         await client.login(config.discord.token);

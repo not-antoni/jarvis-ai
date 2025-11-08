@@ -60,5 +60,7 @@ services:
         sync: false
       - key: ADMIN_USER_ID
         sync: false
+      - key: HEALTH_TOKEN
+        sync: false
       - key: PORT
         generateValue: true
