@@ -1216,7 +1216,6 @@ app.use("/webhook", webhookRouter);
 
 app.use(express.json({ limit: '2mb' }));
 
-// Webhook forwarder
 // Main endpoint - ASCII Animation Page
 app.get("/", async (req, res) => {
     try {

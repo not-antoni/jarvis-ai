@@ -57,21 +57,13 @@ router.post('/', rawBodyParser, async (req, res) => {
         return res.json({ type: 1 });
     }
 
-    if (!FORWARD_WEBHOOK) {
-        return res.sendStatus(202);
+    console.log('🔔 Received Discord webhook event:', JSON.stringify(payload));
+
+    if (FORWARD_WEBHOOK) {
+        await forwardEventPayload(payload);
     }
 
-    try {
-        await fetch(FORWARD_WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload ?? {})
-        });
-        console.log('📨 Forwarded webhook payload to Discord server webhook.');
-    } catch (error) {
-        console.error('⚠️ Failed to forward webhook payload:', error);
-    }
-
+    // Per Discord event webhook docs, a 200 OK is sufficient for non-challenge events
     res.sendStatus(200);
 });
 
@@ -90,6 +82,38 @@ function verifyDiscordRequest(signature, timestamp, rawBody) {
     } catch (error) {
         console.warn('Discord signature verification failed:', error);
         return false;
+    }
+}
+
+async function forwardEventPayload(payload) {
+    const pretty = JSON.stringify(payload ?? {}, null, 2);
+    const MAX_CONTENT = 1900; // keep within Discord 2000 char limit including code fences
+    let text = pretty;
+
+    if (pretty.length > MAX_CONTENT) {
+        text = `${pretty.slice(0, MAX_CONTENT - 20)}\n... (truncated ${pretty.length - (MAX_CONTENT - 20)} chars)`;
+    }
+
+    const body = {
+        content: `Received Discord event:\n\n\`\`\`json\n${text}\n\`\`\``,
+        allowed_mentions: { parse: [] }
+    };
+
+    try {
+        const response = await fetch(FORWARD_WEBHOOK, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '(no body)');
+            console.error('⚠️ Discord server webhook rejected payload:', response.status, errorText);
+        } else {
+            console.log('📨 Forwarded webhook payload to Discord server webhook.');
+        }
+    } catch (error) {
+        console.error('⚠️ Failed to forward webhook payload:', error);
     }
 }
 
