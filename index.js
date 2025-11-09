@@ -30,6 +30,7 @@ const { gatherHealthSnapshot } = require('./diagnostics');
 const { commandList: musicCommandList } = require("./src/commands/music");
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
+const webhookRouter = require('./routes/webhook');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -1209,6 +1210,10 @@ async function registerSlashCommands() {
 
 // ------------------------ Uptime Server ------------------------
 const app = express();
+app.use(express.json({ limit: '2mb' }));
+
+// Webhook forwarder
+app.use("/webhook", webhookRouter);
 
 // Main endpoint - ASCII Animation Page
 app.get("/", async (req, res) => {
