@@ -72,7 +72,8 @@ router.post('/', rawBodyParser, async (req, res) => {
         console.error('⚠️ Failed to forward webhook payload:', error);
     }
 
-    res.sendStatus(200);
+    // Respond with a deferred message so Discord treats this as successfully handled
+    res.json({ type: 5 });
 });
 
 function verifyDiscordRequest(signature, timestamp, rawBody) {
