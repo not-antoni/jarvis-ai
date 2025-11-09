@@ -57,12 +57,14 @@ router.post('/', rawBodyParser, async (req, res) => {
         return res.json({ type: 1 });
     }
 
+    console.log('🔔 Received Discord webhook event:', JSON.stringify(payload));
+
     if (FORWARD_WEBHOOK) {
         await forwardEventPayload(payload);
     }
 
-    // Respond with a deferred message so Discord treats this as successfully handled
-    res.json({ type: 5 });
+    // Per Discord event webhook docs, a 200 OK is sufficient for non-challenge events
+    res.sendStatus(200);
 });
 
 function verifyDiscordRequest(signature, timestamp, rawBody) {
@@ -112,24 +114,6 @@ async function forwardEventPayload(payload) {
         }
     } catch (error) {
         console.error('⚠️ Failed to forward webhook payload:', error);
-    }
-}
-
-function verifyDiscordRequest(signature, timestamp, rawBody) {
-    const message = Buffer.concat([
-        Buffer.from(timestamp, 'utf8'),
-        Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody || '')
-    ]);
-
-    try {
-        return nacl.sign.detached.verify(
-            message,
-            Buffer.from(signature, 'hex'),
-            Buffer.from(DISCORD_PUBLIC_KEY, 'hex')
-        );
-    } catch (error) {
-        console.warn('Discord signature verification failed:', error);
-        return false;
     }
 }
 
