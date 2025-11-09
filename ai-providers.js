@@ -161,10 +161,14 @@ class AIProviderManager {
       process.env.OPENROUTER_API_KEY16,
       process.env.OPENROUTER_API_KEY17,
       process.env.OPENROUTER_API_KEY18,
-	  process.env.OPENROUTER_API_KEY19,
-	  process.env.OPENROUTER_API_KEY20,
-	  process.env.OPENROUTER_API_KEY21,
-	  process.env.OPENROUTER_API_KEY22,
+      process.env.OPENROUTER_API_KEY19,
+      process.env.OPENROUTER_API_KEY20,
+      process.env.OPENROUTER_API_KEY21,
+      process.env.OPENROUTER_API_KEY22,
+      process.env.OPENROUTER_API_KEY23,
+      process.env.OPENROUTER_API_KEY24,
+      process.env.OPENROUTER_API_KEY25,
+      process.env.OPENROUTER_API_KEY26,
     ].filter(Boolean);
 
     openRouterKeys.forEach((key, index) => {
