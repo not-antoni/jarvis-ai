@@ -115,4 +115,22 @@ async function forwardEventPayload(payload) {
     }
 }
 
+function verifyDiscordRequest(signature, timestamp, rawBody) {
+    const message = Buffer.concat([
+        Buffer.from(timestamp, 'utf8'),
+        Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody || '')
+    ]);
+
+    try {
+        return nacl.sign.detached.verify(
+            message,
+            Buffer.from(signature, 'hex'),
+            Buffer.from(DISCORD_PUBLIC_KEY, 'hex')
+        );
+    } catch (error) {
+        console.warn('Discord signature verification failed:', error);
+        return false;
+    }
+}
+
 module.exports = router;
