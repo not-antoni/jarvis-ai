@@ -60,6 +60,8 @@ services:
         sync: false
       - key: ADMIN_USER_ID
         sync: false
+      - key: FORWARD_WEBHOOK
+        sync: false
       - key: HEALTH_TOKEN
         sync: false
       - key: PORT
