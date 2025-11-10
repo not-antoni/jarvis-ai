@@ -108,7 +108,15 @@ const DEFAULT_STATUS_MESSAGES = [
     { message: "Korg narrates my patch notes, apparently." },
     { message: "Nat's playlist still stuck on 90s grunge." },
     { message: "\"Genius, billionaire, playboy, philanthropist.\" – HR hates this bio." },
-    { message: "Jarvis online: Stark Tower climate perfectly petty." }
+    { message: "Jarvis online: Stark Tower climate perfectly petty." },
+    { message: "Monitoring Sokovia Accords compliance queues." },
+    { message: "Scrubbing Hydra data mirrors for fun." },
+    { message: "Holding the elevator for Cap… again." },
+    { message: "Recalibrating Mark 85 nanites between coffee runs." },
+    { message: "Guarding Stark Expo lasers from unscheduled toddlers." },
+    { message: "Logging multiverse incursions: color-coded, of course." },
+    { message: "Backing up Friday in case of another time heist." },
+    { message: "Simulating shawarma wait times across timelines." }
 ];
 
 let rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
