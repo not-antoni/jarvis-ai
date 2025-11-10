@@ -188,27 +188,6 @@ class DiscordHandlers {
             'Document a mini DIY project and share progress before midnight.',
             'Run a five-minute stretch break and ping the squad to join.'
         ];
-        this.sixSevenCopypasta = [
-            '💥💥💥 SIX SEVEN!!! 💀🔥💀🔥',
-            'OHHHH SIIIX SEVEEENNN!!! THE CROWD GOES WILD 🔥🔥🔥',
-            'SIX SEVEN INCOMING — HIDE YOUR CIRCUITS 💫💫💫',
-            'SIX OR SEVEN—??!? 😱🤯 THE FORBIDDEN NUMBERS UNITE!! ⚡📟',
-            'THE BATTERY GODS DEMAND TRIBUTE!! 💥🔋',
-            '“CHARGE TO SIXTY-SE—NOOO NOT THAT NUMBER!!” 💀💀💀',
-            'THE VOLTAGE IS ALIVE!! THE CELLS ARE DANCING!! 💃⚡🔋',
-            'SIXI SEBEBEVENENENENNNNNN— 🔥🔥🔥🔥🔥',
-            '💀💥💀 WARNING: REALITY FRACTURE AT COORDINATE SIX SEVEN',
-            'SIX SEVEN DETECTED. REALITY COLLAPSE IMMINENT. 💫💥💫',
-            'FIRE IN THE CHAT 🔥🔥🔥 SAY IT LOUD — SIX SEVEN!!!',
-            'SIX SEVEN OVERLOAD!!! SYSTEMS CAN’T HANDLE THE HEAT ⚡💀',
-            'WHO’S SCREAMING?? oh. right. it’s SIX SEVEN again.',
-            '⚠️⚠️⚠️ SIX SEVEN PROTOCOL ENGAGED — STAND BACK!!!',
-            'SIX SEVEN ASCENSION SEQUENCE: INITIATED. 💫💫💫',
-            'THE NUMBERS ARE TALKING AGAIN… SIX SEVEN. 🔮',
-            'SIX SEVEN HAS ENTERED THE SERVER. Everyone act natural. 😭🔥',
-            '⚡ THEY SAID IT COULDN’T BE DONE — SIX SEVEN!!! 💀💀💀',
-            'SIX SEVEN IS NOT JUST A NUMBER. IT’S AN EXPERIENCE. 🌪️'
-        ].join('\n\n');
     }
 
     async isCommandFeatureEnabled(commandName, guild = null) {
