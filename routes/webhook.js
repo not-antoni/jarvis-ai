@@ -63,8 +63,8 @@ router.post('/', rawBodyParser, async (req, res) => {
         await forwardEventPayload(payload);
     }
 
-    // Per Discord event webhook docs, a 200 OK is sufficient for non-challenge events
-    res.sendStatus(200);
+    // Respond with a deferred interaction style payload so Discord treats the event as acknowledged
+    res.json({ type: 5 });
 });
 
 function verifyDiscordRequest(signature, timestamp, rawBody) {
