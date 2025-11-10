@@ -91,9 +91,7 @@ class DiscordHandlers {
             users: 'User Count',
             bots: 'Bot Count',
             channels: 'Channel Count',
-            roles: 'Role Count',
-            onlineUsers: 'Online Users',
-            offlineUsers: 'Offline Users'
+            roles: 'Role Count'
         };
         this.memberLogCache = new Map();
         this.maxMemberLogVariations = 20;
@@ -1602,15 +1600,6 @@ class DiscordHandlers {
             existingConfig?.roleCountChannelId,
             `${this.serverStatsChannelLabels.roles}: 0`
         );
-        const onlineUsersChannel = await ensureVoiceChannel(
-            existingConfig?.onlineUsersChannelId,
-            `${this.serverStatsChannelLabels.onlineUsers}: 0`
-        );
-        const offlineUsersChannel = await ensureVoiceChannel(
-            existingConfig?.offlineUsersChannelId,
-            `${this.serverStatsChannelLabels.offlineUsers}: 0`
-        );
-
         return {
             category,
             totalChannel,
@@ -1618,8 +1607,6 @@ class DiscordHandlers {
             botChannel,
             channelCountChannel,
             roleCountChannel,
-            onlineUsersChannel,
-            offlineUsersChannel,
             botMember: me,
             everyoneId
         };
@@ -1826,8 +1813,6 @@ class DiscordHandlers {
             botChannel,
             channelCountChannel,
             roleCountChannel,
-            onlineUsersChannel,
-            offlineUsersChannel,
             botMember,
             everyoneId
         } = ensured;
@@ -1837,9 +1822,7 @@ class DiscordHandlers {
             users: this.formatServerStatsName(this.serverStatsChannelLabels.users, stats.userCount),
             bots: this.formatServerStatsName(this.serverStatsChannelLabels.bots, stats.botCount),
             channels: this.formatServerStatsName(this.serverStatsChannelLabels.channels, stats.channelCount),
-            roles: this.formatServerStatsName(this.serverStatsChannelLabels.roles, stats.roleCount),
-            onlineUsers: this.formatServerStatsName(this.serverStatsChannelLabels.onlineUsers, stats.onlineUserCount),
-            offlineUsers: this.formatServerStatsName(this.serverStatsChannelLabels.offlineUsers, stats.offlineUserCount)
+            roles: this.formatServerStatsName(this.serverStatsChannelLabels.roles, stats.roleCount)
         };
 
         try {
@@ -1863,13 +1846,6 @@ class DiscordHandlers {
                 await roleCountChannel.setName(desiredNames.roles);
             }
 
-            if (onlineUsersChannel && onlineUsersChannel.name !== desiredNames.onlineUsers) {
-                await onlineUsersChannel.setName(desiredNames.onlineUsers);
-            }
-
-            if (offlineUsersChannel && offlineUsersChannel.name !== desiredNames.offlineUsers) {
-                await offlineUsersChannel.setName(desiredNames.offlineUsers);
-            }
         } catch (error) {
             if (error.code === 50013) {
                 throw this.createFriendlyError('I lack permission to rename the server stats channels, sir.');
@@ -1882,18 +1858,13 @@ class DiscordHandlers {
         await this.applyServerStatsPermissions(botChannel, botMember, everyoneId);
         await this.applyServerStatsPermissions(channelCountChannel, botMember, everyoneId);
         await this.applyServerStatsPermissions(roleCountChannel, botMember, everyoneId);
-        await this.applyServerStatsPermissions(onlineUsersChannel, botMember, everyoneId);
-        await this.applyServerStatsPermissions(offlineUsersChannel, botMember, everyoneId);
-
         const record = await database.saveServerStatsConfig(guild.id, {
             categoryId: category.id,
             totalChannelId: totalChannel.id,
             userChannelId: userChannel.id,
             botChannelId: botChannel.id,
             channelCountChannelId: channelCountChannel.id,
-            roleCountChannelId: roleCountChannel.id,
-            onlineUsersChannelId: onlineUsersChannel.id,
-            offlineUsersChannelId: offlineUsersChannel.id
+            roleCountChannelId: roleCountChannel.id
         });
 
         return { record, stats };
