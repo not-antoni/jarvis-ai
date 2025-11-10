@@ -188,6 +188,36 @@ class DiscordHandlers {
             'Document a mini DIY project and share progress before midnight.',
             'Run a five-minute stretch break and ping the squad to join.'
         ];
+        this.sixSevenLines = [
+            '💥💥💥 SIX SEVEN!!! 💀🔥💀🔥',
+            'OHHHH SIIIX SEVEEENNN!!! THE CROWD GOES WILD 🔥🔥🔥',
+            'SIX SEVEN INCOMING — HIDE YOUR CIRCUITS 💫💫💫',
+            'SIX OR SEVEN—??!? 😱🤯 THE FORBIDDEN NUMBERS UNITE!! ⚡📟',
+            'THE BATTERY GODS DEMAND TRIBUTE!! 💥🔋',
+            '“CHARGE TO SIXTY-SE—NOOO NOT THAT NUMBER!!” 💀💀💀',
+            'THE VOLTAGE IS ALIVE!! THE CELLS ARE DANCING!! 💃⚡🔋',
+            'SIXI SEBEBEVENENENENNNNNN— 🔥🔥🔥🔥🔥',
+            '💀💥💀 WARNING: REALITY FRACTURE AT COORDINATE SIX SEVEN',
+            'SIX SEVEN DETECTED. REALITY COLLAPSE IMMINENT. 💫💥💫',
+            'FIRE IN THE CHAT 🔥🔥🔥 SAY IT LOUD — SIX SEVEN!!!',
+            'SIX SEVEN OVERLOAD!!! SYSTEMS CAN’T HANDLE THE HEAT ⚡💀',
+            'WHO’S SCREAMING?? oh. right. it’s SIX SEVEN again.',
+            '⚠️⚠️⚠️ SIX SEVEN PROTOCOL ENGAGED — STAND BACK!!!',
+            'SIX SEVEN ASCENSION SEQUENCE: INITIATED. 💫💫💫',
+            'THE NUMBERS ARE TALKING AGAIN… SIX SEVEN. 🔮',
+            'SIX SEVEN HAS ENTERED THE SERVER. Everyone act natural. 😭🔥',
+            '⚡ THEY SAID IT COULDN’T BE DONE — SIX SEVEN!!! 💀💀💀',
+            'SIX SEVEN IS NOT JUST A NUMBER. IT’S AN EXPERIENCE. 🌪️'
+        ];
+        this.sixSevenGifUrls = [
+            'https://tenor.com/view/67-6-7-6-7-67-meme-67-kid-gif-326947695990154469',
+            'https://tenor.com/view/sixseven-six-seven-six-seve-67-gif-14143337669032958349',
+            'https://tenor.com/view/67-6-7-six-seven-meme-so-so-gif-1086854674659893998',
+            'https://tenor.com/view/67-67-kid-edit-analog-horror-phonk-gif-3349401281762803381',
+            'https://tenor.com/view/scp-067-67-6-7-six-seven-sixty-seven-gif-13940852437921483111',
+            'https://tenor.com/view/67-gif-18013427662333069251',
+            'https://tenor.com/view/67-67-kid-67-meme-67-edit-phonk-gif-7031349610003813777'
+        ];
     }
 
     async isCommandFeatureEnabled(commandName, guild = null) {
