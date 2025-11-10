@@ -1109,42 +1109,12 @@
     }
 
     async handleSixSevenCommand(interaction) {
-        const maxLines = Math.min(this.sixSevenLines.length, 5);
-        const includeLines = Math.random() > 0.15;
-        const lineCount = includeLines ? Math.max(1, Math.floor(Math.random() * maxLines) + 1) : 0;
-        const availableLines = [...this.sixSevenLines];
-        const selectedSegments = [];
-
-        for (let i = 0; i < lineCount && availableLines.length; i += 1) {
-            const index = Math.floor(Math.random() * availableLines.length);
-            selectedSegments.push(availableLines.splice(index, 1)[0]);
-        }
-
-        const maxGifCount = 3;
-        const gifCount = Math.random() > 0.35 ? Math.floor(Math.random() * (maxGifCount + 1)) : 0;
-        const availableGifs = [...this.sixSevenGifUrls];
-        for (let i = 0; i < gifCount && availableGifs.length; i += 1) {
-            const index = Math.floor(Math.random() * availableGifs.length);
-            selectedSegments.push(availableGifs.splice(index, 1)[0]);
-        }
-
-        if (!selectedSegments.length) {
-            selectedSegments.push(this.pickRandom(this.sixSevenLines) || 'SIX SEVEN!!!');
-        }
-
-        selectedSegments.sort(() => Math.random() - 0.5);
-
-        let content = selectedSegments.join('\n\n');
-        if (content.length > 1900) {
-            content = `${content.slice(0, 1890)}…`;
-        }
-
-        await interaction.editReply({ content });
+        await interaction.editReply({
+            content: 'Why is 6 afraid of 7? Because 7 ate 9.'
+        });
     }
 
     async handleJokeCommand(interaction) {
-        await interaction.deferReply({ ephemeral: false });
-
         const sources = [
             { name: 'jokeapi', fetcher: this.fetchJokeApi.bind(this) },
             { name: 'official', fetcher: this.fetchOfficialJoke.bind(this) },
