@@ -61,6 +61,22 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
+        name: '67',
+        description: '6 7',
+        category: 'Fun',
+        usage: '/67',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'joke',
+        description: 'Pull a random safe joke from public APIs.',
+        category: 'Fun',
+        usage: '/joke',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
         name: 'yt',
         description: 'Search YouTube for a relevant video.',
         category: 'Utilities',
