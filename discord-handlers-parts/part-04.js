@@ -1142,6 +1142,85 @@
         await interaction.editReply({ content });
     }
 
+    async handleJokeCommand(interaction) {
+        await interaction.deferReply({ ephemeral: false });
+
+        const sources = [
+            { name: 'jokeapi', fetcher: this.fetchJokeApi.bind(this) },
+            { name: 'official', fetcher: this.fetchOfficialJoke.bind(this) },
+        ];
+
+        // Shuffle sources so we don't always hit the same one first
+        for (let i = sources.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [sources[i], sources[j]] = [sources[j], sources[i]];
+        }
+
+        for (const source of sources) {
+            try {
+                const joke = await source.fetcher();
+                if (joke) {
+                    await interaction.editReply({ content: joke });
+                    return;
+                }
+            } catch (error) {
+                console.warn(`Joke source ${source.name} failed:`, error);
+            }
+        }
+
+        await interaction.editReply({ content: 'My humor subroutines are buffering, sir. Please try again.' });
+    }
+
+    async fetchJokeApi() {
+        const response = await fetch('https://v2.jokeapi.dev/joke/Any?safe-mode', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            timeout: 3_000
+        });
+
+        if (!response.ok) {
+            throw new Error(`JokeAPI responded with ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.error) {
+            throw new Error(`JokeAPI reported error: ${data?.message || 'Unknown'}`);
+        }
+
+        if (data.type === 'single' && data.joke) {
+            return data.joke;
+        }
+
+        if (data.type === 'twopart' && data.setup && data.delivery) {
+            return `${data.setup}\n\n${data.delivery}`;
+        }
+
+        return null;
+    }
+
+    async fetchOfficialJoke() {
+        const response = await fetch('https://official-joke-api.appspot.com/random_joke', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            timeout: 3_000
+        });
+
+        if (!response.ok) {
+            throw new Error(`Official Joke API responded with ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!data || (!data.joke && !(data.setup && data.punchline))) {
+            return null;
+        }
+
+        if (data.joke) {
+            return data.joke;
+        }
+
+        return `${data.setup}\n\n${data.punchline}`;
+    }
+
     async handleFeaturesCommand(interaction) {
         const defaults = config.features || {};
         const featureKeys = Object.keys(defaults).sort((a, b) => a.localeCompare(b));
@@ -1941,6 +2020,11 @@
                 case '67': {
                     telemetryMetadata.category = 'fun';
                     await this.handleSixSevenCommand(interaction);
+                    return;
+                }
+                case 'joke': {
+                    telemetryMetadata.category = 'fun';
+                    await this.handleJokeCommand(interaction);
                     return;
                 }
                 case 'opt': {
