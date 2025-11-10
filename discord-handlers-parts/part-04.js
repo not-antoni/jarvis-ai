@@ -1148,6 +1148,7 @@
         const sources = [
             { name: 'jokeapi', fetcher: this.fetchJokeApi.bind(this) },
             { name: 'official', fetcher: this.fetchOfficialJoke.bind(this) },
+            { name: 'ninjas', fetcher: this.fetchNinjaJoke.bind(this) },
         ];
 
         // Shuffle sources so we don't always hit the same one first
@@ -1219,6 +1220,33 @@
         }
 
         return `${data.setup}\n\n${data.punchline}`;
+    }
+
+    async fetchNinjaJoke() {
+        const apiKey = process.env.NINJA_API_KEY;
+        if (!apiKey) {
+            throw new Error('Ninja API key not configured');
+        }
+
+        const response = await fetch('https://api.api-ninjas.com/v1/jokes', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-Api-Key': apiKey
+            },
+            timeout: 3_000
+        });
+
+        if (!response.ok) {
+            throw new Error(`API Ninjas responded with ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!Array.isArray(data) || !data.length || !data[0]?.joke) {
+            return null;
+        }
+
+        return data[0].joke;
     }
 
     async handleFeaturesCommand(interaction) {
