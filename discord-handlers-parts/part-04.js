@@ -1109,10 +1109,9 @@
     }
 
     async handleSixSevenCommand(interaction) {
-        const content = this.sixSevenCopypasta.length > 1900
-            ? `${this.sixSevenCopypasta.slice(0, 1890)}…`
-            : this.sixSevenCopypasta;
-        await interaction.editReply({ content });
+        await interaction.editReply({
+            content: 'Why is 6 afraid of 7? Because 7 ate 9.'
+        });
     }
 
     async handleJokeCommand(interaction) {
