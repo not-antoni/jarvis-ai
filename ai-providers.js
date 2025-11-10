@@ -88,12 +88,22 @@ function stripJarvisSpeakerPrefix(text) {
   }
   return trimmed;
 }
+function stripTrailingChannelArtifacts(text) {
+  if (!text || typeof text !== 'string') return text;
+  let trimmed = text.trim();
+  const pattern = /(?:[\s,.;:!?\-]*[\(\[\{"]?\s*channel\s*[\)\]\}"]?[\s,.;:!?\-]*)$/i;
+  while (pattern.test(trimmed)) {
+    trimmed = trimmed.replace(pattern, '').trim();
+  }
+  return trimmed;
+}
 function sanitizeAssistantMessage(text) {
   if (!text || typeof text !== 'string') return text;
   const layered = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(text)));
   const noOuterQuotes = stripWrappingQuotes(layered);
   const withoutPrefix = stripJarvisSpeakerPrefix(noOuterQuotes);
-  return stripWrappingQuotes(withoutPrefix);
+  const withoutChannelArtifacts = stripTrailingChannelArtifacts(withoutPrefix);
+  return stripWrappingQuotes(withoutChannelArtifacts);
 }
 /** END: minimal thinking/final scrub helpers (added) **/
 
@@ -169,6 +179,7 @@ class AIProviderManager {
       process.env.OPENROUTER_API_KEY24,
       process.env.OPENROUTER_API_KEY25,
       process.env.OPENROUTER_API_KEY26,
+      process.env.OPENROUTER_API_KEY27,
     ].filter(Boolean);
 
     openRouterKeys.forEach((key, index) => {
