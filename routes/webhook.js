@@ -57,10 +57,16 @@ router.post('/', rawBodyParser, async (req, res) => {
         return res.json({ type: 1 });
     }
 
-    console.log('🔔 Received Discord webhook event:', JSON.stringify(payload));
+    const eventInfo = extractDiscordEvent(payload);
+    if (!eventInfo) {
+        console.log('⚠️ Discord webhook payload missing event metadata; skipping forward.');
+        return res.json({ type: 5 });
+    }
+
+    console.log(`🔔 Received Discord webhook event: ${eventInfo.type}`);
 
     if (FORWARD_WEBHOOK) {
-        await forwardEventPayload(payload);
+        await forwardEventPayload(payload, eventInfo);
     }
 
     // Respond with a deferred interaction style payload so Discord treats the event as acknowledged
@@ -85,8 +91,8 @@ function verifyDiscordRequest(signature, timestamp, rawBody) {
     }
 }
 
-async function forwardEventPayload(payload) {
-    const body = buildDiscordWebhookBody(payload);
+async function forwardEventPayload(payload, eventInfo) {
+    const body = buildDiscordWebhookBody(payload, eventInfo);
 
     try {
         const response = await fetch(FORWARD_WEBHOOK, {
@@ -106,20 +112,46 @@ async function forwardEventPayload(payload) {
     }
 }
 
-function buildDiscordWebhookBody(payload) {
-    const pretty = JSON.stringify(payload ?? {}, null, 2);
+function extractDiscordEvent(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    if (payload.event && typeof payload.event === 'object') {
+        return {
+            type: payload.event.type || payload.event_type || payload.type || 'unknown',
+            payload: payload.event.payload || null,
+            raw: payload.event
+        };
+    }
+
+    if (payload.event_type || payload.payload) {
+        return {
+            type: payload.event_type || payload.type || 'unknown',
+            payload: payload.payload || null,
+            raw: payload
+        };
+    }
+
+    return null;
+}
+
+function buildDiscordWebhookBody(originalPayload, eventInfo) {
+    const pretty = JSON.stringify(originalPayload ?? {}, null, 2);
     const MAX_DESC = 4000;
     const truncated = pretty.length > MAX_DESC
         ? `${pretty.slice(0, MAX_DESC - 30)}\n... (truncated ${pretty.length - (MAX_DESC - 30)} chars)`
         : pretty;
 
-    const eventName = payload?.event?.name
-        ? payload.event.name
-        : payload?.event_type
-            ? String(payload.event_type)
-            : typeof payload?.type !== 'undefined'
-                ? `Type ${payload.type}`
-                : 'Unknown Event';
+    const eventName = (() => {
+        if (eventInfo?.raw?.name) return eventInfo.raw.name;
+        if (eventInfo?.type) return eventInfo.type;
+        if (typeof originalPayload?.event_type !== 'undefined') return String(originalPayload.event_type);
+        if (typeof originalPayload?.type !== 'undefined') return `Type ${originalPayload.type}`;
+        return 'Unknown Event';
+    })();
+
+    const data = eventInfo?.payload || {};
 
     const embed = {
         title: `Discord Event: ${eventName}`,
@@ -136,17 +168,16 @@ function buildDiscordWebhookBody(payload) {
         embed.fields.push({ name, value: stringValue.slice(0, 1024), inline });
     };
 
-    addField('Application ID', payload?.application_id);
-    addField('Event ID', payload?.id);
-    addField('Event Version', payload?.version);
+    addField('Event Type', eventInfo?.type || 'unknown');
+    addField('Application ID', originalPayload?.application_id);
+    addField('Event ID', originalPayload?.id);
+    addField('Event Version', originalPayload?.version);
 
-    const eventPayload = payload?.event?.payload || payload?.payload || null;
-    if (eventPayload) {
-        addField('User', eventPayload.user_id || eventPayload.user?.id || null, true);
-        addField('Guild', eventPayload.guild_id || eventPayload.guild?.id || null, true);
-        addField('Authorization', eventPayload.authorization_id, true);
-        addField('Entitlement', eventPayload.entitlement_id, true);
-    }
+    addField('User', data.user_id || data.user?.id || null, true);
+    addField('Guild', data.guild_id || data.guild?.id || null, true);
+    addField('Authorization', data.authorization_id, true);
+    addField('Entitlement', data.entitlement_id, true);
+    addField('SKU', data.sku_id, true);
 
     if (!embed.fields.length) {
         addField('Info', 'No additional metadata supplied by Discord.');
