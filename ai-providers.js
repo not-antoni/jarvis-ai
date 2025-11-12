@@ -543,11 +543,37 @@ class AIProviderManager {
               maxOutputTokens: maxTokens,
             },
           });
-          const text = result?.response?.text?.();
-          if (!text || typeof text !== 'string' || !text.trim()) {
+
+          const response = result?.response;
+          let text = typeof response?.text === 'function' ? response.text() : null;
+
+          if (!text || !text.trim()) {
+            const fallbackParts = response?.candidates?.flatMap((candidate) => candidate?.content?.parts || []) || [];
+            text = fallbackParts
+              .map((part) => {
+                if (typeof part?.text === 'string') {
+                    return part.text;
+                }
+                if (part?.inlineData?.data) {
+                    return Buffer.from(part.inlineData.data, 'base64').toString('utf8');
+                }
+                return null;
+              })
+              .filter(Boolean)
+              .join('\n')
+              .trim();
+          }
+
+          if (!text) {
             throw Object.assign(new Error(`Invalid or empty response from ${provider.name}`), { status: 502 });
           }
-          return { choices: [{ message: { content: text } }] };
+
+          const cleaned = sanitizeAssistantMessage(text);
+          if (!cleaned) {
+            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
+          }
+
+          return { choices: [{ message: { content: cleaned } }] };
         }
 
         if (provider.type === 'gpt5-nano') {
