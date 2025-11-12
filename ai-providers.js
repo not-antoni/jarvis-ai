@@ -88,12 +88,22 @@ function stripJarvisSpeakerPrefix(text) {
   }
   return trimmed;
 }
+function stripTrailingChannelArtifacts(text) {
+  if (!text || typeof text !== 'string') return text;
+  let trimmed = text.trim();
+  const pattern = /(?:[\s,.;:!?\-]*[\(\[\{"]?\s*channel\s*[\)\]\}"]?[\s,.;:!?\-]*)$/i;
+  while (pattern.test(trimmed)) {
+    trimmed = trimmed.replace(pattern, '').trim();
+  }
+  return trimmed;
+}
 function sanitizeAssistantMessage(text) {
   if (!text || typeof text !== 'string') return text;
   const layered = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(text)));
   const noOuterQuotes = stripWrappingQuotes(layered);
   const withoutPrefix = stripJarvisSpeakerPrefix(noOuterQuotes);
-  return stripWrappingQuotes(withoutPrefix);
+  const withoutChannelArtifacts = stripTrailingChannelArtifacts(withoutPrefix);
+  return stripWrappingQuotes(withoutChannelArtifacts);
 }
 /** END: minimal thinking/final scrub helpers (added) **/
 
@@ -169,6 +179,7 @@ class AIProviderManager {
       process.env.OPENROUTER_API_KEY24,
       process.env.OPENROUTER_API_KEY25,
       process.env.OPENROUTER_API_KEY26,
+      process.env.OPENROUTER_API_KEY27,
     ].filter(Boolean);
 
     openRouterKeys.forEach((key, index) => {
@@ -532,11 +543,37 @@ class AIProviderManager {
               maxOutputTokens: maxTokens,
             },
           });
-          const text = result?.response?.text?.();
-          if (!text || typeof text !== 'string' || !text.trim()) {
+
+          const response = result?.response;
+          let text = typeof response?.text === 'function' ? response.text() : null;
+
+          if (!text || !text.trim()) {
+            const fallbackParts = response?.candidates?.flatMap((candidate) => candidate?.content?.parts || []) || [];
+            text = fallbackParts
+              .map((part) => {
+                if (typeof part?.text === 'string') {
+                    return part.text;
+                }
+                if (part?.inlineData?.data) {
+                    return Buffer.from(part.inlineData.data, 'base64').toString('utf8');
+                }
+                return null;
+              })
+              .filter(Boolean)
+              .join('\n')
+              .trim();
+          }
+
+          if (!text) {
             throw Object.assign(new Error(`Invalid or empty response from ${provider.name}`), { status: 502 });
           }
-          return { choices: [{ message: { content: text } }] };
+
+          const cleaned = sanitizeAssistantMessage(text);
+          if (!cleaned) {
+            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
+          }
+
+          return { choices: [{ message: { content: cleaned } }] };
         }
 
         if (provider.type === 'gpt5-nano') {

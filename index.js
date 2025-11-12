@@ -297,6 +297,14 @@ const allCommands = [
         .setDescription("List available AI providers")
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
+        .setName("67")
+        .setDescription("6 7")
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName("joke")
+        .setDescription("Pull a random safe-mode joke")
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName("features")
         .setDescription("Show which Jarvis modules are enabled globally and within this server")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),

@@ -13,6 +13,14 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: '67',
+        description: 'Unleash the legendary SIX SEVEN energy.',
+        category: 'Fun',
+        usage: '/67',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
         name: 'help',
         description: 'Show command categories and support resources.',
         category: 'Core Systems',
@@ -51,6 +59,22 @@ const commandDefinitions = [
         usage: '/features',
         feature: 'utilities',
         ephemeral: true
+    },
+    {
+        name: '67',
+        description: '6 7',
+        category: 'Fun',
+        usage: '/67',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'joke',
+        description: 'Pull a random safe joke from public APIs.',
+        category: 'Fun',
+        usage: '/joke',
+        feature: 'funUtilities',
+        ephemeral: false
     },
     {
         name: 'yt',
