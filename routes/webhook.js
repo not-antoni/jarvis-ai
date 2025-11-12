@@ -86,18 +86,7 @@ function verifyDiscordRequest(signature, timestamp, rawBody) {
 }
 
 async function forwardEventPayload(payload) {
-    const pretty = JSON.stringify(payload ?? {}, null, 2);
-    const MAX_CONTENT = 1900; // keep within Discord 2000 char limit including code fences
-    let text = pretty;
-
-    if (pretty.length > MAX_CONTENT) {
-        text = `${pretty.slice(0, MAX_CONTENT - 20)}\n... (truncated ${pretty.length - (MAX_CONTENT - 20)} chars)`;
-    }
-
-    const body = {
-        content: `Received Discord event:\n\n\`\`\`json\n${text}\n\`\`\``,
-        allowed_mentions: { parse: [] }
-    };
+    const body = buildDiscordWebhookBody(payload);
 
     try {
         const response = await fetch(FORWARD_WEBHOOK, {
@@ -115,6 +104,58 @@ async function forwardEventPayload(payload) {
     } catch (error) {
         console.error('⚠️ Failed to forward webhook payload:', error);
     }
+}
+
+function buildDiscordWebhookBody(payload) {
+    const pretty = JSON.stringify(payload ?? {}, null, 2);
+    const MAX_DESC = 4000;
+    const truncated = pretty.length > MAX_DESC
+        ? `${pretty.slice(0, MAX_DESC - 30)}\n... (truncated ${pretty.length - (MAX_DESC - 30)} chars)`
+        : pretty;
+
+    const eventName = payload?.event?.name
+        ? payload.event.name
+        : payload?.event_type
+            ? String(payload.event_type)
+            : typeof payload?.type !== 'undefined'
+                ? `Type ${payload.type}`
+                : 'Unknown Event';
+
+    const embed = {
+        title: `Discord Event: ${eventName}`,
+        color: 0x5865F2,
+        timestamp: new Date().toISOString(),
+        description: `\`\`\`json\n${truncated}\n\`\`\``,
+        fields: []
+    };
+
+    const addField = (name, value, inline = false) => {
+        if (value == null) return;
+        const stringValue = String(value).trim();
+        if (!stringValue) return;
+        embed.fields.push({ name, value: stringValue.slice(0, 1024), inline });
+    };
+
+    addField('Application ID', payload?.application_id);
+    addField('Event ID', payload?.id);
+    addField('Event Version', payload?.version);
+
+    const eventPayload = payload?.event?.payload || payload?.payload || null;
+    if (eventPayload) {
+        addField('User', eventPayload.user_id || eventPayload.user?.id || null, true);
+        addField('Guild', eventPayload.guild_id || eventPayload.guild?.id || null, true);
+        addField('Authorization', eventPayload.authorization_id, true);
+        addField('Entitlement', eventPayload.entitlement_id, true);
+    }
+
+    if (!embed.fields.length) {
+        addField('Info', 'No additional metadata supplied by Discord.');
+    }
+
+    return {
+        embeds: [embed],
+        allowed_mentions: { parse: [] }
+    };
 }
 
 module.exports = router;
