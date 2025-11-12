@@ -75,6 +75,7 @@ router.post('/', rawBodyParser, async (req, res) => {
     console.log(`🔔 Received Discord webhook event: ${eventInfo.type}`);
 
     if (FORWARD_WEBHOOK) {
+        console.log('🚀 Forwarding event to Discord webhook:', JSON.stringify(eventInfo));
         await forwardEventPayload(payload, eventInfo);
     }
 
