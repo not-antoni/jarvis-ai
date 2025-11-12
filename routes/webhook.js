@@ -52,8 +52,6 @@ router.post('/', rawBodyParser, async (req, res) => {
         return res.status(400).json({ error: 'Invalid JSON payload' });
     }
 
-    console.log('🌐 Discord webhook payload:', JSON.stringify(payload));
-
     const hasEventBlock = Boolean(payload?.event || payload?.event_type || payload?.payload);
     if (Number(payload?.type) === 1 && !hasEventBlock) {
         console.log('✅ Discord webhook challenge verified.');
@@ -62,7 +60,7 @@ router.post('/', rawBodyParser, async (req, res) => {
 
     const eventInfo = extractDiscordEvent(payload);
     if (!eventInfo) {
-        console.log('⚠️ Discord webhook payload missing event metadata; payload:', JSON.stringify(payload));
+        console.warn('⚠️ Discord webhook payload missing event metadata; type:', payload?.type);
         if (FORWARD_WEBHOOK) {
             await forwardEventPayload(payload, {
                 type: `Raw Payload (type ${payload?.type ?? 'unknown'})`,
@@ -76,7 +74,6 @@ router.post('/', rawBodyParser, async (req, res) => {
     console.log(`🔔 Received Discord webhook event: ${eventInfo.type}`);
 
     if (FORWARD_WEBHOOK) {
-        console.log('🚀 Forwarding event to Discord webhook:', JSON.stringify(eventInfo));
         await forwardEventPayload(payload, eventInfo);
     }
 
@@ -104,7 +101,6 @@ function verifyDiscordRequest(signature, timestamp, rawBody) {
 
 async function forwardEventPayload(payload, eventInfo) {
     const body = buildDiscordWebhookBody(payload, eventInfo);
-    console.log('📦 Discord webhook body:', JSON.stringify(body));
 
     try {
         const response = await fetch(FORWARD_WEBHOOK, {
@@ -165,15 +161,33 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
     const userAvatarUrl = buildUserAvatarUrl(user);
     const guildIconUrl = buildGuildIconUrl(guild);
 
-    const description = guildDisplayName
-        ? `**Guild:** ${guildDisplayName}`
-        : '**Guild:** Direct authorization (no server metadata received)';
+    const isGuildAuthorization = Boolean(guild);
+    const description = isGuildAuthorization
+        ? `${userDisplayName} authorized Jarvis in **${guildDisplayName}**.`
+        : `${userDisplayName} completed a direct authorization (no guild metadata provided).`;
+
+    const fields = [];
+    if (guild?.id) {
+        fields.push({
+            name: 'Guild ID',
+            value: `\`${guild.id}\``,
+            inline: true
+        });
+    }
+    if (guild?.owner_id) {
+        fields.push({
+            name: 'Owner ID',
+            value: `\`${guild.owner_id}\``,
+            inline: true
+        });
+    }
 
     const embed = {
         title: `Discord Event: ${eventName}`,
         color: 0x5865F2,
         timestamp: new Date().toISOString(),
         description,
+        fields: fields.length ? fields : undefined,
         author: user ? {
             name: userDisplayName,
             icon_url: userAvatarUrl || undefined,
