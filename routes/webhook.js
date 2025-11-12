@@ -59,7 +59,7 @@ router.post('/', rawBodyParser, async (req, res) => {
 
     const eventInfo = extractDiscordEvent(payload);
     if (!eventInfo) {
-        console.log('⚠️ Discord webhook payload missing event metadata; skipping forward.');
+        console.log('⚠️ Discord webhook payload missing event metadata; payload:', JSON.stringify(payload));
         return res.json({ type: 5 });
     }
 
