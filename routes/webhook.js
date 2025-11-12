@@ -176,10 +176,10 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
     }
     if (guild?.owner_id) {
         const guildOwnerUser = data.guild_owner || (user?.id === guild.owner_id ? user : null);
-        const ownerDisplayName = guildOwnerUser ? buildUserDisplayName(guildOwnerUser) : 'Unknown owner';
+        const ownerUsername = guildOwnerUser?.username || guildOwnerUser?.global_name || 'Unknown owner';
         fields.push({
             name: 'Owner',
-            value: `${ownerDisplayName} (\`${guild.owner_id}\`)`,
+            value: `${ownerUsername} (\`${guild.owner_id}\`)`,
             inline: true
         });
     }
