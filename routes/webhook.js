@@ -155,12 +155,22 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
 
     const data = eventInfo?.payload || {};
 
+    const user = data.user || null;
+    const guild = data.guild || null;
     const embed = {
         title: `Discord Event: ${eventName}`,
         color: 0x5865F2,
         timestamp: new Date().toISOString(),
         description: `\`\`\`json\n${truncated}\n\`\`\``,
-        fields: []
+        fields: [],
+        author: user ? {
+            name: buildUserDisplayName(user),
+            icon_url: buildUserAvatarUrl(user),
+            url: `https://discord.com/users/${user.id}`
+        } : undefined,
+        thumbnail: guild ? {
+            url: buildGuildIconUrl(guild)
+        } : undefined
     };
 
     const addField = (name, value, inline = false) => {
@@ -175,8 +185,10 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
     addField('Event ID', originalPayload?.id);
     addField('Event Version', originalPayload?.version);
 
-    addField('User', data.user_id || data.user?.id || null, true);
-    addField('Guild', data.guild_id || data.guild?.id || null, true);
+    addField('Scopes', Array.isArray(data.scopes) ? data.scopes.join(', ') : data.scopes || null);
+    addField('Integration Type', typeof data.integration_type !== 'undefined' ? data.integration_type : null, true);
+    addField('User ID', data.user_id || user?.id || null, true);
+    addField('Guild ID', data.guild_id || guild?.id || null, true);
     addField('Authorization', data.authorization_id, true);
     addField('Entitlement', data.entitlement_id, true);
     addField('SKU', data.sku_id, true);
@@ -189,6 +201,22 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
         embeds: [embed],
         allowed_mentions: { parse: [] }
     };
+}
+
+function buildUserDisplayName(user = {}) {
+    return user.global_name || user.username || `User ${user.id ?? 'unknown'}`;
+}
+
+function buildUserAvatarUrl(user = {}) {
+    if (!user.id || !user.avatar) return null;
+    const isGif = String(user.avatar).startsWith('a_');
+    return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${isGif ? 'gif' : 'png'}?size=256`;
+}
+
+function buildGuildIconUrl(guild = {}) {
+    if (!guild.id || !guild.icon) return null;
+    const isGif = String(guild.icon).startsWith('a_');
+    return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.${isGif ? 'gif' : 'png'}?size=256`;
 }
 
 module.exports = router;
