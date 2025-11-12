@@ -62,6 +62,13 @@ router.post('/', rawBodyParser, async (req, res) => {
     const eventInfo = extractDiscordEvent(payload);
     if (!eventInfo) {
         console.log('⚠️ Discord webhook payload missing event metadata; payload:', JSON.stringify(payload));
+        if (FORWARD_WEBHOOK) {
+            await forwardEventPayload(payload, {
+                type: `Raw Payload (type ${payload?.type ?? 'unknown'})`,
+                payload: null,
+                raw: payload
+            });
+        }
         return res.json({ type: 5 });
     }
 
