@@ -52,6 +52,8 @@ router.post('/', rawBodyParser, async (req, res) => {
         return res.status(400).json({ error: 'Invalid JSON payload' });
     }
 
+    console.log('🌐 Discord webhook payload:', JSON.stringify(payload));
+
     if (Number(payload?.type) === 1) {
         console.log('✅ Discord webhook challenge verified.');
         return res.json({ type: 1 });
