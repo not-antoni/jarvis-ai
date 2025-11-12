@@ -200,14 +200,14 @@ function buildUserDisplayName(user = {}) {
     return user.global_name || user.username || `User ${user.id ?? 'unknown'}`;
 }
 
-function buildUserAvatarUrl(user = {}) {
-    if (!user.id || !user.avatar) return null;
+function buildUserAvatarUrl(user) {
+    if (!user || !user.id || !user.avatar) return null;
     const isGif = String(user.avatar).startsWith('a_');
     return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${isGif ? 'gif' : 'png'}?size=256`;
 }
 
-function buildGuildIconUrl(guild = {}) {
-    if (!guild.id || !guild.icon) return null;
+function buildGuildIconUrl(guild) {
+    if (!guild || !guild.id || !guild.icon) return null;
     const isGif = String(guild.icon).startsWith('a_');
     return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.${isGif ? 'gif' : 'png'}?size=256`;
 }
