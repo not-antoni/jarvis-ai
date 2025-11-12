@@ -198,6 +198,7 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
     }
 
     return {
+        content: `Event detected: ${eventName}`,
         embeds: [embed],
         allowed_mentions: { parse: [] }
     };
