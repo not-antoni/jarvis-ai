@@ -175,9 +175,11 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
         });
     }
     if (guild?.owner_id) {
+        const guildOwnerUser = data.guild_owner || (user?.id === guild.owner_id ? user : null);
+        const ownerDisplayName = guildOwnerUser ? buildUserDisplayName(guildOwnerUser) : 'Unknown owner';
         fields.push({
-            name: 'Owner ID',
-            value: `\`${guild.owner_id}\``,
+            name: 'Owner',
+            value: `${ownerDisplayName} (\`${guild.owner_id}\`)`,
             inline: true
         });
     }
