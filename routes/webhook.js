@@ -54,7 +54,8 @@ router.post('/', rawBodyParser, async (req, res) => {
 
     console.log('🌐 Discord webhook payload:', JSON.stringify(payload));
 
-    if (Number(payload?.type) === 1) {
+    const hasEventBlock = Boolean(payload?.event || payload?.event_type || payload?.payload);
+    if (Number(payload?.type) === 1 && !hasEventBlock) {
         console.log('✅ Discord webhook challenge verified.');
         return res.json({ type: 1 });
     }
