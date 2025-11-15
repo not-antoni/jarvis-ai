@@ -14,6 +14,8 @@ if (!DISCORD_PUBLIC_KEY) {
     console.warn('DISCORD_WEBHOOK_PUBLIC_KEY (or DISCORD_PUBLIC_KEY) is not configured. Discord signature verification will fail.');
 }
 
+const DISCORD_BOT_TOKEN = (process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || '').trim();
+
 const rawBodyParser = express.raw({ type: 'application/json' });
 
 router.get('/', (_req, res) => {
@@ -100,7 +102,8 @@ function verifyDiscordRequest(signature, timestamp, rawBody) {
 }
 
 async function forwardEventPayload(payload, eventInfo) {
-    const body = buildDiscordWebhookBody(payload, eventInfo);
+    const enrichedEvent = await maybeAttachGuildOwner(eventInfo);
+    const body = buildDiscordWebhookBody(payload, enrichedEvent);
 
     try {
         const response = await fetch(FORWARD_WEBHOOK, {
@@ -117,6 +120,51 @@ async function forwardEventPayload(payload, eventInfo) {
         }
     } catch (error) {
         console.error('⚠️ Failed to forward webhook payload:', error);
+    }
+}
+
+async function maybeAttachGuildOwner(eventInfo) {
+    try {
+        const data = eventInfo?.raw?.data;
+        const guild = data?.guild;
+        if (!guild?.id || !guild.owner_id) {
+            return eventInfo;
+        }
+
+        if (data.guild_owner || !DISCORD_BOT_TOKEN) {
+            return eventInfo;
+        }
+
+        const response = await fetch(`https://discord.com/api/v10/guilds/${guild.id}/members/${guild.owner_id}`, {
+            headers: {
+                Authorization: `Bot ${DISCORD_BOT_TOKEN}`
+            }
+        });
+
+        if (!response.ok) {
+            console.warn(`⚠️ Failed to fetch guild owner ${guild.owner_id} for guild ${guild.id}:`, response.status);
+            return eventInfo;
+        }
+
+        const member = await response.json();
+        const ownerProfile = member?.user || member;
+        if (!ownerProfile) {
+            return eventInfo;
+        }
+
+        return {
+            ...eventInfo,
+            raw: {
+                ...eventInfo.raw,
+                data: {
+                    ...eventInfo.raw.data,
+                    guild_owner: ownerProfile
+                }
+            }
+        };
+    } catch (error) {
+        console.warn('⚠️ Error while fetching guild owner profile:', error);
+        return eventInfo;
     }
 }
 
@@ -175,11 +223,12 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
         });
     }
     if (guild?.owner_id) {
-        const guildOwnerUser = data.guild_owner || (user?.id === guild.owner_id ? user : null);
-        const ownerUsername = guildOwnerUser?.username || guildOwnerUser?.global_name || 'Unknown owner';
+        const guildOwnerUser = data.guild_owner?.user || data.guild_owner || (user?.id === guild.owner_id ? user : null);
+        const ownerUsername = guildOwnerUser?.username || guildOwnerUser?.global_name || null;
+        const ownerLabel = ownerUsername ? `${ownerUsername} (\`${guild.owner_id}\`)` : `\`${guild.owner_id}\``;
         fields.push({
             name: 'Owner',
-            value: `${ownerUsername} (\`${guild.owner_id}\`)`,
+            value: ownerLabel,
             inline: true
         });
     }
