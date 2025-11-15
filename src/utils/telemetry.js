@@ -4,6 +4,7 @@
  */
 
 const os = require('node:os');
+const database = require('../../database');
 
 function sanitizeError(error) {
     if (!error) {
@@ -61,9 +62,20 @@ function recordCommandRun({
 
     // eslint-disable-next-line no-console
     console.log(JSON.stringify(payload));
+
+    if (database?.recordCommandMetric) {
+        database.recordCommandMetric({
+            command,
+            subcommand,
+            context,
+            status: payload.status,
+            latencyMs
+        }).catch((error) => {
+            console.warn('Failed to persist command metric:', error?.message || error);
+        });
+    }
 }
 
 module.exports = {
     recordCommandRun
 };
-
