@@ -104,7 +104,9 @@ router.post('/', rawBodyParser, async (req, res) => {
     console.log(`🔔 Received Discord webhook event: ${eventInfo.type}`);
 
     if (FORWARD_WEBHOOK) {
-        await forwardEventPayload(payload, eventInfo);
+        forwardEventPayload(payload, eventInfo).catch((error) => {
+            console.error('⚠️ Failed to enqueue Discord webhook forward:', error);
+        });
     }
 
     // Respond with a deferred interaction style payload so Discord treats the event as acknowledged
