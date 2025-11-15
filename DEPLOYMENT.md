@@ -106,6 +106,12 @@ The bot includes:
 - Health check endpoints
 - Detailed logging
 
+### Operational Observability
+
+- **Provider digest API**: `GET /providers/status` summarizes how many AI providers are online, errored, or disabled plus their average latency and top offenders.
+- **Command metrics API**: `GET /metrics/commands?limit=25&sort=errors` (database required) exposes aggregated slash-command usage and error counts so you can spot hotspots quickly.
+- **Structured telemetry**: every command run is logged to stdout (JSON) and persisted to the `commandMetrics` collection for short-term dashboards or ad-hoc analysis.
+
 ### Support
 
 If you encounter issues:
