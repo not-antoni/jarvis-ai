@@ -1,6 +1,8 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const nacl = require('tweetnacl');
+const LRU = require('lru-cache');
+const LRUCache = typeof LRU === 'function' ? LRU : LRU.LRUCache;
 
 const router = express.Router();
 
@@ -16,7 +18,17 @@ if (!DISCORD_PUBLIC_KEY) {
 
 const DISCORD_BOT_TOKEN = (process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || '').trim();
 
+const MAX_TIMESTAMP_SKEW_MS = 5 * 60 * 1000;
+const signatureCache = new LRUCache({ max: 5000, ttl: MAX_TIMESTAMP_SKEW_MS });
+const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+const MAX_WEBHOOK_RETRY_ATTEMPTS = 3;
+const WEBHOOK_MIN_INTERVAL_MS = 750;
+
 const rawBodyParser = express.raw({ type: 'application/json' });
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let webhookSendPromise = Promise.resolve();
+let lastWebhookSendAt = 0;
 
 router.get('/', (_req, res) => {
     res.json({ status: 'ok' });
@@ -46,6 +58,22 @@ router.post('/', rawBodyParser, async (req, res) => {
     if (!isValid) {
         return res.status(401).json({ error: 'Invalid request signature' });
     }
+
+    const timestampNumber = Number(timestamp);
+    const timestampMs = Number.isFinite(timestampNumber) ? timestampNumber * 1000 : Number.NaN;
+    if (!Number.isFinite(timestampMs)) {
+        return res.status(400).json({ error: 'Invalid Discord timestamp header' });
+    }
+
+    if (Math.abs(Date.now() - timestampMs) > MAX_TIMESTAMP_SKEW_MS) {
+        return res.status(401).json({ error: 'Stale Discord webhook timestamp' });
+    }
+
+    const signatureKey = `${timestamp}:${signature}`;
+    if (signatureCache.has(signatureKey)) {
+        return res.status(401).json({ error: 'Replay request rejected' });
+    }
+    signatureCache.set(signatureKey, true);
 
     let payload;
     try {
@@ -104,7 +132,28 @@ function verifyDiscordRequest(signature, timestamp, rawBody) {
 async function forwardEventPayload(payload, eventInfo) {
     const enrichedEvent = await maybeAttachGuildOwner(eventInfo);
     const body = buildDiscordWebhookBody(payload, enrichedEvent);
+    await enqueueWebhookSend(() => sendWebhookWithRetry(body));
+}
 
+function enqueueWebhookSend(task) {
+    webhookSendPromise = webhookSendPromise.then(async () => {
+        const now = Date.now();
+        const elapsed = now - lastWebhookSendAt;
+        if (elapsed < WEBHOOK_MIN_INTERVAL_MS) {
+            await wait(WEBHOOK_MIN_INTERVAL_MS - elapsed);
+        }
+
+        try {
+            await task();
+        } finally {
+            lastWebhookSendAt = Date.now();
+        }
+    });
+
+    return webhookSendPromise;
+}
+
+async function sendWebhookWithRetry(body, attempt = 1) {
     try {
         const response = await fetch(FORWARD_WEBHOOK, {
             method: 'POST',
@@ -112,14 +161,36 @@ async function forwardEventPayload(payload, eventInfo) {
             body: JSON.stringify(body)
         });
 
-        if (!response.ok) {
-            const errorText = await response.text().catch(() => '(no body)');
-            console.error('⚠️ Discord server webhook rejected payload:', response.status, errorText);
-        } else {
+        if (response.ok) {
             console.log('📨 Forwarded webhook payload to Discord server webhook.');
+            return;
         }
+
+        const shouldRetry = RETRYABLE_STATUS_CODES.has(response.status) && attempt < MAX_WEBHOOK_RETRY_ATTEMPTS;
+        if (shouldRetry) {
+            const retryAfterRaw = response.headers.get('retry-after');
+            const retryAfterSeconds = retryAfterRaw ? Number(retryAfterRaw) : null;
+            const retryDelay = Number.isFinite(retryAfterSeconds)
+                ? Math.max(retryAfterSeconds * 1000, WEBHOOK_MIN_INTERVAL_MS)
+                : Math.min(4000, attempt * 1500);
+
+            console.warn(`⚠️ Discord server webhook responded with ${response.status}. Retrying in ${retryDelay}ms (attempt ${attempt + 1}/${MAX_WEBHOOK_RETRY_ATTEMPTS}).`);
+            await wait(retryDelay);
+            return sendWebhookWithRetry(body, attempt + 1);
+        }
+
+        const errorText = await response.text().catch(() => '(no body)');
+        console.error('⚠️ Discord server webhook rejected payload:', response.status, errorText);
     } catch (error) {
-        console.error('⚠️ Failed to forward webhook payload:', error);
+        if (attempt >= MAX_WEBHOOK_RETRY_ATTEMPTS) {
+            console.error('⚠️ Failed to forward webhook payload after retries:', error);
+            return;
+        }
+
+        const retryDelay = Math.min(5000, attempt * 1500);
+        console.warn(`⚠️ Error sending webhook payload (attempt ${attempt}). Retrying in ${retryDelay}ms.`);
+        await wait(retryDelay);
+        return sendWebhookWithRetry(body, attempt + 1);
     }
 }
 

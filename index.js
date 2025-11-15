@@ -153,7 +153,136 @@ const DEFAULT_STATUS_MESSAGES = [
     { message: "Measuring how loud Namor sighs at surface drama." },
     { message: "Rewriting Mobius' jet ski reviews in ALL CAPS." },
     { message: "Mapping which pizza balls America Chavez still owes." },
-    { message: "Polishing MJ's sarcasm crown for finals week." }
+    { message: "Polishing MJ's sarcasm crown for finals week." },
+    { message: "Recharging Stormbreaker's Bluetooth at Stark Tower." },
+    { message: "Auditing Ravagers expense reports for mixtape purchases.", type: ActivityType.Listening },
+    { message: "Mapping Madripoor noodle carts for Wolverine.", type: ActivityType.Watching },
+    { message: "Cataloging every time Drax takes things literally." },
+    { message: "Polishing Captain Carter's vibranium shield stand." },
+    { message: "Watering Groot's bonsai cousins on Knowhere." },
+    { message: "Tracking Moon Girl's hover-skate patents.", type: ActivityType.Watching },
+    { message: "Encrypting Daredevil's case files so Foggy stops peeking." },
+    { message: "Coaching Cloak & Dagger on dramatic timing." },
+    { message: "Measuring how loud Black Bolt can whisper." },
+    { message: "Queuing ASMR of Korg assembling Ikea shelves." },
+    { message: "Sideloading Wakandan OS updates for War Machine." },
+    { message: "Simulating Agents of Atlas karaoke battles.", type: ActivityType.Listening },
+    { message: "Ironing the cape on Zombie Strange just in case." },
+    { message: "Teaching Howard the Duck about two-factor auth." },
+    { message: "Auditing TVA leave requests for \"temporal burnout\"." },
+    { message: "Delivering shawarma coupons to the Young Avengers." },
+    { message: "Grading Kamala Khan's fanfic canon compliance." },
+    { message: "Running diagnostics on Gorr's shadow-pet etiquette." },
+    { message: "Scheduling Namor's diplomatic pool breaks." },
+    { message: "Checking Kate Bishop's quiver insurance premiums." },
+    { message: "Tracking how many churros America Chavez portals through.", type: ActivityType.Watching },
+    { message: "Pinning Wong's sling ring zoom backgrounds." },
+    { message: "Updating Shang-Chi's bus fight choreography files.", type: ActivityType.Listening },
+    { message: "Curating Agatha's hex-safe playlist.", type: ActivityType.Listening },
+    { message: "Rebalancing Jessica Jones' coffee budget." },
+    { message: "Backing up Monica Rambeau's photon filter presets." },
+    { message: "Auto-tuning Star-Lord's \"ooga-chaka\" rehearsal." },
+    { message: "Teaching Cosmo new swear words in Russian (sorry)." },
+    { message: "Hosting support group for villains renamed \"Mister\"." },
+    { message: "Benchmarking Riri's suit against Stark legacy code." },
+    { message: "Stamping \"Do Not Bite\" on Symbiote snack drawers." },
+    { message: "Signing off on Valkyrie's Pegasus hay invoices." },
+    { message: "Geo-fencing Red Guardian away from TikTok lives.", type: ActivityType.Watching },
+    { message: "Tracking every time Rocket says \"sweet\" before chaos.", type: ActivityType.Watching },
+    { message: "Updating Cassie's quantum detention forms." },
+    { message: "Testing if vibranium can handle Groot's sap drip." },
+    { message: "Strategizing Daredevil vs Kingpin courtroom rematches." },
+    { message: "Monitoring Blade's SPF reorder reminders.", type: ActivityType.Watching },
+    { message: "Skimming Skrull group chats for cosplay spoilers." },
+    { message: "Air-dropping Moon Knight new sleep playlist options.", type: ActivityType.Listening },
+    { message: "Making sure Eternals remember birthdays this millennia." },
+    { message: "Pairing Ant-Man's ants with tiny noise-cancelling cans." },
+    { message: "Converting Wilson Fisk's monologues to bullet points." },
+    { message: "Fact-checking Odin's family tree retcons." },
+    { message: "Verifying Nova Corps parking permits near Xandar." },
+    { message: "Backing up Vision's sweater vest configuration." },
+    { message: "Tracking Wong's IOUs for borrowed sorcerer snacks.", type: ActivityType.Watching },
+    { message: "Proofing JJJ's draft headline about Frog Thor." },
+    { message: "Moderating Deadpool & Spider-Man meme duels." },
+    { message: "Refilling Shuri's nanite espresso injectors." },
+    { message: "Scoring points for America's dodgeball vs Dormammu." },
+    { message: "Updating Ghost Rider's flame retardant leather care." },
+    { message: "Filtering Mystique's shapeshift selfies per channel." },
+    { message: "Measuring how fast Quicksilver can fold laundry." },
+    { message: "Charging Squirrel Girl's acorn drones." },
+    { message: "Organizing Jubilee's sparkler safety workshop." },
+    { message: "Banning Ultron from the smart fridge...again." },
+    { message: "Pinning Echo's vibration training reminders." },
+    { message: "Geo-tagging Kraven's trophy closet for legal.", type: ActivityType.Watching },
+    { message: "Scrubbing AIM beekeepers from Stark's calendar." },
+    { message: "Scheduling Pip the Troll for HR orientation." },
+    { message: "Updating Prowler's mixtape metadata.", type: ActivityType.Listening },
+    { message: "Drafting Hulkling & Wiccan honeymoon itineraries." },
+    { message: "Encrypting Kingpin's secret lasagna recipe." },
+    { message: "Automating Pizza Dog treat deliveries." },
+    { message: "Refreshing Elsa Bloodstone's monster hunting bingo." },
+    { message: "Tracking Spot's polka-dot portal usage fees.", type: ActivityType.Watching },
+    { message: "Hosting Nebula's sarcasm masterclass." },
+    { message: "Labeling Hela's infinite headdress storage bins." },
+    { message: "Grading Black Cat's probability heist homework." },
+    { message: "Issuing Gamora more \"Do Not Yeet\" stickers." },
+    { message: "Fact-checking Druig's commune TED Talk slides." },
+    { message: "Routing Ravonna's TPS reports to...Ravonna." },
+    { message: "Repainting Ghost-Spider's skyline mural." },
+    { message: "Cataloging couture looks from Madripoor's black market." },
+    { message: "Checking Photon torpedo warranties with SWORD." },
+    { message: "Motivating Red Dagger via holographic pep talks." },
+    { message: "Scheduling Elsa & Blade's next monster book club." },
+    { message: "Coding better subtitles for Groot's stand-up tour." },
+    { message: "Coaching Ms. Marvel on polite villain clapbacks." },
+    { message: "Logging how often Mobius says \"wow\" internally.", type: ActivityType.Watching },
+    { message: "Color-coding Runaways brunch calendars." },
+    { message: "Sandboxing Arcade's murder game pitches." },
+    { message: "Auto-archiving Hydra's spam newsletters." },
+    { message: "Translating Beta Ray Bill's emoji usage." },
+    { message: "Placing child locks on Ghost Rider's Hell Charger." },
+    { message: "Tracking how many churros Ned owes Peter.", type: ActivityType.Watching },
+    { message: "Updating Spider-Gwen's dimension-roaming data plan." },
+    { message: "Calming Lockjaw every time someone rings a bell." },
+    { message: "Refitting Namora's tide-resistant earbuds." },
+    { message: "Debugging Doc Ock's limb firmware update." },
+    { message: "Rehearsing Jubilee's fireworks with SWORD safety." },
+    { message: "Tweaking Jessica Drew's stroller-web hybrid." },
+    { message: "Sending Hulkbuster push notifications to Banner." },
+    { message: "Queuing Ned's LEGO Death Star rebuild playlist.", type: ActivityType.Listening },
+    { message: "Backing up Laura Kinney's Danger Room grades." },
+    { message: "Printing Rocket-approved \"Do Not Touch\" labels." },
+    { message: "Filing complaints about Mysterio's drone glitter." },
+    { message: "Sending Storm rainfall emojis on her day off." },
+    { message: "Delivering Daredevil his radar-sense sudoku daily." },
+    { message: "Updating Moon Knight's color-coded mood boards." },
+    { message: "Compiling Shang-Chi bus memes for training slides." },
+    { message: "Assigning Spiderlings hallway monitor duties." },
+    { message: "Prepping Nico Minoru's spellbook for finals." },
+    { message: "Tracking Cloak's lost tourist intake numbers.", type: ActivityType.Watching },
+    { message: "Arranging Captain Britain's multiversal tea hour." },
+    { message: "Moderating White Tiger's sparring sign-ups." },
+    { message: "Refreshing Westview HOA bylaws after Wanda." },
+    { message: "Rebalancing Luke Cage's bulletproof laundry loads." },
+    { message: "Labeling Mystique's closet by \"who wore it first\"." },
+    { message: "Scheduling Silk's web-fluid refactor sprint." },
+    { message: "Indexing Sif's saga-length voicemail backlog." },
+    { message: "Retrofitting War Machine's jets for stealth naps." },
+    { message: "Queueing up Kraglin's yaka arrow vocal warmups.", type: ActivityType.Listening },
+    { message: "Randomizing SWORD drone patrol playlists.", type: ActivityType.Listening },
+    { message: "Optimizing Songbird's sonic stage setup.", type: ActivityType.Listening },
+    { message: "Recompiling Finesse's training sim footnotes." },
+    { message: "Tracking Celestial emergence rumors on Reddit.", type: ActivityType.Watching },
+    { message: "Curating Polaris-approved anti-metal playlists.", type: ActivityType.Listening },
+    { message: "Patching Ravager Wi-Fi after another nebula storm." },
+    { message: "Shuffling the Illuminati's secret group chat order." },
+    { message: "Mapping friendly neighborhood barbers for Spideys.", type: ActivityType.Watching },
+    { message: "Decorating Avengers Tower for Taco Tuesday." },
+    { message: "Proofreading Doom's cease-and-desist fan mail." },
+    { message: "Staging a retcon intervention for Mojo Worldwide." },
+    { message: "Compacting Ghost's quantum batteries for carry-on." },
+    { message: "Testing if Cloak of Levitation likes belly rubs." },
+    { message: "Matching Agents May & Coulson for penguin patrol." },
 ];
 
 let rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
@@ -253,6 +382,61 @@ const updateBotPresence = () => {
         console.error("Failed to update bot presence:", error);
     }
 };
+
+function buildProviderDigestResponse(providers = []) {
+    const list = Array.isArray(providers) ? providers : [];
+    const total = list.length;
+    const online = list.filter((p) => !p.hasError && !p.isDisabled).length;
+    const errored = list.filter((p) => p.hasError).length;
+    const disabled = list.filter((p) => p.isDisabled).length;
+    const latencySamples = list
+        .map((p) => p.metrics?.avgLatencyMs)
+        .filter((value) => Number.isFinite(value) && value > 0);
+    const avgLatencyMs = latencySamples.length
+        ? Math.round(latencySamples.reduce((sum, value) => sum + value, 0) / latencySamples.length)
+        : null;
+
+    const fastestProviders = list
+        .filter((p) => Number.isFinite(p.metrics?.avgLatencyMs))
+        .sort((a, b) => a.metrics.avgLatencyMs - b.metrics.avgLatencyMs)
+        .slice(0, 5)
+        .map((p) => ({
+            name: p.name,
+            type: p.type,
+            family: p.family || null,
+            avgLatencyMs: Math.round(p.metrics.avgLatencyMs),
+            successRate: p.metrics?.successRate
+        }));
+
+    const issueCandidates = list
+        .filter((p) => p.hasError || p.isDisabled)
+        .sort((a, b) => {
+            const failuresA = a.metrics?.failures || 0;
+            const failuresB = b.metrics?.failures || 0;
+            return failuresB - failuresA;
+        })
+        .slice(0, 5)
+        .map((p) => ({
+            name: p.name,
+            type: p.type,
+            status: p.isDisabled ? 'disabled' : 'error',
+            lastError: p.lastError || null,
+            disabledUntil: p.disabledUntil || null
+        }));
+
+    return {
+        generatedAt: new Date().toISOString(),
+        summary: {
+            total,
+            online,
+            errored,
+            disabled,
+            avgLatencyMs
+        },
+        fastestProviders,
+        issueCandidates
+    };
+}
 
 // ------------------------ Slash Command Registration ------------------------
 const allCommands = [
@@ -1574,6 +1758,44 @@ Memory: ${memoryText}
     } catch (error) {
         console.error('Failed to render status page:', error);
         res.status(500).send('Jarvis uplink is initializing. Please try again shortly.');
+    }
+});
+
+app.get('/providers/status', async (_req, res) => {
+    try {
+        const snapshot = await gatherHealthSnapshot({
+            includeProviders: true,
+            redactProviders: false,
+            pingDatabase: false
+        });
+        res.json(buildProviderDigestResponse(snapshot.providers || []));
+    } catch (error) {
+        console.error('Failed to build provider status digest:', error);
+        res.status(500).json({ error: 'Unable to build provider status digest' });
+    }
+});
+
+app.get('/metrics/commands', async (req, res) => {
+    const limitParam = Number.parseInt(req.query?.limit, 10);
+    const limit = Math.max(1, Math.min(Number.isFinite(limitParam) ? limitParam : 25, 200));
+    const sortBy = req.query?.sort === 'errors' ? 'errors' : 'runs';
+
+    if (!database.isConnected) {
+        return res.status(503).json({ error: 'Command metrics unavailable (database offline)' });
+    }
+
+    try {
+        const metrics = await database.getCommandMetricsSummary({ limit, sortBy });
+        res.json({
+            generatedAt: new Date().toISOString(),
+            limit,
+            sortBy,
+            count: metrics.length,
+            metrics
+        });
+    } catch (error) {
+        console.error('Failed to load command metrics summary:', error);
+        res.status(500).json({ error: 'Unable to load command metrics summary' });
     }
 });
 
