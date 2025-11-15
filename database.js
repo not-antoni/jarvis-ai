@@ -64,6 +64,7 @@ class DatabaseManager {
             newsCache: this.db.collection(config.database.collections.newsCache),
             migrations: this.db.collection(config.database.collections.migrations),
             statusMessages: this.db.collection(config.database.collections.statusMessages),
+            commandMetrics: this.db.collection(config.database.collections.commandMetrics),
         };
 
         const indexPlans = [
@@ -168,6 +169,14 @@ class DatabaseManager {
                 definitions: [
                     { key: { enabled: 1 }, name: 'statusMessages_enabled_idx' },
                     { key: { priority: 1, createdAt: 1 }, name: 'statusMessages_priority_createdAt' }
+                ]
+            },
+            {
+                label: 'commandMetrics',
+                collection: collections.commandMetrics,
+                definitions: [
+                    { key: { command: 1, subcommand: 1, context: 1 }, unique: true },
+                    { key: { updatedAt: -1 }, name: 'commandMetrics_updatedAt_idx' }
                 ]
             }
         ];
@@ -1013,6 +1022,86 @@ class DatabaseManager {
         await this.db
             .collection(config.database.collections.memberLogs)
             .deleteOne({ guildId });
+    }
+
+    async recordCommandMetric({
+        command,
+        subcommand = null,
+        context = 'slash',
+        status = 'ok',
+        latencyMs = null
+    } = {}) {
+        if (!this.isConnected || !command) {
+            return;
+        }
+
+        const collection = this.db.collection(config.database.collections.commandMetrics);
+        const now = new Date();
+        const normalizedSubcommand = subcommand || null;
+        const increments = {
+            totalRuns: 1
+        };
+
+        if (status === 'ok') {
+            increments.okRuns = 1;
+        } else {
+            increments.errorRuns = 1;
+        }
+
+        if (Number.isFinite(latencyMs) && latencyMs >= 0) {
+            increments.sumLatencyMs = latencyMs;
+        }
+
+        await collection.updateOne(
+            { command, subcommand: normalizedSubcommand, context },
+            {
+                $setOnInsert: {
+                    command,
+                    subcommand: normalizedSubcommand,
+                    context,
+                    createdAt: now
+                },
+                $set: {
+                    updatedAt: now
+                },
+                $inc: increments
+            },
+            { upsert: true }
+        );
+    }
+
+    async getCommandMetricsSummary({ limit = 25, sortBy = 'runs' } = {}) {
+        if (!this.isConnected) {
+            return [];
+        }
+
+        const sanitizedLimit = Math.max(1, Math.min(Number(limit) || 25, 200));
+        const collection = this.db.collection(config.database.collections.commandMetrics);
+        const sort = sortBy === 'errors'
+            ? { errorRuns: -1, totalRuns: -1, updatedAt: -1 }
+            : { totalRuns: -1, updatedAt: -1 };
+
+        const cursor = collection
+            .find({}, { sort, limit: sanitizedLimit });
+
+        const records = await cursor.toArray();
+        return records.map((doc) => {
+            const totalRuns = doc.totalRuns || 0;
+            const avgLatencyMs = totalRuns > 0
+                ? Math.round((doc.sumLatencyMs || 0) / totalRuns)
+                : null;
+
+            return {
+                command: doc.command,
+                subcommand: doc.subcommand,
+                context: doc.context,
+                totalRuns,
+                okRuns: doc.okRuns || 0,
+                errorRuns: doc.errorRuns || 0,
+                avgLatencyMs,
+                lastRunAt: doc.updatedAt || doc.createdAt
+            };
+        });
     }
 
     async disconnect() {

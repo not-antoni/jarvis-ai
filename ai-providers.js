@@ -568,7 +568,10 @@ class AIProviderManager {
             throw Object.assign(new Error(`Invalid or empty response from ${provider.name}`), { status: 502 });
           }
 
-          const cleaned = sanitizeAssistantMessage(text);
+          let cleaned = sanitizeAssistantMessage(text);
+          if (!cleaned && text) {
+            cleaned = text.trim();
+          }
           if (!cleaned) {
             throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
           }
