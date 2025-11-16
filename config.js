@@ -163,7 +163,8 @@ const rawConfig = {
         music: true,
         memeTools: true,
         funUtilities: true,
-        crypto: true
+        crypto: true,
+        moderationFilters: true
     }
 };
 
