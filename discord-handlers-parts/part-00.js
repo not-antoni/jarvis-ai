@@ -1634,25 +1634,31 @@ class DiscordHandlers {
         let onlineUserCount = 0;
         let offlineUserCount = 0;
 
-        try {
-            const members = await guild.members.fetch();
-            total = members.size;
-            botCount = members.filter(member => member.user.bot).size;
-            userCount = total - botCount;
+        const shouldFetchMembers = guild.available !== false && typeof guild.memberCount === 'number' && guild.memberCount <= 4000;
 
-            onlineUserCount = members.filter(member => {
-                if (member.user?.bot) {
-                    return false;
+        if (shouldFetchMembers) {
+            try {
+                const members = await guild.members.fetch();
+                total = members.size;
+                botCount = members.filter(member => member.user.bot).size;
+                userCount = total - botCount;
+
+                onlineUserCount = members.filter(member => {
+                    if (member.user?.bot) {
+                        return false;
+                    }
+
+                    const status = member.presence?.status;
+                    return status === 'online' || status === 'idle' || status === 'dnd';
+                }).size;
+            } catch (error) {
+                if (error.code !== 50013 && error.code !== 50001) {
+                    console.warn(`Failed to fetch full member list for guild ${guild.id} (using cached counts):`, error);
                 }
-
-                const status = member.presence?.status;
-                return status === 'online' || status === 'idle' || status === 'dnd';
-            }).size;
-        } catch (error) {
-            if (error.code !== 50013 && error.code !== 50001) {
-                console.warn(`Failed to fetch full member list for guild ${guild.id}:`, error);
             }
+        }
 
+        if (botCount === 0 && userCount === 0) {
             const cachedMembers = guild.members.cache;
             if (cachedMembers.size > 0) {
                 total = cachedMembers.size;
