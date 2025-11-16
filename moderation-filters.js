@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
 const { PermissionsBitField, EmbedBuilder } = require('discord.js');
+const database = require('./database');
+const config = require('./config');
+
+// Storage mode: default to Mongo for Render; optional fallback to file with MODERATION_FILTERS_STORAGE=file
+const STORAGE_MODE = (process.env.MODERATION_FILTERS_STORAGE || 'mongo').toLowerCase();
+const USE_MONGO = STORAGE_MODE !== 'file';
 
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_PATH = path.join(DATA_DIR, 'moderation-filters.json');
@@ -29,43 +35,113 @@ const CONFUSABLE_MAP = {
     y: 'yу', z: 'z2'
 };
 
-const state = loadState();
-const cache = new Map(); // guildId -> { words, regexPatterns, regex, cachedAt }
+const cache = new Map(); // guildId -> { words, regexPatterns, regex, cachedAt, autoRegexEnabled }
 const deleteRate = new Map(); // guildId -> { ts, count }
 const spamTracker = new Map(); // guildId -> Map(userId -> [ts])
 const dmThrottle = new Map(); // key -> ts
 
-function loadState() {
+// ---------- Persistence helpers ----------
+
+function ensureDataDir() {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function loadFileState() {
     try {
         if (fs.existsSync(STATE_PATH)) {
             const raw = fs.readFileSync(STATE_PATH, 'utf8');
             if (raw) return JSON.parse(raw);
         }
     } catch (error) {
-        console.warn('Failed to load moderation filter state:', error);
+        console.warn('Failed to load moderation filter state (file):', error);
     }
     return { guilds: {} };
 }
 
-function saveState() {
+function saveFileState(state) {
     try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
+        ensureDataDir();
         fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
     } catch (error) {
-        console.warn('Failed to persist moderation filter state:', error);
+        console.warn('Failed to persist moderation filter state (file):', error);
     }
 }
 
-function ensureGuild(guildId) {
-    if (!state.guilds[guildId]) {
-        state.guilds[guildId] = {
-            words: [],
-            regex: [],
-            autoRegexEnabled: true
-        };
-    }
-    return state.guilds[guildId];
+async function getCollection() {
+    if (!USE_MONGO) return null;
+    await database.connect();
+    return database.db.collection(config.database.collections.moderationFilters);
 }
+
+function sanitizeDoc(doc = {}) {
+    return {
+        guildId: doc.guildId,
+        words: Array.isArray(doc.words) ? doc.words.map(normalize) : [],
+        regex: Array.isArray(doc.regex) ? doc.regex.map((p) => String(p)) : [],
+        autoRegexEnabled: doc.autoRegexEnabled !== false
+    };
+}
+
+async function loadGuildState(guildId) {
+    if (USE_MONGO) {
+        const col = await getCollection();
+        const now = new Date();
+        const result = await col.findOneAndUpdate(
+            { guildId },
+            {
+                $setOnInsert: {
+                    guildId,
+                    words: [],
+                    regex: [],
+                    autoRegexEnabled: true,
+                    createdAt: now
+                },
+                $set: { updatedAt: now }
+            },
+            { upsert: true, returnDocument: 'after' }
+        );
+        return sanitizeDoc(result.value || {});
+    }
+
+    const state = loadFileState();
+    if (!state.guilds[guildId]) {
+        state.guilds[guildId] = { words: [], regex: [], autoRegexEnabled: true };
+        saveFileState(state);
+    }
+    return sanitizeDoc({ guildId, ...state.guilds[guildId] });
+}
+
+async function saveGuildState(guildId, data) {
+    const entry = sanitizeDoc({ guildId, ...data });
+    if (USE_MONGO) {
+        const col = await getCollection();
+        const now = new Date();
+        await col.updateOne(
+            { guildId },
+            {
+                $set: {
+                    words: entry.words,
+                    regex: entry.regex,
+                    autoRegexEnabled: entry.autoRegexEnabled,
+                    updatedAt: now
+                },
+                $setOnInsert: { createdAt: now }
+            },
+            { upsert: true }
+        );
+    } else {
+        const state = loadFileState();
+        state.guilds[guildId] = {
+            words: entry.words,
+            regex: entry.regex,
+            autoRegexEnabled: entry.autoRegexEnabled
+        };
+        saveFileState(state);
+    }
+    cache.delete(guildId); // stale cache
+}
+
+// ---------- Helpers ----------
 
 function escapeRegex(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -83,48 +159,15 @@ function buildFlexibleRegex(word) {
     return `(?<![\\p{L}\\p{N}])${core}(?![\\p{L}\\p{N}])`;
 }
 
-function refreshCache(guildId) {
-    const entry = ensureGuild(guildId);
-    const { words, regex } = entry;
-
-    const regexSet = new Set(regex);
-    let added = false;
-    // Backfill missing flexible regex for each word so the filters stay tight.
-    for (const word of words) {
-        const pat = buildFlexibleRegex(word);
-        if (!regexSet.has(pat)) {
-            entry.regex.push(pat);
-            regexSet.add(pat);
-            added = true;
-        }
-    }
-    if (added) saveState();
-
-    const compiled = entry.regex.map((p) => {
-        try { return new RegExp(p, 'iu'); } catch { return null; }
-    }).filter(Boolean);
-    const wordRegex = words.map((w) => new RegExp(`\\b${escapeRegex(w)}\\b`, 'iu'));
-
-    cache.set(guildId, {
-        words: [...entry.words],
-        regexPatterns: [...entry.regex],
-        regex: [...compiled, ...wordRegex],
-        cachedAt: Date.now(),
-        autoRegexEnabled: entry.autoRegexEnabled
-    });
+function normalize(text) {
+    return String(text || '').trim().toLowerCase();
 }
 
-function getFilters(guildId) {
-    const cached = cache.get(guildId);
-    if (cached && cached.cachedAt && Date.now() - cached.cachedAt < MEMOIZE_FILTERS_MS) return cached;
-    refreshCache(guildId);
-    return cache.get(guildId) || { words: [], regexPatterns: [], regex: [], autoRegexEnabled: true };
-}
-
-function isModerator(member) {
-    if (!member) return false;
-    return member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
-        member.permissions.has(PermissionsBitField.Flags.Administrator);
+function formatList(items, label) {
+    if (!items || !items.length) return 'None set';
+    const body = items.join('\n');
+    if (body.length <= 1000) return body;
+    return `${body.slice(0, 980)}...\n(+${items.length} total ${label || 'items'})`;
 }
 
 function allowDelete(guildId) {
@@ -140,18 +183,60 @@ function allowDelete(guildId) {
     return true;
 }
 
-function formatList(items, label) {
-    if (!items || !items.length) return 'None set';
-    const body = items.join('\n');
-    if (body.length <= 1000) return body;
-    return `${body.slice(0, 980)}...\n(+${items.length} total ${label || 'items'})`;
+// ---------- Cache + compilation ----------
+
+async function refreshCache(guildId) {
+    const entry = await loadGuildState(guildId);
+    const regexSet = new Set(entry.regex);
+    let dirty = false;
+
+    if (entry.autoRegexEnabled) {
+        for (const word of entry.words) {
+            const pat = buildFlexibleRegex(word);
+            if (!regexSet.has(pat)) {
+                regexSet.add(pat);
+                entry.regex.push(pat);
+                dirty = true;
+            }
+        }
+    }
+
+    if (dirty) {
+        await saveGuildState(guildId, entry);
+    }
+
+    const compiled = entry.regex.map((p) => {
+        try { return new RegExp(p, 'iu'); } catch { return null; }
+    }).filter(Boolean);
+    const wordRegex = entry.words.map((w) => new RegExp(`\\b${escapeRegex(w)}\\b`, 'iu'));
+
+    const payload = {
+        words: [...entry.words],
+        regexPatterns: [...entry.regex],
+        regex: [...compiled, ...wordRegex],
+        autoRegexEnabled: entry.autoRegexEnabled,
+        cachedAt: Date.now()
+    };
+
+    cache.set(guildId, payload);
+    return payload;
 }
+
+async function getFilters(guildId) {
+    const cached = cache.get(guildId);
+    if (cached && cached.cachedAt && Date.now() - cached.cachedAt < MEMOIZE_FILTERS_MS) {
+        return cached;
+    }
+    return refreshCache(guildId);
+}
+
+// ---------- Runtime enforcement ----------
 
 async function handleMessage(message) {
     if (!message.guild || message.author.bot) return;
     if (!message.content) return;
 
-    const filters = getFilters(message.guild.id);
+    const filters = await getFilters(message.guild.id);
     if (!filters.regex.length) return;
 
     const content = message.content;
@@ -210,7 +295,7 @@ async function notifyStaff(message, member) {
         const owner = await guild.fetchOwner();
         await owner.send(summary).catch(() => {});
     } catch {
-        // ignore owner DM failures
+        // ignore owner DM failure
     }
 
     let mods = guild.members.cache.filter((m) =>
@@ -226,56 +311,74 @@ async function notifyStaff(message, member) {
                 (m.permissions.has(PermissionsBitField.Flags.ManageGuild) || m.permissions.has(PermissionsBitField.Flags.Administrator))
             );
         } catch {
-            // ignore
+            /* ignore */
         }
     }
 
     for (const m of mods.values()) {
-        try {
-            await m.send(summary).catch(() => {});
-        } catch {
-            // ignore
+        try { await m.send(summary).catch(() => {}); } catch { /* ignore */ }
+    }
+}
+
+// ---------- Mutations ----------
+
+async function upsertWord(guildId, value) {
+    const entry = await loadGuildState(guildId);
+    const norm = normalize(value);
+    if (!norm) return false;
+    if (entry.words.includes(norm)) return false;
+    if (entry.words.length >= MAX_WORDS_PER_GUILD) return false;
+
+    entry.words.push(norm);
+    if (entry.autoRegexEnabled) {
+        const flex = buildFlexibleRegex(norm);
+        if (!entry.regex.includes(flex)) entry.regex.push(flex);
+    }
+    await saveGuildState(guildId, entry);
+    await refreshCache(guildId);
+    return true;
+}
+
+async function removeWord(guildId, value) {
+    const entry = await loadGuildState(guildId);
+    const norm = normalize(value);
+    entry.words = entry.words.filter((w) => w !== norm);
+    const flex = buildFlexibleRegex(norm);
+    entry.regex = entry.regex.filter((r) => r !== flex);
+    await saveGuildState(guildId, entry);
+    await refreshCache(guildId);
+}
+
+async function addRegex(guildId, pattern) {
+    const entry = await loadGuildState(guildId);
+    if (!entry.regex.includes(pattern)) {
+        entry.regex.push(pattern);
+        await saveGuildState(guildId, entry);
+        await refreshCache(guildId);
+    }
+}
+
+async function removeRegex(guildId, pattern) {
+    const entry = await loadGuildState(guildId);
+    entry.regex = entry.regex.filter((r) => r !== pattern);
+    await saveGuildState(guildId, entry);
+    await refreshCache(guildId);
+}
+
+async function setAutoRegex(guildId, enabled, backfill = false) {
+    const entry = await loadGuildState(guildId);
+    entry.autoRegexEnabled = Boolean(enabled);
+    if (enabled && backfill) {
+        for (const w of entry.words) {
+            const pat = buildFlexibleRegex(w);
+            if (!entry.regex.includes(pat)) entry.regex.push(pat);
         }
     }
+    await saveGuildState(guildId, entry);
+    await refreshCache(guildId);
 }
 
-function upsertWord(guildId, value) {
-    const g = ensureGuild(guildId);
-    const norm = normalize(value);
-    if (!g.words.includes(norm) && g.words.length < MAX_WORDS_PER_GUILD) {
-        g.words.push(norm);
-        const flex = buildFlexibleRegex(norm);
-        if (!g.regex.includes(flex)) g.regex.push(flex);
-        saveState();
-    }
-}
-
-function removeWord(guildId, value) {
-    const g = ensureGuild(guildId);
-    const norm = normalize(value);
-    g.words = g.words.filter((w) => w !== norm);
-    const flex = buildFlexibleRegex(norm);
-    g.regex = g.regex.filter((r) => r !== flex);
-    saveState();
-}
-
-function addRegex(guildId, pattern) {
-    const g = ensureGuild(guildId);
-    if (!g.regex.includes(pattern)) {
-        g.regex.push(pattern);
-        saveState();
-    }
-}
-
-function removeRegex(guildId, pattern) {
-    const g = ensureGuild(guildId);
-    g.regex = g.regex.filter((r) => r !== pattern);
-    saveState();
-}
-
-function normalize(text) {
-    return String(text || '').trim().toLowerCase();
-}
+// ---------- Commands ----------
 
 async function handleCommand(interaction) {
     const guildId = interaction.guildId;
@@ -283,19 +386,17 @@ async function handleCommand(interaction) {
 
     if (sub === 'add-word') {
         const value = interaction.options.getString('value', true);
-        const count = ensureGuild(guildId).words.length;
-        if (count >= MAX_WORDS_PER_GUILD) {
+        const entry = await loadGuildState(guildId);
+        if (entry.words.length >= MAX_WORDS_PER_GUILD) {
             return interaction.reply({ content: 'Word limit reached (2k).', ephemeral: true });
         }
-        upsertWord(guildId, value);
-        refreshCache(guildId);
+        await upsertWord(guildId, value);
         return interaction.reply({ content: `Added blocked word: \`${normalize(value)}\``, ephemeral: true });
     }
 
     if (sub === 'remove-word') {
         const value = interaction.options.getString('value', true);
-        removeWord(guildId, value);
-        refreshCache(guildId);
+        await removeWord(guildId, value);
         return interaction.reply({ content: `Removed blocked word: \`${normalize(value)}\``, ephemeral: true });
     }
 
@@ -306,20 +407,18 @@ async function handleCommand(interaction) {
         } catch (err) {
             return interaction.reply({ content: `Invalid regex: ${err.message}`, ephemeral: true });
         }
-        addRegex(guildId, pattern);
-        refreshCache(guildId);
+        await addRegex(guildId, pattern);
         return interaction.reply({ content: `Added blocked regex: \`${pattern}\``, ephemeral: true });
     }
 
     if (sub === 'remove-regex') {
         const pattern = interaction.options.getString('pattern', true).trim();
-        removeRegex(guildId, pattern);
-        refreshCache(guildId);
+        await removeRegex(guildId, pattern);
         return interaction.reply({ content: `Removed blocked regex: \`${pattern}\``, ephemeral: true });
     }
 
     if (sub === 'list') {
-        const filters = getFilters(guildId);
+        const filters = await getFilters(guildId);
         const embed = new EmbedBuilder()
             .setTitle('Current Filters')
             .setColor(0xff0000)
@@ -333,17 +432,7 @@ async function handleCommand(interaction) {
     if (sub === 'auto-regex') {
         const enabled = interaction.options.getBoolean('enabled', true);
         const backfill = interaction.options.getBoolean('backfill') || false;
-        const g = ensureGuild(guildId);
-        g.autoRegexEnabled = enabled;
-        saveState();
-        if (enabled && backfill) {
-            for (const w of g.words) {
-                const pat = buildFlexibleRegex(w);
-                if (!g.regex.includes(pat)) g.regex.push(pat);
-            }
-            saveState();
-        }
-        refreshCache(guildId);
+        await setAutoRegex(guildId, enabled, backfill);
         return interaction.reply({ content: `Auto-regex ${enabled ? 'enabled' : 'disabled'}.${enabled && backfill ? ' Backfilled.' : ''}`, ephemeral: true });
     }
 
@@ -361,56 +450,53 @@ async function handleCommand(interaction) {
             for (const line of lines) {
                 try {
                     new RegExp(line);
-                    addRegex(guildId, line);
+                    await addRegex(guildId, line);
                     added += 1;
                 } catch {
                     /* skip invalid regex */
                 }
             }
         } else {
-            let count = ensureGuild(guildId).words.length;
             for (const line of lines) {
-                if (count >= MAX_WORDS_PER_GUILD) break;
-                upsertWord(guildId, line);
-                added += 1;
-                count += 1;
+                const entry = await loadGuildState(guildId);
+                if (entry.words.length >= MAX_WORDS_PER_GUILD) break;
+                const ok = await upsertWord(guildId, line);
+                if (ok) added += 1;
             }
         }
-        refreshCache(guildId);
         return interaction.reply({ content: `Imported ${added} ${mode === 'regex' ? 'regex' : 'word'} entries${lines.length === MAX_IMPORT_LINES ? ' (truncated to 500)' : ''}.`, ephemeral: true });
     }
 
     if (sub === 'baseline') {
         const enabled = interaction.options.getBoolean('enabled', true);
         if (enabled) {
-            let count = ensureGuild(guildId).words.length;
             for (const word of BASELINE_WORDS) {
-                if (count >= MAX_WORDS_PER_GUILD) break;
-                upsertWord(guildId, word);
-                count += 1;
+                const entry = await loadGuildState(guildId);
+                if (entry.words.length >= MAX_WORDS_PER_GUILD) break;
+                await upsertWord(guildId, word);
             }
-            refreshCache(guildId);
             return interaction.reply({ content: 'Baseline loaded (up to 2k cap).', ephemeral: true });
         }
         for (const word of BASELINE_WORDS) {
-            removeWord(guildId, word);
+            await removeWord(guildId, word);
         }
-        refreshCache(guildId);
         return interaction.reply({ content: 'Baseline removed.', ephemeral: true });
     }
 
     if (sub === 'clear-all') {
-        state.guilds[guildId] = { words: [], regex: [], autoRegexEnabled: true };
-        saveState();
-        refreshCache(guildId);
+        await saveGuildState(guildId, { words: [], regex: [], autoRegexEnabled: true });
+        await refreshCache(guildId);
         return interaction.reply({ content: 'Cleared all filters for this guild.', ephemeral: true });
     }
 
     return interaction.reply({ content: 'Unknown subcommand.', ephemeral: true });
 }
 
+// ---------- Exports ----------
+
 module.exports = {
     handleMessage,
     handleCommand,
-    isModerator
+    isModerator: (member) => member && (member.permissions.has(PermissionsBitField.Flags.ManageGuild) || member.permissions.has(PermissionsBitField.Flags.Administrator)),
+    getFilters
 };
