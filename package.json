@@ -41,7 +41,6 @@
     "mongodb": "^6.19.0",
     "nerdamer": "^1.1.13",
     "node-cron": "^4.2.1",
-    "libsodium-wrappers": "^0.7.13",
     "node-fetch": "^2.6.7",
     "openai": "^5.20.1",
     "opusscript": "^0.1.1",
@@ -49,7 +48,6 @@
     "@snazzah/davey": "^0.1.2",
     "sharp": "^0.34.4",
     "tar": "^7.5.2",
-    "@snazzah/davey": "^0.1.2",
     "ffprobe-static": "^3.0.0",
     "zod": "^3.25.76",
     "tweetnacl": "^1.0.3"
