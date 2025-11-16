@@ -351,6 +351,19 @@ function extractBearerToken(req) {
     return null;
 }
 
+function isRenderHealthCheck(req) {
+    const ua = String(req.headers?.['user-agent'] || '').toLowerCase();
+    if (ua.includes('render/health')) return true;
+
+    const forwardedFor = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+    if (forwardedFor.startsWith('10.') || forwardedFor === '127.0.0.1' || forwardedFor === '::1') {
+        return true;
+    }
+
+    const remoteAddr = (req.ip || '').replace('::ffff:', '');
+    return remoteAddr === '127.0.0.1' || remoteAddr === '::1';
+}
+
 const getNextRotatingStatus = () => {
     if (!rotatingStatusMessages.length) {
         return { message: "Calibrating Stark Industries protocols." };
@@ -2026,7 +2039,7 @@ app.get("/dashboard", async (req, res) => {
 
 // Health check endpoint (for monitoring)
 app.get("/health", async (req, res) => {
-    if (HEALTH_TOKEN) {
+    if (HEALTH_TOKEN && !isRenderHealthCheck(req)) {
         const providedToken = extractBearerToken(req);
         if (providedToken !== HEALTH_TOKEN) {
             return res.status(401).json({
