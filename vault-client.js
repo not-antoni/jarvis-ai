@@ -54,7 +54,14 @@ async function getCollections() {
 
             await Promise.all([
                 userKeys.createIndex({ userId: 1 }, { unique: true, name: 'userKeys_userId_unique' }),
-                memories.createIndex({ userId: 1, createdAt: -1 }, { name: 'memories_userId_createdAt' })
+                memories.createIndex({ userId: 1, createdAt: -1 }, { name: 'memories_userId_createdAt' }),
+                memories.createIndex(
+                    { createdAt: 1 },
+                    {
+                        name: 'memories_createdAt_ttl_30d',
+                        expireAfterSeconds: 30 * 24 * 60 * 60
+                    }
+                )
             ]);
 
             return { userKeys, memories };
