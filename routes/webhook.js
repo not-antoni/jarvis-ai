@@ -23,6 +23,8 @@ const signatureCache = new LRUCache({ max: 5000, ttl: MAX_TIMESTAMP_SKEW_MS });
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const MAX_WEBHOOK_RETRY_ATTEMPTS = 3;
 const WEBHOOK_MIN_INTERVAL_MS = 750;
+const WEBHOOK_FAILURE_LOG_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const webhookFailureLog = [];
 
 const rawBodyParser = express.raw({ type: 'application/json' });
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -183,9 +185,11 @@ async function sendWebhookWithRetry(body, attempt = 1) {
 
         const errorText = await response.text().catch(() => '(no body)');
         console.error('⚠️ Discord server webhook rejected payload:', response.status, errorText);
+        logWebhookFailure({ status: response.status, errorText, body });
     } catch (error) {
         if (attempt >= MAX_WEBHOOK_RETRY_ATTEMPTS) {
             console.error('⚠️ Failed to forward webhook payload after retries:', error);
+            logWebhookFailure({ status: 'network', error: error?.message, body });
             return;
         }
 
@@ -195,6 +199,27 @@ async function sendWebhookWithRetry(body, attempt = 1) {
         return sendWebhookWithRetry(body, attempt + 1);
     }
 }
+
+function logWebhookFailure(entry) {
+    const now = Date.now();
+    webhookFailureLog.push({
+        ...entry,
+        ts: new Date(now).toISOString()
+    });
+
+    const cutoff = now - WEBHOOK_FAILURE_LOG_TTL_MS;
+    while (webhookFailureLog.length && new Date(webhookFailureLog[0].ts).getTime() < cutoff) {
+        webhookFailureLog.shift();
+    }
+}
+
+router.get('/failures', (_req, res) => {
+    res.json({
+        count: webhookFailureLog.length,
+        ttlMs: WEBHOOK_FAILURE_LOG_TTL_MS,
+        failures: webhookFailureLog.slice(-50)
+    });
+});
 
 async function maybeAttachGuildOwner(eventInfo) {
     try {
