@@ -48,6 +48,7 @@ class DatabaseManager {
 
         const ninetyDays = 60 * 60 * 24 * 90;
         const sixtyDays = 60 * 60 * 24 * 60;
+        const thirtyDays = 60 * 60 * 24 * 30;
 
         const collections = {
             conversations: this.db.collection(config.database.collections.conversations),
@@ -176,7 +177,8 @@ class DatabaseManager {
                 collection: collections.commandMetrics,
                 definitions: [
                     { key: { command: 1, subcommand: 1, context: 1 }, unique: true },
-                    { key: { updatedAt: -1 }, name: 'commandMetrics_updatedAt_idx' }
+                    { key: { updatedAt: -1 }, name: 'commandMetrics_updatedAt_idx' },
+                    { key: { updatedAt: 1 }, expireAfterSeconds: thirtyDays, name: 'commandMetrics_ttl' }
                 ]
             }
         ];
