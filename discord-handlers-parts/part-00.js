@@ -36,6 +36,7 @@ const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('./src/co
 const memeCanvas = require('./src/utils/meme-canvas');
 const cryptoClient = require('./crypto-client');
 const vaultClient = require('./vault-client');
+const moderationFilters = require('./moderation-filters');
 const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
 
 function isCommandEnabled(commandName) {

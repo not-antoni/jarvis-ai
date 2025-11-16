@@ -634,6 +634,8 @@
             return;
         }
 
+        await moderationFilters.handleMessage(message);
+
         const chatEnabled = await this.isCommandFeatureEnabled('jarvis', message.guild);
         if (!chatEnabled || !isFeatureGloballyEnabled('coreChat')) {
             return;

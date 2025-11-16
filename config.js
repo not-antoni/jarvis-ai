@@ -71,6 +71,7 @@ const rawConfig = {
             guildConfigs: 'guildConfigs',
             reactionRoles: 'reactionRoles',
             autoModeration: 'autoModerationRules',
+            moderationFilters: 'moderationFilters',
             serverStats: 'serverStats',
             memberLogs: 'memberLogs',
             tickets: 'tickets',
@@ -163,7 +164,8 @@ const rawConfig = {
         music: true,
         memeTools: true,
         funUtilities: true,
-        crypto: true
+        crypto: true,
+        moderationFilters: true
     }
 };
 
