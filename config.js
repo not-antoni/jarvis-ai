@@ -71,6 +71,7 @@ const rawConfig = {
             guildConfigs: 'guildConfigs',
             reactionRoles: 'reactionRoles',
             autoModeration: 'autoModerationRules',
+            moderationFilters: 'moderationFilters',
             serverStats: 'serverStats',
             memberLogs: 'memberLogs',
             tickets: 'tickets',
