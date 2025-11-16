@@ -13,8 +13,16 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'filter',
+        description: 'Manage per-guild blocked words and regex filters',
+        category: 'Moderation',
+        usage: '/filter <subcommand>',
+        feature: 'moderationFilters',
+        ephemeral: true
+    },
+    {
         name: '67',
-        description: 'Unleash the legendary SIX SEVEN energy.',
+        description: '6 7',
         category: 'Fun',
         usage: '/67',
         feature: 'funUtilities',
@@ -59,14 +67,6 @@ const commandDefinitions = [
         usage: '/features',
         feature: 'utilities',
         ephemeral: true
-    },
-    {
-        name: '67',
-        description: '6 7',
-        category: 'Fun',
-        usage: '/67',
-        feature: 'funUtilities',
-        ephemeral: false
     },
     {
         name: 'joke',

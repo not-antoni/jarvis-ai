@@ -2076,6 +2076,11 @@
                     await this.handleFeaturesCommand(interaction);
                     return;
                 }
+                case 'filter': {
+                    telemetryMetadata.category = 'moderation';
+                    await moderationFilters.handleCommand(interaction);
+                    return;
+                }
                 case '67': {
                     telemetryMetadata.category = 'fun';
                     await this.handleSixSevenCommand(interaction);
