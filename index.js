@@ -41,7 +41,7 @@ if (configuredThreadpoolSize) {
 
 const DATA_DIR = path.join(__dirname, 'data');
 const COMMAND_SYNC_STATE_PATH = path.join(DATA_DIR, 'command-sync-state.json');
-const HEALTH_TOKEN = config.server.healthToken || null;
+const HEALTH_TOKEN = null;
 
 function safeReadJson(filePath, fallback) {
     try {
