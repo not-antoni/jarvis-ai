@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const { PermissionsBitField, EmbedBuilder } = require('discord.js');
 const database = require('./database');
 const config = require('./config');
+const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 
 // Storage mode: default to Mongo for Render; optional fallback to file with MODERATION_FILTERS_STORAGE=file
 const STORAGE_MODE = (process.env.MODERATION_FILTERS_STORAGE || 'mongo').toLowerCase();
@@ -234,6 +235,7 @@ async function getFilters(guildId) {
 
 async function handleMessage(message) {
     if (!message.guild || message.author.bot) return;
+    if (!isFeatureGloballyEnabled('moderationFilters')) return;
     if (!message.content) return;
 
     const filters = await getFilters(message.guild.id);
