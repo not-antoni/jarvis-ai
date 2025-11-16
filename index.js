@@ -1814,6 +1814,13 @@ app.get('/metrics/commands', async (req, res) => {
 });
 
 app.get("/dashboard", async (req, res) => {
+    if (HEALTH_TOKEN) {
+        const providedToken = extractBearerToken(req);
+        if (providedToken !== HEALTH_TOKEN) {
+            return res.status(401).send('Dashboard requires a valid bearer token.');
+        }
+    }
+
     const deep = ['1', 'true', 'yes', 'deep'].includes(String(req.query.deep || '').toLowerCase());
 
     try {
