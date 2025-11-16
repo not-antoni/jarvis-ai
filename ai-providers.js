@@ -680,11 +680,28 @@ class AIProviderManager {
             this.openRouterFailureCount = 0;
             console.log('OpenRouter global failure detected - disabling all OpenRouter providers temporarily');
             const clearAfter = 6 * 60 * 60 * 1000;
-            setTimeout(() => {
+            const clearGlobal = () => {
               this.openRouterGlobalFailure = false;
+              this.openRouterFailureCount = 0;
               console.log('OpenRouter global failure cleared - re-enabling OpenRouter providers');
               this.scheduleStateSave();
-            }, clearAfter).unref?.();
+            };
+
+            // Canary after 5 minutes to re-enable sooner if transient
+            setTimeout(() => {
+              const canary = this.providers.find((p) => p.name.startsWith('OpenRouter') && !this.disabledProviders.get(p.name));
+              if (!canary) {
+                return clearGlobal();
+              }
+              canary.client.chat.completions.create({
+                model: canary.model,
+                messages: [{ role: 'user', content: 'ping' }]
+              }).then(() => {
+                clearGlobal();
+              }).catch(() => {
+                setTimeout(clearGlobal, clearAfter - 5 * 60 * 1000);
+              });
+            }, 5 * 60 * 1000).unref?.();
           }
         }
       }
