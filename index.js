@@ -1761,7 +1761,14 @@ Memory: ${memoryText}
     }
 });
 
-app.get('/providers/status', async (_req, res) => {
+app.get('/providers/status', async (req, res) => {
+    if (HEALTH_TOKEN) {
+        const providedToken = extractBearerToken(req);
+        if (providedToken !== HEALTH_TOKEN) {
+            return res.status(401).json({ status: 'unauthorized', error: 'Valid bearer token required' });
+        }
+    }
+
     try {
         const snapshot = await gatherHealthSnapshot({
             includeProviders: true,
@@ -1776,6 +1783,13 @@ app.get('/providers/status', async (_req, res) => {
 });
 
 app.get('/metrics/commands', async (req, res) => {
+    if (HEALTH_TOKEN) {
+        const providedToken = extractBearerToken(req);
+        if (providedToken !== HEALTH_TOKEN) {
+            return res.status(401).json({ status: 'unauthorized', error: 'Valid bearer token required' });
+        }
+    }
+
     const limitParam = Number.parseInt(req.query?.limit, 10);
     const limit = Math.max(1, Math.min(Number.isFinite(limitParam) ? limitParam : 25, 200));
     const sortBy = req.query?.sort === 'errors' ? 'errors' : 'runs';

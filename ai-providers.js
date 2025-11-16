@@ -676,12 +676,12 @@ class AIProviderManager {
         if (isEmptyResponse && provider.name.startsWith('OpenRouter')) {
           this.openRouterFailureCount += 1;
           if (this.openRouterFailureCount >= 2) {
-            self.openRouterGlobalFailure = true;
-            self.openRouterFailureCount = 0;
+            this.openRouterGlobalFailure = true;
+            this.openRouterFailureCount = 0;
             console.log('OpenRouter global failure detected - disabling all OpenRouter providers temporarily');
             const clearAfter = 6 * 60 * 60 * 1000;
             setTimeout(() => {
-              self.openRouterGlobalFailure = false;
+              this.openRouterGlobalFailure = false;
               console.log('OpenRouter global failure cleared - re-enabling OpenRouter providers');
               this.scheduleStateSave();
             }, clearAfter).unref?.();
