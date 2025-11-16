@@ -1926,7 +1926,9 @@
             const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
 
             try {
-                await interaction.deferReply({ ephemeral: deferEphemeral });
+                if (!interaction.deferred && !interaction.replied) {
+                    await interaction.deferReply({ ephemeral: deferEphemeral });
+                }
             } catch (error) {
                 if (error.code === 10062) {
                     telemetryStatus = 'error';
@@ -1934,9 +1936,18 @@
                     console.warn('Ignored unknown interaction during deferReply.');
                     return;
                 }
-                telemetryStatus = 'error';
-                telemetryError = error;
-                console.error('Failed to defer reply:', error);
+                if (error.code === 40060) { // already acknowledged
+                    telemetryMetadata.reason = 'already-acknowledged';
+                    console.warn('Interaction already acknowledged before defer; continuing without defer.');
+                } else {
+                    telemetryStatus = 'error';
+                    telemetryError = error;
+                    console.error('Failed to defer reply:', error);
+                    return;
+                }
+            }
+
+            if (interaction.replied) {
                 return;
             }
 
