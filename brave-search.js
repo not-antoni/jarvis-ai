@@ -1134,6 +1134,12 @@ class BraveSearch {
     }
 
     async fetchNews(topic = 'technology', { count = 5 } = {}) {
+        const useHeadless = config?.deployment?.headlessBrowser === true;
+
+        if (useHeadless) {
+            return this.fetchNewsHeadless(topic, { count });
+        }
+
         if (!this.apiKey) {
             throw new Error('Brave Search API not configured. Please set BRAVE_API_KEY environment variable.');
         }
@@ -1184,6 +1190,60 @@ class BraveSearch {
                     thumbnail: result.thumbnail?.src || result.image?.thumbnail?.contentUrl || null
                 };
             });
+    }
+
+    async fetchNewsHeadless(topic = 'technology', { count = 5 } = {}) {
+        const normalizedTopic = this.sanitizeUserQuery(topic) || 'technology';
+        const requestedCount = Math.min(Math.max(Number(count) || 5, 1), 10);
+        const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(normalizedTopic)}+news&safesearch=1`;
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (JarvisBot Headless Fallback)',
+                'Accept': 'text/html'
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(`Headless news failed: ${response.status} ${errorText.slice(0, 200)}`);
+        }
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const results = [];
+
+        $('div.result').each((_, el) => {
+            const $el = $(el);
+            const link = $el.find('a.result__a');
+            const title = link.text().trim();
+            const href = link.attr('href');
+            const snippet = $el.find('.result__snippet').text().trim();
+            const source = $el.find('.result__extras__url').text().trim();
+
+            if (!href || !title) return;
+
+            results.push({
+                title: this.truncate(title, 120),
+                url: href,
+                excerpt: this.truncate(snippet || '', 180),
+                source: source || null,
+                published: null,
+                thumbnail: null
+            });
+        });
+
+        const safeResults = results
+            .filter((r) => r?.url)
+            .slice(0, requestedCount);
+
+        if (!safeResults.length) {
+            const error = new Error('No headlines available right now, sir.');
+            error.isSafeSearchBlock = true;
+            throw error;
+        }
+
+        return safeResults;
     }
 
     formatNewsDigest(topic, articles) {
