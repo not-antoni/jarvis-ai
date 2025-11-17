@@ -30,6 +30,9 @@ const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE
 const deploymentTarget = (process.env.DEPLOY_TARGET || 'render').trim().toLowerCase();
 const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, false);
 const liveAgentModeEnabled = parseBooleanEnv(process.env.LIVE_AGENT_MODE, false);
+const agentAllowlist = (process.env.AGENT_ALLOWLIST_DOMAINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+const agentDenylist = (process.env.AGENT_DENYLIST_DOMAINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+const agentPreferredProviders = (process.env.AGENT_PREFERRED_PROVIDERS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 const baseIntents = [
     'Guilds',
@@ -104,7 +107,10 @@ const rawConfig = {
         autoExportMongo: parseBooleanEnv(process.env.SELFHOST_AUTO_EXPORT_MONGO, false),
         exportPath: process.env.SELFHOST_EXPORT_PATH || path.join(__dirname, 'data', 'mongo-exports'),
         exportCollections: (process.env.SELFHOST_EXPORT_COLLECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean),
-        liveAgentMode: liveAgentModeEnabled
+        liveAgentMode: liveAgentModeEnabled,
+        agentAllowlist,
+        agentDenylist,
+        agentPreferredProviders
     },
 
     // AI Provider Configuration
