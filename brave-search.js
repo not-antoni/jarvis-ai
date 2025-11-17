@@ -4,6 +4,8 @@
 
 const fetch = require('node-fetch');
 const { toUnicode } = require('punycode/');
+const cheerio = require('cheerio');
+const config = require('./config');
 
 const ZERO_WIDTH_CHAR_PATTERN = /[\u200B-\u200D\u200E-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
 
@@ -976,6 +978,12 @@ class BraveSearch {
     }
 
     async searchWeb(query, options = {}) {
+        const useHeadless = config?.deployment?.headlessBrowser === true;
+
+        if (useHeadless) {
+            return this.searchWebHeadless(query, options);
+        }
+
         if (!this.apiKey) {
             throw new Error('Brave Search API not configured. Please set BRAVE_API_KEY environment variable.');
         }
@@ -1041,6 +1049,83 @@ class BraveSearch {
 
         if (safeResults.length === 0 && filteredOut > 0) {
             const error = new Error(EXPLICIT_RESULTS_MESSAGE);
+            error.isSafeSearchBlock = true;
+            throw error;
+        }
+
+        return safeResults;
+    }
+
+    async searchWebHeadless(query, options = {}) {
+        const preparedQuery = this.prepareQueryForApi(query);
+        const rawSegment = typeof options.rawSegment === 'string'
+            ? this.stripZeroWidth(options.rawSegment)
+            : null;
+
+        if (!preparedQuery) {
+            const error = new Error('Please provide a web search query, sir.');
+            error.isSafeSearchBlock = true;
+            throw error;
+        }
+
+        if (this.isExplicitQuery(preparedQuery, { rawSegment })) {
+            const error = new Error(EXPLICIT_QUERY_MESSAGE);
+            error.isSafeSearchBlock = true;
+            throw error;
+        }
+
+        const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(preparedQuery)}&safesearch=1`;
+
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (JarvisBot Headless Fallback)',
+                'Accept': 'text/html'
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(`Headless search failed: ${response.status} ${errorText.slice(0, 200)}`);
+        }
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const results = [];
+
+        $('div.result').each((_, el) => {
+            const $el = $(el);
+            const link = $el.find('a.result__a');
+            const title = link.text().trim();
+            const href = link.attr('href');
+            const snippet = $el.find('.result__snippet').text().trim();
+
+            if (!href || !title) return;
+
+            results.push({
+                title,
+                url: href,
+                description: snippet,
+                displayUrl: (() => {
+                    try { return new URL(href).hostname; } catch { return href; }
+                })()
+            });
+        });
+
+        const safeResults = results
+            .filter((result) => {
+                if (!result?.url) return false;
+                try {
+                    const explicit = this.isExplicitQuery(`${result.title} ${result.description || ''}`, { rawSegment: rawSegment || '' });
+                    return !explicit;
+                } catch {
+                    return true;
+                }
+            })
+            .slice(0, 8)
+            .map((r) => this.normaliseResult(r));
+
+        if (safeResults.length === 0) {
+            const error = new Error('Web search returned no safe results, sir.');
             error.isSafeSearchBlock = true;
             throw error;
         }
