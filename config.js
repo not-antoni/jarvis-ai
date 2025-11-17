@@ -2,6 +2,7 @@
  * Configuration management for Jarvis Discord Bot
  */
 
+const path = require('path');
 const validateConfig = require('./config/validate');
 
 function parseBooleanEnv(envValue, fallback = false) {
@@ -98,7 +99,10 @@ const rawConfig = {
     // Deployment target controls infra-specific toggles.
     deployment: {
         target: deploymentTarget, // 'render' (default) or 'selfhost'
-        headlessBrowser: headlessBrowserEnabled // enable when running a local headless browser instead of external APIs
+        headlessBrowser: headlessBrowserEnabled, // enable when running a local headless browser instead of external APIs
+        autoExportMongo: parseBooleanEnv(process.env.SELFHOST_AUTO_EXPORT_MONGO, false),
+        exportPath: process.env.SELFHOST_EXPORT_PATH || path.join(__dirname, 'data', 'mongo-exports'),
+        exportCollections: (process.env.SELFHOST_EXPORT_COLLECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean)
     },
 
     // AI Provider Configuration
