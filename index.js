@@ -31,6 +31,7 @@ const { commandList: musicCommandList } = require("./src/commands/music");
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 const webhookRouter = require('./routes/webhook');
+const { exportAllCollections } = require('./src/utils/mongo-exporter');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -42,6 +43,7 @@ if (configuredThreadpoolSize) {
 const DATA_DIR = path.join(__dirname, 'data');
 const COMMAND_SYNC_STATE_PATH = path.join(DATA_DIR, 'command-sync-state.json');
 const HEALTH_TOKEN = null;
+const isSelfHost = config?.deployment?.target === 'selfhost';
 
 function safeReadJson(filePath, fallback) {
     try {
@@ -69,6 +71,22 @@ let commandSyncState = safeReadJson(COMMAND_SYNC_STATE_PATH, null);
 initializeDatabaseClients()
     .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
     .catch((error) => console.error('Failed to initialize MongoDB clients at startup:', error));
+
+async function maybeExportMongoOnStartup() {
+    if (!isSelfHost) return;
+    if (!config?.deployment?.autoExportMongo) return;
+
+    try {
+        const outDir = config.deployment.exportPath;
+        const collections = Array.isArray(config.deployment.exportCollections) && config.deployment.exportCollections.length
+            ? config.deployment.exportCollections
+            : [];
+        const file = await exportAllCollections({ outDir, collections, filenamePrefix: 'startup-export' });
+        console.log(`Self-host: exported Mongo snapshot to ${file}`);
+    } catch (error) {
+        console.error('Self-host Mongo export failed:', error);
+    }
+}
 
 // ------------------------ Discord Client Setup ------------------------
 const client = new Client({
@@ -2098,6 +2116,10 @@ client.once(Events.ClientReady, async () => {
         } catch (error) {
             console.error("Failed to connect to MongoDB on startup:", error);
         }
+    }
+
+    if (databaseConnected) {
+        await maybeExportMongoOnStartup();
     }
 
     if (databaseConnected) {

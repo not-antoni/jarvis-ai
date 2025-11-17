@@ -4,6 +4,8 @@
 
 const fetch = require('node-fetch');
 const { toUnicode } = require('punycode/');
+const cheerio = require('cheerio');
+const config = require('./config');
 
 const ZERO_WIDTH_CHAR_PATTERN = /[\u200B-\u200D\u200E-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
 
@@ -936,24 +938,59 @@ class BraveSearch {
         return false;
     }
 
-    normaliseResult(result) {
+    sanitizeUrl(rawUrl) {
+        try {
+            const working = rawUrl.startsWith('//') ? `https:${rawUrl}` : rawUrl;
+            const parsed = new URL(working);
+            if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                const uddg = parsed.searchParams.get('uddg');
+                if (uddg) return decodeURIComponent(uddg);
+            }
+            ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'ref'].forEach((k) => parsed.searchParams.delete(k));
+            parsed.search = parsed.searchParams.toString();
+            return parsed.toString();
+        } catch {
+            return rawUrl;
+        }
+    }
+
+    normaliseResult(result, source = 'api') {
+        const resolveDuckRedirect = (url) => {
+            try {
+                const cleaned = url.startsWith('//') ? `https:${url}` : url;
+                const parsed = new URL(cleaned);
+                if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                    const uddg = parsed.searchParams.get('uddg');
+                    if (uddg) {
+                        return decodeURIComponent(uddg);
+                    }
+                }
+                return cleaned;
+            } catch {
+                return url;
+            }
+        };
+
+        const finalUrl = this.sanitizeUrl(resolveDuckRedirect(result.url));
+
         const displayUrl = result?.meta_url?.displayUrl || (() => {
             try {
-                return new URL(result.url).hostname;
+                return new URL(finalUrl).hostname;
             } catch (err) {
-                return result.url;
+                return finalUrl;
             }
         })();
 
         return {
             title: result.title || result.url,
-            url: result.url,
+            url: finalUrl,
             description: result.description || '',
             displayUrl,
             thumbnail: result?.thumbnail?.src || null,
             profileName: result?.profile?.name || null,
             age: result?.page_age || null,
-            language: result.language || null
+            language: result.language || null,
+            source
         };
     }
 
@@ -976,6 +1013,12 @@ class BraveSearch {
     }
 
     async searchWeb(query, options = {}) {
+        const useHeadless = config?.deployment?.headlessBrowser === true;
+
+        if (useHeadless) {
+            return this.searchWebHeadless(query, options);
+        }
+
         if (!this.apiKey) {
             throw new Error('Brave Search API not configured. Please set BRAVE_API_KEY environment variable.');
         }
@@ -1037,7 +1080,7 @@ class BraveSearch {
                 return !explicit;
             })
             .slice(0, 5)
-            .map((result) => this.normaliseResult(result));
+            .map((result) => this.normaliseResult(result, 'api'));
 
         if (safeResults.length === 0 && filteredOut > 0) {
             const error = new Error(EXPLICIT_RESULTS_MESSAGE);
@@ -1048,7 +1091,100 @@ class BraveSearch {
         return safeResults;
     }
 
+    async searchWebHeadless(query, options = {}) {
+        const preparedQuery = this.prepareQueryForApi(query);
+        const rawSegment = typeof options.rawSegment === 'string'
+            ? this.stripZeroWidth(options.rawSegment)
+            : null;
+
+        if (!preparedQuery) {
+            const error = new Error('Please provide a web search query, sir.');
+            error.isSafeSearchBlock = true;
+            throw error;
+        }
+
+        if (this.isExplicitQuery(preparedQuery, { rawSegment })) {
+            const error = new Error(EXPLICIT_QUERY_MESSAGE);
+            error.isSafeSearchBlock = true;
+            throw error;
+        }
+
+        const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(preparedQuery)}&safesearch=1`;
+
+        const response = await fetch(url, {
+            redirect: 'follow',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+                'Accept': 'text/html',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(`Headless search failed: ${response.status} ${errorText.slice(0, 200)}`);
+        }
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const results = [];
+
+        $('div.result').each((_, el) => {
+            const $el = $(el);
+            const link = $el.find('a.result__a');
+            const title = link.text().trim();
+            const href = link.attr('href');
+            const snippet = $el.find('.result__snippet').text().trim();
+
+            if (!href || !title) return;
+
+            const resolvedUrl = this.sanitizeUrl((() => {
+                try {
+                    const cleaned = href.startsWith('//') ? `https:${href}` : href;
+                    const parsed = new URL(cleaned);
+                    if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                        const uddg = parsed.searchParams.get('uddg');
+                        if (uddg) return decodeURIComponent(uddg);
+                    }
+                    return cleaned;
+                } catch {
+                    return href;
+                }
+            })());
+
+            results.push({
+                title,
+                url: resolvedUrl,
+                description: snippet,
+                displayUrl: (() => {
+                    try { return new URL(resolvedUrl).hostname; } catch { return resolvedUrl; }
+                })()
+            });
+        });
+
+        const safeResults = results
+            .filter((result) => {
+                if (!result?.url) return false;
+                try {
+                    const explicit = this.isExplicitQuery(`${result.title} ${result.description || ''}`, { rawSegment: rawSegment || '' });
+                    return !explicit;
+                } catch {
+                    return true;
+                }
+            })
+            .slice(0, 8)
+            .map((r) => this.normaliseResult(r, 'headless'));
+
+        return safeResults;
+    }
+
     async fetchNews(topic = 'technology', { count = 5 } = {}) {
+        const useHeadless = config?.deployment?.headlessBrowser === true;
+
+        if (useHeadless) {
+            return this.fetchNewsHeadless(topic, { count });
+        }
+
         if (!this.apiKey) {
             throw new Error('Brave Search API not configured. Please set BRAVE_API_KEY environment variable.');
         }
@@ -1099,6 +1235,68 @@ class BraveSearch {
                     thumbnail: result.thumbnail?.src || result.image?.thumbnail?.contentUrl || null
                 };
             });
+    }
+
+    async fetchNewsHeadless(topic = 'technology', { count = 5 } = {}) {
+        const normalizedTopic = this.sanitizeUserQuery(topic) || 'technology';
+        const requestedCount = Math.min(Math.max(Number(count) || 5, 1), 10);
+        const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(normalizedTopic)}+news&safesearch=1`;
+
+        const response = await fetch(url, {
+            redirect: 'follow',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+                'Accept': 'text/html',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(`Headless news failed: ${response.status} ${errorText.slice(0, 200)}`);
+        }
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const results = [];
+
+        const resolveDuckRedirect = (url) => {
+            try {
+                const cleaned = url.startsWith('//') ? `https:${url}` : url;
+                const parsed = new URL(cleaned);
+                if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                    const uddg = parsed.searchParams.get('uddg');
+                    if (uddg) return decodeURIComponent(uddg);
+                }
+                return cleaned;
+            } catch {
+                return url;
+            }
+        };
+
+        $('div.result').each((_, el) => {
+            const $el = $(el);
+            const link = $el.find('a.result__a');
+            const title = link.text().trim();
+            const href = link.attr('href');
+            const snippet = $el.find('.result__snippet').text().trim();
+            const source = $el.find('.result__extras__url').text().trim();
+
+            if (!href || !title) return;
+
+            results.push({
+                title: this.truncate(title, 120),
+                url: resolveDuckRedirect(href),
+                excerpt: this.truncate(snippet || '', 180),
+                source: source || null,
+                published: null,
+                thumbnail: null
+            });
+        });
+
+        return results
+            .filter((r) => r?.url)
+            .slice(0, requestedCount);
     }
 
     formatNewsDigest(topic, articles) {
