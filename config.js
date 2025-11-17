@@ -26,6 +26,8 @@ function parseBooleanEnv(envValue, fallback = false) {
 
 const enableMessageContentIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_MESSAGE_CONTENT, false);
 const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE_INTENT, false);
+const deploymentTarget = (process.env.DEPLOY_TARGET || 'render').trim().toLowerCase();
+const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, false);
 
 const baseIntents = [
     'Guilds',
@@ -91,6 +93,12 @@ const rawConfig = {
     security: {
         masterKeyBase64: process.env.MASTER_KEY_BASE64,
         vaultCacheTtlMs: process.env.VAULT_CACHE_TTL_MS ? Number(process.env.VAULT_CACHE_TTL_MS) : undefined
+    },
+
+    // Deployment target controls infra-specific toggles.
+    deployment: {
+        target: deploymentTarget, // 'render' (default) or 'selfhost'
+        headlessBrowser: headlessBrowserEnabled // enable when running a local headless browser instead of external APIs
     },
 
     // AI Provider Configuration
