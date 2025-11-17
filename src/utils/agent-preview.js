@@ -12,6 +12,18 @@ function sanitizeUrl(url) {
         if (!['http:', 'https:'].includes(parsed.protocol)) {
             throw new Error('Invalid protocol');
         }
+        const host = parsed.hostname.toLowerCase();
+        if (Array.isArray(config?.deployment?.agentDenylist) && config.deployment.agentDenylist.length) {
+            if (config.deployment.agentDenylist.some((d) => host === d || host.endsWith(`.${d}`))) {
+                throw new Error('Domain is denied for agent preview');
+            }
+        }
+        if (Array.isArray(config?.deployment?.agentAllowlist) && config.deployment.agentAllowlist.length) {
+            const allowed = config.deployment.agentAllowlist.some((d) => host === d || host.endsWith(`.${d}`));
+            if (!allowed) {
+                throw new Error('Domain not in allowlist for agent preview');
+            }
+        }
         // Strip common trackers
         ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'ref'].forEach((k) => parsed.searchParams.delete(k));
         parsed.search = parsed.searchParams.toString();
@@ -38,6 +50,11 @@ async function fetchPage(url, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
 
         if (!res.ok) {
             throw new Error(`HTTP ${res.status}`);
+        }
+
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.toLowerCase().includes('text/html')) {
+            throw new Error(`Unsupported content-type: ${contentType}`);
         }
 
         if (!res.body) {
@@ -75,7 +92,23 @@ function extractText(html) {
     const $ = cheerio.load(html);
     $('script, style, noscript, iframe, template').remove();
     const title = ($('title').first().text() || '').trim();
-    const bodyText = $('body').text().replace(/\\s+/g, ' ').trim();
+
+    const candidates = [];
+    const selectors = ['article', 'main', 'div'];
+    selectors.forEach((sel) => {
+        $(sel).each((_, el) => {
+            const text = $(el).text().replace(/\\s+/g, ' ').trim();
+            candidates.push({ text, length: text.length });
+        });
+    });
+
+    candidates.sort((a, b) => b.length - a.length);
+    const best = candidates.find((c) => c.length > 300) || candidates[0];
+
+    const bodyText = best?.text
+        ? best.text
+        : $('body').text().replace(/\\s+/g, ' ').trim();
+
     return { title, text: bodyText };
 }
 
