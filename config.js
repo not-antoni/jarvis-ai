@@ -29,6 +29,7 @@ const enableMessageContentIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_ME
 const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE_INTENT, false);
 const deploymentTarget = (process.env.DEPLOY_TARGET || 'render').trim().toLowerCase();
 const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, false);
+const liveAgentModeEnabled = parseBooleanEnv(process.env.LIVE_AGENT_MODE, false);
 
 const baseIntents = [
     'Guilds',
@@ -102,7 +103,8 @@ const rawConfig = {
         headlessBrowser: headlessBrowserEnabled, // enable when running a local headless browser instead of external APIs
         autoExportMongo: parseBooleanEnv(process.env.SELFHOST_AUTO_EXPORT_MONGO, false),
         exportPath: process.env.SELFHOST_EXPORT_PATH || path.join(__dirname, 'data', 'mongo-exports'),
-        exportCollections: (process.env.SELFHOST_EXPORT_COLLECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean)
+        exportCollections: (process.env.SELFHOST_EXPORT_COLLECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean),
+        liveAgentMode: liveAgentModeEnabled
     },
 
     // AI Provider Configuration

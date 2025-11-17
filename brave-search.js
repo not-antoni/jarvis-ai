@@ -938,7 +938,23 @@ class BraveSearch {
         return false;
     }
 
-    normaliseResult(result) {
+    sanitizeUrl(rawUrl) {
+        try {
+            const working = rawUrl.startsWith('//') ? `https:${rawUrl}` : rawUrl;
+            const parsed = new URL(working);
+            if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                const uddg = parsed.searchParams.get('uddg');
+                if (uddg) return decodeURIComponent(uddg);
+            }
+            ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'ref'].forEach((k) => parsed.searchParams.delete(k));
+            parsed.search = parsed.searchParams.toString();
+            return parsed.toString();
+        } catch {
+            return rawUrl;
+        }
+    }
+
+    normaliseResult(result, source = 'api') {
         const resolveDuckRedirect = (url) => {
             try {
                 const cleaned = url.startsWith('//') ? `https:${url}` : url;
@@ -955,7 +971,7 @@ class BraveSearch {
             }
         };
 
-        const finalUrl = resolveDuckRedirect(result.url);
+        const finalUrl = this.sanitizeUrl(resolveDuckRedirect(result.url));
 
         const displayUrl = result?.meta_url?.displayUrl || (() => {
             try {
@@ -973,7 +989,8 @@ class BraveSearch {
             thumbnail: result?.thumbnail?.src || null,
             profileName: result?.profile?.name || null,
             age: result?.page_age || null,
-            language: result.language || null
+            language: result.language || null,
+            source
         };
     }
 
@@ -1063,7 +1080,7 @@ class BraveSearch {
                 return !explicit;
             })
             .slice(0, 5)
-            .map((result) => this.normaliseResult(result));
+            .map((result) => this.normaliseResult(result, 'api'));
 
         if (safeResults.length === 0 && filteredOut > 0) {
             const error = new Error(EXPLICIT_RESULTS_MESSAGE);
@@ -1121,12 +1138,26 @@ class BraveSearch {
 
             if (!href || !title) return;
 
+            const resolvedUrl = this.sanitizeUrl((() => {
+                try {
+                    const cleaned = href.startsWith('//') ? `https:${href}` : href;
+                    const parsed = new URL(cleaned);
+                    if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                        const uddg = parsed.searchParams.get('uddg');
+                        if (uddg) return decodeURIComponent(uddg);
+                    }
+                    return cleaned;
+                } catch {
+                    return href;
+                }
+            })());
+
             results.push({
                 title,
-                url: href,
+                url: resolvedUrl,
                 description: snippet,
                 displayUrl: (() => {
-                    try { return new URL(href).hostname; } catch { return href; }
+                    try { return new URL(resolvedUrl).hostname; } catch { return resolvedUrl; }
                 })()
             });
         });
@@ -1142,7 +1173,7 @@ class BraveSearch {
                 }
             })
             .slice(0, 8)
-            .map((r) => this.normaliseResult(r));
+            .map((r) => this.normaliseResult(r, 'headless'));
 
         return safeResults;
     }
