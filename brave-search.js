@@ -939,17 +939,35 @@ class BraveSearch {
     }
 
     normaliseResult(result) {
+        const resolveDuckRedirect = (url) => {
+            try {
+                const cleaned = url.startsWith('//') ? `https:${url}` : url;
+                const parsed = new URL(cleaned);
+                if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                    const uddg = parsed.searchParams.get('uddg');
+                    if (uddg) {
+                        return decodeURIComponent(uddg);
+                    }
+                }
+                return cleaned;
+            } catch {
+                return url;
+            }
+        };
+
+        const finalUrl = resolveDuckRedirect(result.url);
+
         const displayUrl = result?.meta_url?.displayUrl || (() => {
             try {
-                return new URL(result.url).hostname;
+                return new URL(finalUrl).hostname;
             } catch (err) {
-                return result.url;
+                return finalUrl;
             }
         })();
 
         return {
             title: result.title || result.url,
-            url: result.url,
+            url: finalUrl,
             description: result.description || '',
             displayUrl,
             thumbnail: result?.thumbnail?.src || null,
@@ -1077,9 +1095,11 @@ class BraveSearch {
         const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(preparedQuery)}&safesearch=1`;
 
         const response = await fetch(url, {
+            redirect: 'follow',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (JarvisBot Headless Fallback)',
-                'Accept': 'text/html'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+                'Accept': 'text/html',
+                'Accept-Language': 'en-US,en;q=0.9'
             }
         });
 
@@ -1123,12 +1143,6 @@ class BraveSearch {
             })
             .slice(0, 8)
             .map((r) => this.normaliseResult(r));
-
-        if (safeResults.length === 0) {
-            const error = new Error('Web search returned no safe results, sir.');
-            error.isSafeSearchBlock = true;
-            throw error;
-        }
 
         return safeResults;
     }
@@ -1198,9 +1212,11 @@ class BraveSearch {
         const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(normalizedTopic)}+news&safesearch=1`;
 
         const response = await fetch(url, {
+            redirect: 'follow',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (JarvisBot Headless Fallback)',
-                'Accept': 'text/html'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+                'Accept': 'text/html',
+                'Accept-Language': 'en-US,en;q=0.9'
             }
         });
 
@@ -1212,6 +1228,20 @@ class BraveSearch {
         const html = await response.text();
         const $ = cheerio.load(html);
         const results = [];
+
+        const resolveDuckRedirect = (url) => {
+            try {
+                const cleaned = url.startsWith('//') ? `https:${url}` : url;
+                const parsed = new URL(cleaned);
+                if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                    const uddg = parsed.searchParams.get('uddg');
+                    if (uddg) return decodeURIComponent(uddg);
+                }
+                return cleaned;
+            } catch {
+                return url;
+            }
+        };
 
         $('div.result').each((_, el) => {
             const $el = $(el);
@@ -1225,7 +1255,7 @@ class BraveSearch {
 
             results.push({
                 title: this.truncate(title, 120),
-                url: href,
+                url: resolveDuckRedirect(href),
                 excerpt: this.truncate(snippet || '', 180),
                 source: source || null,
                 published: null,
@@ -1233,17 +1263,9 @@ class BraveSearch {
             });
         });
 
-        const safeResults = results
+        return results
             .filter((r) => r?.url)
             .slice(0, requestedCount);
-
-        if (!safeResults.length) {
-            const error = new Error('No headlines available right now, sir.');
-            error.isSafeSearchBlock = true;
-            throw error;
-        }
-
-        return safeResults;
     }
 
     formatNewsDigest(topic, articles) {
