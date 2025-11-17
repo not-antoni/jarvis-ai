@@ -40,19 +40,30 @@ async function fetchPage(url, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
             throw new Error(`HTTP ${res.status}`);
         }
 
-        const reader = res.body.getReader();
+        if (!res.body) {
+            throw new Error('No response body');
+        }
+
         let received = 0;
         const chunks = [];
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            received += value.length;
-            if (received > maxBytes) {
-                chunks.push(value.slice(0, Math.max(0, maxBytes - (received - value.length))));
-                break;
-            }
-            chunks.push(value);
-        }
+
+        await new Promise((resolve, reject) => {
+            res.body.on('data', (chunk) => {
+                received += chunk.length;
+                if (received > maxBytes) {
+                    const keep = maxBytes - (received - chunk.length);
+                    if (keep > 0) chunks.push(chunk.slice(0, keep));
+                    res.body.destroy(); // stop reading
+                    resolve();
+                } else {
+                    chunks.push(chunk);
+                }
+            });
+            res.body.on('end', resolve);
+            res.body.on('error', reject);
+            controller.signal.addEventListener('abort', () => reject(new Error('Fetch aborted')));
+        });
+
         const buf = Buffer.concat(chunks);
         return buf.toString('utf8');
     } finally {
@@ -70,13 +81,17 @@ function extractText(html) {
 
 async function summarizeText({ title, text, url }) {
     const truncated = text.slice(0, 4000); // limit to ~4k chars
-    const systemPrompt = `You are Jarvis. Provide a brief, safe summary of the fetched page. Use bullet points if helpful. Include the title if present. Keep it under 120 words.`;
+    const systemPrompt = `You are Jarvis. Provide a brief, safe summary of the fetched page. Use bullet points if helpful. Include the title if present. Keep it under 120 words. Never return an empty response.`;
     const userPrompt = `URL: ${url}\nTitle: ${title || 'N/A'}\nContent (truncated):\n${truncated}`;
 
     const resp = await aiManager.generateResponse(systemPrompt, userPrompt, 300);
-    const summary = resp?.choices?.[0]?.message?.content;
+    let summary = resp?.choices?.[0]?.message?.content;
     if (!summary || !String(summary).trim()) {
-        throw new Error('Empty summary from AI provider');
+        const fallback = truncated.slice(0, 300);
+        if (!fallback) {
+            throw new Error('Empty summary from AI provider');
+        }
+        summary = `Page excerpt (no AI summary available): ${fallback}`;
     }
     return String(summary).trim();
 }
