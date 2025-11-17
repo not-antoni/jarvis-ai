@@ -2,6 +2,7 @@
  * Configuration management for Jarvis Discord Bot
  */
 
+const path = require('path');
 const validateConfig = require('./config/validate');
 
 function parseBooleanEnv(envValue, fallback = false) {
@@ -26,6 +27,12 @@ function parseBooleanEnv(envValue, fallback = false) {
 
 const enableMessageContentIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_MESSAGE_CONTENT, false);
 const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE_INTENT, false);
+const deploymentTarget = (process.env.DEPLOY_TARGET || 'render').trim().toLowerCase();
+const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, false);
+const liveAgentModeEnabled = parseBooleanEnv(process.env.LIVE_AGENT_MODE, false);
+const agentAllowlist = (process.env.AGENT_ALLOWLIST_DOMAINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+const agentDenylist = (process.env.AGENT_DENYLIST_DOMAINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+const agentPreferredProviders = (process.env.AGENT_PREFERRED_PROVIDERS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 const baseIntents = [
     'Guilds',
@@ -91,6 +98,19 @@ const rawConfig = {
     security: {
         masterKeyBase64: process.env.MASTER_KEY_BASE64,
         vaultCacheTtlMs: process.env.VAULT_CACHE_TTL_MS ? Number(process.env.VAULT_CACHE_TTL_MS) : undefined
+    },
+
+    // Deployment target controls infra-specific toggles.
+    deployment: {
+        target: deploymentTarget, // 'render' (default) or 'selfhost'
+        headlessBrowser: headlessBrowserEnabled, // enable when running a local headless browser instead of external APIs
+        autoExportMongo: parseBooleanEnv(process.env.SELFHOST_AUTO_EXPORT_MONGO, false),
+        exportPath: process.env.SELFHOST_EXPORT_PATH || path.join(__dirname, 'data', 'mongo-exports'),
+        exportCollections: (process.env.SELFHOST_EXPORT_COLLECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean),
+        liveAgentMode: liveAgentModeEnabled,
+        agentAllowlist,
+        agentDenylist,
+        agentPreferredProviders
     },
 
     // AI Provider Configuration
