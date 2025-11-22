@@ -25,7 +25,7 @@ function parseBooleanEnv(envValue, fallback = false) {
     return Boolean(fallback);
 }
 
-const enableMessageContentIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_MESSAGE_CONTENT, true);
+const enableMessageContentIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_MESSAGE_CONTENT, false);
 const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE_INTENT, false);
 const deploymentTarget = (process.env.DEPLOY_TARGET || 'render').trim().toLowerCase();
 const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, false);
