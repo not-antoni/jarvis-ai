@@ -205,12 +205,9 @@ class DiscordHandlers {
         const MAX_UPLOAD = 8 * 1024 * 1024;
         if (buffer.length <= MAX_UPLOAD) {
             const file = new AttachmentBuilder(buffer, { name: preferredName });
-            const content = null;
-            if (!interaction.deferred && !interaction.replied) {
-                await interaction.reply({ content, files: [file] });
-            } else {
-                await interaction.editReply({ content, files: [file] });
-            }
+            const payload = { files: [file] };
+            if (!interaction.deferred && !interaction.replied) await interaction.reply(payload);
+            else await interaction.editReply(payload);
             return { uploaded: true };
         }
 
@@ -218,21 +215,20 @@ class DiscordHandlers {
             const ext = preferredName.split('.').pop() || 'bin';
             const saved = tempFiles.saveTempFile(buffer, ext);
             const url = saved.url;
-            const content = `File is large; temporary link (expires in ~4h): ${url}`;
-            if (!interaction.deferred && !interaction.replied) {
-                await interaction.reply({ content });
-            } else {
-                await interaction.editReply({ content });
-            }
+            const embed = {
+                color: 0x1f8b4c,
+                image: { url },
+                footer: { text: 'Temporary image • expires in ~4 hours' }
+            };
+            const payload = { embeds: [embed] };
+            if (!interaction.deferred && !interaction.replied) await interaction.reply(payload);
+            else await interaction.editReply(payload);
             return { uploaded: false, url };
         } catch (err) {
             const kb = Math.round(buffer.length / 1024);
             const content = `Generated file (${kb} KB) is too large to upload and saving failed.`;
-            if (!interaction.deferred && !interaction.replied) {
-                await interaction.reply({ content });
-            } else {
-                await interaction.editReply({ content });
-            }
+            if (!interaction.deferred && !interaction.replied) await interaction.reply({ content });
+            else await interaction.editReply({ content });
             return { uploaded: false, error: err };
         }
     }
