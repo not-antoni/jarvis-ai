@@ -2586,29 +2586,47 @@
 
             if (response === undefined || response === null) {
                 console.warn('[/jarvis] Empty response received; commandName=' + commandName);
-                await interaction.editReply("Response circuits tangled, sir. Try again?");
+                try {
+                    await interaction.editReply("Response circuits tangled, sir. Try again?");
+                } catch (e) {
+                    console.error('[/jarvis] Failed to editReply, trying followUp:', e.code);
+                    await interaction.followUp("Response circuits tangled, sir. Try again?");
+                }
                 telemetryMetadata.reason = 'empty-response';
             } else if (typeof response === 'string') {
                 const trimmed = response.trim();
                 const safe = this.sanitizePings(trimmed);
-                console.log('[/jarvis] Sending response (' + safe.length + ' chars): ' + safe.slice(0, 100));
-                await interaction.editReply(safe.length ? safe : "Response circuits tangled, sir. Try again?");
+                const msg = safe.length > 2000 ? safe.slice(0, 1997) + '...' : (safe.length ? safe : "Response circuits tangled, sir. Try again?");
+                try {
+                    await interaction.editReply(msg);
+                } catch (e) {
+                    console.error('[/jarvis] Failed to editReply (' + e.code + '), using followUp instead');
+                    await interaction.followUp(msg);
+                }
             } else {
-                console.log('[/jarvis] Sending object response:', typeof response, Object.keys(response || {}).slice(0, 3));
-                await interaction.editReply(response);
+                try {
+                    await interaction.editReply(response);
+                } catch (e) {
+                    console.error('[/jarvis] Failed to editReply embed (' + e.code + '), using followUp instead');
+                    await interaction.followUp(response);
+                }
             }
         } catch (error) {
             telemetryStatus = 'error';
             telemetryError = error;
             console.error('Error processing interaction:', error);
             try {
-                await interaction.editReply("Technical difficulties, sir. One moment, please.");
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply("Technical difficulties, sir. One moment, please.");
+                } else if (interaction.deferred && !interaction.replied) {
+                    await interaction.editReply("Technical difficulties, sir. One moment, please.");
+                }
             } catch (editError) {
                 if (editError.code === 10062) {
                     telemetryMetadata.reason = 'unknown-interaction';
                     console.warn('Ignored unknown interaction during error reply.');
                 } else {
-                    console.error('Failed to send error reply:', editError);
+                    console.error('Failed to send error reply:', editError.code, editError.message);
                 }
             }
             shouldSetCooldown = true;
