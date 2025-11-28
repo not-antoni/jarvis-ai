@@ -1261,7 +1261,11 @@
         const isSelfHost = config?.deployment?.target === 'selfhost';
         const headlessEnabled = !!config?.deployment?.headlessBrowser;
         if (!isSelfHost || !headlessEnabled) {
-            await interaction.editReply({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
+            try {
+                await interaction.editReply({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
+            } catch (e) {
+                await interaction.followUp({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
+            }
             return;
         }
 
@@ -1274,13 +1278,27 @@
 
         try {
             switch (sub) {
+                case 'preview': {
+                    await this.startAgentPreview(interaction.user);
+                    try {
+                        await interaction.editReply('Agent preview started! Check your DMs, sir.');
+                    } catch (e) {
+                        await interaction.followUp('Agent preview started! Check your DMs, sir.');
+                    }
+                    return;
+                }
                 case 'open': {
                     const url = interaction.options.getString('url', true);
                     const wait = interaction.options.getString('wait', false) || 'load';
                     const { title, url: finalUrl } = await this.browserAgent.open(ctxKey, url, { waitUntil: wait });
                     const png = await this.browserAgent.screenshot(ctxKey, { fullPage: true });
                     const attachment = new AttachmentBuilder(png, { name: 'screenshot.png' });
-                    await interaction.editReply({ content: `Opened: ${finalUrl}\nTitle: ${title}`.slice(0, 1900), files: [attachment] });
+                    const msg = { content: `Opened: ${finalUrl}\nTitle: ${title}`.slice(0, 1900), files: [attachment] };
+                    try {
+                        await interaction.editReply(msg);
+                    } catch (e) {
+                        await interaction.followUp(msg);
+                    }
                     return;
                 }
                 case 'screenshot': {
@@ -1288,7 +1306,12 @@
                     const selector = interaction.options.getString('selector', false) || null;
                     const png = await this.browserAgent.screenshot(ctxKey, { fullPage: full, selector });
                     const attachment = new AttachmentBuilder(png, { name: 'screenshot.png' });
-                    await interaction.editReply({ files: [attachment] });
+                    const msg = { files: [attachment] };
+                    try {
+                        await interaction.editReply(msg);
+                    } catch (e) {
+                        await interaction.followUp(msg);
+                    }
                     return;
                 }
                 case 'download': {
@@ -1298,21 +1321,39 @@
                     if (buffer.length > maxUpload) {
                         const ext = (filename || '').split('.').pop() || 'bin';
                         const saved = tempFiles.saveTempFile(buffer, ext);
-                        await interaction.editReply(`Downloaded ${filename} (${Math.round(buffer.length/1024)} KB). Temporary link (expires ~4h): ${saved.url}`);
+                        const msg = `Downloaded ${filename} (${Math.round(buffer.length/1024)} KB). Temporary link (expires ~4h): ${saved.url}`;
+                        try {
+                            await interaction.editReply(msg);
+                        } catch (e) {
+                            await interaction.followUp(msg);
+                        }
                         return;
                     }
                     const safeName = filename || 'download.bin';
                     const attachment = new AttachmentBuilder(buffer, { name: safeName, description: `Content-Type: ${contentType}` });
-                    await interaction.editReply({ files: [attachment] });
+                    const msg = { files: [attachment] };
+                    try {
+                        await interaction.editReply(msg);
+                    } catch (e) {
+                        await interaction.followUp(msg);
+                    }
                     return;
                 }
                 case 'close': {
                     await this.browserAgent.closeSession(ctxKey);
-                    await interaction.editReply('Agent session closed.');
+                    try {
+                        await interaction.editReply('Agent session closed.');
+                    } catch (e) {
+                        await interaction.followUp('Agent session closed.');
+                    }
                     return;
                 }
                 default: {
-                    await interaction.editReply('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                    try {
+                        await interaction.editReply('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                    } catch (e) {
+                        await interaction.followUp('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                    }
                     return;
                 }
             }
@@ -1321,7 +1362,11 @@
             const message = error?.message ? String(error.message) : 'Agent error';
             try {
                 await interaction.editReply(`Agent error: ${message}`);
-            } catch (_) {}
+            } catch (e) {
+                try {
+                    await interaction.followUp(`Agent error: ${message}`);
+                } catch (_) {}
+            }
         }
     }
 
@@ -2589,7 +2634,7 @@
                 try {
                     await interaction.editReply("Response circuits tangled, sir. Try again?");
                 } catch (e) {
-                    console.error('[/jarvis] Failed to editReply, trying followUp:', e.code);
+                    console.error('[/jarvis] Failed to editReply, trying followUp:', e.code, e.message);
                     await interaction.followUp("Response circuits tangled, sir. Try again?");
                 }
                 telemetryMetadata.reason = 'empty-response';
@@ -2597,18 +2642,24 @@
                 const trimmed = response.trim();
                 const safe = this.sanitizePings(trimmed);
                 const msg = safe.length > 2000 ? safe.slice(0, 1997) + '...' : (safe.length ? safe : "Response circuits tangled, sir. Try again?");
+                console.log('[/jarvis] Sending string response, deferred=' + interaction.deferred + ', replied=' + interaction.replied);
                 try {
                     await interaction.editReply(msg);
+                    console.log('[/jarvis] editReply succeeded');
                 } catch (e) {
-                    console.error('[/jarvis] Failed to editReply (' + e.code + '), using followUp instead');
+                    console.error('[/jarvis] Failed to editReply (' + e.code + '), using followUp instead. Message:', e.message);
                     await interaction.followUp(msg);
+                    console.log('[/jarvis] followUp sent');
                 }
             } else {
+                console.log('[/jarvis] Sending embed/object response');
                 try {
                     await interaction.editReply(response);
+                    console.log('[/jarvis] embed editReply succeeded');
                 } catch (e) {
-                    console.error('[/jarvis] Failed to editReply embed (' + e.code + '), using followUp instead');
+                    console.error('[/jarvis] Failed to editReply embed (' + e.code + '), using followUp instead. Message:', e.message);
                     await interaction.followUp(response);
+                    console.log('[/jarvis] embed followUp sent');
                 }
             }
         } catch (error) {
