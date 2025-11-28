@@ -1261,7 +1261,7 @@
         const isSelfHost = config?.deployment?.target === 'selfhost';
         const headlessEnabled = !!config?.deployment?.headlessBrowser;
         if (!isSelfHost || !headlessEnabled) {
-            await interaction.editReply({ content: 'Agent is disabled. Set DEPLOY_TARGET=selfhost and HEADLESS_BROWSER_ENABLED=1.', ephemeral: Boolean(interaction.guild) });
+            await interaction.editReply({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
             return;
         }
 
@@ -2585,13 +2585,16 @@
             }
 
             if (response === undefined || response === null) {
+                console.warn('[/jarvis] Empty response received; commandName=' + commandName);
                 await interaction.editReply("Response circuits tangled, sir. Try again?");
                 telemetryMetadata.reason = 'empty-response';
             } else if (typeof response === 'string') {
                 const trimmed = response.trim();
                 const safe = this.sanitizePings(trimmed);
+                console.log('[/jarvis] Sending response (' + safe.length + ' chars): ' + safe.slice(0, 100));
                 await interaction.editReply(safe.length ? safe : "Response circuits tangled, sir. Try again?");
             } else {
+                console.log('[/jarvis] Sending object response:', typeof response, Object.keys(response || {}).slice(0, 3));
                 await interaction.editReply(response);
             }
         } catch (error) {
