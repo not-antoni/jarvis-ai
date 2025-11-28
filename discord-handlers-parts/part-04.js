@@ -989,22 +989,36 @@
 
         try {
             let buffer;
+            let contentType = null;
             if (attachment) {
-                const contentType = (attachment.contentType || '').toLowerCase();
+                contentType = (attachment.contentType || '').toLowerCase();
                 if (!contentType.startsWith('image/')) {
                     await interaction.editReply('That file does not appear to be an image, sir.');
                     return;
                 }
                 buffer = await this.fetchAttachmentBuffer(attachment);
             } else if (urlOpt) {
-                const { buffer: buf } = await this.fetchImageFromUrl(urlOpt);
+                const { buffer: buf, contentType: ct } = await this.fetchImageFromUrl(urlOpt);
                 buffer = buf;
+                contentType = (ct || '').toLowerCase();
             } else {
                 await interaction.editReply('Provide an image attachment or a URL, sir.');
                 return;
             }
-            const rendered = await memeCanvas.createCaptionImage(buffer, text);
-            await this.sendBufferOrLink(interaction, rendered, 'caption.png');
+            if (contentType && (contentType.includes('gif') || contentType.includes('video/'))) {
+                try {
+                    const { captionAnimated } = require('./src/utils/gif-caption');
+                    const out = await captionAnimated({ inputBuffer: buffer, captionText: text });
+                    await this.sendBufferOrLink(interaction, out, 'caption.gif');
+                } catch (err) {
+                    console.warn('Animated caption failed, falling back to PNG:', err?.message || err);
+                    const rendered = await memeCanvas.createCaptionImage(buffer, text);
+                    await this.sendBufferOrLink(interaction, rendered, 'caption.png');
+                }
+            } else {
+                const rendered = await memeCanvas.createCaptionImage(buffer, text);
+                await this.sendBufferOrLink(interaction, rendered, 'caption.png');
+            }
         } catch (error) {
             console.error('Caption command failed:', error);
             await interaction.editReply('Caption generator misfired, sir. Try another image.');
