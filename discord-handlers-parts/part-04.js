@@ -2634,7 +2634,7 @@
                 try {
                     await interaction.editReply("Response circuits tangled, sir. Try again?");
                 } catch (e) {
-                    console.error('[/jarvis] Failed to editReply, trying followUp:', e.code);
+                    console.error('[/jarvis] Failed to editReply, trying followUp:', e.code, e.message);
                     await interaction.followUp("Response circuits tangled, sir. Try again?");
                 }
                 telemetryMetadata.reason = 'empty-response';
@@ -2642,18 +2642,24 @@
                 const trimmed = response.trim();
                 const safe = this.sanitizePings(trimmed);
                 const msg = safe.length > 2000 ? safe.slice(0, 1997) + '...' : (safe.length ? safe : "Response circuits tangled, sir. Try again?");
+                console.log('[/jarvis] Sending string response, deferred=' + interaction.deferred + ', replied=' + interaction.replied);
                 try {
                     await interaction.editReply(msg);
+                    console.log('[/jarvis] editReply succeeded');
                 } catch (e) {
-                    console.error('[/jarvis] Failed to editReply (' + e.code + '), using followUp instead');
+                    console.error('[/jarvis] Failed to editReply (' + e.code + '), using followUp instead. Message:', e.message);
                     await interaction.followUp(msg);
+                    console.log('[/jarvis] followUp sent');
                 }
             } else {
+                console.log('[/jarvis] Sending embed/object response');
                 try {
                     await interaction.editReply(response);
+                    console.log('[/jarvis] embed editReply succeeded');
                 } catch (e) {
-                    console.error('[/jarvis] Failed to editReply embed (' + e.code + '), using followUp instead');
+                    console.error('[/jarvis] Failed to editReply embed (' + e.code + '), using followUp instead. Message:', e.message);
                     await interaction.followUp(response);
+                    console.log('[/jarvis] embed followUp sent');
                 }
             }
         } catch (error) {
