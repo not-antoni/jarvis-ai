@@ -1608,6 +1608,9 @@ app.use(express.json({ limit: '2mb' }));
 
 // Main endpoint - ASCII Animation Page
 app.get("/", async (req, res) => {
+    if (isRenderHealthCheck(req)) {
+        return res.status(200).send('OK');
+    }
     try {
         const snapshot = await gatherHealthSnapshot({
             includeProviders: true,
@@ -2189,6 +2192,9 @@ app.get("/health", async (req, res) => {
         }
     }
 
+    if (isRenderHealthCheck(req) && !req.query.deep) {
+        return res.status(200).json({ status: 'ok' });
+    }
     const deep = ['1', 'true', 'yes', 'deep'].includes(String(req.query.deep || '').toLowerCase());
 
     try {
