@@ -92,6 +92,10 @@ async function maybeExportMongoOnStartup() {
 // ------------------------ Discord Client Setup ------------------------
 const client = new Client({
     intents: config.discord.intents.map(intent => GatewayIntentBits[intent]),
+    allowedMentions: {
+        parse: ['users', 'roles'],
+        repliedUser: false
+    },
     partials: [
         Partials.Message,
         Partials.Channel,
