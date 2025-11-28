@@ -104,6 +104,7 @@ const rawConfig = {
     deployment: {
         target: deploymentTarget, // 'render' (default) or 'selfhost'
         headlessBrowser: headlessBrowserEnabled, // enable when running a local headless browser instead of external APIs
+        agentReady: parseBooleanEnv(process.env.AGENT_READY, false), // set to true when agent mode is fully configured and ready
         autoExportMongo: parseBooleanEnv(process.env.SELFHOST_AUTO_EXPORT_MONGO, false),
         exportPath: process.env.SELFHOST_EXPORT_PATH || path.join(__dirname, 'data', 'mongo-exports'),
         exportCollections: (process.env.SELFHOST_EXPORT_COLLECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean),
