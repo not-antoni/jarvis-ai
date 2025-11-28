@@ -330,6 +330,10 @@ class DiscordHandlers {
             channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === 'tickets'
         );
 
+        this.agentSessions = new Map(); // userId -> { startedAt, lastActive }
+        this.agentTtlMs = 30 * 60 * 1000;
+        setInterval(() => this.cleanupAgentSessions(), 60 * 1000).unref();
+
         if (existing) {
             return existing;
         }

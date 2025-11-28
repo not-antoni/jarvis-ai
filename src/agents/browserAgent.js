@@ -44,6 +44,7 @@ class BrowserAgent {
         this.defaultTimeoutMs = 20000;
         this.ttlMs = 10 * 60 * 1000; // 10 min inactivity TTL per session
         this.cleanupInterval = setInterval(() => this.prune(), 60 * 1000).unref();
+        this.maxDownloadBytes = 50 * 1024 * 1024; // 50MB cap
     }
 
     get enabled() {
@@ -172,10 +173,38 @@ class BrowserAgent {
             denylist: this.config?.deployment?.agentDenylist || []
         });
 
+        // HEAD check
+        try {
+            const head = await fetch(safeUrl, { method: 'HEAD' });
+            const len = Number(head.headers.get('content-length') || 0);
+            if (this.maxDownloadBytes && len && len > this.maxDownloadBytes) {
+                const err = new Error('Download exceeds 50MB limit');
+                err.code = 'DOWNLOAD_TOO_LARGE';
+                throw err;
+            }
+        } catch {}
+
         const res = await fetch(safeUrl, { redirect: 'follow' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        const buf = await res.buffer();
+        let received = 0;
+        const chunks = [];
+        await new Promise((resolve, reject) => {
+            res.body.on('data', (chunk) => {
+                received += chunk.length;
+                if (this.maxDownloadBytes && received > this.maxDownloadBytes) {
+                    try { res.body.destroy(); } catch {}
+                    const err = new Error('Download exceeds 50MB limit');
+                    err.code = 'DOWNLOAD_TOO_LARGE';
+                    reject(err);
+                    return;
+                }
+                chunks.push(chunk);
+            });
+            res.body.on('end', resolve);
+            res.body.on('error', reject);
+        });
+        const buf = Buffer.concat(chunks);
         const contentType = res.headers.get('content-type') || 'application/octet-stream';
         const disposition = res.headers.get('content-disposition') || '';
         let filename = (disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i) || [])[1] || null;
