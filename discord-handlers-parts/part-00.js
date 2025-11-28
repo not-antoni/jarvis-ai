@@ -26,6 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const database = require('./database');
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 const pdfParse = require('pdf-parse');
 const embeddingSystem = require('./embedding-system');
 const { commandMap: musicCommandMap } = require('./src/commands/music');
@@ -38,6 +39,8 @@ const cryptoClient = require('./crypto-client');
 const vaultClient = require('./vault-client');
 const moderationFilters = require('./moderation-filters');
 const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
+const BrowserAgent = require('./src/agents/browserAgent');
+const tempFiles = require('./src/utils/temp-files');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -81,6 +84,7 @@ class DiscordHandlers {
         this.jarvis = new JarvisAI();
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
         this.crypto = cryptoClient;
+        this.browserAgent = new BrowserAgent(config);
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
         this.autoModRuleName = 'Jarvis Blacklist Filter';
@@ -190,6 +194,42 @@ class DiscordHandlers {
             'Document a mini DIY project and share progress before midnight.',
             'Run a five-minute stretch break and ping the squad to join.'
         ];
+    }
+
+    async sendBufferOrLink(interaction, buffer, preferredName) {
+        const MAX_UPLOAD = 8 * 1024 * 1024;
+        if (buffer.length <= MAX_UPLOAD) {
+            const file = new AttachmentBuilder(buffer, { name: preferredName });
+            const content = null;
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.reply({ content, files: [file] });
+            } else {
+                await interaction.editReply({ content, files: [file] });
+            }
+            return { uploaded: true };
+        }
+
+        try {
+            const ext = preferredName.split('.').pop() || 'bin';
+            const saved = tempFiles.saveTempFile(buffer, ext);
+            const url = saved.url;
+            const content = `File is large; temporary link (expires in ~4h): ${url}`;
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.reply({ content });
+            } else {
+                await interaction.editReply({ content });
+            }
+            return { uploaded: false, url };
+        } catch (err) {
+            const kb = Math.round(buffer.length / 1024);
+            const content = `Generated file (${kb} KB) is too large to upload and saving failed.`;
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.reply({ content });
+            } else {
+                await interaction.editReply({ content });
+            }
+            return { uploaded: false, error: err };
+        }
     }
 
     async isCommandFeatureEnabled(commandName, guild = null) {
