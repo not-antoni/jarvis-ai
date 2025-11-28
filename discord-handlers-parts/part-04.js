@@ -1260,7 +1260,9 @@
     async handleAgentCommand(interaction) {
         const isSelfHost = config?.deployment?.target === 'selfhost';
         const headlessEnabled = !!config?.deployment?.headlessBrowser;
-        if (!isSelfHost || !headlessEnabled) {
+        const agentReady = !!config?.deployment?.agentReady;
+        
+        if (!isSelfHost || !headlessEnabled || !agentReady) {
             try {
                 await interaction.editReply({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
             } catch (e) {
