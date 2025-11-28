@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "**/discord-handlers-parts/part-*.js": "plaintext"
+  },
+  "javascript.validate.enable": true,
+  "typescript.validate.enable": true
+}

@@ -593,6 +593,11 @@ const allCommands = [
         .setDescription('Self-hosted web agent (headless)')
         .addSubcommand((sub) =>
             sub
+                .setName('preview')
+                .setDescription('Start a personal agent preview in your DMs')
+        )
+        .addSubcommand((sub) =>
+            sub
                 .setName('open')
                 .setDescription('Open a URL and return a screenshot')
                 .addStringOption((option) =>
