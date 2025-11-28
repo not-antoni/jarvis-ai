@@ -1278,6 +1278,15 @@
 
         try {
             switch (sub) {
+                case 'preview': {
+                    await this.startAgentPreview(interaction.user);
+                    try {
+                        await interaction.editReply('Agent preview started! Check your DMs, sir.');
+                    } catch (e) {
+                        await interaction.followUp('Agent preview started! Check your DMs, sir.');
+                    }
+                    return;
+                }
                 case 'open': {
                     const url = interaction.options.getString('url', true);
                     const wait = interaction.options.getString('wait', false) || 'load';
