@@ -88,6 +88,8 @@ async function captionAnimated({ inputBuffer, captionText }) {
         const meta = await sharp(inputBuffer, { pages: 1 }).metadata();
         if (meta?.width) width = meta.width;
     } catch {}
+    // Cap to 720p width for performance on Render
+    if (width > 720) width = 720;
 
     const overlayPng = renderCaptionOverlay(width, captionText);
     const overlayPath = path.join(tmpDir, 'overlay.png');
@@ -100,7 +102,8 @@ async function captionAnimated({ inputBuffer, captionText }) {
         '-loop', '1', '-i', overlayPath,
         '-i', inPath,
         '-filter_complex',
-        '[1:v]setpts=PTS-STARTPTS,setsar=1[gif];' +
+        // Normalize input to 30fps and cap width to 720 using high-quality scaler
+        '[1:v]setpts=PTS-STARTPTS,setsar=1,fps=30,scale=w=if(gte(iw,720),720,iw):h=-2:flags=lanczos[gif];' +
         '[0:v]setpts=PTS-STARTPTS,setsar=1,format=rgba[ov];' +
         '[ov][gif]vstack=inputs=2:shortest=1[v];' +
         '[v]split[v0][v1];' +
