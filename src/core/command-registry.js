@@ -13,6 +13,14 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'agent',
+        description: 'Self-host headless browsing and downloads.',
+        category: 'Utilities',
+        usage: '/agent open|screenshot|download|close',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
         name: 'filter',
         description: 'Manage per-guild blocked words and regex filters',
         category: 'Moderation',

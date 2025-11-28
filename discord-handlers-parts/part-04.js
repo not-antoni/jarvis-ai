@@ -894,14 +894,7 @@
                 targetMessage.attachments
             );
             
-            // Create attachment
-            const attachment = new AttachmentBuilder(imageBuffer, { name: 'clipped.png' });
-            
-            // Send the image with "clipped, sir." message
-            await interaction.editReply({ 
-                content: 'clipped, sir.', 
-                files: [attachment] 
-            });
+            await this.sendBufferOrLink(interaction, imageBuffer, 'clipped.png');
             
             return true; // Indicate we handled the command
         } catch (error) {
@@ -930,6 +923,49 @@
         return Buffer.from(arrayBuffer);
     }
 
+    async fetchImageFromUrl(rawUrl) {
+        if (!rawUrl) throw new Error('URL required');
+        let url;
+        try { url = new URL(rawUrl); } catch { throw new Error('Invalid URL'); }
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported protocol');
+
+        // Try direct fetch
+        let res = await fetch(url.toString(), { redirect: 'follow' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        if (contentType.startsWith('image/')) {
+            const buf = Buffer.from(await res.arrayBuffer());
+            return { buffer: buf, contentType, sourceUrl: url.toString() };
+        }
+
+        // Handle Tenor and general HTML with OpenGraph
+        if (contentType.includes('text/html')) {
+            const html = await res.text();
+            const $ = cheerio.load(html);
+            let media = $('meta[property="og:image"]').attr('content')
+                || $('meta[name="twitter:image"]').attr('content')
+                || $('meta[property="og:video"]').attr('content');
+            if (!media) {
+                // Tenor sometimes stores JSON in script tags – try common attribute
+                const ld = $('script[type="application/ld+json"]').first().text();
+                try {
+                    const obj = JSON.parse(ld);
+                    media = obj?.contentUrl || obj?.image?.[0] || obj?.image;
+                } catch (_) {}
+            }
+            if (media) {
+                // Resolve relative
+                const resolved = new URL(media, url).toString();
+                res = await fetch(resolved, { redirect: 'follow' });
+                if (!res.ok) throw new Error(`Media HTTP ${res.status}`);
+                const ctype = (res.headers.get('content-type') || '').toLowerCase();
+                const buf = Buffer.from(await res.arrayBuffer());
+                return { buffer: buf, contentType: ctype, sourceUrl: resolved };
+            }
+        }
+        throw new Error('No image found at URL');
+    }
+
     async handleCaptionCommand(interaction) {
         const guild = interaction.guild;
         if (guild && !(await this.isFeatureActive('memeTools', guild))) {
@@ -938,7 +974,8 @@
         }
 
         const text = interaction.options.getString('text', true).trim();
-        const attachment = interaction.options.getAttachment('image', true);
+        const attachment = interaction.options.getAttachment('image', false);
+        const urlOpt = (interaction.options.getString('url') || '').trim();
 
         if (!text.length) {
             await interaction.editReply('Please provide a caption, sir.');
@@ -950,17 +987,24 @@
             return;
         }
 
-        const contentType = (attachment.contentType || '').toLowerCase();
-        if (!contentType.startsWith('image/')) {
-            await interaction.editReply('That file does not appear to be an image, sir.');
-            return;
-        }
-
         try {
-            const buffer = await this.fetchAttachmentBuffer(attachment);
+            let buffer;
+            if (attachment) {
+                const contentType = (attachment.contentType || '').toLowerCase();
+                if (!contentType.startsWith('image/')) {
+                    await interaction.editReply('That file does not appear to be an image, sir.');
+                    return;
+                }
+                buffer = await this.fetchAttachmentBuffer(attachment);
+            } else if (urlOpt) {
+                const { buffer: buf } = await this.fetchImageFromUrl(urlOpt);
+                buffer = buf;
+            } else {
+                await interaction.editReply('Provide an image attachment or a URL, sir.');
+                return;
+            }
             const rendered = await memeCanvas.createCaptionImage(buffer, text);
-            const file = new AttachmentBuilder(rendered, { name: 'caption.png' });
-            await interaction.editReply({ files: [file] });
+            await this.sendBufferOrLink(interaction, rendered, 'caption.png');
         } catch (error) {
             console.error('Caption command failed:', error);
             await interaction.editReply('Caption generator misfired, sir. Try another image.');
@@ -980,7 +1024,8 @@
             return;
         }
 
-        const attachment = interaction.options.getAttachment('image', true);
+        const attachment = interaction.options.getAttachment('image', false);
+        const urlOpt = (interaction.options.getString('url') || '').trim();
         const top = (interaction.options.getString('top') || '').trim();
         const bottom = (interaction.options.getString('bottom') || '').trim();
 
@@ -989,17 +1034,24 @@
             return;
         }
 
-        const contentType = (attachment.contentType || '').toLowerCase();
-        if (!contentType.startsWith('image/')) {
-            await interaction.editReply('That file does not appear to be an image, sir.');
-            return;
-        }
-
         try {
-            const buffer = await this.fetchAttachmentBuffer(attachment);
+            let buffer;
+            if (attachment) {
+                const contentType = (attachment.contentType || '').toLowerCase();
+                if (!contentType.startsWith('image/')) {
+                    await interaction.editReply('That file does not appear to be an image, sir.');
+                    return;
+                }
+                buffer = await this.fetchAttachmentBuffer(attachment);
+            } else if (urlOpt) {
+                const { buffer: buf } = await this.fetchImageFromUrl(urlOpt);
+                buffer = buf;
+            } else {
+                await interaction.editReply('Provide an image attachment or a URL, sir.');
+                return;
+            }
             const rendered = await memeCanvas.createImpactMemeImage(buffer, top, bottom);
-            const file = new AttachmentBuilder(rendered, { name: 'meme.png' });
-            await interaction.editReply({ files: [file] });
+            await this.sendBufferOrLink(interaction, rendered, 'meme.png');
         } catch (error) {
             console.error('Impact meme command failed:', error);
             await interaction.editReply('Impact meme generators overheated, sir. Try again shortly.');
@@ -1105,6 +1157,74 @@
             }
 
             await interaction.editReply('Unable to retrieve market telemetry at this moment, sir.');
+        }
+    }
+
+    async handleAgentCommand(interaction) {
+        const isSelfHost = config?.deployment?.target === 'selfhost';
+        const headlessEnabled = !!config?.deployment?.headlessBrowser;
+        if (!isSelfHost || !headlessEnabled) {
+            await interaction.editReply({ content: 'Agent is disabled. Set DEPLOY_TARGET=selfhost and HEADLESS_BROWSER_ENABLED=1.', ephemeral: Boolean(interaction.guild) });
+            return;
+        }
+
+        const sub = interaction.options.getSubcommand(false);
+        const ctxKey = this.browserAgent.buildSessionKey({
+            guildId: interaction.guild?.id || null,
+            channelId: interaction.channelId,
+            userId: interaction.user.id
+        });
+
+        try {
+            switch (sub) {
+                case 'open': {
+                    const url = interaction.options.getString('url', true);
+                    const wait = interaction.options.getString('wait', false) || 'load';
+                    const { title, url: finalUrl } = await this.browserAgent.open(ctxKey, url, { waitUntil: wait });
+                    const png = await this.browserAgent.screenshot(ctxKey, { fullPage: true });
+                    const attachment = new AttachmentBuilder(png, { name: 'screenshot.png' });
+                    await interaction.editReply({ content: `Opened: ${finalUrl}\nTitle: ${title}`.slice(0, 1900), files: [attachment] });
+                    return;
+                }
+                case 'screenshot': {
+                    const full = interaction.options.getBoolean('full', false) ?? true;
+                    const selector = interaction.options.getString('selector', false) || null;
+                    const png = await this.browserAgent.screenshot(ctxKey, { fullPage: full, selector });
+                    const attachment = new AttachmentBuilder(png, { name: 'screenshot.png' });
+                    await interaction.editReply({ files: [attachment] });
+                    return;
+                }
+                case 'download': {
+                    const url = interaction.options.getString('url', true);
+                    const { buffer, contentType, filename } = await this.browserAgent.downloadDirect(url);
+                    const maxUpload = 8 * 1024 * 1024; // 8 MB
+                    if (buffer.length > maxUpload) {
+                        const ext = (filename || '').split('.').pop() || 'bin';
+                        const saved = tempFiles.saveTempFile(buffer, ext);
+                        await interaction.editReply(`Downloaded ${filename} (${Math.round(buffer.length/1024)} KB). Temporary link (expires ~4h): ${saved.url}`);
+                        return;
+                    }
+                    const safeName = filename || 'download.bin';
+                    const attachment = new AttachmentBuilder(buffer, { name: safeName, description: `Content-Type: ${contentType}` });
+                    await interaction.editReply({ files: [attachment] });
+                    return;
+                }
+                case 'close': {
+                    await this.browserAgent.closeSession(ctxKey);
+                    await interaction.editReply('Agent session closed.');
+                    return;
+                }
+                default: {
+                    await interaction.editReply('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Agent command error:', error);
+            const message = error?.message ? String(error.message) : 'Agent error';
+            try {
+                await interaction.editReply(`Agent error: ${message}`);
+            } catch (_) {}
         }
     }
 
@@ -2069,6 +2189,11 @@
                 case 'crypto': {
                     telemetryMetadata.category = 'crypto';
                     await this.handleCryptoCommand(interaction);
+                    return;
+                }
+                case 'agent': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handleAgentCommand(interaction);
                     return;
                 }
                 case 'features': {

@@ -19,6 +19,7 @@ const {
 } = require("discord.js");
 const express = require("express");
 const cron = require("node-cron");
+const tempFiles = require('./src/utils/temp-files');
 
 // Import our modules
 const config = require('./config');
@@ -561,6 +562,66 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('agent')
+        .setDescription('Self-hosted web agent (headless)')
+        .addSubcommand((sub) =>
+            sub
+                .setName('open')
+                .setDescription('Open a URL and return a screenshot')
+                .addStringOption((option) =>
+                    option
+                        .setName('url')
+                        .setDescription('Destination URL (http/https only)')
+                        .setRequired(true)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('wait')
+                        .setDescription('Wait condition before screenshot')
+                        .setRequired(false)
+                        .addChoices(
+                            { name: 'load', value: 'load' },
+                            { name: 'domcontentloaded', value: 'domcontentloaded' },
+                            { name: 'networkidle0', value: 'networkidle0' },
+                            { name: 'networkidle2', value: 'networkidle2' }
+                        )
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('screenshot')
+                .setDescription('Screenshot current page or element')
+                .addBooleanOption((option) =>
+                    option
+                        .setName('full')
+                        .setDescription('Capture full page (default true)')
+                        .setRequired(false)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('selector')
+                        .setDescription('CSS selector to capture instead')
+                        .setRequired(false)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('download')
+                .setDescription('Download a file by URL')
+                .addStringOption((option) =>
+                    option
+                        .setName('url')
+                        .setDescription('Direct file URL (http/https only)')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('close')
+                .setDescription('Close your current agent session')
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName('crypto')
         .setDescription('Retrieve live cryptocurrency market data')
         .addStringOption(option =>
@@ -916,11 +977,17 @@ const allCommands = [
                 .setRequired(true)
                 .setMaxLength(200)
         )
+        .addStringOption((option) =>
+            option
+                .setName('url')
+                .setDescription('Image/GIF URL (Tenor and direct links supported)')
+                .setRequired(false)
+        )
         .addAttachmentOption((option) =>
             option
                 .setName('image')
                 .setDescription('Image to caption')
-                .setRequired(true)
+                .setRequired(false)
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
@@ -934,7 +1001,13 @@ const allCommands = [
                     option
                         .setName('image')
                         .setDescription('Image to memeify')
-                        .setRequired(true)
+                        .setRequired(false)
+                )
+                .addStringOption((option) =>
+                    option
+                        .setName('url')
+                        .setDescription('Image/GIF URL (Tenor and direct links supported)')
+                        .setRequired(false)
                 )
                 .addStringOption((option) =>
                     option
@@ -1420,6 +1493,15 @@ const serverStatsRefreshJob = cron.schedule('*/10 * * * *', async () => {
     }
 }, { scheduled: false });
 
+// Periodic cleanup of expired temp files (every 30 minutes)
+const tempSweepJob = cron.schedule('*/30 * * * *', async () => {
+    try {
+        tempFiles.sweepExpired();
+    } catch (error) {
+        console.warn('Temp file sweep failed:', error);
+    }
+}, { scheduled: false });
+
 async function registerSlashCommands() {
     const commandData = buildCommandData();
     const commandHash = crypto.createHash('sha256').update(JSON.stringify(commandData)).digest('hex');
@@ -1478,6 +1560,24 @@ async function registerSlashCommands() {
 
 // ------------------------ Uptime Server ------------------------
 const app = express();
+// Serve ephemeral temp files at short root paths like /123456789.png
+app.get('/:id.:ext', (req, res, next) => {
+    const { id, ext } = req.params;
+    if (!/^[0-9]{9}$/.test(id || '')) return next();
+    if (!/^[a-z0-9]{1,8}$/i.test(ext || '')) return next();
+    const filePath = require('path').join(tempFiles.TEMP_DIR, `${id}.${ext}`);
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) return next();
+    const typeMap = {
+        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+        mp4: 'video/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', bin: 'application/octet-stream', txt: 'text/plain'
+    };
+    const ctype = typeMap[ext.toLowerCase()] || 'application/octet-stream';
+    res.setHeader('Content-Type', ctype);
+    res.setHeader('Cache-Control', 'public, max-age=14400, immutable'); // 4 hours
+    fs.createReadStream(filePath).pipe(res);
+});
+
 
 // Webhook forwarder requires raw body parsing for signature validation, so mount before json middleware
 app.use("/webhook", webhookRouter);
@@ -2145,6 +2245,9 @@ client.once(Events.ClientReady, async () => {
     } else {
         console.warn("Skipping server stats initialization because the database connection was not established.");
     }
+
+    // Start temp file sweeper regardless of DB
+    try { tempSweepJob.start(); } catch (e) { console.warn('Failed to start temp sweep job:', e); }
 
     console.log("Provider status on startup:", aiManager.getProviderStatus());
 });
