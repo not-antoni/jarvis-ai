@@ -1295,7 +1295,7 @@
 
         try {
             const urlMatch = content.match(/https?:\/\/\S+/i);
-            if (urlMatch && this.config?.deployment?.target === 'selfhost' && this.config?.deployment?.liveAgentMode) {
+            if (urlMatch && config?.deployment?.target === 'selfhost' && config?.deployment?.liveAgentMode) {
                 try {
                     const { summarizeUrl } = require('./src/utils/agent-preview');
                     const result = await summarizeUrl(urlMatch[0]);
