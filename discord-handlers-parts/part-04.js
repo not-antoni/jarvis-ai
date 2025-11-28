@@ -4,10 +4,9 @@
         if (!me || !me.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
             await interaction.editReply('I require the "Manage Server" permission to configure auto moderation, sir.');
             return;
-        }
+        // @ts-nocheck
 
-        const storedRecord = await database.getAutoModConfig(guild.id);
-        const { record, rules: cachedRules, mutated, missingRuleIds } = await this.prepareAutoModState(guild, storedRecord);
+            const me = guild.members.me || await guild.members.fetchMe();
 
         if (mutated) {
             await database.saveAutoModConfig(guild.id, record);
