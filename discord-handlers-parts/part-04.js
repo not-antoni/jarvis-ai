@@ -923,19 +923,49 @@
         return Buffer.from(arrayBuffer);
     }
 
-    async fetchImageFromUrl(rawUrl) {
+    async fetchImageFromUrl(rawUrl, { maxBytes } = {}) {
         if (!rawUrl) throw new Error('URL required');
         let url;
         try { url = new URL(rawUrl); } catch { throw new Error('Invalid URL'); }
         if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported protocol');
 
         // Try direct fetch
-        let res = await fetch(url.toString(), { redirect: 'follow' });
+        let res = await fetch(url.toString(), { method: 'HEAD' });
+        if (res.ok) {
+            const ctype = (res.headers.get('content-type') || '').toLowerCase();
+            const clen = Number(res.headers.get('content-length') || 0);
+            if (maxBytes && clen && clen > maxBytes) {
+                return { tooLarge: true, contentType: ctype, sourceUrl: url.toString() };
+            }
+        }
+        res = await fetch(url.toString(), { redirect: 'follow' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const contentType = (res.headers.get('content-type') || '').toLowerCase();
         if (contentType.startsWith('image/')) {
-            const buf = Buffer.from(await res.arrayBuffer());
-            return { buffer: buf, contentType, sourceUrl: url.toString() };
+            if (maxBytes && res.body) {
+                let received = 0;
+                const chunks = [];
+                await new Promise((resolve, reject) => {
+                    res.body.on('data', (chunk) => {
+                        received += chunk.length;
+                        if (received > maxBytes) {
+                            res.body.destroy();
+                            resolve();
+                        } else {
+                            chunks.push(chunk);
+                        }
+                    });
+                    res.body.on('end', resolve);
+                    res.body.on('error', reject);
+                });
+                if (received > maxBytes) {
+                    return { tooLarge: true, contentType, sourceUrl: url.toString() };
+                }
+                return { buffer: Buffer.concat(chunks), contentType, sourceUrl: url.toString() };
+            } else {
+                const buf = Buffer.from(await res.arrayBuffer());
+                return { buffer: buf, contentType, sourceUrl: url.toString() };
+            }
         }
 
         // Handle Tenor and general HTML with OpenGraph
@@ -956,11 +986,40 @@
             if (media) {
                 // Resolve relative
                 const resolved = new URL(media, url).toString();
+                // head check
+                let head = await fetch(resolved, { method: 'HEAD' });
+                const headType = (head.headers.get('content-type') || '').toLowerCase();
+                const headLen = Number(head.headers.get('content-length') || 0);
+                if (maxBytes && headLen && headLen > maxBytes) {
+                    return { tooLarge: true, contentType: headType, sourceUrl: resolved };
+                }
                 res = await fetch(resolved, { redirect: 'follow' });
                 if (!res.ok) throw new Error(`Media HTTP ${res.status}`);
                 const ctype = (res.headers.get('content-type') || '').toLowerCase();
-                const buf = Buffer.from(await res.arrayBuffer());
-                return { buffer: buf, contentType: ctype, sourceUrl: resolved };
+                if (maxBytes && res.body) {
+                    let received = 0;
+                    const chunks = [];
+                    await new Promise((resolve, reject) => {
+                        res.body.on('data', (chunk) => {
+                            received += chunk.length;
+                            if (received > maxBytes) {
+                                res.body.destroy();
+                                resolve();
+                            } else {
+                                chunks.push(chunk);
+                            }
+                        });
+                        res.body.on('end', resolve);
+                        res.body.on('error', reject);
+                    });
+                    if (received > maxBytes) {
+                        return { tooLarge: true, contentType: ctype, sourceUrl: resolved };
+                    }
+                    return { buffer: Buffer.concat(chunks), contentType: ctype, sourceUrl: resolved };
+                } else {
+                    const buf = Buffer.from(await res.arrayBuffer());
+                    return { buffer: buf, contentType: ctype, sourceUrl: resolved };
+                }
             }
         }
         throw new Error('No image found at URL');
@@ -975,7 +1034,7 @@
 
         const text = interaction.options.getString('text', true).trim();
         const attachment = interaction.options.getAttachment('image', false);
-        const urlOpt = (interaction.options.getString('url') || '').trim();
+            const urlOpt = (interaction.options.getString('url') || '').trim(); // Ensure URL is trimmed
 
         if (!text.length) {
             await interaction.editReply('Please provide a caption, sir.');
@@ -996,9 +1055,18 @@
                     await interaction.editReply('That file does not appear to be an image, sir.');
                     return;
                 }
+                if (Number(attachment.size || 0) > this.maxInputBytes) {
+                    await interaction.editReply('my poor cpu cant handle that');
+                    return;
+                }
                 buffer = await this.fetchAttachmentBuffer(attachment);
             } else if (urlOpt) {
-                const { buffer: buf, contentType: ct } = await this.fetchImageFromUrl(urlOpt);
+                const fetched = await this.fetchImageFromUrl(urlOpt, { maxBytes: this.maxInputBytes });
+                if (fetched.tooLarge) {
+                    await interaction.editReply('my poor cpu cant handle that');
+                    return;
+                }
+                const { buffer: buf, contentType: ct } = fetched;
                 buffer = buf;
                 contentType = (ct || '').toLowerCase();
             } else {
@@ -1046,7 +1114,7 @@
         }
 
         const attachment = interaction.options.getAttachment('image', false);
-        const urlOpt = (interaction.options.getString('url') || '').trim();
+            const urlOpt = (interaction.options.getString('url') || '').trim(); // Ensure URL is trimmed
         const top = (interaction.options.getString('top') || '').trim();
         const bottom = (interaction.options.getString('bottom') || '').trim();
 
@@ -1063,10 +1131,18 @@
                     await interaction.editReply('That file does not appear to be an image, sir.');
                     return;
                 }
+                if (Number(attachment.size || 0) > this.maxInputBytes) {
+                    await interaction.editReply('my poor cpu cant handle that');
+                    return;
+                }
                 buffer = await this.fetchAttachmentBuffer(attachment);
             } else if (urlOpt) {
-                const { buffer: buf } = await this.fetchImageFromUrl(urlOpt);
-                buffer = buf;
+                const fetched = await this.fetchImageFromUrl(urlOpt, { maxBytes: this.maxInputBytes });
+                if (fetched.tooLarge) {
+                    await interaction.editReply('my poor cpu cant handle that');
+                    return;
+                }
+                buffer = fetched.buffer;
             } else {
                 await interaction.editReply('Provide an image attachment or a URL, sir.');
                 return;
