@@ -1056,14 +1056,14 @@
                     return;
                 }
                 if (Number(attachment.size || 0) > this.maxInputBytes) {
-                    await interaction.editReply('my poor cpu cant handle that');
+                    await interaction.editReply("MY poor CPU can't handle that, sir.");
                     return;
                 }
                 buffer = await this.fetchAttachmentBuffer(attachment);
             } else if (urlOpt) {
                 const fetched = await this.fetchImageFromUrl(urlOpt, { maxBytes: this.maxInputBytes });
                 if (fetched.tooLarge) {
-                    await interaction.editReply('my poor cpu cant handle that');
+                    await interaction.editReply("MY poor CPU can't handle that, sir.");
                     return;
                 }
                 const { buffer: buf, contentType: ct } = fetched;
@@ -1132,14 +1132,14 @@
                     return;
                 }
                 if (Number(attachment.size || 0) > this.maxInputBytes) {
-                    await interaction.editReply('my poor cpu cant handle that');
+                    await interaction.editReply("MY poor CPU can't handle that, sir.");
                     return;
                 }
                 buffer = await this.fetchAttachmentBuffer(attachment);
             } else if (urlOpt) {
                 const fetched = await this.fetchImageFromUrl(urlOpt, { maxBytes: this.maxInputBytes });
                 if (fetched.tooLarge) {
-                    await interaction.editReply('my poor cpu cant handle that');
+                    await interaction.editReply("MY poor CPU can't handle that, sir.");
                     return;
                 }
                 buffer = fetched.buffer;
