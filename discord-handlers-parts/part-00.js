@@ -203,6 +203,8 @@ class DiscordHandlers {
 
     async sendBufferOrLink(interaction, buffer, preferredName) {
         const MAX_UPLOAD = 8 * 1024 * 1024;
+        const ext = (preferredName.split('.').pop() || '').toLowerCase();
+        const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
         if (buffer.length <= MAX_UPLOAD) {
             const file = new AttachmentBuilder(buffer, { name: preferredName });
             const payload = { files: [file] };
@@ -212,15 +214,11 @@ class DiscordHandlers {
         }
 
         try {
-            const ext = preferredName.split('.').pop() || 'bin';
-            const saved = tempFiles.saveTempFile(buffer, ext);
+            const saved = tempFiles.saveTempFile(buffer, ext || 'bin');
             const url = saved.url;
-            const embed = {
-                color: 0x1f8b4c,
-                image: { url },
-                footer: { text: 'Temporary image • expires in ~4 hours' }
-            };
-            const payload = { embeds: [embed] };
+            const payload = isImage
+                ? { embeds: [{ color: 0x1f8b4c, image: { url }, footer: { text: 'Temporary image • expires in ~4 hours' } }] }
+                : { content: url };
             if (!interaction.deferred && !interaction.replied) await interaction.reply(payload);
             else await interaction.editReply(payload);
             return { uploaded: false, url };
