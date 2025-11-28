@@ -1,3 +1,4 @@
+// @ts-nocheck
 
         const me = guild.members.me || await guild.members.fetchMe();
         if (!me || !me.permissions.has(PermissionsBitField.Flags.ManageGuild)) {

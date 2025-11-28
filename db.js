@@ -17,17 +17,17 @@ if (!mainUri || !vaultUri) {
     }
 }
 
-const mainClient = new MongoClient(mainUri, {
+const mainClient = !LOCAL_DB_MODE && mainUri ? new MongoClient(mainUri, {
     maxPoolSize: 25,
     minPoolSize: 2,
     serverSelectionTimeoutMS: 5000
-});
+}) : null;
 
-const vaultClient = new MongoClient(vaultUri, {
+const vaultClient = !LOCAL_DB_MODE && vaultUri ? new MongoClient(vaultUri, {
     maxPoolSize: 20,
     minPoolSize: 1,
     serverSelectionTimeoutMS: 5000
-});
+}) : null;
 
 let mainDb = null;
 let vaultDb = null;
@@ -36,6 +36,9 @@ let mainConnectPromise = null;
 let vaultConnectPromise = null;
 
 async function connectMain() {
+    if (LOCAL_DB_MODE) {
+        return null;
+    }
     if (mainDb) {
         return mainDb;
     }
@@ -56,6 +59,9 @@ async function connectMain() {
 }
 
 async function connectVault() {
+    if (LOCAL_DB_MODE) {
+        return null;
+    }
     if (vaultDb) {
         return vaultDb;
     }
