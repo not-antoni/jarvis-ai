@@ -102,9 +102,10 @@ async function captionAnimated({ inputBuffer, captionText }) {
         '-filter_complex',
         '[1:v]setpts=PTS-STARTPTS,setsar=1[gif];' +
         '[0:v]setpts=PTS-STARTPTS,setsar=1,format=rgba[ov];' +
-        '[ov][gif]vstack=inputs=2:shortest=1,split[v0][v1];' +
-        '[v0]palettegen=stats_mode=single:max_colors=128[pal];' +
-        '[v1][pal]paletteuse=dither=bayer:bayer_scale=5',
+        '[ov][gif]vstack=inputs=2:shortest=1[v];' +
+        '[v]split[v0][v1];' +
+        '[v0]palettegen=stats_mode=full[pal];' +
+        '[v1][pal]paletteuse=dither=sierra2_4a:diff_mode=rectangle',
         '-gifflags', '-offsetting',
         outPath
     ];
