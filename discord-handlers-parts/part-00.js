@@ -195,6 +195,8 @@ class DiscordHandlers {
             'Document a mini DIY project and share progress before midnight.',
             'Run a five-minute stretch break and ping the squad to join.'
         ];
+
+        this.maxInputBytes = 3 * 1024 * 1024; // 3MB cap for heavy media processing
     }
 
     sanitizePings(text) {
