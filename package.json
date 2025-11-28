@@ -48,6 +48,7 @@
     "openai": "^5.20.1",
     "opusscript": "^0.1.1",
     "pdf-parse": "^1.1.2",
+    "puppeteer": "^24.31.0",
     "sharp": "^0.34.4",
     "tar": "^7.5.2",
     "tweetnacl": "^1.0.3",

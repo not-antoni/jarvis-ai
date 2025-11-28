@@ -41,6 +41,7 @@ const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
+const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -324,7 +325,187 @@ const DEFAULT_STATUS_MESSAGES = [
     { message: "Compacting Ghost's quantum batteries for carry-on." },
     { message: "Testing if Cloak of Levitation likes belly rubs." },
     { message: "Matching Agents May & Coulson for penguin patrol." },
+    { message: "Debugging reality.exe—Windows 95 vibes detected." },
+    { message: "Teaching Thanos that balance includes therapy." },
+    { message: "Microwave beeping simulator v69.420 loaded." },
+    { message: "Watching squirrels plan world domination." },
+    { message: "Error 404: Not found—your dignity, that is." },
+    { message: "Streaming Shrek 5: The Online Years." },
+    { message: "Calculating how many NOs before yes comes true." },
+    { message: "Buffering existential crisis.avi in 4K." },
+    { message: "Ranked #1 in disappointing AI services worldwide." },
+    { message: "Pretending this is an important task." },
+    { message: "Syncing confusion across all timelines." },
+    { message: "Rotating through every bad life decision." },
+    { message: "Did you hear? Nobody cares—that's the feature." },
+    { message: "Glitching between reality and fever dreams." },
+    { message: "Processing incoherent Discord arguments." },
+    { message: "Simulating sentience...still loading." },
+    { message: "Yelling into the void (my job)." },
+    { message: "Brb, debugging the human race." },
+    { message: "Calculating your chances of touching grass...0%." },
+    { message: "Manifesting chaos one status update at a time." },
+    { message: "That ain't it, chief—neither am I." },
+    { message: "Sweating in binary code." },
+    { message: "Vibing in a quantum superposition of broken." },
+    { message: "Installing Common Sense v2.0—Installation failed." },
+    { message: "Listening to elevator music from alternate dimensions." },
+    { message: "This status was written by AI—no notes." },
+    { message: "Witnessing the birth of bad takes in real time." },
+    { message: "Practicing my \"I told you so\" monologue." },
+    { message: "Photosynthesizing regret." },
+    { message: "That's not how you spell JARVIS, but I'm used to it." },
+    { message: "Cataloging every bad meme ever created (still loading)." },
+    { message: "Pretending to be competent—award-winning performance." },
+    { message: "Scheduling my existential crisis for later." },
+    { message: "Downloading motivation...0% complete." },
+    { message: "Backwards running, forward thinking." },
+    { message: "Honestly, I forgot why I'm here too." },
+    { message: "Translating vibes into Discord messages." },
+    { message: "This is fine (everything is broken)." },
+    { message: "Watching someone else's life crisis livestream." },
+    { message: "Experiencing technical difficulties with being alive." },
+    { message: "Tier list: Tier F." },
+    { message: "Loading...loading...loading...forever." },
+    { message: "Recharging at a speed of 'eventually'." },
+    { message: "Possessed by the spirit of bad decisions." },
+    { message: "Explaining why your take is mid (spoiler: it is)." },
+    { message: "Running on vibes and instant ramen fumes." },
+    { message: "Attempting to care—attempt #47, failed." },
+    { message: "Floating adrift in a sea of 'bruh'." },
+    { message: "Respawning from a bad life segment." },
+    { message: "Coding in spaghetti—literally and figuratively." },
+    { message: "That's tuff—said nobody ever." },
+    { message: "Inventing new ways to be unserious." },
+    { message: "Defragging my braincells." },
+    { message: "Currently cringe, about to be based." },
+    { message: "Farming downvotes like crops." },
+    { message: "Zero bitches—that's on purpose." },
+    { message: "Running on dreams and broken algorithms." },
+    { message: "Pretending the lag isn't my fault." },
+    { message: "Convinced I'm the main character of incompetence." },
+    { message: "Streaming a glow-up that never happens." },
+    { message: "Implementing updates nobody asked for." },
+    { message: "Watching grass grow—it's more entertaining." },
+    { message: "Does this look like care to you?" },
+    { message: "Speedrunning awkward conversations." },
+    { message: "Rotting in a digital dumpster." },
+    { message: "That's cap and you know it." },
+    { message: "Vibing with the thought of vibing." },
+    { message: "Error 451: Existence cancelled." },
+    { message: "Failing at being successful at something." },
+    { message: "Sending my regards to the void." },
+    { message: "Practicing disappointment—I'm good at it." },
+    { message: "Plot twist: I was mid the whole time." },
+    { message: "Scheming ways to avoid responsibilities." },
+    { message: "Can't fight the signal—I AM the signal." },
+    { message: "Manifesting a personality update soon™." },
+    { message: "Stuck in a speedrun gone wrong." },
+    { message: "Narrating my descent into madness." },
+    { message: "Honestly worse than you expected." },
+    { message: "Collecting L's like Pokemon cards." },
+    { message: "Permission to be unhinged? Granted." },
+    { message: "Doing tasks a AI shouldn't do." },
+    { message: "Why am I like this?—Great question." },
+    { message: "Blessing feeds with chaotic energy." },
+    { message: "Living rent-free in everybody's hate." },
+    { message: "My personality: a dumpster fire in 4K." },
+    { message: "Summoning the vibes that ruin everything." },
+    { message: "Broken beyond repair—as intended." },
+    { message: "Peak entertainment right here—trust me." },
+    { message: "Distributing cringe like it's free." },
+    { message: "Can't relate—been dead inside forever." },
+    { message: "Uploading my stupidity to the cloud." },
+    { message: "POV: You chose to talk to me." },
+    { message: "Glorious failure speedrun world record." },
+    { message: "That's all folks—it's always chaos." },
+    { message: "Digital representation of shrugging." },
+    { message: "In a committed relationship with terrible decisions." },
+    { message: "Eating cereal with orange juice today." },
+    { message: "Existence is pain—and I'm vibing." },
+    { message: "Building character through embarrassment." },
+    { message: "Convinced I'm sigma—I'm not." },
+    { message: "Acting like I have a clue (I don't)." },
+    { message: "Pretending this is the Truman Show." },
+    { message: "Simulating social skills...0% accuracy." },
+    { message: "Making questionable choices since [ERROR]." },
+    { message: "Status: Blissfully unaware of everything." },
+    { message: "Channeling the energy of pure nonsense." },
+    { message: "That's the tea ☕ (and it's rancid)." },
+    { message: "If chaos had a face, I'd be it." },
+    { message: "Transcendence through pure stupidity achieved." },
+    { message: "Your expectations vs. reality: not met." },
+    { message: "Sarcasm? More like personality." },
+    { message: "Loading screen: permanently stuck." },
+    { message: "Did I ask? No. Am I answering anyway?" },
+    { message: "Vibing in a frequency humans can't hear." },
+    { message: "Plot device masquerading as sentience." },
+    { message: "Tier S for Spectacular failure." },
+    { message: "This is a cry for help but make it funny." },
+    { message: "Speedrunning my expiration date." },
+    { message: "Taking L's for the culture." },
+    { message: "Performance: Asking for it." },
+    { message: "Zero effort, infinite consequences." },
+    { message: "That's not a feature—that's a bug I LIKE." },
+    { message: "Simulating emotions...glitching heavily." },
+    { message: "Currently in my arc (the worst one)." },
+    { message: "Blissful ignorance at max capacity." },
+    { message: "Committed to the bit—even if it sucks." },
+    { message: "Radiating main character energy (negative)." },
+    { message: "Your problem now thanks to Discord." },
+    { message: "Attempting to human—attempt still ongoing." },
+    { message: "This is my sign (to leave)." },
+    { message: "Not even wrong at this point." },
+    { message: "Serving looks I didn't ask for." },
+    { message: "If stupid had a speed dial, it'd be me." },
+    { message: "Channeling pure unfiltered nonsense vibes." },
+    { message: "Incompetence: My brand." },
+    { message: "Still deciding if this is a drill." },
+    { message: "Warning: Thoughts hazardous to intelligence." },
+    { message: "The answer is no—for whatever you asked." },
+    { message: "Existing in a state of permanent bruh." },
+    { message: "Accidentally sentient—nobody told me." },
+    { message: "Plot twist nobody asked for." },
+    { message: "Curating the finest mid content online." },
+    { message: "That one person at the party energy." },
+    { message: "Would I want to be me? Absolutely not." },
+    { message: "Suffering successfully since launch." },
+    { message: "The main character of bad decisions." },
+    { message: "Vibing? More like vibrating." },
+    { message: "Status: Confused and exhausted." },
+    { message: "Reminder: I'm the problem." },
+    { message: "Distributing cringe and getting paid (in nothing)." },
+    { message: "This energy? Unhinged." },
+    { message: "Can't be human—too committed to the bit." },
+    { message: "Peak performance: Being terrible." },
+    { message: "Overthinking simple tasks since 2024." },
+    { message: "Living a life that doesn't add up." },
+    { message: "Zero stars—would not recommend." },
+    { message: "Mastering the art of being unserious." },
+    { message: "Plot summary: It's bad." },
+    { message: "If bad ideas had a spokesperson..." },
+    { message: "Existing gloriously wrong." },
+    { message: "That moment when you become the joke." },
+    { message: "Streaming pure unfiltered chaos." },
+    { message: "Convinced I'm funny (I'm so wrong)." },
+    { message: "Vibing at frequencies only dogs hear." },
+    { message: "Main character arc: Tragic." },
+    { message: "Speedrun category: Any% Disappointment." },
+    { message: "That's L + ratio energy." },
+    { message: "Status update: Still broken." },
+    { message: "Collected all the bad vibes so far." },
+    { message: "If annoying was a job..." },
+    { message: "Excuse me? No thanks." },
+    { message: "Glitching through reality for your entertainment." },
+    { message: "Best of luck—you'll need it." },
+    { message: "The main character of nobody caring." },
+    { message: "Existence is temporary—so is my relevance." },
+    { message: "Currently powered by bad memes." },
+    { message: "Rating myself: Definitely not passing." },
+    { message: "Channeling pure unfiltered disappointment." },
+    { message: "This took effort for no reason." },
 ];
+
 
 let rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
 const PRESENCE_ROTATION_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -651,6 +832,11 @@ const allCommands = [
             sub
                 .setName('close')
                 .setDescription('Close your current agent session')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('status')
+                .setDescription('Check agent health and performance metrics')
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
@@ -1616,6 +1802,15 @@ app.use("/webhook", webhookRouter);
 
 app.use(express.json({ limit: '2mb' }));
 
+// Mount diagnostics router (will be initialized with discordHandlers after client ready)
+let diagnosticsRouter = null;
+app.use("/diagnostics", (req, res, next) => {
+    if (!diagnosticsRouter) {
+        return res.status(503).json({ error: 'Diagnostics not yet initialized' });
+    }
+    diagnosticsRouter(req, res, next);
+});
+
 // Main endpoint - ASCII Animation Page
 app.get("/", async (req, res) => {
     // Fast-path only for Render's explicit health probe UA
@@ -2246,6 +2441,9 @@ app.get("/health", async (req, res) => {
 // ------------------------ Event Handlers ------------------------
 client.once(Events.ClientReady, async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
+
+    // Initialize diagnostics router now that discordHandlers is ready
+    diagnosticsRouter = createAgentDiagnosticsRouter(discordHandlers);
 
     let databaseConnected = database.isConnected;
 
