@@ -1350,11 +1350,37 @@
                     }
                     return;
                 }
+                case 'status': {
+                    const health = this.agentMonitor.getHealthReport(this.browserAgent);
+                    const embed = new EmbedBuilder()
+                        .setTitle('🤖 Agent Health Report')
+                        .setColor(health.overallHealth >= 75 ? 0x00ff00 : health.overallHealth >= 50 ? 0xffaa00 : 0xff0000)
+                        .addFields(
+                            { name: '📊 Overall Health', value: `${health.overallHealth}%`, inline: true },
+                            { name: '⏱️ Uptime', value: `${Math.round(health.uptime / 1000)}s`, inline: true },
+                            { name: '🔌 Circuit Breaker', value: `${health.browser.circuitBreakerStatus.toUpperCase()}`, inline: true },
+                            { name: '🌐 Browser', value: `${health.browser.browserHealth}`, inline: true },
+                            { name: '💾 Sessions', value: `${health.sessions.activeCount}/${this.browserAgent.maxConcurrentSessions}`, inline: true },
+                            { name: '📈 Operations', value: `${health.operations.succeeded}✅ ${health.operations.failed}❌`, inline: true },
+                            { name: '🧠 Memory (Heap)', value: `${health.memory.heapUsedMb}/${health.memory.heapTotalMb}MB (${health.memory.heapUsedPercent}%)`, inline: false },
+                            { name: '⚡ Recent Latency', value: `${health.operations.avgLatencyMs}ms avg`, inline: true },
+                            { name: '📊 Success Rate', value: health.operations.successRate, inline: true }
+                        )
+                        .setFooter({ text: `Restarts: ${health.browser.browserRestarts} | Errors: ${health.browser.consecutiveErrors}` })
+                        .setTimestamp();
+                    
+                    try {
+                        await interaction.editReply({ embeds: [embed] });
+                    } catch (e) {
+                        await interaction.followUp({ embeds: [embed] });
+                    }
+                    return;
+                }
                 default: {
                     try {
-                        await interaction.editReply('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                        await interaction.editReply('Unknown agent subcommand. Try: open, screenshot, download, close, status.');
                     } catch (e) {
-                        await interaction.followUp('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                        await interaction.followUp('Unknown agent subcommand. Try: open, screenshot, download, close, status.');
                     }
                     return;
                 }
