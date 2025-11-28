@@ -41,6 +41,7 @@ const moderationFilters = require('./moderation-filters');
 const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
 const BrowserAgent = require('./src/agents/browserAgent');
 const tempFiles = require('./src/utils/temp-files');
+const { sanitizePings: sanitizePingsUtil } = require('./src/utils/sanitize');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -197,10 +198,7 @@ class DiscordHandlers {
     }
 
     sanitizePings(text) {
-        if (typeof text !== 'string') return text;
-        return text
-            .replace(/@everyone/gi, '@\u200beveryone')
-            .replace(/@here/gi, '@\u200bhere');
+        return sanitizePingsUtil(text);
     }
 
     async sendBufferOrLink(interaction, buffer, preferredName) {
