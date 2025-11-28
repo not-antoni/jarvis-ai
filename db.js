@@ -1,5 +1,6 @@
 const { MongoClient } = require('mongodb');
 const config = require('./config');
+const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
 
 const {
     database: {
@@ -9,12 +10,11 @@ const {
     }
 } = config;
 
-if (!mainUri) {
-    throw new Error('MONGO_URI_MAIN is not configured');
-}
-
-if (!vaultUri) {
-    throw new Error('MONGO_URI_VAULT is not configured');
+if (!mainUri || !vaultUri) {
+    if (!LOCAL_DB_MODE) {
+        if (!mainUri) throw new Error('MONGO_URI_MAIN is not configured');
+        if (!vaultUri) throw new Error('MONGO_URI_VAULT is not configured');
+    }
 }
 
 const mainClient = new MongoClient(mainUri, {
@@ -76,11 +76,15 @@ async function connectVault() {
 }
 
 async function initializeDatabaseClients() {
+    if (LOCAL_DB_MODE) {
+        return { jarvisDB: null, vaultDB: null };
+    }
     await Promise.all([connectMain(), connectVault()]);
     return { jarvisDB: mainDb, vaultDB: vaultDb };
 }
 
 function getJarvisDb() {
+    if (LOCAL_DB_MODE) return null;
     if (!mainDb) {
         throw new Error('Main database not connected. Call connectMain or initializeDatabaseClients first.');
     }
@@ -88,6 +92,7 @@ function getJarvisDb() {
 }
 
 function getVaultDb() {
+    if (LOCAL_DB_MODE) return null;
     if (!vaultDb) {
         throw new Error('Vault database not connected. Call connectVault or initializeDatabaseClients first.');
     }
