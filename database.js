@@ -6,6 +6,8 @@ const { ObjectId } = require('mongodb');
 const config = require('./config');
 const vaultClient = require('./vault-client');
 const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
+const localdb = require('./src/localdb');
+const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
 
 class DatabaseManager {
     constructor() {
@@ -27,6 +29,14 @@ class DatabaseManager {
 
     async connect() {
         if (this.isConnected) {
+            return;
+        }
+        if (LOCAL_DB_MODE) {
+            // Local mode: operate without a DB connection
+            this.client = null;
+            this.db = null;
+            this.isConnected = false;
+            console.warn('Database in LOCAL_DB_MODE: continuing without Mongo connection.');
             return;
         }
         try {
@@ -288,8 +298,16 @@ class DatabaseManager {
     }
 
     async getPresenceMessages() {
-        if (!this.isConnected) {
-            return [];
+        if (!this.isConnected || !this.db) {
+            try {
+                const docs = localdb.readCollection(config.database.collections.statusMessages);
+                return docs
+                    .filter((d) => d && d.enabled !== false)
+                    .map((d) => ({ message: String(d.message || '').trim(), type: d.type }))
+                    .filter((e) => e.message);
+            } catch (_) {
+                return [];
+            }
         }
 
         const collection = this.db.collection(config.database.collections.statusMessages);
@@ -308,7 +326,7 @@ class DatabaseManager {
     }
 
     async saveConversation(userId, userName, userInput, jarvisResponse, guildId = null) {
-        if (!this.isConnected) return;
+        if (!this.isConnected || !this.db) return;
         
         const now = new Date();
         const conversation = {
@@ -357,7 +375,7 @@ class DatabaseManager {
     }
 
     async resetUserData(userId) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected || !this.db) throw new Error("Database not connected");
         
         const convResult = await this.db
             .collection(config.database.collections.conversations)
@@ -380,7 +398,7 @@ class DatabaseManager {
     }
 
     async setUserPreference(userId, key, value) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected || !this.db) throw new Error("Database not connected");
 
         await this.db
             .collection(config.database.collections.userProfiles)

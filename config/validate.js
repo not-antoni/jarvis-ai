@@ -1,48 +1,5 @@
 const { z } = require('zod');
 
-const requiredEnvVars = ['DISCORD_TOKEN', 'MONGO_URI_MAIN', 'MONGO_URI_VAULT', 'MASTER_KEY_BASE64'];
-const DEPLOYMENT_DOC_HINT = 'Refer to DEPLOYMENT.md (Environment Variables) for setup instructions.';
-
-const envSchema = z.object({
-    DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
-    MONGO_URI_MAIN: z.string()
-        .min(1, 'MONGO_URI_MAIN is required')
-        .refine((value) => /^mongodb(\+srv)?:\/\//i.test(value), 'MONGO_URI_MAIN must be a MongoDB connection string'),
-    MONGO_URI_VAULT: z.string()
-        .min(1, 'MONGO_URI_VAULT is required')
-        .refine((value) => /^mongodb(\+srv)?:\/\//i.test(value), 'MONGO_URI_VAULT must be a MongoDB connection string'),
-    MASTER_KEY_BASE64: z.string()
-        .min(1, 'MASTER_KEY_BASE64 is required')
-        .refine((value) => {
-            try {
-                return Buffer.from(value, 'base64').length === 32;
-            } catch {
-                return false;
-            }
-        }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
-    OPENAI: z.string().optional(),
-    LOCAL_EMBEDDING_URL: z.string().optional(),
-    YOUTUBE_API_KEY: z.string().optional(),
-    BRAVE_API_KEY: z.string().optional(),
-    CRYPTO_API_KEY: z.string().optional(),
-    HEALTH_TOKEN: z.string().optional(),
-}).passthrough();
-
-function coerceAndDeduplicateChannelIds(ids) {
-    if (!Array.isArray(ids)) {
-        return [];
-    }
-
-    const normalized = ids
-        .map((value) => {
-            if (value == null) return null;
-            return String(value).trim();
-        })
-        .filter((value) => Boolean(value));
-
-    return Array.from(new Set(normalized));
-}
-
 function parseBooleanEnv(key, fallback) {
     const value = process.env[key];
     if (value == null) {
@@ -63,6 +20,68 @@ function parseBooleanEnv(key, fallback) {
 
     return Boolean(fallback);
 }
+
+const localDbMode = parseBooleanEnv('LOCAL_DB_MODE', false) || parseBooleanEnv('ALLOW_START_WITHOUT_DB', false);
+
+const requiredEnvVars = localDbMode
+    ? ['DISCORD_TOKEN', 'MASTER_KEY_BASE64']
+    : ['DISCORD_TOKEN', 'MONGO_URI_MAIN', 'MONGO_URI_VAULT', 'MASTER_KEY_BASE64'];
+const DEPLOYMENT_DOC_HINT = 'Refer to DEPLOYMENT.md (Environment Variables) for setup instructions.';
+
+const envSchema = (localDbMode
+    ? z.object({
+        DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
+        MONGO_URI_MAIN: z.string().optional(),
+        MONGO_URI_VAULT: z.string().optional(),
+        MASTER_KEY_BASE64: z.string()
+            .min(1, 'MASTER_KEY_BASE64 is required')
+            .refine((value) => {
+                try { return Buffer.from(value, 'base64').length === 32; } catch { return false; }
+            }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
+        OPENAI: z.string().optional(),
+        LOCAL_EMBEDDING_URL: z.string().optional(),
+        YOUTUBE_API_KEY: z.string().optional(),
+        BRAVE_API_KEY: z.string().optional(),
+        CRYPTO_API_KEY: z.string().optional(),
+        HEALTH_TOKEN: z.string().optional(),
+    })
+    : z.object({
+        DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
+        MONGO_URI_MAIN: z.string()
+            .min(1, 'MONGO_URI_MAIN is required')
+            .refine((value) => /^mongodb(\+srv)?:\/\//i.test(value), 'MONGO_URI_MAIN must be a MongoDB connection string'),
+        MONGO_URI_VAULT: z.string()
+            .min(1, 'MONGO_URI_VAULT is required')
+            .refine((value) => /^mongodb(\+srv)?:\/\//i.test(value), 'MONGO_URI_VAULT must be a MongoDB connection string'),
+        MASTER_KEY_BASE64: z.string()
+            .min(1, 'MASTER_KEY_BASE64 is required')
+            .refine((value) => {
+                try { return Buffer.from(value, 'base64').length === 32; } catch { return false; }
+            }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
+        OPENAI: z.string().optional(),
+        LOCAL_EMBEDDING_URL: z.string().optional(),
+        YOUTUBE_API_KEY: z.string().optional(),
+        BRAVE_API_KEY: z.string().optional(),
+        CRYPTO_API_KEY: z.string().optional(),
+        HEALTH_TOKEN: z.string().optional(),
+    })
+).passthrough();
+
+function coerceAndDeduplicateChannelIds(ids) {
+    if (!Array.isArray(ids)) {
+        return [];
+    }
+
+    const normalized = ids
+        .map((value) => {
+            if (value == null) return null;
+            return String(value).trim();
+        })
+        .filter((value) => Boolean(value));
+
+    return Array.from(new Set(normalized));
+}
+
 
 function normalizeFeatureFlags(features = {}) {
     const normalized = {};

@@ -24,7 +24,15 @@ const tempFiles = require('./src/utils/temp-files');
 // Import our modules
 const config = require('./config');
 const database = require('./database');
-const { initializeDatabaseClients } = require('./db');
+const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
+let initializeDatabaseClients = null;
+try {
+    if (!LOCAL_DB_MODE) {
+        ({ initializeDatabaseClients } = require('./db'));
+    }
+} catch (e) {
+    // Will proceed without DB when local mode
+}
 const aiManager = require('./ai-providers');
 const discordHandlers = require('./discord-handlers');
 const { gatherHealthSnapshot } = require('./diagnostics');
@@ -69,13 +77,14 @@ function writeJsonAtomic(filePath, value) {
 
 let commandSyncState = safeReadJson(COMMAND_SYNC_STATE_PATH, null);
 
-initializeDatabaseClients()
-    .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
-    .catch((error) => console.error('Failed to initialize MongoDB clients at startup:', error));
+if (initializeDatabaseClients) {
+    initializeDatabaseClients()
+        .then(() => console.log('MongoDB clients initialized for main and vault databases.'))
+        .catch((error) => console.error('Failed to initialize MongoDB clients at startup:', error));
+}
 
 async function maybeExportMongoOnStartup() {
     if (!isSelfHost) return;
-    if (!config?.deployment?.autoExportMongo) return;
 
     try {
         const outDir = config.deployment.exportPath;
@@ -84,6 +93,15 @@ async function maybeExportMongoOnStartup() {
             : [];
         const file = await exportAllCollections({ outDir, collections, filenamePrefix: 'startup-export' });
         console.log(`Self-host: exported Mongo snapshot to ${file}`);
+        try {
+            const { syncFromLatestExport } = require('./src/localdb');
+            const result = syncFromLatestExport();
+            if (result) {
+                console.log(`Local-DB synced from export ${result.latest} into data/local-db (${result.collections.length} collections).`);
+            }
+        } catch (e) {
+            console.warn('Local-DB sync from export failed:', e);
+        }
     } catch (error) {
         console.error('Self-host Mongo export failed:', error);
     }
@@ -2360,13 +2378,30 @@ async function startBot() {
             console.log(`Uptime server listening on port ${config.server.port}`);
         });
 
-        // Warm up MongoDB before we touch Discord
-        await database.connect();
+        // Warm up MongoDB before we touch Discord (optional in local dev)
+        let databaseConnected = false;
+        try {
+            await database.connect();
+            databaseConnected = true;
+        } catch (err) {
+            const allowNoDb = String(process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
+            if (allowNoDb) {
+                console.warn('Database connection failed; continuing without DB for local testing.');
+            } else {
+                throw err;
+            }
+        }
+
         await refreshPresenceMessages(true);
 
-        // Start Discord bot
-        await client.login(config.discord.token);
-        console.log(`✅ Logged in as ${client.user.tag}`);
+        // Start Discord bot unless disabled for local testing
+        const disableDiscord = String(process.env.DISABLE_DISCORD || '').toLowerCase() === '1';
+        if (!disableDiscord) {
+            await client.login(config.discord.token);
+            console.log(`✅ Logged in as ${client.user.tag}`);
+        } else {
+            console.log('Discord login disabled (DISABLE_DISCORD=1). Running HTTP only.');
+        }
     } catch (error) {
         console.error("Failed to start bot:", error);
         process.exit(1);
