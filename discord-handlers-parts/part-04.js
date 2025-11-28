@@ -2642,14 +2642,23 @@
                 const trimmed = response.trim();
                 const safe = this.sanitizePings(trimmed);
                 const msg = safe.length > 2000 ? safe.slice(0, 1997) + '...' : (safe.length ? safe : "Response circuits tangled, sir. Try again?");
-                console.log('[/jarvis] Sending string response, deferred=' + interaction.deferred + ', replied=' + interaction.replied);
+                console.log('[/jarvis] Sending string response, deferred=' + interaction.deferred + ', replied=' + interaction.replied + ', msg length=' + msg.length);
                 try {
-                    await interaction.editReply(msg);
+                    const sendPromise = interaction.editReply(msg);
+                    const result = await Promise.race([
+                        sendPromise,
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('editReply timeout after 5s')), 5000))
+                    ]);
                     console.log('[/jarvis] editReply succeeded');
                 } catch (e) {
-                    console.error('[/jarvis] Failed to editReply (' + e.code + '), using followUp instead. Message:', e.message);
-                    await interaction.followUp(msg);
-                    console.log('[/jarvis] followUp sent');
+                    console.error('[/jarvis] Failed to editReply (' + e.code + '): ' + e.message);
+                    console.log('[/jarvis] Attempting followUp fallback...');
+                    try {
+                        await interaction.followUp(msg);
+                        console.log('[/jarvis] followUp sent successfully');
+                    } catch (followUpError) {
+                        console.error('[/jarvis] followUp also failed:', followUpError.code, followUpError.message);
+                    }
                 }
             } else {
                 console.log('[/jarvis] Sending embed/object response');
