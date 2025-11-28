@@ -196,6 +196,13 @@ class DiscordHandlers {
         ];
     }
 
+    sanitizePings(text) {
+        if (typeof text !== 'string') return text;
+        return text
+            .replace(/@everyone/gi, '@\u200beveryone')
+            .replace(/@here/gi, '@\u200bhere');
+    }
+
     async sendBufferOrLink(interaction, buffer, preferredName) {
         const MAX_UPLOAD = 8 * 1024 * 1024;
         if (buffer.length <= MAX_UPLOAD) {

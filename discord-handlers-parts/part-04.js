@@ -2492,7 +2492,8 @@
                 telemetryMetadata.reason = 'empty-response';
             } else if (typeof response === 'string') {
                 const trimmed = response.trim();
-                await interaction.editReply(trimmed.length ? trimmed : "Response circuits tangled, sir. Try again?");
+                const safe = this.sanitizePings(trimmed);
+                await interaction.editReply(safe.length ? safe : "Response circuits tangled, sir. Try again?");
             } else {
                 await interaction.editReply(response);
             }
