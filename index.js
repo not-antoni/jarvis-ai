@@ -405,6 +405,11 @@ function isRenderHealthCheck(req) {
     return remoteAddr === '127.0.0.1' || remoteAddr === '::1';
 }
 
+function isRenderHealthUserAgent(req) {
+    const ua = String(req.headers?.['user-agent'] || '').toLowerCase();
+    return ua.includes('render/health');
+}
+
 const getNextRotatingStatus = () => {
     if (!rotatingStatusMessages.length) {
         return { message: "Calibrating Stark Industries protocols." };
@@ -1608,7 +1613,8 @@ app.use(express.json({ limit: '2mb' }));
 
 // Main endpoint - ASCII Animation Page
 app.get("/", async (req, res) => {
-    if (isRenderHealthCheck(req)) {
+    // Fast-path only for Render's explicit health probe UA
+    if (isRenderHealthUserAgent(req)) {
         return res.status(200).send('OK');
     }
     try {
@@ -2192,7 +2198,8 @@ app.get("/health", async (req, res) => {
         }
     }
 
-    if (isRenderHealthCheck(req) && !req.query.deep) {
+    // Fast-path only for Render's explicit health probe UA
+    if (isRenderHealthUserAgent(req) && !req.query.deep) {
         return res.status(200).json({ status: 'ok' });
     }
     const deep = ['1', 'true', 'yes', 'deep'].includes(String(req.query.deep || '').toLowerCase());
