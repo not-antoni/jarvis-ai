@@ -1007,9 +1007,16 @@
             }
             if (contentType && (contentType.includes('gif') || contentType.includes('video/'))) {
                 try {
-                    const { captionAnimated } = require('./src/utils/gif-caption');
-                    const out = await captionAnimated({ inputBuffer: buffer, captionText: text });
-                    await this.sendBufferOrLink(interaction, out, 'caption.gif');
+                    const isRender = (config?.deployment?.target || 'render').toLowerCase() === 'render';
+                    if (isRender) {
+                        const { captionToMp4 } = require('./src/utils/video-caption');
+                        const out = await captionToMp4({ inputBuffer: buffer, captionText: text });
+                        await this.sendBufferOrLink(interaction, out, 'caption.mp4');
+                    } else {
+                        const { captionAnimated } = require('./src/utils/gif-caption');
+                        const out = await captionAnimated({ inputBuffer: buffer, captionText: text });
+                        await this.sendBufferOrLink(interaction, out, 'caption.gif');
+                    }
                 } catch (err) {
                     console.warn('Animated caption failed, falling back to PNG:', err?.message || err);
                     const rendered = await memeCanvas.createCaptionImage(buffer, text);
