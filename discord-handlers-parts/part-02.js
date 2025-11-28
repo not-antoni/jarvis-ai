@@ -631,6 +631,11 @@
         if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
         if (!message.guild) {
+            try {
+                await this.handleAgentDmMessage(message);
+            } catch (e) {
+                // ignore
+            }
             return;
         }
 

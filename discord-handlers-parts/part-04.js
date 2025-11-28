@@ -1,12 +1,12 @@
+// @ts-nocheck
 
         const me = guild.members.me || await guild.members.fetchMe();
         if (!me || !me.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
             await interaction.editReply('I require the "Manage Server" permission to configure auto moderation, sir.');
             return;
-        }
+        // @ts-nocheck
 
-        const storedRecord = await database.getAutoModConfig(guild.id);
-        const { record, rules: cachedRules, mutated, missingRuleIds } = await this.prepareAutoModState(guild, storedRecord);
+            const me = guild.members.me || await guild.members.fetchMe();
 
         if (mutated) {
             await database.saveAutoModConfig(guild.id, record);
@@ -1257,6 +1257,80 @@
         }
     }
 
+    cleanupAgentSessions() {
+        const now = Date.now();
+        for (const [userId, session] of this.agentSessions.entries()) {
+            if ((session.lastActive || session.startedAt) + this.agentTtlMs < now) {
+                this.agentSessions.delete(userId);
+            }
+        }
+    }
+
+    async startAgentPreview(user) {
+        const now = Date.now();
+        this.agentSessions.set(user.id, { startedAt: now, lastActive: now });
+        const dm = await user.createDM();
+        await dm.send({ content: 'Agent preview engaged, sir. Type a message to chat, include a URL to preview a page, or prefix with "search " to run a web search. Type ".agent stop" to end or ".help" for help.' });
+        return dm;
+    }
+
+    async handleAgentDmMessage(message) {
+        if (message.author.bot) return;
+        if (message.channel?.type !== ChannelType.DM) return;
+        const userId = message.author.id;
+        const session = this.agentSessions.get(userId);
+        const content = (message.content || '').trim();
+
+        if (/^\.agent\s+stop\b/i.test(content)) {
+            this.agentSessions.delete(userId);
+            await message.channel.send({ content: 'Agent disengaged, sir.' });
+            return;
+        }
+        if (/^\.help\b|^\.agent\s+help\b/i.test(content)) {
+            await message.channel.send({ content: 'Commands: ".agent stop" to end. Send a URL to preview, use "search <query>", or just chat normally.' });
+            return;
+        }
+        if (!session) return; // only active for preview sessions
+        session.lastActive = Date.now();
+
+        try {
+            const urlMatch = content.match(/https?:\/\/\S+/i);
+            if (urlMatch && config?.deployment?.target === 'selfhost' && config?.deployment?.liveAgentMode) {
+                try {
+                    const { summarizeUrl } = require('./src/utils/agent-preview');
+                    const result = await summarizeUrl(urlMatch[0]);
+                    await message.channel.send({ content: `Preview: ${result.url}\n${result.summary}`.slice(0, 1990) });
+                    return;
+                } catch (e) {
+                    await message.channel.send({ content: 'Unable to preview that link at the moment, sir.' });
+                }
+            }
+
+            if (/^search\s+/i.test(content)) {
+                const query = content.replace(/^search\s+/i, '').trim();
+                if (!query) {
+                    await message.channel.send({ content: 'Provide a search query, sir.' });
+                    return;
+                }
+                try {
+                    const response = await this.jarvis.handleBraveSearch({ raw: query, prepared: query, invocation: query, content: query, rawMessage: query, rawInvocation: query, explicit: false });
+                    await message.channel.send({ content: String(response).slice(0, 1990) });
+                    return;
+                } catch (e) {
+                    await message.channel.send({ content: 'Search is unavailable right now, sir.' });
+                    return;
+                }
+            }
+
+            // default to chat
+            const reply = await this.jarvis.generateResponse(null, content, false);
+            const out = typeof reply === 'string' ? reply : (reply?.content || reply?.toString() || '');
+            await message.channel.send({ content: String(out).slice(0, 1990) });
+        } catch (e) {
+            await message.channel.send({ content: 'Agent encountered an error, sir.' });
+        }
+    }
+
     async handleAgentCommand(interaction) {
         const isSelfHost = config?.deployment?.target === 'selfhost';
         const headlessEnabled = !!config?.deployment?.headlessBrowser;
@@ -1274,6 +1348,22 @@
 
         try {
             switch (sub) {
+                case 'preview': {
+                    if (interaction.guild) {
+                        // DM-only feature; open DM and inform
+                        try {
+                            const dm = await interaction.user.createDM();
+                            await this.startAgentPreview(interaction.user);
+                            await interaction.editReply({ content: 'I have opened a DM and engaged your agent preview, sir.', ephemeral: true });
+                        } catch (e) {
+                            await interaction.editReply({ content: 'I could not open a DM with you, sir. Please enable DMs and try again.', ephemeral: true });
+                        }
+                        return;
+                    }
+                    await this.startAgentPreview(interaction.user);
+                    await interaction.editReply('Agent preview engaged here, sir.');
+                    return;
+                }
                 case 'open': {
                     const url = interaction.options.getString('url', true);
                     const wait = interaction.options.getString('wait', false) || 'load';
@@ -1293,7 +1383,16 @@
                 }
                 case 'download': {
                     const url = interaction.options.getString('url', true);
-                    const { buffer, contentType, filename } = await this.browserAgent.downloadDirect(url);
+                    let buffer, contentType, filename;
+                    try {
+                        ({ buffer, contentType, filename } = await this.browserAgent.downloadDirect(url));
+                    } catch (err) {
+                        if (err && err.code === 'DOWNLOAD_TOO_LARGE') {
+                            await interaction.editReply('That file exceeds the 50MB limit, sir.');
+                            return;
+                        }
+                        throw err;
+                    }
                     const maxUpload = 8 * 1024 * 1024; // 8 MB
                     if (buffer.length > maxUpload) {
                         const ext = (filename || '').split('.').pop() || 'bin';
