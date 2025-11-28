@@ -1261,7 +1261,11 @@
         const isSelfHost = config?.deployment?.target === 'selfhost';
         const headlessEnabled = !!config?.deployment?.headlessBrowser;
         if (!isSelfHost || !headlessEnabled) {
-            await interaction.editReply({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
+            try {
+                await interaction.editReply({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
+            } catch (e) {
+                await interaction.followUp({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
+            }
             return;
         }
 
@@ -1280,7 +1284,12 @@
                     const { title, url: finalUrl } = await this.browserAgent.open(ctxKey, url, { waitUntil: wait });
                     const png = await this.browserAgent.screenshot(ctxKey, { fullPage: true });
                     const attachment = new AttachmentBuilder(png, { name: 'screenshot.png' });
-                    await interaction.editReply({ content: `Opened: ${finalUrl}\nTitle: ${title}`.slice(0, 1900), files: [attachment] });
+                    const msg = { content: `Opened: ${finalUrl}\nTitle: ${title}`.slice(0, 1900), files: [attachment] };
+                    try {
+                        await interaction.editReply(msg);
+                    } catch (e) {
+                        await interaction.followUp(msg);
+                    }
                     return;
                 }
                 case 'screenshot': {
@@ -1288,7 +1297,12 @@
                     const selector = interaction.options.getString('selector', false) || null;
                     const png = await this.browserAgent.screenshot(ctxKey, { fullPage: full, selector });
                     const attachment = new AttachmentBuilder(png, { name: 'screenshot.png' });
-                    await interaction.editReply({ files: [attachment] });
+                    const msg = { files: [attachment] };
+                    try {
+                        await interaction.editReply(msg);
+                    } catch (e) {
+                        await interaction.followUp(msg);
+                    }
                     return;
                 }
                 case 'download': {
@@ -1298,21 +1312,39 @@
                     if (buffer.length > maxUpload) {
                         const ext = (filename || '').split('.').pop() || 'bin';
                         const saved = tempFiles.saveTempFile(buffer, ext);
-                        await interaction.editReply(`Downloaded ${filename} (${Math.round(buffer.length/1024)} KB). Temporary link (expires ~4h): ${saved.url}`);
+                        const msg = `Downloaded ${filename} (${Math.round(buffer.length/1024)} KB). Temporary link (expires ~4h): ${saved.url}`;
+                        try {
+                            await interaction.editReply(msg);
+                        } catch (e) {
+                            await interaction.followUp(msg);
+                        }
                         return;
                     }
                     const safeName = filename || 'download.bin';
                     const attachment = new AttachmentBuilder(buffer, { name: safeName, description: `Content-Type: ${contentType}` });
-                    await interaction.editReply({ files: [attachment] });
+                    const msg = { files: [attachment] };
+                    try {
+                        await interaction.editReply(msg);
+                    } catch (e) {
+                        await interaction.followUp(msg);
+                    }
                     return;
                 }
                 case 'close': {
                     await this.browserAgent.closeSession(ctxKey);
-                    await interaction.editReply('Agent session closed.');
+                    try {
+                        await interaction.editReply('Agent session closed.');
+                    } catch (e) {
+                        await interaction.followUp('Agent session closed.');
+                    }
                     return;
                 }
                 default: {
-                    await interaction.editReply('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                    try {
+                        await interaction.editReply('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                    } catch (e) {
+                        await interaction.followUp('Unknown agent subcommand. Try: open, screenshot, download, close.');
+                    }
                     return;
                 }
             }
@@ -1321,7 +1353,11 @@
             const message = error?.message ? String(error.message) : 'Agent error';
             try {
                 await interaction.editReply(`Agent error: ${message}`);
-            } catch (_) {}
+            } catch (e) {
+                try {
+                    await interaction.followUp(`Agent error: ${message}`);
+                } catch (_) {}
+            }
         }
     }
 
