@@ -43,11 +43,13 @@ function renderCaptionOverlay(width, text) {
     const { fontSize, padding, maxWidth, lines, lineHeight, boxHeight } = measureCaptionBox(width, norm);
     const canvas = createCanvas(width, boxHeight);
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, width, boxHeight);
+    // Solid white background to avoid black fill when stacking
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, boxHeight);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = '#000000';
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -99,10 +101,10 @@ async function captionAnimated({ inputBuffer, captionText }) {
         '-i', inPath,
         '-filter_complex',
         '[1:v]setpts=PTS-STARTPTS,setsar=1[gif];' +
-        '[0:v]setpts=PTS-STARTPTS,format=rgba,setsar=1[ov];' +
+        '[0:v]setpts=PTS-STARTPTS,setsar=1,format=rgba[ov];' +
         '[ov][gif]vstack=inputs=2:shortest=1,split[v0][v1];' +
-        '[v0]palettegen=stats_mode=single[pal];' +
-        '[v1][pal]paletteuse=dither=sierra2_4a',
+        '[v0]palettegen=stats_mode=single:max_colors=128[pal];' +
+        '[v1][pal]paletteuse=dither=bayer:bayer_scale=5',
         '-gifflags', '-offsetting',
         outPath
     ];
