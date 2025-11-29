@@ -23,6 +23,22 @@ if (MASTER_KEY.length !== 32) {
 
 const CACHE_TTL_MS = config.security.vaultCacheTtlMs;
 const CACHE_MAX_ENTRIES = 500;
+const USE_LOCAL_DB_MODE = parseBooleanEnv(process.env.LOCAL_DB_MODE, false);
+
+function parseBooleanEnv(value, fallback) {
+    if (value === undefined || value === null) return fallback;
+    if (typeof value === 'boolean') return value;
+    return !['false', '0', 'no', 'off'].includes(String(value).toLowerCase());
+}
+
+let localDbOps = null;
+if (USE_LOCAL_DB_MODE) {
+    try {
+        localDbOps = require('./localdb').vaultOps;
+    } catch (e) {
+        console.warn('Failed to load localdb vault ops:', e.message);
+    }
+}
 
 const keyCache = new LRUCache({ max: CACHE_MAX_ENTRIES, ttl: CACHE_TTL_MS });
 const memoryCache = new LRUCache({ max: CACHE_MAX_ENTRIES, ttl: CACHE_TTL_MS });
@@ -40,6 +56,10 @@ const {
 } = config;
 
 async function getCollections() {
+    if (USE_LOCAL_DB_MODE) {
+        throw new Error('Vault not available in LOCAL_DB_MODE');
+    }
+    
     if (testCollectionsOverride) {
         return testCollectionsOverride;
     }
@@ -48,6 +68,10 @@ async function getCollections() {
         vaultCollectionsPromise = (async () => {
             await connectVault();
             const db = getVaultDb();
+            
+            if (!db) {
+                throw new Error('Vault database connection failed');
+            }
 
             const userKeys = db.collection(userKeysCollectionName);
             const memories = db.collection(memoriesCollectionName);
@@ -166,6 +190,35 @@ async function getOrCreateUserKey(userId) {
         return Buffer.from(cached);
     }
 
+    if (USE_LOCAL_DB_MODE && localDbOps) {
+        let record = await localDbOps.getUserKey(userId);
+
+        if (!record) {
+            const userKey = crypto.randomBytes(32);
+            const payload = encryptWithKey(MASTER_KEY, userKey);
+
+            await localDbOps.saveUserKey(userId, {
+                encryptedKey: payload.ciphertext,
+                iv: payload.iv,
+                authTag: payload.authTag,
+                version: 1
+            });
+
+            keyCache.set(userId, userKey);
+            return userKey;
+        }
+
+        const decryptedKey = decryptWithKey(MASTER_KEY, {
+            ciphertext: record.encryptedKey,
+            iv: record.iv,
+            authTag: record.authTag
+        });
+
+        const userKey = Buffer.from(decryptedKey);
+        keyCache.set(userId, userKey);
+        return userKey;
+    }
+
     const { userKeys } = await getCollections();
     let record = await userKeys.findOne({ userId });
 
@@ -227,6 +280,29 @@ async function registerUserKey(userId) {
 }
 
 async function encryptMemory(userId, plaintext, options = {}) {
+    if (USE_LOCAL_DB_MODE && localDbOps) {
+        const { type = 'conversation' } = options || {};
+        const { buffer, format } = serializePlaintext(plaintext);
+        
+        if (buffer.byteLength > 64 * 1024) {
+            throw new Error('Memory payload exceeds 64KB limit');
+        }
+
+        const userKey = await getOrCreateUserKey(userId);
+        const payload = encryptWithKey(userKey, buffer);
+
+        await localDbOps.saveMemory(userId, {
+            type,
+            payload,
+            format,
+            bytes: buffer.byteLength,
+            version: 1
+        });
+
+        memoryCache.delete(userId);
+        return `local_${userId}_${Date.now()}`;
+    }
+
     const { type = 'conversation', expiresAt = null } = options || {};
     const { buffer, format } = serializePlaintext(plaintext);
 
@@ -258,6 +334,44 @@ async function encryptMemory(userId, plaintext, options = {}) {
 }
 
 async function decryptMemories(userId, options = {}) {
+    if (USE_LOCAL_DB_MODE && localDbOps) {
+        const cacheHit = memoryCache.get(userId);
+        if (cacheHit) {
+            return cacheHit.map(cloneMemoryEntry);
+        }
+
+        const { type = 'conversation', limit = 12 } = options || {};
+        const docs = await localDbOps.getMemories(userId, limit);
+        
+        if (docs.length === 0) {
+            memoryCache.set(userId, []);
+            return [];
+        }
+
+        const userKey = await getOrCreateUserKey(userId);
+        const decrypted = [];
+
+        for (const doc of docs) {
+            try {
+                const plaintext = decryptWithKey(userKey, doc.payload);
+                const value = deserializePlaintext(plaintext, doc.format);
+                if (value !== null) {
+                    decrypted.push({
+                        _id: doc._id || `local_${userId}_${doc.createdAt}`,
+                        type: doc.type || type,
+                        value,
+                        createdAt: new Date(doc.createdAt)
+                    });
+                }
+            } catch (error) {
+                console.warn(`Failed to decrypt memory for user ${userId}:`, error.message);
+            }
+        }
+
+        memoryCache.set(userId, decrypted);
+        return decrypted.map(cloneMemoryEntry);
+    }
+
     const cacheHit = memoryCache.get(userId);
     if (cacheHit) {
         return cacheHit.map(cloneMemoryEntry);

@@ -220,6 +220,11 @@ class DiscordHandlers {
         ];
 
         this.maxInputBytes = 3 * 1024 * 1024; // 3MB cap for heavy media processing
+        
+        // Agent session management
+        this.agentSessions = new Map(); // userId -> { startedAt, lastActive }
+        this.agentTtlMs = 30 * 60 * 1000;
+        setInterval(() => this.cleanupAgentSessions(), 60 * 1000).unref();
     }
 
     sanitizePings(text) {
@@ -352,10 +357,6 @@ class DiscordHandlers {
         const existing = guild.channels.cache.find((channel) =>
             channel.type === ChannelType.GuildCategory && channel.name.toLowerCase() === 'tickets'
         );
-
-        this.agentSessions = new Map(); // userId -> { startedAt, lastActive }
-        this.agentTtlMs = 30 * 60 * 1000;
-        setInterval(() => this.cleanupAgentSessions(), 60 * 1000).unref();
 
         if (existing) {
             return existing;
