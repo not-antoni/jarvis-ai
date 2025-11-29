@@ -204,11 +204,14 @@ class BrowserAgent {
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) JarvisAgent/1.0 Chrome/120 Safari/537.36');
             page.setDefaultTimeout(this.defaultTimeoutMs);
             
+            // Enable request interception before setting up handlers
+            await page.setRequestInterception(true);
+            
             // Abort excessive requests
             await page.on('request', (req) => {
                 const resourceType = req.resourceType();
                 if (['font', 'stylesheet', 'media'].includes(resourceType)) {
-                    req.abort();
+                    req.abort().catch(() => {});
                 } else {
                     req.continue().catch(() => {});
                 }
