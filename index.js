@@ -76,7 +76,26 @@ function writeJsonAtomic(filePath, value) {
     fs.renameSync(tempPath, filePath);
 }
 
+// Load command sync state - local file for selfhost, MongoDB for Render
 let commandSyncState = safeReadJson(COMMAND_SYNC_STATE_PATH, null);
+let commandSyncFromMongo = false; // Track if we loaded from MongoDB
+
+// On Render (not selfhost), we'll load from MongoDB after DB connects
+async function loadCommandSyncStateFromMongo() {
+    if (isSelfHost) return; // Selfhost uses local file
+    if (!database?.isConnected) return;
+    
+    try {
+        const mongoState = await database.getCommandSyncState();
+        if (mongoState) {
+            commandSyncState = mongoState;
+            commandSyncFromMongo = true;
+            console.log('[CommandSync] Loaded state from MongoDB (Render mode)');
+        }
+    } catch (error) {
+        console.warn('[CommandSync] Failed to load from MongoDB:', error.message);
+    }
+}
 
 if (initializeDatabaseClients) {
     initializeDatabaseClients()
@@ -2450,10 +2469,20 @@ function ensureCommandSyncState() {
 }
 
 function persistCommandSyncState() {
+    // Always try local file (works on selfhost, may fail on Render but that's OK)
     try {
         writeJsonAtomic(COMMAND_SYNC_STATE_PATH, commandSyncState);
     } catch (error) {
-        console.warn('Failed to persist command sync state:', error);
+        if (isSelfHost) {
+            console.warn('Failed to persist command sync state to file:', error);
+        }
+    }
+    
+    // On Render, also persist to MongoDB (primary source of truth)
+    if (!isSelfHost && database?.isConnected) {
+        database.saveCommandSyncState(commandSyncState).catch(error => {
+            console.warn('Failed to persist command sync state to MongoDB:', error.message);
+        });
     }
 }
 
@@ -3239,6 +3268,8 @@ client.once(Events.ClientReady, async () => {
 
     if (databaseConnected) {
         await refreshPresenceMessages();
+        // Load command sync state from MongoDB on Render (before registering commands)
+        await loadCommandSyncStateFromMongo();
     }
 
     updateBotPresence();

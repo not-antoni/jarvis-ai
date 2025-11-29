@@ -1130,6 +1130,63 @@ class DatabaseManager {
         });
     }
 
+    // ==================== Command Sync State (for Render) ====================
+    
+    /**
+     * Get command sync state from MongoDB
+     * Used on Render where local filesystem is ephemeral
+     */
+    async getCommandSyncState() {
+        if (!this.isConnected) return null;
+        
+        try {
+            const doc = await this.db
+                .collection(config.database.collections.commandSyncState)
+                .findOne({ _id: 'global' });
+            
+            return doc ? {
+                globalHash: doc.globalHash,
+                lastRegisteredAt: doc.lastRegisteredAt,
+                guildClears: doc.guildClears || {}
+            } : null;
+        } catch (error) {
+            console.warn('Failed to get command sync state from MongoDB:', error.message);
+            return null;
+        }
+    }
+    
+    /**
+     * Save command sync state to MongoDB
+     * Used on Render where local filesystem is ephemeral
+     */
+    async saveCommandSyncState(state) {
+        if (!this.isConnected) return false;
+        
+        try {
+            await this.db
+                .collection(config.database.collections.commandSyncState)
+                .updateOne(
+                    { _id: 'global' },
+                    {
+                        $set: {
+                            globalHash: state.globalHash,
+                            lastRegisteredAt: state.lastRegisteredAt,
+                            guildClears: state.guildClears || {},
+                            updatedAt: new Date()
+                        },
+                        $setOnInsert: {
+                            createdAt: new Date()
+                        }
+                    },
+                    { upsert: true }
+                );
+            return true;
+        } catch (error) {
+            console.warn('Failed to save command sync state to MongoDB:', error.message);
+            return false;
+        }
+    }
+
     async disconnect() {
         if (this.isConnected) {
             await closeMain();

@@ -89,7 +89,8 @@ const rawConfig = {
             newsCache: 'newsCache',
             migrations: 'migrations',
             statusMessages: 'statusMessages',
-            commandMetrics: 'commandMetrics'
+            commandMetrics: 'commandMetrics',
+            commandSyncState: 'commandSyncState'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',
