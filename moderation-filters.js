@@ -20,8 +20,11 @@ const DELETE_LIMIT_PER_MIN = 20;
 const SPAM_WINDOW_MS = 3000;
 const SPAM_THRESHOLD = 5;
 const TIMEOUT_MS = 30 * 1000;
+const TIMEOUT_ESCALATION = [30 * 1000, 5 * 60 * 1000, 60 * 60 * 1000]; // 30s, 5m, 1h
 const DM_THROTTLE_MS = 60 * 1000;
 const ATTACHMENT_SIZE_LIMIT = 512 * 1024;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const MOD_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const BASELINE_WORDS = [
     'asshole', 'bastard', 'bitch', 'cunt', 'dick', 'douche', 'fag', 'fuck',
@@ -38,8 +41,9 @@ const CONFUSABLE_MAP = {
 
 const cache = new Map(); // guildId -> { words, regexPatterns, regex, cachedAt, autoRegexEnabled }
 const deleteRate = new Map(); // guildId -> { ts, count }
-const spamTracker = new Map(); // guildId -> Map(userId -> [ts])
+const spamTracker = new Map(); // guildId -> Map(userId -> { arr: [ts], violations: number })
 const dmThrottle = new Map(); // key -> ts
+const modCache = new Map(); // guildId -> { mods: Set, cachedAt }
 
 // ---------- Persistence helpers ----------
 
@@ -209,7 +213,19 @@ async function refreshCache(guildId) {
     const compiled = entry.regex.map((p) => {
         try { return new RegExp(p, 'iu'); } catch { return null; }
     }).filter(Boolean);
-    const wordRegex = entry.words.map((w) => new RegExp(`\\b${escapeRegex(w)}\\b`, 'iu'));
+    
+    // Only add wordRegex if autoRegex is disabled (otherwise words are already in regex)
+    let wordRegex = [];
+    if (!entry.autoRegexEnabled) {
+        // Use Unicode word boundaries to match buildFlexibleRegex behavior
+        wordRegex = entry.words.map((w) => {
+            try {
+                return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(w)}(?![\\p{L}\\p{N}])`, 'iu');
+            } catch {
+                return null;
+            }
+        }).filter(Boolean);
+    }
 
     const payload = {
         words: [...entry.words],
@@ -238,16 +254,33 @@ async function handleMessage(message) {
     if (!isFeatureGloballyEnabled('moderationFilters')) return;
     if (!message.content) return;
 
+    // Check bot permissions before processing
+    const me = message.guild.members.me || await message.guild.members.fetch(message.client.user.id).catch(() => null);
+    if (!me || !me.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+        return; // Bot doesn't have permission to delete messages
+    }
+
     const filters = await getFilters(message.guild.id);
     if (!filters.regex.length) return;
 
     const content = message.content;
+    let matchedPattern = null;
     for (const re of filters.regex) {
         try {
             if (re.test(content)) {
-                if (!allowDelete(message.guild.id)) return;
-                await message.delete().catch(() => {});
-                trackSpam(message);
+                matchedPattern = re.source;
+                if (!allowDelete(message.guild.id)) {
+                    console.warn(`[ModerationFilters] Rate limit reached for guild ${message.guild.id}, skipping deletion`);
+                    return;
+                }
+                const deleted = await message.delete().catch((err) => {
+                    console.error(`[ModerationFilters] Failed to delete message in guild ${message.guild.id}:`, err.message);
+                    return null;
+                });
+                if (deleted) {
+                    console.log(`[ModerationFilters] Deleted message from ${message.author.tag} (${message.author.id}) in ${message.guild.name} (${message.guild.id}) - matched pattern: ${matchedPattern.substring(0, 100)}`);
+                    trackSpam(message, matchedPattern);
+                }
                 return;
             }
         } catch {
@@ -256,34 +289,68 @@ async function handleMessage(message) {
     }
 }
 
-function trackSpam(message) {
+function trackSpam(message, matchedPattern) {
     const guildId = message.guild.id;
     const userId = message.author.id;
     const now = Date.now();
     if (!spamTracker.has(guildId)) spamTracker.set(guildId, new Map());
     const guildMap = spamTracker.get(guildId);
-    const arr = guildMap.get(userId) || [];
-    arr.push(now);
-    while (arr.length && now - arr[0] > SPAM_WINDOW_MS) arr.shift();
-    guildMap.set(userId, arr);
-    if (arr.length >= SPAM_THRESHOLD) {
-        guildMap.set(userId, []);
-        applyTimeout(message).catch(() => {});
+    const userData = guildMap.get(userId) || { arr: [], violations: 0 };
+    userData.arr.push(now);
+    while (userData.arr.length && now - userData.arr[0] > SPAM_WINDOW_MS) userData.arr.shift();
+    guildMap.set(userId, userData);
+    if (userData.arr.length >= SPAM_THRESHOLD) {
+        userData.violations = (userData.violations || 0) + 1;
+        userData.arr = [];
+        guildMap.set(userId, userData);
+        applyTimeout(message, userData.violations, matchedPattern).catch(() => {});
     }
 }
 
-async function applyTimeout(message) {
+async function applyTimeout(message, violationCount = 1, matchedPattern = null) {
     const member = message.member;
     if (!member) return;
+    
+    // Escalate timeout based on violation count
+    const timeoutIndex = Math.min(violationCount - 1, TIMEOUT_ESCALATION.length - 1);
+    const timeoutDuration = TIMEOUT_ESCALATION[timeoutIndex];
+    
     try {
-        await member.timeout(TIMEOUT_MS, 'Repeated blocked messages');
-    } catch {
+        await member.timeout(timeoutDuration, `Repeated blocked messages (violation #${violationCount})`);
+    } catch (err) {
+        console.warn(`[ModerationFilters] Failed to timeout user ${member.id} in guild ${message.guild.id}:`, err.message);
         // ignore permission failures
     }
-    notifyStaff(message, member).catch(() => {});
+    notifyStaff(message, member, violationCount, matchedPattern).catch(() => {});
 }
 
-async function notifyStaff(message, member) {
+async function getModerators(guild) {
+    const cached = modCache.get(guild.id);
+    if (cached && Date.now() - cached.cachedAt < MOD_CACHE_TTL_MS) {
+        return cached.mods;
+    }
+
+    let mods = guild.members.cache.filter((m) =>
+        m.permissions.has(PermissionsBitField.Flags.ManageGuild) || m.permissions.has(PermissionsBitField.Flags.Administrator)
+    );
+
+    if (mods.size === 0) {
+        try {
+            const fetched = await guild.members.fetch({ withPresences: false, limit: 50 });
+            mods = fetched.filter((m) =>
+                m.permissions.has(PermissionsBitField.Flags.ManageGuild) || m.permissions.has(PermissionsBitField.Flags.Administrator)
+            );
+        } catch {
+            /* ignore */
+        }
+    }
+
+    const modSet = new Set(mods.map(m => m.id));
+    modCache.set(guild.id, { mods: modSet, cachedAt: Date.now() });
+    return modSet;
+}
+
+async function notifyStaff(message, member, violationCount = 1, matchedPattern = null) {
     const guild = message.guild;
     if (!guild) return;
     const dmKey = `${guild.id}:${member.id}`;
@@ -291,7 +358,12 @@ async function notifyStaff(message, member) {
     if (Date.now() - last < DM_THROTTLE_MS) return;
     dmThrottle.set(dmKey, Date.now());
 
-    const summary = `User ${member.user.tag} (${member.id}) timed out for ${Math.round(TIMEOUT_MS / 1000)}s after repeated blocked messages in #${message.channel?.name || message.channelId}.`;
+    const timeoutIndex = Math.min(violationCount - 1, TIMEOUT_ESCALATION.length - 1);
+    const timeoutDuration = TIMEOUT_ESCALATION[timeoutIndex];
+    const messagePreview = message.content ? (message.content.length > 200 ? message.content.substring(0, 200) + '...' : message.content) : '[No content]';
+    const patternInfo = matchedPattern ? `\nMatched pattern: \`${matchedPattern.substring(0, 100)}${matchedPattern.length > 100 ? '...' : ''}\`` : '';
+    
+    const summary = `User ${member.user.tag} (${member.id}) timed out for ${Math.round(timeoutDuration / 1000)}s after ${violationCount} violation(s) of blocked messages in #${message.channel?.name || message.channelId}.\n\nMessage content: ${messagePreview}${patternInfo}`;
 
     try {
         const owner = await guild.fetchOwner();
@@ -300,25 +372,15 @@ async function notifyStaff(message, member) {
         // ignore owner DM failure
     }
 
-    let mods = guild.members.cache.filter((m) =>
-        m.id !== member.id &&
-        (m.permissions.has(PermissionsBitField.Flags.ManageGuild) || m.permissions.has(PermissionsBitField.Flags.Administrator))
-    );
-
-    if (mods.size === 0) {
+    const mods = await getModerators(guild);
+    for (const modId of mods) {
+        if (modId === member.id) continue;
         try {
-            const fetched = await guild.members.fetch({ withPresences: false, limit: 50 });
-            mods = fetched.filter((m) =>
-                m.id !== member.id &&
-                (m.permissions.has(PermissionsBitField.Flags.ManageGuild) || m.permissions.has(PermissionsBitField.Flags.Administrator))
-            );
+            const mod = guild.members.cache.get(modId) || await guild.members.fetch(modId).catch(() => null);
+            if (mod) await mod.send(summary).catch(() => {});
         } catch {
             /* ignore */
         }
-    }
-
-    for (const m of mods.values()) {
-        try { await m.send(summary).catch(() => {}); } catch { /* ignore */ }
     }
 }
 
@@ -459,11 +521,14 @@ async function handleCommand(interaction) {
                 }
             }
         } else {
+            const entry = await loadGuildState(guildId);
             for (const line of lines) {
-                const entry = await loadGuildState(guildId);
                 if (entry.words.length >= MAX_WORDS_PER_GUILD) break;
                 const ok = await upsertWord(guildId, line);
-                if (ok) added += 1;
+                if (ok) {
+                    added += 1;
+                    entry.words.push(normalize(line));
+                }
             }
         }
         return interaction.reply({ content: `Imported ${added} ${mode === 'regex' ? 'regex' : 'word'} entries${lines.length === MAX_IMPORT_LINES ? ' (truncated to 500)' : ''}.`, ephemeral: true });
@@ -472,8 +537,8 @@ async function handleCommand(interaction) {
     if (sub === 'baseline') {
         const enabled = interaction.options.getBoolean('enabled', true);
         if (enabled) {
+            const entry = await loadGuildState(guildId);
             for (const word of BASELINE_WORDS) {
-                const entry = await loadGuildState(guildId);
                 if (entry.words.length >= MAX_WORDS_PER_GUILD) break;
                 await upsertWord(guildId, word);
             }
@@ -492,6 +557,56 @@ async function handleCommand(interaction) {
     }
 
     return interaction.reply({ content: 'Unknown subcommand.', ephemeral: true });
+}
+
+// ---------- Memory cleanup ----------
+
+function cleanupOldEntries() {
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+
+    // Clean up deleteRate entries older than 1 hour
+    for (const [guildId, entry] of deleteRate.entries()) {
+        if (now - entry.ts > 60 * 60 * 1000) {
+            deleteRate.delete(guildId);
+        }
+    }
+
+    // Clean up spamTracker entries
+    for (const [guildId, userMap] of spamTracker.entries()) {
+        let hasActiveUsers = false;
+        for (const [userId, userData] of userMap.entries()) {
+            // Remove old timestamps
+            userData.arr = userData.arr.filter(ts => now - ts < SPAM_WINDOW_MS);
+            if (userData.arr.length === 0 && userData.violations === 0) {
+                userMap.delete(userId);
+            } else {
+                hasActiveUsers = true;
+            }
+        }
+        if (!hasActiveUsers) {
+            spamTracker.delete(guildId);
+        }
+    }
+
+    // Clean up dmThrottle entries older than 1 hour
+    for (const [key, ts] of dmThrottle.entries()) {
+        if (now - ts > 60 * 60 * 1000) {
+            dmThrottle.delete(key);
+        }
+    }
+
+    // Clean up modCache entries older than TTL
+    for (const [guildId, cached] of modCache.entries()) {
+        if (now - cached.cachedAt > MOD_CACHE_TTL_MS * 2) {
+            modCache.delete(guildId);
+        }
+    }
+}
+
+// Start periodic cleanup
+if (typeof setInterval !== 'undefined') {
+    setInterval(cleanupOldEntries, CLEANUP_INTERVAL_MS);
 }
 
 // ---------- Exports ----------
