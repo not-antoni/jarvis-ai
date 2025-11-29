@@ -4,6 +4,8 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const VAULT_DIR = path.join(DATA_DIR, 'vault');
 const LOCAL_DB_FILE = path.join(DATA_DIR, 'local-db.json');
+const LOCAL_DIR = path.join(DATA_DIR, 'collections');  // Per-collection JSON files
+const EXPORTS_DIR = path.join(DATA_DIR, 'mongo-exports'); // MongoDB exports
 
 function ensureDir(dirPath) {
     fs.mkdirSync(dirPath, { recursive: true });
@@ -27,6 +29,51 @@ function saveLocalDb(data) {
         fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(data, null, 2));
     } catch (error) {
         console.warn('Failed to save local DB:', error.message);
+    }
+}
+
+// Collection-based operations for migration
+function readCollection(collName) {
+    try {
+        const filePath = path.join(LOCAL_DIR, `${collName}.json`);
+        if (fs.existsSync(filePath)) {
+            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+    } catch (error) {
+        console.warn(`Failed to read collection ${collName}:`, error.message);
+    }
+    return [];
+}
+
+function writeCollection(collName, docs) {
+    try {
+        ensureDir(LOCAL_DIR);
+        const filePath = path.join(LOCAL_DIR, `${collName}.json`);
+        fs.writeFileSync(filePath, JSON.stringify(docs, null, 2));
+        return true;
+    } catch (error) {
+        console.warn(`Failed to write collection ${collName}:`, error.message);
+        return false;
+    }
+}
+
+function listExports() {
+    try {
+        if (!fs.existsSync(EXPORTS_DIR)) {
+            return [];
+        }
+        return fs.readdirSync(EXPORTS_DIR)
+            .filter(f => f.endsWith('.json'))
+            .map(f => path.join(EXPORTS_DIR, f))
+            .sort((a, b) => {
+                // Sort by modification time, newest first
+                const statA = fs.statSync(a);
+                const statB = fs.statSync(b);
+                return statB.mtime - statA.mtime;
+            });
+    } catch (error) {
+        console.warn('Failed to list exports:', error.message);
+        return [];
     }
 }
 
@@ -141,8 +188,21 @@ const vaultOps = {
 };
 
 module.exports = {
+    // Paths
+    DATA_DIR,
+    LOCAL_DIR,
+    EXPORTS_DIR,
+    
+    // Core functions
     loadLocalDb,
     saveLocalDb,
     syncFromLatestExport,
+    
+    // Collection-based operations
+    readCollection,
+    writeCollection,
+    listExports,
+    
+    // Vault ops
     vaultOps
 };

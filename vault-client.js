@@ -34,7 +34,7 @@ function parseBooleanEnv(value, fallback) {
 let localDbOps = null;
 if (USE_LOCAL_DB_MODE) {
     try {
-        localDbOps = require('./localdb').vaultOps;
+        localDbOps = require('./src/localdb').vaultOps;
     } catch (e) {
         console.warn('Failed to load localdb vault ops:', e.message);
     }
