@@ -28,8 +28,9 @@ function parseBooleanEnv(envValue, fallback = false) {
 const enableMessageContentIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_MESSAGE_CONTENT, false);
 const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE_INTENT, false);
 const deploymentTarget = (process.env.DEPLOY_TARGET || 'render').trim().toLowerCase();
-const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, false);
-const liveAgentModeEnabled = parseBooleanEnv(process.env.LIVE_AGENT_MODE, false);
+const selfhostMode = parseBooleanEnv(process.env.SELFHOST_MODE, false);
+const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, true);
+const liveAgentModeEnabled = parseBooleanEnv(process.env.LIVE_AGENT_MODE, true);
 const agentAllowlist = (process.env.AGENT_ALLOWLIST_DOMAINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 const agentDenylist = (process.env.AGENT_DENYLIST_DOMAINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 const agentPreferredProviders = (process.env.AGENT_PREFERRED_PROVIDERS || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -103,6 +104,7 @@ const rawConfig = {
     // Deployment target controls infra-specific toggles.
     deployment: {
         target: deploymentTarget, // 'render' (default) or 'selfhost'
+        selfhostMode: selfhostMode, // set to true to enable self-hosting mode
         headlessBrowser: headlessBrowserEnabled, // enable when running a local headless browser instead of external APIs
         agentReady: parseBooleanEnv(process.env.AGENT_READY, false), // set to true when agent mode is fully configured and ready
         autoExportMongo: parseBooleanEnv(process.env.SELFHOST_AUTO_EXPORT_MONGO, false),
