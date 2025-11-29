@@ -3,12 +3,20 @@ node_modules
 .env
 .env.local
 .DS_Store
+vendor/codex/
+*.log
+dist/
+build/
+.cache/
 *.log
 npm-debug.log*
 data/
 .env.*
 vendor/
 vendor/**
+# Codex repository (external)
+vendor/codex/
+vendor/codex-repo/
 *.sqlite
 *.db
 # keep workspace settings committed for suppressing false diagnostics
