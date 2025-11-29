@@ -9,7 +9,13 @@
         if (!NEWS_API_KEY) return [];
 
         const searchParam = encodeURIComponent(topic);
-        const url = `https://api.thenewsapi.com/v1/news/top?api_token=${NEWS_API_KEY}&language=en&limit=${limit}&search=${searchParam}`;
+        
+        // Only get news from last 7 days, sorted by recency
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const publishedAfter = weekAgo.toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        const url = `https://api.thenewsapi.com/v1/news/all?api_token=${NEWS_API_KEY}&language=en&limit=${limit}&search=${searchParam}&published_after=${publishedAfter}&sort=published_at`;
 
         const response = await fetch(url, {
             headers: { 'Accept': 'application/json' }
@@ -22,14 +28,22 @@
         const data = await response.json();
         const articles = Array.isArray(data?.data) ? data.data : [];
 
-        return articles.map((article) => ({
-            title: article.title || 'Untitled story',
-            description: article.description || '',
-            url: article.url || null,
-            source: article.source || article.source_url || 'TheNewsAPI',
-            published: article.published_at ? new Date(article.published_at) : null,
-            image: article.image_url || null
-        }));
+        // Filter out anything older than 30 days just in case
+        const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        
+        return articles
+            .filter(article => {
+                if (!article.published_at) return true;
+                return new Date(article.published_at).getTime() > thirtyDaysAgo;
+            })
+            .map((article) => ({
+                title: article.title || 'Untitled story',
+                description: article.description || '',
+                url: article.url || null,
+                source: article.source || article.source_url || 'TheNewsAPI',
+                published: article.published_at ? new Date(article.published_at) : null,
+                image: article.image_url || null
+            }));
     }
 
     async handleTicketCommand(interaction) {
