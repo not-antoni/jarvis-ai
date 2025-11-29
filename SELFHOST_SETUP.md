@@ -1,6 +1,6 @@
-# Self-Hosting Setup Guide for Jarvis AI
+# Local Self-Hosting Setup Guide for Jarvis AI
 
-This guide explains how to enable and configure self-hosting mode for Jarvis AI.
+⚠️ **LOCAL TESTING ONLY** - This guide is for testing self-hosting locally on your PC. When you deploy to a server (Render, etc.), keep `SELFHOST_MODE=false` (the default).
 
 ## Quick Start
 
@@ -55,9 +55,9 @@ export LIVE_AGENT_MODE=true
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `SELFHOST_MODE` | boolean | false | Enable self-hosting mode |
-| `DEPLOY_TARGET` | string | 'render' | Deployment target ('render' or 'selfhost') |
-| `SELFHOST_AUTO_EXPORT_MONGO` | boolean | false | Auto-export MongoDB collections |
+| `SELFHOST_MODE` | boolean | **false** | Enable self-hosting mode (LOCAL TESTING ONLY) |
+| `DEPLOY_TARGET` | string | 'render' | Deployment target ('render' or 'selfhost') - keep as 'render' for cloud |
+| `SELFHOST_AUTO_EXPORT_MONGO` | boolean | false | Auto-export MongoDB collections (local only) |
 | `SELFHOST_EXPORT_PATH` | string | './data/mongo-exports' | Directory for MongoDB exports |
 | `SELFHOST_EXPORT_COLLECTIONS` | string | '' | Comma-separated collection names to export |
 | `HEADLESS_BROWSER_ENABLED` | boolean | true | Enable local headless browser |
@@ -123,32 +123,47 @@ GROQ_API_KEY=optional
 ### Step 3: Start the Bot
 
 ```bash
-# Development
+# Development with self-hosting (LOCAL ONLY)
 npm run dev
 
-# Production
+# Production on Render (keep SELFHOST_MODE=false)
 npm start
+
+# Do NOT set SELFHOST_MODE=true when deploying to Render
 ```
 
-### Step 4: Verify Self-Hosting
+### Step 4: For Cloud Deployment (Render, etc.)
+
+**Do NOT set SELFHOST_MODE=true on cloud platforms like Render.** Keep default settings:
+
+```env
+# Render deployment - keep these defaults
+SELFHOST_MODE=false          # ← Keep FALSE (default)
+DEPLOY_TARGET=render         # ← Keep as render (default)
+HEADLESS_BROWSER_ENABLED=true
+```
+
+### Step 5: Verify Self-Hosting (Local Only)
 
 ```bash
 # Check config is loaded correctly
 node -e "const config = require('./config'); console.log('Self-host mode:', config.deployment.selfhostMode); console.log('Export path:', config.deployment.exportPath);"
 ```
 
-## Features Available in Self-Hosting Mode
+## Features Available in Self-Hosting Mode (Local Testing)
 
-When `SELFHOST_MODE=true`, the following features are available:
+When `SELFHOST_MODE=true` on your local PC, the following features are available:
 
-- ✅ Local deployment on your own server
+- ✅ Local deployment testing on your PC
 - ✅ MongoDB auto-export to local filesystem
 - ✅ Custom export collection selection
 - ✅ Local headless browser support
-- ✅ Full agent mode support
+- ✅ Full agent mode testing
 - ✅ Custom port configuration
 - ✅ Health check endpoints
 - ✅ All Discord commands and features
+
+⚠️ **When deploying to Render (or any cloud platform):** Keep `SELFHOST_MODE=false` (default) and use platform-specific configuration instead.
 
 ## Troubleshooting
 
@@ -279,6 +294,20 @@ For issues or questions about self-hosting:
 3. Check application logs for error messages
 4. Verify MongoDB connectivity if using exports
 5. Ensure all required dependencies are installed
+
+---
+
+## ⚠️ IMPORTANT: Cloud Deployment (Render, Heroku, etc.)
+
+**When deploying to cloud platforms, keep the default configuration:**
+
+```env
+# NEVER set to true on cloud platforms
+SELFHOST_MODE=false          # Default
+DEPLOY_TARGET=render         # Default for Render
+```
+
+Self-hosting mode is for **local testing on your PC only**. Render and other cloud platforms have their own deployment requirements and will not work with `SELFHOST_MODE=true`.
 
 ---
 
