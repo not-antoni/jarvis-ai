@@ -1,10 +1,29 @@
+/**
+ * Agent Preview - JARVIS CODEX Edition
+ * Now with browser rendering, screenshots, and smart AI
+ */
+
 const fetch = require('node-fetch');
 const cheerio = require('cheerio');
-const aiManager = require('../../ai-providers');
 const config = require('../../config');
 
-const DEFAULT_MAX_BYTES = 200_000; // ~200 KB
+// Try to use new systems, fallback to old
+let FreeAIProvider, BrowserAgent, aiManager;
+try {
+    FreeAIProvider = require('../core/FreeAIProvider').FreeAIProvider;
+} catch { FreeAIProvider = null; }
+try {
+    BrowserAgent = require('../agents/browserAgent');
+} catch { BrowserAgent = null; }
+try {
+    aiManager = require('../../ai-providers');
+} catch { aiManager = null; }
+
+const DEFAULT_MAX_BYTES = 200_000;
 const FETCH_TIMEOUT_MS = 10_000;
+
+// Shared browser instance for efficiency
+let sharedBrowser = null;
 
 function sanitizeUrl(url) {
     try {
@@ -24,7 +43,7 @@ function sanitizeUrl(url) {
                 throw new Error('Domain not in allowlist for agent preview');
             }
         }
-        // Strip common trackers
+        // Strip trackers
         ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'ref'].forEach((k) => parsed.searchParams.delete(k));
         parsed.search = parsed.searchParams.toString();
         return parsed.toString();
@@ -33,6 +52,98 @@ function sanitizeUrl(url) {
     }
 }
 
+/**
+ * Get or create shared browser agent
+ */
+function getBrowserAgent() {
+    if (!BrowserAgent) return null;
+    
+    if (!sharedBrowser) {
+        const browserConfig = {
+            ...config,
+            deployment: {
+                ...config.deployment,
+                target: 'selfhost',
+                headlessBrowser: true
+            }
+        };
+        sharedBrowser = new BrowserAgent(browserConfig);
+    }
+    return sharedBrowser;
+}
+
+/**
+ * Fetch page with real browser (JS rendering + screenshot)
+ */
+async function fetchWithBrowser(url) {
+    const browser = getBrowserAgent();
+    if (!browser || !browser.enabled) {
+        return null; // Fall back to simple fetch
+    }
+    
+    const sessionKey = `preview-${Date.now()}`;
+    
+    try {
+        await browser.startSession(sessionKey);
+        const session = browser.getSession(sessionKey);
+        
+        if (!session?.page) {
+            throw new Error('Failed to create browser session');
+        }
+        
+        const page = session.page;
+        await page.setViewport({ width: 1280, height: 800 });
+        
+        // Navigate with timeout
+        await page.goto(url, { 
+            waitUntil: 'networkidle2',
+            timeout: 15000 
+        });
+        
+        // Extract content
+        const title = await page.title();
+        const text = await page.evaluate(() => {
+            // Remove scripts and styles
+            document.querySelectorAll('script, style, noscript, iframe').forEach(el => el.remove());
+            
+            // Try to find main content
+            const main = document.querySelector('article, main, [role="main"]');
+            if (main) return main.innerText;
+            
+            return document.body?.innerText || '';
+        });
+        
+        // Take screenshot
+        let screenshot = null;
+        try {
+            screenshot = await page.screenshot({ 
+                type: 'png',
+                fullPage: false,
+                encoding: 'base64'
+            });
+        } catch (e) {
+            console.warn('Screenshot failed:', e.message);
+        }
+        
+        await browser.closeSession(sessionKey);
+        
+        return {
+            title: title || '',
+            text: text?.replace(/\s+/g, ' ').trim() || '',
+            screenshot,
+            rendered: true
+        };
+        
+    } catch (error) {
+        try { await browser.closeSession(sessionKey); } catch {}
+        console.warn('Browser fetch failed:', error.message);
+        return null;
+    }
+}
+
+/**
+ * Simple fetch fallback (no JS rendering)
+ */
 async function fetchPage(url, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -42,7 +153,7 @@ async function fetchPage(url, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
             redirect: 'follow',
             signal: controller.signal,
             headers: {
-                'User-Agent': 'Mozilla/5.0 (JarvisAgent/1.0)',
+                'User-Agent': 'Mozilla/5.0 (JarvisAgent/2.0; CODEX)',
                 'Accept': 'text/html',
                 'Accept-Language': 'en-US,en;q=0.9'
             }
@@ -70,7 +181,7 @@ async function fetchPage(url, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
                 if (received > maxBytes) {
                     const keep = maxBytes - (received - chunk.length);
                     if (keep > 0) chunks.push(chunk.slice(0, keep));
-                    res.body.destroy(); // stop reading
+                    res.body.destroy();
                     resolve();
                 } else {
                     chunks.push(chunk);
@@ -97,7 +208,7 @@ function extractText(html) {
     const selectors = ['article', 'main', 'div'];
     selectors.forEach((sel) => {
         $(sel).each((_, el) => {
-            const text = $(el).text().replace(/\\s+/g, ' ').trim();
+            const text = $(el).text().replace(/\s+/g, ' ').trim();
             candidates.push({ text, length: text.length });
         });
     });
@@ -107,50 +218,173 @@ function extractText(html) {
 
     const bodyText = best?.text
         ? best.text
-        : $('body').text().replace(/\\s+/g, ' ').trim();
+        : $('body').text().replace(/\s+/g, ' ').trim();
 
     return { title, text: bodyText };
 }
 
-async function summarizeText({ title, text, url }) {
-    const truncated = text.slice(0, 4000); // limit to ~4k chars
-    const systemPrompt = `You are Jarvis. Provide a brief, safe summary of the fetched page. Use bullet points if helpful. Include the title if present. Keep it under 120 words. Never return an empty response.`;
-    const userPrompt = `URL: ${url}\nTitle: ${title || 'N/A'}\nContent (truncated):\n${truncated}`;
-
-    const resp = await aiManager.generateResponse(systemPrompt, userPrompt, 300);
-    let summary = resp?.choices?.[0]?.message?.content;
-    if (!summary || !String(summary).trim()) {
-        const fallback = truncated.slice(0, 300);
-        if (!fallback) {
-            throw new Error('Empty summary from AI provider');
-        }
-        summary = `Page excerpt (no AI summary available): ${fallback}`;
+/**
+ * Get AI provider (new or old)
+ */
+function getAI() {
+    if (FreeAIProvider) {
+        const ai = new FreeAIProvider();
+        if (ai.isAvailable()) return ai;
     }
+    return aiManager;
+}
+
+/**
+ * Summarize text with AI
+ */
+async function summarizeText({ title, text, url, hasScreenshot }) {
+    const truncated = text.slice(0, 4000);
+    const ai = getAI();
+    
+    const systemPrompt = `You are JARVIS, an advanced AI assistant. Provide a concise, informative summary of the web page. Use bullet points for key information. Keep it under 150 words. Be helpful and precise.`;
+    
+    const userPrompt = `URL: ${url}
+Title: ${title || 'N/A'}
+${hasScreenshot ? '(Screenshot captured)' : ''}
+
+Content:
+${truncated}`;
+
+    let summary;
+    
+    try {
+        if (ai?.generateResponse) {
+            // New FreeAIProvider
+            summary = await ai.generateResponse(systemPrompt, userPrompt, 400);
+            if (typeof summary === 'object') {
+                summary = summary?.content || summary?.text || JSON.stringify(summary);
+            }
+        } else if (ai?.generateResponse) {
+            // Old aiManager
+            const resp = await ai.generateResponse(systemPrompt, userPrompt, 400);
+            summary = resp?.choices?.[0]?.message?.content;
+        }
+    } catch (e) {
+        console.warn('AI summarization failed:', e.message);
+    }
+    
+    if (!summary || !String(summary).trim()) {
+        // Fallback: extract key sentences
+        const sentences = truncated.match(/[^.!?]+[.!?]+/g) || [];
+        const fallback = sentences.slice(0, 3).join(' ').trim();
+        summary = fallback 
+            ? `📄 **${title || 'Page'}**\n\n${fallback}...`
+            : `Page loaded but no summary available.`;
+    }
+    
     return String(summary).trim();
 }
 
-async function summarizeUrl(url) {
+/**
+ * Main function: Summarize a URL with optional screenshot
+ */
+async function summarizeUrl(url, options = {}) {
     if (config?.deployment?.target !== 'selfhost' || !config?.deployment?.liveAgentMode) {
         throw new Error('Agent preview is disabled (selfhost/liveAgentMode required).');
     }
 
     const safeUrl = sanitizeUrl(url);
-    const html = await fetchPage(safeUrl);
-    const { title, text } = extractText(html);
+    let title, text, screenshot = null, rendered = false;
+    
+    // Try browser first (JS rendering + screenshot)
+    if (options.useBrowser !== false) {
+        const browserResult = await fetchWithBrowser(safeUrl);
+        if (browserResult) {
+            title = browserResult.title;
+            text = browserResult.text;
+            screenshot = browserResult.screenshot;
+            rendered = browserResult.rendered;
+        }
+    }
+    
+    // Fallback to simple fetch
+    if (!text) {
+        const html = await fetchPage(safeUrl);
+        const extracted = extractText(html);
+        title = extracted.title;
+        text = extracted.text;
+    }
+    
     if (!text) {
         throw new Error('No readable text extracted from page.');
     }
-    const summary = await summarizeText({ title, text, url: safeUrl });
+    
+    const summary = await summarizeText({ 
+        title, 
+        text, 
+        url: safeUrl,
+        hasScreenshot: !!screenshot
+    });
+    
     return {
         title: title || safeUrl,
         url: safeUrl,
-        summary
+        summary,
+        screenshot,  // Base64 PNG or null
+        rendered     // true if browser was used
     };
+}
+
+/**
+ * Quick screenshot without summarization
+ */
+async function screenshotUrl(url) {
+    const safeUrl = sanitizeUrl(url);
+    const browser = getBrowserAgent();
+    
+    if (!browser || !browser.enabled) {
+        throw new Error('Browser not available for screenshots');
+    }
+    
+    const sessionKey = `screenshot-${Date.now()}`;
+    
+    try {
+        await browser.startSession(sessionKey);
+        const session = browser.getSession(sessionKey);
+        const page = session.page;
+        
+        await page.setViewport({ width: 1280, height: 800 });
+        await page.goto(safeUrl, { waitUntil: 'networkidle2', timeout: 15000 });
+        
+        const title = await page.title();
+        const screenshot = await page.screenshot({ 
+            type: 'png',
+            fullPage: false 
+        });
+        
+        await browser.closeSession(sessionKey);
+        
+        return {
+            title: title || safeUrl,
+            url: safeUrl,
+            screenshot  // Buffer
+        };
+    } catch (error) {
+        try { await browser.closeSession(sessionKey); } catch {}
+        throw error;
+    }
+}
+
+/**
+ * Cleanup shared browser
+ */
+async function cleanup() {
+    if (sharedBrowser) {
+        await sharedBrowser.shutdown();
+        sharedBrowser = null;
+    }
 }
 
 module.exports = {
     summarizeUrl,
+    screenshotUrl,
     sanitizeUrl,
     fetchPage,
-    extractText
+    extractText,
+    cleanup
 };

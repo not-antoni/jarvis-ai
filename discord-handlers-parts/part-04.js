@@ -2755,7 +2755,12 @@
             return;
         }
         if (/^\.help\b|^\.agent\s+help\b/i.test(content)) {
-            await message.channel.send({ content: 'Commands: ".agent stop" to end. Send a URL to preview, use "search <query>", or just chat normally.' });
+            await message.channel.send({ content: `**JARVIS CODEX Commands:**
+• Send any URL → AI summary + screenshot
+• \`search <query>\` → Web search
+• \`screenshot <url>\` → Quick screenshot only
+• \`.agent stop\` → End session
+• Just chat → Talk to JARVIS` });
             return;
         }
         if (!session) return; // only active for preview sessions
@@ -2767,11 +2772,50 @@
                 try {
                     const { summarizeUrl } = require('./src/utils/agent-preview');
                     const result = await summarizeUrl(urlMatch[0]);
-                    await message.channel.send({ content: `Preview: ${result.url}\n${result.summary}`.slice(0, 1990) });
+                    
+                    // Build message with optional screenshot
+                    const messageOptions = {
+                        content: `📄 **${result.title || 'Page Preview'}**\n${result.url}\n\n${result.summary}`.slice(0, 1990)
+                    };
+                    
+                    // Attach screenshot if available
+                    if (result.screenshot) {
+                        const { AttachmentBuilder } = require('discord.js');
+                        const screenshotBuffer = Buffer.isBuffer(result.screenshot) 
+                            ? result.screenshot 
+                            : Buffer.from(result.screenshot, 'base64');
+                        const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'preview.png' });
+                        messageOptions.files = [attachment];
+                    }
+                    
+                    await message.channel.send(messageOptions);
                     return;
                 } catch (e) {
                     console.warn('Failed to preview URL:', e);
                 }
+            }
+
+            // Screenshot command
+            if (content.toLowerCase().startsWith('screenshot ')) {
+                const url = content.slice(11).trim();
+                if (!url) {
+                    await message.channel.send({ content: 'Please provide a URL, sir.' });
+                    return;
+                }
+                try {
+                    const { screenshotUrl } = require('./src/utils/agent-preview');
+                    const result = await screenshotUrl(url);
+                    const { AttachmentBuilder } = require('discord.js');
+                    const attachment = new AttachmentBuilder(result.screenshot, { name: 'screenshot.png' });
+                    await message.channel.send({ 
+                        content: `📸 **${result.title}**\n${result.url}`,
+                        files: [attachment]
+                    });
+                } catch (e) {
+                    console.warn('Screenshot failed:', e);
+                    await message.channel.send({ content: `Screenshot failed: ${e.message}` });
+                }
+                return;
             }
 
             if (content.startsWith('search ')) {
