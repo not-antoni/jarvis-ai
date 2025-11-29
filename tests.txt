@@ -1,0 +1,124 @@
+﻿========================================
+  JARVIS CODEX - Module Load Times
+  2025-11-29
+========================================
+
+ROOT MODULES:
+----------------------------------------
+     123 ms  config.js
+     811 ms  database.js
+       0 ms  db.js
+      10 ms  ai-providers.js
+      31 ms  discord-handlers.js
+       7 ms  jarvis-core.js
+      12 ms  vault-client.js
+       3 ms  brave-search.js
+     349 ms  math-engine.js
+      11 ms  embedding-system.js
+       4 ms  moderation-filters.js
+       1 ms  crypto-client.js
+
+AGENTS:
+----------------------------------------
+       1 ms  advancedSessionManager.js
+       2 ms  agentConfig.js
+       1 ms  agentMonitor.js
+       1 ms  apiResponseStandardizer.js
+       1 ms  autoHealer.js
+       1 ms  browserAgent.js
+       1 ms  browserOptimizer.js
+       2 ms  cacheManager.js
+       1 ms  captchaHandler.js
+       2 ms  costRateLimiter.js
+       1 ms  distributedTracer.js
+      12 ms  errorContextDebugger.js
+       1 ms  gracefulShutdownManager.js
+       1 ms  performanceProfiler.js
+   ERROR  productionAgent.js: bad import path
+       1 ms  resourcePool.js
+       8 ms  retryPolicy.js
+       4 ms  robustnessEnhancer.js
+
+CORE:
+----------------------------------------
+      34 ms  AgentCore.js
+       1 ms  AgentOrchestrator.js
+       3 ms  AgentToolRegistry.js
+       8 ms  codex-smart-tools-example.js
+       1 ms  CodexIntegrationAdapter.js
+       1 ms  command-registry.js
+       0 ms  cooldown-manager.js
+       1 ms  feature-flags.js
+       2 ms  FreeAIProvider.js
+       6 ms  index.js
+       1 ms  musicManager.js
+       1 ms  SmartToolDefinition.js
+       4 ms  SmartToolRegistry.js
+       2 ms  ToolHandler.js
+       1 ms  ToolOrchestrator.js
+       2 ms  ScreenshotTool.js
+
+UTILS:
+----------------------------------------
+       4 ms  agent-diagnostics.js
+      16 ms  agent-preview.js
+      17 ms  ffmpeg.js
+      23 ms  gif-caption.js
+       9 ms  meme-canvas.js
+       1 ms  mongo-exporter.js
+       1 ms  musicGuildWhitelist.js
+       1 ms  sanitize.js
+      13 ms  scrapingRoutes.js
+      13 ms  telemetry.js
+      13 ms  temp-files.js
+       9 ms  video-caption.js
+       6 ms  youtube.js
+       1 ms  youtubeClients.js
+       1 ms  ytDlp.js
+
+SCRAPERS:
+----------------------------------------
+      16 ms  baseScraper.js
+       2 ms  imageManager.js
+      49 ms  index.js
+       1 ms  scraperUtils.js
+       1 ms  scrapingDemo.js
+       1 ms  wikipediaScraper.js
+
+SCRIPTS:
+----------------------------------------
+      15 ms  check-setup.js
+     234 ms  migrate-to-local.js
+       2 ms  nightly-dump.js
+
+========================================
+SUMMARY
+========================================
+Total: 66 modules
+OK: 65 | Failed: 1
+Total load time: ~1700 ms (excluding index.js)
+
+SLOWEST (top 10):
+  1.    811 ms  database.js
+  2.    349 ms  math-engine.js
+  3.    234 ms  migrate-to-local.js
+  4.    123 ms  config.js
+  5.     49 ms  scrapers/index.js
+  6.     34 ms  AgentCore.js
+  7.     31 ms  discord-handlers.js
+  8.     23 ms  gif-caption.js
+  9.     17 ms  ffmpeg.js
+ 10.     16 ms  agent-preview.js
+
+FASTEST (top 5):
+       0 ms  db.js
+       0 ms  cooldown-manager.js
+       1 ms  crypto-client.js
+       1 ms  agentMonitor.js
+       1 ms  autoHealer.js
+
+NOTES:
+- index.js excluded (starts Discord bot, ~14s)
+- agent-cli.js excluded (starts REPL)
+- Most modules load in <10ms
+- Bottlenecks: database.js (MongoDB), math-engine.js (heavy math libs)

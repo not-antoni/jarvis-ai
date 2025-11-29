@@ -1,41 +1,52 @@
-node_modules
-.crdownload
+# Dependencies
+node_modules/
+
+# Environment
 .env
+.env.*
 .env.local
-.DS_Store
-vendor/codex/
-*.log
+
+# Data & Database
+data/
+*.sqlite
+*.db
+*.jsonl
+provider-state.json
+
+# Build output
 dist/
 build/
 .cache/
+
+# Logs
 *.log
 npm-debug.log*
-data/
-.env.*
-vendor/
-vendor/**
-# Codex repository (external)
-vendor/codex/
-vendor/codex-repo/
-*.sqlite
-*.db
-# keep workspace settings committed for suppressing false diagnostics
-!.vscode/
-!.vscode/settings.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
 .idea/
-provider-state.json
+
+# Java/Lavalink
 .java-runtime/
 Lavalink.jar
+lavalink.jar*
 plugins/
-lavalink.jar:Zone.Identifier
-Unconfirmed 725337.crdownload
-Unconfirmed 570585.crdownload
-Unconfirmed 124138.crdownload
-Unconfirmed 674423.crdownload
-Unconfirmed 670204.crdownload
-Unconfirmed 373934.crdownload
-Unconfirmed 145729.crdownload
-Unconfirmed 120334.crdownload
-Unconfirmed 860463.crdownload
-Unconfirmed 468472.crdownload
-Unconfirmed 418526.crdownload
+
+# Test output (don't commit)
+test-output.txt
+test-screenshot.png
+scenarios-output.txt
+final-test-results.txt
+final-deployment-test.log
+*.crdownload
+
+# External repos (cloned for reference)
+codex/
+vendor/
+
+# Keep VS Code settings
+!.vscode/
+!.vscode/settings.json
