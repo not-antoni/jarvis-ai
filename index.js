@@ -2877,6 +2877,29 @@ Memory: ${memoryText}
     }
 });
 
+// Quick health check endpoint for monitoring
+app.get('/health', async (req, res) => {
+    const health = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: Math.floor(process.uptime()),
+        discord: client?.isReady() ? 'connected' : 'disconnected',
+        database: database?.isConnected ? 'connected' : 'disconnected',
+        memory: {
+            used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+            total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+        }
+    };
+    
+    // Return 503 if critical services are down
+    if (!client?.isReady() || !database?.isConnected) {
+        health.status = 'degraded';
+        return res.status(503).json(health);
+    }
+    
+    res.json(health);
+});
+
 app.get('/providers/status', async (req, res) => {
     if (HEALTH_TOKEN) {
         const providedToken = extractBearerToken(req);

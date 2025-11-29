@@ -38,9 +38,11 @@ plugins/
 # Test output (don't commit)
 test-output.txt
 test-screenshot.png
+demo-*.png
 scenarios-output.txt
 final-test-results.txt
 final-deployment-test.log
+perf-output.txt
 *.crdownload
 
 # External repos (cloned for reference)

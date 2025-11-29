@@ -3,19 +3,19 @@
  * Shows how to use all 10 new components together in production
  */
 
-const BrowserAgent = require('./src/agents/browserAgent');
-const AgentConfig = require('./src/agents/agentConfig');
-const AgentMonitor = require('./src/agents/agentMonitor');
-const ResourcePool = require('./src/agents/resourcePool');
-const PerformanceProfiler = require('./src/agents/performanceProfiler');
-const CacheManager = require('./src/agents/cacheManager');
-const BrowserOptimizer = require('./src/agents/browserOptimizer');
-const ErrorContextDebugger = require('./src/agents/errorContextDebugger');
-const AdvancedSessionManager = require('./src/agents/advancedSessionManager');
-const DistributedTracer = require('./src/agents/distributedTracer');
-const CostRateLimiter = require('./src/agents/costRateLimiter');
-const GracefulShutdownManager = require('./src/agents/gracefulShutdownManager');
-const APIResponseStandardizer = require('./src/agents/apiResponseStandardizer');
+const BrowserAgent = require('./browserAgent');
+const AgentConfig = require('./agentConfig');
+const AgentMonitor = require('./agentMonitor');
+const ResourcePool = require('./resourcePool');
+const PerformanceProfiler = require('./performanceProfiler');
+const CacheManager = require('./cacheManager');
+const BrowserOptimizer = require('./browserOptimizer');
+const ErrorContextDebugger = require('./errorContextDebugger');
+const AdvancedSessionManager = require('./advancedSessionManager');
+const DistributedTracer = require('./distributedTracer');
+const CostRateLimiter = require('./costRateLimiter');
+const GracefulShutdownManager = require('./gracefulShutdownManager');
+const APIResponseStandardizer = require('./apiResponseStandardizer');
 
 /**
  * Production Agent Setup
