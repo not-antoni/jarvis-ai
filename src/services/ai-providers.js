@@ -762,11 +762,21 @@ class AIProviderManager {
         // Track tokens from response
         this.totalRequests++;
         this.successfulRequests++;
+        const tokensIn = resp?.usage?.prompt_tokens || 0;
+        const tokensOut = resp?.usage?.completion_tokens || 0;
         if (resp?.usage) {
-          this.totalTokensIn += (resp.usage.prompt_tokens || 0);
-          this.totalTokensOut += (resp.usage.completion_tokens || 0);
+          this.totalTokensIn += tokensIn;
+          this.totalTokensOut += tokensOut;
         }
         this.scheduleStateSave();
+        
+        // Notify dashboard of token usage
+        try {
+          const dashboard = require('../../routes/dashboard');
+          if (dashboard.trackTokens) {
+            dashboard.trackTokens(tokensIn, tokensOut);
+          }
+        } catch (e) { /* Dashboard not available */ }
         
         const raw = (resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) ? String(resp.choices[0].message.content) : '';
         const cleaned = sanitizeAssistantMessage(raw);
