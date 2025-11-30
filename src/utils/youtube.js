@@ -1,4 +1,5 @@
 const youtubeSearch = require('../services/youtube-search');
+const { searchYouTube, getVideoInfo } = require('./playDl');
 
 const YOUTUBE_URL_REGEX = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/))|(?:youtu\.be\/))([\w-]{11})(?:[?&][^\s]*)?$/i;
 
@@ -24,23 +25,40 @@ async function getVideo(query) {
         };
     }
 
+    // Try primary search first
     try {
         const result = await youtubeSearch.searchVideo(query);
-        if (!result) {
-            return null;
+        if (result) {
+            return {
+                title: result.title,
+                url: result.url,
+                thumbnail: result.thumbnail,
+                duration: result.duration ?? null,
+                channel: result.channel ?? null
+            };
         }
-
-        return {
-            title: result.title,
-            url: result.url,
-            thumbnail: result.thumbnail,
-            duration: result.duration ?? null,
-            channel: result.channel ?? null
-        };
     } catch (error) {
-        console.error('YouTube fetch error:', error);
-        throw new Error('YouTube API error');
+        console.warn('Primary YouTube search failed, trying play-dl:', error?.message);
     }
+
+    // Fallback to play-dl search
+    try {
+        const results = await searchYouTube(query, 1);
+        if (results && results.length > 0) {
+            const result = results[0];
+            return {
+                title: result.title,
+                url: result.url,
+                thumbnail: result.thumbnail,
+                duration: result.duration ?? null,
+                channel: result.channel ?? null
+            };
+        }
+    } catch (error) {
+        console.error('play-dl search also failed:', error?.message);
+    }
+
+    return null;
 }
 
 function extractVideoId(input) {

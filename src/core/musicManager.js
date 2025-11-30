@@ -1,4 +1,3 @@
-const fs = require('fs');
 const {
     joinVoiceChannel,
     createAudioPlayer,
@@ -9,7 +8,7 @@ const {
     entersState,
     StreamType
 } = require('@discordjs/voice');
-const { acquireAudio, cancelDownload } = require('../utils/ytDlp');
+const { getAudioStream, cancelStream } = require('../utils/playDl');
 const { extractVideoId } = require('../utils/youtube');
 const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
 
@@ -85,28 +84,32 @@ class MusicManager {
         const videoId = extractVideoId(video.url) ?? video.url;
         state.pendingVideoId = videoId;
 
-        let ticket;
+        let streamResult;
         try {
-            ticket = await acquireAudio(videoId, video.url);
+            // Get stream directly - no download wait!
+            streamResult = await getAudioStream(videoId, video.url);
             state.pendingVideoId = null;
         } catch (error) {
             state.pendingVideoId = null;
-            if (error.message === 'Download cancelled') {
+            if (error.message === 'Stream cancelled') {
                 return null;
             }
-            console.error('yt-dlp download failed:', error);
-            return '⚠️ Unable to prepare that track right now, sir.';
+            console.error('play-dl stream failed:', error.message);
+            return `⚠️ ${error.message || 'Unable to play that track right now, sir.'}`;
         }
 
         try {
-            const stream = fs.createReadStream(ticket.filePath);
-            const resource = createAudioResource(stream, { inputType: StreamType.OggOpus });
+            // Create resource from stream - plays immediately!
+            const resource = createAudioResource(streamResult.stream, {
+                inputType: streamResult.type,
+                inlineVolume: true
+            });
 
             this.releaseCurrent(state);
 
             state.player.play(resource);
             state.currentVideo = video;
-            state.currentRelease = ticket.release;
+            state.currentRelease = streamResult.cleanup;
 
             const message = `🎶 Now playing: **${video.title}**\n${video.url}`;
 
@@ -119,7 +122,7 @@ class MusicManager {
             }
         } catch (error) {
             console.error('Music playback error:', error);
-            ticket.release();
+            streamResult.cleanup();
 
             const failureMessage = `⚠️ Could not play **${video.title}**.`;
             if (announce === 'command') {
@@ -314,7 +317,7 @@ class MusicManager {
 
     cancelPendingDownload(state) {
         if (state.pendingVideoId) {
-            cancelDownload(state.pendingVideoId);
+            cancelStream(state.pendingVideoId);
             state.pendingVideoId = null;
         }
     }
