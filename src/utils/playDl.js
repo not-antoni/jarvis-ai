@@ -12,7 +12,7 @@ try {
     play = null;
 }
 
-const { acquireAudio, cancelDownload } = require('./ytDlp');
+const { acquireAudio, cancelDownload, isNetscapeFormat, parseNetscapeCookies, COOKIE_ENV_KEYS } = require('./ytDlp');
 const fs = require('fs');
 const { StreamType } = require('@discordjs/voice');
 
@@ -25,31 +25,50 @@ let rateLimitResetTime = 0;
 const RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
+ * Convert cookies to the string format play-dl expects
+ */
+function cookiesToString(cookies) {
+    return cookies
+        .map(c => `${c.name}=${c.value}`)
+        .join('; ');
+}
+
+/**
  * Initialize play-dl with YouTube cookies if available
  */
 async function initializePlayDl() {
     if (!play) return false;
     
-    const cookieEnvKeys = [
-        'YOUTUBE_COOKIES',
-        'YT_COOKIES',
-        'YTDLP_COOKIES'
-    ];
-
-    for (const key of cookieEnvKeys) {
-        const cookies = process.env[key];
-        if (cookies && cookies.trim()) {
+    for (const key of COOKIE_ENV_KEYS) {
+        const raw = process.env[key];
+        if (!raw || !raw.trim()) continue;
+        
+        let cookieString = null;
+        
+        // Check if Netscape format
+        if (isNetscapeFormat(raw)) {
+            const cookies = parseNetscapeCookies(raw);
+            if (cookies.length > 0) {
+                cookieString = cookiesToString(cookies);
+                console.log(`play-dl: Parsed ${cookies.length} cookies from Netscape format (${key})`);
+            }
+        } else if (raw.includes('=') && raw.includes(';')) {
+            // Already in cookie string format
+            cookieString = raw.trim();
+            console.log(`play-dl: Using cookie string from ${key}`);
+        }
+        
+        if (cookieString) {
             try {
-                // play-dl expects cookies in a specific format
                 await play.setToken({
                     youtube: {
-                        cookie: cookies.trim()
+                        cookie: cookieString
                     }
                 });
                 console.log(`play-dl: Initialized with cookies from ${key}`);
                 return true;
             } catch (error) {
-                console.warn(`play-dl: Cookie init failed from ${key}:`, error.message);
+                console.warn(`play-dl: Cookie init failed:`, error.message);
             }
         }
     }
