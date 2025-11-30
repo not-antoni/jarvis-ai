@@ -2496,7 +2496,18 @@
                     }
 
                     try {
-                        response = await this.jarvis.handleMathCommand(expression);
+                        const result = await this.jarvis.handleMathCommand(expression);
+                        const { EmbedBuilder } = require('discord.js');
+                        const embed = new EmbedBuilder()
+                            .setColor(0x0078d4)
+                            .setTitle('📐 Mathematics')
+                            .addFields(
+                                { name: 'Input', value: `\`\`\`${expression}\`\`\``, inline: false },
+                                { name: 'Result', value: `\`\`\`${result}\`\`\``, inline: false }
+                            )
+                            .setFooter({ text: 'Jarvis Math Engine • Powered by Nerdamer' })
+                            .setTimestamp();
+                        response = { embeds: [embed] };
                     } catch (error) {
                         telemetryStatus = 'error';
                         telemetryError = error;
