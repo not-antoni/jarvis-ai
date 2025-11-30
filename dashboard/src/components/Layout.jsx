@@ -5,13 +5,14 @@ import {
   LayoutDashboard,
   ScrollText,
   Settings,
+  Sparkles,
   Zap
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
-  { to: '/providers', icon: BrainCircuit, label: 'AI Providers' },
+  { to: '/providers', icon: Sparkles, label: 'AI Providers' },
   { to: '/agents', icon: Bot, label: 'Agents' },
   { to: '/local-ai', icon: HardDrive, label: 'Local AI', badge: 'GPU' },
   { to: '/logs', icon: ScrollText, label: 'Logs' },
