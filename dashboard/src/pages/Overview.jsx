@@ -62,6 +62,7 @@ function ProviderStatus({ provider }) {
 export default function Overview() {
   const [stats, setStats] = useState({
     uptime: '0h 0m',
+    uptimeMs: 0,
     requests: 0,
     aiCalls: 0,
     successRate: 0,
@@ -75,6 +76,11 @@ export default function Overview() {
     messagesProcessed: 0,
     deploymentMode: 'render',
   });
+
+  // Calculate tokens per hour
+  const tokensPerHour = stats.uptimeMs > 0 
+    ? Math.round(((stats.tokensIn || 0) + (stats.tokensOut || 0)) / (stats.uptimeMs / 3600000))
+    : 0;
 
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -163,14 +169,14 @@ export default function Overview() {
           icon={Zap}
           label="Tokens In"
           value={(stats.tokensIn || 0).toLocaleString()}
-          subtext="Prompt tokens"
+          subtext={`~${Math.round(tokensPerHour * 0.6).toLocaleString()}/hr`}
           color="accent"
         />
         <StatCard
           icon={Zap}
           label="Tokens Out"
           value={(stats.tokensOut || 0).toLocaleString()}
-          subtext="Completion tokens"
+          subtext={`~${Math.round(tokensPerHour * 0.4).toLocaleString()}/hr`}
           color="accent"
         />
       </div>
@@ -258,25 +264,26 @@ export default function Overview() {
         </div>
       </div>
 
-      {/* Performance Chart Placeholder */}
+      {/* Token Summary */}
       <div className="mt-6 bg-[#252526] border border-[#3c3c3c] rounded-lg p-4">
-        <h2 className="text-sm font-medium text-[#cccccc] mb-4">Request Volume (24h)</h2>
-        <div className="h-32 flex items-end justify-between gap-1 px-2">
-          {Array.from({ length: 24 }, (_, i) => (
-            <div 
-              key={i} 
-              className="flex-1 bg-gradient-to-t from-[#0078d4] to-[#00bcf2] rounded-t opacity-80 hover:opacity-100 transition-opacity"
-              style={{ height: `${Math.random() * 80 + 20}%` }}
-              title={`${i}:00 - ${Math.floor(Math.random() * 500 + 100)} requests`}
-            />
-          ))}
-        </div>
-        <div className="flex justify-between mt-2 text-[10px] text-[#6e6e6e]">
-          <span>00:00</span>
-          <span>06:00</span>
-          <span>12:00</span>
-          <span>18:00</span>
-          <span>Now</span>
+        <h2 className="text-sm font-medium text-[#cccccc] mb-4">Token Usage Summary</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-3 rounded bg-[#2d2d2d]">
+            <p className="text-lg font-semibold text-[#0078d4]">{((stats.tokensIn || 0) + (stats.tokensOut || 0)).toLocaleString()}</p>
+            <p className="text-xs text-[#858585]">Total Tokens</p>
+          </div>
+          <div className="p-3 rounded bg-[#2d2d2d]">
+            <p className="text-lg font-semibold text-[#4ec9b0]">{tokensPerHour.toLocaleString()}</p>
+            <p className="text-xs text-[#858585]">Tokens/Hour</p>
+          </div>
+          <div className="p-3 rounded bg-[#2d2d2d]">
+            <p className="text-lg font-semibold text-[#dcdcaa]">{stats.aiCalls > 0 ? Math.round(((stats.tokensIn || 0) + (stats.tokensOut || 0)) / stats.aiCalls) : 0}</p>
+            <p className="text-xs text-[#858585]">Avg Tokens/Request</p>
+          </div>
+          <div className="p-3 rounded bg-[#2d2d2d]">
+            <p className="text-lg font-semibold text-[#9cdcfe]">{stats.deploymentMode === 'selfhost' ? 'Self-hosted' : 'Render'}</p>
+            <p className="text-xs text-[#858585]">Deployment Mode</p>
+          </div>
         </div>
       </div>
     </div>
