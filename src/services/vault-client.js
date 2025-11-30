@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const LruModule = require('lru-cache');
 const { connectVault, getVaultDb } = require('./db');
-const config = require('./config');
+const config = require('../../config');
 
 const LRUCache =
     typeof LruModule === 'function'
@@ -34,7 +34,7 @@ function parseBooleanEnv(value, fallback) {
 let localDbOps = null;
 if (USE_LOCAL_DB_MODE) {
     try {
-        localDbOps = require('./src/localdb').vaultOps;
+        localDbOps = require('../localdb').vaultOps;
     } catch (e) {
         console.warn('Failed to load localdb vault ops:', e.message);
     }

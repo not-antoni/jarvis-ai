@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const config = require('./config');
+const config = require('../../config');
 
 const BASE_URL = 'https://pro-api.coinmarketcap.com/v1';
 

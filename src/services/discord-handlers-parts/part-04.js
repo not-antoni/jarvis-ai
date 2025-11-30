@@ -1077,11 +1077,11 @@
                 try {
                     const isRender = (config?.deployment?.target || 'render').toLowerCase() === 'render';
                     if (isRender) {
-                        const { captionToMp4 } = require('./src/utils/video-caption');
+                        const { captionToMp4 } = require('../../utils/video-caption');
                         const out = await captionToMp4({ inputBuffer: buffer, captionText: text });
                         await this.sendBufferOrLink(interaction, out, 'caption.mp4');
                     } else {
-                        const { captionAnimated } = require('./src/utils/gif-caption');
+                        const { captionAnimated } = require('../../utils/gif-caption');
                         const out = await captionAnimated({ inputBuffer: buffer, captionText: text });
                         await this.sendBufferOrLink(interaction, out, 'caption.gif');
                     }
@@ -2770,7 +2770,7 @@
             const urlMatch = content.match(/https?:\/\/\S+/i);
             if (urlMatch && config?.deployment?.target === 'selfhost' && config?.deployment?.liveAgentMode) {
                 try {
-                    const { summarizeUrl } = require('./src/utils/agent-preview');
+                    const { summarizeUrl } = require('../../utils/agent-preview');
                     const result = await summarizeUrl(urlMatch[0]);
                     
                     // Build message with optional screenshot
@@ -2803,7 +2803,7 @@
                     return;
                 }
                 try {
-                    const { screenshotUrl } = require('./src/utils/agent-preview');
+                    const { screenshotUrl } = require('../../utils/agent-preview');
                     const result = await screenshotUrl(url);
                     const { AttachmentBuilder } = require('discord.js');
                     const attachment = new AttachmentBuilder(result.screenshot, { name: 'screenshot.png' });
