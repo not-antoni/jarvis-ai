@@ -14,9 +14,11 @@ data/
 provider-state.json
 
 # Build output
-dist/
 build/
 .cache/
+
+# Keep dashboard dist (needed for deployment)
+!dashboard/dist/
 
 # Logs
 *.log
