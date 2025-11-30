@@ -167,6 +167,13 @@ class AIProviderManager {
     this.stateSaveDebounceMs = 1500;
     this.stateDirty = false;
 
+    // Token tracking
+    this.totalTokensIn = 0;
+    this.totalTokensOut = 0;
+    this.totalRequests = 0;
+    this.successfulRequests = 0;
+    this.failedRequests = 0;
+
     this.setupProviders();
     this.loadState();
   }
@@ -386,6 +393,40 @@ class AIProviderManager {
     if (typeof data.openRouterFailureCount === 'number') {
       this.openRouterFailureCount = data.openRouterFailureCount;
     }
+
+    // Restore token metrics
+    if (typeof data.totalTokensIn === 'number') {
+      this.totalTokensIn = data.totalTokensIn;
+    }
+    if (typeof data.totalTokensOut === 'number') {
+      this.totalTokensOut = data.totalTokensOut;
+    }
+    if (typeof data.totalRequests === 'number') {
+      this.totalRequests = data.totalRequests;
+    }
+    if (typeof data.successfulRequests === 'number') {
+      this.successfulRequests = data.successfulRequests;
+    }
+    if (typeof data.failedRequests === 'number') {
+      this.failedRequests = data.failedRequests;
+    }
+  }
+
+  // Get stats for dashboard
+  getStats() {
+    return {
+      totalTokensIn: this.totalTokensIn,
+      totalTokensOut: this.totalTokensOut,
+      totalTokens: this.totalTokensIn + this.totalTokensOut,
+      totalRequests: this.totalRequests,
+      successfulRequests: this.successfulRequests,
+      failedRequests: this.failedRequests,
+      successRate: this.totalRequests > 0 
+        ? ((this.successfulRequests / this.totalRequests) * 100).toFixed(1) 
+        : 100,
+      providers: this.providers.length,
+      activeProviders: this.providers.filter(p => !this.disabledProviders.has(p.name)).length,
+    };
   }
 
   async saveState() {
@@ -395,6 +436,11 @@ class AIProviderManager {
       providerErrors: Object.fromEntries(this.providerErrors),
       openRouterGlobalFailure: this.openRouterGlobalFailure,
       openRouterFailureCount: this.openRouterFailureCount,
+      totalTokensIn: this.totalTokensIn,
+      totalTokensOut: this.totalTokensOut,
+      totalRequests: this.totalRequests,
+      successfulRequests: this.successfulRequests,
+      failedRequests: this.failedRequests,
       savedAt: new Date().toISOString(),
     };
 
@@ -712,15 +758,29 @@ class AIProviderManager {
         }
 
         console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
+        
+        // Track tokens from response
+        this.totalRequests++;
+        this.successfulRequests++;
+        if (resp?.usage) {
+          this.totalTokensIn += (resp.usage.prompt_tokens || 0);
+          this.totalTokensOut += (resp.usage.completion_tokens || 0);
+        }
+        this.scheduleStateSave();
+        
         const raw = (resp && resp.choices && resp.choices[0] && resp.choices[0].message && resp.choices[0].message.content) ? String(resp.choices[0].message.content) : '';
         const cleaned = sanitizeAssistantMessage(raw);
         return {
           content: cleaned,
           provider: provider.name,
+          tokensIn: resp?.usage?.prompt_tokens || 0,
+          tokensOut: resp?.usage?.completion_tokens || 0,
         };
       } catch (error) {
         const latency = Date.now() - started;
         this._recordMetric(provider.name, false, latency);
+        this.totalRequests++;
+        this.failedRequests++;
         this.providerErrors.set(provider.name, {
           error: error.message,
           timestamp: Date.now(),

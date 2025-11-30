@@ -91,24 +91,43 @@ router.get('/health', async (req, res) => {
             };
         }
 
-        // Calculate success rate
-        const successRate = metrics.aiCallCount > 0 
-            ? ((metrics.aiSuccessCount / metrics.aiCallCount) * 100).toFixed(1)
-            : 100;
+        // Get AI provider stats including tokens
+        let aiStats = {
+            totalTokensIn: 0,
+            totalTokensOut: 0,
+            totalTokens: 0,
+            totalRequests: 0,
+            successfulRequests: 0,
+            failedRequests: 0,
+            successRate: '100',
+            providers: 0,
+            activeProviders: 0,
+        };
+        try {
+            const aiManager = require('../src/services/ai-providers');
+            aiStats = aiManager.getStats();
+        } catch (e) {
+            // Use defaults if AI manager not available
+        }
 
         res.json({
             status: 'healthy',
             uptime: `${hours}h ${minutes}m`,
             uptimeMs: uptime,
             requests: metrics.requestCount,
-            aiCalls: metrics.aiCallCount,
-            aiSuccess: metrics.aiSuccessCount,
-            aiFailed: metrics.aiFailCount,
-            successRate: parseFloat(successRate),
+            aiCalls: aiStats.totalRequests,
+            aiSuccess: aiStats.successfulRequests,
+            aiFailed: aiStats.failedRequests,
+            successRate: parseFloat(aiStats.successRate),
+            tokensIn: aiStats.totalTokensIn,
+            tokensOut: aiStats.totalTokensOut,
+            totalTokens: aiStats.totalTokens,
             commandsExecuted: metrics.commandsExecuted,
             messagesProcessed: metrics.messagesProcessed,
             lastProvider: metrics.lastProviderUsed,
             discord: discordStats,
+            providers: aiStats.providers,
+            activeProviders: aiStats.activeProviders,
             memory: {
                 used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
                 total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),

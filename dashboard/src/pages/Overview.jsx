@@ -1,6 +1,5 @@
 import {
     Activity,
-    AlertCircle,
     CheckCircle2,
     Clock,
     MessageSquare,
@@ -64,10 +63,17 @@ export default function Overview() {
   const [stats, setStats] = useState({
     uptime: '0h 0m',
     requests: 0,
-    activeUsers: 0,
     aiCalls: 0,
     successRate: 0,
-    avgLatency: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+    totalTokens: 0,
+    discord: { guilds: 0, users: 0, channels: 0 },
+    providers: 0,
+    activeProviders: 0,
+    commandsExecuted: 0,
+    messagesProcessed: 0,
+    deploymentMode: 'render',
   });
 
   const [providers, setProviders] = useState([]);
@@ -106,15 +112,14 @@ export default function Overview() {
     return () => clearInterval(interval);
   }, []);
 
-  // Mock data for demo when API not available
-  const mockProviders = [
-    { name: 'Groq', model: 'llama-3.3-70b', status: 'online', latency: 245, requests: 1247 },
-    { name: 'OpenRouter', model: 'nemotron-nano', status: 'online', latency: 312, requests: 892 },
-    { name: 'Google AI', model: 'gemini-2.5-flash', status: 'online', latency: 189, requests: 456 },
-    { name: 'Local GPU', model: 'Not configured', status: 'offline', latency: 0, requests: 0 },
-  ];
-
-  const displayProviders = providers.length > 0 ? providers : mockProviders;
+  // Transform provider data for display
+  const displayProviders = providers.map(p => ({
+    name: p.name,
+    model: p.model || 'Unknown',
+    status: p.isDisabled ? 'offline' : (p.hasError ? 'error' : 'online'),
+    latency: p.metrics?.avgLatencyMs ? Math.round(p.metrics.avgLatencyMs) : 0,
+    requests: (p.metrics?.successes || 0) + (p.metrics?.failures || 0),
+  })).slice(0, 10); // Show top 10 providers
 
   return (
     <div className="p-6">
@@ -143,31 +148,61 @@ export default function Overview() {
         <StatCard
           icon={Activity}
           label="Uptime"
-          value={stats.uptime || '24h 32m'}
+          value={stats.uptime || '—'}
           subtext="Since last restart"
           color="success"
         />
         <StatCard
+          icon={Zap}
+          label="AI Requests"
+          value={(stats.aiCalls || 0).toLocaleString()}
+          subtext={`${stats.successRate || 0}% success rate`}
+          color="success"
+        />
+        <StatCard
+          icon={Cpu}
+          label="Tokens In"
+          value={(stats.tokensIn || 0).toLocaleString()}
+          subtext="Prompt tokens"
+          color="accent"
+        />
+        <StatCard
+          icon={Cpu}
+          label="Tokens Out"
+          value={(stats.tokensOut || 0).toLocaleString()}
+          subtext="Completion tokens"
+          color="accent"
+        />
+      </div>
+
+      {/* Secondary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard
           icon={MessageSquare}
-          label="Total Requests"
-          value={(stats.requests || 12847).toLocaleString()}
-          subtext="All time"
-          trend={12}
+          label="Commands"
+          value={(stats.commandsExecuted || 0).toLocaleString()}
+          subtext="Slash commands executed"
+          color="accent"
+        />
+        <StatCard
+          icon={MessageSquare}
+          label="Messages"
+          value={(stats.messagesProcessed || 0).toLocaleString()}
+          subtext="Messages processed"
+          color="accent"
+        />
+        <StatCard
+          icon={Server}
+          label="Guilds"
+          value={stats.discord?.guilds || 0}
+          subtext={`${(stats.discord?.users || 0).toLocaleString()} users`}
           color="accent"
         />
         <StatCard
           icon={Users}
-          label="Active Users"
-          value={stats.activeUsers || 342}
-          subtext="Last 24 hours"
-          trend={8}
-          color="accent"
-        />
-        <StatCard
-          icon={Zap}
-          label="AI Calls"
-          value={(stats.aiCalls || 8924).toLocaleString()}
-          subtext={`${stats.successRate || 98.5}% success rate`}
+          label="Providers"
+          value={`${stats.activeProviders || 0}/${stats.providers || 0}`}
+          subtext="Active AI providers"
           color="success"
         />
       </div>
@@ -192,31 +227,31 @@ export default function Overview() {
           <h2 className="text-sm font-medium text-[#cccccc] mb-4">System Status</h2>
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 rounded bg-[#2d2d2d]">
-              <CheckCircle2 className="w-5 h-5 text-[#4ec9b0]" />
+              <CheckCircle2 className={`w-5 h-5 ${stats.discord?.guilds > 0 ? 'text-[#4ec9b0]' : 'text-[#dcdcaa]'}`} />
               <div>
-                <p className="text-sm text-[#cccccc]">Discord Connected</p>
-                <p className="text-[10px] text-[#6e6e6e]">Gateway healthy</p>
+                <p className="text-sm text-[#cccccc]">Discord</p>
+                <p className="text-[10px] text-[#6e6e6e]">{stats.discord?.guilds > 0 ? `${stats.discord.guilds} guilds connected` : 'Connecting...'}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded bg-[#2d2d2d]">
               <CheckCircle2 className="w-5 h-5 text-[#4ec9b0]" />
               <div>
-                <p className="text-sm text-[#cccccc]">Database Online</p>
+                <p className="text-sm text-[#cccccc]">Database</p>
                 <p className="text-[10px] text-[#6e6e6e]">MongoDB connected</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded bg-[#2d2d2d]">
-              <AlertCircle className="w-5 h-5 text-[#dcdcaa]" />
+              <CheckCircle2 className={`w-5 h-5 ${stats.activeProviders > 0 ? 'text-[#4ec9b0]' : 'text-[#f14c4c]'}`} />
               <div>
-                <p className="text-sm text-[#cccccc]">Local GPU</p>
-                <p className="text-[10px] text-[#6e6e6e]">Not configured</p>
+                <p className="text-sm text-[#cccccc]">AI Providers</p>
+                <p className="text-[10px] text-[#6e6e6e]">{stats.activeProviders}/{stats.providers} active</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded bg-[#2d2d2d]">
               <Server className="w-5 h-5 text-[#9cdcfe]" />
               <div>
-                <p className="text-sm text-[#cccccc]">Selfhost Mode</p>
-                <p className="text-[10px] text-[#6e6e6e]">Running locally</p>
+                <p className="text-sm text-[#cccccc]">Deployment</p>
+                <p className="text-[10px] text-[#6e6e6e]">{stats.deploymentMode === 'selfhost' ? 'Self-hosted' : 'Render Cloud'}</p>
               </div>
             </div>
           </div>
