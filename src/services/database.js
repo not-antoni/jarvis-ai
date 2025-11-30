@@ -3,10 +3,10 @@
  */
 
 const { ObjectId } = require('mongodb');
-const config = require('./config');
+const config = require('../../config');
 const vaultClient = require('./vault-client');
 const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
-const localdb = require('./src/localdb');
+const localdb = require('../localdb');
 const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
 
 class DatabaseManager {

@@ -5,14 +5,14 @@
 const aiManager = require('./ai-providers');
 const database = require('./database');
 const vaultClient = require('./vault-client');
-const config = require('./config');
+const config = require('../../config');
 const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 const mathSolver = require('./math-solver');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { buildHelpCatalog } = require('./src/core/command-registry');
-const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('./src/core/feature-flags');
+const { buildHelpCatalog } = require('../core/command-registry');
+const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('../core/feature-flags');
 
 const punycode = require('node:punycode');
 

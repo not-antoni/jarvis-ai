@@ -3,7 +3,7 @@
  */
 
 const path = require('path');
-const validateConfig = require('./config/validate');
+const validateConfig = require('./validate');
 
 function parseBooleanEnv(envValue, fallback = false) {
     if (envValue == null) {

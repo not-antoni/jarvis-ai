@@ -23,19 +23,19 @@ const tempFiles = require('./src/utils/temp-files');
 
 // Import our modules
 const config = require('./config');
-const database = require('./database');
+const database = require('./src/services/database');
 const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
 let initializeDatabaseClients = null;
 try {
     if (!LOCAL_DB_MODE) {
-        ({ initializeDatabaseClients } = require('./db'));
+        ({ initializeDatabaseClients } = require('./src/services/db'));
     }
 } catch (e) {
     // Will proceed without DB when local mode
 }
-const aiManager = require('./ai-providers');
-const discordHandlers = require('./discord-handlers');
-const { gatherHealthSnapshot } = require('./diagnostics');
+const aiManager = require('./src/services/ai-providers');
+const discordHandlers = require('./src/services/discord-handlers');
+const { gatherHealthSnapshot } = require('./src/services/diagnostics');
 const { commandList: musicCommandList } = require("./src/commands/music");
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
