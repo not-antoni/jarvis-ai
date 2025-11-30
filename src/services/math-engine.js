@@ -243,6 +243,18 @@ class MathSolver {
         normalized = normalized.replace(/\bpi\b/gi, 'pi');
         normalized = normalized.replace(/\be\b/gi, 'e');
 
+        // Handle f(x) notation - convert f(x) = expr to just expr
+        // e.g., "f(x) = x^2" -> "x^2"
+        normalized = normalized.replace(/^[a-zA-Z]\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)$/i, '$2');
+        
+        // Handle function evaluation like f(2) where f(x) = x^2
+        // This is more complex - store function definitions
+        const funcDefMatch = normalized.match(/^([a-zA-Z])\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)$/i);
+        if (funcDefMatch) {
+            // Just return the expression part for now
+            normalized = funcDefMatch[3].trim();
+        }
+
         if (/[^0-9a-zA-Z\s+\-*/^%().,=<>!]/.test(normalized)) {
             const invalid = normalized.match(/[^0-9a-zA-Z\s+\-*/^%().,=<>!]/g)?.[0];
             throw new Error(`Unsupported character "${invalid}" detected.`);
