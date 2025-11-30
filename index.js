@@ -2696,6 +2696,18 @@ app.use("/webhook", webhookRouter);
 
 app.use(express.json({ limit: '2mb' }));
 
+// Mount dashboard API routes
+const dashboardRouter = require('./routes/dashboard');
+app.use('/api/dashboard', dashboardRouter);
+
+// Serve dashboard static files (built React app)
+const dashboardDistPath = path.join(__dirname, 'dashboard', 'dist');
+app.use('/dashboard', express.static(dashboardDistPath));
+// Handle SPA routing - serve index.html for all dashboard routes
+app.get('/dashboard/*', (req, res) => {
+    res.sendFile(path.join(dashboardDistPath, 'index.html'));
+});
+
 // Mount diagnostics router (will be initialized with discordHandlers after client ready)
 let diagnosticsRouter = null;
 app.use("/diagnostics", (req, res, next) => {
@@ -3362,6 +3374,12 @@ client.once(Events.ClientReady, async () => {
     // Initialize diagnostics router now that discordHandlers is ready
     diagnosticsRouter = createAgentDiagnosticsRouter(discordHandlers);
 
+    // Initialize dashboard with Discord client for real-time stats
+    dashboardRouter.setDiscordClient(client);
+    dashboardRouter.initBotStartTime();
+    dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
+    dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
+
     let databaseConnected = database.isConnected;
 
     if (!databaseConnected) {
@@ -3416,12 +3434,14 @@ client.on("guildCreate", async (guild) => {
 });
 
 client.on("messageCreate", async (message) => {
+    dashboardRouter.trackMessage();
     await discordHandlers.handleMessage(message, client);
 });
 
 client.on("interactionCreate", async (interaction) => {
     try {
         if (interaction.isChatInputCommand()) {
+            dashboardRouter.trackCommand(interaction.commandName, interaction.user.id);
             await discordHandlers.handleSlashCommand(interaction);
         } else if (interaction.isButton()) {
             await discordHandlers.handleComponentInteraction(interaction);
