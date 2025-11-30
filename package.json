@@ -13,7 +13,11 @@
     "setup:check": "node scripts/check-setup.js",
     "migrate": "node scripts/run-migrations.js",
     "migrate:local": "node scripts/migrate-to-local.js",
-    "dump": "node scripts/nightly-dump.js"
+    "dump": "node scripts/nightly-dump.js",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write \"**/*.js\"",
+    "format:check": "prettier --check \"**/*.js\""
   },
   "keywords": [
     "discord",
