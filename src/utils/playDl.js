@@ -96,12 +96,18 @@ async function tryPlayDl(videoUrl, streamState) {
         throw new Error('play-dl rate limited, skipping');
     }
     
-    const validated = await play.validate(videoUrl);
-    if (!validated || validated === false) {
-        throw new Error('Invalid YouTube URL');
+    // Normalize URL - play-dl can be picky about format
+    let normalizedUrl = videoUrl;
+    
+    // Extract video ID and rebuild clean URL
+    const videoIdMatch = videoUrl.match(/(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (videoIdMatch) {
+        normalizedUrl = `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
     }
-
-    const streamResult = await play.stream(videoUrl, {
+    
+    // Skip validation - just try to stream directly
+    // play-dl's validate() can fail even for valid videos
+    const streamResult = await play.stream(normalizedUrl, {
         quality: 2,
         discordPlayerCompatibility: true
     });
