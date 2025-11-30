@@ -297,8 +297,8 @@ class AIProviderManager {
     });
 
     // ---------- OpenAI lightweight (replace GPT-5 Nano → GPT-4o-mini) ----------
-    if (process.env.OPENAI || process.env.OPENAI) {
-      const key = process.env.OPENAI || process.env.OPENAI;
+    if (process.env.OPENAI) {
+      const key = process.env.OPENAI;
       this.providers.push({
         // Keep the same name so your existing filters & health pages remain happy
         name: 'GPT5Nano',
