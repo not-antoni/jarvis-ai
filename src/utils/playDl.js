@@ -4,13 +4,8 @@
  * Hybrid YouTube audio streaming - tries play-dl first (fast), falls back to yt-dlp (reliable)
  */
 
-let play;
-try {
-    play = require('play-dl');
-} catch (e) {
-    console.warn('play-dl not available, will use yt-dlp only');
-    play = null;
-}
+// play-dl disabled - too unreliable on shared IPs, yt-dlp works better
+const play = null;
 
 const { acquireAudio, cancelDownload, isNetscapeFormat, parseNetscapeCookies, COOKIE_ENV_KEYS } = require('./ytDlp');
 const fs = require('fs');
