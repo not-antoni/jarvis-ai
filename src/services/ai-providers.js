@@ -118,6 +118,27 @@ const fsp = fs.promises;
 const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
 
+// Determine storage mode: MongoDB for Render, file for selfhost
+const IS_SELFHOST = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
+const PROVIDER_STATE_COLLECTION = 'provider_state';
+
+// MongoDB helper for provider state (lazy loaded)
+let _database = null;
+async function getDatabase() {
+  if (!_database) {
+    try {
+      _database = require('./database');
+      if (!_database.isConnected) {
+        await _database.connect();
+      }
+    } catch (e) {
+      console.warn('Could not load database for provider state:', e.message);
+      return null;
+    }
+  }
+  return _database;
+}
+
 function resolveCostPriority(provider) {
   const tier = provider.costTier || 'paid';
   if (Object.prototype.hasOwnProperty.call(COST_PRIORITY, tier)) {
@@ -292,66 +313,115 @@ class AIProviderManager {
   }
 
   loadState() {
+    // For Render, load async from MongoDB after startup
+    if (!IS_SELFHOST) {
+      this._loadStateFromMongo().catch(e => console.warn('Failed to load provider state from MongoDB:', e.message));
+      return;
+    }
+    
+    // Selfhost: load from file
     try {
       if (!fs.existsSync(PROVIDER_STATE_PATH)) return;
       const raw = fs.readFileSync(PROVIDER_STATE_PATH, 'utf8');
       if (!raw.trim()) return;
-      const data = JSON.parse(raw);
-
-      if (data.metrics && typeof data.metrics === 'object') {
-        for (const [name, metric] of Object.entries(data.metrics)) {
-          if (this.providers.find((p) => p.name === name) && metric) {
-            this.metrics.set(name, {
-              successes: Number(metric.successes) || 0,
-              failures: Number(metric.failures) || 0,
-              avgLatencyMs: Number(metric.avgLatencyMs) || 0,
-            });
-          }
-        }
-      }
-
-      if (data.disabledProviders && typeof data.disabledProviders === 'object') {
-        const now = Date.now();
-        for (const [name, disabledUntil] of Object.entries(data.disabledProviders)) {
-          const parsed = Number(disabledUntil);
-          if (Number.isFinite(parsed) && parsed > now && this.providers.find((p) => p.name === name)) {
-            this.disabledProviders.set(name, parsed);
-          }
-        }
-      }
-
-      if (data.providerErrors && typeof data.providerErrors === 'object') {
-        for (const [name, errorInfo] of Object.entries(data.providerErrors)) {
-          if (errorInfo && typeof errorInfo === 'object' && this.providers.find((p) => p.name === name)) {
-            this.providerErrors.set(name, errorInfo);
-          }
-        }
-      }
-
-      if (typeof data.openRouterGlobalFailure === 'boolean') {
-        this.openRouterGlobalFailure = data.openRouterGlobalFailure;
-      }
-
-      if (typeof data.openRouterFailureCount === 'number') {
-        this.openRouterFailureCount = data.openRouterFailureCount;
-      }
-
+      this._applyStateData(JSON.parse(raw));
       console.log('Restored AI provider cache from disk');
     } catch (error) {
       console.warn('Failed to restore AI provider cache:', error);
     }
   }
 
-  async saveState() {
+  async _loadStateFromMongo() {
+    const db = await getDatabase();
+    if (!db || !db.db) return;
+    
     try {
-      const payload = {
-        metrics: Object.fromEntries(this.metrics),
-        disabledProviders: Object.fromEntries(this.disabledProviders),
-        providerErrors: Object.fromEntries(this.providerErrors),
-        openRouterGlobalFailure: this.openRouterGlobalFailure,
-        openRouterFailureCount: this.openRouterFailureCount,
-        savedAt: new Date().toISOString(),
-      };
+      const doc = await db.db.collection(PROVIDER_STATE_COLLECTION).findOne({ _id: 'provider_state' });
+      if (doc) {
+        this._applyStateData(doc);
+        console.log('Restored AI provider cache from MongoDB');
+      }
+    } catch (e) {
+      console.warn('MongoDB provider state load failed:', e.message);
+    }
+  }
+
+  _applyStateData(data) {
+    if (!data) return;
+    
+    if (data.metrics && typeof data.metrics === 'object') {
+      for (const [name, metric] of Object.entries(data.metrics)) {
+        if (this.providers.find((p) => p.name === name) && metric) {
+          this.metrics.set(name, {
+            successes: Number(metric.successes) || 0,
+            failures: Number(metric.failures) || 0,
+            avgLatencyMs: Number(metric.avgLatencyMs) || 0,
+          });
+        }
+      }
+    }
+
+    if (data.disabledProviders && typeof data.disabledProviders === 'object') {
+      const now = Date.now();
+      for (const [name, disabledUntil] of Object.entries(data.disabledProviders)) {
+        const parsed = Number(disabledUntil);
+        if (Number.isFinite(parsed) && parsed > now && this.providers.find((p) => p.name === name)) {
+          this.disabledProviders.set(name, parsed);
+        }
+      }
+    }
+
+    if (data.providerErrors && typeof data.providerErrors === 'object') {
+      for (const [name, errorInfo] of Object.entries(data.providerErrors)) {
+        if (errorInfo && typeof errorInfo === 'object' && this.providers.find((p) => p.name === name)) {
+          this.providerErrors.set(name, errorInfo);
+        }
+      }
+    }
+
+    if (typeof data.openRouterGlobalFailure === 'boolean') {
+      this.openRouterGlobalFailure = data.openRouterGlobalFailure;
+    }
+
+    if (typeof data.openRouterFailureCount === 'number') {
+      this.openRouterFailureCount = data.openRouterFailureCount;
+    }
+  }
+
+  async saveState() {
+    const payload = {
+      metrics: Object.fromEntries(this.metrics),
+      disabledProviders: Object.fromEntries(this.disabledProviders),
+      providerErrors: Object.fromEntries(this.providerErrors),
+      openRouterGlobalFailure: this.openRouterGlobalFailure,
+      openRouterFailureCount: this.openRouterFailureCount,
+      savedAt: new Date().toISOString(),
+    };
+
+    // Render: save to MongoDB
+    if (!IS_SELFHOST) {
+      try {
+        const db = await getDatabase();
+        if (db && db.db) {
+          await db.db.collection(PROVIDER_STATE_COLLECTION).updateOne(
+            { _id: 'provider_state' },
+            { $set: payload },
+            { upsert: true }
+          );
+        }
+      } catch (error) {
+        console.warn('Failed to persist AI provider cache to MongoDB:', error.message);
+      }
+      return;
+    }
+
+    // Selfhost: save to file
+    try {
+      // Ensure data directory exists
+      const dataDir = path.dirname(PROVIDER_STATE_PATH);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
       await fsp.writeFile(PROVIDER_STATE_PATH, JSON.stringify(payload, null, 2), 'utf8');
     } catch (error) {
       console.warn('Failed to persist AI provider cache:', error);
