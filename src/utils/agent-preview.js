@@ -16,7 +16,7 @@ try {
     BrowserAgent = require('../agents/browserAgent');
 } catch { BrowserAgent = null; }
 try {
-    aiManager = require('../../ai-providers');
+    aiManager = require('../services/ai-providers');
 } catch { aiManager = null; }
 
 const DEFAULT_MAX_BYTES = 200_000;

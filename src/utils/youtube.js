@@ -1,4 +1,4 @@
-const youtubeSearch = require('../../youtube-search');
+const youtubeSearch = require('../services/youtube-search');
 
 const YOUTUBE_URL_REGEX = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/))|(?:youtu\.be\/))([\w-]{11})(?:[?&][^\s]*)?$/i;
 

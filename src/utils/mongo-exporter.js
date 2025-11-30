@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const database = require('../../database');
+const database = require('../services/database');
 const config = require('../../config');
 
 async function ensureConnected() {
