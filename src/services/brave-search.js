@@ -5,7 +5,7 @@
 const fetch = require('node-fetch');
 const { toUnicode } = require('punycode/');
 const cheerio = require('cheerio');
-const config = require('./config');
+const config = require('../../config');
 
 const ZERO_WIDTH_CHAR_PATTERN = /[\u200B-\u200D\u200E-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
 
