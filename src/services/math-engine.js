@@ -1,5 +1,36 @@
 const nerdamer = require('nerdamer/all');
 
+// Temporary function storage (auto-clears after use)
+const functionStore = new Map();
+const FUNCTION_TTL_MS = 60000; // Functions expire after 1 minute
+
+function storeFunction(name, variable, expression) {
+    functionStore.set(name.toLowerCase(), {
+        variable,
+        expression,
+        createdAt: Date.now()
+    });
+    // Auto-cleanup after TTL
+    setTimeout(() => {
+        functionStore.delete(name.toLowerCase());
+    }, FUNCTION_TTL_MS);
+}
+
+function getFunction(name) {
+    const fn = functionStore.get(name.toLowerCase());
+    if (!fn) return null;
+    // Check if expired
+    if (Date.now() - fn.createdAt > FUNCTION_TTL_MS) {
+        functionStore.delete(name.toLowerCase());
+        return null;
+    }
+    return fn;
+}
+
+function clearFunction(name) {
+    functionStore.delete(name.toLowerCase());
+}
+
 const RESERVED_KEYWORDS = new Set([
     'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
     'asin', 'acos', 'atan', 'acot', 'asec', 'acsc',
@@ -243,16 +274,32 @@ class MathSolver {
         normalized = normalized.replace(/\bpi\b/gi, 'pi');
         normalized = normalized.replace(/\be\b/gi, 'e');
 
-        // Handle f(x) notation - convert f(x) = expr to just expr
-        // e.g., "f(x) = x^2" -> "x^2"
-        normalized = normalized.replace(/^[a-zA-Z]\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)$/i, '$2');
-        
-        // Handle function evaluation like f(2) where f(x) = x^2
-        // This is more complex - store function definitions
+        // Check for function definition: f(x) = x^2
         const funcDefMatch = normalized.match(/^([a-zA-Z])\s*\(\s*([a-zA-Z])\s*\)\s*=\s*(.+)$/i);
         if (funcDefMatch) {
-            // Just return the expression part for now
-            normalized = funcDefMatch[3].trim();
+            const [, funcName, varName, funcExpr] = funcDefMatch;
+            storeFunction(funcName, varName, funcExpr.trim());
+            // Return a confirmation message marker
+            this._lastFunctionDefined = { name: funcName, variable: varName, expression: funcExpr.trim() };
+            return funcExpr.trim(); // Return expression for display
+        }
+
+        // Check for function evaluation: f(2) or f(5)
+        const funcEvalMatch = normalized.match(/^([a-zA-Z])\s*\(\s*([0-9.]+)\s*\)$/i);
+        if (funcEvalMatch) {
+            const [, funcName, inputValue] = funcEvalMatch;
+            const storedFunc = getFunction(funcName);
+            if (storedFunc) {
+                // Substitute the value into the expression
+                const substituted = storedFunc.expression.replace(
+                    new RegExp(`\\b${storedFunc.variable}\\b`, 'g'),
+                    `(${inputValue})`
+                );
+                // Clear function after use (one-time use)
+                clearFunction(funcName);
+                return substituted;
+            }
+            // If no stored function, treat as regular expression
         }
 
         if (/[^0-9a-zA-Z\s+\-*/^%().,=<>!]/.test(normalized)) {
@@ -320,6 +367,14 @@ class MathSolver {
 
     handleEvaluate(parsed) {
         const { expression, assignments, placeholders } = parsed;
+        
+        // Check if this was a function definition
+        if (this._lastFunctionDefined) {
+            const { name, variable, expression: funcExpr } = this._lastFunctionDefined;
+            this._lastFunctionDefined = null;
+            return `Function ${name}(${variable}) = ${funcExpr} stored (use ${name}(value) to evaluate, expires in 60s)`;
+        }
+        
         const { expression: preparedExpression } = this.applyAssignments(expression, assignments);
         const result = nerdamer(preparedExpression).evaluate().text();
         return this.restorePlaceholders(result, placeholders);
