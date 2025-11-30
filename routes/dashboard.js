@@ -30,6 +30,8 @@ const metrics = {
     lastProviderUsed: null,
     recentLogs: [],
     maxLogs: 500,
+    lastResetMonth: new Date().getMonth(), // Track which month we last reset
+    lastResetYear: new Date().getFullYear(),
 };
 
 // Persistence helpers
@@ -90,6 +92,8 @@ async function saveMetrics() {
         messagesProcessed: metrics.messagesProcessed,
         totalTokensIn: metrics.totalTokensIn,
         totalTokensOut: metrics.totalTokensOut,
+        lastResetMonth: metrics.lastResetMonth,
+        lastResetYear: metrics.lastResetYear,
         savedAt: new Date().toISOString(),
     };
 
@@ -129,24 +133,44 @@ function scheduleSave() {
     }, SAVE_DEBOUNCE_MS);
 }
 
+function clearMetrics(reason) {
+    console.log(`Clearing dashboard metrics: ${reason}`);
+    metrics.requestCount = 0;
+    metrics.aiCallCount = 0;
+    metrics.aiSuccessCount = 0;
+    metrics.aiFailCount = 0;
+    metrics.commandsExecuted = 0;
+    metrics.messagesProcessed = 0;
+    metrics.totalTokensIn = 0;
+    metrics.totalTokensOut = 0;
+    metrics.lastResetMonth = new Date().getMonth();
+    metrics.lastResetYear = new Date().getFullYear();
+    scheduleSave();
+}
+
 function checkTokenThreshold() {
     // Clear metrics if tokens exceed threshold (Render only)
     if (!IS_SELFHOST && (metrics.totalTokensIn + metrics.totalTokensOut) >= TOKEN_CLEAR_THRESHOLD) {
-        console.log(`Token threshold reached (${TOKEN_CLEAR_THRESHOLD.toLocaleString()}). Clearing metrics.`);
-        metrics.requestCount = 0;
-        metrics.aiCallCount = 0;
-        metrics.aiSuccessCount = 0;
-        metrics.aiFailCount = 0;
-        metrics.commandsExecuted = 0;
-        metrics.messagesProcessed = 0;
-        metrics.totalTokensIn = 0;
-        metrics.totalTokensOut = 0;
-        scheduleSave();
+        clearMetrics(`Token threshold reached (${TOKEN_CLEAR_THRESHOLD.toLocaleString()})`);
     }
 }
 
-// Load metrics on startup
-loadMetrics();
+function checkMonthlyReset() {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Reset if we're in a new month
+    if (currentYear > metrics.lastResetYear || 
+        (currentYear === metrics.lastResetYear && currentMonth > metrics.lastResetMonth)) {
+        clearMetrics(`Monthly reset (${now.toLocaleString('default', { month: 'long', year: 'numeric' })})`);
+    }
+}
+
+// Load metrics on startup and check for monthly reset
+loadMetrics().then(() => {
+    checkMonthlyReset();
+});
 
 // Discord client reference (set by main app)
 let discordClient = null;
