@@ -8,6 +8,13 @@ const express = require('express');
 const router = express.Router();
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
+
+// Determine storage mode
+const IS_SELFHOST = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
+const METRICS_FILE_PATH = path.join(__dirname, '..', 'data', 'dashboard-metrics.json');
+const METRICS_COLLECTION = 'dashboard_metrics';
+const TOKEN_CLEAR_THRESHOLD = 10_000_000; // 10 million tokens
 
 // Runtime metrics store (persists across requests)
 const metrics = {
@@ -18,10 +25,128 @@ const metrics = {
     aiFailCount: 0,
     commandsExecuted: 0,
     messagesProcessed: 0,
+    totalTokensIn: 0,
+    totalTokensOut: 0,
     lastProviderUsed: null,
     recentLogs: [],
     maxLogs: 500,
 };
+
+// Persistence helpers
+let _database = null;
+let saveTimer = null;
+const SAVE_DEBOUNCE_MS = 5000;
+
+async function getDatabase() {
+    if (!_database) {
+        try {
+            _database = require('../src/services/database');
+            if (!_database.isConnected) {
+                await _database.connect();
+            }
+        } catch (e) {
+            return null;
+        }
+    }
+    return _database;
+}
+
+async function loadMetrics() {
+    if (IS_SELFHOST) {
+        // Load from file
+        try {
+            if (fs.existsSync(METRICS_FILE_PATH)) {
+                const data = JSON.parse(fs.readFileSync(METRICS_FILE_PATH, 'utf8'));
+                Object.assign(metrics, data, { recentLogs: [], botStartTime: Date.now() });
+                console.log('Loaded dashboard metrics from file');
+            }
+        } catch (e) {
+            console.warn('Failed to load dashboard metrics from file:', e.message);
+        }
+    } else {
+        // Load from MongoDB
+        try {
+            const db = await getDatabase();
+            if (db && db.db) {
+                const doc = await db.db.collection(METRICS_COLLECTION).findOne({ _id: 'metrics' });
+                if (doc) {
+                    Object.assign(metrics, doc, { recentLogs: [], botStartTime: Date.now() });
+                    console.log('Loaded dashboard metrics from MongoDB');
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load dashboard metrics from MongoDB:', e.message);
+        }
+    }
+}
+
+async function saveMetrics() {
+    const payload = {
+        requestCount: metrics.requestCount,
+        aiCallCount: metrics.aiCallCount,
+        aiSuccessCount: metrics.aiSuccessCount,
+        aiFailCount: metrics.aiFailCount,
+        commandsExecuted: metrics.commandsExecuted,
+        messagesProcessed: metrics.messagesProcessed,
+        totalTokensIn: metrics.totalTokensIn,
+        totalTokensOut: metrics.totalTokensOut,
+        savedAt: new Date().toISOString(),
+    };
+
+    if (IS_SELFHOST) {
+        // Save to file
+        try {
+            const dir = path.dirname(METRICS_FILE_PATH);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            fs.writeFileSync(METRICS_FILE_PATH, JSON.stringify(payload, null, 2));
+        } catch (e) {
+            console.warn('Failed to save dashboard metrics to file:', e.message);
+        }
+    } else {
+        // Save to MongoDB
+        try {
+            const db = await getDatabase();
+            if (db && db.db) {
+                await db.db.collection(METRICS_COLLECTION).updateOne(
+                    { _id: 'metrics' },
+                    { $set: payload },
+                    { upsert: true }
+                );
+            }
+        } catch (e) {
+            console.warn('Failed to save dashboard metrics to MongoDB:', e.message);
+        }
+    }
+}
+
+function scheduleSave() {
+    if (saveTimer) return;
+    saveTimer = setTimeout(async () => {
+        saveTimer = null;
+        await saveMetrics();
+    }, SAVE_DEBOUNCE_MS);
+}
+
+function checkTokenThreshold() {
+    // Clear metrics if tokens exceed threshold (Render only)
+    if (!IS_SELFHOST && (metrics.totalTokensIn + metrics.totalTokensOut) >= TOKEN_CLEAR_THRESHOLD) {
+        console.log(`Token threshold reached (${TOKEN_CLEAR_THRESHOLD.toLocaleString()}). Clearing metrics.`);
+        metrics.requestCount = 0;
+        metrics.aiCallCount = 0;
+        metrics.aiSuccessCount = 0;
+        metrics.aiFailCount = 0;
+        metrics.commandsExecuted = 0;
+        metrics.messagesProcessed = 0;
+        metrics.totalTokensIn = 0;
+        metrics.totalTokensOut = 0;
+        scheduleSave();
+    }
+}
+
+// Load metrics on startup
+loadMetrics();
 
 // Discord client reference (set by main app)
 let discordClient = null;
@@ -58,18 +183,39 @@ router.trackAICall = (success, provider) => {
     else metrics.aiFailCount++;
     metrics.lastProviderUsed = provider;
     addLog(success ? 'success' : 'error', 'AI', `${provider}: ${success ? 'Response generated' : 'Request failed'}`);
+    scheduleSave();
+};
+
+router.trackTokens = (tokensIn, tokensOut) => {
+    metrics.totalTokensIn += (tokensIn || 0);
+    metrics.totalTokensOut += (tokensOut || 0);
+    checkTokenThreshold();
+    scheduleSave();
 };
 
 router.trackCommand = (commandName, userId) => {
     metrics.commandsExecuted++;
     addLog('info', 'Discord', `Command executed: ${commandName}`);
+    scheduleSave();
 };
 
 router.trackMessage = () => {
     metrics.messagesProcessed++;
+    // Don't save on every message - too frequent
 };
 
 router.addLog = addLog;
+
+// Get current metrics for API
+router.getMetrics = () => ({
+    totalTokensIn: metrics.totalTokensIn,
+    totalTokensOut: metrics.totalTokensOut,
+    commandsExecuted: metrics.commandsExecuted,
+    messagesProcessed: metrics.messagesProcessed,
+    aiCallCount: metrics.aiCallCount,
+    aiSuccessCount: metrics.aiSuccessCount,
+    aiFailCount: metrics.aiFailCount,
+});
 
 /**
  * GET /api/dashboard/health
