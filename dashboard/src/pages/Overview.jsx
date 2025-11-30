@@ -1,13 +1,13 @@
 import {
-    Activity,
-    CheckCircle2,
-    Clock,
-    MessageSquare,
-    RefreshCw,
-    Server,
-    TrendingUp,
-    Users,
-    Zap
+  Activity,
+  CheckCircle2,
+  Clock,
+  MessageSquare,
+  RefreshCw,
+  Server,
+  TrendingUp,
+  Users,
+  Zap
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -160,14 +160,14 @@ export default function Overview() {
           color="success"
         />
         <StatCard
-          icon={Cpu}
+          icon={Hash}
           label="Tokens In"
           value={(stats.tokensIn || 0).toLocaleString()}
           subtext="Prompt tokens"
           color="accent"
         />
         <StatCard
-          icon={Cpu}
+          icon={Hash}
           label="Tokens Out"
           value={(stats.tokensOut || 0).toLocaleString()}
           subtext="Completion tokens"
