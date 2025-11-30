@@ -3,8 +3,8 @@ const path = require('path');
 const fetch = require('node-fetch');
 const { PermissionsBitField, EmbedBuilder } = require('discord.js');
 const database = require('./database');
-const config = require('./config');
-const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
+const config = require('../../config');
+const { isFeatureGloballyEnabled } = require('../core/feature-flags');
 
 // Storage mode: default to Mongo for Render; optional fallback to file with MODERATION_FILTERS_STORAGE=file
 const STORAGE_MODE = (process.env.MODERATION_FILTERS_STORAGE || 'mongo').toLowerCase();

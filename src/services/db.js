@@ -1,5 +1,5 @@
 const { MongoClient } = require('mongodb');
-const config = require('./config');
+const config = require('../../config');
 const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
 
 const {

@@ -134,7 +134,7 @@ router.get('/providers', async (req, res) => {
         // Try to load AI providers module
         let providers = [];
         try {
-            const aiManager = require('../ai-providers');
+            const aiManager = require('../src/services/ai-providers');
             const status = aiManager.getProviderStatus();
             providers = Array.isArray(status) ? status : [];
         } catch (err) {
@@ -162,7 +162,7 @@ router.post('/providers/test', async (req, res) => {
 
         // Try to test the provider
         try {
-            const aiManager = require('../ai-providers');
+            const aiManager = require('../src/services/ai-providers');
             const response = await aiManager.generateResponse(
                 [{ role: 'user', content: 'Say "test successful" in exactly 2 words.' }],
                 { preferredProvider: provider }

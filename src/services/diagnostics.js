@@ -1,4 +1,4 @@
-const config = require('./config');
+const config = require('../../config');
 const aiManager = require('./ai-providers');
 const database = require('./database');
 

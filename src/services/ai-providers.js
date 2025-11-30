@@ -111,11 +111,11 @@ const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const config = require('./config');
+const config = require('../../config');
 
 const fsp = fs.promises;
 
-const PROVIDER_STATE_PATH = path.join(__dirname, 'provider-state.json');
+const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
 
 function resolveCostPriority(provider) {
