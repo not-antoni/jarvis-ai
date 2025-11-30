@@ -380,6 +380,38 @@ router.post('/providers/test', async (req, res) => {
 });
 
 /**
+ * POST /api/dashboard/providers/reinitialize
+ * Force reinitialize all providers (recovery from corrupted state)
+ */
+router.post('/providers/reinitialize', async (req, res) => {
+    try {
+        const aiManager = require('../src/services/ai-providers');
+        const count = aiManager.forceReinitialize();
+        res.json({
+            success: true,
+            message: `Reinitialized ${count} AI providers`,
+            count,
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/dashboard/providers/health
+ * Get provider health summary
+ */
+router.get('/providers/health', async (req, res) => {
+    try {
+        const aiManager = require('../src/services/ai-providers');
+        const health = aiManager.getHealthSummary();
+        res.json(health);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
  * GET /api/dashboard/agents
  * Returns agent status and metrics
  */
