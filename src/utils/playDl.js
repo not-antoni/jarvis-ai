@@ -1,30 +1,35 @@
 'use strict';
 
-const play = require('play-dl');
+/**
+ * Hybrid YouTube audio streaming - tries play-dl first (fast), falls back to yt-dlp (reliable)
+ */
+
+let play;
+try {
+    play = require('play-dl');
+} catch (e) {
+    console.warn('play-dl not available, will use yt-dlp only');
+    play = null;
+}
+
+const { acquireAudio, cancelDownload } = require('./ytDlp');
+const fs = require('fs');
+const { StreamType } = require('@discordjs/voice');
 
 // Track active streams for cancellation
-const activeStreams = new Map(); // videoId -> { stream, aborted }
+const activeStreams = new Map(); // videoId -> { stream, aborted, method }
+
+// Track 429 errors to skip play-dl when rate limited
+let playDlRateLimited = false;
+let rateLimitResetTime = 0;
+const RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
- * Initialize play-dl with YouTube cookies/tokens if available
+ * Initialize play-dl with YouTube cookies if available
  */
-async function initializeAuth() {
-    // Check for refresh token (preferred - lasts months)
-    if (process.env.YOUTUBE_REFRESH_TOKEN) {
-        try {
-            await play.setToken({
-                youtube: {
-                    cookie: process.env.YOUTUBE_COOKIES || ''
-                }
-            });
-            console.log('play-dl: YouTube auth initialized with refresh token');
-            return true;
-        } catch (error) {
-            console.warn('play-dl: Failed to set YouTube token:', error.message);
-        }
-    }
-
-    // Fallback to cookies if available
+async function initializePlayDl() {
+    if (!play) return false;
+    
     const cookieEnvKeys = [
         'YOUTUBE_COOKIES',
         'YT_COOKIES',
@@ -35,98 +40,159 @@ async function initializeAuth() {
         const cookies = process.env[key];
         if (cookies && cookies.trim()) {
             try {
+                // play-dl expects cookies in a specific format
                 await play.setToken({
                     youtube: {
                         cookie: cookies.trim()
                     }
                 });
-                console.log(`play-dl: YouTube auth initialized from ${key}`);
+                console.log(`play-dl: Initialized with cookies from ${key}`);
                 return true;
             } catch (error) {
-                console.warn(`play-dl: Failed to set cookies from ${key}:`, error.message);
+                console.warn(`play-dl: Cookie init failed from ${key}:`, error.message);
             }
         }
     }
 
-    console.log('play-dl: Running without YouTube auth (may hit rate limits)');
+    console.log('play-dl: No cookies set, will be rate-limited on shared IPs');
     return false;
 }
 
 // Initialize on module load
 let authInitialized = false;
-const initPromise = initializeAuth().then(result => {
+const initPromise = initializePlayDl().then(result => {
     authInitialized = result;
 }).catch(error => {
-    console.warn('play-dl: Auth initialization failed:', error.message);
+    console.warn('play-dl init failed:', error.message);
 });
 
 /**
- * Get audio stream for a YouTube video
+ * Try to get stream via play-dl (fast, but can be rate-limited)
+ */
+async function tryPlayDl(videoUrl, streamState) {
+    if (!play) throw new Error('play-dl not available');
+    
+    // Check if we're in rate limit cooldown
+    if (playDlRateLimited && Date.now() < rateLimitResetTime) {
+        throw new Error('play-dl rate limited, skipping');
+    }
+    
+    const validated = await play.validate(videoUrl);
+    if (!validated || validated === false) {
+        throw new Error('Invalid YouTube URL');
+    }
+
+    const streamResult = await play.stream(videoUrl, {
+        quality: 2,
+        discordPlayerCompatibility: true
+    });
+
+    if (streamState.aborted) {
+        streamResult.stream.destroy();
+        throw new Error('Stream cancelled');
+    }
+
+    // Clear rate limit flag on success
+    playDlRateLimited = false;
+    
+    streamState.stream = streamResult.stream;
+    streamState.method = 'play-dl';
+
+    return {
+        stream: streamResult.stream,
+        type: streamResult.type,
+        cleanup: () => {
+            try { streamResult.stream.destroy(); } catch (e) {}
+            activeStreams.delete(streamState.videoId);
+        }
+    };
+}
+
+/**
+ * Fallback to yt-dlp (slower but more reliable with cookies)
+ */
+async function tryYtDlp(videoId, videoUrl, streamState) {
+    console.log(`Falling back to yt-dlp for ${videoId}`);
+    
+    const ticket = await acquireAudio(videoId, videoUrl);
+    
+    if (streamState.aborted) {
+        ticket.release();
+        throw new Error('Stream cancelled');
+    }
+    
+    const fileStream = fs.createReadStream(ticket.filePath);
+    streamState.stream = fileStream;
+    streamState.method = 'yt-dlp';
+    
+    return {
+        stream: fileStream,
+        type: StreamType.OggOpus,
+        cleanup: () => {
+            try { fileStream.destroy(); } catch (e) {}
+            try { ticket.release(); } catch (e) {}
+            activeStreams.delete(streamState.videoId);
+        }
+    };
+}
+
+/**
+ * Get audio stream for a YouTube video - hybrid approach
  * @param {string} videoId - YouTube video ID
  * @param {string} videoUrl - Full YouTube URL
  * @returns {Promise<{stream: Readable, type: StreamType, cleanup: Function}>}
  */
 async function getAudioStream(videoId, videoUrl) {
-    // Ensure auth is initialized
     await initPromise;
 
-    // Cancel any existing stream for this video
     cancelStream(videoId);
 
-    const streamState = { stream: null, aborted: false };
+    const streamState = { stream: null, aborted: false, videoId, method: null };
     activeStreams.set(videoId, streamState);
 
-    try {
-        // Validate the URL first
-        const validated = await play.validate(videoUrl);
-        if (!validated || validated === false) {
-            throw new Error('Invalid YouTube URL');
-        }
-
-        // Get stream - play-dl handles all the heavy lifting
-        const streamResult = await play.stream(videoUrl, {
-            quality: 2, // 0 = best, 1 = medium, 2 = lowest (fastest for voice)
-            discordPlayerCompatibility: true
-        });
-
-        if (streamState.aborted) {
-            streamResult.stream.destroy();
-            throw new Error('Stream cancelled');
-        }
-
-        streamState.stream = streamResult.stream;
-
-        return {
-            stream: streamResult.stream,
-            type: streamResult.type,
-            cleanup: () => {
-                try {
-                    streamResult.stream.destroy();
-                } catch (e) {
-                    // Ignore cleanup errors
-                }
-                activeStreams.delete(videoId);
+    // Try play-dl first (fast)
+    if (play && !playDlRateLimited) {
+        try {
+            const result = await tryPlayDl(videoUrl, streamState);
+            console.log(`Stream started via play-dl for ${videoId}`);
+            return result;
+        } catch (error) {
+            const msg = error.message || String(error);
+            
+            // Mark rate limited and set cooldown
+            if (msg.includes('429') || msg.includes('rate')) {
+                console.warn('play-dl hit 429, switching to yt-dlp for next 10 minutes');
+                playDlRateLimited = true;
+                rateLimitResetTime = Date.now() + RATE_LIMIT_COOLDOWN_MS;
             }
-        };
+            
+            console.warn(`play-dl failed: ${msg}, trying yt-dlp...`);
+        }
+    }
+
+    // Fallback to yt-dlp (reliable)
+    try {
+        const result = await tryYtDlp(videoId, videoUrl, streamState);
+        console.log(`Stream started via yt-dlp for ${videoId}`);
+        return result;
     } catch (error) {
         activeStreams.delete(videoId);
         
-        // Provide helpful error messages
         const msg = error.message || String(error);
         
-        if (msg.includes('Sign in') || msg.includes('age') || msg.includes('confirm')) {
-            throw new Error('This video requires YouTube sign-in (age-restricted or private)');
+        if (msg === 'Download cancelled') {
+            throw new Error('Stream cancelled');
+        }
+        
+        if (msg.includes('Sign in') || msg.includes('age')) {
+            throw new Error('This video requires sign-in (age-restricted)');
         }
         
         if (msg.includes('unavailable') || msg.includes('private')) {
             throw new Error('Video is unavailable or private');
         }
         
-        if (msg.includes('429') || msg.includes('rate')) {
-            throw new Error('YouTube rate limit hit - try again in a few minutes');
-        }
-
-        throw error;
+        throw new Error(`Unable to play: ${msg}`);
     }
 }
 
@@ -139,12 +205,10 @@ function cancelStream(videoId) {
     if (state) {
         state.aborted = true;
         if (state.stream) {
-            try {
-                state.stream.destroy();
-            } catch (e) {
-                // Ignore
-            }
+            try { state.stream.destroy(); } catch (e) {}
         }
+        // Also cancel yt-dlp download if in progress
+        try { cancelDownload(videoId); } catch (e) {}
         activeStreams.delete(videoId);
     }
 }
@@ -156,6 +220,7 @@ function cancelStream(videoId) {
  * @returns {Promise<Array<{title: string, url: string, duration: string, thumbnail: string}>>}
  */
 async function searchYouTube(query, limit = 5) {
+    if (!play) return [];
     await initPromise;
 
     try {
@@ -183,6 +248,7 @@ async function searchYouTube(query, limit = 5) {
  * @returns {Promise<{title: string, duration: number, thumbnail: string}>}
  */
 async function getVideoInfo(url) {
+    if (!play) throw new Error('play-dl not available');
     await initPromise;
 
     try {
@@ -204,25 +270,22 @@ async function getVideoInfo(url) {
 }
 
 /**
- * Check if play-dl is ready and YouTube is accessible
+ * Check if music system is ready
  */
 async function healthCheck() {
     try {
         await initPromise;
         
-        // Quick validation test
-        const valid = await play.validate('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-        
         return {
             ready: true,
+            playDlAvailable: !!play,
+            playDlRateLimited,
             authenticated: authInitialized,
-            youtubeAccessible: valid === 'yt_video'
+            ytDlpAvailable: true // Always available as fallback
         };
     } catch (error) {
         return {
             ready: false,
-            authenticated: false,
-            youtubeAccessible: false,
             error: error.message
         };
     }
