@@ -8,7 +8,7 @@ const { requestIdMiddleware } = require('../utils/request-id');
 const { errorHandler, asyncHandler } = require('../utils/error-handler');
 const metrics = require('../utils/metrics');
 const logger = require('../utils/logger');
-const { gatherHealthSnapshot } = require('../../diagnostics');
+const { gatherHealthSnapshot } = require('../services/diagnostics');
 const webhookRouter = require('../../routes/webhook');
 const { createAgentDiagnosticsRouter } = require('../utils/agent-diagnostics');
 

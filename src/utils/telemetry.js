@@ -4,7 +4,7 @@
  */
 
 const os = require('node:os');
-const database = require('../../database');
+const database = require('../services/database');
 
 function sanitizeError(error) {
     if (!error) {
