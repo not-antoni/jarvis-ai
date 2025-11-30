@@ -1178,39 +1178,7 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
         }
 
         if (cmd === "providers") {
-            const analytics = aiManager.getProviderAnalytics();
-            if (!analytics.length) {
-                return "I am currently offline from all AI providers, sir.";
-            }
-
-            const lines = analytics.map((provider, index) => {
-                const tier = provider.costTier ? provider.costTier[0].toUpperCase() + provider.costTier.slice(1) : 'Unknown';
-                const total = provider.metrics.total || 0;
-                const success = Number.isFinite(provider.metrics.successRate)
-                    ? `${provider.metrics.successRate.toFixed(1)}%`
-                    : 'n/a';
-                const latency = Number.isFinite(provider.metrics.avgLatencyMs)
-                    ? `${Math.round(provider.metrics.avgLatencyMs)}ms`
-                    : 'n/a';
-                const statusIcon = provider.isDisabled
-                    ? '⛔'
-                    : provider.hasError
-                        ? '⚠️'
-                        : '✅';
-
-                const disabledNote = provider.isDisabled && provider.disabledUntil
-                    ? ` — returns <t:${Math.floor(provider.disabledUntil / 1000)}:R>`
-                    : '';
-
-                return `${statusIcon} **${index + 1}. ${provider.name}** (${tier}) — ${provider.model} • uptime ${success} • latency ${latency} • calls ${total}${disabledNote}`;
-            });
-
-            return [
-                '**AI Provider Rotation**',
-                'Prioritizing free tiers before paid fallbacks.',
-                '',
-                ...lines
-            ].join('\n');
+            return "Sir, I'd rather keep that info to myself.";
         }
 
         if (cmd === "invite") {

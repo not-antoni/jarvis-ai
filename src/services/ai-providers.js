@@ -284,13 +284,12 @@ class AIProviderManager {
           apiKey: key,
           baseURL: 'https://ai-gateway.vercel.sh/v1',
           defaultHeaders: {
-            // Optional, but recommended for Gateway analytics
             'HTTP-Referer': process.env.APP_URL || 'https://localhost',
             'X-Title': process.env.APP_NAME || 'Jarvis AI',
           },
         }),
-        // IMPORTANT: Use provider/model id as required by the Gateway
-        model: 'deepseek/deepseek-v3.2-exp',
+        // Vercel AI Gateway model format - no provider prefix needed
+        model: 'deepseek-v3.2-exp',
         type: 'openai-chat',
         family: 'deepseek',
         costTier: 'paid',
@@ -627,8 +626,14 @@ class AIProviderManager {
   }
 
   async generateResponse(systemPrompt, userPrompt, maxTokens = (config.ai?.maxTokens || 1024)) {
+    // Safety check: reinitialize providers if somehow empty (handles rare edge cases)
     if (this.providers.length === 0) {
-      throw new Error('No AI providers available');
+      console.warn('Provider list was empty - reinitializing providers...');
+      this.setupProviders();
+      if (this.providers.length === 0) {
+        throw new Error('No AI providers available - check API key configuration');
+      }
+      console.log(`Reinitialized ${this.providers.length} AI providers`);
     }
 
     let candidates;
@@ -652,16 +657,46 @@ class AIProviderManager {
         if (provider.type === 'google') {
           // NOTE: Reasoning flags are not used for Gemini here; keep it simple & stable
           const model = provider.client.getGenerativeModel({ model: provider.model });
-          const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
-            generationConfig: {
-              temperature: (config.ai?.temperature ?? 0.7),
-              maxOutputTokens: maxTokens,
-            },
-          });
+          
+          let result;
+          try {
+            result = await model.generateContent({
+              contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+              generationConfig: {
+                temperature: (config.ai?.temperature ?? 0.7),
+                maxOutputTokens: maxTokens,
+              },
+            });
+          } catch (geminiError) {
+            // Handle Gemini-specific errors (safety filters, quota, etc.)
+            const errorMessage = geminiError?.message || String(geminiError);
+            const status = geminiError?.status || 
+                          (errorMessage.includes('quota') || errorMessage.includes('429') ? 429 : 
+                           errorMessage.includes('safety') || errorMessage.includes('blocked') ? 400 : 502);
+            throw Object.assign(new Error(`Gemini error: ${errorMessage}`), { status });
+          }
 
           const response = result?.response;
-          let text = typeof response?.text === 'function' ? response.text() : null;
+          
+          // Check for blocked responses (safety filters)
+          const blockReason = response?.promptFeedback?.blockReason;
+          if (blockReason) {
+            throw Object.assign(new Error(`Gemini blocked: ${blockReason}`), { status: 400 });
+          }
+          
+          // Check finish reason for issues
+          const finishReason = response?.candidates?.[0]?.finishReason;
+          if (finishReason === 'SAFETY') {
+            throw Object.assign(new Error(`Gemini safety filter triggered`), { status: 400 });
+          }
+          
+          let text = null;
+          try {
+            text = typeof response?.text === 'function' ? response.text() : null;
+          } catch (textError) {
+            // text() can throw if there are issues with the response
+            console.warn(`Gemini text() extraction failed: ${textError.message}`);
+          }
 
           if (!text || !text.trim()) {
             const fallbackParts = response?.candidates?.flatMap((candidate) => candidate?.content?.parts || []) || [];
@@ -681,7 +716,8 @@ class AIProviderManager {
           }
 
           if (!text) {
-            throw Object.assign(new Error(`Invalid or empty response from ${provider.name}`), { status: 502 });
+            const debugInfo = finishReason ? ` (finishReason: ${finishReason})` : '';
+            throw Object.assign(new Error(`Invalid or empty response from ${provider.name}${debugInfo}`), { status: 502 });
           }
 
           let cleaned = sanitizeAssistantMessage(text);
@@ -1010,6 +1046,41 @@ class AIProviderManager {
     for (const [name, disabledUntil] of this.disabledProviders.entries()) {
       if (disabledUntil <= now) this.disabledProviders.delete(name);
     }
+  }
+
+  /**
+   * Force reinitialize all providers - useful for recovery from corrupted state
+   */
+  forceReinitialize() {
+    console.log('Force reinitializing AI providers...');
+    this.providers = [];
+    this.providerErrors.clear();
+    this.metrics.clear();
+    this.disabledProviders.clear();
+    this.openRouterGlobalFailure = false;
+    this.openRouterFailureCount = 0;
+    this.setupProviders();
+    console.log(`Reinitialized ${this.providers.length} AI providers`);
+    return this.providers.length;
+  }
+
+  /**
+   * Get a health summary for monitoring
+   */
+  getHealthSummary() {
+    const now = Date.now();
+    const activeProviders = this.providers.filter(p => {
+      const disabledUntil = this.disabledProviders.get(p.name);
+      return !disabledUntil || disabledUntil <= now;
+    });
+    
+    return {
+      total: this.providers.length,
+      active: activeProviders.length,
+      disabled: this.providers.length - activeProviders.length,
+      hasProviders: this.providers.length > 0,
+      openRouterGlobalFailure: this.openRouterGlobalFailure,
+    };
   }
 }
 
