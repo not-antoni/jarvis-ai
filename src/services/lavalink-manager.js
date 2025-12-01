@@ -143,24 +143,42 @@ class LavalinkService {
         if (!this.isAvailable()) return [];
 
         try {
-            const candidates = this.manager.nodeManager.leastUsedNodes();
+            const nodeManager = this.manager?.nodeManager;
+            if (!nodeManager) {
+                console.warn('[Lavalink][search] nodeManager not ready');
+                return [];
+            }
+
+            const candidates = nodeManager.leastUsedNodes?.() || [];
             const node = candidates.find((n) => n.connected) || candidates[0];
             if (!node || !node.connected) return [];
 
             const isUrl = query.startsWith('http');
             const searchQuery = isUrl ? query : `ytsearch:${query}`;
             
-            const result = await node.rest.loadTracks(searchQuery);
-            
-            if (result.loadType === 'empty' || result.loadType === 'error') {
+            const baseUrl = `http://${node.options.host}:${node.options.port}`;
+            const url = `${baseUrl}/v4/loadtracks?identifier=${encodeURIComponent(searchQuery)}`;
+            const response = await fetch(url, {
+                headers: {
+                    Authorization: node.options.authorization || process.env.LAVALINK_PASSWORD || 'youshallnotpass'
+                }
+            });
+            if (!response.ok) {
+                console.error('[Lavalink][search] HTTP', response.status, response.statusText);
+                return [];
+            }
+            const result = await response.json();
+            console.log('[Lavalink][search]', { query: searchQuery, loadType: result?.loadType, trackCount: result?.tracks?.length });
+
+            if (result.loadType === 'empty' || result.loadType === 'error' || !result.tracks?.length) {
                 return [];
             }
 
-            const tracks = result.loadType === 'playlist' 
-                ? result.data.tracks 
-                : result.data;
+            const tracks = result.loadType === 'playlist'
+                ? result.tracks || []
+                : result.tracks;
 
-            return (Array.isArray(tracks) ? tracks : [tracks]).slice(0, limit).map(track => ({
+            return tracks.slice(0, limit).map(track => ({
                 title: track.info.title,
                 author: track.info.author,
                 duration: track.info.length,
