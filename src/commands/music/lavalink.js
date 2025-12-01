@@ -113,7 +113,7 @@ module.exports = {
 
         if (!lavalinkManager.isAvailable()) {
             return interaction.reply({ 
-                content: '⚠️ Lavalink is not available. This feature only works on selfhost with Lavalink server running.', 
+                content: '⚠️ Lavalink is not available. Make sure:\n1. Lavalink server is running on port 2333\n2. `LAVALINK_HOST=localhost:2333` is in your .env\n3. Restart the bot after adding the env var', 
                 ephemeral: true 
             });
         }

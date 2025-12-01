@@ -43,12 +43,18 @@ class LavalinkManager {
             return false;
         }
 
+        console.log(`Lavalink: Connecting to ${process.env.LAVALINK_HOST || 'localhost:2333'}...`);
+        
         this.client = client;
         this.shoukaku = new Shoukaku(new Connectors.DiscordJS(client), NODES, SHOUKAKU_OPTIONS);
 
         this.shoukaku.on('ready', (name) => {
-            console.log(`Lavalink: Node ${name} connected`);
+            console.log(`Lavalink: Node ${name} connected ✓`);
             this.enabled = true;
+        });
+
+        this.shoukaku.on('reconnecting', (name, left, timeout) => {
+            console.log(`Lavalink: Node ${name} reconnecting... (${left} tries left)`);
         });
 
         this.shoukaku.on('error', (name, error) => {
