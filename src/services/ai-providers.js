@@ -626,6 +626,10 @@ class AIProviderManager {
   }
 
   async generateResponse(systemPrompt, userPrompt, maxTokens = (config.ai?.maxTokens || 1024)) {
+    // Ensure prompts are strings (required by some providers like Groq)
+    systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
+    userPrompt = userPrompt != null ? String(userPrompt) : '';
+    
     // Safety check: reinitialize providers if somehow empty (handles rare edge cases)
     if (this.providers.length === 0) {
       console.warn('Provider list was empty - reinitializing providers...');
