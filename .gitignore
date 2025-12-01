@@ -33,9 +33,9 @@ Thumbs.db
 
 # Java/Lavalink
 .java-runtime/
-Lavalink.jar
-lavalink.jar*
-plugins/
+lavalink/*.jar
+lavalink/plugins/
+lavalink/logs/
 
 # Test output (don't commit)
 test-output.txt
