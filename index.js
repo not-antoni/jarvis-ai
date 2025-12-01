@@ -3381,8 +3381,8 @@ client.once(Events.ClientReady, async () => {
     dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
     dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
 
-    // Initialize Lavalink for selfhost music (if configured)
-    if (isSelfHost && (process.env.LAVALINK_HOST || process.env.LAVALINK_ENABLED)) {
+    // Initialize Lavalink for music (if configured)
+    if (process.env.LAVALINK_HOST || process.env.LAVALINK_ENABLED) {
         lavalinkManager.initialize(client);
         dashboardRouter.addLog('info', 'Lavalink', 'Initializing Lavalink connection...');
     }
