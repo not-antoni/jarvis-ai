@@ -1,41 +1,21 @@
 'use strict';
 
 /**
- * Lavalink Manager - Reliable music playback for selfhost
- * Uses Shoukaku for Lavalink v4 connection
+ * Lavalink Manager using lavalink-client
+ * Much simpler than Shoukaku with built-in queue
  */
 
-const { Shoukaku, Connectors } = require('shoukaku');
+const { LavalinkManager } = require('lavalink-client');
 
-// Lavalink nodes configuration
-const NODES = [
-    {
-        name: 'main',
-        url: process.env.LAVALINK_HOST || 'localhost:2333',
-        auth: process.env.LAVALINK_PASSWORD || 'youshallnotpass'
-    }
-];
-
-// Shoukaku options
-const SHOUKAKU_OPTIONS = {
-    moveOnDisconnect: false,
-    resumable: true,
-    resumableTimeout: 60,
-    reconnectTries: 3,
-    restTimeout: 60000
-};
-
-class LavalinkManager {
+class LavalinkService {
     constructor() {
-        this.shoukaku = null;
+        this.manager = null;
         this.client = null;
-        this.queues = new Map(); // guildId -> { player, queue, current, textChannel }
-        this.enabled = false;
+        this.ready = false;
     }
 
     /**
-     * Initialize Lavalink connection
-     * @param {Client} client - Discord.js client
+     * Initialize Lavalink with Discord client
      */
     initialize(client) {
         if (!process.env.LAVALINK_HOST && !process.env.LAVALINK_ENABLED) {
@@ -43,97 +23,150 @@ class LavalinkManager {
             return false;
         }
 
-        console.log(`Lavalink: Connecting to ${process.env.LAVALINK_HOST || 'localhost:2333'}...`);
-        
         this.client = client;
-        this.shoukaku = new Shoukaku(new Connectors.DiscordJS(client), NODES, SHOUKAKU_OPTIONS);
-
-        this.shoukaku.on('ready', (name) => {
-            console.log(`Lavalink: Node ${name} connected ✓`);
-            this.enabled = true;
-        });
-
-        this.shoukaku.on('reconnecting', (name, left, timeout) => {
-            console.log(`Lavalink: Node ${name} reconnecting... (${left} tries left)`);
-        });
-
-        this.shoukaku.on('error', (name, error) => {
-            console.error(`Lavalink: Node ${name} error:`, error.message);
-        });
-
-        this.shoukaku.on('close', (name, code, reason) => {
-            console.warn(`Lavalink: Node ${name} closed (${code}): ${reason}`);
-        });
-
-        this.shoukaku.on('disconnect', (name, players, moved) => {
-            if (moved) return;
-            console.log(`Lavalink: Node ${name} disconnected, cleaning up ${players.size} players`);
-            for (const [guildId] of players) {
-                this.cleanup(guildId);
+        
+        const [host, port] = (process.env.LAVALINK_HOST || 'localhost:2333').split(':');
+        
+        this.manager = new LavalinkManager({
+            nodes: [{
+                id: 'main',
+                host: host,
+                port: parseInt(port) || 2333,
+                authorization: process.env.LAVALINK_PASSWORD || 'youshallnotpass'
+            }],
+            sendToShard: (guildId, payload) => {
+                const guild = client.guilds.cache.get(guildId);
+                if (guild) guild.shard.send(payload);
+            },
+            client: {
+                id: client.user?.id,
+                username: client.user?.username || 'Jarvis'
+            },
+            autoSkip: true,
+            playerOptions: {
+                defaultSearchPlatform: 'ytsearch',
+                onDisconnect: {
+                    autoReconnect: true,
+                    destroyPlayer: false
+                },
+                onEmptyQueue: {
+                    destroyAfterMs: 300000 // 5 minutes
+                }
             }
         });
 
-        console.log('Lavalink: Initializing connection...');
+        // Handle raw gateway events
+        client.on('raw', d => this.manager.sendRawData(d));
+
+        const nodeManager = this.manager.nodeManager;
+        if (nodeManager) {
+            nodeManager.on('create', (node) => {
+                console.log(`Lavalink: Node ${node.id} registered`);
+            });
+
+            nodeManager.on('connect', (node) => {
+                console.log(`Lavalink: Node ${node.id} connected ✓`);
+                this.ready = true;
+            });
+
+            nodeManager.on('disconnect', (node, reason) => {
+                console.warn(`Lavalink: Node ${node.id} disconnected: ${reason?.message || reason}`);
+                this.ready = this.hasConnectedNode();
+            });
+
+            nodeManager.on('reconnecting', (node) => {
+                console.log(`Lavalink: Node ${node.id} reconnecting...`);
+            });
+
+            nodeManager.on('destroy', (node) => {
+                console.warn(`Lavalink: Node ${node.id} destroyed`);
+                this.ready = this.hasConnectedNode();
+            });
+
+            nodeManager.on('error', (node, error) => {
+                console.error(`Lavalink: Node ${node.id} error:`, error?.message || error);
+            });
+        }
+
+        this.manager.on('trackStart', (player, track) => {
+            console.log(`Lavalink: Playing "${track.info.title}" in ${player.guildId}`);
+        });
+
+        console.log(`Lavalink: Connecting to ${host}:${port}...`);
         return true;
     }
 
     /**
-     * Check if Lavalink is available
+     * Init the manager (call after Discord ready)
+     */
+    async init() {
+        if (!this.manager || !this.client?.user) return false;
+        
+        try {
+            await this.manager.init({
+                id: this.client.user.id,
+                username: this.client.user.username
+            });
+            console.log('Lavalink: Manager initialized');
+            return true;
+        } catch (error) {
+            console.error('Lavalink: Init failed:', error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Check if ready
      */
     isAvailable() {
-        return this.enabled && this.shoukaku?.players !== undefined;
+        return this.ready && this.hasConnectedNode();
     }
 
     /**
-     * Get the best available node
+     * Check if any node is connected
      */
-    getNode() {
-        const node = this.shoukaku?.options?.nodeResolver?.(this.shoukaku.nodes) 
-            || this.shoukaku?.nodes?.values()?.next()?.value;
-        return node;
-    }
-
-    /**
-     * Search YouTube for tracks
-     * @param {string} query - Search query
-     * @returns {Promise<Array>} Search results
-     */
-    async search(query) {
-        const node = this.getNode();
-        if (!node) {
-            throw new Error('No Lavalink nodes available');
+    hasConnectedNode() {
+        const nodes = this.manager?.nodeManager?.nodes;
+        if (!nodes || nodes.size === 0) return false;
+        for (const node of nodes.values()) {
+            if (node.connected) {
+                return true;
+            }
         }
+        return false;
+    }
 
-        // Determine if it's a URL or search query
-        const isUrl = query.startsWith('http://') || query.startsWith('https://');
-        const searchQuery = isUrl ? query : `ytsearch:${query}`;
+    /**
+     * Search YouTube
+     */
+    async search(query, limit = 10) {
+        if (!this.isAvailable()) return [];
 
         try {
-            const result = await node.rest.resolve(searchQuery);
+            const candidates = this.manager.nodeManager.leastUsedNodes();
+            const node = candidates.find((n) => n.connected) || candidates[0];
+            if (!node || !node.connected) return [];
+
+            const isUrl = query.startsWith('http');
+            const searchQuery = isUrl ? query : `ytsearch:${query}`;
             
-            if (!result || result.loadType === 'empty' || result.loadType === 'error') {
+            const result = await node.rest.loadTracks(searchQuery);
+            
+            if (result.loadType === 'empty' || result.loadType === 'error') {
                 return [];
             }
 
-            if (result.loadType === 'playlist') {
-                return result.data.tracks.slice(0, 10).map(track => ({
-                    title: track.info.title,
-                    author: track.info.author,
-                    duration: track.info.length,
-                    url: track.info.uri,
-                    identifier: track.info.identifier,
-                    track: track
-                }));
-            }
+            const tracks = result.loadType === 'playlist' 
+                ? result.data.tracks 
+                : result.data;
 
-            // Single track or search results
-            const tracks = result.data.tracks || [result.data];
-            return tracks.slice(0, 10).map(track => ({
+            return (Array.isArray(tracks) ? tracks : [tracks]).slice(0, limit).map(track => ({
                 title: track.info.title,
                 author: track.info.author,
                 duration: track.info.length,
                 url: track.info.uri,
                 identifier: track.info.identifier,
+                encoded: track.encoded,
                 track: track
             }));
         } catch (error) {
@@ -143,196 +176,109 @@ class LavalinkManager {
     }
 
     /**
-     * Play a track in a voice channel
-     * @param {string} guildId 
-     * @param {VoiceChannel} voiceChannel 
-     * @param {Object} trackData 
-     * @param {TextChannel} textChannel 
+     * Play a track
      */
-    async play(guildId, voiceChannel, trackData, textChannel) {
-        let state = this.queues.get(guildId);
-
-        if (!state) {
-            // Create new player
-            const node = this.getNode();
-            if (!node) {
-                throw new Error('No Lavalink nodes available');
-            }
-
-            const player = await this.shoukaku.joinVoiceChannel({
-                guildId: guildId,
-                channelId: voiceChannel.id,
-                shardId: 0,
-                deaf: true
-            });
-
-            player.on('end', async (data) => {
-                if (data.reason === 'replaced') return;
-                
-                const queueState = this.queues.get(guildId);
-                if (!queueState) return;
-
-                queueState.current = null;
-
-                if (queueState.queue.length > 0) {
-                    const next = queueState.queue.shift();
-                    await this.playTrack(guildId, next);
-                } else {
-                    // Auto-disconnect after 5 minutes of inactivity
-                    queueState.timeout = setTimeout(() => {
-                        if (this.queues.has(guildId)) {
-                            const s = this.queues.get(guildId);
-                            if (s.textChannel) {
-                                s.textChannel.send('⌛ Leaving voice channel due to inactivity.').catch(() => {});
-                            }
-                            this.cleanup(guildId);
-                        }
-                    }, 5 * 60 * 1000);
-                }
-            });
-
-            player.on('exception', (error) => {
-                console.error(`Lavalink player error in ${guildId}:`, error.message);
-                const queueState = this.queues.get(guildId);
-                if (queueState?.textChannel) {
-                    queueState.textChannel.send('⚠️ Playback error occurred.').catch(() => {});
-                }
-            });
-
-            state = {
-                player,
-                queue: [],
-                current: null,
-                textChannel,
-                timeout: null
-            };
-            this.queues.set(guildId, state);
+    async play(guildId, voiceChannelId, textChannelId, trackData) {
+        if (!this.isAvailable()) {
+            throw new Error('Lavalink not available');
         }
 
-        // Clear any pending timeout
-        if (state.timeout) {
-            clearTimeout(state.timeout);
-            state.timeout = null;
+        let player = this.manager.players.get(guildId);
+
+        if (!player) {
+            player = await this.manager.createPlayer({
+                guildId,
+                voiceChannelId,
+                textChannelId,
+                selfDeaf: true,
+                volume: 100
+            });
         }
 
-        state.textChannel = textChannel;
-
-        // If nothing is playing, play immediately
-        if (!state.current) {
-            await this.playTrack(guildId, trackData);
-            return `🎶 Now playing: **${trackData.title}**`;
+        if (!player.connected) {
+            await player.connect();
         }
 
         // Add to queue
-        state.queue.push(trackData);
-        return `🧃 Queued **${trackData.title}** (position ${state.queue.length})`;
-    }
+        await player.queue.add(trackData.track);
 
-    /**
-     * Internal: Play a track
-     */
-    async playTrack(guildId, trackData) {
-        const state = this.queues.get(guildId);
-        if (!state) return;
-
-        state.current = trackData;
-        await state.player.playTrack({ track: trackData.track.encoded });
-
-        if (state.textChannel && state.queue.length > 0) {
-            state.textChannel.send(`🎶 Now playing: **${trackData.title}**`).catch(() => {});
+        // Play if not playing
+        if (!player.playing && !player.paused) {
+            await player.play();
+            return `🎶 Now playing: **${trackData.title}**`;
         }
+
+        return `🧃 Queued: **${trackData.title}** (position ${player.queue.tracks.length})`;
     }
 
     /**
-     * Skip current track
+     * Skip track
      */
     async skip(guildId) {
-        const state = this.queues.get(guildId);
-        if (!state || !state.current) {
-            return '⚠️ Nothing is playing, sir.';
-        }
+        const player = this.manager?.players?.get(guildId);
+        if (!player) return '⚠️ Nothing is playing.';
 
-        const upcoming = state.queue[0];
-        await state.player.stopTrack();
-
-        if (!upcoming) {
-            return '⏭️ Skipped — queue empty.';
-        }
-        return `⏭️ Skipping to **${upcoming.title}**…`;
+        await player.skip();
+        return '⏭️ Skipped!';
     }
 
     /**
-     * Pause playback
+     * Pause
      */
-    pause(guildId) {
-        const state = this.queues.get(guildId);
-        if (!state?.player) {
-            return '⚠️ Nothing is playing, sir.';
-        }
-        state.player.setPaused(true);
-        return '⏸️ Paused playback.';
+    async pause(guildId) {
+        const player = this.manager?.players?.get(guildId);
+        if (!player) return '⚠️ Nothing is playing.';
+
+        await player.pause();
+        return '⏸️ Paused.';
     }
 
     /**
-     * Resume playback
+     * Resume
      */
-    resume(guildId) {
-        const state = this.queues.get(guildId);
-        if (!state?.player) {
-            return '⚠️ Nothing is playing, sir.';
-        }
-        state.player.setPaused(false);
-        return '▶️ Resumed playback.';
+    async resume(guildId) {
+        const player = this.manager?.players?.get(guildId);
+        if (!player) return '⚠️ Nothing is playing.';
+
+        await player.resume();
+        return '▶️ Resumed.';
     }
 
     /**
-     * Stop and clear queue
+     * Stop and destroy player
      */
-    stop(guildId) {
-        const state = this.queues.get(guildId);
-        if (!state) {
-            return '⚠️ Nothing to stop, sir.';
-        }
-        this.cleanup(guildId);
-        return '🛑 Stopped playback and cleared queue.';
+    async stop(guildId) {
+        const player = this.manager?.players?.get(guildId);
+        if (!player) return '⚠️ Nothing to stop.';
+
+        await player.destroy();
+        return '🛑 Stopped and cleared queue.';
     }
 
     /**
-     * Get queue info
+     * Get queue
      */
     getQueue(guildId) {
-        const state = this.queues.get(guildId);
-        if (!state) return null;
+        const player = this.manager?.players?.get(guildId);
+        if (!player) return null;
 
         return {
-            current: state.current,
-            queue: state.queue,
-            length: state.queue.length
+            current: player.queue.current ? {
+                title: player.queue.current.info.title,
+                author: player.queue.current.info.author,
+                duration: player.queue.current.info.length
+            } : null,
+            tracks: player.queue.tracks.map(t => ({
+                title: t.info.title,
+                author: t.info.author,
+                duration: t.info.length
+            })),
+            length: player.queue.tracks.length
         };
     }
 
     /**
-     * Cleanup player and queue
-     */
-    cleanup(guildId) {
-        const state = this.queues.get(guildId);
-        if (!state) return;
-
-        if (state.timeout) {
-            clearTimeout(state.timeout);
-        }
-
-        try {
-            this.shoukaku.leaveVoiceChannel(guildId);
-        } catch (e) {
-            // Ignore
-        }
-
-        this.queues.delete(guildId);
-    }
-
-    /**
-     * Format duration from ms to mm:ss
+     * Format duration
      */
     formatDuration(ms) {
         const seconds = Math.floor(ms / 1000);
@@ -342,7 +288,6 @@ class LavalinkManager {
     }
 }
 
-// Singleton instance
-const lavalinkManager = new LavalinkManager();
+const lavalinkManager = new LavalinkService();
 
 module.exports = { lavalinkManager };

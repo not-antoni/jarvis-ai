@@ -3382,9 +3382,16 @@ client.once(Events.ClientReady, async () => {
     dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
 
     // Initialize Lavalink for music (if configured)
+    console.log(`[Lavalink] LAVALINK_HOST=${process.env.LAVALINK_HOST || 'not set'}, LAVALINK_ENABLED=${process.env.LAVALINK_ENABLED || 'not set'}`);
     if (process.env.LAVALINK_HOST || process.env.LAVALINK_ENABLED) {
-        lavalinkManager.initialize(client);
-        dashboardRouter.addLog('info', 'Lavalink', 'Initializing Lavalink connection...');
+        const initialized = lavalinkManager.initialize(client);
+        if (initialized) {
+            dashboardRouter.addLog('info', 'Lavalink', 'Initializing Lavalink connection...');
+            // Init the manager (required for lavalink-client)
+            await lavalinkManager.init();
+        }
+    } else {
+        console.log('[Lavalink] Skipped - no LAVALINK_HOST in env');
     }
 
     let databaseConnected = database.isConnected;
