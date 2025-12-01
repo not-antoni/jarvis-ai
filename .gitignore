@@ -36,6 +36,7 @@ Thumbs.db
 lavalink/*.jar
 lavalink/plugins/
 lavalink/logs/
+external/
 
 # Test output (don't commit)
 test-output.txt
