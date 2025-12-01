@@ -58,8 +58,29 @@ Once running, use `/lavalink play <song>` in Discord.
 
 ## 3. Start the Bot
 
+**First time setup:**
 ```powershell
 npm install
+```
+
+**Start in selfhost mode:**
+```powershell
+$env:DEPLOY_TARGET="selfhost"; npm start
+```
+
+**Or with Lavalink (recommended):**
+```powershell
+$env:DEPLOY_TARGET="selfhost"; $env:LAVALINK_HOST="localhost:2333"; $env:LAVALINK_PASSWORD="youshallnotpass"; npm start
+```
+
+**Alternative:** Add to your `.env`:
+```env
+DEPLOY_TARGET=selfhost
+LAVALINK_HOST=localhost:2333
+LAVALINK_PASSWORD=youshallnotpass
+```
+Then just run:
+```powershell
 npm start
 ```
 
