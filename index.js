@@ -42,6 +42,7 @@ const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
+const { lavalinkManager } = require('./src/services/lavalink-manager');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -3379,6 +3380,12 @@ client.once(Events.ClientReady, async () => {
     dashboardRouter.initBotStartTime();
     dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
     dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
+
+    // Initialize Lavalink for selfhost music (if configured)
+    if (isSelfHost && (process.env.LAVALINK_HOST || process.env.LAVALINK_ENABLED)) {
+        lavalinkManager.initialize(client);
+        dashboardRouter.addLog('info', 'Lavalink', 'Initializing Lavalink connection...');
+    }
 
     let databaseConnected = database.isConnected;
 
