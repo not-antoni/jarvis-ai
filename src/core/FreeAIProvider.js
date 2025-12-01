@@ -214,6 +214,10 @@ class FreeAIProvider {
             );
         }
 
+        // Ensure prompts are strings (required by some providers like Groq)
+        systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
+        userPrompt = userPrompt != null ? String(userPrompt) : '';
+
         this.metrics.calls++;
         const startTime = Date.now();
 
