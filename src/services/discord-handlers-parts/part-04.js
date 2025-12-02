@@ -2498,6 +2498,181 @@
                     }
                     break;
                 }
+                // ============ STARK BUCKS ECONOMY ============
+                case 'balance': {
+                    telemetryMetadata.category = 'economy';
+                    const stats = await starkEconomy.getUserStats(interaction.user.id);
+                    const balanceEmbed = new EmbedBuilder()
+                        .setTitle('💰 Stark Bucks Balance')
+                        .setDescription(`You have **${stats.balance}** Stark Bucks, sir.`)
+                        .setColor(0xf1c40f)
+                        .addFields(
+                            { name: '📈 Total Earned', value: `${stats.totalEarned}`, inline: true },
+                            { name: '📉 Total Lost', value: `${stats.totalLost}`, inline: true },
+                            { name: '🎰 Win Rate', value: `${stats.winRate}%`, inline: true },
+                            { name: '🔥 Daily Streak', value: `${stats.dailyStreak} days`, inline: true },
+                            { name: '🎮 Games Played', value: `${stats.gamesPlayed}`, inline: true },
+                            { name: '🎁 Inventory', value: `${stats.inventoryCount} items`, inline: true }
+                        )
+                        .setFooter({ text: 'Stark Industries Financial Division' });
+                    response = { embeds: [balanceEmbed] };
+                    break;
+                }
+                case 'daily': {
+                    telemetryMetadata.category = 'economy';
+                    const result = await starkEconomy.claimDaily(interaction.user.id, interaction.user.username);
+                    if (!result.success) {
+                        const hours = Math.floor(result.cooldown / (60 * 60 * 1000));
+                        const minutes = Math.floor((result.cooldown % (60 * 60 * 1000)) / (60 * 1000));
+                        response = `⏰ You've already claimed today, sir. Come back in ${hours}h ${minutes}m.`;
+                        break;
+                    }
+                    const dailyEmbed = new EmbedBuilder()
+                        .setTitle('💰 Daily Reward Claimed!')
+                        .setDescription(`You received **${result.reward}** Stark Bucks!${result.doubled ? ' (DOUBLED!)' : ''}`)
+                        .setColor(0x2ecc71)
+                        .addFields(
+                            { name: '🔥 Streak', value: `${result.streak} days (+${result.streakBonus} bonus)`, inline: true },
+                            { name: '💰 Balance', value: `${result.newBalance}`, inline: true }
+                        )
+                        .setFooter({ text: 'Come back tomorrow to keep your streak!' });
+                    response = { embeds: [dailyEmbed] };
+                    break;
+                }
+                case 'work': {
+                    telemetryMetadata.category = 'economy';
+                    const result = await starkEconomy.work(interaction.user.id, interaction.user.username);
+                    if (!result.success) {
+                        const minutes = Math.floor(result.cooldown / (60 * 1000));
+                        response = `⏰ You're tired, sir. Rest for ${minutes} more minutes.`;
+                        break;
+                    }
+                    const workEmbed = new EmbedBuilder()
+                        .setTitle('💼 Work Complete!')
+                        .setDescription(`You ${result.job} and earned **${result.reward}** Stark Bucks!`)
+                        .setColor(0x3498db)
+                        .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                        .setFooter({ text: 'Stark Industries HR Department' });
+                    response = { embeds: [workEmbed] };
+                    break;
+                }
+                case 'gamble': {
+                    telemetryMetadata.category = 'economy';
+                    const amount = interaction.options.getInteger('amount');
+                    const result = await starkEconomy.gamble(interaction.user.id, amount);
+                    if (!result.success) {
+                        response = `❌ ${result.error}`;
+                        break;
+                    }
+                    const gambleEmbed = new EmbedBuilder()
+                        .setTitle(result.won ? '🎰 You Won!' : '🎰 You Lost!')
+                        .setDescription(result.won 
+                            ? `Congratulations! You won **${result.amount}** Stark Bucks!`
+                            : `Better luck next time. You lost **${result.amount}** Stark Bucks.`)
+                        .setColor(result.won ? 0x2ecc71 : 0xe74c3c)
+                        .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                        .setFooter({ text: `Win rate: ${result.winRate}%` });
+                    selfhostFeatures.jarvisSoul.evolve(result.won ? 'helpful' : 'chaos', 'neutral');
+                    response = { embeds: [gambleEmbed] };
+                    break;
+                }
+                case 'slots': {
+                    telemetryMetadata.category = 'economy';
+                    const bet = interaction.options.getInteger('bet');
+                    const result = await starkEconomy.playSlots(interaction.user.id, bet);
+                    if (!result.success) {
+                        response = `❌ ${result.error}`;
+                        break;
+                    }
+                    const slotDisplay = result.results.join(' | ');
+                    let resultText = '';
+                    if (result.resultType === 'jackpot') resultText = '💎 JACKPOT! 💎';
+                    else if (result.resultType === 'triple') resultText = '🎉 TRIPLE!';
+                    else if (result.resultType === 'double') resultText = '✨ Double!';
+                    else resultText = '😢 No match';
+                    const slotsEmbed = new EmbedBuilder()
+                        .setTitle('🎰 Slot Machine')
+                        .setDescription(`**[ ${slotDisplay} ]**\n\n${resultText}`)
+                        .setColor(result.change > 0 ? 0x2ecc71 : 0xe74c3c)
+                        .addFields(
+                            { name: '💵 Bet', value: `${result.bet}`, inline: true },
+                            { name: '💰 Won', value: `${result.winnings}`, inline: true },
+                            { name: '🏦 Balance', value: `${result.newBalance}`, inline: true }
+                        )
+                        .setFooter({ text: `Multiplier: x${result.multiplier}` });
+                    response = { embeds: [slotsEmbed] };
+                    break;
+                }
+                case 'coinflip': {
+                    telemetryMetadata.category = 'economy';
+                    const bet = interaction.options.getInteger('bet');
+                    const choice = interaction.options.getString('choice');
+                    const result = await starkEconomy.coinflip(interaction.user.id, bet, choice);
+                    if (!result.success) {
+                        response = `❌ ${result.error}`;
+                        break;
+                    }
+                    const coinEmoji = result.result === 'heads' ? '🪙' : '⭕';
+                    const cfEmbed = new EmbedBuilder()
+                        .setTitle(`${coinEmoji} Coinflip`)
+                        .setDescription(`The coin landed on **${result.result.toUpperCase()}**!\n\nYou chose **${result.choice}** - ${result.won ? '**YOU WIN!**' : 'You lose.'}`)
+                        .setColor(result.won ? 0x2ecc71 : 0xe74c3c)
+                        .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                        .setFooter({ text: '50/50 chance' });
+                    response = { embeds: [cfEmbed] };
+                    break;
+                }
+                case 'shop': {
+                    telemetryMetadata.category = 'economy';
+                    const items = starkEconomy.getShopItems();
+                    const itemList = items.map(item => 
+                        `**${item.name}** - ${item.price} 💵\n> ${item.description}`
+                    ).join('\n\n');
+                    const shopEmbed = new EmbedBuilder()
+                        .setTitle('🛒 Stark Industries Shop')
+                        .setDescription(itemList)
+                        .setColor(0x9b59b6)
+                        .setFooter({ text: 'Use /buy <item> to purchase' });
+                    response = { embeds: [shopEmbed] };
+                    break;
+                }
+                case 'buy': {
+                    telemetryMetadata.category = 'economy';
+                    const itemId = interaction.options.getString('item');
+                    const result = await starkEconomy.buyItem(interaction.user.id, itemId);
+                    if (!result.success) {
+                        response = `❌ ${result.error}`;
+                        break;
+                    }
+                    const buyEmbed = new EmbedBuilder()
+                        .setTitle('🛒 Purchase Successful!')
+                        .setDescription(`You bought **${result.item.name}**!`)
+                        .setColor(0x2ecc71)
+                        .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                        .setFooter({ text: 'Thank you for shopping at Stark Industries' });
+                    response = { embeds: [buyEmbed] };
+                    break;
+                }
+                case 'leaderboard': {
+                    telemetryMetadata.category = 'economy';
+                    const lb = await starkEconomy.getLeaderboard(10);
+                    if (!lb.length) {
+                        response = 'No data yet, sir.';
+                        break;
+                    }
+                    const lines = lb.map(u => {
+                        const badge = u.hasVipBadge ? '⭐ ' : '';
+                        const gold = u.hasGoldenName ? '✨' : '';
+                        return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${u.balance}** 💵`;
+                    }).join('\n');
+                    const lbEmbed = new EmbedBuilder()
+                        .setTitle('🏆 Stark Bucks Leaderboard')
+                        .setDescription(lines)
+                        .setColor(0xf1c40f)
+                        .setFooter({ text: 'Top 10 richest users' });
+                    response = { embeds: [lbEmbed] };
+                    break;
+                }
                 // ============ SELFHOST-ONLY COMMANDS (requires filesystem access) ============
                 case 'selfmod': {
                     telemetryMetadata.category = 'experimental';

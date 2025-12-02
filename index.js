@@ -42,7 +42,6 @@ const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
-const { lavalinkManager } = require('./src/services/lavalink-manager');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
@@ -2078,6 +2077,69 @@ const allCommands = [
                 )
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    // ============ STARK BUCKS ECONOMY ============
+    new SlashCommandBuilder()
+        .setName('balance')
+        .setDescription('Check your Stark Bucks balance and stats')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('daily')
+        .setDescription('Claim your daily Stark Bucks reward')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('work')
+        .setDescription('Work at Stark Industries for some Stark Bucks')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('gamble')
+        .setDescription('Gamble your Stark Bucks (double or nothing)')
+        .addIntegerOption((option) =>
+            option.setName('amount').setDescription('Amount to gamble').setRequired(true).setMinValue(1)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('slots')
+        .setDescription('Play the Stark Industries slot machine')
+        .addIntegerOption((option) =>
+            option.setName('bet').setDescription('Bet amount (min 10)').setRequired(true).setMinValue(10)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('coinflip')
+        .setDescription('Flip a coin and bet on the outcome')
+        .addIntegerOption((option) =>
+            option.setName('bet').setDescription('Bet amount').setRequired(true).setMinValue(1)
+        )
+        .addStringOption((option) =>
+            option.setName('choice').setDescription('Heads or tails?').setRequired(true)
+                .addChoices({ name: 'Heads', value: 'heads' }, { name: 'Tails', value: 'tails' })
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('shop')
+        .setDescription('Browse the Stark Industries shop')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('buy')
+        .setDescription('Buy an item from the shop')
+        .addStringOption((option) =>
+            option.setName('item').setDescription('Item ID to buy').setRequired(true)
+                .addChoices(
+                    { name: '⭐ VIP Badge (500)', value: 'vip_badge' },
+                    { name: '✨ Golden Name (1000)', value: 'golden_name' },
+                    { name: '🍀 Lucky Charm (200)', value: 'lucky_charm' },
+                    { name: '2️⃣ Double Daily (150)', value: 'double_daily' },
+                    { name: '🛡️ Shield (300)', value: 'shield' },
+                    { name: '☕ Stark Coffee (100)', value: 'stark_coffee' },
+                    { name: '💠 Arc Reactor (10000)', value: 'arc_reactor' }
+                )
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('leaderboard')
+        .setDescription('View the Stark Bucks leaderboard')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    // ============ SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
         .setName('selfmod')
         .setDescription('Jarvis self-modification analysis (read-only)')
@@ -3398,19 +3460,6 @@ client.once(Events.ClientReady, async () => {
     dashboardRouter.initBotStartTime();
     dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
     dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
-
-    // Initialize Lavalink for music (if configured)
-    console.log(`[Lavalink] LAVALINK_HOST=${process.env.LAVALINK_HOST || 'not set'}, LAVALINK_ENABLED=${process.env.LAVALINK_ENABLED || 'not set'}`);
-    if (process.env.LAVALINK_HOST || process.env.LAVALINK_ENABLED) {
-        const initialized = lavalinkManager.initialize(client);
-        if (initialized) {
-            dashboardRouter.addLog('info', 'Lavalink', 'Initializing Lavalink connection...');
-            // Init the manager (required for lavalink-client)
-            await lavalinkManager.init();
-        }
-    } else {
-        console.log('[Lavalink] Skipped - no LAVALINK_HOST in env');
-    }
 
     // Initialize yt-dlp for YouTube fallback (auto-updates from GitHub)
     try {
