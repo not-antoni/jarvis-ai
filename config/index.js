@@ -195,7 +195,9 @@ const rawConfig = {
         memeTools: true,
         funUtilities: true,
         crypto: true,
-        moderationFilters: true
+        moderationFilters: true,
+        // Selfhost-only experimental features
+        selfhostExperimental: selfhostMode || deploymentTarget === 'selfhost'
     }
 };
 

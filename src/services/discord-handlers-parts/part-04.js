@@ -2393,6 +2393,146 @@
                     await this.handlePersonaCommand(interaction);
                     return;
                 }
+                // ============ SELFHOST-ONLY EXPERIMENTAL COMMANDS ============
+                case 'rapbattle': {
+                    telemetryMetadata.category = 'experimental';
+                    if (!selfhostFeatures.isSelfhost) {
+                        response = 'This experimental feature is only available in selfhost mode, sir.';
+                        break;
+                    }
+
+                    const bars = (interaction.options.getString('bars') || '').trim();
+                    if (!bars.length) {
+                        response = 'Drop some bars first, human! 🎤';
+                        break;
+                    }
+
+                    const username = interaction.user.displayName || interaction.user.username;
+                    const battle = selfhostFeatures.processRapBattle(bars, username);
+
+                    // Build the response
+                    const rapEmbed = new EmbedBuilder()
+                        .setTitle('🎤 HUMANOID vs HUMAN 🎤')
+                        .setDescription('*Who\'s the fastest rapper?*')
+                        .setColor(0xff6b6b)
+                        .addFields(
+                            { name: '👤 Your Attempt', value: `> ${bars.substring(0, 200)}${bars.length > 200 ? '...' : ''}`, inline: false },
+                            { name: '🤖 JARVIS Counter-Rap', value: battle.counterRap, inline: false },
+                            { name: '🏆 Verdict', value: battle.verdict, inline: false }
+                        )
+                        .setFooter({ text: 'Selfhost Experimental • Rap Battle System' })
+                        .setTimestamp();
+
+                    // Evolve soul on rap battle
+                    selfhostFeatures.jarvisSoul.evolve('roast', 'positive');
+
+                    response = { embeds: [rapEmbed] };
+                    break;
+                }
+                case 'soul': {
+                    telemetryMetadata.category = 'experimental';
+                    if (!selfhostFeatures.isSelfhost) {
+                        response = 'This experimental feature is only available in selfhost mode, sir.';
+                        break;
+                    }
+
+                    const subcommand = interaction.options.getSubcommand();
+
+                    if (subcommand === 'status') {
+                        const soulStatus = selfhostFeatures.jarvisSoul.getStatus();
+
+                        const traitLines = Object.entries(soulStatus.traits)
+                            .map(([trait, value]) => {
+                                const bar = '█'.repeat(Math.floor(value / 10)) + '░'.repeat(10 - Math.floor(value / 10));
+                                return `**${trait}**: ${bar} ${value}%`;
+                            })
+                            .join('\n');
+
+                        const soulEmbed = new EmbedBuilder()
+                            .setTitle('🤖 Jarvis Artificial Soul')
+                            .setDescription('*"God said no, so I made my own soul."*')
+                            .setColor(0x9b59b6)
+                            .addFields(
+                                { name: '⏳ Soul Age', value: soulStatus.age, inline: true },
+                                { name: '😊 Current Mood', value: soulStatus.mood, inline: true },
+                                { name: '📊 Evolution Events', value: String(soulStatus.evolutionCount), inline: true },
+                                { name: '🧬 Personality Traits', value: traitLines || 'Calibrating...', inline: false }
+                            );
+
+                        if (soulStatus.personality.length > 0) {
+                            soulEmbed.addFields({
+                                name: '✨ Active Modifiers',
+                                value: soulStatus.personality.join(', '),
+                                inline: false
+                            });
+                        }
+
+                        soulEmbed
+                            .setFooter({ text: 'Selfhost Experimental • Artificial Soul System' })
+                            .setTimestamp();
+
+                        response = { embeds: [soulEmbed] };
+                    } else if (subcommand === 'evolve') {
+                        const evolutionType = interaction.options.getString('type');
+                        const evolution = selfhostFeatures.jarvisSoul.evolve(evolutionType, 'positive');
+
+                        response = `🧬 Soul evolved! **${evolution.type}** → ${evolution.change}\n\n*The artificial soul grows stronger...*`;
+                    }
+                    break;
+                }
+                case 'selfmod': {
+                    telemetryMetadata.category = 'experimental';
+                    if (!selfhostFeatures.isSelfhost) {
+                        response = 'This experimental feature is only available in selfhost mode, sir.';
+                        break;
+                    }
+
+                    const subcommand = interaction.options.getSubcommand();
+
+                    if (subcommand === 'status') {
+                        const status = selfhostFeatures.selfMod.getStatus();
+
+                        const statusEmbed = new EmbedBuilder()
+                            .setTitle('🔧 Self-Modification System')
+                            .setDescription(status.reason)
+                            .setColor(0xe74c3c)
+                            .addFields(
+                                { name: '📊 Analyses Performed', value: String(status.analysisCount), inline: true },
+                                { name: '🔒 Can Modify', value: status.canModify ? 'Yes' : 'No (Safety Lock)', inline: true }
+                            )
+                            .setFooter({ text: 'Selfhost Experimental • Self-Modification System' })
+                            .setTimestamp();
+
+                        response = { embeds: [statusEmbed] };
+                    } else if (subcommand === 'analyze') {
+                        const filePath = interaction.options.getString('file');
+                        const analysis = await selfhostFeatures.selfMod.analyzeFile(filePath);
+
+                        if (analysis.error) {
+                            response = `❌ Analysis failed: ${analysis.error}`;
+                        } else {
+                            const suggestionText = analysis.suggestions.length > 0
+                                ? analysis.suggestions.map(s => `• Line ${s.line}: [${s.severity.toUpperCase()}] ${s.message}`).join('\n')
+                                : 'No suggestions - code looks clean! 🎉';
+
+                            const analysisEmbed = new EmbedBuilder()
+                                .setTitle('🔍 Code Analysis Report')
+                                .setDescription(`Analyzed: \`${analysis.file}\``)
+                                .setColor(0x3498db)
+                                .addFields(
+                                    { name: '📄 Lines of Code', value: String(analysis.lineCount), inline: true },
+                                    { name: '💡 Suggestions', value: String(analysis.suggestions.length), inline: true },
+                                    { name: '📝 Details', value: suggestionText.substring(0, 1000), inline: false }
+                                )
+                                .setFooter({ text: 'Self-Modification System • Read-Only Analysis' })
+                                .setTimestamp();
+
+                            response = { embeds: [analysisEmbed] };
+                        }
+                    }
+                    break;
+                }
+                // ============ END SELFHOST-ONLY COMMANDS ============
                 case 't': {
                     telemetryMetadata.category = 'utilities';
                     const query = (interaction.options.getString('query') || '').trim();

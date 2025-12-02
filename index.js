@@ -2028,6 +2028,66 @@ const allCommands = [
         .setName('scramble')
         .setDescription('Unscramble a Stark Industries keyword')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    // ============ SELFHOST-ONLY EXPERIMENTAL COMMANDS ============
+    new SlashCommandBuilder()
+        .setName('rapbattle')
+        .setDescription('HUMANOID vs HUMAN - Challenge Jarvis to a rap battle!')
+        .addStringOption((option) =>
+            option
+                .setName('bars')
+                .setDescription('Drop your bars here, human')
+                .setRequired(true)
+                .setMaxLength(500)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('soul')
+        .setDescription('View Jarvis\'s artificial soul status and evolution')
+        .addSubcommand((sub) =>
+            sub
+                .setName('status')
+                .setDescription('Check current soul state and traits')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('evolve')
+                .setDescription('Trigger a soul evolution event')
+                .addStringOption((option) =>
+                    option
+                        .setName('type')
+                        .setDescription('Type of evolution')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'Joke interaction', value: 'joke' },
+                            { name: 'Deep conversation', value: 'deep_conversation' },
+                            { name: 'Roast session', value: 'roast' },
+                            { name: 'Chaos mode', value: 'chaos' },
+                            { name: 'Helpful moment', value: 'helpful' }
+                        )
+                )
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('selfmod')
+        .setDescription('Jarvis self-modification analysis (read-only)')
+        .addSubcommand((sub) =>
+            sub
+                .setName('status')
+                .setDescription('Check self-modification system status')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('analyze')
+                .setDescription('Analyze a source file for improvements')
+                .addStringOption((option) =>
+                    option
+                        .setName('file')
+                        .setDescription('Relative file path to analyze (e.g., src/services/jarvis-core.js)')
+                        .setRequired(true)
+                )
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    // ============ END SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
         .setName("news")
         .setDescription("Fetch curated headlines for a topic")
