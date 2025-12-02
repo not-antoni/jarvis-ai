@@ -2673,6 +2673,117 @@
                     response = { embeds: [lbEmbed] };
                     break;
                 }
+                case 'hunt': {
+                    telemetryMetadata.category = 'economy';
+                    const huntResult = await starkEconomy.hunt(interaction.user.id);
+                    if (!huntResult.success) {
+                        const mins = Math.floor(huntResult.cooldown / (60 * 1000));
+                        response = `🏹 You're tired from hunting. Rest for ${mins} more minutes.`;
+                        break;
+                    }
+                    const huntEmbed = new EmbedBuilder()
+                        .setTitle('🏹 Hunt Results')
+                        .setDescription(huntResult.reward > 0 
+                            ? `You caught a **${huntResult.outcome}**!\n+**${huntResult.reward}** Stark Bucks`
+                            : `${huntResult.outcome}... The animals got away!`)
+                        .setColor(huntResult.reward > 0 ? 0x2ecc71 : 0x95a5a6)
+                        .addFields({ name: '💰 Balance', value: `${huntResult.newBalance}`, inline: true })
+                        .setFooter({ text: 'Hunt again in 45 minutes' });
+                    response = { embeds: [huntEmbed] };
+                    break;
+                }
+                case 'fish': {
+                    telemetryMetadata.category = 'economy';
+                    const fishResult = await starkEconomy.fish(interaction.user.id);
+                    if (!fishResult.success) {
+                        const mins = Math.floor(fishResult.cooldown / (60 * 1000));
+                        response = `🎣 Your fishing rod needs to dry. Wait ${mins} more minutes.`;
+                        break;
+                    }
+                    const fishEmbed = new EmbedBuilder()
+                        .setTitle('🎣 Fishing Results')
+                        .setDescription(fishResult.reward > 0 
+                            ? `You caught a **${fishResult.outcome}**!\n+**${fishResult.reward}** Stark Bucks`
+                            : `${fishResult.outcome}... Nothing bit today!`)
+                        .setColor(fishResult.reward > 0 ? 0x3498db : 0x95a5a6)
+                        .addFields({ name: '💰 Balance', value: `${fishResult.newBalance}`, inline: true })
+                        .setFooter({ text: 'Fish again in 30 minutes' });
+                    response = { embeds: [fishEmbed] };
+                    break;
+                }
+                case 'dig': {
+                    telemetryMetadata.category = 'economy';
+                    const digResult = await starkEconomy.dig(interaction.user.id);
+                    if (!digResult.success) {
+                        const mins = Math.floor(digResult.cooldown / (60 * 1000));
+                        response = `⛏️ Your shovel is broken. Wait ${mins} more minutes.`;
+                        break;
+                    }
+                    const digEmbed = new EmbedBuilder()
+                        .setTitle('⛏️ Dig Results')
+                        .setDescription(digResult.reward > 0 
+                            ? `You found **${digResult.outcome}**!\n+**${digResult.reward}** Stark Bucks`
+                            : `${digResult.outcome}... Nothing but dirt!`)
+                        .setColor(digResult.reward > 0 ? 0xf1c40f : 0x95a5a6)
+                        .addFields({ name: '💰 Balance', value: `${digResult.newBalance}`, inline: true })
+                        .setFooter({ text: 'Dig again in 20 minutes' });
+                    response = { embeds: [digEmbed] };
+                    break;
+                }
+                case 'beg': {
+                    telemetryMetadata.category = 'economy';
+                    const begResult = await starkEconomy.beg(interaction.user.id);
+                    if (!begResult.success) {
+                        const mins = Math.floor(begResult.cooldown / (60 * 1000));
+                        response = `🙏 People are avoiding you. Try again in ${mins} minutes.`;
+                        break;
+                    }
+                    const begEmbed = new EmbedBuilder()
+                        .setTitle('🙏 Begging Results')
+                        .setDescription(begResult.reward > 0 
+                            ? `**${begResult.outcome}** **${begResult.reward}** Stark Bucks!`
+                            : `${begResult.outcome}... Better luck next time!`)
+                        .setColor(begResult.reward > 0 ? 0x9b59b6 : 0x95a5a6)
+                        .addFields({ name: '💰 Balance', value: `${begResult.newBalance}`, inline: true })
+                        .setFooter({ text: 'Beg again in 5 minutes' });
+                    response = { embeds: [begEmbed] };
+                    break;
+                }
+                case 'give': {
+                    telemetryMetadata.category = 'economy';
+                    const targetUser = interaction.options.getUser('user');
+                    const giveAmount = interaction.options.getInteger('amount');
+                    
+                    if (targetUser.bot) {
+                        response = '❌ Cannot give money to bots, sir.';
+                        break;
+                    }
+                    
+                    const giveResult = await starkEconomy.give(
+                        interaction.user.id, 
+                        targetUser.id, 
+                        giveAmount,
+                        interaction.user.username,
+                        targetUser.username
+                    );
+                    
+                    if (!giveResult.success) {
+                        response = `❌ ${giveResult.error}`;
+                        break;
+                    }
+                    
+                    const giveEmbed = new EmbedBuilder()
+                        .setTitle('💸 Transfer Complete!')
+                        .setDescription(`You gave **${giveResult.amount}** Stark Bucks to **${targetUser.username}**!`)
+                        .setColor(0x2ecc71)
+                        .addFields(
+                            { name: 'Your Balance', value: `${giveResult.fromBalance}`, inline: true },
+                            { name: `${targetUser.username}'s Balance`, value: `${giveResult.toBalance}`, inline: true }
+                        )
+                        .setFooter({ text: 'Generosity is a virtue!' });
+                    response = { embeds: [giveEmbed] };
+                    break;
+                }
                 case 'vote': {
                     telemetryMetadata.category = 'economy';
                     const voteStatus = await topggVoting.getVoteStatus(interaction.user.id);
