@@ -90,6 +90,37 @@ class LavalinkService {
 
         this.manager.on('trackStart', (player, track) => {
             console.log(`Lavalink: Playing "${track.info.title}" in ${player.guildId}`);
+            console.log(`Lavalink: Track info - duration: ${track.info.length}ms, identifier: ${track.info.identifier}`);
+        });
+
+        this.manager.on('trackEnd', (player, track, reason) => {
+            console.log(`Lavalink: Track ended "${track.info.title}" in ${player.guildId}, reason: ${reason}`);
+        });
+
+        this.manager.on('playerUpdate', (player, state) => {
+            if (state) {
+                console.log(`Lavalink: Player update in ${player.guildId}, playing: ${state.playing}, paused: ${state.paused}, position: ${state.position}ms, connected: ${player.connected}`);
+            }
+        });
+
+        this.manager.on('playerException', (player, error) => {
+            console.error(`Lavalink: Player exception in ${player.guildId}:`, error);
+        });
+
+        this.manager.on('playerDestroy', (player) => {
+            console.log(`Lavalink: Player destroyed in ${player.guildId}`);
+        });
+
+        this.manager.on('playerCreate', (player) => {
+            console.log(`Lavalink: Player created in ${player.guildId}, connected: ${player.connected}`);
+        });
+
+        this.manager.on('playerDestroy', (player) => {
+            console.log(`Lavalink: Player destroyed in ${player.guildId}`);
+        });
+
+        this.manager.on('playerCreate', (player) => {
+            console.log(`Lavalink: Player created in ${player.guildId}`);
         });
 
         console.log(`Lavalink: Connecting to ${host}:${port}...`);
@@ -168,15 +199,68 @@ class LavalinkService {
                 return [];
             }
             const result = await response.json();
-            console.log('[Lavalink][search]', { query: searchQuery, loadType: result?.loadType, trackCount: result?.tracks?.length });
+            
+            // Log full response for debugging
+            console.log('[Lavalink][search] Full response:', JSON.stringify({
+                loadType: result?.loadType,
+                trackCount: result?.tracks?.length,
+                dataCount: result?.data?.length,
+                playlistInfo: result?.playlistInfo,
+                hasTracks: !!result?.tracks,
+                hasData: !!result?.data,
+                tracksIsArray: Array.isArray(result?.tracks),
+                dataIsArray: Array.isArray(result?.data),
+                firstTrackSample: (result?.data?.[0] || result?.tracks?.[0]) ? {
+                    hasInfo: !!(result.data?.[0] || result.tracks?.[0])?.info,
+                    title: (result.data?.[0] || result.tracks?.[0])?.info?.title,
+                    identifier: (result.data?.[0] || result.tracks?.[0])?.info?.identifier
+                } : null
+            }, null, 2));
 
-            if (result.loadType === 'empty' || result.loadType === 'error' || !result.tracks?.length) {
+            if (result.loadType === 'empty' || result.loadType === 'error') {
+                console.warn('[Lavalink][search] Empty or error response:', result.loadType);
                 return [];
             }
 
-            const tracks = result.loadType === 'playlist'
-                ? result.tracks || []
-                : result.tracks;
+            // Handle different response types
+            let tracks = [];
+            if (result.loadType === 'search') {
+                // Search response - tracks are in result.data (Lavalink v4)
+                tracks = Array.isArray(result.data) ? result.data : [];
+                console.log('[Lavalink][search] Search response, tracks count:', tracks.length);
+            } else if (result.loadType === 'playlist') {
+                // Playlist response - tracks are in result.tracks
+                tracks = Array.isArray(result.tracks) ? result.tracks : [];
+                console.log('[Lavalink][search] Playlist response, tracks count:', tracks.length);
+            } else if (result.loadType === 'searchResult') {
+                // Search result (older format)
+                tracks = Array.isArray(result.tracks) ? result.tracks : [];
+                console.log('[Lavalink][search] SearchResult response, tracks count:', tracks.length);
+            } else if (result.loadType === 'track') {
+                // Single track
+                tracks = result.tracks ? [result.tracks] : [];
+                console.log('[Lavalink][search] Track response, tracks count:', tracks.length);
+            } else if (result.data && Array.isArray(result.data)) {
+                // Fallback: check result.data
+                tracks = result.data;
+                console.log('[Lavalink][search] Fallback (data), tracks count:', tracks.length);
+            } else if (result.tracks) {
+                // Fallback: any response with tracks
+                tracks = Array.isArray(result.tracks) ? result.tracks : (result.tracks ? [result.tracks] : []);
+                console.log('[Lavalink][search] Fallback (tracks), tracks count:', tracks.length);
+            } else {
+                console.warn('[Lavalink][search] Unknown response type or no tracks:', result.loadType);
+            }
+
+            if (!tracks || tracks.length === 0) {
+                console.warn('[Lavalink][search] No tracks found. Full response:', JSON.stringify(result, null, 2));
+                return [];
+            }
+
+            console.log('[Lavalink][search] Successfully parsed', tracks.length, 'tracks');
+            if (tracks[0]?.info) {
+                console.log('[Lavalink][search] First track:', tracks[0].info.title);
+            }
 
             return tracks.slice(0, limit).map(track => ({
                 title: track.info.title,
@@ -201,6 +285,12 @@ class LavalinkService {
             throw new Error('Lavalink not available');
         }
 
+        // Get guild for REST API access
+        const guild = this.client.guilds.cache.get(guildId);
+        if (!guild) {
+            throw new Error('Guild not found');
+        }
+
         let player = this.manager.players.get(guildId);
 
         if (!player) {
@@ -213,19 +303,37 @@ class LavalinkService {
             });
         }
 
+        // Connect to voice channel - lavalink-client handles this via gateway events
         if (!player.connected) {
+            console.log('[Lavalink][play] Connecting to voice channel...');
             await player.connect();
+            
+            // Wait for connection with retries
+            let connected = player.connected;
+            for (let i = 0; i < 10 && !connected; i++) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+                connected = player.connected;
+            }
+            console.log('[Lavalink][play] Connection status:', connected);
+        } else {
+            console.log('[Lavalink][play] Already connected');
         }
 
-        // Add to queue
-        await player.queue.add(trackData.track);
+        // Add to queue - use the full track object
+        const trackToAdd = trackData.track || trackData;
+        console.log('[Lavalink][play] Adding track:', trackData.title, 'encoded:', !!trackToAdd.encoded);
+        
+        await player.queue.add(trackToAdd);
 
         // Play if not playing
         if (!player.playing && !player.paused) {
+            console.log('[Lavalink][play] Starting playback, connected:', player.connected, 'queue length:', player.queue.tracks.length);
             await player.play();
+            console.log('[Lavalink][play] Play called, player state - playing:', player.playing, 'paused:', player.paused);
             return `🎶 Now playing: **${trackData.title}**`;
         }
 
+        console.log('[Lavalink][play] Already playing, queueing track. Queue position:', player.queue.tracks.length);
         return `🧃 Queued: **${trackData.title}** (position ${player.queue.tracks.length})`;
     }
 

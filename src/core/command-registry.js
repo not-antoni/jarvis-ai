@@ -149,14 +149,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 't',
-        description: 'Search the server knowledge base for stored context.',
-        category: 'Utilities',
-        usage: '/t <query>',
-        feature: 'utilities',
-        ephemeral: false
-    },
-    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',
@@ -341,14 +333,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'ticket',
-        description: 'Open, close, or export support tickets.',
-        category: 'Operations',
-        usage: '/ticket open',
-        feature: 'tickets',
-        ephemeral: true
-    },
-    {
         name: 'reactionrole',
         description: 'Configure reaction role menus.',
         category: 'Operations',
@@ -378,14 +362,6 @@ const commandDefinitions = [
         category: 'Operations',
         usage: '/memberlog enable',
         feature: 'memberLog',
-        ephemeral: true
-    },
-    {
-        name: 'kb',
-        description: 'Manage the knowledge base.',
-        category: 'Operations',
-        usage: '/kb add|search|list',
-        feature: 'knowledgeBase',
         ephemeral: true
     },
     {

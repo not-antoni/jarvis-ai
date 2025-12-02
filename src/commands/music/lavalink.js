@@ -47,12 +47,27 @@ module.exports = {
         }
 
         try {
-            const results = await lavalinkManager.search(query, 10);
+            console.log('[Lavalink][autocomplete] Searching for:', query);
+            // Use Promise.race to timeout after 2.5 seconds (Discord has 3s limit)
+            const searchPromise = lavalinkManager.search(query, 10);
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Autocomplete timeout')), 2500)
+            );
+            
+            const results = await Promise.race([searchPromise, timeoutPromise]);
+            console.log('[Lavalink][autocomplete] Got', results?.length || 0, 'results');
+            
+            if (!results || results.length === 0) {
+                console.log('[Lavalink][autocomplete] No results, returning fallback');
+                return interaction.respond([{ name: `🔍 "${query}"`, value: query }]);
+            }
+            
             const choices = results.map(t => ({
                 name: `${t.title.slice(0, 70)} [${lavalinkManager.formatDuration(t.duration)}]`.slice(0, 100),
                 value: t.url || t.identifier
             }));
 
+            console.log('[Lavalink][autocomplete] Returning', choices.length, 'choices');
             searchCache.set(query.toLowerCase(), { results: choices, time: Date.now() });
             
             // Cleanup old cache
@@ -64,7 +79,8 @@ module.exports = {
 
             return interaction.respond(choices);
         } catch (error) {
-            console.error('Lavalink autocomplete error:', error);
+            console.error('[Lavalink][autocomplete] Error:', error.message, error.stack);
+            // Return the query as fallback so user can still submit
             return interaction.respond([{ name: `🔍 "${query}"`, value: query }]);
         }
     },
