@@ -31,39 +31,39 @@ const BASELINE_WORDS = [
     'motherfucker', 'nazi', 'nigga', 'nigger', 'prick', 'slut', 'whore'
 ];
 
-// Comprehensive confusables map: ASCII + FULL Cyrillic + Greek + Leet + Unicode lookalikes
-// This catches ALL bypass attempts including Russian/Ukrainian letter substitution
+// Comprehensive confusables map: ASCII + FULL Cyrillic + Greek + Armenian + Leet + Unicode
+// Sources: Unicode confusables list, StevenACoffman's homoglyphs gist
+// Note: We keep this targeted to REAL bypass characters, not every possible lookalike
+// (Too many confusables = false positives, and extreme bypasses become unreadable anyway)
 const CONFUSABLE_MAP = {
-    // FULL Cyrillic alphabet mapping (Russian, Ukrainian, Serbian, etc.)
-    // а=a, в=v/b, с=c/s, е=e, і=i, к=k, м=m, н=h/n, о=o, р=p, т=t, х=x, у=y, ѕ=s, ј=j
-    // Ukrainian: і, ї, є, ґ
-    // Serbian: ј, ђ, љ, њ, ћ, џ
-    a: 'aаАăąǎǻàáâãäåāα@4ΑДд',
+    // Cyrillic + Greek + Armenian + Common substitutions
+    // Armenian: ա=a, ո=n, օ=o, ս=u, զ=q (commonly used for bypasses)
+    a: 'aаАạąǎǻàáâãäåāαά@4ΑДд',
     b: 'bвВЬьъЪβ8ḃḅḇƀɓБб',
-    c: 'cсСςϲ¢çćĉċčƈ',
+    c: 'cсСςϲ¢çćĉċčƈᴄ',
     d: 'dԁԀďđɖɗḋḍḏḑ',
-    e: 'eеЕёЁєЄεέ3èéêëēĕėęěɛ€ЭэЗз',
+    e: 'eеЕёЁєЄεέẹė3èéêëēĕęěɛ€ЭэЗз',
     f: 'fғҒƒḟ',
     g: 'gɡǵğĝġģɠ96ԍԌ',
     h: 'hнНһҺհḣḥḧḩḫĥħΗ',
-    i: 'iіІїЇιί1!|ìíîïĩīĭįıǐ',
+    i: 'iіІїЇιίɪ1!|ìíîïĩīĭįıǐ',
     j: 'jјЈʝɉĵ',
     k: 'kкКκḱḳḵķĸ',
-    l: 'lӏӀĺļľŀłƚ1|!ІіӏԀ',
+    l: 'lӏӀḷĺļľŀłƚ1|!ІіԀ',
     m: 'mмМṁṃḿɱΜ',
-    n: 'nпПηñńņňŉŋɲṅṇṉṋИиЙй',
-    o: 'oоОοόσ0òóôõöøōŏőǒǫǭΟФф',
+    n: 'nпПոηñńņňŉŋɲṅṇṉṋИиЙй',
+    o: 'oоОօοόσọỏơ0òóôõöøōŏőǒǫǭΟФф',
     p: 'pрРρṕṗƥΡ',
-    q: 'qԛԚɋ',
+    q: 'qԛԚզɋ',
     r: 'rгГṙṛṝṟŕŗřɍɽЯя',
-    s: 'sѕЅ$5śŝşšṡṣṥṧṩ§',
+    s: 'sѕЅʂ$5śŝşšṡṣṥṧṩ§',
     t: 'tтТτ7ţťŧṫṭṯṱẗ+Γг',
-    u: 'uυùúûüũūŭůűųǔǖǘǚǜЦцμ',
-    v: 'vνṽṿѴѵ',
+    u: 'uυսùúûüũūŭůűųǔǖǘǚǜЦцμ',
+    v: 'vνṽṿѴѵᴠ',
     w: 'wωẁẃẅẇẉŵШшЩщ',
-    x: 'xхХχ×ẋẍΧ',
+    x: 'xхХҳχ×ẋẍΧ',
     y: 'yуУγýÿŷẏỳỵỷỹΥ',
-    z: 'z2źżžẑẓẕЗз'
+    z: 'z2ʐźżžẑẓẕЗз'
 };
 
 // Additional full Cyrillic to Latin reverse mapping for edge cases
@@ -85,7 +85,14 @@ const CYRILLIC_TO_LATIN = {
     'ј': 'j', 'Ј': 'J', 'ђ': 'dj', 'Ђ': 'DJ', 'љ': 'lj', 'Љ': 'LJ',
     'њ': 'nj', 'Њ': 'NJ', 'ћ': 'c', 'Ћ': 'C', 'џ': 'dz', 'Џ': 'DZ',
     // Other Cyrillic lookalikes
-    'ѕ': 's', 'Ѕ': 'S', 'ӏ': 'l', 'Ӏ': 'I'
+    'ѕ': 's', 'Ѕ': 'S', 'ӏ': 'l', 'Ӏ': 'I',
+    // Armenian lookalikes (commonly used for bypasses)
+    'ա': 'a', 'Ա': 'A', 'ո': 'n', 'Ո': 'N', 'օ': 'o', 'Օ': 'O',
+    'ս': 'u', 'Ս': 'U', 'զ': 'q', 'Զ': 'Q', 'հ': 'h', 'Հ': 'H',
+    // Small caps and special letters
+    'ᴄ': 'c', 'ɪ': 'i', 'ᴠ': 'v', 'ʂ': 's', 'ʐ': 'z',
+    // Letters with dots/marks below (bypasses)
+    'ạ': 'a', 'ẹ': 'e', 'ọ': 'o', 'ḷ': 'l'
 };
 
 /**
