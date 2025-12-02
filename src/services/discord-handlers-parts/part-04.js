@@ -2393,14 +2393,37 @@
                     await this.handlePersonaCommand(interaction);
                     return;
                 }
-                // ============ SELFHOST-ONLY EXPERIMENTAL COMMANDS ============
-                case 'rapbattle': {
-                    telemetryMetadata.category = 'experimental';
-                    if (!selfhostFeatures.isSelfhost) {
-                        response = 'This experimental feature is only available in selfhost mode, sir.';
+                // ============ FUN COMMANDS (Available Everywhere) ============
+                case 'roast': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('target');
+                    
+                    if (!target) {
+                        response = 'Please specify a target for the roast, sir.';
                         break;
                     }
-
+                    
+                    if (target.id === interaction.client.user.id) {
+                        response = 'I appreciate the ambition, sir, but self-deprecation is beneath my programming.';
+                        break;
+                    }
+                    
+                    const roast = legacyCommands.generateRoast(target.displayName || target.username, interaction.user.username);
+                    
+                    const roastEmbed = new EmbedBuilder()
+                        .setTitle('🔥 Roast Protocol Engaged')
+                        .setDescription(roast)
+                        .setColor(0xe74c3c)
+                        .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 128 }))
+                        .setFooter({ text: `Requested by ${interaction.user.username}` })
+                        .setTimestamp();
+                    
+                    selfhostFeatures.jarvisSoul.evolve('roast', 'positive');
+                    response = { embeds: [roastEmbed] };
+                    break;
+                }
+                case 'rapbattle': {
+                    telemetryMetadata.category = 'fun';
                     const bars = (interaction.options.getString('bars') || '').trim();
                     if (!bars.length) {
                         response = 'Drop some bars first, human! 🎤';
@@ -2420,7 +2443,7 @@
                             { name: '🤖 JARVIS Counter-Rap', value: battle.counterRap, inline: false },
                             { name: '🏆 Verdict', value: battle.verdict, inline: false }
                         )
-                        .setFooter({ text: 'Selfhost Experimental • Rap Battle System' })
+                        .setFooter({ text: '🎤 HUMANOID vs HUMAN • Rap Battle System' })
                         .setTimestamp();
 
                     // Evolve soul on rap battle
@@ -2430,12 +2453,7 @@
                     break;
                 }
                 case 'soul': {
-                    telemetryMetadata.category = 'experimental';
-                    if (!selfhostFeatures.isSelfhost) {
-                        response = 'This experimental feature is only available in selfhost mode, sir.';
-                        break;
-                    }
-
+                    telemetryMetadata.category = 'fun';
                     const subcommand = interaction.options.getSubcommand();
 
                     if (subcommand === 'status') {
@@ -2468,7 +2486,7 @@
                         }
 
                         soulEmbed
-                            .setFooter({ text: 'Selfhost Experimental • Artificial Soul System' })
+                            .setFooter({ text: '🤖 Artificial Soul System • "God said no, so I made my own."' })
                             .setTimestamp();
 
                         response = { embeds: [soulEmbed] };
@@ -2480,10 +2498,11 @@
                     }
                     break;
                 }
+                // ============ SELFHOST-ONLY COMMANDS (requires filesystem access) ============
                 case 'selfmod': {
                     telemetryMetadata.category = 'experimental';
                     if (!selfhostFeatures.isSelfhost) {
-                        response = 'This experimental feature is only available in selfhost mode, sir.';
+                        response = 'This feature requires selfhost mode (filesystem access), sir.';
                         break;
                     }
 
