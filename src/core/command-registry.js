@@ -405,6 +405,14 @@ const commandDefinitions = [
         feature: 'funUtilities',
         ephemeral: false
     },
+    {
+        name: 'vote',
+        description: 'Vote for Jarvis on top.gg and get rewards!',
+        category: 'Economy',
+        usage: '/vote',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
     // ============ FUN COMMANDS (Available Everywhere) ============
     {
         name: 'rapbattle',

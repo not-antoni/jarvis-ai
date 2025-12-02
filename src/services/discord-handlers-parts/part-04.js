@@ -2673,6 +2673,59 @@
                     response = { embeds: [lbEmbed] };
                     break;
                 }
+                case 'vote': {
+                    telemetryMetadata.category = 'economy';
+                    const voteStatus = await topggVoting.getVoteStatus(interaction.user.id);
+                    
+                    const voteEmbed = new EmbedBuilder()
+                        .setTitle('🗳️ Vote for Jarvis!')
+                        .setColor(voteStatus.canVote ? 0x2ecc71 : 0xf39c12)
+                        .setDescription(voteStatus.canVote 
+                            ? `**[Click here to vote!](${voteStatus.voteUrl})**\n\nVote now to earn Stark Bucks!`
+                            : `You've already voted! Come back later.`)
+                        .addFields(
+                            { name: '🎁 Next Reward', value: `~${voteStatus.rewards.estimated} Stark Bucks`, inline: true },
+                            { name: '🔥 Vote Streak', value: `${voteStatus.streak} votes`, inline: true },
+                            { name: '📊 Total Votes', value: `${voteStatus.totalVotes}`, inline: true }
+                        );
+                    
+                    if (voteStatus.hasBoost) {
+                        voteEmbed.addFields({ 
+                            name: '⚡ Voting Boost Active!', 
+                            value: `+${Math.round((voteStatus.boostMultiplier - 1) * 100)}% bonus on all earnings`, 
+                            inline: false 
+                        });
+                    }
+                    
+                    if (!voteStatus.canVote) {
+                        const hours = Math.floor(voteStatus.timeRemaining / (60 * 60 * 1000));
+                        const minutes = Math.floor((voteStatus.timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+                        voteEmbed.addFields({ 
+                            name: '⏰ Vote Again In', 
+                            value: `${hours}h ${minutes}m`, 
+                            inline: false 
+                        });
+                    }
+                    
+                    if (topggVoting.isWeekend()) {
+                        voteEmbed.addFields({ name: '🎊 Weekend Bonus!', value: '2x rewards active!', inline: false });
+                    }
+                    
+                    voteEmbed.setFooter({ text: 'Vote every 12 hours for maximum rewards!' });
+                    
+                    // Add vote button
+                    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setLabel('Vote on top.gg')
+                            .setStyle(ButtonStyle.Link)
+                            .setURL(voteStatus.voteUrl)
+                            .setEmoji('🗳️')
+                    );
+                    
+                    response = { embeds: [voteEmbed], components: [row] };
+                    break;
+                }
                 // ============ SELFHOST-ONLY COMMANDS (requires filesystem access) ============
                 case 'selfmod': {
                     telemetryMetadata.category = 'experimental';
