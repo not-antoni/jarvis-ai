@@ -112,6 +112,49 @@ const SHOP_ITEMS = {
 // Slot machine symbols
 const SLOT_SYMBOLS = ['💎', '7️⃣', '🍒', '🍋', '⭐', '🔔'];
 
+// Hunt/Fish/Dig rewards
+const MINIGAME_REWARDS = {
+    hunt: {
+        cooldown: 45 * 60 * 1000, // 45 minutes
+        outcomes: [
+            { name: '🦌 Deer', reward: 80, chance: 0.3 },
+            { name: '🐗 Boar', reward: 60, chance: 0.35 },
+            { name: '🐰 Rabbit', reward: 30, chance: 0.25 },
+            { name: '💨 Nothing', reward: 0, chance: 0.1 }
+        ]
+    },
+    fish: {
+        cooldown: 30 * 60 * 1000, // 30 minutes
+        outcomes: [
+            { name: '🦈 Shark', reward: 100, chance: 0.1 },
+            { name: '🐟 Fish', reward: 40, chance: 0.4 },
+            { name: '🐠 Tropical Fish', reward: 60, chance: 0.2 },
+            { name: '👢 Old Boot', reward: 5, chance: 0.2 },
+            { name: '🌊 Nothing', reward: 0, chance: 0.1 }
+        ]
+    },
+    dig: {
+        cooldown: 20 * 60 * 1000, // 20 minutes
+        outcomes: [
+            { name: '💎 Diamond', reward: 150, chance: 0.05 },
+            { name: '🪙 Gold Coins', reward: 70, chance: 0.15 },
+            { name: '⚙️ Scrap Metal', reward: 25, chance: 0.35 },
+            { name: '🪨 Rocks', reward: 10, chance: 0.3 },
+            { name: '🕳️ Empty Hole', reward: 0, chance: 0.15 }
+        ]
+    },
+    beg: {
+        cooldown: 5 * 60 * 1000, // 5 minutes
+        outcomes: [
+            { name: 'Tony Stark gave you', reward: 100, chance: 0.05 },
+            { name: 'Pepper Potts donated', reward: 50, chance: 0.15 },
+            { name: 'Happy Hogan tipped you', reward: 30, chance: 0.25 },
+            { name: 'A stranger gave you', reward: 15, chance: 0.35 },
+            { name: 'Everyone ignored you', reward: 0, chance: 0.2 }
+        ]
+    }
+};
+
 // ============================================================================
 // IN-MEMORY CACHE (syncs with MongoDB)
 // ============================================================================
@@ -745,6 +788,112 @@ async function cleanup() {
     console.log('[StarkEconomy] Cleanup completed');
 }
 
+// ============================================================================
+// MINIGAMES (Hunt, Fish, Dig, Beg)
+// ============================================================================
+
+/**
+ * Generic minigame handler
+ */
+async function playMinigame(userId, gameType) {
+    const game = MINIGAME_REWARDS[gameType];
+    if (!game) return { success: false, error: 'Unknown game type' };
+
+    const cooldown = checkCooldown(userId, gameType, game.cooldown);
+    if (cooldown.onCooldown) {
+        return { success: false, cooldown: cooldown.remaining };
+    }
+
+    // Pick random outcome based on chances
+    const roll = Math.random();
+    let cumulative = 0;
+    let outcome = game.outcomes[game.outcomes.length - 1]; // Default to last
+
+    for (const o of game.outcomes) {
+        cumulative += o.chance;
+        if (roll < cumulative) {
+            outcome = o;
+            break;
+        }
+    }
+
+    const user = await loadUser(userId);
+    user.balance += outcome.reward;
+    if (outcome.reward > 0) {
+        user.totalEarned = (user.totalEarned || 0) + outcome.reward;
+    }
+    await saveUser(userId, user);
+
+    return {
+        success: true,
+        outcome: outcome.name,
+        reward: outcome.reward,
+        newBalance: user.balance
+    };
+}
+
+/**
+ * Hunt for animals
+ */
+async function hunt(userId) {
+    return playMinigame(userId, 'hunt');
+}
+
+/**
+ * Fish in the ocean
+ */
+async function fish(userId) {
+    return playMinigame(userId, 'fish');
+}
+
+/**
+ * Dig for treasure
+ */
+async function dig(userId) {
+    return playMinigame(userId, 'dig');
+}
+
+/**
+ * Beg for money
+ */
+async function beg(userId) {
+    return playMinigame(userId, 'beg');
+}
+
+/**
+ * Give money to another user
+ */
+async function give(fromUserId, toUserId, amount, fromUsername, toUsername) {
+    if (fromUserId === toUserId) {
+        return { success: false, error: 'Cannot give money to yourself' };
+    }
+    if (amount < 1) {
+        return { success: false, error: 'Amount must be at least 1' };
+    }
+
+    const fromUser = await loadUser(fromUserId, fromUsername);
+    if (fromUser.balance < amount) {
+        return { success: false, error: 'Insufficient funds' };
+    }
+
+    const toUser = await loadUser(toUserId, toUsername);
+
+    // Transfer
+    fromUser.balance -= amount;
+    toUser.balance += amount;
+    toUser.totalEarned = (toUser.totalEarned || 0) + amount;
+
+    await saveUser(fromUserId, fromUser);
+    await saveUser(toUserId, toUser);
+
+    return {
+        success: true,
+        amount,
+        fromBalance: fromUser.balance,
+        toBalance: toUser.balance
+    };
+}
+
 // Auto-cleanup interval
 setInterval(() => {
     cleanup().catch(console.error);
@@ -781,6 +930,13 @@ module.exports = {
     // Stats
     getLeaderboard,
     getUserStats,
+    
+    // Minigames
+    hunt,
+    fish,
+    dig,
+    beg,
+    give,
     
     // Maintenance
     cleanup

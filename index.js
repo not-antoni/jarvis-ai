@@ -2144,6 +2144,32 @@ const allCommands = [
         .setName('vote')
         .setDescription('Vote for Jarvis on top.gg and get rewards!')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('hunt')
+        .setDescription('Hunt for animals and earn Stark Bucks')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('fish')
+        .setDescription('Go fishing and earn Stark Bucks')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('dig')
+        .setDescription('Dig for treasure and earn Stark Bucks')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('beg')
+        .setDescription('Beg for Stark Bucks (no shame)')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('give')
+        .setDescription('Give Stark Bucks to another user')
+        .addUserOption((option) =>
+            option.setName('user').setDescription('User to give money to').setRequired(true)
+        )
+        .addIntegerOption((option) =>
+            option.setName('amount').setDescription('Amount to give').setRequired(true).setMinValue(1)
+        )
+        .setContexts([InteractionContextType.Guild]),
     // ============ SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
         .setName('selfmod')
