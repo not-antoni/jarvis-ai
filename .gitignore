@@ -38,6 +38,9 @@ lavalink/plugins/
 lavalink/logs/
 external/
 
+# yt-dlp binaries (auto-downloaded)
+bin/
+
 # Test output (don't commit)
 test-output.txt
 test-screenshot.png

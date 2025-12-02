@@ -43,6 +43,7 @@ const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
 const { lavalinkManager } = require('./src/services/lavalink-manager');
+const ytDlpManager = require('./src/services/yt-dlp-manager');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -2087,6 +2088,20 @@ const allCommands = [
                 )
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('ytdlp')
+        .setDescription('yt-dlp status and management')
+        .addSubcommand((sub) =>
+            sub
+                .setName('status')
+                .setDescription('Check yt-dlp version and status')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('update')
+                .setDescription('Force check for yt-dlp updates')
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     // ============ END SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
         .setName("news")
@@ -3338,6 +3353,21 @@ client.once(Events.ClientReady, async () => {
         }
     } else {
         console.log('[Lavalink] Skipped - no LAVALINK_HOST in env');
+    }
+
+    // Initialize yt-dlp for YouTube fallback (auto-updates from GitHub)
+    try {
+        const ytDlpReady = await ytDlpManager.initialize();
+        if (ytDlpReady) {
+            const status = ytDlpManager.getStatus();
+            dashboardRouter.addLog('success', 'yt-dlp', `Ready: ${status.currentVersion}`);
+            console.log(`[yt-dlp] Initialized successfully: ${status.currentVersion}`);
+        } else {
+            dashboardRouter.addLog('warning', 'yt-dlp', 'Failed to initialize');
+        }
+    } catch (error) {
+        console.error('[yt-dlp] Initialization error:', error.message);
+        dashboardRouter.addLog('error', 'yt-dlp', error.message);
     }
 
     let databaseConnected = database.isConnected;

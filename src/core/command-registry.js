@@ -357,6 +357,14 @@ const commandDefinitions = [
         feature: 'selfhostExperimental',
         ephemeral: true
     },
+    {
+        name: 'ytdlp',
+        description: 'yt-dlp status and updates.',
+        category: 'Utilities',
+        usage: '/ytdlp status',
+        feature: 'music',
+        ephemeral: true
+    },
     // ============ END SELFHOST-ONLY COMMANDS ============
     {
         name: 'reactionrole',
