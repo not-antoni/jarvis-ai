@@ -52,6 +52,7 @@ const selfhostFeatures = require('./selfhost-features');
 const ytDlpManager = require('./yt-dlp-manager');
 const { getSentientAgent } = require('../agents/sentient-core');
 const legacyCommands = require('./legacy-commands');
+const starkEconomy = require('./stark-economy');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);

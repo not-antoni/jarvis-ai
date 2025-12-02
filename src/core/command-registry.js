@@ -332,6 +332,79 @@ const commandDefinitions = [
         feature: 'funUtilities',
         ephemeral: false
     },
+    // ============ STARK BUCKS ECONOMY ============
+    {
+        name: 'balance',
+        description: 'Check your Stark Bucks balance and stats.',
+        category: 'Economy',
+        usage: '/balance',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'daily',
+        description: 'Claim your daily Stark Bucks reward.',
+        category: 'Economy',
+        usage: '/daily',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'work',
+        description: 'Work at Stark Industries for money.',
+        category: 'Economy',
+        usage: '/work',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'gamble',
+        description: 'Gamble your Stark Bucks.',
+        category: 'Economy',
+        usage: '/gamble amount:<number>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'slots',
+        description: 'Play the slot machine.',
+        category: 'Economy',
+        usage: '/slots bet:<number>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'coinflip',
+        description: 'Flip a coin and bet.',
+        category: 'Economy',
+        usage: '/coinflip bet:<number> choice:<heads/tails>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'shop',
+        description: 'Browse the Stark Industries shop.',
+        category: 'Economy',
+        usage: '/shop',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'buy',
+        description: 'Buy an item from the shop.',
+        category: 'Economy',
+        usage: '/buy item:<item_id>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'leaderboard',
+        description: 'View the Stark Bucks leaderboard.',
+        category: 'Economy',
+        usage: '/leaderboard',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
     // ============ FUN COMMANDS (Available Everywhere) ============
     {
         name: 'rapbattle',
