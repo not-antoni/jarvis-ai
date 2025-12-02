@@ -2546,6 +2546,7 @@
                                 { name: '📦 Version', value: status.currentVersion || 'Unknown', inline: true },
                                 { name: '🖥️ Platform', value: status.platform, inline: true },
                                 { name: '🔄 Updating', value: status.updating ? 'Yes' : 'No', inline: true },
+                                { name: '🔑 GitHub Auth', value: status.githubAuth ? '✅ Configured' : '⚠️ Not set (rate limited)', inline: true },
                                 { name: '📍 Path', value: `\`${status.executablePath}\``, inline: false }
                             );
 

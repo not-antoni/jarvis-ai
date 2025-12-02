@@ -17,6 +17,9 @@ const http = require('http');
 const GITHUB_API_RELEASES = 'https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest';
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // Check every 6 hours
 
+// GitHub token for authenticated requests (higher rate limits: 5000/hour vs 60/hour)
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
+
 class YtDlpManager {
     constructor() {
         this.binDir = path.join(__dirname, '../../bin');
@@ -99,12 +102,18 @@ class YtDlpManager {
      */
     async fetchLatestRelease() {
         return new Promise((resolve, reject) => {
-            const options = {
-                headers: {
-                    'User-Agent': 'Jarvis-Discord-Bot/1.0',
-                    'Accept': 'application/vnd.github.v3+json'
-                }
+            const headers = {
+                'User-Agent': 'Jarvis-Discord-Bot/1.0',
+                'Accept': 'application/vnd.github.v3+json'
             };
+            
+            // Add auth token if available (increases rate limit from 60 to 5000/hour)
+            if (GITHUB_TOKEN) {
+                headers['Authorization'] = `token ${GITHUB_TOKEN}`;
+                console.log('[yt-dlp] Using authenticated GitHub request');
+            }
+            
+            const options = { headers };
 
             https.get(GITHUB_API_RELEASES, options, (res) => {
                 if (res.statusCode === 302 || res.statusCode === 301) {
@@ -180,10 +189,16 @@ class YtDlpManager {
         return new Promise((resolve, reject) => {
             const file = fs.createWriteStream(destPath);
             const protocol = url.startsWith('https') ? https : http;
+            
+            // Build headers with optional auth
+            const downloadHeaders = { 'User-Agent': 'Jarvis-Discord-Bot/1.0' };
+            if (GITHUB_TOKEN) {
+                downloadHeaders['Authorization'] = `token ${GITHUB_TOKEN}`;
+            }
 
             const request = (downloadUrl) => {
                 protocol.get(downloadUrl, {
-                    headers: { 'User-Agent': 'Jarvis-Discord-Bot/1.0' }
+                    headers: downloadHeaders
                 }, (response) => {
                     // Handle redirects
                     if (response.statusCode === 302 || response.statusCode === 301) {
@@ -193,7 +208,7 @@ class YtDlpManager {
                         const redirectProtocol = response.headers.location.startsWith('https') ? https : http;
                         
                         redirectProtocol.get(response.headers.location, {
-                            headers: { 'User-Agent': 'Jarvis-Discord-Bot/1.0' }
+                            headers: downloadHeaders
                         }, (redirectRes) => {
                             if (redirectRes.statusCode !== 200) {
                                 newFile.close();
@@ -514,7 +529,8 @@ class YtDlpManager {
             latestVersion: this.latestVersion,
             executablePath: this.executablePath,
             platform: this.isWindows ? 'windows' : 'linux',
-            lastUpdateCheck: this.lastUpdateCheck ? new Date(this.lastUpdateCheck).toISOString() : null
+            lastUpdateCheck: this.lastUpdateCheck ? new Date(this.lastUpdateCheck).toISOString() : null,
+            githubAuth: !!GITHUB_TOKEN // Shows if GitHub auth is configured
         };
     }
 
