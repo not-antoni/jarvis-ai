@@ -31,12 +31,38 @@ const BASELINE_WORDS = [
     'motherfucker', 'nazi', 'nigga', 'nigger', 'prick', 'slut', 'whore'
 ];
 
-// ASCII + Cyrillic + simple leet characters to make bypassing harder while avoiding over-blocking.
+// Comprehensive confusables map: ASCII + Cyrillic + Greek + Leet + Unicode lookalikes
+// This catches most bypass attempts including Russian letter substitution
 const CONFUSABLE_MAP = {
-    a: 'aа@4', b: 'bв8', c: 'cс', d: 'd', e: 'eе3', f: 'f', g: 'g9', h: 'hн',
-    i: 'iі1!|', j: 'j', k: 'kк', l: 'l1|', m: 'mм', n: 'n', o: 'oо0', p: 'pр',
-    q: 'q', r: 'r', s: 's$5', t: 'tт7', u: 'u', v: 'v', w: 'w', x: 'xх',
-    y: 'yу', z: 'z2'
+    // Cyrillic: а, в, с, е, і, к, м, н, о, р, т, х, у, ѕ, ј, ӏ, ԁ, ԛ, ԝ
+    // Greek: α, β, ε, ι, κ, ο, ρ, τ, υ, χ
+    // Special: ą, ă, å, ä, à, á, â, ã, ā
+    a: 'aаαά@4àáâãäåāăąǎǻ',
+    b: 'bвβ8ḃḅḇƀɓ',
+    c: 'cсς¢çćĉċč',
+    d: 'dԁḋḍḏḑďđɖɗ',
+    e: 'eеєεέ3èéêëēĕėęěɛ€',
+    f: 'fғƒḟ',
+    g: 'gɡǵğĝġģɠ96',
+    h: 'hнһհḣḥḧḩḫĥħ',
+    i: 'iіιί1!|ìíîïĩīĭįıǐ',
+    j: 'jјʝɉĵ',
+    k: 'kкκḱḳḵķĸ',
+    l: 'lӏḷḹḻḽĺļľŀłƚ1|!',
+    m: 'mмṁṃḿɱ',
+    n: 'nпηñńņňŉŋɲṅṇṉṋ',
+    o: 'oоοόσ0òóôõöøōŏőǒǫǭ',
+    p: 'pрρṕṗƥ',
+    q: 'qԛɋ',
+    r: 'rгṙṛṝṟŕŗřɍɽ',
+    s: 'sѕ$5śŝşšṡṣṥṧṩ§',
+    t: 'tтτ7ţťŧṫṭṯṱẗ+',
+    u: 'uυùúûüũūŭůűųǔǖǘǚǜ',
+    v: 'vνṽṿ',
+    w: 'wωẁẃẅẇẉŵ',
+    x: 'xхχ×ẋẍ',
+    y: 'yуγýÿŷẏỳỵỷỹ',
+    z: 'z2źżžẑẓẕ'
 };
 
 const cache = new Map(); // guildId -> { words, regexPatterns, regex, cachedAt, autoRegexEnabled }
