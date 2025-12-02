@@ -2532,6 +2532,72 @@
                     }
                     break;
                 }
+                case 'ytdlp': {
+                    telemetryMetadata.category = 'utilities';
+                    const subcommand = interaction.options.getSubcommand();
+                    const status = ytDlpManager.getStatus();
+
+                    if (subcommand === 'status') {
+                        const statusEmbed = new EmbedBuilder()
+                            .setTitle('📺 yt-dlp Status')
+                            .setColor(status.ready ? 0x2ecc71 : 0xe74c3c)
+                            .addFields(
+                                { name: '🔧 Status', value: status.ready ? '✅ Ready' : '❌ Not Ready', inline: true },
+                                { name: '📦 Version', value: status.currentVersion || 'Unknown', inline: true },
+                                { name: '🖥️ Platform', value: status.platform, inline: true },
+                                { name: '🔄 Updating', value: status.updating ? 'Yes' : 'No', inline: true },
+                                { name: '📍 Path', value: `\`${status.executablePath}\``, inline: false }
+                            );
+
+                        if (status.latestVersion && status.latestVersion !== status.currentVersion) {
+                            statusEmbed.addFields({
+                                name: '⬆️ Update Available',
+                                value: `${status.currentVersion} → ${status.latestVersion}`,
+                                inline: false
+                            });
+                        }
+
+                        if (status.lastUpdateCheck) {
+                            statusEmbed.addFields({
+                                name: '🕐 Last Check',
+                                value: status.lastUpdateCheck,
+                                inline: false
+                            });
+                        }
+
+                        statusEmbed
+                            .setFooter({ text: 'Auto-updates from github.com/yt-dlp/yt-dlp' })
+                            .setTimestamp();
+
+                        response = { embeds: [statusEmbed] };
+                    } else if (subcommand === 'update') {
+                        await interaction.editReply('🔄 Checking for yt-dlp updates...');
+                        
+                        try {
+                            const newStatus = await ytDlpManager.forceUpdate();
+                            
+                            const updateEmbed = new EmbedBuilder()
+                                .setTitle('📺 yt-dlp Update Check')
+                                .setColor(0x3498db)
+                                .addFields(
+                                    { name: '📦 Current Version', value: newStatus.currentVersion || 'Unknown', inline: true },
+                                    { name: '🆕 Latest Version', value: newStatus.latestVersion || 'Unknown', inline: true }
+                                );
+
+                            if (newStatus.currentVersion === newStatus.latestVersion) {
+                                updateEmbed.setDescription('✅ Already up to date!');
+                            } else {
+                                updateEmbed.setDescription('✅ Updated successfully!');
+                            }
+
+                            updateEmbed.setTimestamp();
+                            response = { embeds: [updateEmbed] };
+                        } catch (error) {
+                            response = `❌ Update check failed: ${error.message}`;
+                        }
+                    }
+                    break;
+                }
                 // ============ END SELFHOST-ONLY COMMANDS ============
                 case 't': {
                     telemetryMetadata.category = 'utilities';

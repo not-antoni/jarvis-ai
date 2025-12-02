@@ -49,6 +49,7 @@ const RobustnessEnhancer = require('../agents/robustnessEnhancer');
 const tempFiles = require('../utils/temp-files');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
 const selfhostFeatures = require('./selfhost-features');
+const ytDlpManager = require('./yt-dlp-manager');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
