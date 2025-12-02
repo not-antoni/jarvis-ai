@@ -2245,15 +2245,7 @@
 
             let response;
 
-            if (commandName === 'ticket') {
-                await this.handleTicketCommand(interaction);
-                return;
-            }
-
-            if (commandName === 'kb') {
-                await this.handleKnowledgeBaseCommand(interaction);
-                return;
-            }
+            // Ticket and KB commands removed - features disabled
 
             if (commandName === 'ask') {
                 await this.handleAskCommand(interaction);

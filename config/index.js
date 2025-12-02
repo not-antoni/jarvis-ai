@@ -152,6 +152,12 @@ const rawConfig = {
         whitelistedChannelIds: ['1403664986089324609', '984738858950344714', '1419618537525346324']
     },
 
+    // AI Sentience Whitelist - servers where advanced AI features are enabled
+    sentience: {
+        enabled: parseBooleanEnv(process.env.SENTIENCE_ENABLED, true),
+        whitelistedGuilds: (process.env.SENTIENCE_GUILDS || '1403664986089324606').split(',').map(s => s.trim()).filter(Boolean)
+    },
+
     // YouTube API Configuration
     youtube: {
         apiKey: process.env.YOUTUBE_API_KEY
@@ -179,9 +185,9 @@ const rawConfig = {
         automod: true,
         serverStats: true,
         memberLog: true,
-        tickets: true,
-        knowledgeBase: true,
-        knowledgeAsk: true,
+        tickets: false,
+        knowledgeBase: false,
+        knowledgeAsk: false,
         digests: true,
         newsBriefings: true,
         macroReplies: true,

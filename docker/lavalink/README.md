@@ -69,9 +69,14 @@ To change the default password:
 - Check Lavalink logs: `docker logs jarvis-lavalink`
 - Verify `LAVALINK_HOST` matches your setup
 
-### No search results
+### No search results / 400 errors
 - Lavalink YouTube plugin should auto-download on first start
 - Check `docker/lavalink/plugins/` for the plugin JAR
+- **If you get "Invalid status code for search response: 400" errors:**
+  - YouTube now requires OAuth authentication for searches
+  - See `YOUTUBE_OAUTH_SETUP.md` for detailed OAuth setup instructions
+  - Or use direct YouTube URLs instead of search queries
+  - The plugin version has been updated to 1.17.0 - restart Lavalink to download it
 
 ### Audio quality issues
 - Edit `application.yml` and set `opusEncodingQuality: 10`

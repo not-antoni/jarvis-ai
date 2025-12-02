@@ -1816,16 +1816,6 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('t')
-        .setDescription('Search the knowledge base for indexed context')
-        .addStringOption(option =>
-            option
-                .setName('query')
-                .setDescription('Terms to search within the knowledge archive')
-                .setRequired(true)
-        )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
         .setName("reset")
         .setDescription("Delete your conversation history and profile with Jarvis")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
@@ -2128,110 +2118,6 @@ const allCommands = [
                 )
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
-        .setName('ticket')
-        .setDescription('Manage support tickets')
-        .addSubcommand((sub) =>
-            sub
-                .setName('open')
-                .setDescription('Open a new private support ticket')
-                .addStringOption((option) =>
-                    option
-                        .setName('reason')
-                        .setDescription('Brief description of the issue')
-                        .setRequired(false)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('close')
-                .setDescription('Close the current ticket')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('export')
-                .setDescription('Export a transcript of a ticket')
-                .addStringOption((option) =>
-                    option
-                        .setName('ticket_id')
-                        .setDescription('Ticket identifier to export (optional when used inside a ticket channel)')
-                        .setRequired(false)
-                )
-                .addIntegerOption((option) =>
-                    option
-                        .setName('ticket_number')
-                        .setDescription('Ticket number to export (alternative to ticket_id)')
-                        .setRequired(false)
-                        .setMinValue(1)
-                )
-        )
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
-        .setName('kb')
-        .setDescription('Manage the server knowledge base')
-        .addSubcommand((sub) =>
-            sub
-                .setName('add')
-                .setDescription('Add content to the knowledge base')
-                .addStringOption((option) =>
-                    option
-                        .setName('title')
-                        .setDescription('Title for the entry')
-                        .setRequired(true)
-                )
-                .addStringOption((option) =>
-                    option
-                        .setName('content')
-                        .setDescription('Plain text or markdown content to store')
-                        .setRequired(false)
-                )
-                .addAttachmentOption((option) =>
-                    option
-                        .setName('file')
-                        .setDescription('Optional text or markdown file to ingest')
-                        .setRequired(false)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('search')
-                .setDescription('Search the knowledge base for a query')
-                .addStringOption((option) =>
-                    option
-                        .setName('query')
-                        .setDescription('Search keywords')
-                        .setRequired(true)
-                )
-                .addIntegerOption((option) =>
-                    option
-                        .setName('limit')
-                        .setDescription('Maximum number of results to display (default 5)')
-                        .setRequired(false)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('list')
-                .setDescription('List the most recent knowledge entries')
-                .addIntegerOption((option) =>
-                    option
-                        .setName('limit')
-                        .setDescription('How many entries to show (max 10)')
-                        .setRequired(false)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('delete')
-                .setDescription('Remove an entry from the knowledge base')
-                .addStringOption((option) =>
-                    option
-                        .setName('entry_id')
-                        .setDescription('Identifier returned by /kb search or /kb add')
-                        .setRequired(true)
-                )
-        )
-        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName('ask')
         .setDescription('Query the server knowledge base for an answer')

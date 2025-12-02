@@ -4,12 +4,12 @@ server:
 
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.11.5"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.16.0"
       snapshot: false
   server:
     password: "youshallnotpass"
     sources:
-      youtube: true
+      youtube: false
       bandcamp: true
       soundcloud: true
       twitch: true
@@ -48,9 +48,15 @@ plugins:
     clients:
       - MUSIC
       - WEB
-      - ANDROID_TESTSUITE
     oauth:
-      enabled: false
+      enabled: true
+      clientId: "318747114816-93reli8g60tvv8hh9qu52aun6fhni74i.apps.googleusercontent.com"
+      clientSecret: "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"
+      refreshToken: "1//09huzZ8oZ2qq0CgYIARAAGAkSNwF-L9Ir0oSpnu8JMte1NAWAXl7TdwzXExtxVIdA_58JXQ419H3CxE41FNIl2THL5JK1pumwx60"
+    # Remote cipher server to handle YouTube signature extraction
+    remoteCipher:
+      url: "http://localhost:8001"
+      password: "yt-cipher-token-12345"
 
 metrics:
   prometheus:
@@ -68,6 +74,7 @@ logging:
   level:
     root: INFO
     lavalink: INFO
+    dev.lavalink.youtube: DEBUG
 
   request:
     enabled: true
