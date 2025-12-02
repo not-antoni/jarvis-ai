@@ -2042,16 +2042,6 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('roast')
-        .setDescription('Have Jarvis roast someone with British class')
-        .addUserOption((option) =>
-            option
-                .setName('target')
-                .setDescription('Who shall I roast, sir?')
-                .setRequired(true)
-        )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
         .setName('soul')
         .setDescription('View Jarvis\'s artificial soul status and evolution')
         .addSubcommand((sub) =>
