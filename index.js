@@ -2102,6 +2102,53 @@ const allCommands = [
                 .setDescription('Force check for yt-dlp updates')
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('sentient')
+        .setDescription('Jarvis Sentient Agent System (selfhost only)')
+        .addSubcommand((sub) =>
+            sub
+                .setName('status')
+                .setDescription('View sentient agent status')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('think')
+                .setDescription('Have Jarvis think about something')
+                .addStringOption((option) =>
+                    option
+                        .setName('prompt')
+                        .setDescription('What should Jarvis think about?')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('execute')
+                .setDescription('Execute a command (with safety checks)')
+                .addStringOption((option) =>
+                    option
+                        .setName('command')
+                        .setDescription('Shell command to execute')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('memory')
+                .setDescription('View agent memory and learnings')
+        )
+        .addSubcommand((sub) =>
+            sub
+                .setName('autonomous')
+                .setDescription('Toggle autonomous mode (⚠️ careful!)')
+                .addBooleanOption((option) =>
+                    option
+                        .setName('enabled')
+                        .setDescription('Enable autonomous mode?')
+                        .setRequired(true)
+                )
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     // ============ END SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
         .setName("news")

@@ -50,6 +50,7 @@ const tempFiles = require('../utils/temp-files');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
 const selfhostFeatures = require('./selfhost-features');
 const ytDlpManager = require('./yt-dlp-manager');
+const { getSentientAgent } = require('../agents/sentient-core');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);

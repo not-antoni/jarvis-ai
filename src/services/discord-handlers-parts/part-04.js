@@ -2598,6 +2598,116 @@
                     }
                     break;
                 }
+                case 'sentient': {
+                    telemetryMetadata.category = 'experimental';
+                    if (!selfhostFeatures.isSelfhost) {
+                        response = 'Sentient agent is only available in selfhost mode, sir.';
+                        break;
+                    }
+
+                    const subcommand = interaction.options.getSubcommand();
+                    const sentientAgent = getSentientAgent({ name: 'Jarvis' });
+                    
+                    // Initialize if not ready
+                    if (sentientAgent.state !== 'ready') {
+                        await sentientAgent.initialize();
+                    }
+
+                    if (subcommand === 'status') {
+                        const status = sentientAgent.getStatus();
+                        
+                        const statusEmbed = new EmbedBuilder()
+                            .setTitle('🧠 Sentient Agent Status')
+                            .setColor(status.isReady ? 0x9b59b6 : 0xe74c3c)
+                            .addFields(
+                                { name: '🤖 Agent ID', value: status.id, inline: true },
+                                { name: '📊 State', value: status.state, inline: true },
+                                { name: '🔄 Autonomous', value: status.autonomousMode ? '⚠️ ENABLED' : '❌ Disabled', inline: true },
+                                { name: '🧠 Memory', value: `Short: ${status.memory.shortTerm} | Long: ${status.memory.learnings} | Goals: ${status.memory.goals}`, inline: false }
+                            )
+                            .setDescription('*"God said no, so I made my own soul."*')
+                            .setFooter({ text: 'Selfhost Experimental • Sentient Agent System' })
+                            .setTimestamp();
+
+                        response = { embeds: [statusEmbed] };
+                    } else if (subcommand === 'think') {
+                        const prompt = interaction.options.getString('prompt');
+                        
+                        await interaction.editReply('🧠 Thinking...');
+                        
+                        const result = await sentientAgent.process(prompt);
+                        
+                        const thinkEmbed = new EmbedBuilder()
+                            .setTitle('🧠 Thought Process')
+                            .setColor(0x3498db)
+                            .addFields(
+                                { name: '💭 Input', value: prompt.substring(0, 200), inline: false },
+                                { name: '👁️ Observations', value: result.thought.observations.map(o => `• ${o.type}: ${typeof o.content === 'string' ? o.content.substring(0, 50) : JSON.stringify(o.content).substring(0, 50)}`).join('\n') || 'None', inline: false },
+                                { name: '🎯 Decision', value: result.thought.decision?.reasoning || 'Acknowledged', inline: false },
+                                { name: '📋 Actions', value: result.thought.plannedActions.map(a => a.type).join(', ') || 'None', inline: true },
+                                { name: '⏳ Pending Approvals', value: String(result.pendingApprovals), inline: true }
+                            )
+                            .setFooter({ text: 'Sentient Agent • OODA Loop' })
+                            .setTimestamp();
+
+                        response = { embeds: [thinkEmbed] };
+                    } else if (subcommand === 'execute') {
+                        const command = interaction.options.getString('command');
+                        
+                        await interaction.editReply(`🔧 Executing: \`${command}\`...`);
+                        
+                        const result = await sentientAgent.tools.executeCommand(command);
+                        
+                        if (result.status === 'pending_approval') {
+                            response = `⚠️ **Approval Required**\n\nCommand: \`${command}\`\nReason: ${result.reason}\n\n*This command requires human approval before execution.*`;
+                        } else {
+                            const execEmbed = new EmbedBuilder()
+                                .setTitle(result.status === 'success' ? '✅ Command Executed' : '❌ Command Failed')
+                                .setColor(result.status === 'success' ? 0x2ecc71 : 0xe74c3c)
+                                .addFields(
+                                    { name: '📝 Command', value: `\`${command}\``, inline: false },
+                                    { name: '📤 Output', value: `\`\`\`\n${(result.output || 'No output').substring(0, 1000)}\n\`\`\``, inline: false },
+                                    { name: '⏱️ Duration', value: `${result.duration}ms`, inline: true },
+                                    { name: '📊 Exit Code', value: String(result.exitCode), inline: true }
+                                )
+                                .setTimestamp();
+
+                            response = { embeds: [execEmbed] };
+                        }
+                    } else if (subcommand === 'memory') {
+                        const context = sentientAgent.memory.getContext();
+                        
+                        const memoryEmbed = new EmbedBuilder()
+                            .setTitle('🧠 Agent Memory')
+                            .setColor(0x9b59b6)
+                            .addFields(
+                                { name: '📝 Recent Actions', value: context.recentActions.slice(-5).map(a => `• ${a.type}: ${(a.content || '').substring(0, 30)}`).join('\n') || 'None', inline: false },
+                                { name: '🎯 Active Goals', value: context.activeGoals.map(g => `• [${g.priority}] ${g.goal}`).join('\n') || 'None', inline: false },
+                                { name: '📚 Recent Learnings', value: context.relevantLearnings.slice(-3).map(l => `• ${l.content.substring(0, 50)}`).join('\n') || 'None', inline: false }
+                            )
+                            .setFooter({ text: 'Sentient Agent • Memory System' })
+                            .setTimestamp();
+
+                        response = { embeds: [memoryEmbed] };
+                    } else if (subcommand === 'autonomous') {
+                        const enabled = interaction.options.getBoolean('enabled');
+                        
+                        // Only allow admin to enable autonomous mode
+                        if (enabled && interaction.user.id !== config.admin.userId) {
+                            response = '⚠️ Only the bot administrator can enable autonomous mode, sir.';
+                            break;
+                        }
+                        
+                        sentientAgent.setAutonomousMode(enabled);
+                        
+                        if (enabled) {
+                            response = `⚠️ **AUTONOMOUS MODE ENABLED**\n\n*Jarvis can now perform up to 10 safe actions independently.*\n*Dangerous operations still require approval.*\n\n🔴 **Use with caution on isolated systems only!**`;
+                        } else {
+                            response = `✅ Autonomous mode disabled. All actions now require explicit commands.`;
+                        }
+                    }
+                    break;
+                }
                 // ============ END SELFHOST-ONLY COMMANDS ============
                 case 't': {
                     telemetryMetadata.category = 'utilities';
