@@ -13,6 +13,7 @@ const mathSolver = require('./math-solver');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { buildHelpCatalog } = require('../core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('../core/feature-flags');
+const { getSentiencePrompt, jarvisSoul } = require('./selfhost-features');
 
 const punycode = require('node:punycode');
 
@@ -1620,7 +1621,17 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
             const userProfile = await database.getUserProfile(userId, userName);
             const personaPreferenceRaw = userProfile?.preferences?.persona ?? 'jarvis';
             const personaPreference = String(personaPreferenceRaw).toLowerCase();
-            const systemPrompt = this.getPromptForPersona(personaPreference);
+            let systemPrompt = this.getPromptForPersona(personaPreference);
+            
+            // Inject sentience enhancement for whitelisted guilds (selfhost only)
+            const guildId = interaction?.guildId || interaction?.guild?.id;
+            const sentiencePrompt = getSentiencePrompt(guildId);
+            if (sentiencePrompt) {
+                systemPrompt = systemPrompt + '\n\n' + sentiencePrompt;
+                // Evolve soul based on interaction
+                jarvisSoul.evolve('helpful', 'positive');
+            }
+            
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
