@@ -53,6 +53,7 @@ const ytDlpManager = require('./yt-dlp-manager');
 const { getSentientAgent } = require('../agents/sentient-core');
 const legacyCommands = require('./legacy-commands');
 const starkEconomy = require('./stark-economy');
+const topggVoting = require('./topgg-voting');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
