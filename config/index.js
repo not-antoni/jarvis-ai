@@ -90,7 +90,8 @@ const rawConfig = {
             migrations: 'migrations',
             statusMessages: 'statusMessages',
             commandMetrics: 'commandMetrics',
-            commandSyncState: 'commandSyncState'
+            commandSyncState: 'commandSyncState',
+            starkEconomy: 'starkEconomy'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',

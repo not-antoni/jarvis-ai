@@ -8,35 +8,9 @@
 
 const { EmbedBuilder } = require('discord.js');
 const selfhostFeatures = require('./selfhost-features');
-const database = require('./database');
+const starkEconomy = require('./stark-economy');
 
 const LEGACY_PREFIX = '.j';
-
-// Stark Bucks economy (in-memory for now, can be moved to MongoDB)
-const starkBucksCache = new Map();
-
-/**
- * Get user's Stark Bucks balance
- */
-async function getBalance(userId) {
-    if (starkBucksCache.has(userId)) {
-        return starkBucksCache.get(userId);
-    }
-    // Could load from database here
-    const defaultBalance = 100; // New users start with 100 Stark Bucks
-    starkBucksCache.set(userId, defaultBalance);
-    return defaultBalance;
-}
-
-/**
- * Modify user's Stark Bucks balance
- */
-async function modifyBalance(userId, amount) {
-    const current = await getBalance(userId);
-    const newBalance = Math.max(0, current + amount);
-    starkBucksCache.set(userId, newBalance);
-    return newBalance;
-}
 
 /**
  * Roast generator - creates a classy British roast
@@ -97,15 +71,11 @@ const legacyCommands = {
                 .setDescription('Text commands for when you\'re feeling retro, sir.')
                 .setColor(0x3498db)
                 .addFields(
-                    { name: '`.j help`', value: 'Show this help', inline: true },
-                    { name: '`.j ping`', value: 'Check latency', inline: true },
-                    { name: '`.j rapbattle <bars>`', value: 'Challenge me to a rap battle', inline: true },
-                    { name: '`.j soul`', value: 'View my artificial soul', inline: true },
-                    { name: '`.j roast @user`', value: 'Roast someone with class', inline: true },
-                    { name: '`.j balance`', value: 'Check your Stark Bucks', inline: true },
-                    { name: '`.j daily`', value: 'Claim daily Stark Bucks', inline: true },
-                    { name: '`.j gamble <amount>`', value: 'Gamble your Stark Bucks', inline: true },
-                    { name: '`.j remind <time> <msg>`', value: 'Set a reminder', inline: true }
+                    { name: '🎮 **Fun**', value: '`.j rapbattle` `.j roast @user` `.j soul`', inline: false },
+                    { name: '💰 **Economy**', value: '`.j balance` `.j daily` `.j work`', inline: false },
+                    { name: '🎰 **Gambling**', value: '`.j gamble <amt>` `.j slots <bet>` `.j coinflip <bet> <h/t>`', inline: false },
+                    { name: '🛒 **Shop**', value: '`.j shop` `.j buy <item>` `.j leaderboard`', inline: false },
+                    { name: '⚙️ **Utility**', value: '`.j help` `.j ping` `.j remind in <time> <msg>`', inline: false }
                 )
                 .setFooter({ text: 'Legacy commands require Message Content Intent' });
             
@@ -227,11 +197,17 @@ const legacyCommands = {
         usage: '.j balance',
         aliases: ['bal', 'money', 'wallet'],
         execute: async (message, args) => {
-            const balance = await getBalance(message.author.id);
+            const stats = await starkEconomy.getUserStats(message.author.id);
             const embed = new EmbedBuilder()
                 .setTitle('💰 Stark Bucks Balance')
-                .setDescription(`You have **${balance}** Stark Bucks, sir.`)
+                .setDescription(`You have **${stats.balance}** Stark Bucks, sir.`)
                 .setColor(0xf1c40f)
+                .addFields(
+                    { name: '📈 Total Earned', value: `${stats.totalEarned}`, inline: true },
+                    { name: '📉 Total Lost', value: `${stats.totalLost}`, inline: true },
+                    { name: '🎰 Win Rate', value: `${stats.winRate}%`, inline: true },
+                    { name: '🔥 Daily Streak', value: `${stats.dailyStreak} days`, inline: true }
+                )
                 .setFooter({ text: 'Stark Industries Financial Division' });
             
             await message.reply({ embeds: [embed] });
@@ -244,29 +220,49 @@ const legacyCommands = {
         description: 'Claim daily Stark Bucks',
         usage: '.j daily',
         execute: async (message, args) => {
-            const userId = message.author.id;
-            const lastDailyKey = `daily_${userId}`;
-            const lastDaily = starkBucksCache.get(lastDailyKey) || 0;
-            const now = Date.now();
-            const dayMs = 24 * 60 * 60 * 1000;
+            const result = await starkEconomy.claimDaily(message.author.id, message.author.username);
             
-            if (now - lastDaily < dayMs) {
-                const remaining = dayMs - (now - lastDaily);
-                const hours = Math.floor(remaining / (60 * 60 * 1000));
-                const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+            if (!result.success) {
+                const hours = Math.floor(result.cooldown / (60 * 60 * 1000));
+                const minutes = Math.floor((result.cooldown % (60 * 60 * 1000)) / (60 * 1000));
                 await message.reply(`⏰ You've already claimed today, sir. Come back in ${hours}h ${minutes}m.`);
                 return true;
             }
             
-            const reward = 50 + Math.floor(Math.random() * 50); // 50-100 Stark Bucks
-            const newBalance = await modifyBalance(userId, reward);
-            starkBucksCache.set(lastDailyKey, now);
-            
             const embed = new EmbedBuilder()
                 .setTitle('💰 Daily Reward Claimed!')
-                .setDescription(`You received **${reward}** Stark Bucks!\nNew balance: **${newBalance}** 💵`)
+                .setDescription(`You received **${result.reward}** Stark Bucks!${result.doubled ? ' (DOUBLED!)' : ''}\nNew balance: **${result.newBalance}** 💵`)
                 .setColor(0x2ecc71)
-                .setFooter({ text: 'Come back tomorrow for more!' });
+                .addFields(
+                    { name: '🔥 Streak', value: `${result.streak} days (+${result.streakBonus} bonus)`, inline: true }
+                )
+                .setFooter({ text: 'Come back tomorrow to keep your streak!' });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // Work for money
+    work: {
+        description: 'Work at Stark Industries',
+        usage: '.j work',
+        aliases: ['job'],
+        execute: async (message, args) => {
+            const result = await starkEconomy.work(message.author.id, message.author.username);
+            
+            if (!result.success) {
+                const minutes = Math.floor(result.cooldown / (60 * 1000));
+                await message.reply(`⏰ You're tired, sir. Rest for ${minutes} more minutes.`);
+                return true;
+            }
+            
+            const embed = new EmbedBuilder()
+                .setTitle('💼 Work Complete!')
+                .setDescription(`You ${result.job} and earned **${result.reward}** Stark Bucks!`)
+                .setColor(0x3498db)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                .setFooter({ text: 'Stark Industries HR Department' });
             
             await message.reply({ embeds: [embed] });
             return true;
@@ -275,38 +271,192 @@ const legacyCommands = {
     
     // Gamble
     gamble: {
-        description: 'Gamble your Stark Bucks',
+        description: 'Gamble your Stark Bucks (double or nothing)',
         usage: '.j gamble <amount>',
         aliases: ['bet'],
         execute: async (message, args) => {
-            const userId = message.author.id;
             const amount = parseInt(args[0]);
             
             if (!amount || amount < 1) {
-                await message.reply('Please specify an amount to gamble, sir. Usage: `.j gamble <amount>`');
+                await message.reply('Usage: `.j gamble <amount>`');
                 return true;
             }
             
-            const balance = await getBalance(userId);
-            if (amount > balance) {
-                await message.reply(`Insufficient funds, sir. You only have **${balance}** Stark Bucks.`);
+            const result = await starkEconomy.gamble(message.author.id, amount);
+            
+            if (!result.success) {
+                await message.reply(`❌ ${result.error}`);
                 return true;
             }
-            
-            // 45% chance to win (house edge)
-            const won = Math.random() < 0.45;
-            const winnings = won ? amount : -amount;
-            const newBalance = await modifyBalance(userId, winnings);
             
             const embed = new EmbedBuilder()
-                .setTitle(won ? '🎰 You Won!' : '🎰 You Lost!')
-                .setDescription(won 
-                    ? `Congratulations! You won **${amount}** Stark Bucks!\nNew balance: **${newBalance}** 💵`
-                    : `Better luck next time, sir. You lost **${amount}** Stark Bucks.\nNew balance: **${newBalance}** 💵`)
-                .setColor(won ? 0x2ecc71 : 0xe74c3c)
-                .setFooter({ text: 'The house always... mostly wins.' });
+                .setTitle(result.won ? '🎰 You Won!' : '🎰 You Lost!')
+                .setDescription(result.won 
+                    ? `Congratulations! You won **${result.amount}** Stark Bucks!`
+                    : `Better luck next time. You lost **${result.amount}** Stark Bucks.`)
+                .setColor(result.won ? 0x2ecc71 : 0xe74c3c)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                .setFooter({ text: `Win rate: ${result.winRate}%` });
             
-            selfhostFeatures.jarvisSoul.evolve(won ? 'helpful' : 'chaos', 'neutral');
+            selfhostFeatures.jarvisSoul.evolve(result.won ? 'helpful' : 'chaos', 'neutral');
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // Slots
+    slots: {
+        description: 'Play the slot machine',
+        usage: '.j slots <bet>',
+        aliases: ['slot'],
+        execute: async (message, args) => {
+            const bet = parseInt(args[0]) || 10;
+            
+            const result = await starkEconomy.playSlots(message.author.id, bet);
+            
+            if (!result.success) {
+                await message.reply(`❌ ${result.error}`);
+                return true;
+            }
+            
+            const slotDisplay = result.results.join(' | ');
+            let resultText = '';
+            if (result.resultType === 'jackpot') resultText = '💎 JACKPOT! 💎';
+            else if (result.resultType === 'triple') resultText = '🎉 TRIPLE!';
+            else if (result.resultType === 'double') resultText = '✨ Double!';
+            else resultText = '😢 No match';
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🎰 Slot Machine')
+                .setDescription(`**[ ${slotDisplay} ]**\n\n${resultText}`)
+                .setColor(result.change > 0 ? 0x2ecc71 : 0xe74c3c)
+                .addFields(
+                    { name: '💵 Bet', value: `${result.bet}`, inline: true },
+                    { name: '💰 Won', value: `${result.winnings}`, inline: true },
+                    { name: '🏦 Balance', value: `${result.newBalance}`, inline: true }
+                )
+                .setFooter({ text: `Multiplier: x${result.multiplier}` });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // Coinflip
+    coinflip: {
+        description: 'Flip a coin',
+        usage: '.j coinflip <bet> <heads/tails>',
+        aliases: ['cf', 'flip'],
+        execute: async (message, args) => {
+            const bet = parseInt(args[0]);
+            const choice = (args[1] || '').toLowerCase();
+            
+            if (!bet || !['heads', 'tails', 'h', 't'].includes(choice)) {
+                await message.reply('Usage: `.j coinflip <bet> <heads/tails>`');
+                return true;
+            }
+            
+            const normalizedChoice = choice.startsWith('h') ? 'heads' : 'tails';
+            const result = await starkEconomy.coinflip(message.author.id, bet, normalizedChoice);
+            
+            if (!result.success) {
+                await message.reply(`❌ ${result.error}`);
+                return true;
+            }
+            
+            const coinEmoji = result.result === 'heads' ? '🪙' : '⭕';
+            const embed = new EmbedBuilder()
+                .setTitle(`${coinEmoji} Coinflip`)
+                .setDescription(`The coin landed on **${result.result.toUpperCase()}**!\n\nYou chose **${result.choice}** - ${result.won ? '**YOU WIN!**' : 'You lose.'}`)
+                .setColor(result.won ? 0x2ecc71 : 0xe74c3c)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                .setFooter({ text: '50/50 chance' });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // Shop
+    shop: {
+        description: 'View the Stark Shop',
+        usage: '.j shop',
+        aliases: ['store'],
+        execute: async (message, args) => {
+            const items = starkEconomy.getShopItems();
+            
+            const itemList = items.map(item => 
+                `**${item.name}** - ${item.price} 💵\n> ${item.description}`
+            ).join('\n\n');
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🛒 Stark Industries Shop')
+                .setDescription(itemList)
+                .setColor(0x9b59b6)
+                .setFooter({ text: 'Use .j buy <item_id> to purchase' });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // Buy item
+    buy: {
+        description: 'Buy an item from the shop',
+        usage: '.j buy <item_id>',
+        aliases: ['purchase'],
+        execute: async (message, args) => {
+            const itemId = args[0]?.toLowerCase();
+            
+            if (!itemId) {
+                await message.reply('Usage: `.j buy <item_id>` (e.g., `.j buy lucky_charm`)');
+                return true;
+            }
+            
+            const result = await starkEconomy.buyItem(message.author.id, itemId);
+            
+            if (!result.success) {
+                await message.reply(`❌ ${result.error}`);
+                return true;
+            }
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🛒 Purchase Successful!')
+                .setDescription(`You bought **${result.item.name}**!`)
+                .setColor(0x2ecc71)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                .setFooter({ text: 'Thank you for shopping at Stark Industries' });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // Leaderboard
+    leaderboard: {
+        description: 'View richest users',
+        usage: '.j leaderboard',
+        aliases: ['lb', 'top', 'rich'],
+        execute: async (message, args) => {
+            const lb = await starkEconomy.getLeaderboard(10);
+            
+            if (!lb.length) {
+                await message.reply('No data yet, sir.');
+                return true;
+            }
+            
+            const lines = lb.map(u => {
+                const badge = u.hasVipBadge ? '⭐ ' : '';
+                const gold = u.hasGoldenName ? '✨' : '';
+                return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${u.balance}** 💵`;
+            }).join('\n');
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🏆 Stark Bucks Leaderboard')
+                .setDescription(lines)
+                .setColor(0xf1c40f)
+                .setFooter({ text: 'Top 10 richest users' });
+            
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -410,7 +560,8 @@ module.exports = {
     LEGACY_PREFIX,
     handleLegacyCommand,
     legacyCommands,
-    getBalance,
-    modifyBalance,
-    generateRoast
+    generateRoast,
+    // Re-export from stark-economy for backward compatibility
+    getBalance: starkEconomy.getBalance,
+    modifyBalance: starkEconomy.modifyBalance
 };
