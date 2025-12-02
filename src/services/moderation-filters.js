@@ -31,39 +31,75 @@ const BASELINE_WORDS = [
     'motherfucker', 'nazi', 'nigga', 'nigger', 'prick', 'slut', 'whore'
 ];
 
-// Comprehensive confusables map: ASCII + Cyrillic + Greek + Leet + Unicode lookalikes
-// This catches most bypass attempts including Russian letter substitution
+// Comprehensive confusables map: ASCII + FULL Cyrillic + Greek + Leet + Unicode lookalikes
+// This catches ALL bypass attempts including Russian/Ukrainian letter substitution
 const CONFUSABLE_MAP = {
-    // Cyrillic: а, в, с, е, і, к, м, н, о, р, т, х, у, ѕ, ј, ӏ, ԁ, ԛ, ԝ
-    // Greek: α, β, ε, ι, κ, ο, ρ, τ, υ, χ
-    // Special: ą, ă, å, ä, à, á, â, ã, ā
-    a: 'aаαά@4àáâãäåāăąǎǻ',
-    b: 'bвβ8ḃḅḇƀɓ',
-    c: 'cсς¢çćĉċč',
-    d: 'dԁḋḍḏḑďđɖɗ',
-    e: 'eеєεέ3èéêëēĕėęěɛ€',
-    f: 'fғƒḟ',
-    g: 'gɡǵğĝġģɠ96',
-    h: 'hнһհḣḥḧḩḫĥħ',
-    i: 'iіιί1!|ìíîïĩīĭįıǐ',
-    j: 'jјʝɉĵ',
-    k: 'kкκḱḳḵķĸ',
-    l: 'lӏḷḹḻḽĺļľŀłƚ1|!',
-    m: 'mмṁṃḿɱ',
-    n: 'nпηñńņňŉŋɲṅṇṉṋ',
-    o: 'oоοόσ0òóôõöøōŏőǒǫǭ',
-    p: 'pрρṕṗƥ',
-    q: 'qԛɋ',
-    r: 'rгṙṛṝṟŕŗřɍɽ',
-    s: 'sѕ$5śŝşšṡṣṥṧṩ§',
-    t: 'tтτ7ţťŧṫṭṯṱẗ+',
-    u: 'uυùúûüũūŭůűųǔǖǘǚǜ',
-    v: 'vνṽṿ',
-    w: 'wωẁẃẅẇẉŵ',
-    x: 'xхχ×ẋẍ',
-    y: 'yуγýÿŷẏỳỵỷỹ',
-    z: 'z2źżžẑẓẕ'
+    // FULL Cyrillic alphabet mapping (Russian, Ukrainian, Serbian, etc.)
+    // а=a, в=v/b, с=c/s, е=e, і=i, к=k, м=m, н=h/n, о=o, р=p, т=t, х=x, у=y, ѕ=s, ј=j
+    // Ukrainian: і, ї, є, ґ
+    // Serbian: ј, ђ, љ, њ, ћ, џ
+    a: 'aаАăąǎǻàáâãäåāα@4ΑДд',
+    b: 'bвВЬьъЪβ8ḃḅḇƀɓБб',
+    c: 'cсСςϲ¢çćĉċčƈ',
+    d: 'dԁԀďđɖɗḋḍḏḑ',
+    e: 'eеЕёЁєЄεέ3èéêëēĕėęěɛ€ЭэЗз',
+    f: 'fғҒƒḟ',
+    g: 'gɡǵğĝġģɠ96ԍԌ',
+    h: 'hнНһҺհḣḥḧḩḫĥħΗ',
+    i: 'iіІїЇιί1!|ìíîïĩīĭįıǐ',
+    j: 'jјЈʝɉĵ',
+    k: 'kкКκḱḳḵķĸ',
+    l: 'lӏӀĺļľŀłƚ1|!ІіӏԀ',
+    m: 'mмМṁṃḿɱΜ',
+    n: 'nпПηñńņňŉŋɲṅṇṉṋИиЙй',
+    o: 'oоОοόσ0òóôõöøōŏőǒǫǭΟФф',
+    p: 'pрРρṕṗƥΡ',
+    q: 'qԛԚɋ',
+    r: 'rгГṙṛṝṟŕŗřɍɽЯя',
+    s: 'sѕЅ$5śŝşšṡṣṥṧṩ§',
+    t: 'tтТτ7ţťŧṫṭṯṱẗ+Γг',
+    u: 'uυùúûüũūŭůűųǔǖǘǚǜЦцμ',
+    v: 'vνṽṿѴѵ',
+    w: 'wωẁẃẅẇẉŵШшЩщ',
+    x: 'xхХχ×ẋẍΧ',
+    y: 'yуУγýÿŷẏỳỵỷỹΥ',
+    z: 'z2źżžẑẓẕЗз'
 };
+
+// Additional full Cyrillic to Latin reverse mapping for edge cases
+const CYRILLIC_TO_LATIN = {
+    'а': 'a', 'А': 'A', 'б': 'b', 'Б': 'B', 'в': 'v', 'В': 'V',
+    'г': 'r', 'Г': 'G', 'д': 'd', 'Д': 'D', 'е': 'e', 'Е': 'E',
+    'ё': 'e', 'Ё': 'E', 'ж': 'zh', 'Ж': 'ZH', 'з': 'z', 'З': 'Z',
+    'и': 'i', 'И': 'I', 'й': 'y', 'Й': 'Y', 'к': 'k', 'К': 'K',
+    'л': 'l', 'Л': 'L', 'м': 'm', 'М': 'M', 'н': 'n', 'Н': 'N',
+    'о': 'o', 'О': 'O', 'п': 'p', 'П': 'P', 'р': 'r', 'Р': 'R',
+    'с': 's', 'С': 'S', 'т': 't', 'Т': 'T', 'у': 'u', 'У': 'U',
+    'ф': 'f', 'Ф': 'F', 'х': 'h', 'Х': 'H', 'ц': 'ts', 'Ц': 'TS',
+    'ч': 'ch', 'Ч': 'CH', 'ш': 'sh', 'Ш': 'SH', 'щ': 'sch', 'Щ': 'SCH',
+    'ъ': '', 'Ъ': '', 'ы': 'y', 'Ы': 'Y', 'ь': '', 'Ь': '',
+    'э': 'e', 'Э': 'E', 'ю': 'yu', 'Ю': 'YU', 'я': 'ya', 'Я': 'YA',
+    // Ukrainian
+    'і': 'i', 'І': 'I', 'ї': 'yi', 'Ї': 'YI', 'є': 'e', 'Є': 'E', 'ґ': 'g', 'Ґ': 'G',
+    // Serbian
+    'ј': 'j', 'Ј': 'J', 'ђ': 'dj', 'Ђ': 'DJ', 'љ': 'lj', 'Љ': 'LJ',
+    'њ': 'nj', 'Њ': 'NJ', 'ћ': 'c', 'Ћ': 'C', 'џ': 'dz', 'Џ': 'DZ',
+    // Other Cyrillic lookalikes
+    'ѕ': 's', 'Ѕ': 'S', 'ӏ': 'l', 'Ӏ': 'I'
+};
+
+/**
+ * Normalize text by converting ALL Cyrillic characters to their Latin equivalents
+ * This catches bypasses like "nіgga" (with Cyrillic і) → "nigga"
+ */
+function normalizeCyrillic(text) {
+    if (!text) return text;
+    let result = '';
+    for (const char of text) {
+        result += CYRILLIC_TO_LATIN[char] || char;
+    }
+    return result;
+}
 
 const cache = new Map(); // guildId -> { words, regexPatterns, regex, cachedAt, autoRegexEnabled }
 const deleteRate = new Map(); // guildId -> { ts, count }
@@ -290,11 +326,20 @@ async function handleMessage(message) {
     if (!filters.regex.length) return;
 
     const content = message.content;
+    // Also check normalized content (Cyrillic → Latin) to catch bypasses like "nіgga"
+    const normalizedContent = normalizeCyrillic(content);
+    
     let matchedPattern = null;
     for (const re of filters.regex) {
         try {
-            if (re.test(content)) {
+            // Check BOTH original and normalized content
+            const matchOriginal = re.test(content);
+            const matchNormalized = content !== normalizedContent && re.test(normalizedContent);
+            
+            if (matchOriginal || matchNormalized) {
                 matchedPattern = re.source;
+                const bypassAttempt = matchNormalized && !matchOriginal;
+                
                 if (!allowDelete(message.guild.id)) {
                     console.warn(`[ModerationFilters] Rate limit reached for guild ${message.guild.id}, skipping deletion`);
                     return;
@@ -304,7 +349,8 @@ async function handleMessage(message) {
                     return null;
                 });
                 if (deleted) {
-                    console.log(`[ModerationFilters] Deleted message from ${message.author.tag} (${message.author.id}) in ${message.guild.name} (${message.guild.id}) - matched pattern: ${matchedPattern.substring(0, 100)}`);
+                    const bypassNote = bypassAttempt ? ' [CYRILLIC BYPASS DETECTED]' : '';
+                    console.log(`[ModerationFilters] Deleted message from ${message.author.tag} (${message.author.id}) in ${message.guild.name} (${message.guild.id}) - matched pattern: ${matchedPattern.substring(0, 100)}${bypassNote}`);
                     trackSpam(message, matchedPattern);
                 }
                 return;
