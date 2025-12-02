@@ -18,11 +18,21 @@ const path = require('path');
  * This fixes the issue where SELFHOST_MODE wasn't being respected
  */
 function checkSelfhost() {
-    return config?.deployment?.selfhostMode === true || 
+    const result = config?.deployment?.selfhostMode === true || 
            config?.deployment?.target === 'selfhost' ||
            process.env.SELFHOST_MODE === 'true' ||
            process.env.DEPLOY_TARGET === 'selfhost';
+    return result;
 }
+
+// Log selfhost status on startup
+console.log('[Selfhost] Mode check:', {
+    configSelfhostMode: config?.deployment?.selfhostMode,
+    configTarget: config?.deployment?.target,
+    envSelfhostMode: process.env.SELFHOST_MODE,
+    envDeployTarget: process.env.DEPLOY_TARGET,
+    result: checkSelfhost()
+});
 
 // Export as getter for backward compatibility
 const isSelfhost = {
