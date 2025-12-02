@@ -41,6 +41,9 @@ external/
 # yt-dlp binaries (auto-downloaded)
 bin/
 
+# External reference repos (not part of project)
+external/
+
 # Test output (don't commit)
 test-output.txt
 test-screenshot.png
