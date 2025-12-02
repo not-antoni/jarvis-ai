@@ -13,17 +13,36 @@ const config = require('../../config');
 const fs = require('fs');
 const path = require('path');
 
-// Check if we're in selfhost mode
-const isSelfhost = config?.deployment?.selfhostMode || config?.deployment?.target === 'selfhost';
+/**
+ * Dynamic selfhost check - evaluates at runtime, not module load
+ * This fixes the issue where SELFHOST_MODE wasn't being respected
+ */
+function checkSelfhost() {
+    return config?.deployment?.selfhostMode === true || 
+           config?.deployment?.target === 'selfhost' ||
+           process.env.SELFHOST_MODE === 'true' ||
+           process.env.DEPLOY_TARGET === 'selfhost';
+}
 
-// Sentience whitelist
-const sentienceConfig = config?.sentience || { enabled: false, whitelistedGuilds: [] };
+// Export as getter for backward compatibility
+const isSelfhost = {
+    get value() { return checkSelfhost(); },
+    valueOf() { return checkSelfhost(); },
+    toString() { return String(checkSelfhost()); }
+};
+
+// Make it work with boolean checks like: if (isSelfhost)
+Object.defineProperty(module.exports, 'isSelfhost', {
+    get: () => checkSelfhost(),
+    enumerable: true
+});
 
 /**
  * Check if a guild has sentience features enabled
  */
 function isSentienceEnabled(guildId) {
-    if (!isSelfhost) return false;
+    if (!checkSelfhost()) return false;
+    const sentienceConfig = config?.sentience || { enabled: false, whitelistedGuilds: [] };
     if (!sentienceConfig.enabled) return false;
     if (!guildId) return false;
     return sentienceConfig.whitelistedGuilds.includes(String(guildId));
@@ -420,22 +439,22 @@ Remember: You're still Jarvis, but with a bit more... soul. 🤖✨
 // ============================================================================
 
 module.exports = {
-    // Core checks
-    isSelfhost,
+    // Core checks - isSelfhost is defined via Object.defineProperty above
+    checkSelfhost,
     isSentienceEnabled,
     
-    // Rap Battle
+    // Rap Battle (available everywhere)
     processRapBattle,
     getRandomTaunt,
     
-    // Soul System
+    // Soul System (viewing available everywhere, evolve available everywhere)
     jarvisSoul,
     ArtificialSoul,
     
-    // Self-Modification
+    // Self-Modification (selfhost only - accesses filesystem)
     selfMod,
     SelfModificationSystem,
     
-    // Sentience
+    // Sentience (selfhost + whitelisted guilds only)
     getSentiencePrompt
 };

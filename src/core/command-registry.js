@@ -332,23 +332,32 @@ const commandDefinitions = [
         feature: 'funUtilities',
         ephemeral: false
     },
-    // ============ SELFHOST-ONLY EXPERIMENTAL COMMANDS ============
+    // ============ FUN COMMANDS (Available Everywhere) ============
     {
         name: 'rapbattle',
         description: 'HUMANOID vs HUMAN rap battle - challenge Jarvis!',
-        category: 'Experimental',
+        category: 'Fun',
         usage: '/rapbattle bars:<your rap>',
-        feature: 'selfhostExperimental',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'roast',
+        description: 'Have Jarvis roast someone with British class.',
+        category: 'Fun',
+        usage: '/roast target:@user',
+        feature: 'funUtilities',
         ephemeral: false
     },
     {
         name: 'soul',
         description: 'View Jarvis\'s artificial soul status.',
-        category: 'Experimental',
+        category: 'Fun',
         usage: '/soul status',
-        feature: 'selfhostExperimental',
+        feature: 'funUtilities',
         ephemeral: true
     },
+    // ============ SELFHOST-ONLY COMMANDS ============
     {
         name: 'selfmod',
         description: 'Jarvis self-modification analysis.',

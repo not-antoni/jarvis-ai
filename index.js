@@ -2029,7 +2029,7 @@ const allCommands = [
         .setName('scramble')
         .setDescription('Unscramble a Stark Industries keyword')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    // ============ SELFHOST-ONLY EXPERIMENTAL COMMANDS ============
+    // ============ FUN COMMANDS (Available Everywhere) ============
     new SlashCommandBuilder()
         .setName('rapbattle')
         .setDescription('HUMANOID vs HUMAN - Challenge Jarvis to a rap battle!')
@@ -2039,6 +2039,16 @@ const allCommands = [
                 .setDescription('Drop your bars here, human')
                 .setRequired(true)
                 .setMaxLength(500)
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('roast')
+        .setDescription('Have Jarvis roast someone with British class')
+        .addUserOption((option) =>
+            option
+                .setName('target')
+                .setDescription('Who shall I roast, sir?')
+                .setRequired(true)
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()

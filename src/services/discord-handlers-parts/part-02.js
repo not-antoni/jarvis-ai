@@ -641,6 +641,13 @@
 
         await moderationFilters.handleMessage(message);
 
+        // ============ LEGACY COMMANDS (.j prefix) ============
+        // Only works when Message Content Intent is enabled
+        if (config.discord?.messageContent?.enabled) {
+            const handled = await legacyCommands.handleLegacyCommand(message, client);
+            if (handled) return;
+        }
+
         const chatEnabled = await this.isCommandFeatureEnabled('jarvis', message.guild);
         if (!chatEnabled || !isFeatureGloballyEnabled('coreChat')) {
             return;
