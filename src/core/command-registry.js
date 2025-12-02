@@ -332,6 +332,32 @@ const commandDefinitions = [
         feature: 'funUtilities',
         ephemeral: false
     },
+    // ============ SELFHOST-ONLY EXPERIMENTAL COMMANDS ============
+    {
+        name: 'rapbattle',
+        description: 'HUMANOID vs HUMAN rap battle - challenge Jarvis!',
+        category: 'Experimental',
+        usage: '/rapbattle bars:<your rap>',
+        feature: 'selfhostExperimental',
+        ephemeral: false
+    },
+    {
+        name: 'soul',
+        description: 'View Jarvis\'s artificial soul status.',
+        category: 'Experimental',
+        usage: '/soul status',
+        feature: 'selfhostExperimental',
+        ephemeral: true
+    },
+    {
+        name: 'selfmod',
+        description: 'Jarvis self-modification analysis.',
+        category: 'Experimental',
+        usage: '/selfmod analyze',
+        feature: 'selfhostExperimental',
+        ephemeral: true
+    },
+    // ============ END SELFHOST-ONLY COMMANDS ============
     {
         name: 'reactionrole',
         description: 'Configure reaction role menus.',

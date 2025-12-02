@@ -48,6 +48,7 @@ const CaptchaHandler = require('../agents/captchaHandler');
 const RobustnessEnhancer = require('../agents/robustnessEnhancer');
 const tempFiles = require('../utils/temp-files');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
+const selfhostFeatures = require('./selfhost-features');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
