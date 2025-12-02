@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2024-2025 not-antoni (Jarvis AI Discord Bot)
+Copyright (c) 2024-2025 not-antoni
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,23 +20,55 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
----
 
-Additional Terms:
+================================================================================
+                            THIRD-PARTY LICENSES
+================================================================================
 
-1. ATTRIBUTION: If you use this bot's code or features in your own project,
-   a credit to "Jarvis AI by not-antoni" would be appreciated but not required.
+This project uses the following open-source libraries and was inspired by
+various open-source projects. We acknowledge and thank their authors.
+
+## Core Dependencies (MIT License unless noted)
+
+- discord.js - Apache-2.0 - https://github.com/discordjs/discord.js
+- @discordjs/voice - Apache-2.0 - https://github.com/discordjs/voice
+- express - MIT - https://github.com/expressjs/express
+- mongodb - Apache-2.0 - https://github.com/mongodb/node-mongodb-native
+- openai - MIT - https://github.com/openai/openai-node
+- node-fetch - MIT - https://github.com/node-fetch/node-fetch
+- puppeteer - Apache-2.0 - https://github.com/puppeteer/puppeteer
+- sharp - Apache-2.0 - https://github.com/lovell/sharp
+- canvas - MIT - https://github.com/Automattic/node-canvas
+- cheerio - MIT - https://github.com/cheeriojs/cheerio
+
+## Inspiration & Learning Resources
+
+- ppbot by schlopp - Economy system inspiration
+  https://github.com/schlopp/ppbot
+  (No explicit license - used for learning/reference only)
+
+## Trademarks Notice
+
+- "J.A.R.V.I.S." and Iron Man/Marvel references are used for fan purposes only
+  and are trademarks of Marvel Entertainment, LLC.
+- This project is not affiliated with or endorsed by Marvel, Disney, or any
+  of their subsidiaries.
+
+## Additional Terms
+
+1. ATTRIBUTION: If you use this bot's code in your own project, a credit to
+   "Jarvis AI by not-antoni" is appreciated but not legally required.
 
 2. NO MALICIOUS USE: This software may not be used for:
-   - Spam or harassment
-   - Unauthorized data collection
-   - Any activity that violates Discord's Terms of Service
+   - Spam, harassment, or abuse
+   - Unauthorized data collection or scraping
+   - Any activity violating Discord's Terms of Service
+   - Impersonation of the official Jarvis bot
 
-3. BRANDING: The "J.A.R.V.I.S." name and Iron Man/Marvel references are used
-   for fan purposes only and are trademarks of Marvel Entertainment, LLC.
-   This project is not affiliated with or endorsed by Marvel or Disney.
+3. DISCLAIMER: This is a fan project. The developers are not responsible for
+   any misuse of this software or any damages resulting from its use.
 
----
+================================================================================
 
-This project includes dependencies under their own licenses.
-See package.json for a full list of dependencies.
+For a complete list of dependencies and their licenses, see package.json
+or run: npm ls --all
