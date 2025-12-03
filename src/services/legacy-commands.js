@@ -437,8 +437,8 @@ const legacyCommands = {
         description: 'View richest users',
         usage: '.j leaderboard',
         aliases: ['lb', 'top', 'rich'],
-        execute: async (message, args) => {
-            const lb = await starkEconomy.getLeaderboard(10);
+        execute: async (message, args, client) => {
+            const lb = await starkEconomy.getLeaderboard(10, client);
             
             if (!lb.length) {
                 await message.reply('No data yet, sir.');

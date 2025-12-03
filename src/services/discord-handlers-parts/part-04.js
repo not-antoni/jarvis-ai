@@ -2657,7 +2657,7 @@
                 }
                 case 'leaderboard': {
                     telemetryMetadata.category = 'economy';
-                    const lb = await starkEconomy.getLeaderboard(10);
+                    const lb = await starkEconomy.getLeaderboard(10, interaction.client);
                     if (!lb.length) {
                         response = 'No data yet, sir.';
                         break;
