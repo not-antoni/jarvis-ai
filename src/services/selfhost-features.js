@@ -30,7 +30,7 @@ function checkSelfhost() {
 }
 
 // Log selfhost status on startup (single line)
-console.log(`[Selfhost] Mode: ${checkSelfhost() ? 'ENABLED' : 'disabled'}, Sentience guilds: ${config?.sentience?.whitelistedGuilds?.join(', ') || 'none'}`);
+console.log(`[Selfhost] Mode: ${checkSelfhost() ? 'ENABLED' : 'disabled'}, Sentience: enabled=${config?.sentience?.enabled}, guilds: ${config?.sentience?.whitelistedGuilds?.join(', ') || 'none'}`);
 
 // Export as getter for backward compatibility
 const isSelfhost = {
@@ -49,11 +49,16 @@ Object.defineProperty(module.exports, 'isSelfhost', {
  * Check if a guild has sentience features enabled
  */
 function isSentienceEnabled(guildId) {
-    if (!checkSelfhost()) return false;
     const sentienceConfig = config?.sentience || { enabled: false, whitelistedGuilds: [] };
-    if (!sentienceConfig.enabled) return false;
-    if (!guildId) return false;
-    return sentienceConfig.whitelistedGuilds.includes(String(guildId));
+    const guildIdStr = String(guildId);
+    const isEnabled = sentienceConfig.enabled && guildId && sentienceConfig.whitelistedGuilds.includes(guildIdStr);
+    
+    // Debug logging
+    if (guildId === '1403664986089324606' || guildIdStr === '1403664986089324606') {
+        console.log(`[Sentience] Check for guild ${guildIdStr}: enabled=${sentienceConfig.enabled}, whitelist=${JSON.stringify(sentienceConfig.whitelistedGuilds)}, result=${isEnabled}`);
+    }
+    
+    return isEnabled;
 }
 
 // ============================================================================
