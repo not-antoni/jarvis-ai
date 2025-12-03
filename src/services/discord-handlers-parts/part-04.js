@@ -2755,6 +2755,66 @@
                     response = { embeds: [begEmbed] };
                     break;
                 }
+                case 'crime': {
+                    telemetryMetadata.category = 'economy';
+                    const crimeResult = await starkEconomy.crime(interaction.user.id);
+                    if (!crimeResult.success) {
+                        const mins = Math.floor(crimeResult.cooldown / (60 * 1000));
+                        response = `🚔 Laying low after your last crime. Wait ${mins} more minutes.`;
+                        break;
+                    }
+                    const crimeBoost = starkEconomy.getBoostText();
+                    const crimeEmbed = new EmbedBuilder()
+                        .setTitle('🔫 Crime Results')
+                        .setDescription(crimeResult.reward >= 0 
+                            ? `**${crimeResult.outcome}**\n${crimeResult.reward > 0 ? `+**${crimeResult.reward}** Stark Bucks${crimeBoost}` : 'No reward this time...'}`
+                            : `**${crimeResult.outcome}**\n-**${Math.abs(crimeResult.reward)}** Stark Bucks`)
+                        .setColor(crimeResult.reward > 0 ? 0x2ecc71 : crimeResult.reward < 0 ? 0xe74c3c : 0x95a5a6)
+                        .addFields({ name: '💰 Balance', value: `${crimeResult.newBalance}`, inline: true })
+                        .setFooter({ text: 'Crime doesn\'t always pay!' });
+                    response = { embeds: [crimeEmbed] };
+                    break;
+                }
+                case 'postmeme': {
+                    telemetryMetadata.category = 'economy';
+                    const memeResult = await starkEconomy.postmeme(interaction.user.id);
+                    if (!memeResult.success) {
+                        const mins = Math.floor(memeResult.cooldown / (60 * 1000));
+                        response = `📱 Still waiting for engagement on your last post. Try again in ${mins} minutes.`;
+                        break;
+                    }
+                    const memeBoost = starkEconomy.getBoostText();
+                    const memeEmbed = new EmbedBuilder()
+                        .setTitle('📱 Meme Posted!')
+                        .setDescription(memeResult.reward > 0 
+                            ? `**${memeResult.outcome}**\n+**${memeResult.reward}** Stark Bucks${memeBoost}`
+                            : `**${memeResult.outcome}**`)
+                        .setColor(memeResult.reward > 100 ? 0xf1c40f : memeResult.reward > 0 ? 0x3498db : 0x95a5a6)
+                        .addFields({ name: '💰 Balance', value: `${memeResult.newBalance}`, inline: true })
+                        .setFooter({ text: 'Quality content = Quality rewards' });
+                    response = { embeds: [memeEmbed] };
+                    break;
+                }
+                case 'search': {
+                    telemetryMetadata.category = 'economy';
+                    const locationChoice = interaction.options.getString('location');
+                    const locationIndex = locationChoice ? parseInt(locationChoice) : null;
+                    const searchResult = await starkEconomy.search(interaction.user.id, locationIndex);
+                    if (!searchResult.success) {
+                        const mins = Math.floor(searchResult.cooldown / (60 * 1000));
+                        response = `🔍 You're too tired to search. Rest for ${mins} more minutes.`;
+                        break;
+                    }
+                    const searchBoost = starkEconomy.getBoostText();
+                    const searchEmbed = new EmbedBuilder()
+                        .setTitle('🔍 Search Results')
+                        .setDescription(`You searched **${searchResult.location}**...\n\n${searchResult.outcome}${searchResult.reward > 0 ? `\n+**${searchResult.reward}** Stark Bucks${searchBoost}` : searchResult.reward < 0 ? `\n-**${Math.abs(searchResult.reward)}** Stark Bucks` : ''}`)
+                        .setColor(searchResult.reward > 0 ? 0x2ecc71 : searchResult.reward < 0 ? 0xe74c3c : 0x95a5a6)
+                        .addFields({ name: '💰 Balance', value: `${searchResult.newBalance}`, inline: true })
+                        .setFooter({ text: 'Search again in 1 minute' });
+                    response = { embeds: [searchEmbed] };
+                    break;
+                }
                 case 'give': {
                     telemetryMetadata.category = 'economy';
                     const targetUser = interaction.options.getUser('user');
@@ -2810,7 +2870,7 @@
                     if (multiplierStatus.active) {
                         showEmbed.addFields({ 
                             name: '🎉 EVENT ACTIVE!', 
-                            value: `**${multiplierStatus.multiplier * 100}% MULTIPLIER!**`, 
+                            value: `**${multiplierStatus.multiplier}x MULTIPLIER (${multiplierStatus.multiplier * 100}%)!**`, 
                             inline: false 
                         });
                     }
