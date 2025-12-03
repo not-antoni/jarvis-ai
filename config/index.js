@@ -156,7 +156,19 @@ const rawConfig = {
     // AI Sentience Whitelist - servers where advanced AI features are enabled
     sentience: {
         enabled: parseBooleanEnv(process.env.SENTIENCE_ENABLED, true),
-        whitelistedGuilds: (process.env.SENTIENCE_GUILDS || '1403664986089324606').split(',').map(s => s.trim()).filter(Boolean)
+        whitelistedGuilds: (() => {
+            const defaultGuild = '1403664986089324606';
+            const envGuilds = process.env.SENTIENCE_GUILDS;
+            if (!envGuilds) {
+                return [defaultGuild];
+            }
+            const guilds = envGuilds.split(',').map(s => s.trim()).filter(Boolean);
+            // Always include default guild if not already present
+            if (!guilds.includes(defaultGuild)) {
+                guilds.push(defaultGuild);
+            }
+            return guilds;
+        })()
     },
 
     // YouTube API Configuration

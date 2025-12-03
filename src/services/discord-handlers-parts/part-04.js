@@ -2156,7 +2156,19 @@
                 return;
             }
 
-            const featureAllowed = await this.isCommandFeatureEnabled(commandName, guild);
+            // Check if sentience is enabled for this guild - if so, bypass feature flag check for sentience-related commands
+            const SENTIENCE_COMMANDS = ['soul', 'rapbattle', 'roast', 'sentient'];
+            const isSentienceCommand = SENTIENCE_COMMANDS.includes(commandName);
+            const sentienceEnabled = guild && isSentienceCommand ? selfhostFeatures.isSentienceEnabled(guild.id) : false;
+            
+            // Debug logging for sentience check
+            if (isSentienceCommand && guild) {
+                console.log(`[Sentience] Command: ${commandName}, Guild: ${guild.id}, Enabled: ${sentienceEnabled}`);
+            }
+            
+            const featureAllowed = sentienceEnabled && isSentienceCommand 
+                ? true 
+                : await this.isCommandFeatureEnabled(commandName, guild);
             if (!featureAllowed) {
                 telemetryStatus = 'error';
                 telemetryMetadata.reason = 'feature-disabled-guild';
@@ -2211,7 +2223,11 @@
                 return;
             }
 
-            const shouldBeEphemeral = SLASH_EPHEMERAL_COMMANDS.has(commandName);
+            // Check if sentience is enabled - if so, make sentience commands non-ephemeral
+            // Reuse the sentience check variables already declared above
+            const shouldBeEphemeral = sentienceEnabled && isSentienceCommand 
+                ? false 
+                : SLASH_EPHEMERAL_COMMANDS.has(commandName);
             const canUseEphemeral = Boolean(guild);
             const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
 
@@ -2430,26 +2446,18 @@
                         break;
                     }
 
-                    const username = interaction.user.displayName || interaction.user.username;
-                    const battle = selfhostFeatures.processRapBattle(bars, username);
+                    // Send GIF link
+                    response = 'https://tenor.com/view/ra-rapper-human-humanoid-ai-gif-9975150272806304020';
 
-                    // Build the response
-                    const rapEmbed = new EmbedBuilder()
-                        .setTitle('🎤 HUMANOID vs HUMAN 🎤')
-                        .setDescription('*Who\'s the fastest rapper?*')
-                        .setColor(0xff6b6b)
-                        .addFields(
-                            { name: '👤 Your Attempt', value: `> ${bars.substring(0, 200)}${bars.length > 200 ? '...' : ''}`, inline: false },
-                            { name: '🤖 JARVIS Counter-Rap', value: battle.counterRap, inline: false },
-                            { name: '🏆 Verdict', value: battle.verdict, inline: false }
-                        )
-                        .setFooter({ text: '🎤 HUMANOID vs HUMAN • Rap Battle System' })
-                        .setTimestamp();
+                    // Send "you lost" message after 2 seconds
+                    setTimeout(async () => {
+                        try {
+                            await interaction.followUp({ content: `you lost <@${interaction.user.id}>` });
+                        } catch (error) {
+                            console.error('Failed to send rapbattle follow-up:', error);
+                        }
+                    }, 2000);
 
-                    // Evolve soul on rap battle
-                    selfhostFeatures.jarvisSoul.evolve('roast', 'positive');
-
-                    response = { embeds: [rapEmbed] };
                     break;
                 }
                 case 'soul': {
@@ -3001,8 +3009,10 @@
                 }
                 case 'sentient': {
                     telemetryMetadata.category = 'experimental';
-                    if (!selfhostFeatures.isSelfhost) {
-                        response = 'Sentient agent is only available in selfhost mode, sir.';
+                    // Check if sentience is enabled for this guild instead of requiring selfhost mode
+                    const sentienceEnabled = guild ? selfhostFeatures.isSentienceEnabled(guild.id) : false;
+                    if (!sentienceEnabled) {
+                        response = 'Sentient agent is only available in servers with sentience enabled, sir.';
                         break;
                     }
 
