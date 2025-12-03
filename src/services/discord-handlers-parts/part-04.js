@@ -2502,9 +2502,10 @@
                 case 'balance': {
                     telemetryMetadata.category = 'economy';
                     const stats = await starkEconomy.getUserStats(interaction.user.id);
+                    const boostText = starkEconomy.getBoostText();
                     const balanceEmbed = new EmbedBuilder()
                         .setTitle('💰 Stark Bucks Balance')
-                        .setDescription(`You have **${stats.balance}** Stark Bucks, sir.`)
+                        .setDescription(`You have **${stats.balance}** Stark Bucks, sir.${boostText}`)
                         .setColor(0xf1c40f)
                         .addFields(
                             { name: '📈 Total Earned', value: `${stats.totalEarned}`, inline: true },
@@ -2547,9 +2548,10 @@
                         response = `⏰ You're tired, sir. Rest for ${minutes} more minutes.`;
                         break;
                     }
+                    const workBoost = starkEconomy.getBoostText();
                     const workEmbed = new EmbedBuilder()
                         .setTitle('💼 Work Complete!')
-                        .setDescription(`You ${result.job} and earned **${result.reward}** Stark Bucks!`)
+                        .setDescription(`You ${result.job} and earned **${result.reward}** Stark Bucks!${workBoost}`)
                         .setColor(0x3498db)
                         .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
                         .setFooter({ text: 'Stark Industries HR Department' });
@@ -2681,14 +2683,15 @@
                         response = `🏹 You're tired from hunting. Rest for ${mins} more minutes.`;
                         break;
                     }
+                    const huntBoost = starkEconomy.getBoostText();
                     const huntEmbed = new EmbedBuilder()
                         .setTitle('🏹 Hunt Results')
                         .setDescription(huntResult.reward > 0 
-                            ? `You caught a **${huntResult.outcome}**!\n+**${huntResult.reward}** Stark Bucks`
+                            ? `You caught a **${huntResult.outcome}**!\n+**${huntResult.reward}** Stark Bucks${huntBoost}`
                             : `${huntResult.outcome}... The animals got away!`)
                         .setColor(huntResult.reward > 0 ? 0x2ecc71 : 0x95a5a6)
                         .addFields({ name: '💰 Balance', value: `${huntResult.newBalance}`, inline: true })
-                        .setFooter({ text: 'Hunt again in 45 minutes' });
+                        .setFooter({ text: 'Hunt again in 1 minute' });
                     response = { embeds: [huntEmbed] };
                     break;
                 }
@@ -2700,14 +2703,15 @@
                         response = `🎣 Your fishing rod needs to dry. Wait ${mins} more minutes.`;
                         break;
                     }
+                    const fishBoost = starkEconomy.getBoostText();
                     const fishEmbed = new EmbedBuilder()
                         .setTitle('🎣 Fishing Results')
                         .setDescription(fishResult.reward > 0 
-                            ? `You caught a **${fishResult.outcome}**!\n+**${fishResult.reward}** Stark Bucks`
+                            ? `You caught a **${fishResult.outcome}**!\n+**${fishResult.reward}** Stark Bucks${fishBoost}`
                             : `${fishResult.outcome}... Nothing bit today!`)
                         .setColor(fishResult.reward > 0 ? 0x3498db : 0x95a5a6)
                         .addFields({ name: '💰 Balance', value: `${fishResult.newBalance}`, inline: true })
-                        .setFooter({ text: 'Fish again in 30 minutes' });
+                        .setFooter({ text: 'Fish again in 1 minute' });
                     response = { embeds: [fishEmbed] };
                     break;
                 }
@@ -2719,14 +2723,15 @@
                         response = `⛏️ Your shovel is broken. Wait ${mins} more minutes.`;
                         break;
                     }
+                    const digBoost = starkEconomy.getBoostText();
                     const digEmbed = new EmbedBuilder()
                         .setTitle('⛏️ Dig Results')
                         .setDescription(digResult.reward > 0 
-                            ? `You found **${digResult.outcome}**!\n+**${digResult.reward}** Stark Bucks`
+                            ? `You found **${digResult.outcome}**!\n+**${digResult.reward}** Stark Bucks${digBoost}`
                             : `${digResult.outcome}... Nothing but dirt!`)
                         .setColor(digResult.reward > 0 ? 0xf1c40f : 0x95a5a6)
                         .addFields({ name: '💰 Balance', value: `${digResult.newBalance}`, inline: true })
-                        .setFooter({ text: 'Dig again in 20 minutes' });
+                        .setFooter({ text: 'Dig again in 1 minute' });
                     response = { embeds: [digEmbed] };
                     break;
                 }
@@ -2738,14 +2743,15 @@
                         response = `🙏 People are avoiding you. Try again in ${mins} minutes.`;
                         break;
                     }
+                    const begBoost = starkEconomy.getBoostText();
                     const begEmbed = new EmbedBuilder()
                         .setTitle('🙏 Begging Results')
                         .setDescription(begResult.reward > 0 
-                            ? `**${begResult.outcome}** **${begResult.reward}** Stark Bucks!`
+                            ? `**${begResult.outcome}** **${begResult.reward}** Stark Bucks!${begBoost}`
                             : `${begResult.outcome}... Better luck next time!`)
                         .setColor(begResult.reward > 0 ? 0x9b59b6 : 0x95a5a6)
                         .addFields({ name: '💰 Balance', value: `${begResult.newBalance}`, inline: true })
-                        .setFooter({ text: 'Beg again in 5 minutes' });
+                        .setFooter({ text: 'Beg again in 1 minute' });
                     response = { embeds: [begEmbed] };
                     break;
                 }

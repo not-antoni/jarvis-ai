@@ -3477,7 +3477,7 @@ client.once(Events.ClientReady, async () => {
     global.discordClient = client;
     
     // Start Stark Bucks multiplier event scheduler (250% bonus every 3 hours)
-    starkEconomy.startMultiplierScheduler(client);
+    starkEconomy.startMultiplierScheduler();
 
     // Initialize diagnostics router now that discordHandlers is ready
     diagnosticsRouter = createAgentDiagnosticsRouter(discordHandlers);
