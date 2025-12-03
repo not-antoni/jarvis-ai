@@ -1589,7 +1589,7 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName("status")
         .setDescription("Check Jarvis's system status")
-        .setContexts([InteractionContextType.Guild]),
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("time")
         .setDescription("Get the current time in your timezone")
