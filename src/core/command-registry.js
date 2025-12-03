@@ -406,10 +406,10 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'vote',
-        description: 'Vote for Jarvis on top.gg and get rewards!',
+        name: 'show',
+        description: 'Show off your Stark Bucks balance to everyone!',
         category: 'Economy',
-        usage: '/vote',
+        usage: '/show',
         feature: 'funUtilities',
         ephemeral: false
     },
@@ -436,7 +436,7 @@ const commandDefinitions = [
         category: 'Fun',
         usage: '/soul status',
         feature: 'funUtilities',
-        ephemeral: true
+        ephemeral: false
     },
     // ============ SELFHOST-ONLY COMMANDS ============
     {

@@ -20,24 +20,20 @@ const config = require('../../config');
 
 const ECONOMY_CONFIG = {
     startingBalance: 100,
-    dailyReward: { min: 50, max: 100 },
+    dailyReward: 150,
+    dailyStreakBonus: 25,
+    maxDailyStreak: 30,
+    workReward: { min: 30, max: 80 },
+    workCooldown: 60 * 1000, // 1 minute
     dailyCooldown: 24 * 60 * 60 * 1000, // 24 hours
-    streakBonus: 10, // Extra per day streak
-    maxStreak: 30, // Cap streak bonus at 30 days
-    gamblingWinRate: 0.45, // 45% win rate
-    slotsMultipliers: {
-        jackpot: 10,    // 💎💎💎
-        triple: 5,      // Any triple
-        double: 2,      // Any double
-        loss: 0
-    },
-    workCooldown: 30 * 60 * 1000, // 30 minutes
-    workReward: { min: 20, max: 50 },
-    robCooldown: 60 * 60 * 1000, // 1 hour
-    robSuccessRate: 0.3, // 30% success
-    robMaxPercent: 0.2, // Can steal up to 20% of target's balance
-    cleanupInterval: 6 * 60 * 60 * 1000, // 6 hours
-    inactiveThreshold: 30 * 24 * 60 * 60 * 1000, // 30 days
+    robChance: 0.4,
+    robCooldown: 60 * 1000, // 1 minute
+    cleanupInterval: 60 * 60 * 1000, // 1 hour
+    maxBalance: 1000000000, // 1 billion cap
+    // Multiplier event settings
+    multiplierInterval: 3 * 60 * 60 * 1000, // Every 3 hours
+    multiplierDuration: 7 * 60 * 60 * 1000, // Lasts 7 hours
+    multiplierBonus: 2.5 // 250% = 2.5x
 };
 
 // ============================================================================
@@ -115,7 +111,7 @@ const SLOT_SYMBOLS = ['💎', '7️⃣', '🍒', '🍋', '⭐', '🔔'];
 // Hunt/Fish/Dig rewards
 const MINIGAME_REWARDS = {
     hunt: {
-        cooldown: 45 * 60 * 1000, // 45 minutes
+        cooldown: 60 * 1000, // 1 minute
         outcomes: [
             { name: '🦌 Deer', reward: 80, chance: 0.3 },
             { name: '🐗 Boar', reward: 60, chance: 0.35 },
@@ -124,7 +120,7 @@ const MINIGAME_REWARDS = {
         ]
     },
     fish: {
-        cooldown: 30 * 60 * 1000, // 30 minutes
+        cooldown: 60 * 1000, // 1 minute
         outcomes: [
             { name: '🦈 Shark', reward: 100, chance: 0.1 },
             { name: '🐟 Fish', reward: 40, chance: 0.4 },
@@ -134,7 +130,7 @@ const MINIGAME_REWARDS = {
         ]
     },
     dig: {
-        cooldown: 20 * 60 * 1000, // 20 minutes
+        cooldown: 60 * 1000, // 1 minute
         outcomes: [
             { name: '💎 Diamond', reward: 150, chance: 0.05 },
             { name: '🪙 Gold Coins', reward: 70, chance: 0.15 },
@@ -144,7 +140,7 @@ const MINIGAME_REWARDS = {
         ]
     },
     beg: {
-        cooldown: 5 * 60 * 1000, // 5 minutes
+        cooldown: 60 * 1000, // 1 minute
         outcomes: [
             { name: 'Tony Stark gave you', reward: 100, chance: 0.05 },
             { name: 'Pepper Potts donated', reward: 50, chance: 0.15 },
@@ -900,6 +896,106 @@ setInterval(() => {
 }, ECONOMY_CONFIG.cleanupInterval);
 
 // ============================================================================
+// MULTIPLIER EVENT SYSTEM (250% bonus every 3 hours, lasts 7 hours)
+// ============================================================================
+
+let multiplierActive = false;
+let multiplierEndTime = 0;
+let lastMultiplierStart = 0;
+
+/**
+ * Check if multiplier is currently active
+ */
+function isMultiplierActive() {
+    if (multiplierActive && Date.now() < multiplierEndTime) {
+        return true;
+    }
+    if (multiplierActive && Date.now() >= multiplierEndTime) {
+        multiplierActive = false;
+        console.log('[StarkEconomy] 250% multiplier event ended');
+    }
+    return false;
+}
+
+/**
+ * Get current multiplier value
+ */
+function getMultiplier() {
+    return isMultiplierActive() ? ECONOMY_CONFIG.multiplierBonus : 1;
+}
+
+/**
+ * Get multiplier status
+ */
+function getMultiplierStatus() {
+    const active = isMultiplierActive();
+    return {
+        active,
+        multiplier: active ? ECONOMY_CONFIG.multiplierBonus : 1,
+        endsAt: active ? multiplierEndTime : null,
+        nextEventIn: active ? null : Math.max(0, (lastMultiplierStart + ECONOMY_CONFIG.multiplierInterval) - Date.now())
+    };
+}
+
+/**
+ * Start multiplier event and notify users
+ */
+async function startMultiplierEvent(discordClient) {
+    multiplierActive = true;
+    multiplierEndTime = Date.now() + ECONOMY_CONFIG.multiplierDuration;
+    lastMultiplierStart = Date.now();
+    
+    console.log('[StarkEconomy] 🎉 250% multiplier event started! Lasts 7 hours.');
+    
+    // DM all users who have used the economy
+    if (discordClient) {
+        try {
+            const col = await getCollection();
+            const users = await col.find({ balance: { $gt: 0 } }).toArray();
+            
+            let dmsSent = 0;
+            for (const user of users) {
+                try {
+                    const discordUser = await discordClient.users.fetch(user.userId);
+                    if (discordUser) {
+                        await discordUser.send(
+                            `🎉 **STARK BUCKS EVENT!**\n\n` +
+                            `**250% MULTIPLIER IS NOW ACTIVE!**\n\n` +
+                            `All earnings are boosted for the next **7 hours**!\n` +
+                            `• Work rewards: **2.5x**\n` +
+                            `• Minigame rewards: **2.5x**\n` +
+                            `• Gambling wins: **2.5x**\n\n` +
+                            `Go earn some Stark Bucks! 💰`
+                        );
+                        dmsSent++;
+                    }
+                } catch (e) {
+                    // User has DMs disabled or other error
+                }
+            }
+            console.log(`[StarkEconomy] Sent ${dmsSent}/${users.length} event DMs`);
+        } catch (error) {
+            console.error('[StarkEconomy] Failed to send event DMs:', error);
+        }
+    }
+}
+
+// Schedule multiplier events every 3 hours
+let multiplierInterval = null;
+function startMultiplierScheduler(discordClient) {
+    if (multiplierInterval) clearInterval(multiplierInterval);
+    
+    // Start first event after 3 hours
+    multiplierInterval = setInterval(() => {
+        if (!isMultiplierActive()) {
+            startMultiplierEvent(discordClient);
+        }
+    }, ECONOMY_CONFIG.multiplierInterval);
+    
+    console.log('[StarkEconomy] Multiplier event scheduler started (every 3 hours)');
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -939,5 +1035,12 @@ module.exports = {
     give,
     
     // Maintenance
-    cleanup
+    cleanup,
+    
+    // Multiplier Events
+    isMultiplierActive,
+    getMultiplier,
+    getMultiplierStatus,
+    startMultiplierEvent,
+    startMultiplierScheduler
 };
