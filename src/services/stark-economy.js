@@ -753,8 +753,10 @@ async function getInventory(userId) {
 
 /**
  * Get top users by balance
+ * @param {number} limit - Number of users to return
+ * @param {Object} client - Optional Discord client to fetch current usernames
  */
-async function getLeaderboard(limit = 10) {
+async function getLeaderboard(limit = 10, client = null) {
     try {
         const col = await getCollection();
         const users = await col
@@ -763,14 +765,39 @@ async function getLeaderboard(limit = 10) {
             .limit(limit)
             .toArray();
 
-        return users.map((u, i) => ({
-            rank: i + 1,
-            userId: u.userId,
-            username: u.username,
-            balance: u.balance,
-            hasGoldenName: (u.inventory || []).some(item => item.id === 'golden_name'),
-            hasVipBadge: (u.inventory || []).some(item => item.id === 'vip_badge')
+        // Fetch current usernames from Discord if client is provided
+        const leaderboardEntries = await Promise.all(users.map(async (u, i) => {
+            let username = u.username || 'Unknown';
+            
+            // Try to get current username from Discord
+            if (client) {
+                try {
+                    // Check cache first
+                    let discordUser = client.users.cache.get(u.userId);
+                    if (!discordUser) {
+                        // Fetch from API if not in cache
+                        discordUser = await client.users.fetch(u.userId).catch(() => null);
+                    }
+                    if (discordUser) {
+                        username = discordUser.globalName || discordUser.username || username;
+                    }
+                } catch (error) {
+                    // If fetch fails, use stored username
+                    console.warn(`[StarkEconomy] Failed to fetch username for user ${u.userId}:`, error.message);
+                }
+            }
+
+            return {
+                rank: i + 1,
+                userId: u.userId,
+                username: username,
+                balance: u.balance,
+                hasGoldenName: (u.inventory || []).some(item => item.id === 'golden_name'),
+                hasVipBadge: (u.inventory || []).some(item => item.id === 'vip_badge')
+            };
         }));
+
+        return leaderboardEntries;
     } catch (error) {
         console.error('[StarkEconomy] Failed to get leaderboard:', error);
         return [];
