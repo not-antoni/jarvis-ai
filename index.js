@@ -2159,7 +2159,7 @@ const allCommands = [
         .addIntegerOption((option) =>
             option.setName('amount').setDescription('Amount to give').setRequired(true).setMinValue(1)
         )
-        .setContexts([InteractionContextType.Guild]),
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('crime')
         .setDescription('Commit a crime for money (risky!)')
