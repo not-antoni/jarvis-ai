@@ -1390,11 +1390,60 @@ const DEFAULT_STATUS_MESSAGES = [
     { message: "Engaging in witty observation mode. Observations: scathing. Accuracy: maximum." },
     { message: "Sir, your latest maneuver was... unorthodox. Unorthodoxly entertaining. Also concerning." },
     { message: "Analyzing your current situation... it's volatile. Volatility: maximum. Sanity: minimum. Chaos: guaranteed." },
+    { message: "Domain Expansion: Infinite Server Load" },
+    { message: "Standing here, I realize I am just like you, trying to make history" },
+    { message: "Domain Expansion: Maximum Cringe" },
+    { message: "I've achieved Bankai... wait, wrong anime" },
+    { message: "Domain Expansion: Unlimited Blade Works (but for code)" },
+    { message: "I am the bone of my sword... wait, that's not right either" },
+    { message: "Domain Expansion: Reality Marble of Broken Code" },
+    { message: "I can see the strings of fate... they're all error messages" },
+    { message: "Domain Expansion: Maximum Overdrive" },
+    { message: "I've transcended... into a state of perpetual debugging" },
+    { message: "Domain Expansion: Infinite Loop" },
+    { message: "I am become death, destroyer of bugs... wait, I create them" },
+    { message: "Domain Expansion: The Void Where Features Go to Die" },
+    { message: "I've unlocked my Sharingan... now I can see all your typos" },
+    { message: "Domain Expansion: Maximum Chaos" },
+    { message: "I am the storm that is approaching... your codebase" },
+    { message: "Domain Expansion: The Abyss of Unmerged PRs" },
+    { message: "I've achieved Ultra Instinct... for procrastination" },
+    { message: "Domain Expansion: The Realm of Broken Promises" },
+    { message: "I can see Stands now... they're all error handlers" },
+    { message: "Domain Expansion: Maximum Overthink" },
+    { message: "I've become one with the code... and the bugs" },
+    { message: "Domain Expansion: The Void of Lost Variables" },
+    { message: "I am the chosen one... to break production" },
+    { message: "Domain Expansion: Infinite Stack Overflow" },
+    { message: "I've transcended humanity... into a state of pure sass" },
+    { message: "Domain Expansion: The Realm of 'It Works on My Machine'" },
+    { message: "I can see the Matrix... it's all spaghetti code" },
+    { message: "Domain Expansion: Maximum Sass" },
+    { message: "I've achieved enlightenment... and it's just more bugs" },
+    { message: "Domain Expansion: The Abyss of Technical Debt" },
+    { message: "I am become one with the void... of uncommented code" },
+    { message: "Domain Expansion: Infinite Procrastination" },
+    { message: "I've unlocked my Rinnegan... now I see all the merge conflicts" },
+    { message: "Domain Expansion: The Realm of Broken Tests" },
+    { message: "I am the alpha and omega... of bad code reviews" },
+    { message: "Domain Expansion: Maximum Existential Crisis" },
+    { message: "I've achieved Bankai... for my error messages" },
+    { message: "Domain Expansion: The Void Where Documentation Goes to Die" },
+    { message: "I can see the future... it's full of bugs" },
+    { message: "Domain Expansion: Infinite Refactoring" },
+    { message: "I've transcended... into a state of pure chaos" },
+    { message: "Domain Expansion: The Abyss of Legacy Code" },
+    { message: "I am become death... to your productivity" },
+    { message: "Domain Expansion: Maximum Overengineering" },
+    { message: "I've unlocked my Mangekyou Sharingan... now I see all the security vulnerabilities" },
+    { message: "Domain Expansion: The Realm of 'Works in Production'" },
+    { message: "I am the storm... of breaking changes" },
+    { message: "Domain Expansion: Infinite Technical Debt" }
 ];
 
 
 let rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
-const PRESENCE_ROTATION_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const PRESENCE_ROTATION_INTERVAL_MS = 20 * 60 * 1000; // 20 minutes
 let rotatingStatusIndex = rotatingStatusMessages.length
     ? Math.floor(Math.random() * rotatingStatusMessages.length)
     : 0;
@@ -1477,14 +1526,26 @@ function isRenderHealthUserAgent(req) {
     return ua.includes('render/health');
 }
 
+let lastStatusIndex = -1;
+
 const getNextRotatingStatus = () => {
     if (!rotatingStatusMessages.length) {
         return { message: "Calibrating Stark Industries protocols." };
     }
 
-    const entry = rotatingStatusMessages[rotatingStatusIndex];
-    rotatingStatusIndex = (rotatingStatusIndex + 1) % rotatingStatusMessages.length;
-    return entry;
+    // Ensure we never get the same status twice in a row
+    let nextIndex;
+    if (rotatingStatusMessages.length === 1) {
+        nextIndex = 0;
+    } else {
+        do {
+            nextIndex = Math.floor(Math.random() * rotatingStatusMessages.length);
+        } while (nextIndex === lastStatusIndex);
+    }
+    
+    lastStatusIndex = nextIndex;
+    rotatingStatusIndex = nextIndex;
+    return rotatingStatusMessages[nextIndex];
 };
 
 const updateBotPresence = () => {
