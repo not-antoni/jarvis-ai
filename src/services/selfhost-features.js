@@ -25,14 +25,8 @@ function checkSelfhost() {
     return result;
 }
 
-// Log selfhost status on startup
-console.log('[Selfhost] Mode check:', {
-    configSelfhostMode: config?.deployment?.selfhostMode,
-    configTarget: config?.deployment?.target,
-    envSelfhostMode: process.env.SELFHOST_MODE,
-    envDeployTarget: process.env.DEPLOY_TARGET,
-    result: checkSelfhost()
-});
+// Log selfhost status on startup (single line)
+console.log(`[Selfhost] Mode: ${checkSelfhost() ? 'ENABLED' : 'disabled'}, Sentience guilds: ${config?.sentience?.whitelistedGuilds?.join(', ') || 'none'}`);
 
 // Export as getter for backward compatibility
 const isSelfhost = {

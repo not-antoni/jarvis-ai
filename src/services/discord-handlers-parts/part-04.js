@@ -2784,57 +2784,33 @@
                     response = { embeds: [giveEmbed] };
                     break;
                 }
-                case 'vote': {
+                case 'show': {
                     telemetryMetadata.category = 'economy';
-                    const voteStatus = await topggVoting.getVoteStatus(interaction.user.id);
+                    const showUser = await starkEconomy.loadUser(interaction.user.id, interaction.user.username);
+                    const multiplierStatus = starkEconomy.getMultiplierStatus();
                     
-                    const voteEmbed = new EmbedBuilder()
-                        .setTitle('🗳️ Vote for Jarvis!')
-                        .setColor(voteStatus.canVote ? 0x2ecc71 : 0xf39c12)
-                        .setDescription(voteStatus.canVote 
-                            ? `**[Click here to vote!](${voteStatus.voteUrl})**\n\nVote now to earn Stark Bucks!`
-                            : `You've already voted! Come back later.`)
+                    const showEmbed = new EmbedBuilder()
+                        .setTitle(`💰 ${interaction.user.username}'s Stark Bucks`)
+                        .setColor(0xf1c40f)
+                        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
                         .addFields(
-                            { name: '🎁 Next Reward', value: `~${voteStatus.rewards.estimated} Stark Bucks`, inline: true },
-                            { name: '🔥 Vote Streak', value: `${voteStatus.streak} votes`, inline: true },
-                            { name: '📊 Total Votes', value: `${voteStatus.totalVotes}`, inline: true }
+                            { name: '💵 Balance', value: `**${showUser.balance.toLocaleString()}** Stark Bucks`, inline: true },
+                            { name: '📈 Total Earned', value: `${(showUser.totalEarned || 0).toLocaleString()}`, inline: true },
+                            { name: '🎮 Games Played', value: `${showUser.gamesPlayed || 0}`, inline: true },
+                            { name: '🏆 Games Won', value: `${showUser.gamesWon || 0}`, inline: true },
+                            { name: '🔥 Daily Streak', value: `${showUser.dailyStreak || 0} days`, inline: true }
                         );
                     
-                    if (voteStatus.hasBoost) {
-                        voteEmbed.addFields({ 
-                            name: '⚡ Voting Boost Active!', 
-                            value: `+${Math.round((voteStatus.boostMultiplier - 1) * 100)}% bonus on all earnings`, 
+                    if (multiplierStatus.active) {
+                        showEmbed.addFields({ 
+                            name: '🎉 EVENT ACTIVE!', 
+                            value: `**${multiplierStatus.multiplier * 100}% MULTIPLIER!**`, 
                             inline: false 
                         });
                     }
                     
-                    if (!voteStatus.canVote) {
-                        const hours = Math.floor(voteStatus.timeRemaining / (60 * 60 * 1000));
-                        const minutes = Math.floor((voteStatus.timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
-                        voteEmbed.addFields({ 
-                            name: '⏰ Vote Again In', 
-                            value: `${hours}h ${minutes}m`, 
-                            inline: false 
-                        });
-                    }
-                    
-                    if (topggVoting.isWeekend()) {
-                        voteEmbed.addFields({ name: '🎊 Weekend Bonus!', value: '2x rewards active!', inline: false });
-                    }
-                    
-                    voteEmbed.setFooter({ text: 'Vote every 12 hours for maximum rewards!' });
-                    
-                    // Add vote button
-                    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-                    const row = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setLabel('Vote on top.gg')
-                            .setStyle(ButtonStyle.Link)
-                            .setURL(voteStatus.voteUrl)
-                            .setEmoji('🗳️')
-                    );
-                    
-                    response = { embeds: [voteEmbed], components: [row] };
+                    showEmbed.setFooter({ text: 'Flex those Stark Bucks!' });
+                    response = { embeds: [showEmbed] };
                     break;
                 }
                 // ============ SELFHOST-ONLY COMMANDS (requires filesystem access) ============
@@ -3051,9 +3027,10 @@
                     } else if (subcommand === 'autonomous') {
                         const enabled = interaction.options.getBoolean('enabled');
                         
-                        // Only allow admin to enable autonomous mode
-                        if (enabled && interaction.user.id !== config.admin.userId) {
-                            response = '⚠️ Only the bot administrator can enable autonomous mode, sir.';
+                        // Only allow admin to enable autonomous mode (check both config and env)
+                        const adminId = config.admin?.userId || process.env.ADMIN_USER_ID;
+                        if (enabled && adminId && interaction.user.id !== adminId) {
+                            response = `⚠️ Only the bot administrator can enable autonomous mode, sir. (Your ID: ${interaction.user.id})`;
                             break;
                         }
                         

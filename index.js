@@ -43,7 +43,7 @@ const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
-const topggVoting = require('./src/services/topgg-voting');
+const starkEconomy = require('./src/services/stark-economy');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -2131,8 +2131,8 @@ const allCommands = [
         .setDescription('View the Stark Bucks leaderboard')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('vote')
-        .setDescription('Vote for Jarvis on top.gg and get rewards!')
+        .setName('show')
+        .setDescription('Show off your Stark Bucks balance to everyone!')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('hunt')
@@ -2795,9 +2795,6 @@ app.get('/:id.:ext', (req, res, next) => {
 
 // Webhook forwarder requires raw body parsing for signature validation, so mount before json middleware
 app.use("/webhook", webhookRouter);
-
-// Top.gg vote webhook (needs JSON body)
-app.post("/topgg/webhook", express.json(), topggVoting.createWebhookMiddleware());
 
 app.use(express.json({ limit: '2mb' }));
 
@@ -3476,8 +3473,11 @@ app.get("/health", async (req, res) => {
 client.once(Events.ClientReady, async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
     
-    // Store client globally for webhook access (top.gg voting DMs)
+    // Store client globally for economy DMs
     global.discordClient = client;
+    
+    // Start Stark Bucks multiplier event scheduler (250% bonus every 3 hours)
+    starkEconomy.startMultiplierScheduler(client);
 
     // Initialize diagnostics router now that discordHandlers is ready
     diagnosticsRouter = createAgentDiagnosticsRouter(discordHandlers);
