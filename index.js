@@ -2169,7 +2169,7 @@ const allCommands = [
         .setDescription('Post a meme and hope it goes viral')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('search')
+        .setName('searchlocation')
         .setDescription('Search a location for money')
         .addStringOption((option) =>
             option.setName('location')

@@ -2795,7 +2795,7 @@
                     response = { embeds: [memeEmbed] };
                     break;
                 }
-                case 'search': {
+                case 'searchlocation': {
                     telemetryMetadata.category = 'economy';
                     const locationChoice = interaction.options.getString('location');
                     const locationIndex = locationChoice ? parseInt(locationChoice) : null;

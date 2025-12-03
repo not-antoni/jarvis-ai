@@ -430,10 +430,10 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'search',
+        name: 'searchlocation',
         description: 'Search a location for money',
         category: 'Economy',
-        usage: '/search [location]',
+        usage: '/searchlocation [location]',
         feature: 'funUtilities',
         ephemeral: false
     },
