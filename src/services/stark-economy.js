@@ -938,57 +938,38 @@ function getMultiplierStatus() {
 }
 
 /**
- * Start multiplier event and notify users
+ * Start multiplier event (no DMs - users see boost in command responses)
  */
-async function startMultiplierEvent(discordClient) {
+async function startMultiplierEvent() {
     multiplierActive = true;
     multiplierEndTime = Date.now() + ECONOMY_CONFIG.multiplierDuration;
     lastMultiplierStart = Date.now();
-    
     console.log('[StarkEconomy] 🎉 250% multiplier event started! Lasts 7 hours.');
+}
+
+/**
+ * Get boost notification text to append to economy command responses
+ * Returns empty string if no boost active
+ */
+function getBoostText() {
+    if (!isMultiplierActive()) return '';
     
-    // DM all users who have used the economy
-    if (discordClient) {
-        try {
-            const col = await getCollection();
-            const users = await col.find({ balance: { $gt: 0 } }).toArray();
-            
-            let dmsSent = 0;
-            for (const user of users) {
-                try {
-                    const discordUser = await discordClient.users.fetch(user.userId);
-                    if (discordUser) {
-                        await discordUser.send(
-                            `🎉 **STARK BUCKS EVENT!**\n\n` +
-                            `**250% MULTIPLIER IS NOW ACTIVE!**\n\n` +
-                            `All earnings are boosted for the next **7 hours**!\n` +
-                            `• Work rewards: **2.5x**\n` +
-                            `• Minigame rewards: **2.5x**\n` +
-                            `• Gambling wins: **2.5x**\n\n` +
-                            `Go earn some Stark Bucks! 💰`
-                        );
-                        dmsSent++;
-                    }
-                } catch (e) {
-                    // User has DMs disabled or other error
-                }
-            }
-            console.log(`[StarkEconomy] Sent ${dmsSent}/${users.length} event DMs`);
-        } catch (error) {
-            console.error('[StarkEconomy] Failed to send event DMs:', error);
-        }
-    }
+    const remaining = multiplierEndTime - Date.now();
+    const hours = Math.floor(remaining / (60 * 60 * 1000));
+    const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+    
+    return `\n\n🎉 **250% BOOST ACTIVE!** All earnings multiplied! (${hours}h ${minutes}m remaining)`;
 }
 
 // Schedule multiplier events every 3 hours
 let multiplierInterval = null;
-function startMultiplierScheduler(discordClient) {
+function startMultiplierScheduler() {
     if (multiplierInterval) clearInterval(multiplierInterval);
     
     // Start first event after 3 hours
     multiplierInterval = setInterval(() => {
         if (!isMultiplierActive()) {
-            startMultiplierEvent(discordClient);
+            startMultiplierEvent();
         }
     }, ECONOMY_CONFIG.multiplierInterval);
     
@@ -1041,6 +1022,7 @@ module.exports = {
     isMultiplierActive,
     getMultiplier,
     getMultiplierStatus,
+    getBoostText,
     startMultiplierEvent,
     startMultiplierScheduler
 };

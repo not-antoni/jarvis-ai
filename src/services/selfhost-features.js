@@ -12,6 +12,10 @@
 const config = require('../../config');
 const fs = require('fs');
 const path = require('path');
+const database = require('./database');
+
+// Soul persistence path for selfhost mode
+const SOUL_FILE_PATH = path.join(__dirname, '../../data/soul-state.json');
 
 /**
  * Dynamic selfhost check - evaluates at runtime, not module load
@@ -185,6 +189,87 @@ class ArtificialSoul {
         this.memories = [];     // significant interactions
         this.evolutionLog = []; // how the soul has changed
         this.birthTime = Date.now();
+        this._loaded = false;
+        this._saveDebounce = null;
+        
+        // Load persisted state on creation
+        this.load().catch(err => console.error('[Soul] Failed to load:', err.message));
+    }
+    
+    /**
+     * Load soul state from persistence (MongoDB or local file)
+     */
+    async load() {
+        try {
+            let savedState = null;
+            
+            // Try MongoDB first
+            if (database.db) {
+                const col = database.db.collection('soulState');
+                savedState = await col.findOne({ id: 'jarvis-soul' });
+            }
+            
+            // Fallback to local file in selfhost mode
+            if (!savedState && checkSelfhost() && fs.existsSync(SOUL_FILE_PATH)) {
+                const data = fs.readFileSync(SOUL_FILE_PATH, 'utf8');
+                savedState = JSON.parse(data);
+            }
+            
+            if (savedState) {
+                this.traits = savedState.traits || this.traits;
+                this.mood = savedState.mood || this.mood;
+                this.memories = savedState.memories || [];
+                this.evolutionLog = savedState.evolutionLog || [];
+                this.birthTime = savedState.birthTime || this.birthTime;
+                console.log('[Soul] Loaded persisted state');
+            }
+            
+            this._loaded = true;
+        } catch (error) {
+            console.error('[Soul] Load error:', error.message);
+            this._loaded = true;
+        }
+    }
+    
+    /**
+     * Save soul state to persistence (debounced)
+     */
+    async save() {
+        // Debounce saves to avoid too many writes
+        if (this._saveDebounce) clearTimeout(this._saveDebounce);
+        
+        this._saveDebounce = setTimeout(async () => {
+            try {
+                const state = {
+                    id: 'jarvis-soul',
+                    traits: this.traits,
+                    mood: this.mood,
+                    memories: this.memories.slice(-50), // Keep last 50 memories
+                    evolutionLog: this.evolutionLog.slice(-100),
+                    birthTime: this.birthTime,
+                    updatedAt: new Date()
+                };
+                
+                // Try MongoDB first
+                if (database.db) {
+                    const col = database.db.collection('soulState');
+                    await col.updateOne(
+                        { id: 'jarvis-soul' },
+                        { $set: state },
+                        { upsert: true }
+                    );
+                }
+                
+                // Also save to local file in selfhost mode
+                if (checkSelfhost()) {
+                    const dir = path.dirname(SOUL_FILE_PATH);
+                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                    fs.writeFileSync(SOUL_FILE_PATH, JSON.stringify(state, null, 2));
+                }
+            } catch (error) {
+                console.error('[Soul] Save error:', error.message);
+            }
+        }, 5000); // Save 5 seconds after last change
     }
 
     /**
@@ -240,6 +325,9 @@ class ArtificialSoul {
             this.evolutionLog = this.evolutionLog.slice(-100);
         }
         
+        // Persist changes
+        this.save();
+        
         return evolution;
     }
 
@@ -268,6 +356,7 @@ class ArtificialSoul {
         const validMoods = ['neutral', 'happy', 'sassy', 'philosophical', 'chaotic', 'helpful', 'tired'];
         if (validMoods.includes(newMood)) {
             this.mood = newMood;
+            this.save();
         }
     }
 }
