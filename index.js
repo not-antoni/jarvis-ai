@@ -2160,6 +2160,29 @@ const allCommands = [
             option.setName('amount').setDescription('Amount to give').setRequired(true).setMinValue(1)
         )
         .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('crime')
+        .setDescription('Commit a crime for money (risky!)')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('postmeme')
+        .setDescription('Post a meme and hope it goes viral')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('search')
+        .setDescription('Search a location for money')
+        .addStringOption((option) =>
+            option.setName('location')
+                .setDescription('Where to search')
+                .setRequired(false)
+                .addChoices(
+                    { name: "Tony's couch cushions", value: '0' },
+                    { name: "Stark Industries dumpster", value: '1' },
+                    { name: "Happy's car", value: '2' },
+                    { name: "Avengers compound", value: '3' }
+                )
+        )
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     // ============ SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
         .setName('selfmod')

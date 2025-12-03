@@ -413,6 +413,30 @@ const commandDefinitions = [
         feature: 'funUtilities',
         ephemeral: false
     },
+    {
+        name: 'crime',
+        description: 'Commit a crime for money (risky but high reward!)',
+        category: 'Economy',
+        usage: '/crime',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'postmeme',
+        description: 'Post a meme and hope it goes viral',
+        category: 'Economy',
+        usage: '/postmeme',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'search',
+        description: 'Search a location for money',
+        category: 'Economy',
+        usage: '/search [location]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
     // ============ FUN COMMANDS (Available Everywhere) ============
     {
         name: 'rapbattle',

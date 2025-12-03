@@ -33,7 +33,7 @@ const ECONOMY_CONFIG = {
     // Multiplier event settings
     multiplierInterval: 3 * 60 * 60 * 1000, // Every 3 hours
     multiplierDuration: 7 * 60 * 60 * 1000, // Lasts 7 hours
-    multiplierBonus: 2.5 // 250% = 2.5x
+    multiplierBonus: 6 // 600% = 6x
 };
 
 // ============================================================================
@@ -147,6 +147,54 @@ const MINIGAME_REWARDS = {
             { name: 'Happy Hogan tipped you', reward: 30, chance: 0.25 },
             { name: 'A stranger gave you', reward: 15, chance: 0.35 },
             { name: 'Everyone ignored you', reward: 0, chance: 0.2 }
+        ]
+    },
+    crime: {
+        cooldown: 60 * 1000, // 1 minute
+        outcomes: [
+            { name: '🏦 Robbed a bank vault', reward: 500, chance: 0.05 },
+            { name: '💎 Stole from a jewelry store', reward: 300, chance: 0.1 },
+            { name: '🚗 Jacked a luxury car', reward: 200, chance: 0.15 },
+            { name: '👜 Pickpocketed a tourist', reward: 100, chance: 0.2 },
+            { name: '🚨 Got caught! Paid bail', reward: -150, chance: 0.25 },
+            { name: '👮 Arrested! Lost everything', reward: -300, chance: 0.15 },
+            { name: '💀 Got beat up by the victim', reward: -100, chance: 0.1 }
+        ]
+    },
+    postmeme: {
+        cooldown: 60 * 1000, // 1 minute
+        outcomes: [
+            { name: '🔥 Went viral! 1M likes', reward: 400, chance: 0.05 },
+            { name: '😂 Front page of Reddit', reward: 200, chance: 0.1 },
+            { name: '👍 Got some upvotes', reward: 80, chance: 0.25 },
+            { name: '😐 Mid meme, mid reward', reward: 40, chance: 0.3 },
+            { name: '👎 Cringe post, got roasted', reward: 10, chance: 0.2 },
+            { name: '🚫 Banned from the subreddit', reward: 0, chance: 0.1 }
+        ]
+    },
+    search: {
+        cooldown: 60 * 1000, // 1 minute
+        locations: [
+            { name: "Tony's couch cushions", outcomes: [
+                { result: 'Found some loose change!', reward: 50, chance: 0.4 },
+                { result: 'Found old pizza... gross', reward: 0, chance: 0.6 }
+            ]},
+            { name: "the Stark Industries dumpster", outcomes: [
+                { result: 'Found discarded prototype parts!', reward: 150, chance: 0.2 },
+                { result: 'Just garbage... literally', reward: 5, chance: 0.5 },
+                { result: 'Security caught you!', reward: -50, chance: 0.3 }
+            ]},
+            { name: "Happy's car", outcomes: [
+                { result: 'Found his emergency stash!', reward: 100, chance: 0.3 },
+                { result: 'Nothing but gym gear', reward: 0, chance: 0.4 },
+                { result: 'Happy saw you! Awkward...', reward: -20, chance: 0.3 }
+            ]},
+            { name: "the Avengers compound", outcomes: [
+                { result: 'Found Thor\'s forgotten gold!', reward: 300, chance: 0.1 },
+                { result: 'Picked up some spare parts', reward: 80, chance: 0.3 },
+                { result: 'Empty... everyone\'s on a mission', reward: 20, chance: 0.4 },
+                { result: 'SHIELD detained you briefly', reward: -100, chance: 0.2 }
+            ]}
         ]
     }
 };
@@ -406,10 +454,15 @@ async function work(userId, username) {
         return { success: false, cooldown: cooldown.remaining };
     }
 
-    const reward = Math.floor(
+    let reward = Math.floor(
         ECONOMY_CONFIG.workReward.min + 
         Math.random() * (ECONOMY_CONFIG.workReward.max - ECONOMY_CONFIG.workReward.min)
     );
+    
+    // Apply multiplier bonus if event active
+    if (isMultiplierActive()) {
+        reward = Math.floor(reward * ECONOMY_CONFIG.multiplierBonus);
+    }
 
     const jobs = [
         `fixed a bug in the Mark ${Math.floor(Math.random() * 50 + 1)} suit`,
@@ -813,17 +866,25 @@ async function playMinigame(userId, gameType) {
         }
     }
 
+    // Apply multiplier bonus if event active (only to positive rewards)
+    let reward = outcome.reward;
+    if (reward > 0 && isMultiplierActive()) {
+        reward = Math.floor(reward * ECONOMY_CONFIG.multiplierBonus);
+    }
+
     const user = await loadUser(userId);
-    user.balance += outcome.reward;
-    if (outcome.reward > 0) {
-        user.totalEarned = (user.totalEarned || 0) + outcome.reward;
+    user.balance = Math.max(0, user.balance + reward); // Don't go negative
+    if (reward > 0) {
+        user.totalEarned = (user.totalEarned || 0) + reward;
+    } else if (reward < 0) {
+        user.totalLost = (user.totalLost || 0) + Math.abs(reward);
     }
     await saveUser(userId, user);
 
     return {
         success: true,
         outcome: outcome.name,
-        reward: outcome.reward,
+        reward: reward,
         newBalance: user.balance
     };
 }
@@ -854,6 +915,83 @@ async function dig(userId) {
  */
 async function beg(userId) {
     return playMinigame(userId, 'beg');
+}
+
+/**
+ * Commit a crime (risky but high reward)
+ */
+async function crime(userId) {
+    return playMinigame(userId, 'crime');
+}
+
+/**
+ * Post a meme for money
+ */
+async function postmeme(userId) {
+    return playMinigame(userId, 'postmeme');
+}
+
+/**
+ * Search a location for money
+ */
+async function search(userId, locationIndex = null) {
+    const game = MINIGAME_REWARDS.search;
+    
+    const cooldown = checkCooldown(userId, 'search', game.cooldown);
+    if (cooldown.onCooldown) {
+        return { success: false, cooldown: cooldown.remaining };
+    }
+
+    // Pick random location if not specified
+    const location = locationIndex !== null && game.locations[locationIndex] 
+        ? game.locations[locationIndex] 
+        : game.locations[Math.floor(Math.random() * game.locations.length)];
+
+    // Pick random outcome from location
+    const roll = Math.random();
+    let cumulative = 0;
+    let outcome = location.outcomes[location.outcomes.length - 1];
+
+    for (const o of location.outcomes) {
+        cumulative += o.chance;
+        if (roll < cumulative) {
+            outcome = o;
+            break;
+        }
+    }
+
+    // Apply multiplier bonus if event active (only to positive rewards)
+    let reward = outcome.reward;
+    if (reward > 0 && isMultiplierActive()) {
+        reward = Math.floor(reward * ECONOMY_CONFIG.multiplierBonus);
+    }
+
+    const user = await loadUser(userId);
+    user.balance = Math.max(0, user.balance + reward);
+    if (reward > 0) {
+        user.totalEarned = (user.totalEarned || 0) + reward;
+    } else if (reward < 0) {
+        user.totalLost = (user.totalLost || 0) + Math.abs(reward);
+    }
+    await saveUser(userId, user);
+
+    return {
+        success: true,
+        location: location.name,
+        outcome: outcome.result,
+        reward: reward,
+        newBalance: user.balance
+    };
+}
+
+/**
+ * Get available search locations
+ */
+function getSearchLocations() {
+    return MINIGAME_REWARDS.search.locations.map((l, i) => ({
+        index: i,
+        name: l.name
+    }));
 }
 
 /**
@@ -958,7 +1096,7 @@ function getBoostText() {
     const hours = Math.floor(remaining / (60 * 60 * 1000));
     const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
     
-    return `\n\n🎉 **250% BOOST ACTIVE!** All earnings multiplied! (${hours}h ${minutes}m remaining)`;
+    return `\n\n🎉 **600% BOOST ACTIVE!** All earnings x6! (${hours}h ${minutes}m remaining)`;
 }
 
 // Schedule multiplier events every 3 hours
@@ -1013,6 +1151,10 @@ module.exports = {
     fish,
     dig,
     beg,
+    crime,
+    postmeme,
+    search,
+    getSearchLocations,
     give,
     
     // Maintenance
