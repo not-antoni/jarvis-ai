@@ -2552,8 +2552,11 @@
                     telemetryMetadata.category = 'economy';
                     const result = await starkEconomy.work(interaction.user.id, interaction.user.username);
                     if (!result.success) {
-                        const minutes = Math.floor(result.cooldown / (60 * 1000));
-                        response = `⏰ You're tired, sir. Rest for ${minutes} more minutes.`;
+                        const cooldownMs = result.cooldown;
+                        const timeStr = cooldownMs < 60000 
+                            ? `${Math.floor(cooldownMs / 1000)} seconds`
+                            : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                        response = `⏰ You're tired, sir. Rest for ${timeStr} more.`;
                         break;
                     }
                     const workBoost = starkEconomy.getBoostText();
@@ -2687,8 +2690,11 @@
                     telemetryMetadata.category = 'economy';
                     const huntResult = await starkEconomy.hunt(interaction.user.id);
                     if (!huntResult.success) {
-                        const mins = Math.floor(huntResult.cooldown / (60 * 1000));
-                        response = `🏹 You're tired from hunting. Rest for ${mins} more minutes.`;
+                        const cooldownMs = huntResult.cooldown;
+                        const timeStr = cooldownMs < 60000 
+                            ? `${Math.floor(cooldownMs / 1000)} seconds`
+                            : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                        response = `🏹 You're tired from hunting. Rest for ${timeStr} more.`;
                         break;
                     }
                     const huntBoost = starkEconomy.getBoostText();
@@ -2707,8 +2713,11 @@
                     telemetryMetadata.category = 'economy';
                     const fishResult = await starkEconomy.fish(interaction.user.id);
                     if (!fishResult.success) {
-                        const mins = Math.floor(fishResult.cooldown / (60 * 1000));
-                        response = `🎣 Your fishing rod needs to dry. Wait ${mins} more minutes.`;
+                        const cooldownMs = fishResult.cooldown;
+                        const timeStr = cooldownMs < 60000 
+                            ? `${Math.floor(cooldownMs / 1000)} seconds`
+                            : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                        response = `🎣 Your fishing rod needs to dry. Wait ${timeStr} more.`;
                         break;
                     }
                     const fishBoost = starkEconomy.getBoostText();
@@ -2727,8 +2736,11 @@
                     telemetryMetadata.category = 'economy';
                     const digResult = await starkEconomy.dig(interaction.user.id);
                     if (!digResult.success) {
-                        const mins = Math.floor(digResult.cooldown / (60 * 1000));
-                        response = `⛏️ Your shovel is broken. Wait ${mins} more minutes.`;
+                        const cooldownMs = digResult.cooldown;
+                        const timeStr = cooldownMs < 60000 
+                            ? `${Math.floor(cooldownMs / 1000)} seconds`
+                            : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                        response = `⛏️ Your shovel is broken. Wait ${timeStr} more.`;
                         break;
                     }
                     const digBoost = starkEconomy.getBoostText();
@@ -2747,8 +2759,11 @@
                     telemetryMetadata.category = 'economy';
                     const begResult = await starkEconomy.beg(interaction.user.id);
                     if (!begResult.success) {
-                        const mins = Math.floor(begResult.cooldown / (60 * 1000));
-                        response = `🙏 People are avoiding you. Try again in ${mins} minutes.`;
+                        const cooldownMs = begResult.cooldown;
+                        const timeStr = cooldownMs < 60000 
+                            ? `${Math.floor(cooldownMs / 1000)} seconds`
+                            : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                        response = `🙏 People are avoiding you. Try again in ${timeStr}.`;
                         break;
                     }
                     const begBoost = starkEconomy.getBoostText();
@@ -2767,8 +2782,11 @@
                     telemetryMetadata.category = 'economy';
                     const crimeResult = await starkEconomy.crime(interaction.user.id);
                     if (!crimeResult.success) {
-                        const mins = Math.floor(crimeResult.cooldown / (60 * 1000));
-                        response = `🚔 Laying low after your last crime. Wait ${mins} more minutes.`;
+                        const cooldownMs = crimeResult.cooldown;
+                        const timeStr = cooldownMs < 60000 
+                            ? `${Math.floor(cooldownMs / 1000)} seconds`
+                            : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                        response = `🚔 Laying low after your last crime. Wait ${timeStr} more.`;
                         break;
                     }
                     const crimeBoost = starkEconomy.getBoostText();
@@ -2787,8 +2805,11 @@
                     telemetryMetadata.category = 'economy';
                     const memeResult = await starkEconomy.postmeme(interaction.user.id);
                     if (!memeResult.success) {
-                        const mins = Math.floor(memeResult.cooldown / (60 * 1000));
-                        response = `📱 Still waiting for engagement on your last post. Try again in ${mins} minutes.`;
+                        const cooldownMs = memeResult.cooldown;
+                        const timeStr = cooldownMs < 60000 
+                            ? `${Math.floor(cooldownMs / 1000)} seconds`
+                            : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                        response = `📱 Still waiting for engagement on your last post. Try again in ${timeStr}.`;
                         break;
                     }
                     const memeBoost = starkEconomy.getBoostText();
@@ -2809,8 +2830,11 @@
                     const locationIndex = locationChoice ? parseInt(locationChoice) : null;
                     const searchResult = await starkEconomy.search(interaction.user.id, locationIndex);
                     if (!searchResult.success) {
-                        const mins = Math.floor(searchResult.cooldown / (60 * 1000));
-                        response = `🔍 You're too tired to search. Rest for ${mins} more minutes.`;
+                        const cooldownMs = searchResult.cooldown;
+                        const timeStr = cooldownMs < 60000 
+                            ? `${Math.floor(cooldownMs / 1000)} seconds`
+                            : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                        response = `🔍 You're too tired to search. Rest for ${timeStr} more.`;
                         break;
                     }
                     const searchBoost = starkEconomy.getBoostText();
