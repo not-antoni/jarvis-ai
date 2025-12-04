@@ -2094,13 +2094,6 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('rapbattle')
         .setDescription('HUMANOID vs HUMAN - Challenge Jarvis to a rap battle!')
-        .addStringOption((option) =>
-            option
-                .setName('bars')
-                .setDescription('Drop your bars here, human')
-                .setRequired(true)
-                .setMaxLength(500)
-        )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('soul')
