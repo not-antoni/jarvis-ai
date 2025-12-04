@@ -145,6 +145,7 @@ class DiscordHandlers {
         ];
         // Rap battle state manager
         this.rapBattles = new Map(); // userId -> { channelId, startTime, timeoutId, collector, lastBotMessage }
+        this.rapBattleBlockedUsers = new Map(); // userId -> unblockTimestamp (users blocked from chat after battle ends)
         this.rapBattleComebacksPath = path.join(__dirname, '../../rapping_comebacks');
         this.emojiAssetCache = new Map();
         this.clipEmojiRenderSize = 22;
