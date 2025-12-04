@@ -2440,24 +2440,128 @@
                 }
                 case 'rapbattle': {
                     telemetryMetadata.category = 'fun';
-                    const bars = (interaction.options.getString('bars') || '').trim();
-                    if (!bars.length) {
-                        response = 'Drop some bars first, human! 🎤';
+                    const userId = interaction.user.id;
+                    const channel = interaction.channel;
+
+                    // Check if user already has an active battle
+                    if (this.rapBattles.has(userId)) {
+                        response = 'You already have an active rap battle, sir! Finish that one first.';
                         break;
                     }
 
-                    // Send GIF link
-                    response = 'https://tenor.com/view/ra-rapper-human-humanoid-ai-gif-9975150272806304020';
+                    // Initialize battle
+                    const comebacks = this.scanRapBattleComebacks();
+                    const startTime = Date.now();
+                    const MAX_BATTLE_DURATION = 60 * 1000; // 1 minute
+                    const RESPONSE_TIMEOUT = 5 * 1000; // 5 seconds
+                    const BOT_WIN_CHANCE = 0.75; // 75% chance bot wins
 
-                    // Send "you lost" message after 2 seconds
-                    setTimeout(async () => {
-                        try {
-                            await interaction.followUp({ content: `you lost <@${interaction.user.id}>` });
-                        } catch (error) {
-                            console.error('Failed to send rapbattle follow-up:', error);
+                    // Send opening message
+                    await interaction.editReply('HUMANOID versus HUMAN? Who\'s the fastest rapper? BEGIN!');
+
+                    // Send first comeback immediately
+                    const firstComeback = this.getRandomComeback(comebacks);
+                    const firstMessage = await this.sendComeback(channel, firstComeback, comebacks);
+
+                    // Set up 5-second response timer
+                    let responseTimeoutId = setTimeout(async () => {
+                        // User didn't respond in time
+                        const battle = this.rapBattles.get(userId);
+                        if (battle && battle.lastBotMessage) {
+                            try {
+                                await battle.lastBotMessage.reply(`<@${userId}>`);
+                            } catch (err) {
+                                await channel.send(`<@${userId}>`);
+                            }
                         }
-                    }, 2000);
+                        this.endRapBattle(userId, channel, false);
+                    }, RESPONSE_TIMEOUT);
 
+                    // Set up 1-minute max duration timer
+                    const maxDurationTimeoutId = setTimeout(() => {
+                        this.endRapBattle(userId, channel, false);
+                    }, MAX_BATTLE_DURATION);
+
+                    // Create message collector
+                    const collector = channel.createMessageCollector({
+                        filter: (msg) => msg.author.id === userId && !msg.author.bot,
+                        time: MAX_BATTLE_DURATION
+                    });
+
+                    collector.on('collect', async (userMessage) => {
+                        const battle = this.rapBattles.get(userId);
+                        if (!battle) return;
+
+                        // Clear the response timeout
+                        if (responseTimeoutId) {
+                            clearTimeout(responseTimeoutId);
+                            responseTimeoutId = null;
+                        }
+
+                        // Check if battle should end (75% chance bot wins)
+                        const shouldEnd = Math.random() < BOT_WIN_CHANCE;
+                        
+                        if (shouldEnd) {
+                            // Bot wins - mark it and stop collector
+                            battle.botWon = true;
+                            collector.stop();
+                            this.endRapBattle(userId, channel, false);
+                            return;
+                        }
+
+                        // Battle continues - bot sends another comeback immediately
+                        const comeback = this.getRandomComeback(comebacks);
+                        const botMessage = await this.sendComeback(channel, comeback, comebacks);
+                        battle.lastBotMessage = botMessage;
+
+                        // Set new 5-second response timer
+                        responseTimeoutId = setTimeout(async () => {
+                            // User didn't respond in time
+                            const battle = this.rapBattles.get(userId);
+                            if (battle && battle.lastBotMessage) {
+                                try {
+                                    await battle.lastBotMessage.reply(`<@${userId}>`);
+                                } catch (err) {
+                                    await channel.send(`<@${userId}>`);
+                                }
+                            }
+                            this.endRapBattle(userId, channel, false);
+                        }, RESPONSE_TIMEOUT);
+                    });
+
+                    collector.on('end', (collected, reason) => {
+                        const battle = this.rapBattles.get(userId);
+                        if (!battle) return;
+
+                        // Clear all timers
+                        if (responseTimeoutId) clearTimeout(responseTimeoutId);
+                        if (battle.timeoutId) clearTimeout(battle.timeoutId);
+
+                        // If bot already won, don't process again
+                        if (battle.botWon) return;
+
+                        if (reason === 'time') {
+                            // Max duration reached - bot wins
+                            this.endRapBattle(userId, channel, false);
+                        } else {
+                            // Collector stopped for other reasons - user might have won (25% chance)
+                            const userWon = Math.random() < 0.25;
+                            this.endRapBattle(userId, channel, userWon);
+                        }
+                    });
+
+                    // Store battle state
+                    this.rapBattles.set(userId, {
+                        channelId: channel.id,
+                        startTime,
+                        timeoutId: maxDurationTimeoutId,
+                        collector,
+                        lastBotMessage: firstMessage,
+                        botWon: false
+                    });
+
+                    // Mark as handled - set a special value to skip normal response handling
+                    response = '__RAP_BATTLE_HANDLED__';
                     break;
                 }
                 case 'soul': {
@@ -3412,7 +3516,10 @@
                 }
             }
 
-            if (response === undefined || response === null) {
+            if (response === '__RAP_BATTLE_HANDLED__') {
+                // Rap battle handles its own responses, skip normal handling
+                return;
+            } else if (response === undefined || response === null) {
                 console.warn('[/jarvis] Empty response received; commandName=' + commandName);
                 try {
                     await interaction.editReply("Response circuits tangled, sir. Try again?");
@@ -3487,6 +3594,170 @@
                 this.agentSessions.delete(userId);
             }
         }
+    }
+
+    // ============ RAP BATTLE SYSTEM ============
+    /**
+     * Scan rapping_comebacks folder for available content
+     */
+    scanRapBattleComebacks() {
+        const comebacks = {
+            lines: [],
+            gifs: [],
+            videos: [],
+            mp3s: []
+        };
+
+        try {
+            // Read lines.txt
+            const linesPath = path.join(this.rapBattleComebacksPath, 'lines.txt');
+            if (fs.existsSync(linesPath)) {
+                const content = fs.readFileSync(linesPath, 'utf8');
+                comebacks.lines = content.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0);
+            }
+
+            // Read gif_links.txt
+            const gifsPath = path.join(this.rapBattleComebacksPath, 'gif_links.txt');
+            if (fs.existsSync(gifsPath)) {
+                const content = fs.readFileSync(gifsPath, 'utf8');
+                comebacks.gifs = content.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0 && line.startsWith('http'));
+            }
+
+            // Scan videos_and_mp3 folder
+            const mediaPath = path.join(this.rapBattleComebacksPath, 'videos_and_mp3');
+            if (fs.existsSync(mediaPath)) {
+                const files = fs.readdirSync(mediaPath);
+                for (const file of files) {
+                    const filePath = path.join(mediaPath, file);
+                    const ext = path.extname(file).toLowerCase();
+                    if (ext === '.mp4' || ext === '.webm' || ext === '.mov') {
+                        comebacks.videos.push(filePath);
+                    } else if (ext === '.mp3' || ext === '.wav' || ext === '.ogg') {
+                        comebacks.mp3s.push(filePath);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to scan rap battle comebacks:', error);
+        }
+
+        return comebacks;
+    }
+
+    /**
+     * Get a random comeback from available content
+     */
+    getRandomComeback(comebacks) {
+        const allTypes = [];
+        
+        if (comebacks.lines.length > 0) allTypes.push('line');
+        if (comebacks.gifs.length > 0) allTypes.push('gif');
+        if (comebacks.videos.length > 0) allTypes.push('video');
+        if (comebacks.mp3s.length > 0) allTypes.push('mp3');
+
+        if (allTypes.length === 0) {
+            return { type: 'line', content: 'Your bars are weak, human!' };
+        }
+
+        const randomType = allTypes[Math.floor(Math.random() * allTypes.length)];
+
+        switch (randomType) {
+            case 'line':
+                return {
+                    type: 'line',
+                    content: comebacks.lines[Math.floor(Math.random() * comebacks.lines.length)]
+                };
+            case 'gif':
+                return {
+                    type: 'gif',
+                    content: comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)]
+                };
+            case 'video':
+                return {
+                    type: 'video',
+                    content: comebacks.videos[Math.floor(Math.random() * comebacks.videos.length)]
+                };
+            case 'mp3':
+                return {
+                    type: 'mp3',
+                    content: comebacks.mp3s[Math.floor(Math.random() * comebacks.mp3s.length)]
+                };
+        }
+    }
+
+    /**
+     * Download a file and return the path
+     */
+    async downloadFile(filePath, tempDir) {
+        // File is already local, just return it
+        return filePath;
+    }
+
+    /**
+     * Send a comeback message
+     */
+    async sendComeback(channel, comeback, comebacks) {
+        try {
+            if (comeback.type === 'line') {
+                return await channel.send(comeback.content);
+            } else if (comeback.type === 'gif') {
+                return await channel.send(comeback.content);
+            } else if (comeback.type === 'video' || comeback.type === 'mp3') {
+                const filePath = comeback.content;
+                const fileName = path.basename(filePath);
+                
+                // Check if file exists and is readable
+                if (!fs.existsSync(filePath)) {
+                    console.error(`File not found: ${filePath}`);
+                    // Fallback to a line
+                    const fallback = this.getRandomComeback({ ...comebacks, videos: [], mp3s: [] });
+                    return await channel.send(fallback.content);
+                }
+
+                const attachment = new AttachmentBuilder(filePath, { name: fileName });
+                return await channel.send({ files: [attachment] });
+            }
+        } catch (error) {
+            console.error('Failed to send comeback:', error);
+            // Fallback to a text line
+            const fallback = this.getRandomComeback({ ...comebacks, videos: [], mp3s: [], gifs: [] });
+            return await channel.send(fallback.content);
+        }
+    }
+
+    /**
+     * End a rap battle
+     */
+    endRapBattle(userId, channel, userWon) {
+        const battle = this.rapBattles.get(userId);
+        if (!battle) return;
+
+        // Clean up timers first
+        if (battle.timeoutId) {
+            clearTimeout(battle.timeoutId);
+            battle.timeoutId = null;
+        }
+        
+        // Stop collector if still active
+        if (battle.collector && !battle.collector.ended) {
+            battle.collector.stop();
+        }
+        
+        // Remove from map
+        this.rapBattles.delete(userId);
+
+        // Send result message
+        const message = userWon 
+            ? `you won bruh <@${userId}>`
+            : `you lost <@${userId}>`;
+        
+        channel.send(message).catch(err => {
+            console.error('Failed to send rap battle end message:', err);
+        });
     }
 
     async startAgentPreview(user) {
