@@ -143,6 +143,9 @@ class DiscordHandlers {
             '⚠️ {mention} has left the server. Recalibrating member count to {membercount}.',
             '😔 {mention} disconnected from {server}. Until we meet again.'
         ];
+        // Rap battle state manager
+        this.rapBattles = new Map(); // userId -> { channelId, startTime, timeoutId, collector, lastBotMessage }
+        this.rapBattleComebacksPath = path.join(__dirname, '../../rapping_comebacks');
         this.emojiAssetCache = new Map();
         this.clipEmojiRenderSize = 22;
         this.clipEmojiSpacing = 4;
