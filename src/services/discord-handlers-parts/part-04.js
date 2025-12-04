@@ -2454,7 +2454,8 @@
                     const startTime = Date.now();
                     const MAX_BATTLE_DURATION = 60 * 1000; // 1 minute
                     const RESPONSE_TIMEOUT = 5 * 1000; // 5 seconds
-                    const BOT_WIN_CHANCE = 0.75; // 75% chance bot wins
+                    const WIN_CHECK_WINDOW = 15 * 1000; // Only check win/lose in last 15 seconds
+                    const CHAT_UNBLOCK_DELAY = 3 * 1000; // 3 second delay before unblocking chat
 
                     // Send opening message
                     await interaction.editReply('HUMANOID versus HUMAN? Who\'s the fastest rapper? BEGIN!');
@@ -2498,15 +2499,23 @@
                             responseTimeoutId = null;
                         }
 
-                        // Check if battle should end (75% chance bot wins)
-                        const shouldEnd = Math.random() < BOT_WIN_CHANCE;
+                        // Calculate elapsed time
+                        const elapsed = Date.now() - battle.startTime;
+                        const timeRemaining = MAX_BATTLE_DURATION - elapsed;
                         
-                        if (shouldEnd) {
-                            // Bot wins - mark it and stop collector
-                            battle.botWon = true;
-                            collector.stop();
-                            this.endRapBattle(userId, channel, false);
-                            return;
+                        // Only check for win/lose when we're in the last 15 seconds
+                        if (timeRemaining <= WIN_CHECK_WINDOW) {
+                            // 50/50 chance to end battle
+                            const shouldEnd = Math.random() < 0.5;
+                            
+                            if (shouldEnd) {
+                                // Battle ends - 50/50 chance user wins
+                                const userWon = Math.random() < 0.5;
+                                battle.botWon = !userWon;
+                                collector.stop();
+                                this.endRapBattle(userId, channel, userWon);
+                                return;
+                            }
                         }
 
                         // Battle continues - bot sends another comeback immediately
@@ -2541,12 +2550,16 @@
                         if (battle.botWon) return;
 
                         if (reason === 'time') {
-                            // Max duration reached - bot wins
-                            this.endRapBattle(userId, channel, false);
-                        } else {
-                            // Collector stopped for other reasons - user might have won (25% chance)
-                            const userWon = Math.random() < 0.25;
+                            // Max duration reached - 50/50 chance
+                            const userWon = Math.random() < 0.5;
                             this.endRapBattle(userId, channel, userWon);
+                        } else {
+                            // Collector stopped for other reasons - should already be handled in collect event
+                            // But if it wasn't, use 50/50 chance
+                            if (!battle.botWon) {
+                                const userWon = Math.random() < 0.5;
+                                this.endRapBattle(userId, channel, userWon);
+                            }
                         }
                     });
 
@@ -3730,6 +3743,22 @@
     }
 
     /**
+     * Check if user is blocked from chat due to rap battle
+     */
+    isRapBattleBlocked(userId) {
+        const unblockTime = this.rapBattleBlockedUsers.get(userId);
+        if (!unblockTime) return false;
+        
+        if (Date.now() >= unblockTime) {
+            // Time has passed, unblock user
+            this.rapBattleBlockedUsers.delete(userId);
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
      * End a rap battle
      */
     endRapBattle(userId, channel, userWon) {
@@ -3747,8 +3776,13 @@
             battle.collector.stop();
         }
         
-        // Remove from map
+        // Remove from battles map immediately
         this.rapBattles.delete(userId);
+
+        // Block chat for 3 seconds after battle ends
+        const CHAT_UNBLOCK_DELAY = 3 * 1000;
+        const unblockTime = Date.now() + CHAT_UNBLOCK_DELAY;
+        this.rapBattleBlockedUsers.set(userId, unblockTime);
 
         // Send result message
         const message = userWon 
