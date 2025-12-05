@@ -1715,7 +1715,8 @@ class DiscordHandlers {
 
         if (shouldFetchMembers) {
             try {
-                const members = await guild.members.fetch();
+                const members = await guild.members.fetch({ time: 15000 }).catch(() => null);
+                if (!members) throw new Error('Fetch timed out');
                 total = members.size;
                 botCount = members.filter(member => member.user.bot).size;
                 userCount = total - botCount;
@@ -1729,9 +1730,7 @@ class DiscordHandlers {
                     return status === 'online' || status === 'idle' || status === 'dnd';
                 }).size;
             } catch (error) {
-                if (error.code !== 50013 && error.code !== 50001) {
-                    console.warn(`Failed to fetch full member list for guild ${guild.id} (using cached counts):`, error);
-                }
+                // Silently fall back to cached - timeout/permission errors are expected
             }
         }
 

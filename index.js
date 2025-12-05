@@ -1816,7 +1816,7 @@ const allCommands = [
         .addStringOption(option => option.setName('thing').setDescription('What to rate').setRequired(true))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('eightball')
+        .setName('8ball')
         .setDescription('Ask the magic 8-ball a question')
         .addStringOption(option => option.setName('question').setDescription('Your question').setRequired(true))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),

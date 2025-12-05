@@ -2887,7 +2887,7 @@
                     response = `📊 **Rating for "${thing}":**\n${stars} **${rating}/10**`;
                     break;
                 }
-                case 'eightball': {
+                case '8ball': {
                     telemetryMetadata.category = 'fun';
                     const question = interaction.options.getString('question');
                     const answer = funFeatures.get8BallResponse();
