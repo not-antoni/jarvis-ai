@@ -1997,16 +1997,6 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('vibecheck')
-        .setDescription('Evaluate the vibe levels of a comrade')
-        .addUserOption((option) =>
-            option
-                .setName('user')
-                .setDescription('Optional target (defaults to you)')
-                .setRequired(false)
-        )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
         .setName('bonk')
         .setDescription('Deliver a comedic corrective bonk')
         .addUserOption((option) =>
@@ -2024,16 +2014,6 @@ const allCommands = [
                 .setName('target')
                 .setDescription('Optional recipient of the banter')
                 .setRequired(false)
-        )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
-        .setName('roast')
-        .setDescription('Deploy a refined Stark Industries roast')
-        .addUserOption((option) =>
-            option
-                .setName('target')
-                .setDescription('Who should feel the burn?')
-                .setRequired(true)
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
@@ -2068,11 +2048,7 @@ const allCommands = [
         .setName('scramble')
         .setDescription('Unscramble a Stark Industries keyword')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    // ============ FUN COMMANDS (Available Everywhere) ============
-    new SlashCommandBuilder()
-        .setName('rapbattle')
-        .setDescription('HUMANOID vs HUMAN - Challenge Jarvis to a rap battle!')
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    // ============ SOUL & SELFHOST ============
     new SlashCommandBuilder()
         .setName('soul')
         .setDescription('View Jarvis\'s artificial soul status and evolution')
