@@ -2670,6 +2670,230 @@
                     response = '__TYPERACE_HANDLED__';
                     break;
                 }
+                // ============ MORE FUN COMMANDS ============
+                case 'rps': {
+                    telemetryMetadata.category = 'fun';
+                    const opponent = interaction.options.getUser('opponent');
+                    const choices = ['🪨 Rock', '📄 Paper', '✂️ Scissors'];
+                    const userChoice = choices[Math.floor(Math.random() * 3)];
+                    const opponentChoice = choices[Math.floor(Math.random() * 3)];
+                    
+                    // Determine winner
+                    let result;
+                    if (userChoice === opponentChoice) {
+                        result = "It's a tie! 🤝";
+                    } else if (
+                        (userChoice.includes('Rock') && opponentChoice.includes('Scissors')) ||
+                        (userChoice.includes('Paper') && opponentChoice.includes('Rock')) ||
+                        (userChoice.includes('Scissors') && opponentChoice.includes('Paper'))
+                    ) {
+                        result = `**${interaction.user.username}** wins! 🏆`;
+                    } else {
+                        result = opponent ? `**${opponent.username}** wins! 🏆` : '**JARVIS** wins! 🤖';
+                    }
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎮 Rock Paper Scissors!')
+                        .setColor(0x3498db)
+                        .addFields(
+                            { name: interaction.user.username, value: userChoice, inline: true },
+                            { name: 'VS', value: '⚔️', inline: true },
+                            { name: opponent ? opponent.username : 'JARVIS', value: opponentChoice, inline: true }
+                        )
+                        .setDescription(result);
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'ship': {
+                    telemetryMetadata.category = 'fun';
+                    const person1 = interaction.options.getUser('person1');
+                    const person2 = interaction.options.getUser('person2') || interaction.user;
+                    
+                    const compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
+                    const shipName = funFeatures.generateShipName(
+                        person1.displayName || person1.username,
+                        person2.displayName || person2.username
+                    );
+                    
+                    let emoji, description;
+                    if (compatibility >= 90) { emoji = '💕'; description = 'SOULMATES! A match made in heaven!'; }
+                    else if (compatibility >= 70) { emoji = '❤️'; description = 'Strong connection! Great potential!'; }
+                    else if (compatibility >= 50) { emoji = '💛'; description = 'Decent vibes. Could work!'; }
+                    else if (compatibility >= 30) { emoji = '🧡'; description = 'It\'s... complicated.'; }
+                    else { emoji = '💔'; description = 'Not meant to be... sorry!'; }
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle(`${emoji} Ship: ${shipName}`)
+                        .setColor(compatibility >= 50 ? 0xe91e63 : 0x95a5a6)
+                        .addFields(
+                            { name: 'Compatibility', value: `**${compatibility}%**`, inline: true },
+                            { name: 'Verdict', value: description, inline: true }
+                        )
+                        .setDescription(`**${person1.username}** 💕 **${person2.username}**`)
+                        .setFooter({ text: 'Ship Calculator™ - Results are 100% scientifically accurate' });
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'howgay': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user') || interaction.user;
+                    const percentage = funFeatures.randomInt(0, 100);
+                    const bar = '🏳️‍🌈'.repeat(Math.floor(percentage / 10)) + '⬜'.repeat(10 - Math.floor(percentage / 10));
+                    response = `🏳️‍🌈 **${target.username}** is **${percentage}%** gay\n${bar}`;
+                    break;
+                }
+                case 'howbased': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user') || interaction.user;
+                    const percentage = funFeatures.randomInt(0, 100);
+                    const bar = '🗿'.repeat(Math.floor(percentage / 10)) + '⬜'.repeat(10 - Math.floor(percentage / 10));
+                    response = `🗿 **${target.username}** is **${percentage}%** based\n${bar}`;
+                    break;
+                }
+                case 'pickupline': {
+                    telemetryMetadata.category = 'fun';
+                    const line = funFeatures.getPickupLine();
+                    response = `💕 **Pickup Line**\n\n${line}`;
+                    break;
+                }
+                case 'dadjoke': {
+                    telemetryMetadata.category = 'fun';
+                    const joke = funFeatures.getDadJoke();
+                    response = `👨 **Dad Joke**\n\n${joke}`;
+                    break;
+                }
+                case 'fight': {
+                    telemetryMetadata.category = 'fun';
+                    const opponent = interaction.options.getUser('opponent');
+                    if (!opponent) {
+                        response = 'You need to specify someone to fight! 👊';
+                        break;
+                    }
+                    if (opponent.id === interaction.user.id) {
+                        response = 'You can\'t fight yourself! ...or can you? 🤔';
+                        break;
+                    }
+                    
+                    const fight = funFeatures.generateFight(
+                        interaction.user.username,
+                        opponent.username
+                    );
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('⚔️ FIGHT! ⚔️')
+                        .setColor(0xe74c3c)
+                        .setDescription(fight.moves.join('\n\n'))
+                        .addFields(
+                            { name: `${interaction.user.username} HP`, value: `${fight.attackerHP}/100`, inline: true },
+                            { name: `${opponent.username} HP`, value: `${fight.defenderHP}/100`, inline: true }
+                        )
+                        .setFooter({ text: `🏆 Winner: ${fight.winner}` });
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'hug': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user');
+                    if (!target) {
+                        response = 'You need to specify someone to hug! 🤗';
+                        break;
+                    }
+                    const gif = funFeatures.getHugGif();
+                    const embed = new EmbedBuilder()
+                        .setDescription(`**${interaction.user.username}** hugs **${target.username}**! 🤗`)
+                        .setColor(0xff69b4)
+                        .setImage(gif);
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'slap': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user');
+                    if (!target) {
+                        response = 'You need to specify someone to slap! 👋';
+                        break;
+                    }
+                    const gif = funFeatures.getSlapGif();
+                    const embed = new EmbedBuilder()
+                        .setDescription(`**${interaction.user.username}** slaps **${target.username}**! 👋`)
+                        .setColor(0xe74c3c)
+                        .setImage(gif);
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'roll': {
+                    telemetryMetadata.category = 'fun';
+                    const diceNotation = interaction.options.getString('dice') || '1d6';
+                    const result = funFeatures.rollDice(diceNotation);
+                    
+                    if (!result) {
+                        response = '❌ Invalid dice notation! Use format like `2d6` or `1d20+5`';
+                        break;
+                    }
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎲 Dice Roll')
+                        .setColor(0x9b59b6)
+                        .addFields(
+                            { name: 'Dice', value: result.notation, inline: true },
+                            { name: 'Rolls', value: result.rolls.join(', '), inline: true },
+                            { name: 'Total', value: `**${result.total}**`, inline: true }
+                        );
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'choose': {
+                    telemetryMetadata.category = 'fun';
+                    const optionsStr = interaction.options.getString('options');
+                    const options = optionsStr.split(',').map(o => o.trim()).filter(o => o.length > 0);
+                    
+                    if (options.length < 2) {
+                        response = '❌ Give me at least 2 options separated by commas!';
+                        break;
+                    }
+                    
+                    const choice = funFeatures.randomChoice(options);
+                    response = `🎯 **I choose:** ${choice}`;
+                    break;
+                }
+                case 'afk': {
+                    telemetryMetadata.category = 'fun';
+                    const reason = interaction.options.getString('reason') || 'AFK';
+                    // Store AFK status (you can expand this with a proper storage system)
+                    if (!this.afkUsers) this.afkUsers = new Map();
+                    this.afkUsers.set(interaction.user.id, { reason, since: Date.now() });
+                    response = `💤 **${interaction.user.username}** is now AFK: ${reason}`;
+                    break;
+                }
+                case 'rate': {
+                    telemetryMetadata.category = 'fun';
+                    const thing = interaction.options.getString('thing');
+                    const rating = funFeatures.randomInt(0, 10);
+                    const stars = '⭐'.repeat(rating) + '☆'.repeat(10 - rating);
+                    response = `📊 **Rating for "${thing}":**\n${stars} **${rating}/10**`;
+                    break;
+                }
+                case '8ball': {
+                    telemetryMetadata.category = 'fun';
+                    const question = interaction.options.getString('question');
+                    const answer = funFeatures.get8BallResponse();
+                    const embed = new EmbedBuilder()
+                        .setTitle('🎱 Magic 8-Ball')
+                        .setColor(0x000000)
+                        .addFields(
+                            { name: '❓ Question', value: question, inline: false },
+                            { name: '🔮 Answer', value: answer, inline: false }
+                        );
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'coinflip': {
+                    telemetryMetadata.category = 'fun';
+                    const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
+                    const emoji = result === 'Heads' ? '🪙' : '💿';
+                    response = `${emoji} **Coin Flip:** ${result}!`;
+                    break;
+                }
                 // ============ STARK BUCKS ECONOMY ============
                 case 'balance': {
                     telemetryMetadata.category = 'economy';
