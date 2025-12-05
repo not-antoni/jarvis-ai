@@ -48,6 +48,7 @@ const CaptchaHandler = require('../agents/captchaHandler');
 const RobustnessEnhancer = require('../agents/robustnessEnhancer');
 const tempFiles = require('../utils/temp-files');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
+const funFeatures = require('./fun-features');
 const selfhostFeatures = require('./selfhost-features');
 const ytDlpManager = require('./yt-dlp-manager');
 const { getSentientAgent } = require('../agents/sentient-core');
@@ -229,11 +230,6 @@ class DiscordHandlers {
         ];
 
         this.maxInputBytes = 3 * 1024 * 1024; // 3MB cap for heavy media processing
-        
-        // Agent session management
-        this.agentSessions = new Map(); // userId -> { startedAt, lastActive }
-        this.agentTtlMs = 30 * 60 * 1000;
-        setInterval(() => this.cleanupAgentSessions(), 60 * 1000).unref();
     }
 
     sanitizePings(text) {

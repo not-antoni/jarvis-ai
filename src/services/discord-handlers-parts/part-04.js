@@ -1257,147 +1257,6 @@
         }
     }
 
-    async handleAgentCommand(interaction) {
-        const isSelfHost = config?.deployment?.target === 'selfhost';
-        const headlessEnabled = !!config?.deployment?.headlessBrowser;
-        const agentReady = !!config?.deployment?.agentReady;
-        
-        if (!isSelfHost || !headlessEnabled || !agentReady) {
-            try {
-                await interaction.editReply({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
-            } catch (e) {
-                await interaction.followUp({ content: 'Agent is currently disabled, sir.', ephemeral: Boolean(interaction.guild) });
-            }
-            return;
-        }
-
-        const sub = interaction.options.getSubcommand(false);
-        const ctxKey = this.browserAgent.buildSessionKey({
-            guildId: interaction.guild?.id || null,
-            channelId: interaction.channelId,
-            userId: interaction.user.id
-        });
-
-        try {
-            switch (sub) {
-                case 'preview': {
-                    await this.startAgentPreview(interaction.user);
-                    try {
-                        await interaction.editReply('Agent preview started! Check your DMs, sir.');
-                    } catch (e) {
-                        await interaction.followUp('Agent preview started! Check your DMs, sir.');
-                    }
-                    return;
-                }
-                case 'open': {
-                    const url = interaction.options.getString('url', true);
-                    const wait = interaction.options.getString('wait', false) || 'load';
-                    const { title, url: finalUrl } = await this.browserAgent.open(ctxKey, url, { waitUntil: wait });
-                    const png = await this.browserAgent.screenshot(ctxKey, { fullPage: true });
-                    const attachment = new AttachmentBuilder(png, { name: 'screenshot.png' });
-                    const msg = { content: `Opened: ${finalUrl}\nTitle: ${title}`.slice(0, 1900), files: [attachment] };
-                    try {
-                        await interaction.editReply(msg);
-                    } catch (e) {
-                        await interaction.followUp(msg);
-                    }
-                    return;
-                }
-                case 'screenshot': {
-                    const full = interaction.options.getBoolean('full', false) ?? true;
-                    const selector = interaction.options.getString('selector', false) || null;
-                    const png = await this.browserAgent.screenshot(ctxKey, { fullPage: full, selector });
-                    const attachment = new AttachmentBuilder(png, { name: 'screenshot.png' });
-                    const msg = { files: [attachment] };
-                    try {
-                        await interaction.editReply(msg);
-                    } catch (e) {
-                        await interaction.followUp(msg);
-                    }
-                    return;
-                }
-                case 'download': {
-                    const url = interaction.options.getString('url', true);
-                    const { buffer, contentType, filename } = await this.browserAgent.downloadDirect(url);
-                    const maxUpload = 8 * 1024 * 1024; // 8 MB
-                    if (buffer.length > maxUpload) {
-                        const ext = (filename || '').split('.').pop() || 'bin';
-                        const saved = tempFiles.saveTempFile(buffer, ext);
-                        const msg = `Downloaded ${filename} (${Math.round(buffer.length/1024)} KB). Temporary link (expires ~4h): ${saved.url}`;
-                        try {
-                            await interaction.editReply(msg);
-                        } catch (e) {
-                            await interaction.followUp(msg);
-                        }
-                        return;
-                    }
-                    const safeName = filename || 'download.bin';
-                    const attachment = new AttachmentBuilder(buffer, { name: safeName, description: `Content-Type: ${contentType}` });
-                    const msg = { files: [attachment] };
-                    try {
-                        await interaction.editReply(msg);
-                    } catch (e) {
-                        await interaction.followUp(msg);
-                    }
-                    return;
-                }
-                case 'close': {
-                    await this.browserAgent.closeSession(ctxKey);
-                    try {
-                        await interaction.editReply('Agent session closed.');
-                    } catch (e) {
-                        await interaction.followUp('Agent session closed.');
-                    }
-                    return;
-                }
-                case 'status': {
-                    const health = this.agentMonitor.getHealthReport(this.browserAgent);
-                    const embed = new EmbedBuilder()
-                        .setTitle('🤖 Agent Health Report')
-                        .setColor(health.overallHealth >= 75 ? 0x00ff00 : health.overallHealth >= 50 ? 0xffaa00 : 0xff0000)
-                        .addFields(
-                            { name: '📊 Overall Health', value: `${health.overallHealth}%`, inline: true },
-                            { name: '⏱️ Uptime', value: `${Math.round(health.uptime / 1000)}s`, inline: true },
-                            { name: '🔌 Circuit Breaker', value: `${health.browser.circuitBreakerStatus.toUpperCase()}`, inline: true },
-                            { name: '🌐 Browser', value: `${health.browser.browserHealth}`, inline: true },
-                            { name: '💾 Sessions', value: `${health.sessions.activeCount}/${this.browserAgent.maxConcurrentSessions}`, inline: true },
-                            { name: '📈 Operations', value: `${health.operations.succeeded}✅ ${health.operations.failed}❌`, inline: true },
-                            { name: '🧠 Memory (Heap)', value: `${health.memory.heapUsedMb}/${health.memory.heapTotalMb}MB (${health.memory.heapUsedPercent}%)`, inline: false },
-                            { name: '⚡ Recent Latency', value: `${health.operations.avgLatencyMs}ms avg`, inline: true },
-                            { name: '📊 Success Rate', value: health.operations.successRate, inline: true }
-                        )
-                        .setFooter({ text: `Restarts: ${health.browser.browserRestarts} | Errors: ${health.browser.consecutiveErrors}` })
-                        .setTimestamp();
-                    
-                    try {
-                        await interaction.editReply({ embeds: [embed] });
-                    } catch (e) {
-                        await interaction.followUp({ embeds: [embed] });
-                    }
-                    return;
-                }
-                default: {
-                    try {
-                        await interaction.editReply('Unknown agent subcommand. Try: open, screenshot, download, close, status.');
-                    } catch (e) {
-                        await interaction.followUp('Unknown agent subcommand. Try: open, screenshot, download, close, status.');
-                    }
-                    return;
-                }
-            }
-        } catch (error) {
-            console.error('Agent command error:', error);
-            const message = error?.message ? String(error.message) : 'Agent error';
-            try {
-                await interaction.editReply(`Agent error: ${message}`);
-            } catch (e) {
-                try {
-                    await interaction.followUp(`Agent error: ${message}`);
-                } catch (_) {}
-            }
-        }
-    }
-
     async handleSixSevenCommand(interaction) {
         const classic = 'Why is 6 afraid of 7? Because 7 ate 9 (7, 8, 9).';
         const brainrotLines = [
@@ -2369,11 +2228,6 @@
                     await this.handleCryptoCommand(interaction);
                     return;
                 }
-                case 'agent': {
-                    telemetryMetadata.category = 'utilities';
-                    await this.handleAgentCommand(interaction);
-                    return;
-                }
                 case 'features': {
                     telemetryMetadata.category = 'utilities';
                     await this.handleFeaturesCommand(interaction);
@@ -2452,19 +2306,26 @@
                     // Initialize battle
                     const comebacks = this.scanRapBattleComebacks();
                     const startTime = Date.now();
-                    const MAX_BATTLE_DURATION = 60 * 1000; // 1 minute
-                    const RESPONSE_TIMEOUT = 5 * 1000; // 5 seconds
+                    
+                    // 20% chance to enter FIRE MODE 🔥
+                    const isFireMode = Math.random() < 0.2;
+                    const MAX_BATTLE_DURATION = isFireMode ? 120 * 1000 : 60 * 1000; // 2 mins in fire mode, 1 min normal
+                    const RESPONSE_TIMEOUT = isFireMode ? 3 * 1000 : 5 * 1000; // 3 seconds in fire mode, 5 normal
                     const WIN_CHECK_WINDOW = 15 * 1000; // Only check win/lose in last 15 seconds
                     const CHAT_UNBLOCK_DELAY = 3 * 1000; // 3 second delay before unblocking chat
 
                     // Send opening message
-                    await interaction.editReply('HUMANOID versus HUMAN? Who\'s the fastest rapper? BEGIN!');
+                    const openingMessage = isFireMode 
+                        ? '🔥🔥🔥 **FIRE MODE ACTIVATED** 🔥🔥🔥\nHUMANOID versus HUMAN? 2 MINUTES. 3 SECOND TIMER. NO MERCY. BEGIN!'
+                        : 'HUMANOID versus HUMAN? Who\'s the fastest rapper? BEGIN!';
+                    await interaction.editReply(openingMessage);
 
                     // Send first comeback immediately
-                    const firstComeback = this.getRandomComeback(comebacks);
-                    const firstMessage = await this.sendComeback(channel, firstComeback, comebacks);
+                    const usedComebacks = new Set();
+                    const firstComeback = this.getRandomComeback(comebacks, usedComebacks);
+                    const firstMessage = await this.sendComeback(channel, firstComeback, comebacks, isFireMode);
 
-                    // Set up 5-second response timer
+                    // Set up response timer (3s in fire mode, 5s normal)
                     let responseTimeoutId = setTimeout(async () => {
                         // User didn't respond in time
                         const battle = this.rapBattles.get(userId);
@@ -2511,30 +2372,36 @@
                             if (shouldEnd) {
                                 // Battle ends - 50/50 chance user wins
                                 const userWon = Math.random() < 0.5;
-                                battle.botWon = !userWon;
+                                battle.ended = true; // Mark as ended to prevent duplicate messages
                                 collector.stop();
-                                this.endRapBattle(userId, channel, userWon);
+                                this.endRapBattle(userId, channel, userWon, battle.userScore);
                                 return;
                             }
                         }
 
                         // Battle continues - bot sends another comeback immediately
-                        const comeback = this.getRandomComeback(comebacks);
-                        const botMessage = await this.sendComeback(channel, comeback, comebacks);
+                        const comeback = this.getRandomComeback(comebacks, battle.usedComebacks);
+                        const botMessage = await this.sendComeback(channel, comeback, comebacks, battle.isFireMode);
                         battle.lastBotMessage = botMessage;
+
+                        // Score the user's bar
+                        const barScore = this.scoreUserBar(userMessage.content);
+                        battle.userScore += barScore;
+                        battle.userBars++;
 
                         // Set new 5-second response timer
                         responseTimeoutId = setTimeout(async () => {
                             // User didn't respond in time
-                            const battle = this.rapBattles.get(userId);
-                            if (battle && battle.lastBotMessage) {
+                            const currentBattle = this.rapBattles.get(userId);
+                            if (currentBattle && !currentBattle.ended && currentBattle.lastBotMessage) {
+                                currentBattle.ended = true;
                                 try {
-                                    await battle.lastBotMessage.reply(`<@${userId}>`);
+                                    await currentBattle.lastBotMessage.reply(`<@${userId}>`);
                                 } catch (err) {
                                     await channel.send(`<@${userId}>`);
                                 }
                             }
-                            this.endRapBattle(userId, channel, false);
+                            this.endRapBattle(userId, channel, false, currentBattle?.userScore);
                         }, RESPONSE_TIMEOUT);
                     });
 
@@ -2546,21 +2413,16 @@
                         if (responseTimeoutId) clearTimeout(responseTimeoutId);
                         if (battle.timeoutId) clearTimeout(battle.timeoutId);
 
-                        // If bot already won, don't process again
-                        if (battle.botWon) return;
+                        // If battle already ended, don't process again (prevents duplicate messages)
+                        if (battle.ended) return;
 
                         if (reason === 'time') {
                             // Max duration reached - 50/50 chance
                             const userWon = Math.random() < 0.5;
-                            this.endRapBattle(userId, channel, userWon);
-                        } else {
-                            // Collector stopped for other reasons - should already be handled in collect event
-                            // But if it wasn't, use 50/50 chance
-                            if (!battle.botWon) {
-                                const userWon = Math.random() < 0.5;
-                                this.endRapBattle(userId, channel, userWon);
-                            }
+                            battle.ended = true;
+                            this.endRapBattle(userId, channel, userWon, battle.userScore);
                         }
+                        // Other reasons are already handled in collect event or timeout
                     });
 
                     // Store battle state
@@ -2570,7 +2432,11 @@
                         timeoutId: maxDurationTimeoutId,
                         collector,
                         lastBotMessage: firstMessage,
-                        botWon: false
+                        ended: false,
+                        userScore: 0,
+                        userBars: 0,
+                        isFireMode,
+                        usedComebacks // Track used comebacks to avoid repeats
                     });
 
                     // Mark as handled - set a special value to skip normal response handling
@@ -2621,6 +2487,143 @@
 
                         response = `🧬 Soul evolved! **${evolution.type}** → ${evolution.change}\n\n*The artificial soul grows stronger...*`;
                     }
+                    break;
+                }
+                // ============ FUN FEATURES ============
+                case 'roast': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user') || interaction.user;
+                    const result = funFeatures.getRoastOrCompliment();
+                    const emoji = result.isRoast ? '🔥' : '💚';
+                    const title = result.isRoast ? 'ROASTED' : 'BLESSED';
+                    response = `${emoji} **${title}** ${emoji}\n<@${target.id}>, ${result.text}`;
+                    break;
+                }
+                case 'wiki': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user') || interaction.user;
+                    const wiki = funFeatures.generateWikiEntry(target.displayName || target.username);
+                    const embed = new EmbedBuilder()
+                        .setTitle(wiki.title)
+                        .setDescription(wiki.description)
+                        .setColor(0x3498db)
+                        .setThumbnail(target.displayAvatarURL({ size: 128 }))
+                        .setFooter({ text: wiki.footer });
+                    wiki.fields.forEach(f => embed.addFields(f));
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'conspiracy': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user');
+                    const username = target ? (target.displayName || target.username) : 'Someone in this server';
+                    const conspiracy = funFeatures.generateConspiracy(username);
+                    response = `🕵️ **CONSPIRACY ALERT** 🕵️\n\n${conspiracy}`;
+                    break;
+                }
+                case 'vibecheck': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user') || interaction.user;
+                    const vibe = funFeatures.generateVibeCheck(target.displayName || target.username);
+                    const statsText = Object.entries(vibe.stats)
+                        .map(([stat, val]) => `**${stat}**: ${val}%`)
+                        .join('\n');
+                    const embed = new EmbedBuilder()
+                        .setTitle(`${vibe.emoji} Vibe Check: ${vibe.rating}`)
+                        .setDescription(`**${target.displayName || target.username}**\n${vibe.description}`)
+                        .setColor(vibe.overallScore > 50 ? 0x2ecc71 : 0xe74c3c)
+                        .addFields(
+                            { name: '📊 Overall Vibe Score', value: `${vibe.overallScore}/100`, inline: false },
+                            { name: '📈 Detailed Stats', value: statsText, inline: false }
+                        )
+                        .setThumbnail(target.displayAvatarURL({ size: 128 }))
+                        .setFooter({ text: 'Vibe Check™ - Results may vary' });
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'wyr': {
+                    telemetryMetadata.category = 'fun';
+                    const wyr = funFeatures.getWouldYouRather();
+                    const embed = new EmbedBuilder()
+                        .setTitle('🤔 Would You Rather...?')
+                        .setColor(0x9b59b6)
+                        .addFields(
+                            { name: '🅰️ Option A', value: wyr.a, inline: false },
+                            { name: '🅱️ Option B', value: wyr.b, inline: false }
+                        )
+                        .setFooter({ text: 'React with 🅰️ or 🅱️ to vote!' });
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'prophecy': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user') || interaction.user;
+                    const prophecy = funFeatures.generateProphecy(target.displayName || target.username);
+                    response = `🔮 **THE PROPHECY** 🔮\n\n${prophecy}`;
+                    break;
+                }
+                case 'fakequote': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user') || interaction.user;
+                    const quote = funFeatures.generateFakeQuote(target.displayName || target.username);
+                    response = `📜 **Legendary Quote**\n\n${quote}`;
+                    break;
+                }
+                case 'trial': {
+                    telemetryMetadata.category = 'fun';
+                    const target = interaction.options.getUser('user');
+                    if (!target) {
+                        response = 'You must specify someone to put on trial! 👨‍⚖️';
+                        break;
+                    }
+                    const crime = funFeatures.getFakeCrime();
+                    const isGuilty = Math.random() < 0.5;
+                    const verdict = funFeatures.getVerdict(isGuilty);
+                    const embed = new EmbedBuilder()
+                        .setTitle('⚖️ MOCK TRIAL ⚖️')
+                        .setDescription(`**Defendant:** <@${target.id}>`)
+                        .setColor(isGuilty ? 0xe74c3c : 0x2ecc71)
+                        .addFields(
+                            { name: '📋 Charges', value: crime, inline: false },
+                            { name: '🔨 Verdict', value: verdict, inline: false }
+                        )
+                        .setThumbnail(target.displayAvatarURL({ size: 128 }))
+                        .setFooter({ text: 'The court of JARVIS has spoken.' });
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'typerace': {
+                    telemetryMetadata.category = 'fun';
+                    const phrase = funFeatures.getRandomTypingPhrase();
+                    const embed = new EmbedBuilder()
+                        .setTitle('⌨️ TYPING RACE ⌨️')
+                        .setDescription('First person to type the phrase correctly wins!')
+                        .setColor(0xf1c40f)
+                        .addFields({ name: '📝 Type this:', value: `\`\`\`${phrase}\`\`\``, inline: false })
+                        .setFooter({ text: 'GO GO GO!' });
+                    
+                    await interaction.editReply({ embeds: [embed] });
+                    
+                    // Set up collector for the race
+                    const filter = m => m.content.toLowerCase() === phrase.toLowerCase() && !m.author.bot;
+                    const collector = interaction.channel.createMessageCollector({ filter, time: 30000, max: 1 });
+                    
+                    collector.on('collect', async (msg) => {
+                        const winEmbed = new EmbedBuilder()
+                            .setTitle('🏆 WINNER! 🏆')
+                            .setDescription(`<@${msg.author.id}> typed it first!`)
+                            .setColor(0x2ecc71)
+                            .setFooter({ text: 'Speed demon!' });
+                        await interaction.channel.send({ embeds: [winEmbed] });
+                    });
+                    
+                    collector.on('end', (collected) => {
+                        if (collected.size === 0) {
+                            interaction.channel.send('⏰ Time\'s up! Nobody typed it correctly.').catch(() => {});
+                        }
+                    });
+                    
+                    response = '__TYPERACE_HANDLED__';
                     break;
                 }
                 // ============ STARK BUCKS ECONOMY ============
@@ -3600,15 +3603,6 @@
         }
     }
 
-    cleanupAgentSessions() {
-        const now = Date.now();
-        for (const [userId, session] of this.agentSessions.entries()) {
-            if ((session.lastActive || session.startedAt) + this.agentTtlMs < now) {
-                this.agentSessions.delete(userId);
-            }
-        }
-    }
-
     // ============ RAP BATTLE SYSTEM ============
     /**
      * Scan rapping_comebacks folder for available content
@@ -3618,7 +3612,9 @@
             lines: [],
             gifs: [],
             videos: [],
-            mp3s: []
+            mp3s: [],
+            images: [],      // Local image files
+            imagesBase64: [] // Base64 encoded images
         };
 
         try {
@@ -3654,6 +3650,31 @@
                     }
                 }
             }
+
+            // Scan images folder for local images
+            const imagesPath = path.join(this.rapBattleComebacksPath, 'images');
+            if (fs.existsSync(imagesPath)) {
+                const files = fs.readdirSync(imagesPath);
+                for (const file of files) {
+                    const ext = path.extname(file).toLowerCase();
+                    if (['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) {
+                        comebacks.images.push(path.join(imagesPath, file));
+                    }
+                }
+            }
+
+            // Read base64 encoded images
+            const base64Path = path.join(this.rapBattleComebacksPath, 'images_base64.json');
+            if (fs.existsSync(base64Path)) {
+                try {
+                    const base64Data = JSON.parse(fs.readFileSync(base64Path, 'utf8'));
+                    if (base64Data.images && Array.isArray(base64Data.images)) {
+                        comebacks.imagesBase64 = base64Data.images;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse images_base64.json:', e);
+                }
+            }
         } catch (error) {
             console.error('Failed to scan rap battle comebacks:', error);
         }
@@ -3662,19 +3683,42 @@
     }
 
     /**
-     * Get a random comeback from available content
+     * Get a random comeback from available content (no repeats within a battle)
      */
-    getRandomComeback(comebacks) {
+    getRandomComeback(comebacks, usedComebacks = null) {
         const allTypes = [];
         
         if (comebacks.lines.length > 0) allTypes.push('line');
         if (comebacks.gifs.length > 0) allTypes.push('gif');
         if (comebacks.videos.length > 0) allTypes.push('video');
         if (comebacks.mp3s.length > 0) allTypes.push('mp3');
+        if (comebacks.images.length > 0) allTypes.push('image');
+        if (comebacks.imagesBase64.length > 0) allTypes.push('imageBase64');
 
         if (allTypes.length === 0) {
-            return { type: 'line', content: 'Your bars are weak, human!' };
+            return { type: 'line', content: 'Your bars are weak, human! 💀' };
         }
+
+        // Helper to get unique item from array
+        const getUniqueItem = (arr, prefix) => {
+            if (!usedComebacks) {
+                return arr[Math.floor(Math.random() * arr.length)];
+            }
+            // Filter out used items
+            const available = arr.filter((item, idx) => {
+                const key = `${prefix}:${typeof item === 'object' ? item.name || idx : item}`;
+                return !usedComebacks.has(key);
+            });
+            // If all used, reset and pick any
+            if (available.length === 0) {
+                return arr[Math.floor(Math.random() * arr.length)];
+            }
+            const picked = available[Math.floor(Math.random() * available.length)];
+            const idx = arr.indexOf(picked);
+            const key = `${prefix}:${typeof picked === 'object' ? picked.name || idx : picked}`;
+            usedComebacks.add(key);
+            return picked;
+        };
 
         const randomType = allTypes[Math.floor(Math.random() * allTypes.length)];
 
@@ -3682,22 +3726,32 @@
             case 'line':
                 return {
                     type: 'line',
-                    content: comebacks.lines[Math.floor(Math.random() * comebacks.lines.length)]
+                    content: getUniqueItem(comebacks.lines, 'line')
                 };
             case 'gif':
                 return {
                     type: 'gif',
-                    content: comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)]
+                    content: getUniqueItem(comebacks.gifs, 'gif')
+                };
+            case 'image':
+                return {
+                    type: 'image',
+                    content: getUniqueItem(comebacks.images, 'image')
+                };
+            case 'imageBase64':
+                return {
+                    type: 'imageBase64',
+                    content: getUniqueItem(comebacks.imagesBase64, 'imgb64')
                 };
             case 'video':
                 return {
                     type: 'video',
-                    content: comebacks.videos[Math.floor(Math.random() * comebacks.videos.length)]
+                    content: getUniqueItem(comebacks.videos, 'video')
                 };
             case 'mp3':
                 return {
                     type: 'mp3',
-                    content: comebacks.mp3s[Math.floor(Math.random() * comebacks.mp3s.length)]
+                    content: getUniqueItem(comebacks.mp3s, 'mp3')
                 };
         }
     }
@@ -3713,12 +3767,42 @@
     /**
      * Send a comeback message
      */
-    async sendComeback(channel, comeback, comebacks) {
+    async sendComeback(channel, comeback, comebacks, isFireMode = false) {
         try {
             if (comeback.type === 'line') {
+                // In fire mode, sometimes send multiple lines (2-3)
+                if (isFireMode && Math.random() < 0.4) {
+                    const numLines = Math.random() < 0.5 ? 2 : 3;
+                    const lines = [comeback.content];
+                    for (let i = 1; i < numLines; i++) {
+                        const extra = comebacks.lines[Math.floor(Math.random() * comebacks.lines.length)];
+                        if (extra && !lines.includes(extra)) lines.push(extra);
+                    }
+                    return await channel.send(lines.join('\n'));
+                }
                 return await channel.send(comeback.content);
             } else if (comeback.type === 'gif') {
                 return await channel.send(comeback.content);
+            } else if (comeback.type === 'image') {
+                // Local image file
+                const filePath = comeback.content;
+                const fileName = path.basename(filePath);
+                
+                if (!fs.existsSync(filePath)) {
+                    console.error(`Image not found: ${filePath}`);
+                    const fallback = this.getRandomComeback({ ...comebacks, images: [], imagesBase64: [] });
+                    return await channel.send(fallback.content || 'Your bars are weak!');
+                }
+
+                const attachment = new AttachmentBuilder(filePath, { name: fileName });
+                return await channel.send({ files: [attachment] });
+            } else if (comeback.type === 'imageBase64') {
+                // Base64 encoded image
+                const img = comeback.content;
+                const ext = img.mimeType.split('/')[1] || 'png';
+                const buffer = Buffer.from(img.data, 'base64');
+                const attachment = new AttachmentBuilder(buffer, { name: `${img.name}.${ext}` });
+                return await channel.send({ files: [attachment] });
             } else if (comeback.type === 'video' || comeback.type === 'mp3') {
                 const filePath = comeback.content;
                 const fileName = path.basename(filePath);
@@ -3737,9 +3821,63 @@
         } catch (error) {
             console.error('Failed to send comeback:', error);
             // Fallback to a text line
-            const fallback = this.getRandomComeback({ ...comebacks, videos: [], mp3s: [], gifs: [] });
+            const fallback = this.getRandomComeback({ ...comebacks, videos: [], mp3s: [], gifs: [], images: [], imagesBase64: [] });
             return await channel.send(fallback.content);
         }
+    }
+
+    /**
+     * Score a user's rap bar based on various criteria
+     */
+    scoreUserBar(content) {
+        let score = 0;
+        const words = content.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+        
+        // Base points for length (longer = more effort)
+        if (words.length >= 3) score += 5;
+        if (words.length >= 6) score += 5;
+        if (words.length >= 10) score += 10;
+        if (words.length >= 15) score += 10;
+        
+        // Rhyme detection (simple end-sound matching)
+        const rhymeEndings = ['ay', 'ee', 'ow', 'ight', 'ine', 'ame', 'ade', 'ake', 'ate', 'ound', 'ick', 'ot', 'op', 'ack', 'an', 'it', 'ip', 'ock', 'unk', 'ash'];
+        let rhymeCount = 0;
+        for (const word of words) {
+            for (const ending of rhymeEndings) {
+                if (word.endsWith(ending)) {
+                    rhymeCount++;
+                    break;
+                }
+            }
+        }
+        if (rhymeCount >= 2) score += 10;
+        if (rhymeCount >= 4) score += 15;
+        
+        // Fire keywords bonus
+        const fireWords = ['fire', 'flame', 'heat', 'hot', 'burn', 'lit', 'sick', 'cold', 'ice', 'freeze', 'kill', 'dead', 'rip', 'bars', 'flow', 'spit', 'rap', 'beat', 'rhyme', 'mic', 'drop', 'bomb', 'explode', 'goat', 'king', 'queen', 'crown', 'throne', 'win', 'champ'];
+        for (const word of words) {
+            if (fireWords.includes(word)) {
+                score += 5;
+            }
+        }
+        
+        // Diss bonus (targeting the bot)
+        const dissWords = ['bot', 'robot', 'machine', 'ai', 'jarvis', 'humanoid', 'computer', 'code', 'program', 'algorithm', 'cpu', 'binary'];
+        for (const word of words) {
+            if (dissWords.includes(word)) {
+                score += 8;
+            }
+        }
+        
+        // Emoji bonus (shows creativity)
+        const emojiCount = (content.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
+        score += Math.min(emojiCount * 2, 10);
+        
+        // Caps lock bonus (INTENSITY)
+        const capsWords = words.filter(w => w === w.toUpperCase() && w.length > 2);
+        if (capsWords.length >= 2) score += 5;
+        
+        return score;
     }
 
     /**
@@ -3761,7 +3899,7 @@
     /**
      * End a rap battle
      */
-    endRapBattle(userId, channel, userWon) {
+    endRapBattle(userId, channel, userWon, userScore = 0) {
         const battle = this.rapBattles.get(userId);
         if (!battle) return;
 
@@ -3784,134 +3922,36 @@
         const unblockTime = Date.now() + CHAT_UNBLOCK_DELAY;
         this.rapBattleBlockedUsers.set(userId, unblockTime);
 
-        // Send result message
-        const message = userWon 
-            ? `you won bruh <@${userId}>`
-            : `you lost <@${userId}>`;
+        // Win/lose messages with variety
+        const winMessages = [
+            `🏆 you won bruh <@${userId}>! bars were fire 🔥`,
+            `W for <@${userId}>! you actually cooked me 👨‍🍳`,
+            `<@${userId}> took the crown this time 👑 respect`,
+            `gg <@${userId}>, your flow was too clean 💯`,
+            `<@${userId}> just bodied a robot... impressive 🎤`
+        ];
+        
+        const loseMessages = [
+            `you lost <@${userId}> 💀`,
+            `L for <@${userId}>... better luck next time 😂`,
+            `<@${userId}> got cooked by a bot 🤖🔥`,
+            `gg ez <@${userId}>, HUMANOID supremacy 🏆`,
+            `<@${userId}> your bars were mid at best 📉`,
+            `imagine losing to artificial intelligence <@${userId}> 💀`,
+            `<@${userId}> needs more practice fr fr 😭`
+        ];
+
+        const randomWin = winMessages[Math.floor(Math.random() * winMessages.length)];
+        const randomLose = loseMessages[Math.floor(Math.random() * loseMessages.length)];
+        
+        // Build result message with score
+        const barsDropped = battle.userBars || 0;
+        const scoreText = barsDropped > 0 ? `\n📊 Your stats: ${barsDropped} bars | Score: ${userScore}` : '';
+        const message = userWon ? randomWin + scoreText : randomLose + scoreText;
         
         channel.send(message).catch(err => {
             console.error('Failed to send rap battle end message:', err);
         });
-    }
-
-    async startAgentPreview(user) {
-        const now = Date.now();
-        this.agentSessions.set(user.id, { startedAt: now, lastActive: now });
-        const dm = await user.createDM();
-        await dm.send({ content: 'Agent preview engaged, sir. Type a message to chat, include a URL to preview a page, or prefix with "search " to run a web search. Type ".agent stop" to end or ".help" for help.' });
-        return dm;
-    }
-
-    async handleAgentDmMessage(message) {
-        if (message.author.bot) return;
-        if (message.channel?.type !== ChannelType.DM) return;
-        const userId = message.author.id;
-        const session = this.agentSessions.get(userId);
-        const content = (message.content || '').trim();
-
-        if (/^\.agent\s+stop\b/i.test(content)) {
-            this.agentSessions.delete(userId);
-            await message.channel.send({ content: 'Agent disengaged, sir.' });
-            return;
-        }
-        if (/^\.help\b|^\.agent\s+help\b/i.test(content)) {
-            await message.channel.send({ content: `**JARVIS CODEX Commands:**
-• Send any URL → AI summary + screenshot
-• \`search <query>\` → Web search
-• \`screenshot <url>\` → Quick screenshot only
-• \`.agent stop\` → End session
-• Just chat → Talk to JARVIS` });
-            return;
-        }
-        if (!session) return; // only active for preview sessions
-        session.lastActive = Date.now();
-
-        try {
-            const urlMatch = content.match(/https?:\/\/\S+/i);
-            if (urlMatch && config?.deployment?.target === 'selfhost' && config?.deployment?.liveAgentMode) {
-                try {
-                    const { summarizeUrl } = require('../utils/agent-preview');
-                    const result = await summarizeUrl(urlMatch[0]);
-                    
-                    // Build message with optional screenshot
-                    const messageOptions = {
-                        content: `📄 **${result.title || 'Page Preview'}**\n${result.url}\n\n${result.summary}`.slice(0, 1990)
-                    };
-                    
-                    // Attach screenshot if available
-                    if (result.screenshot) {
-                        const { AttachmentBuilder } = require('discord.js');
-                        const screenshotBuffer = Buffer.isBuffer(result.screenshot) 
-                            ? result.screenshot 
-                            : Buffer.from(result.screenshot, 'base64');
-                        const attachment = new AttachmentBuilder(screenshotBuffer, { name: 'preview.png' });
-                        messageOptions.files = [attachment];
-                    }
-                    
-                    await message.channel.send(messageOptions);
-                    return;
-                } catch (e) {
-                    console.warn('Failed to preview URL:', e);
-                }
-            }
-
-            // Screenshot command
-            if (content.toLowerCase().startsWith('screenshot ')) {
-                const url = content.slice(11).trim();
-                if (!url) {
-                    await message.channel.send({ content: 'Please provide a URL, sir.' });
-                    return;
-                }
-                try {
-                    const { screenshotUrl } = require('../utils/agent-preview');
-                    const result = await screenshotUrl(url);
-                    const { AttachmentBuilder } = require('discord.js');
-                    const attachment = new AttachmentBuilder(result.screenshot, { name: 'screenshot.png' });
-                    await message.channel.send({ 
-                        content: `📸 **${result.title}**\n${result.url}`,
-                        files: [attachment]
-                    });
-                } catch (e) {
-                    console.warn('Screenshot failed:', e);
-                    await message.channel.send({ content: `Screenshot failed: ${e.message}` });
-                }
-                return;
-            }
-
-            if (content.startsWith('search ')) {
-                const query = content.slice(7).trim();
-                if (!query) {
-                    await message.channel.send({ content: 'Please provide a search query, sir.' });
-                    return;
-                }
-
-                try {
-                    const result = await braveSearch.search(query, 5);
-                    if (!result || !result.web) {
-                        await message.channel.send({ content: 'No results found, sir.' });
-                        return;
-                    }
-
-                    const lines = result.web.results.slice(0, 3).map(r => `• **${r.title}**\n${r.description}\n${r.url}`);
-                    await message.channel.send({ content: lines.join('\n\n').slice(0, 1990) });
-                } catch (e) {
-                    console.error('Failed to search:', e);
-                    await message.channel.send({ content: 'Search failed, sir.' });
-                }
-                return;
-            }
-
-            // Normal chat
-            const response = await this.jarvis.interact(content, { userId, isDM: true });
-            if (response) {
-                const sanitized = typeof response === 'string' ? response : response.text || '';
-                const safe = sanitized.replace(/<@!?\d+>/g, '').slice(0, 1990);
-                await message.channel.send({ content: safe.length ? safe : 'Response circuits tangled, sir. Try again?' });
-            }
-        } catch (e) {
-            console.error('Agent DM error:', e);
-            await message.channel.send({ content: 'Technical difficulties, sir.' });
-        }
     }
 }
 
