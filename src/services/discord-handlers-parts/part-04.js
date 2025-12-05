@@ -2880,6 +2880,75 @@
                             { name: '🔮 Answer', value: answer, inline: false }
                         );
                     response = { embeds: [embed] };
+                    // Track achievement
+                    await achievements.incrementStat(interaction.user.id, 'fun.eightBall');
+                    break;
+                }
+                case 'achievements': {
+                    telemetryMetadata.category = 'achievements';
+                    const targetUser = interaction.options.getUser('user') || interaction.user;
+                    const category = interaction.options.getString('category');
+                    
+                    const profile = await achievements.getProfile(targetUser.id);
+                    
+                    if (category) {
+                        // Show specific category
+                        const userData = await achievements.getUserData(targetUser.id);
+                        const categoryAchievements = achievements.getAchievementsByCategory(category, userData);
+                        
+                        const embed = new EmbedBuilder()
+                            .setTitle(`🏆 ${category} Achievements`)
+                            .setDescription(`**${targetUser.username}**'s achievements in ${category}`)
+                            .setColor(0xffd700)
+                            .setThumbnail(targetUser.displayAvatarURL({ size: 128 }));
+                        
+                        let achievementList = '';
+                        for (const a of categoryAchievements) {
+                            const status = a.unlocked ? '✅' : '🔒';
+                            achievementList += `${status} ${a.emoji} **${a.name}** (${a.points} pts)\n${a.description}\n\n`;
+                        }
+                        
+                        if (achievementList.length > 4000) {
+                            achievementList = achievementList.substring(0, 4000) + '...';
+                        }
+                        
+                        embed.addFields({ name: 'Achievements', value: achievementList || 'None', inline: false });
+                        embed.setFooter({ text: `${profile.categories[category]?.unlocked || 0}/${profile.categories[category]?.total || 0} unlocked` });
+                        
+                        response = { embeds: [embed] };
+                    } else {
+                        // Show overview
+                        const embed = new EmbedBuilder()
+                            .setTitle('🏆 Achievements')
+                            .setDescription(`**${targetUser.username}**'s Achievement Profile`)
+                            .setColor(0xffd700)
+                            .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
+                            .addFields(
+                                { name: '⭐ Total Points', value: `${profile.totalPoints}`, inline: true },
+                                { name: '🎯 Progress', value: `${profile.unlockedCount}/${profile.totalCount} (${profile.percentage}%)`, inline: true },
+                                { name: '\u200b', value: '\u200b', inline: true }
+                            );
+                        
+                        // Add category progress
+                        let categoryProgress = '';
+                        for (const [cat, data] of Object.entries(profile.categories)) {
+                            const percent = Math.round((data.unlocked / data.total) * 100);
+                            const bar = '█'.repeat(Math.floor(percent / 10)) + '░'.repeat(10 - Math.floor(percent / 10));
+                            categoryProgress += `**${cat}**: ${bar} ${data.unlocked}/${data.total}\n`;
+                        }
+                        
+                        embed.addFields({ name: '📊 Categories', value: categoryProgress, inline: false });
+                        
+                        // Add recent achievements
+                        if (profile.recent.length > 0) {
+                            const recentText = profile.recent.map(a => `${a.emoji} ${a.name}`).join('\n');
+                            embed.addFields({ name: '🕐 Recent', value: recentText, inline: false });
+                        }
+                        
+                        embed.setFooter({ text: 'Use /achievements category:<name> to view specific categories' });
+                        
+                        response = { embeds: [embed] };
+                    }
                     break;
                 }
                 // ============ STARK BUCKS ECONOMY ============
