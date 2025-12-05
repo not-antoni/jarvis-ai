@@ -607,10 +607,10 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'eightball',
+        name: '8ball',
         description: 'Ask the magic 8-ball',
         category: 'Fun',
-        usage: '/eightball <question>',
+        usage: '/8ball <question>',
         feature: 'funUtilities',
         ephemeral: false
     },
