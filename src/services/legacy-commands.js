@@ -9,8 +9,64 @@
 const { EmbedBuilder } = require('discord.js');
 const selfhostFeatures = require('./selfhost-features');
 const starkEconomy = require('./stark-economy');
+const funFeatures = require('./fun-features');
 
 const LEGACY_PREFIX = '.j';
+
+// ============ COOLDOWN SYSTEM ============
+const cooldowns = new Map();
+const COOLDOWN_MS = 3000; // 3 second cooldown for most commands
+
+function checkCooldown(userId, commandName) {
+    const key = `${userId}:${commandName}`;
+    const now = Date.now();
+    const cooldownEnd = cooldowns.get(key) || 0;
+    
+    if (now < cooldownEnd) {
+        return Math.ceil((cooldownEnd - now) / 1000);
+    }
+    
+    cooldowns.set(key, now + COOLDOWN_MS);
+    return 0;
+}
+
+// ============ PAGINATED HELP SYSTEM ============
+const helpPages = new Map(); // userId -> currentPage
+
+const HELP_PAGES = [
+    {
+        title: '📜 Legacy Commands - Page 1/4',
+        subtitle: 'Fun Commands',
+        fields: [
+            { name: '🎮 **Fun**', value: '`.j rapbattle <bars>` - Rap battle Jarvis\n`.j roast @user` - Roast someone\n`.j soul` - View Jarvis soul\n`.j 8ball <question>` - Magic 8-ball', inline: false },
+            { name: '😂 **More Fun**', value: '`.j dadjoke` - Get a dad joke\n`.j pickupline` - Get a pickup line\n`.j rate <thing>` - Rate something\n`.j roll [dice]` - Roll dice (e.g., 2d6)', inline: false }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 2/4',
+        subtitle: 'Social Commands',
+        fields: [
+            { name: '💕 **Social**', value: '`.j ship @user1 @user2` - Ship compatibility\n`.j hug @user` - Hug someone\n`.j slap @user` - Slap someone\n`.j fight @user` - Fight someone', inline: false },
+            { name: '📊 **Meters**', value: '`.j howgay [@user]` - How gay meter\n`.j howbased [@user]` - How based meter\n`.j vibecheck [@user]` - Vibe check', inline: false }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 3/4',
+        subtitle: 'Economy Commands',
+        fields: [
+            { name: '💰 **Economy**', value: '`.j balance` - Check balance\n`.j daily` - Claim daily reward\n`.j work` - Work for money\n`.j leaderboard` - View top richest', inline: false },
+            { name: '🎰 **Gambling**', value: '`.j gamble <amt>` - Double or nothing\n`.j slots <bet>` - Slot machine\n`.j coinflip <bet> <h/t>` - Coin flip', inline: false }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 4/4',
+        subtitle: 'Utility & Shop',
+        fields: [
+            { name: '🛒 **Shop**', value: '`.j shop` - View shop\n`.j buy <item>` - Buy an item\n`.j inventory` - View your items', inline: false },
+            { name: '⚙️ **Utility**', value: '`.j help` - Show help (paginated)\n`.j next` / `.j prev` - Navigate pages\n`.j ping` - Check latency\n`.j remind in <time> <msg>` - Set reminder', inline: false }
+        ]
+    }
+];
 
 /**
  * Roast generator - creates a classy British roast
@@ -61,24 +117,69 @@ function parseScheduleTime(timeStr) {
  * Legacy command definitions
  */
 const legacyCommands = {
-    // Help command
+    // Help command (paginated)
     help: {
         description: 'Show available legacy commands',
         usage: '.j help',
         execute: async (message, args) => {
-            const embed = new EmbedBuilder()
-                .setTitle('📜 Legacy Commands')
-                .setDescription('Text commands for when you\'re feeling retro, sir.')
-                .setColor(0x3498db)
-                .addFields(
-                    { name: '🎮 **Fun**', value: '`.j rapbattle` `.j roast @user` `.j soul`', inline: false },
-                    { name: '💰 **Economy**', value: '`.j balance` `.j daily` `.j work`', inline: false },
-                    { name: '🎰 **Gambling**', value: '`.j gamble <amt>` `.j slots <bet>` `.j coinflip <bet> <h/t>`', inline: false },
-                    { name: '🛒 **Shop**', value: '`.j shop` `.j buy <item>` `.j leaderboard`', inline: false },
-                    { name: '⚙️ **Utility**', value: '`.j help` `.j ping` `.j remind in <time> <msg>`', inline: false }
-                )
-                .setFooter({ text: 'Legacy commands require Message Content Intent' });
+            const pageNum = parseInt(args[0]) || 1;
+            const pageIndex = Math.max(0, Math.min(pageNum - 1, HELP_PAGES.length - 1));
+            helpPages.set(message.author.id, pageIndex);
             
+            const page = HELP_PAGES[pageIndex];
+            const embed = new EmbedBuilder()
+                .setTitle(page.title)
+                .setDescription(`**${page.subtitle}**\nText commands for when you're feeling retro, sir.`)
+                .setColor(0x3498db)
+                .setFooter({ text: `Use .j next / .j prev to navigate • Page ${pageIndex + 1}/${HELP_PAGES.length}` });
+            
+            page.fields.forEach(f => embed.addFields(f));
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // Next page
+    next: {
+        description: 'Next help page',
+        usage: '.j next',
+        execute: async (message, args) => {
+            const current = helpPages.get(message.author.id) || 0;
+            const next = Math.min(current + 1, HELP_PAGES.length - 1);
+            helpPages.set(message.author.id, next);
+            
+            const page = HELP_PAGES[next];
+            const embed = new EmbedBuilder()
+                .setTitle(page.title)
+                .setDescription(`**${page.subtitle}**`)
+                .setColor(0x3498db)
+                .setFooter({ text: `Use .j next / .j prev to navigate • Page ${next + 1}/${HELP_PAGES.length}` });
+            
+            page.fields.forEach(f => embed.addFields(f));
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // Previous page
+    prev: {
+        description: 'Previous help page',
+        usage: '.j prev',
+        aliases: ['previous', 'back'],
+        execute: async (message, args) => {
+            const current = helpPages.get(message.author.id) || 0;
+            const prev = Math.max(current - 1, 0);
+            helpPages.set(message.author.id, prev);
+            
+            const page = HELP_PAGES[prev];
+            const embed = new EmbedBuilder()
+                .setTitle(page.title)
+                .setDescription(`**${page.subtitle}**`)
+                .setColor(0x3498db)
+                .setFooter({ text: `Use .j next / .j prev to navigate • Page ${prev + 1}/${HELP_PAGES.length}` });
+            
+            page.fields.forEach(f => embed.addFields(f));
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -501,6 +602,226 @@ const legacyCommands = {
             await message.reply(`⏰ Got it, sir. I'll remind you in ${timeAmount} ${timeUnit}: "${reminderText}"`);
             return true;
         }
+    },
+    
+    // ============ NEW FUN COMMANDS ============
+    '8ball': {
+        description: 'Ask the magic 8-ball',
+        usage: '.j 8ball <question>',
+        aliases: ['eightball'],
+        execute: async (message, args) => {
+            const question = args.join(' ');
+            if (!question) {
+                await message.reply('Ask me a question, sir. Usage: `.j 8ball <question>`');
+                return true;
+            }
+            const answer = funFeatures.get8BallResponse();
+            const embed = new EmbedBuilder()
+                .setTitle('🎱 Magic 8-Ball')
+                .setColor(0x000000)
+                .addFields(
+                    { name: '❓ Question', value: question, inline: false },
+                    { name: '🔮 Answer', value: answer, inline: false }
+                );
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    dadjoke: {
+        description: 'Get a dad joke',
+        usage: '.j dadjoke',
+        aliases: ['dad'],
+        execute: async (message, args) => {
+            const joke = funFeatures.getDadJoke();
+            await message.reply(`👨 **Dad Joke**\n\n${joke}`);
+            return true;
+        }
+    },
+    
+    pickupline: {
+        description: 'Get a pickup line',
+        usage: '.j pickupline',
+        aliases: ['pickup'],
+        execute: async (message, args) => {
+            const line = funFeatures.getPickupLine();
+            await message.reply(`💕 **Pickup Line**\n\n${line}`);
+            return true;
+        }
+    },
+    
+    rate: {
+        description: 'Rate something',
+        usage: '.j rate <thing>',
+        execute: async (message, args) => {
+            const thing = args.join(' ') || 'that';
+            const rating = funFeatures.randomInt(0, 10);
+            const stars = '⭐'.repeat(rating) + '☆'.repeat(10 - rating);
+            await message.reply(`📊 **Rating for "${thing}":**\n${stars} **${rating}/10**`);
+            return true;
+        }
+    },
+    
+    roll: {
+        description: 'Roll dice',
+        usage: '.j roll [dice]',
+        aliases: ['dice'],
+        execute: async (message, args) => {
+            const notation = args[0] || '1d6';
+            const result = funFeatures.rollDice(notation);
+            
+            if (!result) {
+                await message.reply('❌ Invalid dice notation! Use format like `2d6` or `1d20+5`');
+                return true;
+            }
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🎲 Dice Roll')
+                .setColor(0x9b59b6)
+                .addFields(
+                    { name: 'Dice', value: result.notation, inline: true },
+                    { name: 'Rolls', value: result.rolls.join(', '), inline: true },
+                    { name: 'Total', value: `**${result.total}**`, inline: true }
+                );
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    ship: {
+        description: 'Ship two people',
+        usage: '.j ship @user1 @user2',
+        execute: async (message, args) => {
+            const users = message.mentions.users;
+            if (users.size < 1) {
+                await message.reply('Mention at least one person! Usage: `.j ship @user1 @user2`');
+                return true;
+            }
+            
+            const person1 = users.first();
+            const person2 = users.size > 1 ? users.at(1) : message.author;
+            
+            const compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
+            const shipName = funFeatures.generateShipName(person1.username, person2.username);
+            
+            let emoji, description;
+            if (compatibility >= 90) { emoji = '💕'; description = 'SOULMATES!'; }
+            else if (compatibility >= 70) { emoji = '❤️'; description = 'Great potential!'; }
+            else if (compatibility >= 50) { emoji = '💛'; description = 'Could work!'; }
+            else if (compatibility >= 30) { emoji = '🧡'; description = 'Complicated...'; }
+            else { emoji = '💔'; description = 'Not meant to be.'; }
+            
+            const embed = new EmbedBuilder()
+                .setTitle(`${emoji} Ship: ${shipName}`)
+                .setColor(compatibility >= 50 ? 0xe91e63 : 0x95a5a6)
+                .setDescription(`**${person1.username}** 💕 **${person2.username}**\n\n**${compatibility}%** - ${description}`);
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    hug: {
+        description: 'Hug someone',
+        usage: '.j hug @user',
+        execute: async (message, args) => {
+            const target = message.mentions.users.first();
+            if (!target) {
+                await message.reply('Mention someone to hug! 🤗');
+                return true;
+            }
+            const gif = funFeatures.getHugGif();
+            const embed = new EmbedBuilder()
+                .setDescription(`**${message.author.username}** hugs **${target.username}**! 🤗`)
+                .setColor(0xff69b4)
+                .setImage(gif);
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    slap: {
+        description: 'Slap someone',
+        usage: '.j slap @user',
+        execute: async (message, args) => {
+            const target = message.mentions.users.first();
+            if (!target) {
+                await message.reply('Mention someone to slap! 👋');
+                return true;
+            }
+            const gif = funFeatures.getSlapGif();
+            const embed = new EmbedBuilder()
+                .setDescription(`**${message.author.username}** slaps **${target.username}**! 👋`)
+                .setColor(0xe74c3c)
+                .setImage(gif);
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    fight: {
+        description: 'Fight someone',
+        usage: '.j fight @user',
+        execute: async (message, args) => {
+            const target = message.mentions.users.first();
+            if (!target) {
+                await message.reply('Mention someone to fight! 👊');
+                return true;
+            }
+            
+            const fight = funFeatures.generateFight(message.author.username, target.username);
+            const embed = new EmbedBuilder()
+                .setTitle('⚔️ FIGHT! ⚔️')
+                .setColor(0xe74c3c)
+                .setDescription(fight.moves.join('\n\n'))
+                .addFields(
+                    { name: `${message.author.username} HP`, value: `${fight.attackerHP}/100`, inline: true },
+                    { name: `${target.username} HP`, value: `${fight.defenderHP}/100`, inline: true }
+                )
+                .setFooter({ text: `🏆 Winner: ${fight.winner}` });
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    howgay: {
+        description: 'How gay meter',
+        usage: '.j howgay [@user]',
+        execute: async (message, args) => {
+            const target = message.mentions.users.first() || message.author;
+            const percentage = funFeatures.randomInt(0, 100);
+            const bar = '🏳️‍🌈'.repeat(Math.floor(percentage / 10)) + '⬜'.repeat(10 - Math.floor(percentage / 10));
+            await message.reply(`🏳️‍🌈 **${target.username}** is **${percentage}%** gay\n${bar}`);
+            return true;
+        }
+    },
+    
+    howbased: {
+        description: 'How based meter',
+        usage: '.j howbased [@user]',
+        execute: async (message, args) => {
+            const target = message.mentions.users.first() || message.author;
+            const percentage = funFeatures.randomInt(0, 100);
+            const bar = '🗿'.repeat(Math.floor(percentage / 10)) + '⬜'.repeat(10 - Math.floor(percentage / 10));
+            await message.reply(`🗿 **${target.username}** is **${percentage}%** based\n${bar}`);
+            return true;
+        }
+    },
+    
+    vibecheck: {
+        description: 'Vibe check someone',
+        usage: '.j vibecheck [@user]',
+        aliases: ['vibe'],
+        execute: async (message, args) => {
+            const target = message.mentions.users.first() || message.author;
+            const vibe = funFeatures.generateVibeCheck(target.username);
+            const embed = new EmbedBuilder()
+                .setTitle(`${vibe.emoji} Vibe Check: ${vibe.rating}`)
+                .setDescription(`**${target.username}**\n${vibe.description}`)
+                .setColor(vibe.overallScore > 50 ? 0x2ecc71 : 0xe74c3c)
+                .addFields({ name: '📊 Score', value: `${vibe.overallScore}/100`, inline: true });
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
     }
 };
 
@@ -544,6 +865,16 @@ async function handleLegacyCommand(message, client) {
     if (!command) {
         // Unknown command - could show help or ignore
         return false;
+    }
+    
+    // Check cooldown (skip for help/navigation commands)
+    const noCooldownCommands = ['help', 'next', 'prev', 'ping'];
+    if (!noCooldownCommands.includes(commandName)) {
+        const cooldownLeft = checkCooldown(message.author.id, commandName);
+        if (cooldownLeft > 0) {
+            await message.reply(`⏰ Cooldown! Wait ${cooldownLeft}s before using this command again.`).catch(() => {});
+            return true;
+        }
     }
     
     try {
