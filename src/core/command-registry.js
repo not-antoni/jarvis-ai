@@ -503,6 +503,126 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'rps',
+        description: 'Rock Paper Scissors',
+        category: 'Fun',
+        usage: '/rps [opponent]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'ship',
+        description: 'Calculate compatibility between two people',
+        category: 'Fun',
+        usage: '/ship <person1> [person2]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'howgay',
+        description: 'Check how gay someone is',
+        category: 'Fun',
+        usage: '/howgay [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'howbased',
+        description: 'Check how based someone is',
+        category: 'Fun',
+        usage: '/howbased [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'pickupline',
+        description: 'Get a cringe pickup line',
+        category: 'Fun',
+        usage: '/pickupline',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'dadjoke',
+        description: 'Get a classic dad joke',
+        category: 'Fun',
+        usage: '/dadjoke',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'fight',
+        description: 'Start a fight with someone',
+        category: 'Fun',
+        usage: '/fight <opponent>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'hug',
+        description: 'Hug someone',
+        category: 'Fun',
+        usage: '/hug <user>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'slap',
+        description: 'Slap someone',
+        category: 'Fun',
+        usage: '/slap <user>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'roll',
+        description: 'Roll dice (e.g., 2d6, 1d20+5)',
+        category: 'Fun',
+        usage: '/roll [dice]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'choose',
+        description: 'Choose between options',
+        category: 'Fun',
+        usage: '/choose <options>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'afk',
+        description: 'Set your AFK status',
+        category: 'Fun',
+        usage: '/afk [reason]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'rate',
+        description: 'Rate something or someone',
+        category: 'Fun',
+        usage: '/rate <thing>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: '8ball',
+        description: 'Ask the magic 8-ball',
+        category: 'Fun',
+        usage: '/8ball <question>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'achievements',
+        description: 'View your achievements and progress',
+        category: 'Fun',
+        usage: '/achievements [category] [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
         name: 'soul',
         description: 'View Jarvis\'s artificial soul status.',
         category: 'Fun',
