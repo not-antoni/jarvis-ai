@@ -1764,6 +1764,80 @@ const allCommands = [
         .setName('typerace')
         .setDescription('Start a typing race - first to type the phrase wins!')
         .setContexts([InteractionContextType.Guild]),
+    // ============ MORE FUN COMMANDS ============
+    new SlashCommandBuilder()
+        .setName('rps')
+        .setDescription('Challenge someone to Rock Paper Scissors!')
+        .addUserOption(option => option.setName('opponent').setDescription('Who to challenge').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('ship')
+        .setDescription('Calculate the compatibility between two people')
+        .addUserOption(option => option.setName('person1').setDescription('First person').setRequired(true))
+        .addUserOption(option => option.setName('person2').setDescription('Second person').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('howgay')
+        .setDescription('Calculate how gay someone is (just for fun)')
+        .addUserOption(option => option.setName('user').setDescription('Who to check').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('howbased')
+        .setDescription('Calculate how based someone is')
+        .addUserOption(option => option.setName('user').setDescription('Who to check').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('pickupline')
+        .setDescription('Get a random pickup line (cringe guaranteed)')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('dadjoke')
+        .setDescription('Get a random dad joke')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('fight')
+        .setDescription('Start a fight with someone')
+        .addUserOption(option => option.setName('opponent').setDescription('Who to fight').setRequired(true))
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('hug')
+        .setDescription('Give someone a hug')
+        .addUserOption(option => option.setName('user').setDescription('Who to hug').setRequired(true))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('slap')
+        .setDescription('Slap someone')
+        .addUserOption(option => option.setName('user').setDescription('Who to slap').setRequired(true))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('roll')
+        .setDescription('Roll dice (e.g., 2d6, 1d20)')
+        .addStringOption(option => option.setName('dice').setDescription('Dice notation (e.g., 2d6, 1d20)').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('choose')
+        .setDescription('Let Jarvis choose between options')
+        .addStringOption(option => option.setName('options').setDescription('Options separated by commas').setRequired(true))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('afk')
+        .setDescription('Set your AFK status')
+        .addStringOption(option => option.setName('reason').setDescription('Why are you AFK?').setRequired(false))
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('rate')
+        .setDescription('Rate something or someone')
+        .addStringOption(option => option.setName('thing').setDescription('What to rate').setRequired(true))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('8ball')
+        .setDescription('Ask the magic 8-ball a question')
+        .addStringOption(option => option.setName('question').setDescription('Your question').setRequired(true))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('coinflip')
+        .setDescription('Flip a coin')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('crypto')
         .setDescription('Retrieve live cryptocurrency market data')

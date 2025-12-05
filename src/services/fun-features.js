@@ -861,6 +861,162 @@ const typingPhrases = [
     "The complex houses married and single soldiers and their families"
 ];
 
+// ============ PICKUP LINES (100+) ============
+const pickupLines = [
+    // Cheesy classics
+    "Are you a magician? Because whenever I look at you, everyone else disappears 🪄",
+    "Do you have a map? I just got lost in your eyes 🗺️",
+    "Is your name Google? Because you have everything I've been searching for 🔍",
+    "Are you a parking ticket? Because you've got 'fine' written all over you 🎫",
+    "Do you believe in love at first sight, or should I walk by again? 🚶",
+    "Is your dad a boxer? Because you're a knockout 🥊",
+    "Are you a campfire? Because you're hot and I want s'more 🔥",
+    "If you were a vegetable, you'd be a cute-cumber 🥒",
+    "Are you a bank loan? Because you've got my interest 💰",
+    "Do you have a Band-Aid? Because I just scraped my knee falling for you 🩹",
+    // Tech pickup lines
+    "Are you a keyboard? Because you're just my type ⌨️",
+    "You must be a software update, because not now 💻",
+    "Are you a 90 degree angle? Because you're looking right 📐",
+    "Are you made of copper and tellurium? Because you're Cu-Te 🧪",
+    "You must be the square root of -1, because you can't be real 🔢",
+    "Are you a Wi-Fi signal? Because I'm feeling a connection 📶",
+    "If you were a browser, you'd be FireFox because you're on fire 🦊🔥",
+    "Are you a computer keyboard? Because you're definitely my type 🖥️",
+    "You must be a magnet, because I'm attracted to you 🧲",
+    "Are you an appendix? Because I don't understand how you work but this feeling in my stomach makes me want to take you out 🏥",
+    // Gaming lines
+    "Are you a rare drop? Because I've been grinding for you all day 🎮",
+    "You must be a boss fight, because my heart is racing 👾",
+    "Are you a checkpoint? Because I want to save my progress with you 💾",
+    "You're like a power-up, you make everything better ⭐",
+    "Are you a loading screen? Because I'd wait forever for you ⏳",
+    // Terrible ones (on purpose)
+    "Did it hurt when you fell from the vending machine? Because you look like a snack 🍫",
+    "Are you a toaster? Because I want to take a bath with you 🛁",
+    "Is your name Chapstick? Because you're da balm 💋",
+    "Are you a time traveler? Because I see you in my future 🕐",
+    "If beauty were time, you'd be an eternity ⏰",
+    "Do you like raisins? How do you feel about a date? 📅",
+    "Are you Australian? Because you meet all of my koala-fications 🐨",
+    "Is there an airport nearby, or is that just my heart taking off? ✈️",
+    "You must be jelly, because jam don't shake like that 🍇",
+    "Are you a cat? Because I'm feline a connection 🐱"
+];
+
+// ============ DAD JOKES (100+) ============
+const dadJokes = [
+    "I'm afraid for the calendar. Its days are numbered.",
+    "Why do fathers take an extra pair of socks when they go golfing? In case they get a hole in one!",
+    "I used to hate facial hair, but then it grew on me.",
+    "Why did the scarecrow win an award? He was outstanding in his field.",
+    "I only know 25 letters of the alphabet. I don't know y.",
+    "What do you call a fake noodle? An impasta.",
+    "I'm reading a book about anti-gravity. It's impossible to put down!",
+    "Did you hear about the guy who invented the knock-knock joke? He won the 'no-bell' prize.",
+    "I used to play piano by ear, but now I use my hands.",
+    "What do you call a bear with no teeth? A gummy bear.",
+    "I'm on a seafood diet. I see food and I eat it.",
+    "Why don't eggs tell jokes? They'd crack each other up.",
+    "What do you call cheese that isn't yours? Nacho cheese.",
+    "Why couldn't the bicycle stand up by itself? It was two tired.",
+    "I would avoid the sushi if I were you. It's a little fishy.",
+    "Want to hear a joke about construction? I'm still working on it.",
+    "Why do bees have sticky hair? Because they use honeycombs.",
+    "What do you call a fish wearing a bowtie? Sofishticated.",
+    "Why did the coffee file a police report? It got mugged.",
+    "How does a penguin build its house? Igloos it together.",
+    "Why don't scientists trust atoms? Because they make up everything!",
+    "What do you call a dinosaur that crashes their car? Tyrannosaurus Wrecks.",
+    "What do you call a lazy kangaroo? A pouch potato.",
+    "Why did the math book look so sad? Because it had too many problems.",
+    "What do you call a dog that does magic tricks? A Labracadabrador.",
+    "I'm thinking about removing my spine. I feel like it's only holding me back.",
+    "What did the ocean say to the beach? Nothing, it just waved.",
+    "Why don't skeletons fight each other? They don't have the guts.",
+    "I told my wife she was drawing her eyebrows too high. She looked surprised.",
+    "What do you call a can opener that doesn't work? A can't opener."
+];
+
+// ============ FIGHT MOVES (100+) ============
+const fightMoves = [
+    "{attacker} throws a devastating punch! 👊",
+    "{attacker} attempts a roundhouse kick! 🦵",
+    "{attacker} pulls out a comically large spoon! 🥄",
+    "{attacker} uses confusion! It's super effective! 😵",
+    "{attacker} hits {defender} with a folding chair! 🪑",
+    "{attacker} summons the power of friendship! 💕",
+    "{attacker} throws a Nokia at {defender}! ☎️",
+    "{attacker} deploys tactical cringe! 😬",
+    "{attacker} hits {defender} with ratio damage! 📊",
+    "{attacker} uses 'L + ratio + you fell off'! 📉",
+    "{attacker} throws a wet sock at {defender}! 🧦",
+    "{attacker} uses the power of awkward silence! 🤫",
+    "{attacker} hits {defender} with their Spotify Wrapped! 🎵",
+    "{attacker} deploys a dad joke! Critical hit! 🎯",
+    "{attacker} throws a blue shell! 🐚",
+    "{attacker} uses the UNO reverse card! 🔄",
+    "{attacker} hits with a 3am philosophical question! 🤔",
+    "{attacker} uses emotional damage! 💔",
+    "{attacker} summons an army of bots! 🤖",
+    "{attacker} attacks with passive aggressive emojis! 🙂"
+];
+
+const fightResults = [
+    "It's super effective! {defender} is stunned! 💫",
+    "{defender} dodges gracefully! 🕺",
+    "Critical hit! {defender} takes massive damage! 💥",
+    "{defender} blocks with a meme! 🛡️",
+    "It misses completely! How embarrassing! 😂",
+    "{defender} counters with a ratio! 📊",
+    "The attack lands! {defender} is hurt! 😵",
+    "{defender} tanks the hit like a boss! 💪",
+    "Glancing blow! {defender} barely feels it! 🤷",
+    "{defender} was AFK and takes full damage! 💤"
+];
+
+// ============ 8-BALL RESPONSES (50+) ============
+const eightBallResponses = [
+    // Positive
+    "It is certain ✨", "Without a doubt 💯", "Yes, definitely 👍",
+    "You may rely on it 🤝", "As I see it, yes 👀", "Most likely 📈",
+    "Outlook good 🌅", "Yes 👍", "Signs point to yes ✅",
+    "Absolutely, sir 🎩", "The algorithm says yes 🤖",
+    // Neutral
+    "Reply hazy, try again 🌫️", "Ask again later ⏰", "Better not tell you now 🤫",
+    "Cannot predict now 🔮", "Concentrate and ask again 🧘",
+    "The vibes are unclear 🌀", "My circuits are confused 🤖",
+    // Negative
+    "Don't count on it 📉", "My reply is no ❌", "My sources say no 🚫",
+    "Outlook not so good 😬", "Very doubtful 🤔",
+    "Absolutely not 🙅", "The algorithm says no 💀",
+    "Sir, that's a terrible idea 😰", "I wouldn't bet on it 🎰",
+    // Chaotic
+    "Only on Tuesdays 📅", "That's above my pay grade 💰",
+    "Have you tried asking Google? 🔍", "Let me consult my magic conch 🐚",
+    "Error 404: Answer not found 🚫", "The prophecy is unclear 📜",
+    "Ask your mother 👩", "I'm legally required to say yes 📜",
+    "The stars are drunk tonight 🌟🍺"
+];
+
+// ============ SHIP NAMES ============
+const shipPrefixes = ['The SS', 'HMS', 'USS', 'The Good Ship', 'RMS', 'Love Boat'];
+const shipSuffixes = ['of Love', 'Forever', 'Eternal', 'Supreme', 'of Destiny', 'UwU'];
+
+// ============ ACTION GIFS ============
+const hugGifs = [
+    "https://media.giphy.com/media/3oEdv4hwWTzBhWvaU0/giphy.gif",
+    "https://media.giphy.com/media/od5H3PmEG5EVy/giphy.gif",
+    "https://media.giphy.com/media/l2QDM9Jnim1YVILXa/giphy.gif",
+    "https://media.giphy.com/media/ZQN9jsRWp1M76/giphy.gif"
+];
+
+const slapGifs = [
+    "https://media.giphy.com/media/Zau0yrl17uzdK/giphy.gif",
+    "https://media.giphy.com/media/xUO4t2gkWBxDi/giphy.gif",
+    "https://media.giphy.com/media/3XlEk2RxPS1m8/giphy.gif"
+];
+
 // ============ HELPER FUNCTIONS ============
 function randomChoice(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
@@ -969,6 +1125,103 @@ function getVerdict(isGuilty) {
     return isGuilty ? randomChoice(verdicts.guilty) : randomChoice(verdicts.innocent);
 }
 
+function getPickupLine() {
+    return randomChoice(pickupLines);
+}
+
+function getDadJoke() {
+    return randomChoice(dadJokes);
+}
+
+function get8BallResponse() {
+    return randomChoice(eightBallResponses);
+}
+
+function getHugGif() {
+    return randomChoice(hugGifs);
+}
+
+function getSlapGif() {
+    return randomChoice(slapGifs);
+}
+
+function generateFight(attacker, defender) {
+    const rounds = randomInt(3, 6);
+    const moves = [];
+    let attackerHP = 100;
+    let defenderHP = 100;
+    
+    for (let i = 0; i < rounds; i++) {
+        const isAttackerTurn = i % 2 === 0;
+        const currentAttacker = isAttackerTurn ? attacker : defender;
+        const currentDefender = isAttackerTurn ? defender : attacker;
+        
+        const move = randomChoice(fightMoves)
+            .replace('{attacker}', currentAttacker)
+            .replace('{defender}', currentDefender);
+        const result = randomChoice(fightResults)
+            .replace('{attacker}', currentAttacker)
+            .replace('{defender}', currentDefender);
+        
+        const damage = randomInt(5, 25);
+        if (isAttackerTurn) {
+            defenderHP = Math.max(0, defenderHP - damage);
+        } else {
+            attackerHP = Math.max(0, attackerHP - damage);
+        }
+        
+        moves.push(`${move}\n${result} (-${damage} HP)`);
+        
+        if (attackerHP <= 0 || defenderHP <= 0) break;
+    }
+    
+    const winner = attackerHP > defenderHP ? attacker : defender;
+    return { moves, winner, attackerHP, defenderHP };
+}
+
+function generateShipName(name1, name2) {
+    // Take first half of first name and second half of second name
+    const half1 = name1.slice(0, Math.ceil(name1.length / 2));
+    const half2 = name2.slice(Math.floor(name2.length / 2));
+    const shipName = half1 + half2;
+    
+    const prefix = randomChoice(shipPrefixes);
+    const suffix = Math.random() < 0.3 ? ' ' + randomChoice(shipSuffixes) : '';
+    
+    return `${prefix} ${shipName}${suffix}`;
+}
+
+function calculateCompatibility(id1, id2) {
+    // Use user IDs to generate consistent but seemingly random percentage
+    const combined = id1 + id2;
+    let hash = 0;
+    for (let i = 0; i < combined.length; i++) {
+        hash = ((hash << 5) - hash) + combined.charCodeAt(i);
+        hash = hash & hash;
+    }
+    return Math.abs(hash % 101);
+}
+
+function rollDice(notation) {
+    // Parse dice notation like "2d6" or "1d20"
+    const match = notation.toLowerCase().match(/^(\d+)?d(\d+)([+-]\d+)?$/);
+    if (!match) return null;
+    
+    const count = parseInt(match[1]) || 1;
+    const sides = parseInt(match[2]);
+    const modifier = parseInt(match[3]) || 0;
+    
+    if (count > 100 || sides > 1000) return null;
+    
+    const rolls = [];
+    for (let i = 0; i < count; i++) {
+        rolls.push(randomInt(1, sides));
+    }
+    
+    const total = rolls.reduce((a, b) => a + b, 0) + modifier;
+    return { rolls, total, modifier, notation: `${count}d${sides}${modifier >= 0 && modifier !== 0 ? '+' + modifier : modifier !== 0 ? modifier : ''}` };
+}
+
 module.exports = {
     // Data exports
     roasts,
@@ -977,6 +1230,13 @@ module.exports = {
     fakeCrimes,
     verdicts,
     typingPhrases,
+    pickupLines,
+    dadJokes,
+    eightBallResponses,
+    fightMoves,
+    fightResults,
+    hugGifs,
+    slapGifs,
     
     // Generator functions
     generateWikiEntry,
@@ -984,11 +1244,20 @@ module.exports = {
     generateVibeCheck,
     generateProphecy,
     generateFakeQuote,
+    generateFight,
+    generateShipName,
     getRandomTypingPhrase,
     getRoastOrCompliment,
     getWouldYouRather,
     getFakeCrime,
     getVerdict,
+    getPickupLine,
+    getDadJoke,
+    get8BallResponse,
+    getHugGif,
+    getSlapGif,
+    calculateCompatibility,
+    rollDice,
     
     // Utilities
     randomChoice,
