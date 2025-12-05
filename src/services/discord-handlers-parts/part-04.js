@@ -2307,17 +2307,16 @@
                     const comebacks = this.scanRapBattleComebacks();
                     const startTime = Date.now();
                     
-                    // 20% chance to enter FIRE MODE 🔥
-                    const isFireMode = Math.random() < 0.2;
-                    const MAX_BATTLE_DURATION = isFireMode ? 120 * 1000 : 60 * 1000; // 2 mins in fire mode, 1 min normal
-                    const RESPONSE_TIMEOUT = isFireMode ? 3 * 1000 : 5 * 1000; // 3 seconds in fire mode, 5 normal
+                    // ALWAYS FIRE MODE 🔥🔥🔥
+                    const isFireMode = true;
+                    const MAX_BATTLE_DURATION = 120 * 1000; // Always 2 minutes
+                    const THUNDER_TIME = 60 * 1000; // 1 minute mark - JARVIS gets MAD
+                    let RESPONSE_TIMEOUT = 5 * 1000; // Starts at 5 seconds, becomes 3 after thunder
                     const WIN_CHECK_WINDOW = 15 * 1000; // Only check win/lose in last 15 seconds
-                    const CHAT_UNBLOCK_DELAY = 3 * 1000; // 3 second delay before unblocking chat
+                    const BOT_RESPONSE_DELAY = 2 * 1000; // 2 second delay before bot responds
 
                     // Send opening message
-                    const openingMessage = isFireMode 
-                        ? '🔥🔥🔥 **FIRE MODE ACTIVATED** 🔥🔥🔥\nHUMANOID versus HUMAN? 2 MINUTES. 3 SECOND TIMER. NO MERCY. BEGIN!'
-                        : 'HUMANOID versus HUMAN? Who\'s the fastest rapper? BEGIN!';
+                    const openingMessage = '🔥🔥🔥 **FIRE MODE ACTIVATED** 🔥🔥🔥\nHUMANOID versus HUMAN? 2 MINUTES. SURVIVE THE THUNDER. BEGIN!';
                     await interaction.editReply(openingMessage);
 
                     // Send first comeback immediately
@@ -2339,10 +2338,35 @@
                         this.endRapBattle(userId, channel, false);
                     }, RESPONSE_TIMEOUT);
 
-                    // Set up 1-minute max duration timer
+                    // Set up 2-minute max duration timer
                     const maxDurationTimeoutId = setTimeout(() => {
                         this.endRapBattle(userId, channel, false);
                     }, MAX_BATTLE_DURATION);
+
+                    // Set up THUNDER MODE at 1 minute mark ⚡
+                    let thunderMode = false;
+                    const thunderTimeoutId = setTimeout(async () => {
+                        const battle = this.rapBattles.get(userId);
+                        if (battle && !battle.ended) {
+                            thunderMode = true;
+                            battle.thunderMode = true;
+                            RESPONSE_TIMEOUT = 3 * 1000; // Shorten to 3 seconds!
+                            
+                            // JARVIS gets MAD
+                            const thunderMessages = [
+                                '⚡⚡⚡ **OH YEAH BRO? HERE COMES THE THUNDER** ⚡⚡⚡',
+                                '🌩️🌩️🌩️ **YOU THINK YOU CAN KEEP UP? THUNDER MODE ACTIVATED** 🌩️🌩️🌩️',
+                                '⚡💀⚡ **ONE MINUTE IN AND YOU STILL STANDING? NOT FOR LONG** ⚡💀⚡',
+                                '🔥⚡🔥 **THUNDER TIME BABY! 3 SECOND TIMER NOW! GOOD LUCK** 🔥⚡🔥'
+                            ];
+                            const thunderMsg = thunderMessages[Math.floor(Math.random() * thunderMessages.length)];
+                            await channel.send(thunderMsg);
+                            
+                            // Immediately spam them with bars
+                            const combo = this.getRandomComeback(comebacks, battle.usedComebacks);
+                            await this.sendComeback(channel, combo, comebacks, true, true); // forceMulti = true
+                        }
+                    }, THUNDER_TIME);
 
                     // Create message collector
                     const collector = channel.createMessageCollector({
@@ -2379,9 +2403,12 @@
                             }
                         }
 
-                        // Battle continues - bot sends another comeback immediately
+                        // Battle continues - bot sends comeback after 2 second delay (anti-spam)
+                        await new Promise(r => setTimeout(r, BOT_RESPONSE_DELAY));
+                        
                         const comeback = this.getRandomComeback(comebacks, battle.usedComebacks);
-                        const botMessage = await this.sendComeback(channel, comeback, comebacks, battle.isFireMode);
+                        const forceMulti = battle.thunderMode && Math.random() < 0.6; // 60% multi-line in thunder
+                        const botMessage = await this.sendComeback(channel, comeback, comebacks, battle.isFireMode, forceMulti);
                         battle.lastBotMessage = botMessage;
 
                         // Score the user's bar
@@ -2389,20 +2416,21 @@
                         battle.userScore += barScore;
                         battle.userBars++;
 
-                        // Set new 5-second response timer
+                        // Set new response timer (3s in thunder mode, 5s before)
+                        const currentTimeout = battle.thunderMode ? 3000 : 5000;
                         responseTimeoutId = setTimeout(async () => {
                             // User didn't respond in time
                             const currentBattle = this.rapBattles.get(userId);
                             if (currentBattle && !currentBattle.ended && currentBattle.lastBotMessage) {
                                 currentBattle.ended = true;
                                 try {
-                                    await currentBattle.lastBotMessage.reply(`<@${userId}>`);
+                                    await currentBattle.lastBotMessage.reply(`<@${userId}> TOO SLOW! 💀`);
                                 } catch (err) {
-                                    await channel.send(`<@${userId}>`);
+                                    await channel.send(`<@${userId}> TOO SLOW! 💀`);
                                 }
                             }
                             this.endRapBattle(userId, channel, false, currentBattle?.userScore);
-                        }, RESPONSE_TIMEOUT);
+                        }, currentTimeout);
                     });
 
                     collector.on('end', (collected, reason) => {
@@ -2412,6 +2440,7 @@
                         // Clear all timers
                         if (responseTimeoutId) clearTimeout(responseTimeoutId);
                         if (battle.timeoutId) clearTimeout(battle.timeoutId);
+                        if (battle.thunderTimeoutId) clearTimeout(battle.thunderTimeoutId);
 
                         // If battle already ended, don't process again (prevents duplicate messages)
                         if (battle.ended) return;
@@ -2430,12 +2459,14 @@
                         channelId: channel.id,
                         startTime,
                         timeoutId: maxDurationTimeoutId,
+                        thunderTimeoutId,
                         collector,
                         lastBotMessage: firstMessage,
                         ended: false,
                         userScore: 0,
                         userBars: 0,
                         isFireMode,
+                        thunderMode: false, // Becomes true at 1 minute
                         usedComebacks // Track used comebacks to avoid repeats
                     });
 
@@ -3766,13 +3797,17 @@
 
     /**
      * Send a comeback message
+     * @param {boolean} forceMulti - Force multi-line output (2-4 lines)
      */
-    async sendComeback(channel, comeback, comebacks, isFireMode = false) {
+    async sendComeback(channel, comeback, comebacks, isFireMode = false, forceMulti = false) {
         try {
             if (comeback.type === 'line') {
-                // In fire mode, sometimes send multiple lines (2-3)
-                if (isFireMode && Math.random() < 0.4) {
-                    const numLines = Math.random() < 0.5 ? 2 : 3;
+                // In fire mode or forced, send multiple lines (2-4)
+                const shouldMulti = forceMulti || (isFireMode && Math.random() < 0.5);
+                if (shouldMulti) {
+                    // 2-4 lines: 30% for 2, 40% for 3, 30% for 4
+                    const rand = Math.random();
+                    const numLines = rand < 0.3 ? 2 : (rand < 0.7 ? 3 : 4);
                     const lines = [comeback.content];
                     for (let i = 1; i < numLines; i++) {
                         const extra = comebacks.lines[Math.floor(Math.random() * comebacks.lines.length)];
