@@ -2727,6 +2727,10 @@
                         .setDescription(`**${person1.username}** 💕 **${person2.username}**`)
                         .setFooter({ text: 'Ship Calculator™ - Results are 100% scientifically accurate' });
                     response = { embeds: [embed] };
+                    // Track ship achievements
+                    await achievements.incrementStat(interaction.user.id, 'social.shipChecks');
+                    if (compatibility === 100) await achievements.unlock(interaction.user.id, 'ship_100');
+                    if (compatibility === 0) await achievements.unlock(interaction.user.id, 'ship_0');
                     break;
                 }
                 case 'howgay': {
@@ -2735,6 +2739,7 @@
                     const percentage = funFeatures.randomInt(0, 100);
                     const bar = '🏳️‍🌈'.repeat(Math.floor(percentage / 10)) + '⬜'.repeat(10 - Math.floor(percentage / 10));
                     response = `🏳️‍🌈 **${target.username}** is **${percentage}%** gay\n${bar}`;
+                    if (percentage === 100) await achievements.unlock(interaction.user.id, 'howgay_100');
                     break;
                 }
                 case 'howbased': {
@@ -2743,18 +2748,21 @@
                     const percentage = funFeatures.randomInt(0, 100);
                     const bar = '🗿'.repeat(Math.floor(percentage / 10)) + '⬜'.repeat(10 - Math.floor(percentage / 10));
                     response = `🗿 **${target.username}** is **${percentage}%** based\n${bar}`;
+                    if (percentage === 100) await achievements.unlock(interaction.user.id, 'howbased_100');
                     break;
                 }
                 case 'pickupline': {
                     telemetryMetadata.category = 'fun';
                     const line = funFeatures.getPickupLine();
                     response = `💕 **Pickup Line**\n\n${line}`;
+                    await achievements.incrementStat(interaction.user.id, 'fun.pickupLines');
                     break;
                 }
                 case 'dadjoke': {
                     telemetryMetadata.category = 'fun';
                     const joke = funFeatures.getDadJoke();
                     response = `👨 **Dad Joke**\n\n${joke}`;
+                    await achievements.incrementStat(interaction.user.id, 'fun.dadJokes');
                     break;
                 }
                 case 'fight': {
@@ -2784,6 +2792,10 @@
                         )
                         .setFooter({ text: `🏆 Winner: ${fight.winner}` });
                     response = { embeds: [embed] };
+                    // Track fight win achievement
+                    if (fight.winner === interaction.user.username) {
+                        await achievements.incrementStat(interaction.user.id, 'social.fightWins');
+                    }
                     break;
                 }
                 case 'hug': {
@@ -2799,6 +2811,7 @@
                         .setColor(0xff69b4)
                         .setImage(gif);
                     response = { embeds: [embed] };
+                    await achievements.incrementStat(interaction.user.id, 'social.hugs');
                     break;
                 }
                 case 'slap': {
@@ -2814,6 +2827,7 @@
                         .setColor(0xe74c3c)
                         .setImage(gif);
                     response = { embeds: [embed] };
+                    await achievements.incrementStat(interaction.user.id, 'social.slaps');
                     break;
                 }
                 case 'roll': {
@@ -2835,6 +2849,11 @@
                             { name: 'Total', value: `**${result.total}**`, inline: true }
                         );
                     response = { embeds: [embed] };
+                    // Check for nat 20 or nat 1 on d20
+                    if (diceNotation.includes('d20')) {
+                        if (result.rolls.includes(20)) await achievements.unlock(interaction.user.id, 'roll_nat20');
+                        if (result.rolls.includes(1)) await achievements.unlock(interaction.user.id, 'roll_nat1');
+                    }
                     break;
                 }
                 case 'choose': {
