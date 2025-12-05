@@ -2158,11 +2158,6 @@
             }
 
             switch (commandName) {
-                case 'eightball': {
-                    telemetryMetadata.category = 'fun';
-                    await this.handleEightBallCommand(interaction);
-                    return;
-                }
                 case 'vibecheck': {
                     telemetryMetadata.category = 'fun';
                     await this.handleVibeCheckCommand(interaction);
@@ -2885,13 +2880,6 @@
                             { name: '🔮 Answer', value: answer, inline: false }
                         );
                     response = { embeds: [embed] };
-                    break;
-                }
-                case 'coinflip': {
-                    telemetryMetadata.category = 'fun';
-                    const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
-                    const emoji = result === 'Heads' ? '🪙' : '💿';
-                    response = `${emoji} **Coin Flip:** ${result}!`;
                     break;
                 }
                 // ============ STARK BUCKS ECONOMY ============

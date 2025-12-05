@@ -1835,10 +1835,6 @@ const allCommands = [
         .addStringOption(option => option.setName('question').setDescription('Your question').setRequired(true))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('coinflip')
-        .setDescription('Flip a coin')
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
         .setName('crypto')
         .setDescription('Retrieve live cryptocurrency market data')
         .addStringOption(option =>
@@ -2058,17 +2054,6 @@ const allCommands = [
                     { name: "Punycode", value: "punycode" },
                     { name: "Morse code", value: "morse" }
                 ))
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
-        .setName('eightball')
-        .setDescription('Consult Stark Industries magic eight ball')
-        .addStringOption((option) =>
-            option
-                .setName('question')
-                .setDescription('Ask anything')
-                .setRequired(true)
-                .setMaxLength(200)
-        )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('bonk')
