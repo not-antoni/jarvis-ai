@@ -1835,6 +1835,25 @@ const allCommands = [
         .addStringOption(option => option.setName('question').setDescription('Your question').setRequired(true))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('achievements')
+        .setDescription('View your achievements and progress')
+        .addStringOption(option =>
+            option.setName('category')
+                .setDescription('Filter by category')
+                .setRequired(false)
+                .addChoices(
+                    { name: 'Getting Started', value: 'Getting Started' },
+                    { name: 'Rap Battle', value: 'Rap Battle' },
+                    { name: 'Economy', value: 'Economy' },
+                    { name: 'Social', value: 'Social' },
+                    { name: 'Fun', value: 'Fun' },
+                    { name: 'Activity', value: 'Activity' },
+                    { name: 'Special', value: 'Special' },
+                    { name: 'Milestones', value: 'Milestones' }
+                ))
+        .addUserOption(option => option.setName('user').setDescription('View someone else\'s achievements').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
         .setName('crypto')
         .setDescription('Retrieve live cryptocurrency market data')
         .addStringOption(option =>
