@@ -1716,76 +1716,54 @@ const allCommands = [
                 .setRequired(true)
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    // ============ FUN COMMANDS ============
     new SlashCommandBuilder()
-        .setName('agent')
-        .setDescription('Self-hosted web agent (headless)')
-        .addSubcommand((sub) =>
-            sub
-                .setName('preview')
-                .setDescription('Start a personal agent preview in your DMs')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('open')
-                .setDescription('Open a URL and return a screenshot')
-                .addStringOption((option) =>
-                    option
-                        .setName('url')
-                        .setDescription('Destination URL (http/https only)')
-                        .setRequired(true)
-                )
-                .addStringOption((option) =>
-                    option
-                        .setName('wait')
-                        .setDescription('Wait condition before screenshot')
-                        .setRequired(false)
-                        .addChoices(
-                            { name: 'load', value: 'load' },
-                            { name: 'domcontentloaded', value: 'domcontentloaded' },
-                            { name: 'networkidle0', value: 'networkidle0' },
-                            { name: 'networkidle2', value: 'networkidle2' }
-                        )
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('screenshot')
-                .setDescription('Screenshot current page or element')
-                .addBooleanOption((option) =>
-                    option
-                        .setName('full')
-                        .setDescription('Capture full page (default true)')
-                        .setRequired(false)
-                )
-                .addStringOption((option) =>
-                    option
-                        .setName('selector')
-                        .setDescription('CSS selector to capture instead')
-                        .setRequired(false)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('download')
-                .setDescription('Download a file by URL')
-                .addStringOption((option) =>
-                    option
-                        .setName('url')
-                        .setDescription('Direct file URL (http/https only)')
-                        .setRequired(true)
-                )
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('close')
-                .setDescription('Close your current agent session')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('status')
-                .setDescription('Check agent health and performance metrics')
-        )
+        .setName('rapbattle')
+        .setDescription('HUMANOID vs HUMAN - challenge Jarvis to a rap battle!')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('roast')
+        .setDescription('50/50 chance to get roasted or blessed')
+        .addUserOption(option => option.setName('user').setDescription('Who to target').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('wiki')
+        .setDescription('Generate a fake Wikipedia entry for someone')
+        .addUserOption(option => option.setName('user').setDescription('Who to wikify').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('conspiracy')
+        .setDescription('Generate a conspiracy theory about someone')
+        .addUserOption(option => option.setName('user').setDescription('Who is the subject').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('vibecheck')
+        .setDescription('Check someone\'s vibes with detailed stats')
+        .addUserOption(option => option.setName('user').setDescription('Who to vibe check').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('wyr')
+        .setDescription('Would You Rather - get a random dilemma')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('prophecy')
+        .setDescription('Receive a prophecy about someone\'s future')
+        .addUserOption(option => option.setName('user').setDescription('Who to prophesy about').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('fakequote')
+        .setDescription('Generate a fake inspirational quote')
+        .addUserOption(option => option.setName('user').setDescription('Who said it').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('trial')
+        .setDescription('Put someone on trial for fake crimes')
+        .addUserOption(option => option.setName('user').setDescription('The defendant').setRequired(true))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('typerace')
+        .setDescription('Start a typing race - first to type the phrase wins!')
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName('crypto')
         .setDescription('Retrieve live cryptocurrency market data')

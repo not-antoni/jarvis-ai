@@ -2297,11 +2297,24 @@
                     const userId = interaction.user.id;
                     const channel = interaction.channel;
 
+                    // Check 1 minute cooldown
+                    if (!this.rapBattleCooldowns) this.rapBattleCooldowns = new Map();
+                    const lastBattle = this.rapBattleCooldowns.get(userId);
+                    const cooldownMs = 60 * 1000; // 1 minute
+                    if (lastBattle && Date.now() - lastBattle < cooldownMs) {
+                        const remaining = Math.ceil((cooldownMs - (Date.now() - lastBattle)) / 1000);
+                        response = `u rapped too much bro get some rest blud, come back in ${remaining} seconds\n\nremember, im running on batteries you're running on strawberries 🔋🍓`;
+                        break;
+                    }
+
                     // Check if user already has an active battle
                     if (this.rapBattles.has(userId)) {
                         response = 'You already have an active rap battle, sir! Finish that one first.';
                         break;
                     }
+
+                    // Set cooldown
+                    this.rapBattleCooldowns.set(userId, Date.now());
 
                     // Initialize battle
                     const comebacks = this.scanRapBattleComebacks();

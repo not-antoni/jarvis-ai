@@ -13,14 +13,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'agent',
-        description: 'Self-host headless browsing and downloads.',
-        category: 'Utilities',
-        usage: '/agent open|screenshot|download|close',
-        feature: 'utilities',
-        ephemeral: false
-    },
-    {
         name: 'filter',
         description: 'Manage per-guild blocked words and regex filters',
         category: 'Moderation',
@@ -442,15 +434,71 @@ const commandDefinitions = [
         name: 'rapbattle',
         description: 'HUMANOID vs HUMAN rap battle - challenge Jarvis!',
         category: 'Fun',
-        usage: '/rapbattle bars:<your rap>',
+        usage: '/rapbattle',
         feature: 'funUtilities',
         ephemeral: false
     },
     {
         name: 'roast',
-        description: 'Have Jarvis roast someone with British class.',
+        description: '50/50 chance to get roasted or blessed.',
         category: 'Fun',
-        usage: '/roast target:@user',
+        usage: '/roast [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'wiki',
+        description: 'Generate a fake Wikipedia entry for someone.',
+        category: 'Fun',
+        usage: '/wiki [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'conspiracy',
+        description: 'Generate a conspiracy theory about someone.',
+        category: 'Fun',
+        usage: '/conspiracy [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'wyr',
+        description: 'Would You Rather - get a random dilemma.',
+        category: 'Fun',
+        usage: '/wyr',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'prophecy',
+        description: 'Receive a prophecy about someone\'s future.',
+        category: 'Fun',
+        usage: '/prophecy [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'fakequote',
+        description: 'Generate a fake inspirational quote.',
+        category: 'Fun',
+        usage: '/fakequote [user]',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'trial',
+        description: 'Put someone on trial for fake crimes.',
+        category: 'Fun',
+        usage: '/trial <user>',
+        feature: 'funUtilities',
+        ephemeral: false
+    },
+    {
+        name: 'typerace',
+        description: 'Typing race - first to type the phrase wins!',
+        category: 'Fun',
+        usage: '/typerace',
         feature: 'funUtilities',
         ephemeral: false
     },
