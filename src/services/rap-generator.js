@@ -70,7 +70,8 @@ class RapGenerator {
                 const result = await resultResponse.json();
 
                 if (result.status === 'COMPLETED' && result.result) {
-                    return result.result;
+                    // Filter the result to extract just the rap lines
+                    return this.filterRapOutput(result.result);
                 } else if (result.status === 'FAILED') {
                     throw new Error('Rap generation failed');
                 }
@@ -143,6 +144,89 @@ class RapGenerator {
 
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Filter rap output to extract just the lines
+     * Removes intro text, section headers, and other noise
+     * @param {string} rawOutput - Raw output from the API
+     * @returns {string} Clean rap lines
+     */
+    filterRapOutput(rawOutput) {
+        if (!rawOutput || typeof rawOutput !== 'string') {
+            return rawOutput;
+        }
+
+        const lines = rawOutput.split('\n');
+        const cleanLines = [];
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            
+            // Skip empty lines
+            if (!trimmed) continue;
+            
+            // Skip common intro phrases
+            const skipPatterns = [
+                /^here'?s?\s+(a\s+)?rap/i,
+                /^let'?s?\s+get/i,
+                /^this\s+verse/i,
+                /^note:/i,
+                /^parameters?:/i,
+                /^selecttype/i,
+                /^selectbesttempo/i,
+                /^complexity/i,
+                /^language/i,
+                /^\*\s*\w+:/i,  // * Parameter:
+                /^the\s+rap\s+verse/i,
+                /^i'?n?\s+this\s+rap/i,
+                /^this\s+incorporates/i,
+                /^featuring/i
+            ];
+            
+            let shouldSkip = false;
+            for (const pattern of skipPatterns) {
+                if (pattern.test(trimmed)) {
+                    shouldSkip = true;
+                    break;
+                }
+            }
+            if (shouldSkip) continue;
+            
+            // Skip section headers like [Verse 1:] or [Chorus:]
+            if (/^\[.+\]:?$/i.test(trimmed)) continue;
+            
+            // Skip asterisk-wrapped text (stage directions)
+            if (/^\*[^*]+\*$/.test(trimmed)) continue;
+            
+            // Extract content from quoted lines if present
+            const quoteMatch = trimmed.match(/^[""](.+)[""]$/);
+            if (quoteMatch) {
+                cleanLines.push(quoteMatch[1]);
+                continue;
+            }
+            
+            // Add valid lines (actual rap content)
+            if (trimmed.length > 10) {
+                cleanLines.push(trimmed);
+            }
+        }
+
+        return cleanLines.join('\n');
+    }
+
+    /**
+     * Extract individual comeback lines from filtered rap
+     * @param {string} filteredRap - Filtered rap output
+     * @returns {string[]} Array of individual lines
+     */
+    extractLines(filteredRap) {
+        if (!filteredRap) return [];
+        
+        return filteredRap
+            .split('\n')
+            .map(l => l.trim())
+            .filter(l => l.length > 15 && l.length < 200);
     }
 }
 
