@@ -1638,16 +1638,6 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName("roll")
-        .setDescription("Roll a die (e.g., /roll sides:20)")
-        .addIntegerOption((option) =>
-            option
-                .setName("sides")
-                .setDescription("Number of sides (default: 6)")
-                .setRequired(false),
-        )
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
         .setName("status")
         .setDescription("Check Jarvis's system status")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
@@ -1674,10 +1664,6 @@ const allCommands = [
         .setName("providers")
         .setDescription("List available AI providers")
         .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
-        .setName("67")
-        .setDescription("6 7")
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("joke")
         .setDescription("Pull a random safe-mode joke")
