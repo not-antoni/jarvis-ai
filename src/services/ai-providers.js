@@ -1128,12 +1128,20 @@ class AIProviderManager {
           }
           
           const ollamaResp = await response.json();
-          const ollamaContent = ollamaResp?.message?.content;
+          // Some models put response in 'thinking' field instead of 'content'
+          let ollamaContent = ollamaResp?.message?.content;
+          const thinkingContent = ollamaResp?.message?.thinking;
+          
+          // If content is empty but thinking exists, extract the actual response from thinking
+          if ((!ollamaContent || !String(ollamaContent).trim()) && thinkingContent) {
+            console.log(`[Ollama Vision] Model used thinking field, extracting response...`);
+            // The thinking often contains the reasoning, try to extract a clean response
+            // For now, just use the thinking content directly
+            ollamaContent = thinkingContent;
+          }
           
           if (!ollamaContent || !String(ollamaContent).trim()) {
-            // Log full response for debugging empty responses
             console.warn(`[Ollama Vision] Empty response from ${provider.name}:`, JSON.stringify(ollamaResp).slice(0, 500));
-            // Don't throw hard error, just continue to next provider (transient issue)
             throw Object.assign(new Error(`Empty response from ${provider.name} (transient)`), { status: 502, transient: true });
           }
           
