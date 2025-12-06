@@ -2582,10 +2582,18 @@
                     const firstMessage = await this.sendComeback(channel, firstComeback, comebacks, isFireMode);
 
                     // Set up initial response timer (6s for Fire Mode 1)
+                    const initialTimeoutSetAt = Date.now();
                     let responseTimeoutId = setTimeout(async () => {
                         // User didn't respond to first bar in time
                         const battle = this.rapBattles.get(userId);
-                        if (battle && !battle.ended && battle.lastBotMessage) {
+                        if (!battle || battle.ended) return;
+                        
+                        // If user responded after this timeout was set, don't kill them
+                        if (battle.lastUserResponseTime > initialTimeoutSetAt) {
+                            return;
+                        }
+                        
+                        if (battle.lastBotMessage) {
                             battle.ended = true;
                             try {
                                 await battle.lastBotMessage.reply(`<@${userId}> TOO SLOW! 🔥💀`);
@@ -2670,13 +2678,28 @@
                                     return;
                                 }
                                 
+                                // If responseTimeoutId is null, collector is processing a response - skip
+                                if (responseTimeoutId === null) {
+                                    return;
+                                }
+                                
                                 // Clear old timeout and set new one for transition bars
                                 if (responseTimeoutId) {
                                     clearTimeout(responseTimeoutId);
                                 }
+                                
+                                // Store when we set this timeout to detect stale timeouts
+                                const timeoutSetAt = Date.now();
                                 responseTimeoutId = setTimeout(async () => {
                                     const currentBattle = this.rapBattles.get(userId);
-                                    if (currentBattle && !currentBattle.ended && currentBattle.lastBotMessage) {
+                                    if (!currentBattle || currentBattle.ended) return;
+                                    
+                                    // If user responded after this timeout was set, don't kill them
+                                    if (currentBattle.lastUserResponseTime > timeoutSetAt) {
+                                        return;
+                                    }
+                                    
+                                    if (currentBattle.lastBotMessage) {
                                         currentBattle.ended = true;
                                         try {
                                             await currentBattle.lastBotMessage.reply(`<@${userId}> TOO SLOW! ${fm.emoji}💀`);
@@ -2764,10 +2787,19 @@
                         const fmConfig = FIRE_MODES.find(fm => fm.mode === battle.fireMode) || FIRE_MODES[0];
                         const timeoutMs = fmConfig.timeout;
                         
+                        // Store when we set this timeout to detect stale timeouts
+                        const timeoutSetAt = Date.now();
                         responseTimeoutId = setTimeout(async () => {
                             // User didn't respond in time
                             const currentBattle = this.rapBattles.get(userId);
-                            if (currentBattle && !currentBattle.ended && currentBattle.lastBotMessage) {
+                            if (!currentBattle || currentBattle.ended) return;
+                            
+                            // If user responded after this timeout was set, don't kill them
+                            if (currentBattle.lastUserResponseTime > timeoutSetAt) {
+                                return;
+                            }
+                            
+                            if (currentBattle.lastBotMessage) {
                                 currentBattle.ended = true;
                                 const modeEmoji = FIRE_MODES.find(fm => fm.mode === currentBattle.fireMode)?.emoji || '🔥';
                                 try {
