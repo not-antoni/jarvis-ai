@@ -2570,11 +2570,11 @@
                         { mode: 8,  startMs: 70000,  timeout: 1800, emoji: '💀',   name: 'DEATH ZONE',   cooldown: 3 },
                         { mode: 9,  startMs: 80000,  timeout: 1700, emoji: '💀💀',  name: 'FINAL BOSS',  cooldown: 4 },
                         { mode: 10, startMs: 90000,  timeout: 1600, emoji: '👑',   name: 'LEGENDARY',    cooldown: 4 },
-                        { mode: 11, startMs: 100000, timeout: 1700, emoji: '🔱',   name: 'GODLIKE',      cooldown: 5 },
-                        { mode: 12, startMs: 110000, timeout: 1650, emoji: '⭐',   name: 'SUPERNOVA',    cooldown: 6 },
-                        { mode: 13, startMs: 120000, timeout: 1600, emoji: '🌌',   name: 'COSMIC',       cooldown: 7 },
-                        { mode: 14, startMs: 130000, timeout: 1550, emoji: '♾️',   name: 'INFINITE',     cooldown: 8 },
-                        { mode: 15, startMs: 140000, timeout: 1400, emoji: '🏆',   name: 'ULTIMATE',     cooldown: 10 },
+                        { mode: 11, startMs: 100000, timeout: 2000, emoji: '🔱',   name: 'GODLIKE',      cooldown: 5 },
+                        { mode: 12, startMs: 110000, timeout: 1950, emoji: '⭐',   name: 'SUPERNOVA',    cooldown: 6 },
+                        { mode: 13, startMs: 120000, timeout: 1900, emoji: '🌌',   name: 'COSMIC',       cooldown: 7 },
+                        { mode: 14, startMs: 130000, timeout: 1850, emoji: '♾️',   name: 'INFINITE',     cooldown: 8 },
+                        { mode: 15, startMs: 140000, timeout: 1700, emoji: '🏆',   name: 'ULTIMATE',     cooldown: 10 },
                     ];
                     
                     let currentTimeout = FIRE_MODES[0].timeout;
