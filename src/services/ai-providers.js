@@ -221,7 +221,7 @@ class AIProviderManager {
             'X-Title': process.env.APP_NAME || 'Jarvis AI',
           },
         }),
-        model: 'nvidia/nemotron-nano-9b-v2:free',
+        model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
         type: 'openai-chat',
         family: 'openrouter',
         costTier: 'free',
