@@ -310,6 +310,31 @@ class AIProviderManager {
       });
     }
 
+    // ---------- Ollama providers (native API with vision support) ----------
+    const ollamaKeys = [
+      process.env.OLLAMA_API_KEY,
+      process.env.OLLAMA_API_KEY2,
+      process.env.OLLAMA_API_KEY3,
+      process.env.OLLAMA_API_KEY4,
+      process.env.OLLAMA_API_KEY5,
+    ].filter(Boolean);
+
+    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
+    const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2-vision';
+
+    ollamaKeys.forEach((key, index) => {
+      this.providers.push({
+        name: `Ollama${index + 1}`,
+        apiKey: key,
+        baseURL: ollamaBaseUrl,
+        model: ollamaModel,
+        type: 'ollama',
+        family: 'ollama',
+        costTier: 'free',
+        supportsImages: true,
+      });
+    });
+
     // Rank cheapest first by default
     this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
 
@@ -500,6 +525,8 @@ class AIProviderManager {
           return providerName.startsWith('deepseek');
         case 'google':
           return providerName.startsWith('googleai');
+        case 'ollama':
+          return providerName.startsWith('ollama');
         default:
           console.warn(`Unknown provider type: ${this.selectedProviderType}, falling back to auto mode`);
           return true;
@@ -763,6 +790,68 @@ class AIProviderManager {
           return resp;
         }
 
+        // ---------- Ollama native API handler (with image/vision support) ----------
+        if (provider.type === 'ollama') {
+          const ollamaEndpoint = `${provider.baseURL}/chat`;
+          
+          // Build messages array for Ollama
+          const messages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ];
+          
+          const requestBody = {
+            model: provider.model,
+            messages,
+            stream: false,
+            options: {
+              temperature: (config.ai?.temperature ?? 0.7),
+              num_predict: maxTokens,
+            },
+          };
+          
+          const headers = {
+            'Content-Type': 'application/json',
+          };
+          
+          // Add authentication if API key is provided
+          if (provider.apiKey) {
+            headers['Authorization'] = `Bearer ${provider.apiKey}`;
+          }
+          
+          const response = await fetch(ollamaEndpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(requestBody),
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw Object.assign(new Error(`Ollama error: ${errorText}`), { status: response.status });
+          }
+          
+          const ollamaResp = await response.json();
+          const ollamaContent = ollamaResp?.message?.content;
+          
+          if (!ollamaContent || !String(ollamaContent).trim()) {
+            throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
+          }
+          
+          const cleaned = sanitizeAssistantMessage(String(ollamaContent));
+          if (!cleaned) {
+            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
+          }
+          
+          // Return in standardized format
+          return {
+            choices: [{ message: { content: cleaned } }],
+            usage: {
+              prompt_tokens: ollamaResp?.prompt_eval_count || 0,
+              completion_tokens: ollamaResp?.eval_count || 0,
+            },
+          };
+        }
+
         // OpenAI-compatible providers (OpenRouter, Groq, DeepSeek via Vercel AI Gateway)
         const resp = await provider.client.chat.completions.create({
           model: provider.model,
@@ -890,6 +979,193 @@ class AIProviderManager {
     throw new Error(`All AI providers failed: ${lastError?.message || 'Unknown error'}`);
   }
 
+  /**
+   * Generate a response with image support (for vision-capable models like Ollama)
+   * @param {string} systemPrompt - System prompt for the AI
+   * @param {string} userPrompt - User message/prompt
+   * @param {Array<{url: string, contentType?: string}>} images - Array of image objects with URLs
+   * @param {number} maxTokens - Maximum tokens in response
+   * @returns {Promise<{content: string, provider: string, tokensIn: number, tokensOut: number}>}
+   */
+  async generateResponseWithImages(systemPrompt, userPrompt, images = [], maxTokens = (config.ai?.maxTokens || 1024)) {
+    // If no images, fall back to regular generateResponse
+    if (!images || images.length === 0) {
+      return this.generateResponse(systemPrompt, userPrompt, maxTokens);
+    }
+
+    // Ensure prompts are strings
+    systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
+    userPrompt = userPrompt != null ? String(userPrompt) : '';
+
+    // Safety check: reinitialize providers if somehow empty
+    if (this.providers.length === 0) {
+      console.warn('Provider list was empty - reinitializing providers...');
+      this.setupProviders();
+      if (this.providers.length === 0) {
+        throw new Error('No AI providers available - check API key configuration');
+      }
+    }
+
+    // Filter for providers that support images (Ollama with vision models)
+    const imageCapableProviders = this.providers.filter(p => p.supportsImages && p.type === 'ollama');
+    
+    if (imageCapableProviders.length === 0) {
+      console.warn('No image-capable providers available, falling back to text-only response');
+      return this.generateResponse(systemPrompt, userPrompt, maxTokens);
+    }
+
+    // Download and convert images to base64
+    const base64Images = [];
+    for (const image of images) {
+      try {
+        const imageUrl = image.url || image;
+        // Validate supported image types
+        const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+        const contentType = image.contentType || '';
+        
+        // Fetch and convert to base64
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+          console.warn(`Failed to fetch image: ${imageUrl}`);
+          continue;
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const base64 = buffer.toString('base64');
+        
+        // Check content type from response or URL extension
+        let mimeType = response.headers.get('content-type') || contentType;
+        if (!mimeType) {
+          const ext = imageUrl.split('.').pop()?.toLowerCase().split('?')[0];
+          const extMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+          mimeType = extMap[ext] || 'image/jpeg';
+        }
+        
+        if (!supportedTypes.some(t => mimeType.includes(t.split('/')[1]))) {
+          console.warn(`Unsupported image type: ${mimeType}`);
+          continue;
+        }
+        
+        base64Images.push(base64);
+      } catch (err) {
+        console.warn(`Error processing image: ${err.message}`);
+      }
+    }
+
+    if (base64Images.length === 0) {
+      console.warn('No valid images could be processed, falling back to text-only response');
+      return this.generateResponse(systemPrompt, userPrompt, maxTokens);
+    }
+
+    let lastError = null;
+
+    // Try each image-capable provider
+    for (const provider of imageCapableProviders) {
+      const started = Date.now();
+      const disabledUntil = this.disabledProviders.get(provider.name);
+      if (disabledUntil && disabledUntil > Date.now()) continue;
+
+      console.log(`Attempting image request with ${provider.name} (${provider.model}) [${base64Images.length} image(s)]`);
+
+      try {
+        if (provider.type === 'ollama') {
+          const ollamaEndpoint = `${provider.baseURL}/chat`;
+          
+          // Build messages with images for Ollama
+          // Ollama expects images as base64 strings in the 'images' array of the user message
+          const messages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt, images: base64Images },
+          ];
+          
+          const requestBody = {
+            model: provider.model,
+            messages,
+            stream: false,
+            options: {
+              temperature: (config.ai?.temperature ?? 0.7),
+              num_predict: maxTokens,
+            },
+          };
+          
+          const headers = {
+            'Content-Type': 'application/json',
+          };
+          
+          if (provider.apiKey) {
+            headers['Authorization'] = `Bearer ${provider.apiKey}`;
+          }
+          
+          const response = await fetch(ollamaEndpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(requestBody),
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            throw Object.assign(new Error(`Ollama error: ${errorText}`), { status: response.status });
+          }
+          
+          const ollamaResp = await response.json();
+          const ollamaContent = ollamaResp?.message?.content;
+          
+          if (!ollamaContent || !String(ollamaContent).trim()) {
+            throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
+          }
+          
+          const cleaned = sanitizeAssistantMessage(String(ollamaContent));
+          if (!cleaned) {
+            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
+          }
+
+          const latency = Date.now() - started;
+          this._recordMetric(provider.name, true, latency);
+          this.totalRequests++;
+          this.successfulRequests++;
+          
+          const tokensIn = ollamaResp?.prompt_eval_count || 0;
+          const tokensOut = ollamaResp?.eval_count || 0;
+          this.totalTokensIn += tokensIn;
+          this.totalTokensOut += tokensOut;
+          this.scheduleStateSave();
+
+          console.log(`Success with ${provider.name} (${provider.model}) [image] in ${latency}ms`);
+          
+          return {
+            content: cleaned,
+            provider: provider.name,
+            tokensIn,
+            tokensOut,
+            hadImages: true,
+          };
+        }
+      } catch (error) {
+        const latency = Date.now() - started;
+        this._recordMetric(provider.name, false, latency);
+        this.totalRequests++;
+        this.failedRequests++;
+        this.providerErrors.set(provider.name, {
+          error: error.message,
+          timestamp: Date.now(),
+          status: error.status,
+        });
+        this.scheduleStateSave();
+
+        console.error(`Failed with ${provider.name} (${provider.model}) [image] after ${latency}ms: ${error.message}`);
+        lastError = error;
+
+        // Disable provider for 2 hours on failure
+        this.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
+      }
+    }
+
+    // If all image providers failed, try without images as fallback
+    console.warn('All image-capable providers failed, attempting text-only fallback');
+    return this.generateResponse(systemPrompt, `[User sent ${images.length} image(s) that could not be processed]\n\n${userPrompt}`, maxTokens);
+  }
+
   getProviderStatus() {
     const now = Date.now();
     return this.providers
@@ -996,6 +1272,11 @@ class AIProviderManager {
       'GPT5Nano': '[REDACTED]',
       'deepseek-gateway-1': '[REDACTED]',
       'deepseek-gateway-2': '[REDACTED]',
+      'Ollama1': '[REDACTED]',
+      'Ollama2': '[REDACTED]',
+      'Ollama3': '[REDACTED]',
+      'Ollama4': '[REDACTED]',
+      'Ollama5': '[REDACTED]',
     };
     return redactionMap[name] || '[REDACTED]';
   }
@@ -1014,7 +1295,7 @@ class AIProviderManager {
   }
 
   setProviderType(providerType) {
-    const validTypes = ['auto', 'openai', 'groq', 'openrouter', 'google', 'deepseek'];
+    const validTypes = ['auto', 'openai', 'groq', 'openrouter', 'google', 'deepseek', 'ollama'];
     if (!validTypes.includes(String(providerType).toLowerCase())) {
       throw new Error(`Invalid provider type. Valid options: ${validTypes.join(', ')}`);
     }
@@ -1035,6 +1316,7 @@ class AIProviderManager {
       else if (name.startsWith('openrouter')) types.add('openrouter');
       else if (name.startsWith('googleai')) types.add('google');
       else if (name.startsWith('deepseek')) types.add('deepseek');
+      else if (name.startsWith('ollama')) types.add('ollama');
     });
     const available = Array.from(types).sort();
     available.unshift('auto');

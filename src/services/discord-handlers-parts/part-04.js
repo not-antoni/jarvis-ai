@@ -3750,7 +3750,19 @@
                         prompt = `${prompt.substring(0, config.ai.maxInputLength)}...`;
                     }
 
-                    response = await this.jarvis.generateResponse(interaction, prompt, true);
+                    // Extract image attachment if provided (for vision processing)
+                    const imageAttachment = interaction.options.getAttachment('image');
+                    const imageAttachments = [];
+                    if (imageAttachment) {
+                        const contentType = imageAttachment.contentType || '';
+                        const ext = (imageAttachment.name || '').split('.').pop()?.toLowerCase();
+                        const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                        if (contentType.startsWith('image/') || imageExts.includes(ext)) {
+                            imageAttachments.push({ url: imageAttachment.url, contentType: imageAttachment.contentType });
+                        }
+                    }
+
+                    response = await this.jarvis.generateResponse(interaction, prompt, true, null, imageAttachments);
                     break;
                 }
                 case 'roll': {

@@ -1606,7 +1606,7 @@ Online and attentive, Sir. All systems synchronised, reactors humming, and sarca
         return { blocked: false };
     }
 
-    async generateResponse(interaction, userInput, isSlash = false, contextualMemory = null) {
+    async generateResponse(interaction, userInput, isSlash = false, contextualMemory = null, images = null) {
         if (aiManager.providers.length === 0) {
             return "My cognitive functions are limited, sir. Please check my neural network configuration.";
         }
@@ -1727,11 +1727,22 @@ Current message: "${processedInput}"
 
 Respond as ${nameUsed}, maintaining all MCU Jarvis tone and brevity rules.`;
 
-            const aiResponse = await aiManager.generateResponse(
-                systemPrompt,
-                context,
-                config.ai.maxTokens,
-            );
+            // Use image-aware generation if images are provided
+            let aiResponse;
+            if (images && images.length > 0) {
+                aiResponse = await aiManager.generateResponseWithImages(
+                    systemPrompt,
+                    context,
+                    images,
+                    config.ai.maxTokens,
+                );
+            } else {
+                aiResponse = await aiManager.generateResponse(
+                    systemPrompt,
+                    context,
+                    config.ai.maxTokens,
+                );
+            }
 
             const jarvisResponse = aiResponse.content?.trim();
             if (allowsLongTermMemory) {

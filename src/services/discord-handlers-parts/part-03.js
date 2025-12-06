@@ -116,7 +116,19 @@
                 return;
             }
 
-            const response = await this.jarvis.generateResponse(message, cleanContent, false, contextualMemory);
+            // Extract image attachments for vision processing
+            const imageAttachments = message.attachments
+                ? Array.from(message.attachments.values())
+                    .filter(att => {
+                        const contentType = att.contentType || '';
+                        const ext = (att.name || '').split('.').pop()?.toLowerCase();
+                        const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                        return contentType.startsWith('image/') || imageExts.includes(ext);
+                    })
+                    .map(att => ({ url: att.url, contentType: att.contentType }))
+                : [];
+
+            const response = await this.jarvis.generateResponse(message, cleanContent, false, contextualMemory, imageAttachments);
 
             if (typeof response === "string" && response.trim()) {
                 await message.reply(response);
