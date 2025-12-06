@@ -2660,7 +2660,11 @@
                                 
                                 clearTimeout(spamTimeout);
                                 currentBattle.ended = true;
-                                await channel.send(`<@${userId}> TIME'S UP! 💀\nThe answer was **21** (from the meme 💀)\n\nYou were SO CLOSE to winning! 10 minute cooldown for reaching FM15.`);
+                                await channel.send('WUT DA HEILLLLLLLLLLL');
+                                await new Promise(r => setTimeout(r, 300));
+                                await channel.send('AW HEILL NYE NYEEE NYEEEEE OO.,, OO AAAAA');
+                                await new Promise(r => setTimeout(r, 500));
+                                await channel.send(`<@${userId}> TIME'S UP! 💀💀💀\nThe answer was **21** (from the meme)\n\n**SKILL ISSUE AT FM15** - You made it all the way just to choke on basic meme math! 10 minute cooldown.`);
                                 this.endRapBattle(userId, channel, false, currentBattle.userScore);
                             }, 5000);
                             
@@ -2819,37 +2823,111 @@
                         battle.lastUserResponseTime = Date.now();
 
                         // ═══════════════════════════════════════════════════════════════
-                        // CHECK FOR FINAL QUESTION ANSWER: "21"
+                        // CHECK FOR FINAL QUESTIONS: Q1="21", Q2="carrot"
                         // ═══════════════════════════════════════════════════════════════
                         if (battle.finalQuestionActive) {
                             const answer = userMessage.content.trim().toLowerCase();
-                            const isCorrect = answer === '21' || answer.includes('21') || answer.includes('twenty one') || answer.includes('twentyone');
+                            const questionPhase = battle.finalQuestionPhase || 1;
                             
                             // Clear timeouts
                             if (battle.finalQuestionTimeout) clearTimeout(battle.finalQuestionTimeout);
                             if (battle.spamTimeout) clearTimeout(battle.spamTimeout);
                             
-                            if (isCorrect) {
-                                // WINNER! They answered 21
-                                battle.ended = true;
-                                battle.finalQuestionActive = false;
-                                collector.stop();
+                            if (questionPhase === 1) {
+                                // QUESTION 1: What's 9+10?
+                                const isCorrect = answer === '21' || answer.includes('21') || answer.includes('twenty one') || answer.includes('twentyone');
                                 
-                                await channel.send(`🏆🏆🏆 **CORRECT!!! THE ANSWER IS 21!** 🏆🏆🏆\n\n<@${userId}> YOU ARE THE **ULTIMATE RAP CHAMPION**!\n\nYou conquered all 15 Fire Modes and answered the final question!\n**10 MINUTE COOLDOWN** - You've earned your bragging rights! 🎤👑`);
+                                if (isCorrect) {
+                                    // Correct! Move to question 2
+                                    await channel.send('✅ **CORRECT! 21!** ✅\n\nBut wait... there\'s MORE! 😈');
+                                    await new Promise(r => setTimeout(r, 1500));
+                                    
+                                    // QUESTION 2: The carrot meme
+                                    battle.finalQuestionPhase = 2;
+                                    await channel.send('🥕🥕🥕 **FINAL TEST PART 2** 🥕🥕🥕\n\n# i think its uh....i think ITS UHHHHH....yeah its a uhh.....\n\nAnswer in **5 seconds**! 💀');
+                                    
+                                    // Set up spam taunts for question 2
+                                    let spam2Sent = false;
+                                    const spam2Timeout = setTimeout(async () => {
+                                        if (spam2Sent || !battle.finalQuestionActive || battle.finalQuestionPhase !== 2) return;
+                                        spam2Sent = true;
+                                        
+                                        const carrotTaunts = [
+                                            'BRO ITS A VEGETABLE 💀',
+                                            'DUDE ITS ORANGE',
+                                            'YOU EAT IT bruh',
+                                            'CARROT CARROT CARROT carrot',
+                                            'dude its carrot'
+                                        ];
+                                        
+                                        for (const taunt of carrotTaunts) {
+                                            await channel.send(taunt);
+                                            await new Promise(r => setTimeout(r, 400));
+                                        }
+                                    }, 1000);
+                                    
+                                    // Set 5 second timeout for question 2
+                                    const q2Timeout = setTimeout(async () => {
+                                        const currentBattle = this.rapBattles.get(userId);
+                                        if (!currentBattle || currentBattle.ended || currentBattle.finalQuestionPhase !== 2) return;
+                                        
+                                        clearTimeout(spam2Timeout);
+                                        currentBattle.ended = true;
+                                        await channel.send(`<@${userId}> TIME'S UP! 💀\nThe answer was **CARROT** (from the meme 💀)\n\nYou got the first question but CHOKED on the second! MASSIVE SKILL ISSUE! 10 minute cooldown.`);
+                                        this.endRapBattle(userId, channel, false, currentBattle.userScore);
+                                    }, 5000);
+                                    
+                                    battle.finalQuestionTimeout = q2Timeout;
+                                    battle.spamTimeout = spam2Timeout;
+                                    return;
+                                } else {
+                                    // Wrong answer for question 1!
+                                    battle.ended = true;
+                                    battle.finalQuestionActive = false;
+                                    collector.stop();
+                                    
+                                    await channel.send('WUT DA HEILLLLLLLLLLL');
+                                    await new Promise(r => setTimeout(r, 300));
+                                    await channel.send('AW HEILL NYE NYEEE NYEEEEE OO.,, OO AAAAA');
+                                    await new Promise(r => setTimeout(r, 500));
+                                    await channel.send(`<@${userId}> WRONG! 💀💀💀\nThe answer was **21** (from the meme)\n\nYou said: "${userMessage.content}"\n\n**SKILL ISSUE AT FM15** - You made it all the way just to fail basic meme math! 10 minute cooldown.`);
+                                    this.endRapBattle(userId, channel, false, battle.userScore);
+                                    return;
+                                }
+                            } else if (questionPhase === 2) {
+                                // QUESTION 2: The carrot meme
+                                const isCorrect = answer === 'carrot' || answer.includes('carrot') || answer === 'a carrot';
                                 
-                                // Set 10 minute cooldown for winners
-                                this.rapBattleCooldowns.set(userId, Date.now() + (10 * 60 * 1000));
-                                this.rapBattles.delete(userId);
-                                return;
-                            } else {
-                                // Wrong answer!
-                                battle.ended = true;
-                                battle.finalQuestionActive = false;
-                                collector.stop();
-                                
-                                await channel.send(`<@${userId}> WRONG! 💀\nThe answer was **21** (from the meme 💀)\n\nYou said: "${userMessage.content}"\n\nYou were SO CLOSE! 10 minute cooldown for reaching FM15.`);
-                                this.endRapBattle(userId, channel, false, battle.userScore);
-                                return;
+                                if (isCorrect) {
+                                    // WINNER! They got both questions!
+                                    battle.ended = true;
+                                    battle.finalQuestionActive = false;
+                                    collector.stop();
+                                    
+                                    await channel.send(`🏆🏆🏆 **CORRECT!!! CARROT!!!** 🏆🏆🏆\n\n<@${userId}> YOU ARE THE **ULTIMATE RAP CHAMPION**!\n\nYou conquered all 15 Fire Modes AND answered BOTH final questions!\n**10 MINUTE COOLDOWN** - You've earned your bragging rights! 🎤👑🥕`);
+                                    
+                                    // Set 10 minute cooldown for winners
+                                    this.rapBattleCooldowns.set(userId, Date.now() + (10 * 60 * 1000));
+                                    this.rapBattles.delete(userId);
+                                    return;
+                                } else {
+                                    // Wrong answer for question 2! MAXIMUM SHAME
+                                    battle.ended = true;
+                                    battle.finalQuestionActive = false;
+                                    collector.stop();
+                                    
+                                    await channel.send('BRO.');
+                                    await new Promise(r => setTimeout(r, 400));
+                                    await channel.send('ITS A CARROT.');
+                                    await new Promise(r => setTimeout(r, 400));
+                                    await channel.send('A. CARROT. 🥕');
+                                    await new Promise(r => setTimeout(r, 400));
+                                    await channel.send('HOW DO YOU NOT KNOW THIS MEME 💀💀💀');
+                                    await new Promise(r => setTimeout(r, 500));
+                                    await channel.send(`<@${userId}> WRONG! 💀💀💀💀💀\nThe answer was **CARROT**\n\nYou said: "${userMessage.content}"\n\n**ASTRONOMICAL SKILL ISSUE** - Got question 1, CHOKED on question 2! The SHAME! 10 minute cooldown.`);
+                                    this.endRapBattle(userId, channel, false, battle.userScore);
+                                    return;
+                                }
                             }
                         }
 
