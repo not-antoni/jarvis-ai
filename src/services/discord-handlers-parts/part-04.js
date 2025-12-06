@@ -2662,6 +2662,14 @@
                             if (lastTransitionBar) {
                                 battle.lastBotMessage = lastTransitionBar;
                                 
+                                // Check if user responded recently (within 2.5s) - if so, skip setting timeout
+                                // This prevents race condition where transition overwrites an in-progress response
+                                const timeSinceUserResponse = Date.now() - (battle.lastUserResponseTime || 0);
+                                if (timeSinceUserResponse < 2500) {
+                                    // User is currently responding, let collector handle timeout
+                                    return;
+                                }
+                                
                                 // Clear old timeout and set new one for transition bars
                                 if (responseTimeoutId) {
                                     clearTimeout(responseTimeoutId);
@@ -2702,6 +2710,7 @@
                         isFireMode,
                         fireMode: 1, // Current fire mode level (1-10)
                         thunderMode: false, // Activates at FM4+ for multi-line comebacks
+                        lastUserResponseTime: 0, // Track when user last responded to prevent race conditions
                         FIRE_MODES, // Reference to fire mode config
                         usedComebacks // Track used comebacks to avoid repeats
                     });
@@ -2709,6 +2718,9 @@
                     collector.on('collect', async (userMessage) => {
                         const battle = this.rapBattles.get(userId);
                         if (!battle) return;
+
+                        // Mark when user responded - prevents fire mode transition race condition
+                        battle.lastUserResponseTime = Date.now();
 
                         // Clear the response timeout
                         if (responseTimeoutId) {
