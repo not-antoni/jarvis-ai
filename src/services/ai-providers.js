@@ -320,7 +320,7 @@ class AIProviderManager {
     ].filter(Boolean);
 
     const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
-    const ollamaModel = process.env.OLLAMA_MODEL || 'mistral-large-3:675b-cloud';
+    const ollamaModel = process.env.OLLAMA_MODEL || 'qwen3-vl:235b';
 
     ollamaKeys.forEach((key, index) => {
       this.providers.push({
