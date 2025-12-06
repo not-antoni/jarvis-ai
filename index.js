@@ -3682,10 +3682,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
     await discordHandlers.handleVoiceStateUpdate(oldState, newState);
 });
 
-client.on("voiceStateUpdate", async (oldState, newState) => {
-    await discordHandlers.handleVoiceStateUpdate(oldState, newState);
-});
-
 client.on("messageReactionAdd", async (reaction, user) => {
     await discordHandlers.handleReactionAdd(reaction, user);
 });

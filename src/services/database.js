@@ -9,11 +9,35 @@ const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
 const localdb = require('../localdb');
 const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
 
+// LRU Cache for performance optimization
+const LruModule = require('lru-cache');
+const LRUCache = typeof LruModule === 'function' ? LruModule 
+    : typeof LruModule?.LRUCache === 'function' ? LruModule.LRUCache 
+    : typeof LruModule?.default === 'function' ? LruModule.default 
+    : null;
+
+// Cache configuration
+const GUILD_CONFIG_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const GUILD_CONFIG_CACHE_MAX = 200; // Max 200 guilds cached
+const CONVERSATION_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const CONVERSATION_CACHE_MAX = 500; // Max 500 user contexts cached
+
 class DatabaseManager {
     constructor() {
         this.client = null;
         this.db = null;
         this.isConnected = false;
+        
+        // LRU Caches for hot data
+        this.guildConfigCache = LRUCache ? new LRUCache({ 
+            max: GUILD_CONFIG_CACHE_MAX, 
+            ttl: GUILD_CONFIG_CACHE_TTL 
+        }) : null;
+        
+        this.conversationCache = LRUCache ? new LRUCache({ 
+            max: CONVERSATION_CACHE_MAX, 
+            ttl: CONVERSATION_CACHE_TTL 
+        }) : null;
     }
 
     getDefaultFeatureFlags() {
@@ -250,6 +274,13 @@ class DatabaseManager {
     async getRecentConversations(userId, limit = 20) {
         if (!this.isConnected) return [];
 
+        // Check cache first (only for standard limit)
+        const cacheKey = `${userId}:${limit}`;
+        if (this.conversationCache && limit === 20) {
+            const cached = this.conversationCache.get(cacheKey);
+            if (cached) return cached;
+        }
+
         const conversations = await this.db
             .collection(config.database.collections.conversations)
             .find({ userId })
@@ -257,7 +288,14 @@ class DatabaseManager {
             .limit(limit)
             .toArray();
 
-        return conversations.reverse();
+        const result = conversations.reverse();
+        
+        // Cache standard limit queries
+        if (this.conversationCache && limit === 20) {
+            this.conversationCache.set(cacheKey, result);
+        }
+
+        return result;
     }
 
     async getConversationsSince(userId, since) {
@@ -343,6 +381,11 @@ class DatabaseManager {
             .collection(config.database.collections.conversations)
             .insertOne(conversation);
 
+        // Invalidate conversation cache for this user
+        if (this.conversationCache) {
+            this.conversationCache.delete(`${userId}:20`);
+        }
+
         // Clean up old conversations (keep only last 100 per user)
         const totalCount = await this.db
             .collection(config.database.collections.conversations)
@@ -389,6 +432,11 @@ class DatabaseManager {
             await vaultClient.purgeUserMemories(userId);
         } catch (error) {
             console.error('Failed to purge vault memories for user', userId, error);
+        }
+        
+        // Invalidate conversation cache
+        if (this.conversationCache) {
+            this.conversationCache.delete(`${userId}:20`);
         }
         
         return {
@@ -451,6 +499,12 @@ class DatabaseManager {
 
     async getGuildConfig(guildId, ownerId = null) {
         if (!this.isConnected) return null;
+
+        // Check cache first (skip if ownerId needs update)
+        if (this.guildConfigCache && !ownerId) {
+            const cached = this.guildConfigCache.get(guildId);
+            if (cached) return cached;
+        }
 
         const collection = this.db.collection(config.database.collections.guildConfigs);
         const defaultFeatures = this.getDefaultFeatureFlags();
@@ -535,7 +589,19 @@ class DatabaseManager {
             );
         }
 
+        // Update cache
+        if (this.guildConfigCache) {
+            this.guildConfigCache.set(guildId, guildConfig);
+        }
+
         return guildConfig;
+    }
+
+    // Invalidate guild config cache when config is updated
+    _invalidateGuildConfigCache(guildId) {
+        if (this.guildConfigCache) {
+            this.guildConfigCache.delete(guildId);
+        }
     }
 
     async setGuildModeratorRoles(guildId, roleIds = [], ownerId = null) {
@@ -560,6 +626,7 @@ class DatabaseManager {
             { upsert: true }
         );
 
+        this._invalidateGuildConfigCache(guildId);
         return this.getGuildConfig(guildId, ownerId);
     }
 
@@ -612,6 +679,7 @@ class DatabaseManager {
             });
         }
 
+        this._invalidateGuildConfigCache(guildId);
         return this.getGuildConfig(guildId);
     }
 
