@@ -340,7 +340,8 @@ class YtDlpManager {
         try {
             const version = execSync(`"${this.executablePath}" --version`, {
                 encoding: 'utf8',
-                timeout: 10000
+                timeout: 30000,
+                windowsHide: true
             }).trim();
             
             console.log(`[yt-dlp] Verified working: ${version}`);
