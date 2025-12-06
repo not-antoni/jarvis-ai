@@ -20,13 +20,19 @@ if (!mainUri || !vaultUri) {
 const mainClient = !LOCAL_DB_MODE && mainUri ? new MongoClient(mainUri, {
     maxPoolSize: 25,
     minPoolSize: 2,
-    serverSelectionTimeoutMS: 5000
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    retryWrites: true,
+    retryReads: true,
 }) : null;
 
 const vaultClient = !LOCAL_DB_MODE && vaultUri ? new MongoClient(vaultUri, {
     maxPoolSize: 20,
     minPoolSize: 1,
-    serverSelectionTimeoutMS: 5000
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    retryWrites: true,
+    retryReads: true,
 }) : null;
 
 let mainDb = null;

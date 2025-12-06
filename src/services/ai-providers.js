@@ -319,7 +319,7 @@ class AIProviderManager {
       process.env.OLLAMA_API_KEY5,
     ].filter(Boolean);
 
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
+    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/api';
     const ollamaModel = process.env.OLLAMA_MODEL || 'mistral-large-3:675b-cloud';
 
     ollamaKeys.forEach((key, index) => {
