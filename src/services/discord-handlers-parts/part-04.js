@@ -2927,10 +2927,15 @@
                         // Q1="21", Q2="carrot", Q3="nothing", Q4="nuts"
                         // ═══════════════════════════════════════════════════════════════
                         if (battle.finalQuestionActive) {
-                            // IGNORE SPAM: Skip messages sent BEFORE the current question was asked!
+                            // IGNORE ALL MESSAGES until questionAskedAt is set!
                             // This prevents spam during the 3s delay from counting as wrong answers
+                            if (!battle.questionAskedAt) {
+                                return; // Question hasn't been asked yet - ignore everything
+                            }
+                            
+                            // IGNORE SPAM: Skip messages sent BEFORE the current question was asked!
                             const messageTime = userMessage.createdTimestamp;
-                            if (battle.questionAskedAt && messageTime < battle.questionAskedAt) {
+                            if (messageTime < battle.questionAskedAt) {
                                 return; // Ignore this message - it was sent before the question
                             }
                             
