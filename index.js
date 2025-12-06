@@ -2523,6 +2523,30 @@ const allCommands = [
                         .setRequired(true)))
         .addSubcommand(subcommand =>
             subcommand
+                .setName("edit")
+                .setDescription("Edit an existing reaction role panel (add roles, change title/description)")
+                .addStringOption(option =>
+                    option
+                        .setName("message")
+                        .setDescription("Message ID or link to the panel to edit")
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option
+                        .setName("add_pairs")
+                        .setDescription("New emoji-role pairs to add, e.g. 😀 @Role, 😎 @AnotherRole")
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option
+                        .setName("title")
+                        .setDescription("New panel title (leave empty to keep current)")
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option
+                        .setName("description")
+                        .setDescription("New panel description (leave empty to keep current)")
+                        .setRequired(false)))
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName("list")
                 .setDescription("List configured reaction role panels"))
         .addSubcommand(subcommand =>
