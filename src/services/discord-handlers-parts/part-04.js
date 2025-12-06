@@ -661,6 +661,7 @@
             const idMatch = messageInput?.match(/(\d{17,20})$/);
             const messageId = idMatch ? idMatch[1] : messageInput;
             const newPairsInput = interaction.options.getString('add_pairs');
+            const removePairsInput = interaction.options.getString('remove_pairs');
             const newTitle = interaction.options.getString('title');
             const newDescription = interaction.options.getString('description');
 
@@ -670,8 +671,8 @@
             }
 
             // Check if at least one edit option is provided
-            if (!newPairsInput && !newTitle && !newDescription) {
-                await interaction.editReply('Please provide at least one thing to edit: add_pairs, title, or description, sir.');
+            if (!newPairsInput && !removePairsInput && !newTitle && !newDescription) {
+                await interaction.editReply('Please provide at least one thing to edit: add_pairs, remove_pairs, title, or description, sir.');
                 return;
             }
 
@@ -745,6 +746,76 @@
                 }
             }
 
+            // Process removals if provided
+            let removedOptions = [];
+            let usersAffected = 0;
+            if (removePairsInput) {
+                // Parse emojis to remove
+                const emojisToRemove = removePairsInput.split(/[,\s]+/).map(e => e.trim()).filter(Boolean);
+                const removeKeys = new Set();
+                
+                for (const emojiInput of emojisToRemove) {
+                    const parsedEmoji = parseEmoji(emojiInput);
+                    if (parsedEmoji) {
+                        const key = parsedEmoji.id || parsedEmoji.name;
+                        if (key) removeKeys.add(key);
+                    }
+                }
+                
+                if (removeKeys.size > 0) {
+                    // Find options to remove
+                    removedOptions = record.options.filter(o => removeKeys.has(o.matchKey));
+                    
+                    if (removedOptions.length === 0) {
+                        await interaction.editReply('None of those emojis are currently on the panel, sir.');
+                        return;
+                    }
+                    
+                    // Remove roles from users who have them
+                    for (const removedOption of removedOptions) {
+                        try {
+                            const role = guild.roles.cache.get(removedOption.roleId);
+                            if (role && me.roles.highest.comparePositionTo(role) > 0) {
+                                // Fetch reaction users and remove their roles
+                                const reaction = panelMessage.reactions.cache.find(r => {
+                                    const key = r.emoji.id || r.emoji.name;
+                                    return key === removedOption.matchKey;
+                                });
+                                
+                                if (reaction) {
+                                    // Fetch all users who reacted
+                                    const users = await reaction.users.fetch();
+                                    for (const [userId, user] of users) {
+                                        if (user.bot) continue;
+                                        try {
+                                            const member = await guild.members.fetch(userId);
+                                            if (member && member.roles.cache.has(removedOption.roleId)) {
+                                                await member.roles.remove(removedOption.roleId);
+                                                usersAffected++;
+                                            }
+                                        } catch (memberError) {
+                                            // User may have left the server
+                                        }
+                                    }
+                                    
+                                    // Remove the reaction from the message
+                                    try {
+                                        await reaction.remove();
+                                    } catch (reactionError) {
+                                        console.warn('Failed to remove reaction:', reactionError);
+                                    }
+                                }
+                            }
+                        } catch (roleError) {
+                            console.error('Error removing role from users:', roleError);
+                        }
+                    }
+                    
+                    // Filter out removed options from record
+                    record.options = record.options.filter(o => !removeKeys.has(o.matchKey));
+                }
+            }
+
             // Build updated record
             const updatedTitle = newTitle || record.title || 'Select your roles';
             const updatedDescription = newDescription || record.description || 'React with the options below to toggle roles, sir.';
@@ -801,6 +872,7 @@
             if (newTitle) changes.push('title');
             if (newDescription) changes.push('description');
             if (newOptions.length > 0) changes.push(`${newOptions.length} new role(s)`);
+            if (removedOptions.length > 0) changes.push(`removed ${removedOptions.length} role(s)${usersAffected > 0 ? ` from ${usersAffected} user(s)` : ''}`);
 
             const messageUrl = panelMessage.url || `https://discord.com/channels/${guild.id}/${record.channelId}/${record.messageId}`;
             await interaction.editReply(`Panel updated (${changes.join(', ')}), sir. [Jump to message](${messageUrl})`);

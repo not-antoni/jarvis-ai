@@ -2544,6 +2544,11 @@ const allCommands = [
                     option
                         .setName("description")
                         .setDescription("New panel description (leave empty to keep current)")
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option
+                        .setName("remove_pairs")
+                        .setDescription("Emojis to remove, e.g. 😀, 😎 (removes roles from users who have them)")
                         .setRequired(false)))
         .addSubcommand(subcommand =>
             subcommand
