@@ -2612,11 +2612,15 @@
                         this.endRapBattle(userId, channel, false);
                     }, currentTimeout); // Use currentTimeout from FIRE_MODES
 
-                    // Set up 2.5-minute max duration timer - triggers final question at FM15
+                    // Set up 2.5-minute max duration timer - backup trigger for final questions
                     const maxDurationTimeoutId = setTimeout(async () => {
                         const battle = this.rapBattles.get(userId);
+                        
+                        // Skip if final questions already triggered by FM15 transition
+                        if (battle && battle.finalQuestionActive) return;
+                        
                         if (battle && !battle.ended && battle.fireMode === 15) {
-                            // FM15 reached - trigger final "9+10" question!
+                            // FM15 reached but final questions not triggered yet - trigger now
                             finalQuestionActive = true;
                             battle.finalQuestionActive = true;
                             battle.finalQuestionPhase = 1; // Start with question 1
@@ -2712,7 +2716,75 @@
                             currentFireMode = fm.mode;
                             currentTimeout = fm.timeout;
                             
-                            // Fire mode announcement messages
+                            // ═══════════════════════════════════════════════════════════════
+                            // FM15 SPECIAL HANDLING - IMMEDIATELY TRIGGER FINAL QUESTIONS!
+                            // ═══════════════════════════════════════════════════════════════
+                            if (fm.mode === 15) {
+                                // Clear response timeout - no more "TOO SLOW" during final questions
+                                if (responseTimeoutId) {
+                                    clearTimeout(responseTimeoutId);
+                                    responseTimeoutId = null;
+                                }
+                                
+                                // Clear all OTHER fire mode transition timers
+                                if (battle.fireModeTimeouts && Array.isArray(battle.fireModeTimeouts)) {
+                                    battle.fireModeTimeouts.forEach(tid => clearTimeout(tid));
+                                    battle.fireModeTimeouts = [];
+                                }
+                                
+                                // Mark final questions as active
+                                finalQuestionActive = true;
+                                battle.finalQuestionActive = true;
+                                battle.finalQuestionPhase = 1;
+                                
+                                // Send FM15 announcement then go to final questions
+                                await channel.send('🏆🏆🏆 **FIRE MODE 15: ULTIMATE REACHED!** 🏆🏆🏆\n\nYou survived 2.5 minutes of FIRE! Now face the **FINAL TEST**...');
+                                
+                                // 3 second delay for in-flight messages
+                                await new Promise(r => setTimeout(r, 3000));
+                                
+                                // Re-check battle still exists
+                                const battleCheck = this.rapBattles.get(userId);
+                                if (!battleCheck || battleCheck.ended) return;
+                                
+                                // Send first question
+                                await channel.send('🏆🏆🏆 **FINAL TEST - 4 MEME QUESTIONS** 🏆🏆🏆\n\n# QUESTION 1/4: WHAT\'S 9 + 10??\n\n**5 seconds per question!** 💀');
+                                
+                                // Set up Q1 spam taunts
+                                let q1SpamSent = false;
+                                const q1SpamTimeout = setTimeout(async () => {
+                                    const b = this.rapBattles.get(userId);
+                                    if (!b || b.ended || q1SpamSent || !b.finalQuestionActive || b.finalQuestionPhase !== 1) return;
+                                    q1SpamSent = true;
+                                    const taunts = ['DUDE ANSWER ITS SIMPLE 💀', 'nah ur genuinely slow', 'dude whats so hard?? 💀', 'basic math from KINDERGARTEN', 'aw hell nah 💀'];
+                                    for (const taunt of taunts) {
+                                        const check = this.rapBattles.get(userId);
+                                        if (!check || check.ended || check.finalQuestionPhase !== 1) return;
+                                        await channel.send(taunt);
+                                        await new Promise(r => setTimeout(r, 350));
+                                    }
+                                }, 1200);
+                                
+                                // Set up Q1 timeout
+                                const q1Timeout = setTimeout(async () => {
+                                    const currentBattle = this.rapBattles.get(userId);
+                                    if (!currentBattle || currentBattle.ended || currentBattle.finalQuestionPhase !== 1) return;
+                                    clearTimeout(q1SpamTimeout);
+                                    currentBattle.ended = true;
+                                    await channel.send('WUT DA HEILLLLLLLLLLL');
+                                    await new Promise(r => setTimeout(r, 300));
+                                    await channel.send('AW HEILL NYE NYEEE NYEEEEE OO.,, OO AAAAA');
+                                    await new Promise(r => setTimeout(r, 500));
+                                    await channel.send(`<@${userId}> TIME'S UP! 💀💀💀\nThe answer was **21**\n\n**SKILL ISSUE AT FM15** - Choked on meme math! 10 min cooldown.`);
+                                    this.endRapBattle(userId, channel, false, currentBattle.userScore);
+                                }, 5000);
+                                
+                                battleCheck.finalQuestionTimeout = q1Timeout;
+                                battleCheck.spamTimeout = q1SpamTimeout;
+                                return; // Don't continue with normal FM transition
+                            }
+                            
+                            // Fire mode announcement messages (FM2-14 only now)
                             const announcements = {
                                 2: [`${fm.emoji} **FIRE MODE 2: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! Things are heating up!`],
                                 3: [`${fm.emoji} **FIRE MODE 3: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! You're cooking now!`],
