@@ -2570,11 +2570,11 @@
                         { mode: 8,  startMs: 70000,  timeout: 1800, emoji: '💀',   name: 'DEATH ZONE',   cooldown: 3 },
                         { mode: 9,  startMs: 80000,  timeout: 1700, emoji: '💀💀',  name: 'FINAL BOSS',  cooldown: 4 },
                         { mode: 10, startMs: 90000,  timeout: 1600, emoji: '👑',   name: 'LEGENDARY',    cooldown: 4 },
-                        { mode: 11, startMs: 100000, timeout: 1500, emoji: '🔱',   name: 'GODLIKE',      cooldown: 5 },
-                        { mode: 12, startMs: 110000, timeout: 1450, emoji: '⭐',   name: 'SUPERNOVA',    cooldown: 6 },
-                        { mode: 13, startMs: 120000, timeout: 1400, emoji: '🌌',   name: 'COSMIC',       cooldown: 7 },
-                        { mode: 14, startMs: 130000, timeout: 1350, emoji: '♾️',   name: 'INFINITE',     cooldown: 8 },
-                        { mode: 15, startMs: 140000, timeout: 1200, emoji: '🏆',   name: 'ULTIMATE',     cooldown: 10 },
+                        { mode: 11, startMs: 100000, timeout: 1700, emoji: '🔱',   name: 'GODLIKE',      cooldown: 5 },
+                        { mode: 12, startMs: 110000, timeout: 1650, emoji: '⭐',   name: 'SUPERNOVA',    cooldown: 6 },
+                        { mode: 13, startMs: 120000, timeout: 1600, emoji: '🌌',   name: 'COSMIC',       cooldown: 7 },
+                        { mode: 14, startMs: 130000, timeout: 1550, emoji: '♾️',   name: 'INFINITE',     cooldown: 8 },
+                        { mode: 15, startMs: 140000, timeout: 1400, emoji: '🏆',   name: 'ULTIMATE',     cooldown: 10 },
                     ];
                     
                     let currentTimeout = FIRE_MODES[0].timeout;
@@ -2714,6 +2714,9 @@
                             const announcement = msgs[Math.floor(Math.random() * msgs.length)];
                             await channel.send(announcement);
                             
+                            // Check if battle ended during async
+                            if (battle.ended) return;
+                            
                             // Send media based on fire mode tier - 50% Tenor API, 50% local
                             const useTenor = Math.random() < 0.5;
                             if (fm.mode >= 8 && comebacks.videos.length > 0 && Math.random() < 0.4) {
@@ -2725,38 +2728,42 @@
                                 if (useTenor) {
                                     const keyword = this.getUnhingedKeyword(fm.mode);
                                     const tenorGif = await this.fetchTenorGif(keyword);
-                                    if (tenorGif) {
+                                    if (tenorGif && !battle.ended) {
                                         await channel.send(tenorGif);
                                     }
-                                } else if (comebacks.gifs.length > 0) {
+                                } else if (comebacks.gifs.length > 0 && !battle.ended) {
                                     const gif = comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)];
                                     await this.sendComeback(channel, { type: 'gif', content: gif }, comebacks, true);
                                 }
                             }
                             
+                            // Check if battle ended during async
+                            if (battle.ended) return;
+                            
                             // Send bars based on intensity
                             const barCount = fm.mode >= 8 ? 3 : fm.mode >= 5 ? 2 : 1;
                             let lastTransitionBar = null;
                             for (let j = 0; j < barCount; j++) {
+                                if (battle.ended) break; // Stop sending bars if battle ended
                                 const combo = this.getRandomComeback(comebacks, battle.usedComebacks);
                                 lastTransitionBar = await this.sendComeback(channel, combo, comebacks, true, fm.mode >= 4);
                             }
                             
                             // FIX: Update lastBotMessage and reset timer for transition bars
                             // This gives user fresh time to respond to fire mode transition bars
-                            if (lastTransitionBar) {
+                            if (lastTransitionBar && !battle.ended) {
                                 battle.lastBotMessage = lastTransitionBar;
                                 
                                 // Check if user responded recently (within 2.5s) - if so, skip setting timeout
                                 // This prevents race condition where transition overwrites an in-progress response
                                 const timeSinceUserResponse = Date.now() - (battle.lastUserResponseTime || 0);
-                                if (timeSinceUserResponse < 2500) {
+                                if (timeSinceUserResponse < 2500 || battle.ended) {
                                     // User is currently responding, let collector handle timeout
                                     return;
                                 }
                                 
                                 // If responseTimeoutId is null, collector is processing a response - skip
-                                if (responseTimeoutId === null) {
+                                if (responseTimeoutId === null || battle.ended) {
                                     return;
                                 }
                                 
@@ -2776,12 +2783,12 @@
                                         return;
                                     }
                                     
-                                    if (currentBattle.lastBotMessage) {
+                                    if (currentBattle.lastBotMessage && !currentBattle.ended) {
                                         currentBattle.ended = true;
                                         try {
                                             await currentBattle.lastBotMessage.reply(`<@${userId}> TOO SLOW! ${fm.emoji}💀`);
                                         } catch (err) {
-                                            await channel.send(`<@${userId}> TOO SLOW! ${fm.emoji}💀`);
+                                            if (!currentBattle.ended) await channel.send(`<@${userId}> TOO SLOW! ${fm.emoji}💀`);
                                         }
                                     }
                                     this.endRapBattle(userId, channel, false, currentBattle?.userScore);
@@ -2817,7 +2824,7 @@
 
                     collector.on('collect', async (userMessage) => {
                         const battle = this.rapBattles.get(userId);
-                        if (!battle) return;
+                        if (!battle || battle.ended) return; // Stop processing if battle ended
 
                         // Mark when user responded - prevents fire mode transition race condition
                         battle.lastUserResponseTime = Date.now();
@@ -4847,7 +4854,16 @@
         const battle = this.rapBattles.get(userId);
         if (!battle) return;
 
-        // Clean up timers first
+        // IMMEDIATELY mark as ended to stop all events
+        battle.ended = true;
+        battle.finalQuestionActive = false;
+
+        // Stop collector FIRST to prevent any more message processing
+        if (battle.collector && !battle.collector.ended) {
+            try { battle.collector.stop(); } catch (e) {}
+        }
+
+        // Clean up ALL timers
         if (battle.timeoutId) {
             clearTimeout(battle.timeoutId);
             battle.timeoutId = null;
@@ -4855,14 +4871,16 @@
         // Clean up all fire mode transition timers
         if (battle.fireModeTimeouts && Array.isArray(battle.fireModeTimeouts)) {
             battle.fireModeTimeouts.forEach(tid => clearTimeout(tid));
+            battle.fireModeTimeouts = [];
         }
         // Clean up final question timers
-        if (battle.finalQuestionTimeout) clearTimeout(battle.finalQuestionTimeout);
-        if (battle.spamTimeout) clearTimeout(battle.spamTimeout);
-        
-        // Stop collector if still active
-        if (battle.collector && !battle.collector.ended) {
-            battle.collector.stop();
+        if (battle.finalQuestionTimeout) {
+            clearTimeout(battle.finalQuestionTimeout);
+            battle.finalQuestionTimeout = null;
+        }
+        if (battle.spamTimeout) {
+            clearTimeout(battle.spamTimeout);
+            battle.spamTimeout = null;
         }
 
         // Get fire mode config for cooldown
