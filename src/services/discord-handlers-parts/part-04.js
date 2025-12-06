@@ -2650,9 +2650,33 @@
                             
                             // Send bars based on intensity
                             const barCount = fm.mode >= 8 ? 3 : fm.mode >= 5 ? 2 : 1;
+                            let lastTransitionBar = null;
                             for (let j = 0; j < barCount; j++) {
                                 const combo = this.getRandomComeback(comebacks, battle.usedComebacks);
-                                await this.sendComeback(channel, combo, comebacks, true, fm.mode >= 4);
+                                lastTransitionBar = await this.sendComeback(channel, combo, comebacks, true, fm.mode >= 4);
+                            }
+                            
+                            // FIX: Update lastBotMessage and reset timer for transition bars
+                            // This gives user fresh time to respond to fire mode transition bars
+                            if (lastTransitionBar) {
+                                battle.lastBotMessage = lastTransitionBar;
+                                
+                                // Clear old timeout and set new one for transition bars
+                                if (responseTimeoutId) {
+                                    clearTimeout(responseTimeoutId);
+                                }
+                                responseTimeoutId = setTimeout(async () => {
+                                    const currentBattle = this.rapBattles.get(userId);
+                                    if (currentBattle && !currentBattle.ended && currentBattle.lastBotMessage) {
+                                        currentBattle.ended = true;
+                                        try {
+                                            await currentBattle.lastBotMessage.reply(`<@${userId}> TOO SLOW! ${fm.emoji}💀`);
+                                        } catch (err) {
+                                            await channel.send(`<@${userId}> TOO SLOW! ${fm.emoji}💀`);
+                                        }
+                                    }
+                                    this.endRapBattle(userId, channel, false, currentBattle?.userScore);
+                                }, fm.timeout);
                             }
                         }, fm.startMs);
                         fireModeTimeouts.push(timerId);
