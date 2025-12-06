@@ -2331,7 +2331,7 @@
                     const MAX_BATTLE_DURATION = 120 * 1000; // 2 minutes
                     const THUNDER_TIME = 60 * 1000; // Fire Mode 2 at 1 minute
                     const INFERNO_TIME = 90 * 1000; // Fire Mode 3 at 1.5 minutes
-                    let RESPONSE_TIMEOUT = 5 * 1000; // Starts at 5s, 3s in thunder, 2s in inferno
+                    let RESPONSE_TIMEOUT = 6 * 1000; // Fire Mode 1: 6s, Mode 2: 5s, Mode 3: 4s
                     const WIN_CHECK_WINDOW = 15 * 1000; // Only check win/lose in last 15 seconds
                     const BOT_RESPONSE_DELAY = 2 * 1000; // 2 second delay before bot responds
                     let currentFireMode = 1; // Track highest fire mode reached
@@ -2345,15 +2345,16 @@
                     const firstComeback = this.getRandomComeback(comebacks, usedComebacks);
                     const firstMessage = await this.sendComeback(channel, firstComeback, comebacks, isFireMode);
 
-                    // Set up response timer (3s in fire mode, 5s normal)
+                    // Set up initial response timer (6s for Fire Mode 1)
                     let responseTimeoutId = setTimeout(async () => {
-                        // User didn't respond in time
+                        // User didn't respond to first bar in time
                         const battle = this.rapBattles.get(userId);
-                        if (battle && battle.lastBotMessage) {
+                        if (battle && !battle.ended && battle.lastBotMessage) {
+                            battle.ended = true;
                             try {
-                                await battle.lastBotMessage.reply(`<@${userId}>`);
+                                await battle.lastBotMessage.reply(`<@${userId}> TOO SLOW! 💀`);
                             } catch (err) {
-                                await channel.send(`<@${userId}>`);
+                                await channel.send(`<@${userId}> TOO SLOW! 💀`);
                             }
                         }
                         this.endRapBattle(userId, channel, false);
@@ -2481,8 +2482,16 @@
                         battle.userScore += barScore;
                         battle.userBars++;
 
-                        // Set new response timer (3s in thunder mode, 5s before)
-                        const currentTimeout = battle.thunderMode ? 3000 : 5000;
+                        // Set new response timer based on fire mode
+                        // Fire Mode 1: 6s | Fire Mode 2 (thunder): 5s | Fire Mode 3 (inferno): 4s
+                        // More forgiving timers to account for Discord latency and typing speed
+                        let currentTimeout = 6000; // Default Fire Mode 1
+                        if (battle.infernoMode) {
+                            currentTimeout = 4000; // Fire Mode 3: 4 seconds
+                        } else if (battle.thunderMode) {
+                            currentTimeout = 5000; // Fire Mode 2: 5 seconds
+                        }
+                        
                         responseTimeoutId = setTimeout(async () => {
                             // User didn't respond in time
                             const currentBattle = this.rapBattles.get(userId);
