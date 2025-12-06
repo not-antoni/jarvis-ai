@@ -2323,21 +2323,34 @@
                     const comebacks = this.scanRapBattleComebacks();
                     const startTime = Date.now();
                     
-                    // FIRE MODE SYSTEM 🔥🔥🔥
-                    // Fire Mode 1: 0-60s (standard fire) - 1 min cooldown if lose before this
-                    // Fire Mode 2: 60-90s (thunder mode) - 2 min cooldown
-                    // Fire Mode 3: 90-120s (INFERNO) - 4 min cooldown
+                    // ═══════════════════════════════════════════════════════════════
+                    // 🔥 NEED FOR SPEED: RAP EDITION - FIRE MODE 1-10 SYSTEM 🔥
+                    // ═══════════════════════════════════════════════════════════════
                     const isFireMode = true;
                     const MAX_BATTLE_DURATION = 120 * 1000; // 2 minutes
-                    const THUNDER_TIME = 60 * 1000; // Fire Mode 2 at 1 minute
-                    const INFERNO_TIME = 90 * 1000; // Fire Mode 3 at 1.5 minutes
-                    let RESPONSE_TIMEOUT = 6 * 1000; // Fire Mode 1: 6s, Mode 2: 5s, Mode 3: 4s
-                    const WIN_CHECK_WINDOW = 15 * 1000; // Only check win/lose in last 15 seconds
-                    const BOT_RESPONSE_DELAY = 2 * 1000; // 2 second delay before bot responds
+                    const WIN_CHECK_WINDOW = 5 * 1000; // Only check win/lose in last 5 seconds
+                    const BOT_RESPONSE_DELAY = 1500; // 1.5s delay before bot responds
                     let currentFireMode = 1; // Track highest fire mode reached
+                    
+                    // Fire Mode Configuration: [startTime, timeout, emoji, name, cooldownMinutes]
+                    const FIRE_MODES = [
+                        { mode: 1,  startMs: 0,      timeout: 6000, emoji: '🔥',  name: 'WARM UP',      cooldown: 1 },
+                        { mode: 2,  startMs: 20000,  timeout: 5500, emoji: '🔥🔥', name: 'GETTING HOT',  cooldown: 1 },
+                        { mode: 3,  startMs: 35000,  timeout: 5000, emoji: '🔥🔥🔥', name: 'ON FIRE',    cooldown: 1 },
+                        { mode: 4,  startMs: 50000,  timeout: 4500, emoji: '⚡',  name: 'THUNDER',      cooldown: 2 },
+                        { mode: 5,  startMs: 65000,  timeout: 4000, emoji: '⚡⚡', name: 'LIGHTNING',   cooldown: 2 },
+                        { mode: 6,  startMs: 75000,  timeout: 3500, emoji: '🌋',  name: 'VOLCANIC',     cooldown: 3 },
+                        { mode: 7,  startMs: 85000,  timeout: 3000, emoji: '🌋🌋', name: 'ERUPTION',    cooldown: 3 },
+                        { mode: 8,  startMs: 95000,  timeout: 2500, emoji: '💀',  name: 'DEATH ZONE',   cooldown: 4 },
+                        { mode: 9,  startMs: 105000, timeout: 2000, emoji: '💀💀', name: 'FINAL BOSS', cooldown: 4 },
+                        { mode: 10, startMs: 115000, timeout: 1500, emoji: '👑',  name: 'LEGENDARY',    cooldown: 5 },
+                    ];
+                    
+                    let currentTimeout = FIRE_MODES[0].timeout;
+                    const fireModeTimeouts = []; // Store all fire mode timers for cleanup
 
                     // Send opening message
-                    const openingMessage = '🔥 **FIRE MODE 1 ACTIVATED** 🔥\nHUMANOID versus HUMAN! 2 MINUTES. SURVIVE THE INFERNO. BEGIN!';
+                    const openingMessage = '🔥 **NEED FOR SPEED: RAP EDITION** 🔥\n**FIRE MODE 1: WARM UP**\nHUMANOID versus HUMAN! 2 MINUTES. 10 FIRE MODES. SURVIVE TO BECOME **LEGENDARY**. BEGIN!';
                     await interaction.editReply(openingMessage);
 
                     // Send first comeback immediately
@@ -2352,87 +2365,75 @@
                         if (battle && !battle.ended && battle.lastBotMessage) {
                             battle.ended = true;
                             try {
-                                await battle.lastBotMessage.reply(`<@${userId}> TOO SLOW! 💀`);
+                                await battle.lastBotMessage.reply(`<@${userId}> TOO SLOW! 🔥💀`);
                             } catch (err) {
-                                await channel.send(`<@${userId}> TOO SLOW! 💀`);
+                                await channel.send(`<@${userId}> TOO SLOW! 🔥💀`);
                             }
                         }
                         this.endRapBattle(userId, channel, false);
-                    }, RESPONSE_TIMEOUT);
+                    }, currentTimeout); // Use currentTimeout from FIRE_MODES
 
                     // Set up 2-minute max duration timer
                     const maxDurationTimeoutId = setTimeout(() => {
-                        this.endRapBattle(userId, channel, false);
+                        const battle = this.rapBattles.get(userId);
+                        if (battle && !battle.ended) {
+                            // If they made it to the end, they win!
+                            battle.ended = true;
+                            this.endRapBattle(userId, channel, true, battle.userScore);
+                        }
                     }, MAX_BATTLE_DURATION);
 
-                    // Set up FIRE MODE 2 (THUNDER) at 1 minute mark ⚡
-                    let thunderMode = false;
-                    let infernoMode = false;
-                    const thunderTimeoutId = setTimeout(async () => {
-                        const battle = this.rapBattles.get(userId);
-                        if (battle && !battle.ended) {
-                            thunderMode = true;
-                            battle.thunderMode = true;
-                            battle.fireMode = 2;
-                            currentFireMode = 2;
-                            RESPONSE_TIMEOUT = 3 * 1000; // Shorten to 3 seconds!
+                    // ═══════════════════════════════════════════════════════════════
+                    // SET UP ALL 10 FIRE MODE TRANSITIONS
+                    // ═══════════════════════════════════════════════════════════════
+                    for (let i = 1; i < FIRE_MODES.length; i++) {
+                        const fm = FIRE_MODES[i];
+                        const timerId = setTimeout(async () => {
+                            const battle = this.rapBattles.get(userId);
+                            if (!battle || battle.ended) return;
                             
-                            // FIRE MODE 2 announcement
-                            const thunderMessages = [
-                                '⚡⚡⚡ **FIRE MODE 2: THUNDER ACTIVATED** ⚡⚡⚡\n3 SECOND TIMER! KEEP UP OR GET COOKED!',
-                                '🌩️🌩️🌩️ **FIRE MODE 2! YOU SURVIVED 1 MINUTE?** 🌩️🌩️🌩️\nNOW PROVE IT WASNT LUCK!',
-                                '⚡💀⚡ **ENTERING FIRE MODE 2** ⚡💀⚡\nTHUNDER STRIKES FAST. SO DO I.',
-                                '🔥⚡🔥 **FIRE MODE 2 ENGAGED! 3 SECONDS!** 🔥⚡🔥\nLETS SEE IF YOU CAN HANDLE THE HEAT!'
-                            ];
-                            const thunderMsg = thunderMessages[Math.floor(Math.random() * thunderMessages.length)];
-                            await channel.send(thunderMsg);
+                            // Update fire mode
+                            battle.fireMode = fm.mode;
+                            currentFireMode = fm.mode;
+                            currentTimeout = fm.timeout;
                             
-                            // Send a gif to celebrate/taunt
-                            const gifComeback = { type: 'gif', content: comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)] };
-                            if (gifComeback.content) await this.sendComeback(channel, gifComeback, comebacks, true);
+                            // Fire mode announcement messages
+                            const announcements = {
+                                2: [`${fm.emoji} **FIRE MODE 2: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! Things are heating up!`],
+                                3: [`${fm.emoji} **FIRE MODE 3: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! You're cooking now!`],
+                                4: [`${fm.emoji} **FIRE MODE 4: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! THUNDER STRIKES!`, `⚡ **ENTERING THE THUNDER ZONE** ⚡\n${fm.timeout/1000} SECONDS TO RESPOND!`],
+                                5: [`${fm.emoji} **FIRE MODE 5: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! LIGHTNING SPEED!`, `⚡⚡ **LIGHTNING MODE** ⚡⚡\nCAN YOU KEEP UP?!`],
+                                6: [`${fm.emoji} **FIRE MODE 6: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! THE VOLCANO AWAKENS!`, `🌋 **VOLCANIC ERUPTION INCOMING** 🌋\n${fm.timeout/1000}s TIMER! LAVA BARS INCOMING!`],
+                                7: [`${fm.emoji} **FIRE MODE 7: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! FULL ERUPTION!`, `🌋🌋 **THE MOUNTAIN IS ANGRY** 🌋🌋\nONLY ${fm.timeout/1000} SECONDS NOW!`],
+                                8: [`${fm.emoji} **FIRE MODE 8: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! ENTER IF YOU DARE!`, `💀 **DEATH ZONE ACTIVATED** 💀\nMOST HUMANS DONT SURVIVE THIS FAR!`, `💀 **WELCOME TO THE DEATH ZONE** 💀\n${fm.timeout/1000} SECONDS. NO MISTAKES.`],
+                                9: [`${fm.emoji} **FIRE MODE 9: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! THE FINAL CHALLENGE!`, `💀💀 **FINAL BOSS MODE** 💀💀\nYOU MADE IT THIS FAR?! RESPECT!`, `💀💀 **ONE MORE LEVEL TO LEGENDARY** 💀💀\n${fm.timeout/1000} SECONDS. PROVE YOURSELF!`],
+                                10: [`👑👑👑 **FIRE MODE 10: LEGENDARY** 👑👑👑\n${fm.timeout/1000}s TIMER! YOU ARE A RAP GOD!`, `👑 **LEGENDARY STATUS UNLOCKED** 👑\nONLY THE ELITE REACH THIS LEVEL!`, `👑👑👑 **THE LEGEND HAS ARRIVED** 👑👑👑\nFINAL ${fm.timeout/1000} SECONDS! FINISH STRONG!`]
+                            };
                             
-                            // Immediately spam them with multi-line bars
-                            const combo = this.getRandomComeback(comebacks, battle.usedComebacks);
-                            await this.sendComeback(channel, combo, comebacks, true, true); // forceMulti = true
-                        }
-                    }, THUNDER_TIME);
-
-                    // Set up FIRE MODE 3 (INFERNO) at 1.5 minute mark 🔥🔥🔥
-                    const infernoTimeoutId = setTimeout(async () => {
-                        const battle = this.rapBattles.get(userId);
-                        if (battle && !battle.ended) {
-                            infernoMode = true;
-                            battle.infernoMode = true;
-                            battle.fireMode = 3;
-                            currentFireMode = 3;
-                            RESPONSE_TIMEOUT = 2 * 1000; // 2 SECONDS ONLY!
+                            const msgs = announcements[fm.mode] || [`${fm.emoji} **FIRE MODE ${fm.mode}: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s!`];
+                            const announcement = msgs[Math.floor(Math.random() * msgs.length)];
+                            await channel.send(announcement);
                             
-                            // FIRE MODE 3 - MAXIMUM CHAOS
-                            const infernoMessages = [
-                                '🔥🔥🔥 **FIRE MODE 3: INFERNO UNLOCKED** 🔥🔥🔥\n2 SECOND TIMER! THIS IS LEGENDARY!',
-                                '💀🔥💀 **YOU REACHED FIRE MODE 3?!** 💀🔥💀\nRESPECT. BUT NOW I GO ALL OUT!',
-                                '🌋🌋🌋 **INFERNO MODE ACTIVATED** 🌋🌋🌋\n2 SECONDS. NO MERCY. FINAL FORM!',
-                                '⚡🔥⚡ **FIRE MODE 3! THE FINAL LEVEL!** ⚡🔥⚡\nYOU MADE IT THIS FAR? LETS FINISH THIS!'
-                            ];
-                            const infernoMsg = infernoMessages[Math.floor(Math.random() * infernoMessages.length)];
-                            await channel.send(infernoMsg);
-                            
-                            // Send a video if available, otherwise gif
-                            if (comebacks.videos.length > 0 && Math.random() < 0.5) {
-                                const videoComeback = { type: 'video', content: comebacks.videos[Math.floor(Math.random() * comebacks.videos.length)] };
-                                await this.sendComeback(channel, videoComeback, comebacks, true);
-                            } else if (comebacks.gifs.length > 0) {
-                                const gifComeback = { type: 'gif', content: comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)] };
-                                await this.sendComeback(channel, gifComeback, comebacks, true);
+                            // Send media based on fire mode tier
+                            if (fm.mode >= 8 && comebacks.videos.length > 0 && Math.random() < 0.4) {
+                                // Death zone+ : chance for video
+                                const video = comebacks.videos[Math.floor(Math.random() * comebacks.videos.length)];
+                                await this.sendComeback(channel, { type: 'video', content: video }, comebacks, true);
+                            } else if (fm.mode >= 4 && comebacks.gifs.length > 0) {
+                                // Thunder+ : send gif
+                                const gif = comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)];
+                                await this.sendComeback(channel, { type: 'gif', content: gif }, comebacks, true);
                             }
                             
-                            // Quad-line attack!
-                            for (let i = 0; i < 2; i++) {
+                            // Send bars based on intensity
+                            const barCount = fm.mode >= 8 ? 3 : fm.mode >= 5 ? 2 : 1;
+                            for (let j = 0; j < barCount; j++) {
                                 const combo = this.getRandomComeback(comebacks, battle.usedComebacks);
-                                await this.sendComeback(channel, combo, comebacks, true, true);
+                                await this.sendComeback(channel, combo, comebacks, true, fm.mode >= 4);
                             }
-                        }
-                    }, INFERNO_TIME);
+                        }, fm.startMs);
+                        fireModeTimeouts.push(timerId);
+                    }
 
                     // Create message collector
                     const collector = channel.createMessageCollector({
@@ -2482,29 +2483,24 @@
                         battle.userScore += barScore;
                         battle.userBars++;
 
-                        // Set new response timer based on fire mode
-                        // Fire Mode 1: 6s | Fire Mode 2 (thunder): 5s | Fire Mode 3 (inferno): 4s
-                        // More forgiving timers to account for Discord latency and typing speed
-                        let currentTimeout = 6000; // Default Fire Mode 1
-                        if (battle.infernoMode) {
-                            currentTimeout = 4000; // Fire Mode 3: 4 seconds
-                        } else if (battle.thunderMode) {
-                            currentTimeout = 5000; // Fire Mode 2: 5 seconds
-                        }
+                        // Get timeout from current fire mode (dynamic based on FIRE_MODES config)
+                        const fmConfig = FIRE_MODES.find(fm => fm.mode === battle.fireMode) || FIRE_MODES[0];
+                        const timeoutMs = fmConfig.timeout;
                         
                         responseTimeoutId = setTimeout(async () => {
                             // User didn't respond in time
                             const currentBattle = this.rapBattles.get(userId);
                             if (currentBattle && !currentBattle.ended && currentBattle.lastBotMessage) {
                                 currentBattle.ended = true;
+                                const modeEmoji = FIRE_MODES.find(fm => fm.mode === currentBattle.fireMode)?.emoji || '🔥';
                                 try {
-                                    await currentBattle.lastBotMessage.reply(`<@${userId}> TOO SLOW! 💀`);
+                                    await currentBattle.lastBotMessage.reply(`<@${userId}> TOO SLOW! ${modeEmoji}💀`);
                                 } catch (err) {
-                                    await channel.send(`<@${userId}> TOO SLOW! 💀`);
+                                    await channel.send(`<@${userId}> TOO SLOW! ${modeEmoji}💀`);
                                 }
                             }
                             this.endRapBattle(userId, channel, false, currentBattle?.userScore);
-                        }, currentTimeout);
+                        }, timeoutMs);
                     });
 
                     collector.on('end', (collected, reason) => {
@@ -2514,16 +2510,18 @@
                         // Clear all timers
                         if (responseTimeoutId) clearTimeout(responseTimeoutId);
                         if (battle.timeoutId) clearTimeout(battle.timeoutId);
-                        if (battle.thunderTimeoutId) clearTimeout(battle.thunderTimeoutId);
+                        // Clear all fire mode transition timers
+                        if (battle.fireModeTimeouts) {
+                            battle.fireModeTimeouts.forEach(tid => clearTimeout(tid));
+                        }
 
                         // If battle already ended, don't process again (prevents duplicate messages)
                         if (battle.ended) return;
 
                         if (reason === 'time') {
-                            // Max duration reached - 50/50 chance
-                            const userWon = Math.random() < 0.5;
+                            // Max duration reached - they survived, they win!
                             battle.ended = true;
-                            this.endRapBattle(userId, channel, userWon, battle.userScore);
+                            this.endRapBattle(userId, channel, true, battle.userScore);
                         }
                         // Other reasons are already handled in collect event or timeout
                     });
@@ -2533,17 +2531,15 @@
                         channelId: channel.id,
                         startTime,
                         timeoutId: maxDurationTimeoutId,
-                        thunderTimeoutId,
-                        infernoTimeoutId,
+                        fireModeTimeouts, // All fire mode transition timers
                         collector,
                         lastBotMessage: firstMessage,
                         ended: false,
                         userScore: 0,
                         userBars: 0,
                         isFireMode,
-                        fireMode: 1, // Current fire mode level (1, 2, or 3)
-                        thunderMode: false, // Becomes true at 1 minute (Fire Mode 2)
-                        infernoMode: false, // Becomes true at 1.5 minutes (Fire Mode 3)
+                        fireMode: 1, // Current fire mode level (1-10)
+                        FIRE_MODES, // Reference to fire mode config
                         usedComebacks // Track used comebacks to avoid repeats
                     });
 
@@ -4326,7 +4322,7 @@
     }
 
     /**
-     * End a rap battle with tiered cooldowns based on fire mode reached
+     * End a rap battle with tiered cooldowns based on fire mode reached (1-10)
      */
     endRapBattle(userId, channel, userWon, userScore = 0) {
         const battle = this.rapBattles.get(userId);
@@ -4337,13 +4333,9 @@
             clearTimeout(battle.timeoutId);
             battle.timeoutId = null;
         }
-        if (battle.thunderTimeoutId) {
-            clearTimeout(battle.thunderTimeoutId);
-            battle.thunderTimeoutId = null;
-        }
-        if (battle.infernoTimeoutId) {
-            clearTimeout(battle.infernoTimeoutId);
-            battle.infernoTimeoutId = null;
+        // Clean up all fire mode transition timers
+        if (battle.fireModeTimeouts && Array.isArray(battle.fireModeTimeouts)) {
+            battle.fireModeTimeouts.forEach(tid => clearTimeout(tid));
         }
         
         // Stop collector if still active
@@ -4351,24 +4343,13 @@
             battle.collector.stop();
         }
 
-        // Determine cooldown based on fire mode reached
-        // Fire Mode 1 (didn't reach thunder): 1 min if lose
-        // Fire Mode 2 (reached thunder): 2 min cooldown
-        // Fire Mode 3 (reached inferno): 4 min cooldown
+        // Get fire mode config for cooldown
         const fireMode = battle.fireMode || 1;
-        let cooldownMs;
-        let cooldownText;
-        
-        if (fireMode >= 3) {
-            cooldownMs = 4 * 60 * 1000; // 4 minutes
-            cooldownText = '4 minutes (FIRE MODE 3 🔥🔥🔥)';
-        } else if (fireMode >= 2) {
-            cooldownMs = 2 * 60 * 1000; // 2 minutes
-            cooldownText = '2 minutes (FIRE MODE 2 ⚡)';
-        } else {
-            cooldownMs = 1 * 60 * 1000; // 1 minute
-            cooldownText = '1 minute (FIRE MODE 1 🔥)';
-        }
+        const fmConfig = battle.FIRE_MODES?.find(fm => fm.mode === fireMode);
+        const cooldownMinutes = fmConfig?.cooldown || 1;
+        const cooldownMs = cooldownMinutes * 60 * 1000;
+        const fmEmoji = fmConfig?.emoji || '🔥';
+        const fmName = fmConfig?.name || 'FIRE';
         
         // Set the cooldown based on fire mode reached
         this.rapBattleCooldowns.set(userId, Date.now() + cooldownMs);
@@ -4381,53 +4362,82 @@
         const unblockTime = Date.now() + CHAT_UNBLOCK_DELAY;
         this.rapBattleBlockedUsers.set(userId, unblockTime);
 
-        // Win/lose messages with variety based on fire mode
-        const winMessages = fireMode >= 3 ? [
-            `🏆🔥🔥🔥 <@${userId}> SURVIVED FIRE MODE 3 AND WON?! LEGENDARY! 🔥🔥🔥🏆`,
-            `💀 I... I lost to <@${userId}> in INFERNO MODE?! RESPECT. ABSOLUTE RESPECT. 👑`,
-            `<@${userId}> just became a RAP BATTLE LEGEND! FIRE MODE 3 CHAMPION! 🎤🔥`,
-            `GG <@${userId}>! You beat me at my strongest. Take your crown 👑🔥🔥🔥`
-        ] : fireMode >= 2 ? [
-            `🏆 <@${userId}> survived THUNDER MODE and won! Solid W ⚡`,
-            `W for <@${userId}>! Thunder couldn't stop you 🌩️`,
-            `<@${userId}> took the crown in Fire Mode 2! 👑⚡`,
-            `gg <@${userId}>, you weathered the storm 💯⚡`
-        ] : [
-            `🏆 you won bruh <@${userId}>! bars were fire 🔥`,
-            `W for <@${userId}>! you actually cooked me 👨‍🍳`,
-            `<@${userId}> took the crown this time 👑 respect`,
-            `gg <@${userId}>, your flow was too clean 💯`,
-            `<@${userId}> just bodied a robot... impressive 🎤`
-        ];
+        // Dynamic win/lose messages based on fire mode tier
+        let winMessages, loseMessages;
         
-        const loseMessages = fireMode >= 3 ? [
-            `<@${userId}> made it to FIRE MODE 3 but still lost 💀🔥🔥🔥 SO CLOSE!`,
-            `INFERNO MODE too hot for <@${userId}>! 🌋 Respect for making it that far tho`,
-            `<@${userId}> survived 90 seconds but couldn't finish! HUMANOID WINS! 🤖🔥`,
-            `GG <@${userId}>! Fire Mode 3 is no joke. You earned that L 💀🔥`
-        ] : fireMode >= 2 ? [
-            `<@${userId}> got cooked in THUNDER MODE ⚡💀`,
-            `The thunder was too loud for <@${userId}> 🌩️`,
-            `<@${userId}> couldn't handle Fire Mode 2! 📉⚡`,
-            `HUMANOID wins in Thunder Mode! <@${userId}> 💀⚡`
-        ] : [
-            `you lost <@${userId}> 💀`,
-            `L for <@${userId}>... better luck next time 😂`,
-            `<@${userId}> got cooked by a bot 🤖🔥`,
-            `gg ez <@${userId}>, HUMANOID supremacy 🏆`,
-            `<@${userId}> your bars were mid at best 📉`,
-            `imagine losing to artificial intelligence <@${userId}> 💀`,
-            `<@${userId}> needs more practice fr fr 😭`
-        ];
+        if (fireMode === 10) {
+            // LEGENDARY - Maximum respect
+            winMessages = [
+                `👑👑👑 <@${userId}> IS A **LEGENDARY RAP GOD**! 👑👑👑\nFIRE MODE 10 CONQUERED! ABSOLUTE PERFECTION!`,
+                `👑 **THE LEGEND HAS SPOKEN** 👑\n<@${userId}> DEFEATED ME AT MY ULTIMATE FORM!`,
+                `👑👑👑 <@${userId}> ACHIEVED **LEGENDARY STATUS**! 👑👑👑\nI BOW TO THE RAP GOD!`,
+                `🏆👑🏆 **LEGENDARY CHAMPION**: <@${userId}> 🏆👑🏆\nYOU ARE THE GREATEST OF ALL TIME!`
+            ];
+            loseMessages = [
+                `<@${userId}> reached LEGENDARY but fell at the finish line 👑💀\nSO CLOSE TO IMMORTALITY!`,
+                `👑 FIRE MODE 10 claimed <@${userId}>! 👑\nYou were THIS close to greatness!`,
+                `<@${userId}> touched LEGENDARY status but couldn't hold it 👑💔\nRespect for making it this far!`
+            ];
+        } else if (fireMode >= 8) {
+            // Death Zone (8-9)
+            winMessages = [
+                `💀💀 <@${userId}> SURVIVED THE **DEATH ZONE** AND WON! 💀💀\nFIRE MODE ${fireMode}! INSANE!`,
+                `💀 **DEATH ZONE SURVIVOR**: <@${userId}>! 💀\nYou're built different fr fr!`,
+                `<@${userId}> conquered FIRE MODE ${fireMode}! 💀🔥\nFew humans make it this far!`
+            ];
+            loseMessages = [
+                `<@${userId}> died in the **DEATH ZONE** 💀\nFire Mode ${fireMode} claims another victim!`,
+                `💀 The Death Zone was too much for <@${userId}> 💀\nBut respect for making it there!`,
+                `<@${userId}> fell at Fire Mode ${fireMode}! 💀\nThe Death Zone is unforgiving!`
+            ];
+        } else if (fireMode >= 6) {
+            // Volcanic (6-7)
+            winMessages = [
+                `🌋 <@${userId}> SURVIVED THE **VOLCANIC ERUPTION**! 🌋\nFire Mode ${fireMode} champion!`,
+                `🌋🌋 **ERUPTION SURVIVOR**: <@${userId}>! 🌋🌋\nThe lava couldn't burn you!`,
+                `<@${userId}> conquered the volcano at Fire Mode ${fireMode}! 🌋🔥`
+            ];
+            loseMessages = [
+                `<@${userId}> got buried by the **VOLCANIC ERUPTION** 🌋💀\nFire Mode ${fireMode} too hot!`,
+                `🌋 The volcano claimed <@${userId}> at Fire Mode ${fireMode}! 🌋`,
+                `<@${userId}> couldn't handle the ERUPTION! 🌋\nSolid effort though!`
+            ];
+        } else if (fireMode >= 4) {
+            // Thunder/Lightning (4-5)
+            winMessages = [
+                `⚡ <@${userId}> conquered **THUNDER MODE**! ⚡\nFire Mode ${fireMode} complete!`,
+                `⚡⚡ **LIGHTNING FAST**: <@${userId}>! ⚡⚡\nYou matched my speed!`,
+                `<@${userId}> survived the storm at Fire Mode ${fireMode}! ⚡🏆`
+            ];
+            loseMessages = [
+                `<@${userId}> got struck by **LIGHTNING** ⚡💀\nFire Mode ${fireMode} too fast!`,
+                `⚡ Thunder claimed <@${userId}> at Fire Mode ${fireMode}! ⚡`,
+                `<@${userId}> couldn't keep up with the storm! ⚡\nGood attempt though!`
+            ];
+        } else {
+            // Fire modes 1-3 (warm up / getting hot / on fire)
+            winMessages = [
+                `🏆 <@${userId}> won at Fire Mode ${fireMode}! 🔥`,
+                `W for <@${userId}>! 🔥 Solid bars!`,
+                `<@${userId}> took the crown! 👑🔥`,
+                `gg <@${userId}>, your flow was clean 💯`
+            ];
+            loseMessages = [
+                `<@${userId}> lost at Fire Mode ${fireMode} 💀`,
+                `L for <@${userId}>... try again! 😂`,
+                `<@${userId}> got cooked early 🔥💀`,
+                `gg ez <@${userId}>, HUMANOID wins 🏆`
+            ];
+        }
 
         const randomWin = winMessages[Math.floor(Math.random() * winMessages.length)];
         const randomLose = loseMessages[Math.floor(Math.random() * loseMessages.length)];
         
         // Build result message with score and fire mode info
         const barsDropped = battle.userBars || 0;
-        const fireModeText = `🔥 Fire Mode Reached: **${fireMode}**`;
+        const fireModeText = `${fmEmoji} Fire Mode Reached: **${fireMode}/10 (${fmName})**`;
         const scoreText = barsDropped > 0 ? `\n📊 Stats: ${barsDropped} bars | Score: ${userScore}` : '';
-        const cooldownInfo = `\n⏱️ Cooldown: ${cooldownText}`;
+        const cooldownInfo = `\n⏱️ Cooldown: ${cooldownMinutes} minute${cooldownMinutes > 1 ? 's' : ''}`;
         const message = (userWon ? randomWin : randomLose) + `\n${fireModeText}${scoreText}${cooldownInfo}`;
         
         channel.send(message).catch(err => {
