@@ -183,9 +183,9 @@ class AIProviderManager {
     this.openRouterGlobalFailure = false;
     this.openRouterFailureCount = 0;
 
-    // Persistence
+    // Persistence (5s debounce to reduce I/O)
     this.stateSaveTimer = null;
-    this.stateSaveDebounceMs = 1500;
+    this.stateSaveDebounceMs = 5000;
     this.stateDirty = false;
 
     // Token tracking
