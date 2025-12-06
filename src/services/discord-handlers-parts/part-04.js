@@ -2640,17 +2640,21 @@
                             // Small delay to let any in-flight messages finish
                             await new Promise(r => setTimeout(r, 500));
                             
+                            // Re-check battle still exists after delay
+                            const battleAfterDelay = this.rapBattles.get(userId);
+                            if (!battleAfterDelay || battleAfterDelay.ended) return;
+                            
                             // Send the final question
                             await channel.send('🏆🏆🏆 **FINAL TEST - 4 MEME QUESTIONS** 🏆🏆🏆\n\n# QUESTION 1/4: WHAT\'S 9 + 10??\n\n**5 seconds per question!** 💀');
                             
-                            // Track when question was asked for spam taunts
-                            const questionAskedAt = Date.now();
-                            let spamSent = false;
+                            // Track spam state
+                            let q1SpamSent = false;
                             
-                            // After 1 second, if no answer, send spam taunts
-                            const spamTimeout = setTimeout(async () => {
-                                if (spamSent || !battle.finalQuestionActive) return;
-                                spamSent = true;
+                            // After 1.2 second, if no answer, send spam taunts for Q1
+                            const q1SpamTimeout = setTimeout(async () => {
+                                const b = this.rapBattles.get(userId);
+                                if (!b || b.ended || q1SpamSent || !b.finalQuestionActive || b.finalQuestionPhase !== 1) return;
+                                q1SpamSent = true;
                                 
                                 const spamTaunts = [
                                     'DUDE ANSWER ITS SIMPLE 💀',
@@ -2660,19 +2664,20 @@
                                     'aw hell nah 💀'
                                 ];
                                 
-                                // Send 5 taunts with slight delay to avoid rate limits
                                 for (const taunt of spamTaunts) {
+                                    const check = this.rapBattles.get(userId);
+                                    if (!check || check.ended || check.finalQuestionPhase !== 1) return;
                                     await channel.send(taunt);
-                                    await new Promise(r => setTimeout(r, 400));
+                                    await new Promise(r => setTimeout(r, 350));
                                 }
-                            }, 1000);
+                            }, 1200);
                             
-                            // Set 5 second timeout for final question
-                            finalQuestionTimeout = setTimeout(async () => {
+                            // Set 5 second timeout for Q1
+                            const q1Timeout = setTimeout(async () => {
                                 const currentBattle = this.rapBattles.get(userId);
-                                if (!currentBattle || currentBattle.ended) return;
+                                if (!currentBattle || currentBattle.ended || currentBattle.finalQuestionPhase !== 1) return;
                                 
-                                clearTimeout(spamTimeout);
+                                clearTimeout(q1SpamTimeout);
                                 currentBattle.ended = true;
                                 await channel.send('WUT DA HEILLLLLLLLLLL');
                                 await new Promise(r => setTimeout(r, 300));
@@ -2682,8 +2687,9 @@
                                 this.endRapBattle(userId, channel, false, currentBattle.userScore);
                             }, 5000);
                             
-                            battle.finalQuestionTimeout = finalQuestionTimeout;
-                            battle.spamTimeout = spamTimeout;
+                            // Store timeouts in battle object
+                            battleAfterDelay.finalQuestionTimeout = q1Timeout;
+                            battleAfterDelay.spamTimeout = q1SpamTimeout;
                         } else if (battle && !battle.ended) {
                             // Didn't reach FM15, they lose
                             battle.ended = true;
