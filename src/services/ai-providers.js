@@ -1111,14 +1111,19 @@ class AIProviderManager {
             headers['Authorization'] = `Bearer ${provider.apiKey}`;
           }
           
+          console.log(`[Ollama Vision] POST ${ollamaEndpoint} | model: ${provider.model} | images: ${base64Images.length} | img size: ${base64Images[0]?.length || 0} chars`);
+          
           const response = await fetch(ollamaEndpoint, {
             method: 'POST',
             headers,
             body: JSON.stringify(requestBody),
           });
           
+          console.log(`[Ollama Vision] Response status: ${response.status}`);
+          
           if (!response.ok) {
             const errorText = await response.text().catch(() => 'Unknown error');
+            console.error(`[Ollama Vision] Error: ${errorText.slice(0, 500)}`);
             throw Object.assign(new Error(`Ollama error: ${errorText}`), { status: response.status });
           }
           
@@ -1126,8 +1131,13 @@ class AIProviderManager {
           const ollamaContent = ollamaResp?.message?.content;
           
           if (!ollamaContent || !String(ollamaContent).trim()) {
-            throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
+            // Log full response for debugging empty responses
+            console.warn(`[Ollama Vision] Empty response from ${provider.name}:`, JSON.stringify(ollamaResp).slice(0, 500));
+            // Don't throw hard error, just continue to next provider (transient issue)
+            throw Object.assign(new Error(`Empty response from ${provider.name} (transient)`), { status: 502, transient: true });
           }
+          
+          console.log(`[Ollama Vision] Success, content length: ${ollamaContent.length}`);
           
           const cleaned = sanitizeAssistantMessage(String(ollamaContent));
           if (!cleaned) {
@@ -1170,13 +1180,15 @@ class AIProviderManager {
         console.error(`Failed with ${provider.name} (${provider.model}) [image] after ${latency}ms: ${error.message}`);
         lastError = error;
 
-        // Disable provider for 2 hours on failure
-        this.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
+        // Only disable provider for hard failures, not transient ones (empty responses)
+        if (!error.transient) {
+          this.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
+        }
       }
     }
 
     // If all image providers failed, try without images as fallback
-    console.warn('All image-capable providers failed, attempting text-only fallback');
+    console.warn(`All image-capable providers failed (last error: ${lastError?.message}), attempting text-only fallback`);
     return this.generateResponse(systemPrompt, `[User sent ${images.length} image(s) that could not be processed]\n\n${userPrompt}`, maxTokens);
   }
 
