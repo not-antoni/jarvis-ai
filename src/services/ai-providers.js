@@ -804,6 +804,7 @@ class AIProviderManager {
             model: provider.model,
             messages,
             stream: false,
+            think: false, // Disable thinking mode - get direct response only
             options: {
               temperature: (config.ai?.temperature ?? 0.7),
               num_predict: maxTokens,
@@ -834,12 +835,13 @@ class AIProviderManager {
           const ollamaContent = ollamaResp?.message?.content;
           
           if (!ollamaContent || !String(ollamaContent).trim()) {
-            throw Object.assign(new Error(`Empty response from ${provider.name}`), { status: 502 });
+            console.warn(`[Ollama] Empty response from ${provider.name}:`, JSON.stringify(ollamaResp).slice(0, 300));
+            throw Object.assign(new Error(`Empty response from ${provider.name} (transient)`), { status: 502, transient: true });
           }
           
           const cleaned = sanitizeAssistantMessage(String(ollamaContent));
           if (!cleaned) {
-            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502 });
+            throw Object.assign(new Error(`Sanitized empty content from ${provider.name}`), { status: 502, transient: true });
           }
           
           // Return in standardized format
@@ -930,18 +932,17 @@ class AIProviderManager {
         console.error(`Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`);
         lastError = error;
 
-        // Disable logic (circuit breaker) — DO NOT disable GPT-5 Nano (alias now for 4o-mini) on empty.
-        const isEmptyResponse = String(error.message || '').toLowerCase().includes('empty');
-        const shouldDisable = provider.type !== 'gpt5-nano'; // keep "nano" alias (now 4o-mini) always available
+        // Disable logic (circuit breaker) — skip transient errors and GPT-5 Nano
+        const shouldDisable = provider.type !== 'gpt5-nano' && !error.transient;
         if (shouldDisable) {
           const disableDuration = 2 * 60 * 60 * 1000; // 2 hours for all providers
-          const hours = 2;
           this.disabledProviders.set(provider.name, Date.now() + disableDuration);
           this.scheduleStateSave();
-          console.log(`${provider.name} disabled for ${hours} hours due to ${isEmptyResponse ? 'empty response' : 'error'}`);
+          console.log(`${provider.name} disabled for 2 hours due to error`);
         }
 
         // Track OpenRouter consecutive empties to toggle global failure
+        const isEmptyResponse = String(error.message || '').toLowerCase().includes('empty');
         if (isEmptyResponse && provider.name.startsWith('OpenRouter')) {
           this.openRouterFailureCount += 1;
           if (this.openRouterFailureCount >= 2) {
