@@ -2637,8 +2637,8 @@
                                 battle.fireModeTimeouts = [];
                             }
                             
-                            // Small delay to let any in-flight messages finish
-                            await new Promise(r => setTimeout(r, 500));
+                            // Delay to let any in-flight messages finish
+                            await new Promise(r => setTimeout(r, 3000));
                             
                             // Re-check battle still exists after delay
                             const battleAfterDelay = this.rapBattles.get(userId);
