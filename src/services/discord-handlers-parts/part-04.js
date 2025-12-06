@@ -2560,28 +2560,28 @@
                     // Fire Mode Configuration: 15 LEVELS - starts at 3s, ends at 1.2s
                     // Calculated for fairness: Discord rate limit ~5 msgs/5s = 1msg/s minimum achievable
                     const FIRE_MODES = [
-                        { mode: 1,  startMs: 0,      timeout: 3300, emoji: '🔥',   name: 'WARM UP',      cooldown: 1 },
-                        { mode: 2,  startMs: 10000,  timeout: 3100, emoji: '🔥🔥',  name: 'GETTING HOT',  cooldown: 1 },
-                        { mode: 3,  startMs: 20000,  timeout: 2900, emoji: '🔥🔥🔥', name: 'ON FIRE',     cooldown: 1 },
-                        { mode: 4,  startMs: 30000,  timeout: 2700, emoji: '⚡',   name: 'THUNDER',      cooldown: 2 },
-                        { mode: 5,  startMs: 40000,  timeout: 2500, emoji: '⚡⚡',  name: 'LIGHTNING',   cooldown: 2 },
-                        { mode: 6,  startMs: 50000,  timeout: 2300, emoji: '🌋',   name: 'VOLCANIC',     cooldown: 2 },
-                        { mode: 7,  startMs: 60000,  timeout: 2200, emoji: '🌋🌋',  name: 'ERUPTION',    cooldown: 3 },
-                        { mode: 8,  startMs: 70000,  timeout: 2100, emoji: '💀',   name: 'DEATH ZONE',   cooldown: 3 },
-                        { mode: 9,  startMs: 80000,  timeout: 2000, emoji: '💀💀',  name: 'FINAL BOSS',  cooldown: 4 },
-                        { mode: 10, startMs: 90000,  timeout: 1900, emoji: '👑',   name: 'LEGENDARY',    cooldown: 4 },
-                        { mode: 11, startMs: 100000, timeout: 2300, emoji: '🔱',   name: 'GODLIKE',      cooldown: 5 },
-                        { mode: 12, startMs: 110000, timeout: 2250, emoji: '⭐',   name: 'SUPERNOVA',    cooldown: 6 },
-                        { mode: 13, startMs: 120000, timeout: 2200, emoji: '🌌',   name: 'COSMIC',       cooldown: 7 },
-                        { mode: 14, startMs: 130000, timeout: 2150, emoji: '♾️',   name: 'INFINITE',     cooldown: 8 },
-                        { mode: 15, startMs: 140000, timeout: 2000, emoji: '🏆',   name: 'ULTIMATE',     cooldown: 10 },
+                        { mode: 1,  startMs: 0,      timeout: 3600, emoji: '🔥',   name: 'WARM UP',      cooldown: 1 },
+                        { mode: 2,  startMs: 10000,  timeout: 3400, emoji: '🔥🔥',  name: 'GETTING HOT',  cooldown: 1 },
+                        { mode: 3,  startMs: 20000,  timeout: 3200, emoji: '🔥🔥🔥', name: 'ON FIRE',     cooldown: 1 },
+                        { mode: 4,  startMs: 30000,  timeout: 3000, emoji: '⚡',   name: 'THUNDER',      cooldown: 2 },
+                        { mode: 5,  startMs: 40000,  timeout: 2800, emoji: '⚡⚡',  name: 'LIGHTNING',   cooldown: 2 },
+                        { mode: 6,  startMs: 50000,  timeout: 2600, emoji: '🌋',   name: 'VOLCANIC',     cooldown: 2 },
+                        { mode: 7,  startMs: 60000,  timeout: 2500, emoji: '🌋🌋',  name: 'ERUPTION',    cooldown: 3 },
+                        { mode: 8,  startMs: 70000,  timeout: 2400, emoji: '💀',   name: 'DEATH ZONE',   cooldown: 3 },
+                        { mode: 9,  startMs: 80000,  timeout: 2300, emoji: '💀💀',  name: 'FINAL BOSS',  cooldown: 4 },
+                        { mode: 10, startMs: 90000,  timeout: 2200, emoji: '👑',   name: 'LEGENDARY',    cooldown: 4 },
+                        { mode: 11, startMs: 100000, timeout: 2600, emoji: '🔱',   name: 'GODLIKE',      cooldown: 5 },
+                        { mode: 12, startMs: 110000, timeout: 2550, emoji: '⭐',   name: 'SUPERNOVA',    cooldown: 6 },
+                        { mode: 13, startMs: 120000, timeout: 2500, emoji: '🌌',   name: 'COSMIC',       cooldown: 7 },
+                        { mode: 14, startMs: 130000, timeout: 2450, emoji: '♾️',   name: 'INFINITE',     cooldown: 8 },
+                        { mode: 15, startMs: 140000, timeout: 2300, emoji: '🏆',   name: 'ULTIMATE',     cooldown: 10 },
                     ];
                     
                     let currentTimeout = FIRE_MODES[0].timeout;
                     const fireModeTimeouts = []; // Store all fire mode timers for cleanup
 
                     // Send opening message
-                    const openingMessage = '🔥 **NEED FOR SPEED: RAP EDITION** 🔥\n**FIRE MODE 1: WARM UP (3.3s)**\nHUMANOID versus HUMAN! 2.5 MINUTES. **15 FIRE MODES**. SURVIVE TO BECOME **ULTIMATE**. BEGIN!';
+                    const openingMessage = '🔥 **NEED FOR SPEED: RAP EDITION** 🔥\n**FIRE MODE 1: WARM UP (3.6s)**\nHUMANOID versus HUMAN! 2.5 MINUTES. **15 FIRE MODES**. SURVIVE TO BECOME **ULTIMATE**. BEGIN!';
                     await interaction.editReply(openingMessage);
 
                     // Send first comeback immediately
