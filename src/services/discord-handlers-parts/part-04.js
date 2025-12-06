@@ -2547,33 +2547,41 @@
                     const startTime = Date.now();
                     
                     // ═══════════════════════════════════════════════════════════════
-                    // 🔥 NEED FOR SPEED: RAP EDITION - FIRE MODE 1-10 SYSTEM 🔥
+                    // 🔥 NEED FOR SPEED: RAP EDITION - FIRE MODE 1-15 SYSTEM 🔥
                     // ═══════════════════════════════════════════════════════════════
                     const isFireMode = true;
-                    const MAX_BATTLE_DURATION = 120 * 1000; // 2 minutes
+                    const MAX_BATTLE_DURATION = 150 * 1000; // 2.5 minutes for 15 fire modes
                     const WIN_CHECK_WINDOW = 5 * 1000; // Only check win/lose in last 5 seconds
-                    const BOT_RESPONSE_DELAY = 1500; // 1.5s delay before bot responds
+                    const BOT_RESPONSE_DELAY = 1200; // 1.2s delay before bot responds
                     let currentFireMode = 1; // Track highest fire mode reached
+                    let finalQuestionActive = false; // Track if final "9+10" question is active
+                    let finalQuestionTimeout = null; // Track final question timer
                     
-                    // Fire Mode Configuration: [startTime, timeout, emoji, name, cooldownMinutes]
+                    // Fire Mode Configuration: 15 LEVELS - starts at 3s, ends at 1.2s
+                    // Calculated for fairness: Discord rate limit ~5 msgs/5s = 1msg/s minimum achievable
                     const FIRE_MODES = [
-                        { mode: 1,  startMs: 0,      timeout: 6000, emoji: '🔥',  name: 'WARM UP',      cooldown: 1 },
-                        { mode: 2,  startMs: 20000,  timeout: 5500, emoji: '🔥🔥', name: 'GETTING HOT',  cooldown: 1 },
-                        { mode: 3,  startMs: 35000,  timeout: 5000, emoji: '🔥🔥🔥', name: 'ON FIRE',    cooldown: 1 },
-                        { mode: 4,  startMs: 50000,  timeout: 4500, emoji: '⚡',  name: 'THUNDER',      cooldown: 2 },
-                        { mode: 5,  startMs: 65000,  timeout: 4000, emoji: '⚡⚡', name: 'LIGHTNING',   cooldown: 2 },
-                        { mode: 6,  startMs: 75000,  timeout: 3500, emoji: '🌋',  name: 'VOLCANIC',     cooldown: 3 },
-                        { mode: 7,  startMs: 85000,  timeout: 3000, emoji: '🌋🌋', name: 'ERUPTION',    cooldown: 3 },
-                        { mode: 8,  startMs: 95000,  timeout: 2500, emoji: '💀',  name: 'DEATH ZONE',   cooldown: 4 },
-                        { mode: 9,  startMs: 105000, timeout: 2000, emoji: '💀💀', name: 'FINAL BOSS', cooldown: 4 },
-                        { mode: 10, startMs: 115000, timeout: 1500, emoji: '👑',  name: 'LEGENDARY',    cooldown: 5 },
+                        { mode: 1,  startMs: 0,      timeout: 3000, emoji: '🔥',   name: 'WARM UP',      cooldown: 1 },
+                        { mode: 2,  startMs: 10000,  timeout: 2800, emoji: '🔥🔥',  name: 'GETTING HOT',  cooldown: 1 },
+                        { mode: 3,  startMs: 20000,  timeout: 2600, emoji: '🔥🔥🔥', name: 'ON FIRE',     cooldown: 1 },
+                        { mode: 4,  startMs: 30000,  timeout: 2400, emoji: '⚡',   name: 'THUNDER',      cooldown: 2 },
+                        { mode: 5,  startMs: 40000,  timeout: 2200, emoji: '⚡⚡',  name: 'LIGHTNING',   cooldown: 2 },
+                        { mode: 6,  startMs: 50000,  timeout: 2000, emoji: '🌋',   name: 'VOLCANIC',     cooldown: 2 },
+                        { mode: 7,  startMs: 60000,  timeout: 1900, emoji: '🌋🌋',  name: 'ERUPTION',    cooldown: 3 },
+                        { mode: 8,  startMs: 70000,  timeout: 1800, emoji: '💀',   name: 'DEATH ZONE',   cooldown: 3 },
+                        { mode: 9,  startMs: 80000,  timeout: 1700, emoji: '💀💀',  name: 'FINAL BOSS',  cooldown: 4 },
+                        { mode: 10, startMs: 90000,  timeout: 1600, emoji: '👑',   name: 'LEGENDARY',    cooldown: 4 },
+                        { mode: 11, startMs: 100000, timeout: 1500, emoji: '🔱',   name: 'GODLIKE',      cooldown: 5 },
+                        { mode: 12, startMs: 110000, timeout: 1450, emoji: '⭐',   name: 'SUPERNOVA',    cooldown: 6 },
+                        { mode: 13, startMs: 120000, timeout: 1400, emoji: '🌌',   name: 'COSMIC',       cooldown: 7 },
+                        { mode: 14, startMs: 130000, timeout: 1350, emoji: '♾️',   name: 'INFINITE',     cooldown: 8 },
+                        { mode: 15, startMs: 140000, timeout: 1200, emoji: '🏆',   name: 'ULTIMATE',     cooldown: 10 },
                     ];
                     
                     let currentTimeout = FIRE_MODES[0].timeout;
                     const fireModeTimeouts = []; // Store all fire mode timers for cleanup
 
                     // Send opening message
-                    const openingMessage = '🔥 **NEED FOR SPEED: RAP EDITION** 🔥\n**FIRE MODE 1: WARM UP**\nHUMANOID versus HUMAN! 2 MINUTES. 10 FIRE MODES. SURVIVE TO BECOME **LEGENDARY**. BEGIN!';
+                    const openingMessage = '🔥 **NEED FOR SPEED: RAP EDITION** 🔥\n**FIRE MODE 1: WARM UP (3s)**\nHUMANOID versus HUMAN! 2.5 MINUTES. **15 FIRE MODES**. SURVIVE TO BECOME **ULTIMATE**. BEGIN!';
                     await interaction.editReply(openingMessage);
 
                     // Send first comeback immediately
@@ -2604,18 +2612,69 @@
                         this.endRapBattle(userId, channel, false);
                     }, currentTimeout); // Use currentTimeout from FIRE_MODES
 
-                    // Set up 2-minute max duration timer
-                    const maxDurationTimeoutId = setTimeout(() => {
+                    // Set up 2.5-minute max duration timer - triggers final question at FM15
+                    const maxDurationTimeoutId = setTimeout(async () => {
                         const battle = this.rapBattles.get(userId);
-                        if (battle && !battle.ended) {
-                            // If they made it to the end, they win!
+                        if (battle && !battle.ended && battle.fireMode === 15) {
+                            // FM15 reached - trigger final "9+10" question!
+                            finalQuestionActive = true;
+                            battle.finalQuestionActive = true;
+                            
+                            // Clear any existing timeout
+                            if (responseTimeoutId) {
+                                clearTimeout(responseTimeoutId);
+                                responseTimeoutId = null;
+                            }
+                            
+                            // Send the final question
+                            await channel.send('🏆🏆🏆 **FINAL TEST** 🏆🏆🏆\n\n# WHAT\'S 9 + 10??\n\nAnswer correctly in **5 seconds** or lose everything! 💀');
+                            
+                            // Track when question was asked for spam taunts
+                            const questionAskedAt = Date.now();
+                            let spamSent = false;
+                            
+                            // After 1 second, if no answer, send spam taunts
+                            const spamTimeout = setTimeout(async () => {
+                                if (spamSent || !battle.finalQuestionActive) return;
+                                spamSent = true;
+                                
+                                const spamTaunts = [
+                                    'DUDE ANSWER ITS SIMPLE 💀',
+                                    'nah ur genuinely slow',
+                                    'dude whats so hard?? 💀',
+                                    'basic math from KINDERGARTEN',
+                                    'aw hell nah 💀'
+                                ];
+                                
+                                // Send 5 taunts with slight delay to avoid rate limits
+                                for (const taunt of spamTaunts) {
+                                    await channel.send(taunt);
+                                    await new Promise(r => setTimeout(r, 400));
+                                }
+                            }, 1000);
+                            
+                            // Set 5 second timeout for final question
+                            finalQuestionTimeout = setTimeout(async () => {
+                                const currentBattle = this.rapBattles.get(userId);
+                                if (!currentBattle || currentBattle.ended) return;
+                                
+                                clearTimeout(spamTimeout);
+                                currentBattle.ended = true;
+                                await channel.send(`<@${userId}> TIME'S UP! 💀\nThe answer was **21** (from the meme 💀)\n\nYou were SO CLOSE to winning! 10 minute cooldown for reaching FM15.`);
+                                this.endRapBattle(userId, channel, false, currentBattle.userScore);
+                            }, 5000);
+                            
+                            battle.finalQuestionTimeout = finalQuestionTimeout;
+                            battle.spamTimeout = spamTimeout;
+                        } else if (battle && !battle.ended) {
+                            // Didn't reach FM15, they lose
                             battle.ended = true;
-                            this.endRapBattle(userId, channel, true, battle.userScore);
+                            this.endRapBattle(userId, channel, false, battle.userScore);
                         }
                     }, MAX_BATTLE_DURATION);
 
                     // ═══════════════════════════════════════════════════════════════
-                    // SET UP ALL 10 FIRE MODE TRANSITIONS
+                    // SET UP ALL 15 FIRE MODE TRANSITIONS
                     // ═══════════════════════════════════════════════════════════════
                     for (let i = 1; i < FIRE_MODES.length; i++) {
                         const fm = FIRE_MODES[i];
@@ -2639,22 +2698,36 @@
                                 7: [`${fm.emoji} **FIRE MODE 7: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! FULL ERUPTION!`, `🌋🌋 **THE MOUNTAIN IS ANGRY** 🌋🌋\nONLY ${fm.timeout/1000} SECONDS NOW!`],
                                 8: [`${fm.emoji} **FIRE MODE 8: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! ENTER IF YOU DARE!`, `💀 **DEATH ZONE ACTIVATED** 💀\nMOST HUMANS DONT SURVIVE THIS FAR!`, `💀 **WELCOME TO THE DEATH ZONE** 💀\n${fm.timeout/1000} SECONDS. NO MISTAKES.`],
                                 9: [`${fm.emoji} **FIRE MODE 9: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s! THE FINAL CHALLENGE!`, `💀💀 **FINAL BOSS MODE** 💀💀\nYOU MADE IT THIS FAR?! RESPECT!`, `💀💀 **ONE MORE LEVEL TO LEGENDARY** 💀💀\n${fm.timeout/1000} SECONDS. PROVE YOURSELF!`],
-                                10: [`👑👑👑 **FIRE MODE 10: LEGENDARY** 👑👑👑\n${fm.timeout/1000}s TIMER! YOU ARE A RAP GOD!`, `👑 **LEGENDARY STATUS UNLOCKED** 👑\nONLY THE ELITE REACH THIS LEVEL!`, `👑👑👑 **THE LEGEND HAS ARRIVED** 👑👑👑\nFINAL ${fm.timeout/1000} SECONDS! FINISH STRONG!`]
+                                10: [`👑👑👑 **FIRE MODE 10: LEGENDARY** 👑👑👑\n${fm.timeout/1000}s TIMER! YOU ARE A RAP GOD!`, `👑 **LEGENDARY STATUS UNLOCKED** 👑\nONLY THE ELITE REACH THIS LEVEL!`, `👑👑👑 **THE LEGEND HAS ARRIVED** 👑👑👑\n${fm.timeout/1000} SECONDS! FINISH STRONG!`],
+                                11: [`🔱🔱🔱 **FIRE MODE 11: GODLIKE** 🔱🔱🔱\n${fm.timeout/1000}s TIMER! YOU HAVE ASCENDED!`, `🔱 **GODLIKE MODE ACTIVATED** 🔱\nMORTALS TREMBLE BEFORE YOU!`, `🔱 **BEYOND LEGENDARY** 🔱\nONLY ${fm.timeout/1000} SECONDS NOW!`],
+                                12: [`⭐⭐⭐ **FIRE MODE 12: SUPERNOVA** ⭐⭐⭐\n${fm.timeout/1000}s! EXPLODING WITH POWER!`, `⭐ **SUPERNOVA EXPLOSION** ⭐\nYOUR BARS ARE NUCLEAR!`, `⭐ **STELLAR DESTRUCTION** ⭐\n${fm.timeout/1000} SECONDS TO SURVIVE!`],
+                                13: [`🌌🌌🌌 **FIRE MODE 13: COSMIC** 🌌🌌🌌\n${fm.timeout/1000}s! REALITY IS BENDING!`, `🌌 **COSMIC CHAOS UNLEASHED** 🌌\nTHE UNIVERSE WATCHES!`, `🌌 **INTERDIMENSIONAL BARS** 🌌\nONLY ${fm.timeout/1000} SECONDS!`],
+                                14: [`♾️♾️♾️ **FIRE MODE 14: INFINITE** ♾️♾️♾️\n${fm.timeout/1000}s! ENDLESS POWER!`, `♾️ **INFINITE MODE** ♾️\nTIME ITSELF FEARS YOU!`, `♾️ **BEYOND COMPREHENSION** ♾️\n${fm.timeout/1000} SECONDS TO ETERNITY!`],
+                                15: [`🏆🏆🏆 **FIRE MODE 15: ULTIMATE** 🏆🏆🏆\n${fm.timeout/1000}s! THE FINAL FORM!`, `🏆 **ULTIMATE POWER ACHIEVED** 🏆\nONE FINAL TEST AWAITS...`, `🏆 **THE PINNACLE** 🏆\nSURVIVE ${fm.timeout/1000} SECONDS FOR GLORY!`]
                             };
                             
                             const msgs = announcements[fm.mode] || [`${fm.emoji} **FIRE MODE ${fm.mode}: ${fm.name}** ${fm.emoji}\nTimer: ${fm.timeout/1000}s!`];
                             const announcement = msgs[Math.floor(Math.random() * msgs.length)];
                             await channel.send(announcement);
                             
-                            // Send media based on fire mode tier
+                            // Send media based on fire mode tier - 50% Tenor API, 50% local
+                            const useTenor = Math.random() < 0.5;
                             if (fm.mode >= 8 && comebacks.videos.length > 0 && Math.random() < 0.4) {
                                 // Death zone+ : chance for video
                                 const video = comebacks.videos[Math.floor(Math.random() * comebacks.videos.length)];
                                 await this.sendComeback(channel, { type: 'video', content: video }, comebacks, true);
-                            } else if (fm.mode >= 4 && comebacks.gifs.length > 0) {
-                                // Thunder+ : send gif
-                                const gif = comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)];
-                                await this.sendComeback(channel, { type: 'gif', content: gif }, comebacks, true);
+                            } else if (fm.mode >= 4) {
+                                // Thunder+ : send gif (Tenor API or local)
+                                if (useTenor) {
+                                    const keyword = this.getUnhingedKeyword(fm.mode);
+                                    const tenorGif = await this.fetchTenorGif(keyword);
+                                    if (tenorGif) {
+                                        await channel.send(tenorGif);
+                                    }
+                                } else if (comebacks.gifs.length > 0) {
+                                    const gif = comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)];
+                                    await this.sendComeback(channel, { type: 'gif', content: gif }, comebacks, true);
+                                }
                             }
                             
                             // Send bars based on intensity
@@ -2731,7 +2804,7 @@
                         userScore: 0,
                         userBars: 0,
                         isFireMode,
-                        fireMode: 1, // Current fire mode level (1-10)
+                        fireMode: 1, // Current fire mode level (1-15)
                         thunderMode: false, // Activates at FM4+ for multi-line comebacks
                         lastUserResponseTime: 0, // Track when user last responded to prevent race conditions
                         FIRE_MODES, // Reference to fire mode config
@@ -2745,6 +2818,41 @@
                         // Mark when user responded - prevents fire mode transition race condition
                         battle.lastUserResponseTime = Date.now();
 
+                        // ═══════════════════════════════════════════════════════════════
+                        // CHECK FOR FINAL QUESTION ANSWER: "21"
+                        // ═══════════════════════════════════════════════════════════════
+                        if (battle.finalQuestionActive) {
+                            const answer = userMessage.content.trim().toLowerCase();
+                            const isCorrect = answer === '21' || answer.includes('21') || answer.includes('twenty one') || answer.includes('twentyone');
+                            
+                            // Clear timeouts
+                            if (battle.finalQuestionTimeout) clearTimeout(battle.finalQuestionTimeout);
+                            if (battle.spamTimeout) clearTimeout(battle.spamTimeout);
+                            
+                            if (isCorrect) {
+                                // WINNER! They answered 21
+                                battle.ended = true;
+                                battle.finalQuestionActive = false;
+                                collector.stop();
+                                
+                                await channel.send(`🏆🏆🏆 **CORRECT!!! THE ANSWER IS 21!** 🏆🏆🏆\n\n<@${userId}> YOU ARE THE **ULTIMATE RAP CHAMPION**!\n\nYou conquered all 15 Fire Modes and answered the final question!\n**10 MINUTE COOLDOWN** - You've earned your bragging rights! 🎤👑`);
+                                
+                                // Set 10 minute cooldown for winners
+                                this.rapBattleCooldowns.set(userId, Date.now() + (10 * 60 * 1000));
+                                this.rapBattles.delete(userId);
+                                return;
+                            } else {
+                                // Wrong answer!
+                                battle.ended = true;
+                                battle.finalQuestionActive = false;
+                                collector.stop();
+                                
+                                await channel.send(`<@${userId}> WRONG! 💀\nThe answer was **21** (from the meme 💀)\n\nYou said: "${userMessage.content}"\n\nYou were SO CLOSE! 10 minute cooldown for reaching FM15.`);
+                                this.endRapBattle(userId, channel, false, battle.userScore);
+                                return;
+                            }
+                        }
+
                         // Clear the response timeout
                         if (responseTimeoutId) {
                             clearTimeout(responseTimeoutId);
@@ -2755,20 +2863,8 @@
                         const elapsed = Date.now() - battle.startTime;
                         const timeRemaining = MAX_BATTLE_DURATION - elapsed;
                         
-                        // Only check for win/lose when we're in the last 15 seconds
-                        if (timeRemaining <= WIN_CHECK_WINDOW) {
-                            // 50/50 chance to end battle
-                            const shouldEnd = Math.random() < 0.5;
-                            
-                            if (shouldEnd) {
-                                // Battle ends - 50/50 chance user wins
-                                const userWon = Math.random() < 0.5;
-                                battle.ended = true; // Mark as ended to prevent duplicate messages
-                                collector.stop();
-                                this.endRapBattle(userId, channel, userWon, battle.userScore);
-                                return;
-                            }
-                        }
+                        // Remove the win/lose check in last seconds - now we have FM15 final question
+                        // Battle continues until FM15 is reached or user fails
 
                         // Battle continues - bot sends comeback after 2 second delay (anti-spam)
                         await new Promise(r => setTimeout(r, BOT_RESPONSE_DELAY));
@@ -4398,6 +4494,57 @@
     }
 
     /**
+     * Fetch a random GIF from Tenor API based on keyword
+     * @param {string} keyword - Search term for GIF
+     * @returns {Promise<string|null>} - GIF URL or null if failed
+     */
+    async fetchTenorGif(keyword) {
+        const TENOR_API_KEY = 'LIVDSRZULELA';
+        try {
+            const url = `https://g.tenor.com/v1/search?q=${encodeURIComponent(keyword)}&key=${TENOR_API_KEY}&limit=20`;
+            const response = await fetch(url);
+            if (!response.ok) return null;
+            
+            const data = await response.json();
+            if (!data.results || data.results.length === 0) return null;
+            
+            // Pick random result and get gif URL
+            const result = data.results[Math.floor(Math.random() * data.results.length)];
+            // Get the gif URL from media array
+            const gifUrl = result.media?.[0]?.gif?.url || result.media?.[0]?.tinygif?.url;
+            return gifUrl || null;
+        } catch (error) {
+            console.error('Tenor API error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get unhinged keyword for fire mode (progressively crazier)
+     */
+    getUnhingedKeyword(fireMode) {
+        const UNHINGED_KEYWORDS = {
+            1: ['fire rap', 'hip hop beat', 'rap battle', 'mic drop'],
+            2: ['hot fire', 'burning flames', 'heat wave', 'spicy'],
+            3: ['cooking chef', 'roasting', 'burned', 'toasted'],
+            4: ['thunder lightning', 'electric shock', 'storm', 'zap'],
+            5: ['speed fast', 'zoom sonic', 'turbo', 'flash'],
+            6: ['volcano lava', 'magma explosion', 'eruption', 'molten'],
+            7: ['explosion boom', 'blast destroy', 'kaboom', 'nuke'],
+            8: ['skull death', 'grim reaper', 'rip dead', 'cemetery'],
+            9: ['boss battle', 'final boss', 'monster', 'beast mode'],
+            10: ['king crown', 'royal throne', 'legend goat', 'champion'],
+            11: ['god mode', 'divine power', 'immortal', 'ascended'],
+            12: ['supernova star', 'cosmic explosion', 'galaxy brain', 'universe'],
+            13: ['alien space', 'void abyss', 'dimension', 'multiverse'],
+            14: ['infinite loop', 'eternal forever', 'never ending', 'matrix'],
+            15: ['ultimate victory', 'winner champion', 'goat legend', 'perfection'],
+        };
+        const keywords = UNHINGED_KEYWORDS[fireMode] || UNHINGED_KEYWORDS[1];
+        return keywords[Math.floor(Math.random() * keywords.length)];
+    }
+
+    /**
      * Get a random comeback from available content (no repeats within a battle)
      */
     getRandomComeback(comebacks, usedComebacks = null) {
@@ -4616,7 +4763,7 @@
     }
 
     /**
-     * End a rap battle with tiered cooldowns based on fire mode reached (1-10)
+     * End a rap battle with tiered cooldowns based on fire mode reached (1-15)
      */
     endRapBattle(userId, channel, userWon, userScore = 0) {
         const battle = this.rapBattles.get(userId);
@@ -4631,6 +4778,9 @@
         if (battle.fireModeTimeouts && Array.isArray(battle.fireModeTimeouts)) {
             battle.fireModeTimeouts.forEach(tid => clearTimeout(tid));
         }
+        // Clean up final question timers
+        if (battle.finalQuestionTimeout) clearTimeout(battle.finalQuestionTimeout);
+        if (battle.spamTimeout) clearTimeout(battle.spamTimeout);
         
         // Stop collector if still active
         if (battle.collector && !battle.collector.ended) {
@@ -4659,19 +4809,38 @@
         // Dynamic win/lose messages based on fire mode tier
         let winMessages, loseMessages;
         
-        if (fireMode === 10) {
-            // LEGENDARY - Maximum respect
-            winMessages = [
-                `👑👑👑 <@${userId}> IS A **LEGENDARY RAP GOD**! 👑👑👑\nFIRE MODE 10 CONQUERED! ABSOLUTE PERFECTION!`,
-                `👑 **THE LEGEND HAS SPOKEN** 👑\n<@${userId}> DEFEATED ME AT MY ULTIMATE FORM!`,
-                `👑👑👑 <@${userId}> ACHIEVED **LEGENDARY STATUS**! 👑👑👑\nI BOW TO THE RAP GOD!`,
-                `🏆👑🏆 **LEGENDARY CHAMPION**: <@${userId}> 🏆👑🏆\nYOU ARE THE GREATEST OF ALL TIME!`
-            ];
+        if (fireMode === 15) {
+            // ULTIMATE - Only reachable via final question (this shouldn't trigger normally)
             loseMessages = [
-                `<@${userId}> reached LEGENDARY but fell at the finish line 👑💀\nSO CLOSE TO IMMORTALITY!`,
-                `👑 FIRE MODE 10 claimed <@${userId}>! 👑\nYou were THIS close to greatness!`,
-                `<@${userId}> touched LEGENDARY status but couldn't hold it 👑💔\nRespect for making it this far!`
+                `<@${userId}> reached **ULTIMATE** but failed the final test! 🏆💀\nThe answer was 21...`,
+                `🏆 SO CLOSE! <@${userId}> made it to FM15 but couldn't answer 9+10! 🏆`,
+                `<@${userId}> was at the PINNACLE but fell! 🏆💔\nIncredible run though!`
             ];
+            winMessages = loseMessages; // Shouldn't happen - winners handled separately
+        } else if (fireMode >= 13) {
+            // COSMIC/INFINITE (13-14)
+            loseMessages = [
+                `<@${userId}> reached **${fmName}** but the universe had other plans ${fmEmoji}💀\nFM${fireMode} is INSANE!`,
+                `${fmEmoji} <@${userId}> fell at Fire Mode ${fireMode}! ${fmEmoji}\nBeyond legendary effort!`,
+                `<@${userId}> touched the ${fmName} realm but couldn't hold on! ${fmEmoji}💀\nRespect!`
+            ];
+            winMessages = loseMessages;
+        } else if (fireMode >= 11) {
+            // GODLIKE/SUPERNOVA (11-12)
+            loseMessages = [
+                `<@${userId}> reached **${fmName}** but fell at FM${fireMode}! ${fmEmoji}💀\nGodlike effort!`,
+                `${fmEmoji} Fire Mode ${fireMode} claimed <@${userId}>! ${fmEmoji}\nYou almost ascended!`,
+                `<@${userId}> was ${fmName} but couldn't finish! ${fmEmoji}💔\nIncredible run!`
+            ];
+            winMessages = loseMessages;
+        } else if (fireMode === 10) {
+            // LEGENDARY
+            loseMessages = [
+                `<@${userId}> reached LEGENDARY but fell! 👑💀\n5 more levels to go!`,
+                `👑 Fire Mode 10 claimed <@${userId}>! 👑\nYou were getting close!`,
+                `<@${userId}> touched LEGENDARY but couldn't hold it 👑💔\nSolid effort!`
+            ];
+            winMessages = loseMessages;
         } else if (fireMode >= 8) {
             // Death Zone (8-9)
             winMessages = [
@@ -4729,7 +4898,7 @@
         
         // Build result message with score and fire mode info
         const barsDropped = battle.userBars || 0;
-        const fireModeText = `${fmEmoji} Fire Mode Reached: **${fireMode}/10 (${fmName})**`;
+        const fireModeText = `${fmEmoji} Fire Mode Reached: **${fireMode}/15 (${fmName})**`;
         const scoreText = barsDropped > 0 ? `\n📊 Stats: ${barsDropped} bars | Score: ${userScore}` : '';
         const cooldownInfo = `\n⏱️ Cooldown: ${cooldownMinutes} minute${cooldownMinutes > 1 ? 's' : ''}`;
         const message = (userWon ? randomWin : randomLose) + `\n${fireModeText}${scoreText}${cooldownInfo}`;
