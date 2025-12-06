@@ -2300,7 +2300,13 @@
                         const mins = Math.floor(remaining / 60);
                         const secs = remaining % 60;
                         const timeText = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-                        response = `u rapped too much bro get some rest blud, come back in **${timeText}**\n\nremember, im running on batteries you're running on strawberries 🔋🍓`;
+                        
+                        const cooldownMessages = [
+                            `u rapped too much bro get some rest blud, come back in **${timeText}**\n\nremember, im running on batteries you're running on strawberries 🔋🍓`,
+                            `nah bro chill 💀 my neural networks need **${timeText}** to recover from your weak bars\n\nyou thought you cooked but you got microwaved 🍿`,
+                            `hold up speedrunner 🏃 cooldown still active for **${timeText}**\n\ngo practice your flow, maybe watch some Eminem tutorials or something 🎧`
+                        ];
+                        response = cooldownMessages[Math.floor(Math.random() * cooldownMessages.length)];
                         break;
                     }
 
