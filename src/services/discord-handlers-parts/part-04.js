@@ -2617,6 +2617,7 @@
                             
                             // Update fire mode
                             battle.fireMode = fm.mode;
+                            battle.thunderMode = fm.mode >= 4; // Enable multi-line comebacks at Thunder+
                             currentFireMode = fm.mode;
                             currentTimeout = fm.timeout;
                             
@@ -2682,10 +2683,27 @@
                         fireModeTimeouts.push(timerId);
                     }
 
-                    // Create message collector
+                    // Store battle state BEFORE collector to prevent race condition
                     const collector = channel.createMessageCollector({
                         filter: (msg) => msg.author.id === userId && !msg.author.bot,
                         time: MAX_BATTLE_DURATION
+                    });
+
+                    this.rapBattles.set(userId, {
+                        channelId: channel.id,
+                        startTime,
+                        timeoutId: maxDurationTimeoutId,
+                        fireModeTimeouts, // All fire mode transition timers
+                        collector,
+                        lastBotMessage: firstMessage,
+                        ended: false,
+                        userScore: 0,
+                        userBars: 0,
+                        isFireMode,
+                        fireMode: 1, // Current fire mode level (1-10)
+                        thunderMode: false, // Activates at FM4+ for multi-line comebacks
+                        FIRE_MODES, // Reference to fire mode config
+                        usedComebacks // Track used comebacks to avoid repeats
                     });
 
                     collector.on('collect', async (userMessage) => {
@@ -2773,22 +2791,7 @@
                         // Other reasons are already handled in collect event or timeout
                     });
 
-                    // Store battle state
-                    this.rapBattles.set(userId, {
-                        channelId: channel.id,
-                        startTime,
-                        timeoutId: maxDurationTimeoutId,
-                        fireModeTimeouts, // All fire mode transition timers
-                        collector,
-                        lastBotMessage: firstMessage,
-                        ended: false,
-                        userScore: 0,
-                        userBars: 0,
-                        isFireMode,
-                        fireMode: 1, // Current fire mode level (1-10)
-                        FIRE_MODES, // Reference to fire mode config
-                        usedComebacks // Track used comebacks to avoid repeats
-                    });
+                    // Battle state already stored above before collector
 
                     // Mark as handled - set a special value to skip normal response handling
                     response = '__RAP_BATTLE_HANDLED__';
