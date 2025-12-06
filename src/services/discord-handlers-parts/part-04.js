@@ -2747,8 +2747,9 @@
                                 const battleCheck = this.rapBattles.get(userId);
                                 if (!battleCheck || battleCheck.ended) return;
                                 
-                                // Send first question
+                                // Send first question and mark timestamp
                                 await channel.send('🏆🏆🏆 **FINAL TEST - 4 MEME QUESTIONS** 🏆🏆🏆\n\n# QUESTION 1/4: WHAT\'S 9 + 10??\n\n**5 seconds per question!** 💀');
+                                battleCheck.questionAskedAt = Date.now(); // Ignore messages before this!
                                 
                                 // Set up Q1 spam taunts
                                 let q1SpamSent = false;
@@ -2926,6 +2927,13 @@
                         // Q1="21", Q2="carrot", Q3="nothing", Q4="nuts"
                         // ═══════════════════════════════════════════════════════════════
                         if (battle.finalQuestionActive) {
+                            // IGNORE SPAM: Skip messages sent BEFORE the current question was asked!
+                            // This prevents spam during the 3s delay from counting as wrong answers
+                            const messageTime = userMessage.createdTimestamp;
+                            if (battle.questionAskedAt && messageTime < battle.questionAskedAt) {
+                                return; // Ignore this message - it was sent before the question
+                            }
+                            
                             const answer = userMessage.content.trim().toLowerCase();
                             const questionPhase = battle.finalQuestionPhase || 1;
                             
@@ -2937,6 +2945,7 @@
                             const setupNextQuestion = async (nextPhase, questionText, taunts, timeoutMsg, correctAnswer) => {
                                 battle.finalQuestionPhase = nextPhase;
                                 await channel.send(questionText);
+                                battle.questionAskedAt = Date.now(); // Update timestamp to ignore old spam
                                 
                                 let spamSent = false;
                                 const spamTimeout = setTimeout(async () => {
