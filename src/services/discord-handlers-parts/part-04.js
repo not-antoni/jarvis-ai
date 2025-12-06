@@ -2619,12 +2619,26 @@
                             // FM15 reached - trigger final "9+10" question!
                             finalQuestionActive = true;
                             battle.finalQuestionActive = true;
+                            battle.finalQuestionPhase = 1; // Start with question 1
                             
-                            // Clear any existing timeout
+                            // ═══════════════════════════════════════════════════════════════
+                            // STOP ALL OTHER EVENTS - Let user see and answer final questions!
+                            // ═══════════════════════════════════════════════════════════════
+                            
+                            // Clear response timeout
                             if (responseTimeoutId) {
                                 clearTimeout(responseTimeoutId);
                                 responseTimeoutId = null;
                             }
+                            
+                            // Clear ALL fire mode transition timers
+                            if (battle.fireModeTimeouts && Array.isArray(battle.fireModeTimeouts)) {
+                                battle.fireModeTimeouts.forEach(tid => clearTimeout(tid));
+                                battle.fireModeTimeouts = [];
+                            }
+                            
+                            // Small delay to let any in-flight messages finish
+                            await new Promise(r => setTimeout(r, 500));
                             
                             // Send the final question
                             await channel.send('🏆🏆🏆 **FINAL TEST** 🏆🏆🏆\n\n# WHAT\'S 9 + 10??\n\nAnswer correctly in **5 seconds** or lose everything! 💀');
