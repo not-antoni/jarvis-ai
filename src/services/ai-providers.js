@@ -319,7 +319,7 @@ class AIProviderManager {
       process.env.OLLAMA_API_KEY5,
     ].filter(Boolean);
 
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/api';
+    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
     const ollamaModel = process.env.OLLAMA_MODEL || 'mistral-large-3:675b-cloud';
 
     ollamaKeys.forEach((key, index) => {
@@ -1061,6 +1061,20 @@ class AIProviderManager {
     let lastError = null;
 
     // Try each image-capable provider
+    // First, check how many are actually available (not disabled)
+    const availableProviders = imageCapableProviders.filter(p => {
+      const disabledUntil = this.disabledProviders.get(p.name);
+      return !disabledUntil || disabledUntil <= Date.now();
+    });
+    
+    if (availableProviders.length === 0 && imageCapableProviders.length > 0) {
+      console.warn(`All ${imageCapableProviders.length} Ollama providers are temporarily disabled, clearing disabled state...`);
+      // Clear disabled state for Ollama providers to retry
+      for (const p of imageCapableProviders) {
+        this.disabledProviders.delete(p.name);
+      }
+    }
+
     for (const provider of imageCapableProviders) {
       const started = Date.now();
       const disabledUntil = this.disabledProviders.get(provider.name);
