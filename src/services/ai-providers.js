@@ -97,11 +97,32 @@ function stripTrailingChannelArtifacts(text) {
   }
   return trimmed;
 }
+function stripLeadingPromptLeaks(text) {
+  if (!text || typeof text !== 'string') return text;
+  let trimmed = text.trim();
+  // Strip "Channel:" prefix (system prompt leak)
+  const channelPattern = /^channel\s*:\s*/i;
+  if (channelPattern.test(trimmed)) {
+    trimmed = trimmed.replace(channelPattern, '').trimStart();
+  }
+  // Strip "commentary" or "commentary:" prefix (system prompt leak)
+  const commentaryPattern = /^commentary\s*:?\s*/i;
+  if (commentaryPattern.test(trimmed)) {
+    trimmed = trimmed.replace(commentaryPattern, '').trimStart();
+  }
+  // Strip "[Channel]" or "(Channel)" variants
+  const bracketChannelPattern = /^[\[\(]\s*channel\s*[\]\)]\s*:?\s*/i;
+  if (bracketChannelPattern.test(trimmed)) {
+    trimmed = trimmed.replace(bracketChannelPattern, '').trimStart();
+  }
+  return trimmed;
+}
 function sanitizeAssistantMessage(text) {
   if (!text || typeof text !== 'string') return text;
   const layered = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(text)));
   const noOuterQuotes = stripWrappingQuotes(layered);
-  const withoutPrefix = stripJarvisSpeakerPrefix(noOuterQuotes);
+  const withoutPromptLeaks = stripLeadingPromptLeaks(noOuterQuotes);
+  const withoutPrefix = stripJarvisSpeakerPrefix(withoutPromptLeaks);
   const withoutChannelArtifacts = stripTrailingChannelArtifacts(withoutPrefix);
   return stripWrappingQuotes(withoutChannelArtifacts);
 }
