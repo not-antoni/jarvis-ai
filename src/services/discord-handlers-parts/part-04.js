@@ -656,6 +656,157 @@
             return;
         }
 
+        if (subcommand === 'edit') {
+            const messageInput = interaction.options.getString('message');
+            const idMatch = messageInput?.match(/(\d{17,20})$/);
+            const messageId = idMatch ? idMatch[1] : messageInput;
+            const newPairsInput = interaction.options.getString('add_pairs');
+            const newTitle = interaction.options.getString('title');
+            const newDescription = interaction.options.getString('description');
+
+            if (!messageId) {
+                await interaction.editReply('Please provide a valid message ID or link, sir.');
+                return;
+            }
+
+            // Check if at least one edit option is provided
+            if (!newPairsInput && !newTitle && !newDescription) {
+                await interaction.editReply('Please provide at least one thing to edit: add_pairs, title, or description, sir.');
+                return;
+            }
+
+            let record;
+            try {
+                record = await database.getReactionRole(messageId);
+            } catch (error) {
+                console.error('Failed to load reaction role message:', error);
+            }
+
+            if (!record || record.guildId !== guild.id) {
+                await interaction.editReply('I do not have a reaction role panel for that message, sir.');
+                return;
+            }
+
+            // Fetch the original message
+            let targetChannel, panelMessage;
+            try {
+                targetChannel = await guild.channels.fetch(record.channelId);
+                if (!targetChannel?.isTextBased()) {
+                    await interaction.editReply('The channel for that panel no longer exists or is inaccessible, sir.');
+                    return;
+                }
+                panelMessage = await targetChannel.messages.fetch(record.messageId);
+            } catch (error) {
+                console.error('Failed to fetch reaction role message:', error);
+                await interaction.editReply('I could not find that panel message, sir. It may have been deleted.');
+                return;
+            }
+
+            const me = guild.members.me || await guild.members.fetchMe();
+            if (!me) {
+                await interaction.editReply('I could not verify my permissions in that server, sir.');
+                return;
+            }
+
+            // Parse new pairs if provided
+            let newOptions = [];
+            if (newPairsInput) {
+                try {
+                    newOptions = await this.parseReactionRolePairs(newPairsInput, guild);
+                } catch (error) {
+                    await interaction.editReply(error.message || 'Those role mappings confused me, sir.');
+                    return;
+                }
+
+                // Check for duplicate emojis with existing options
+                const existingKeys = new Set(record.options.map(o => o.matchKey));
+                const duplicates = newOptions.filter(o => existingKeys.has(o.matchKey));
+                if (duplicates.length > 0) {
+                    await interaction.editReply(`These emojis are already on the panel: ${duplicates.map(d => d.display).join(', ')}. Please use different emojis, sir.`);
+                    return;
+                }
+
+                // Check total limit (20 reactions max)
+                if (record.options.length + newOptions.length > 20) {
+                    await interaction.editReply(`Adding ${newOptions.length} roles would exceed the 20-reaction limit (current: ${record.options.length}), sir.`);
+                    return;
+                }
+
+                // Check role hierarchy
+                const unusableRole = newOptions.find(option => {
+                    const role = guild.roles.cache.get(option.roleId);
+                    if (!role) return false;
+                    return me.roles.highest.comparePositionTo(role) <= 0;
+                });
+
+                if (unusableRole) {
+                    await interaction.editReply(`My highest role must be above ${guild.roles.cache.get(unusableRole.roleId)?.name || 'that role'}, sir.`);
+                    return;
+                }
+            }
+
+            // Build updated record
+            const updatedTitle = newTitle || record.title || 'Select your roles';
+            const updatedDescription = newDescription || record.description || 'React with the options below to toggle roles, sir.';
+            const updatedOptions = [...record.options, ...newOptions];
+
+            // Build updated embed
+            const optionLines = updatedOptions.map(option => `${option.display} — <@&${option.roleId}>`).join('\n');
+            const embedDescription = updatedDescription ? `${updatedDescription}\n\n${optionLines}` : optionLines;
+
+            const embed = new EmbedBuilder()
+                .setTitle(updatedTitle)
+                .setDescription(embedDescription)
+                .setColor(0x5865f2)
+                .setFooter({ text: 'React to add or remove roles.' });
+
+            // Update the message
+            try {
+                await panelMessage.edit({ embeds: [embed] });
+            } catch (error) {
+                console.error('Failed to edit reaction role message:', error);
+                await interaction.editReply('I could not edit that panel message, sir. Check my permissions.');
+                return;
+            }
+
+            // Add new reactions if new pairs were added
+            if (newOptions.length > 0) {
+                try {
+                    for (const option of newOptions) {
+                        await panelMessage.react(option.rawEmoji);
+                    }
+                } catch (error) {
+                    console.error('Failed to add new reactions:', error);
+                    await interaction.editReply('The panel was updated but I could not add some of the new reactions, sir.');
+                    // Continue to save the database update anyway
+                }
+            }
+
+            // Update database
+            try {
+                await database.saveReactionRoleMessage({
+                    ...record,
+                    options: updatedOptions,
+                    title: updatedTitle,
+                    description: updatedDescription,
+                    updatedBy: interaction.user.id
+                });
+            } catch (error) {
+                console.error('Failed to update reaction role configuration:', error);
+                await interaction.editReply('I updated the panel but could not save the configuration, sir.');
+                return;
+            }
+
+            const changes = [];
+            if (newTitle) changes.push('title');
+            if (newDescription) changes.push('description');
+            if (newOptions.length > 0) changes.push(`${newOptions.length} new role(s)`);
+
+            const messageUrl = panelMessage.url || `https://discord.com/channels/${guild.id}/${record.channelId}/${record.messageId}`;
+            await interaction.editReply(`Panel updated (${changes.join(', ')}), sir. [Jump to message](${messageUrl})`);
+            return;
+        }
+
         if (subcommand === 'list') {
             let records = [];
             try {
