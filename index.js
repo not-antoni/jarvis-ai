@@ -1636,6 +1636,12 @@ const allCommands = [
                 .setDescription("Your message to Jarvis")
                 .setRequired(true),
         )
+        .addAttachmentOption((option) =>
+            option
+                .setName("image")
+                .setDescription("Optional image for Jarvis to analyze (jpg, png, webp)")
+                .setRequired(false),
+        )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("status")
