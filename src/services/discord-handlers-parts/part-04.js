@@ -2740,8 +2740,8 @@
                                 // Send FM15 announcement then go to final questions
                                 await channel.send('🏆🏆🏆 **FIRE MODE 15: ULTIMATE REACHED!** 🏆🏆🏆\n\nYou survived 2.5 minutes of FIRE! Now face the **FINAL TEST**...');
                                 
-                                // 3 second delay for in-flight messages
-                                await new Promise(r => setTimeout(r, 3000));
+                                // 10 second delay to let rate-limited spam clear out
+                                await new Promise(r => setTimeout(r, 10000));
                                 
                                 // Re-check battle still exists
                                 const battleCheck = this.rapBattles.get(userId);
