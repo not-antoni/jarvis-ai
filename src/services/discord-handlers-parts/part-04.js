@@ -2900,9 +2900,11 @@
                     }
 
                     // Store battle state BEFORE collector to prevent race condition
+                    // Add extra time for final questions: 10s delay + 4 questions × 5s each + buffer
+                    const FINAL_QUESTIONS_TIME = 40000; // 40 seconds for final questions
                     const collector = channel.createMessageCollector({
                         filter: (msg) => msg.author.id === userId && !msg.author.bot,
-                        time: MAX_BATTLE_DURATION
+                        time: MAX_BATTLE_DURATION + FINAL_QUESTIONS_TIME
                     });
 
                     this.rapBattles.set(userId, {
@@ -3213,11 +3215,14 @@
 
                         // If battle already ended, don't process again (prevents duplicate messages)
                         if (battle.ended) return;
+                        
+                        // DON'T end the battle if final questions are active - let them play out!
+                        if (battle.finalQuestionActive) return;
 
                         if (reason === 'time') {
-                            // Max duration reached - they survived, they win!
+                            // Max duration reached without reaching FM15 - they lose
                             battle.ended = true;
-                            this.endRapBattle(userId, channel, true, battle.userScore);
+                            this.endRapBattle(userId, channel, false, battle.userScore);
                         }
                         // Other reasons are already handled in collect event or timeout
                     });
