@@ -2968,9 +2968,19 @@
                             
                             // Helper to set up next question with timer and taunts
                             const setupNextQuestion = async (nextPhase, questionText, taunts, timeoutMsg, correctAnswer) => {
+                                // Block messages during transition
+                                battle.questionAskedAt = null; // Reset - blocks all messages
+                                
+                                // 3 second delay between questions
+                                await new Promise(r => setTimeout(r, 3000));
+                                
+                                // Re-check battle still exists
+                                const b = this.rapBattles.get(userId);
+                                if (!b || b.ended) return;
+                                
                                 battle.finalQuestionPhase = nextPhase;
                                 await channel.send(questionText);
-                                battle.questionAskedAt = Date.now(); // Update timestamp to ignore old spam
+                                battle.questionAskedAt = Date.now(); // NOW start accepting answers
                                 
                                 let spamSent = false;
                                 const spamTimeout = setTimeout(async () => {
@@ -3003,8 +3013,11 @@
                                 const isCorrect = answer === '21' || answer.includes('21') || answer.includes('twenty one') || answer.includes('twentyone');
                                 
                                 if (isCorrect) {
+                                    // Clear timeouts before transitioning
+                                    if (battle.finalQuestionTimeout) clearTimeout(battle.finalQuestionTimeout);
+                                    if (battle.spamTimeout) clearTimeout(battle.spamTimeout);
+                                    
                                     await channel.send('✅ **CORRECT! 21!** ✅\n\nBut wait... there\'s MORE! 😈');
-                                    await new Promise(r => setTimeout(r, 1200));
                                     
                                     await setupNextQuestion(2,
                                         '🥕🥕🥕 **QUESTION 2/4** 🥕🥕🥕\n\n# i think its uh....i think ITS UHHHHH....yeah its a uhh.....\n\n**5 seconds!** 💀',
@@ -3032,8 +3045,10 @@
                                 const isCorrect = answer === 'carrot' || answer.includes('carrot');
                                 
                                 if (isCorrect) {
+                                    if (battle.finalQuestionTimeout) clearTimeout(battle.finalQuestionTimeout);
+                                    if (battle.spamTimeout) clearTimeout(battle.spamTimeout);
+                                    
                                     await channel.send('✅ **CARROT! CORRECT!** ✅\n\nKeep going... 😈😈');
-                                    await new Promise(r => setTimeout(r, 1200));
                                     
                                     await setupNextQuestion(3,
                                         '🐕🐕🐕 **QUESTION 3/4** 🐕🐕🐕\n\n# What da dog doin?\n\n**5 seconds!** 💀',
@@ -3063,8 +3078,10 @@
                                 const isCorrect = answer === 'nothing' || answer.includes('nothing') || answer.includes('standin') || answer.includes('standing') || answer.includes('just there') || answer.includes('chillin') || answer.includes('chilling');
                                 
                                 if (isCorrect) {
+                                    if (battle.finalQuestionTimeout) clearTimeout(battle.finalQuestionTimeout);
+                                    if (battle.spamTimeout) clearTimeout(battle.spamTimeout);
+                                    
                                     await channel.send('✅ **NOTHING! HE JUST STANDIN THERE!** ✅\n\nONE MORE... 😈😈😈');
-                                    await new Promise(r => setTimeout(r, 1200));
                                     
                                     await setupNextQuestion(4,
                                         '🥜🥜🥜 **FINAL QUESTION 4/4** 🥜🥜🥜\n\n# Deez...\n\n**5 seconds!** 💀',
