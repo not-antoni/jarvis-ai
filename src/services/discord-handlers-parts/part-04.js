@@ -2594,7 +2594,7 @@
                     let responseTimeoutId = setTimeout(async () => {
                         // User didn't respond to first bar in time
                         const battle = this.rapBattles.get(userId);
-                        if (!battle || battle.ended) return;
+                        if (!battle || battle.ended || battle.finalQuestionActive) return;
                         
                         // If user responded after this timeout was set, don't kill them
                         if (battle.lastUserResponseTime > initialTimeoutSetAt) {
@@ -2877,7 +2877,7 @@
                                 const timeoutSetAt = Date.now();
                                 responseTimeoutId = setTimeout(async () => {
                                     const currentBattle = this.rapBattles.get(userId);
-                                    if (!currentBattle || currentBattle.ended) return;
+                                    if (!currentBattle || currentBattle.ended || currentBattle.finalQuestionActive) return;
                                     
                                     // If user responded after this timeout was set, don't kill them
                                     if (currentBattle.lastUserResponseTime > timeoutSetAt) {
@@ -3179,7 +3179,7 @@
                         responseTimeoutId = setTimeout(async () => {
                             // User didn't respond in time
                             const currentBattle = this.rapBattles.get(userId);
-                            if (!currentBattle || currentBattle.ended) return;
+                            if (!currentBattle || currentBattle.ended || currentBattle.finalQuestionActive) return;
                             
                             // If user responded after this timeout was set, don't kill them
                             if (currentBattle.lastUserResponseTime > timeoutSetAt) {
