@@ -2694,10 +2694,17 @@
                             // Store timeouts in battle object
                             battleAfterDelay.finalQuestionTimeout = q1Timeout;
                             battleAfterDelay.spamTimeout = q1SpamTimeout;
-                        } else if (battle && !battle.ended) {
-                            // Didn't reach FM15, they lose
+                        } else if (battle && !battle.ended && battle.fireMode < 15) {
+                            // Didn't reach FM15, they lose (only if fireMode < 15!)
                             battle.ended = true;
                             this.endRapBattle(userId, channel, false, battle.userScore);
+                        } else if (battle && !battle.ended && battle.fireMode === 15 && !battle.finalQuestionActive) {
+                            // FM15 reached but finalQuestionActive somehow not set - trigger questions now!
+                            // This is a safety fallback
+                            battle.finalQuestionActive = true;
+                            battle.finalQuestionPhase = 1;
+                            await channel.send('🏆🏆🏆 **FINAL TEST - 4 MEME QUESTIONS** 🏆🏆🏆\n\n# QUESTION 1/4: WHAT\'S 9 + 10??\n\n**5 seconds per question!** 💀');
+                            battle.questionAskedAt = Date.now();
                         }
                     }, MAX_BATTLE_DURATION);
 
@@ -2720,6 +2727,12 @@
                             // FM15 SPECIAL HANDLING - IMMEDIATELY TRIGGER FINAL QUESTIONS!
                             // ═══════════════════════════════════════════════════════════════
                             if (fm.mode === 15) {
+                                // IMMEDIATELY mark final questions as active FIRST!
+                                // This prevents maxDurationTimeout from ending the battle
+                                finalQuestionActive = true;
+                                battle.finalQuestionActive = true;
+                                battle.finalQuestionPhase = 1;
+                                
                                 // Clear response timeout - no more "TOO SLOW" during final questions
                                 if (responseTimeoutId) {
                                     clearTimeout(responseTimeoutId);
@@ -2731,11 +2744,6 @@
                                     battle.fireModeTimeouts.forEach(tid => clearTimeout(tid));
                                     battle.fireModeTimeouts = [];
                                 }
-                                
-                                // Mark final questions as active
-                                finalQuestionActive = true;
-                                battle.finalQuestionActive = true;
-                                battle.finalQuestionPhase = 1;
                                 
                                 // Send FM15 announcement then go to final questions
                                 await channel.send('🏆🏆🏆 **FIRE MODE 15: ULTIMATE REACHED!** 🏆🏆🏆\n\nYou survived 2.5 minutes of FIRE! Now face the **FINAL TEST**...');
