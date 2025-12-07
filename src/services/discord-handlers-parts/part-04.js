@@ -2815,8 +2815,8 @@
                             const announcement = msgs[Math.floor(Math.random() * msgs.length)];
                             await channel.send(announcement);
                             
-                            // Check if battle ended during async
-                            if (battle.ended) return;
+                            // Check if battle ended or final questions started
+                            if (battle.ended || battle.finalQuestionActive) return;
                             
                             // Send media based on fire mode tier - 50% Tenor API, 50% local
                             const useTenor = Math.random() < 0.5;
@@ -2829,36 +2829,36 @@
                                 if (useTenor) {
                                     const keyword = this.getUnhingedKeyword(fm.mode);
                                     const tenorGif = await this.fetchTenorGif(keyword);
-                                    if (tenorGif && !battle.ended) {
+                                    if (tenorGif && !battle.ended && !battle.finalQuestionActive) {
                                         await channel.send(tenorGif);
                                     }
-                                } else if (comebacks.gifs.length > 0 && !battle.ended) {
+                                } else if (comebacks.gifs.length > 0 && !battle.ended && !battle.finalQuestionActive) {
                                     const gif = comebacks.gifs[Math.floor(Math.random() * comebacks.gifs.length)];
                                     await this.sendComeback(channel, { type: 'gif', content: gif }, comebacks, true);
                                 }
                             }
                             
-                            // Check if battle ended during async
-                            if (battle.ended) return;
+                            // Check if battle ended or final questions started
+                            if (battle.ended || battle.finalQuestionActive) return;
                             
                             // Send bars based on intensity
                             const barCount = fm.mode >= 8 ? 3 : fm.mode >= 5 ? 2 : 1;
                             let lastTransitionBar = null;
                             for (let j = 0; j < barCount; j++) {
-                                if (battle.ended) break; // Stop sending bars if battle ended
+                                if (battle.ended || battle.finalQuestionActive) break; // Stop if battle ended or final questions
                                 const combo = this.getRandomComeback(comebacks, battle.usedComebacks);
                                 lastTransitionBar = await this.sendComeback(channel, combo, comebacks, true, fm.mode >= 4);
                             }
                             
                             // FIX: Update lastBotMessage and reset timer for transition bars
                             // This gives user fresh time to respond to fire mode transition bars
-                            if (lastTransitionBar && !battle.ended) {
+                            if (lastTransitionBar && !battle.ended && !battle.finalQuestionActive) {
                                 battle.lastBotMessage = lastTransitionBar;
                                 
                                 // Check if user responded recently (within 2.5s) - if so, skip setting timeout
                                 // This prevents race condition where transition overwrites an in-progress response
                                 const timeSinceUserResponse = Date.now() - (battle.lastUserResponseTime || 0);
-                                if (timeSinceUserResponse < 2500 || battle.ended) {
+                                if (timeSinceUserResponse < 2500 || battle.ended || battle.finalQuestionActive) {
                                     // User is currently responding, let collector handle timeout
                                     return;
                                 }
@@ -2931,15 +2931,25 @@
                         battle.lastUserResponseTime = Date.now();
 
                         // ═══════════════════════════════════════════════════════════════
-                        // CHECK FOR FINAL QUESTIONS: 4 MEME QUESTIONS WITH ESCALATING UNHINGED
-                        // Q1="21", Q2="carrot", Q3="nothing", Q4="nuts"
+                        // BLOCK ALL NORMAL PROCESSING DURING FINAL QUESTIONS!
                         // ═══════════════════════════════════════════════════════════════
                         if (battle.finalQuestionActive) {
                             // IGNORE ALL MESSAGES until questionAskedAt is set!
-                            // This prevents spam during the 3s delay from counting as wrong answers
+                            // This prevents spam during the delay from counting as wrong answers
+                            // AND prevents the normal bar response logic from running!
                             if (!battle.questionAskedAt) {
-                                return; // Question hasn't been asked yet - ignore everything
+                                // Clear any pending response timeout to prevent TOO SLOW messages
+                                if (responseTimeoutId) {
+                                    clearTimeout(responseTimeoutId);
+                                    responseTimeoutId = null;
+                                }
+                                return; // Question hasn't been asked yet - BLOCK EVERYTHING
                             }
+                        
+                        // ═══════════════════════════════════════════════════════════════
+                        // CHECK FOR FINAL QUESTIONS: 4 MEME QUESTIONS WITH ESCALATING UNHINGED
+                        // Q1="21", Q2="carrot", Q3="nothing", Q4="nuts"
+                        // ═══════════════════════════════════════════════════════════════
                             
                             // IGNORE SPAM: Skip messages sent BEFORE the current question was asked!
                             const messageTime = userMessage.createdTimestamp;
@@ -3127,6 +3137,13 @@
                             }
                         }
 
+                        // ═══════════════════════════════════════════════════════════════
+                        // NORMAL RAP BATTLE PROCESSING (only if NOT in final question mode)
+                        // ═══════════════════════════════════════════════════════════════
+                        
+                        // Double-check we're not in final question mode
+                        if (battle.finalQuestionActive) return;
+                        
                         // Clear the response timeout
                         if (responseTimeoutId) {
                             clearTimeout(responseTimeoutId);
