@@ -1031,8 +1031,64 @@ const legacyCommands = {
             } else if (args[0]?.toLowerCase() === 'logchannel' && args[1]?.toLowerCase() === 'clear') {
                 moderation.updateSettings(message.guild.id, { logChannel: null });
                 await message.reply('✅ Moderation logs will be sent to the server owner via DM.');
+            } else if (subcommand === 'whitelist') {
+                // .j moderation whitelist @role/@user
+                const role = message.mentions.roles.first();
+                const user = message.mentions.users.first();
+                
+                if (!role && !user) {
+                    const s = status.settings;
+                    const wlRoles = s.whitelistRoles?.length > 0 ? s.whitelistRoles.map(r => `<@&${r}>`).join(', ') : 'None';
+                    const wlUsers = s.whitelistUsers?.length > 0 ? s.whitelistUsers.map(u => `<@${u}>`).join(', ') : 'None';
+                    await message.reply(`**Whitelist (bypasses moderation):**\n**Roles:** ${wlRoles}\n**Users:** ${wlUsers}\n\nUse \`.j moderation whitelist @role\` or \`.j moderation whitelist @user\` to add/remove.`);
+                    return true;
+                }
+                
+                const s = status.settings;
+                
+                if (role) {
+                    const whitelistRoles = s.whitelistRoles || [];
+                    if (whitelistRoles.includes(role.id)) {
+                        const newRoles = whitelistRoles.filter(r => r !== role.id);
+                        moderation.updateSettings(message.guild.id, { whitelistRoles: newRoles });
+                        await message.reply(`✅ Removed <@&${role.id}> from whitelist.`);
+                    } else {
+                        whitelistRoles.push(role.id);
+                        moderation.updateSettings(message.guild.id, { whitelistRoles });
+                        await message.reply(`✅ Added <@&${role.id}> to whitelist.`);
+                    }
+                } else if (user) {
+                    const whitelistUsers = s.whitelistUsers || [];
+                    if (whitelistUsers.includes(user.id)) {
+                        const newUsers = whitelistUsers.filter(u => u !== user.id);
+                        moderation.updateSettings(message.guild.id, { whitelistUsers: newUsers });
+                        await message.reply(`✅ Removed <@${user.id}> from whitelist.`);
+                    } else {
+                        whitelistUsers.push(user.id);
+                        moderation.updateSettings(message.guild.id, { whitelistUsers });
+                        await message.reply(`✅ Added <@${user.id}> to whitelist.`);
+                    }
+                }
+            } else if (subcommand === 'stats') {
+                const stats = status.stats || { total: 0, byCategory: {}, byUser: {} };
+                const catText = Object.entries(stats.byCategory).map(([k, v]) => `${k}: ${v}`).join('\n') || 'None';
+                const topUsers = Object.entries(stats.byUser)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(([id, count]) => `<@${id}>: ${count}`)
+                    .join('\n') || 'None';
+                
+                const embed = new EmbedBuilder()
+                    .setTitle('📊 Moderation Statistics')
+                    .setColor(0x3498DB)
+                    .addFields(
+                        { name: '🔢 Total Detections', value: String(stats.total), inline: true },
+                        { name: '📁 By Category', value: catText, inline: true },
+                        { name: '👤 Top Flagged Users', value: topUsers, inline: false }
+                    );
+                await message.reply({ embeds: [embed] });
             } else {
-                await message.reply('**Usage:**\n`.j moderation status` - View status\n`.j moderation settings` - View settings\n`.j moderation pingrole @role` - Add/remove ping role\n`.j moderation pinguser @user` - Add/remove ping user\n`.j moderation logchannel #channel` - Set log channel');
+                await message.reply('**Usage:**\n`.j moderation status` - View status\n`.j moderation settings` - View settings\n`.j moderation stats` - View statistics\n`.j moderation pingrole @role` - Add/remove ping role\n`.j moderation pinguser @user` - Add/remove ping user\n`.j moderation whitelist` - View/manage whitelist\n`.j moderation logchannel #channel` - Set log channel');
             }
             
             return true;
