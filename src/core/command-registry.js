@@ -431,12 +431,13 @@ const commandDefinitions = [
     },
     // ============ FUN COMMANDS (Available Everywhere) ============
     {
-        name: 'rapbattle',
-        description: 'HUMANOID vs HUMAN rap battle - challenge Jarvis!',
+        name: 'aatrox',
+        description: 'GYAATROX',
         category: 'Fun',
-        usage: '/rapbattle',
+        usage: '/aatrox',
         feature: 'funUtilities',
-        ephemeral: false
+        ephemeral: false,
+        dmPermission: true
     },
     {
         name: 'roast',
@@ -645,7 +646,8 @@ const commandDefinitions = [
         category: 'Utilities',
         usage: '/ytdlp status',
         feature: 'music',
-        ephemeral: true
+        ephemeral: true,
+        hidden: true
     },
     {
         name: 'sentient',
