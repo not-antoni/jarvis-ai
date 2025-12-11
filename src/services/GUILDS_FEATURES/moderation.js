@@ -4,21 +4,30 @@
  * Features:
  * - AI-based text content moderation (using function calling)
  * - Image content moderation via Ollama
- * - Monitors new members' messages for a period
+ * - Monitors new members' messages for suspicious content
  * - Configurable ping targets (roles/users)
- * - Auto-pause/resume based on member activity
+ * - MongoDB storage (or local file in selfhost mode)
+ * - Rate limiting to avoid alert spam
+ * - Whitelist for trusted users/roles
+ * - Fallback pattern matching when AI unavailable
  * 
  * ONLY enabled for specific guilds via .j enable moderation
- * Currently: Guild 858444090374881301
  */
 
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
-// Persistent storage for moderation settings
-const DATA_DIR = path.join(__dirname, '../../../data');
-const MODERATION_CONFIG_PATH = path.join(DATA_DIR, 'moderation-config.json');
+// Check if we're in selfhost/local mode
+const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
+const SELFHOST_MODE = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
+
+// Database imports (lazy loaded)
+let database = null;
+let localDb = null;
+
+// Collection name for moderation config
+const COLLECTION_NAME = 'guildModeration';
 
 // Allowed guilds that CAN enable moderation (whitelist)
 const ALLOWED_GUILDS = [
@@ -29,85 +38,133 @@ const ALLOWED_GUILDS = [
 let enabledGuilds = new Map();
 
 // Tracked members (new members being monitored)
-// Map<guildId, Map<userId, { joinedAt, lastMessageAt, messageCount, paused, pausedUntil }>>
 const trackedMembers = new Map();
 
-// Monitoring duration for new members (1 hour)
-const MONITORING_DURATION_MS = 60 * 60 * 1000;
+// Rate limiting for alerts (prevent spam)
+const alertCooldowns = new Map(); // `${guildId}:${userId}` -> timestamp
+const ALERT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between alerts per user
 
-// Pause duration when member is inactive (resumes on next message)
-const PAUSE_DURATION_MS = 5 * 60 * 1000;
+// Detection statistics
+const detectionStats = new Map(); // guildId -> { total, byCategory, byUser }
+
+// Monitoring settings
+const MONITORING_DURATION_MS = 60 * 60 * 1000; // 1 hour
+const PAUSE_DURATION_MS = 5 * 60 * 1000; // 5 min pause after detection
 
 // AI Moderation prompts
-const TEXT_MODERATION_PROMPT = `You are a content moderation AI. Analyze the message and determine if it contains:
-- Scam attempts (crypto scams, fake giveaways, phishing)
-- Spam content (advertising, repetitive messages)
-- Harmful content (harassment, threats, hate speech)
-- NSFW content
-- Malicious links
+const TEXT_MODERATION_PROMPT = `You are a content moderation AI. Analyze the message for:
+- Scam attempts (crypto scams, fake giveaways, phishing, "free nitro")
+- Spam content (advertising, repetitive messages, self-promotion)
+- Harmful content (harassment, threats, hate speech, slurs)
+- NSFW content (sexual, explicit)
+- Malicious links (phishing, malware)
 
-You MUST respond ONLY by calling the moderationResult function with your analysis.`;
+You MUST respond ONLY by calling the moderationResult function.`;
 
-const IMAGE_MODERATION_PROMPT = `Analyze this image for:
-- NSFW/inappropriate content
-- Scam imagery (fake giveaways, crypto scams)
-- Gore or disturbing content
-- Spam/advertising
+const IMAGE_MODERATION_PROMPT = `Analyze this image for inappropriate content including NSFW, scams, gore, or spam. Respond with JSON: {"isUnsafe": boolean, "severity": "low"|"medium"|"high"|"critical", "categories": [], "reason": "string", "confidence": number}`;
 
-Respond ONLY with the moderationResult function call.`;
+// Fallback patterns for when AI is unavailable
+const FALLBACK_PATTERNS = [
+    { pattern: /free\s*nitro|discord\.gift|discordgift/i, category: 'scam', severity: 'high' },
+    { pattern: /click\s*(here|this|now)|bit\.ly|tinyurl|t\.co/i, category: 'spam', severity: 'medium' },
+    { pattern: /crypto\s*(airdrop|giveaway)|nft\s*(mint|drop|free)/i, category: 'scam', severity: 'high' },
+    { pattern: /earn\s*\$\d+|investment\s*opportunity|passive\s*income/i, category: 'scam', severity: 'high' },
+    { pattern: /18\+|nsfw|onlyfans|fansly|porn/i, category: 'nsfw', severity: 'medium' },
+    { pattern: /@everyone|@here/i, category: 'spam', severity: 'low' },
+    { pattern: /dm\s*me|check\s*my\s*(bio|profile)/i, category: 'spam', severity: 'low' }
+];
+
+// ============ DATABASE FUNCTIONS ============
 
 /**
- * Load moderation config from disk
+ * Initialize database connection
  */
-function loadConfig() {
+async function initDatabase() {
     try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
+        if (LOCAL_DB_MODE || SELFHOST_MODE) {
+            // Use local database
+            localDb = require('../../localdb');
+            console.log('[Moderation] Using local database');
+        } else {
+            // Use MongoDB
+            database = require('../database');
+            console.log('[Moderation] Using MongoDB');
         }
-        if (fs.existsSync(MODERATION_CONFIG_PATH)) {
-            const data = JSON.parse(fs.readFileSync(MODERATION_CONFIG_PATH, 'utf8'));
-            enabledGuilds = new Map(Object.entries(data.enabledGuilds || {}));
-            console.log('[Moderation] Loaded config for', enabledGuilds.size, 'guilds');
+    } catch (error) {
+        console.error('[Moderation] Failed to initialize database:', error);
+    }
+}
+
+/**
+ * Load config from database
+ */
+async function loadConfig() {
+    try {
+        if (LOCAL_DB_MODE || SELFHOST_MODE) {
+            // Load from local file
+            const dataPath = path.join(__dirname, '../../../data/moderation-config.json');
+            if (fs.existsSync(dataPath)) {
+                const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+                enabledGuilds = new Map(Object.entries(data.enabledGuilds || {}));
+            }
+        } else if (database?.isConnected) {
+            // Load from MongoDB
+            const collection = database.getCollection(COLLECTION_NAME);
+            if (collection) {
+                const configs = await collection.find({}).toArray();
+                for (const config of configs) {
+                    enabledGuilds.set(config.guildId, config);
+                }
+            }
         }
+        console.log('[Moderation] Loaded config for', enabledGuilds.size, 'guilds');
     } catch (error) {
         console.error('[Moderation] Failed to load config:', error);
     }
 }
 
 /**
- * Save moderation config to disk
+ * Save config to database
  */
-function saveConfig() {
+async function saveConfig(guildId) {
     try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
+        const config = enabledGuilds.get(guildId);
+        if (!config) return;
+        
+        if (LOCAL_DB_MODE || SELFHOST_MODE) {
+            // Save to local file
+            const dataDir = path.join(__dirname, '../../../data');
+            const dataPath = path.join(dataDir, 'moderation-config.json');
+            
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+            
+            const data = {
+                enabledGuilds: Object.fromEntries(enabledGuilds),
+                updatedAt: new Date().toISOString()
+            };
+            fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+        } else if (database?.isConnected) {
+            // Save to MongoDB
+            const collection = database.getCollection(COLLECTION_NAME);
+            if (collection) {
+                await collection.updateOne(
+                    { guildId },
+                    { $set: { ...config, guildId, updatedAt: new Date() } },
+                    { upsert: true }
+                );
+            }
         }
-        const data = {
-            enabledGuilds: Object.fromEntries(enabledGuilds),
-            updatedAt: new Date().toISOString()
-        };
-        fs.writeFileSync(MODERATION_CONFIG_PATH, JSON.stringify(data, null, 2));
     } catch (error) {
         console.error('[Moderation] Failed to save config:', error);
     }
 }
 
-// Load on startup
-loadConfig();
+// Initialize on load
+initDatabase().then(() => loadConfig());
 
-/**
- * Check if a guild can enable moderation (is in whitelist)
- */
-function canEnableModeration(guildId) {
-    return ALLOWED_GUILDS.includes(guildId);
-}
-
-/**
- * Check if moderation is enabled for a guild
- */
-function isEnabled(guildId) {
-    return enabledGuilds.has(guildId) && enabledGuilds.get(guildId).enabled === true;
-}
+// ============ CONFIG FUNCTIONS ============
 
 /**
  * Get default moderation settings
@@ -115,105 +172,97 @@ function isEnabled(guildId) {
 function getDefaultSettings() {
     return {
         // Ping configuration
-        pingRoles: [],           // Role IDs to ping on detection
-        pingUsers: [],           // User IDs to ping on detection
-        pingOwner: true,         // Ping server owner
+        pingRoles: [],
+        pingUsers: [],
+        pingOwner: true,
+        
+        // Whitelist (bypass moderation)
+        whitelistRoles: [],
+        whitelistUsers: [],
         
         // Detection settings
-        monitorNewMembers: true, // Monitor messages from new members
-        newMemberThresholdDays: 7, // Consider "new" if account < 7 days old
-        monitorDurationHours: 1, // How long to monitor new members
+        monitorNewMembers: true,
+        newMemberThresholdDays: 7,
+        monitorDurationHours: 1,
+        minSeverity: 'medium', // low, medium, high, critical
         
         // AI settings
-        useAI: true,             // Use AI for content analysis
-        aiProvider: 'openai',    // AI provider for text (openai, groq, etc.)
+        useAI: true,
+        aiProvider: 'openai',
         ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
-        ollamaModel: 'llava',    // Ollama model for images
+        ollamaModel: 'llava',
+        useFallbackPatterns: true, // Use pattern matching as backup
         
         // Log channel
-        logChannel: null,        // Channel ID for moderation logs
+        logChannel: null,
         
         // Actions
-        autoDelete: false,       // Auto-delete detected messages
-        autoMute: false,         // Auto-mute on detection
-        autoBan: false           // Auto-ban on severe violations
+        autoDelete: false,
+        autoMute: false,
+        autoBan: false
     };
 }
 
-/**
- * Enable moderation for a guild
- */
+function canEnableModeration(guildId) {
+    return ALLOWED_GUILDS.includes(guildId);
+}
+
+function isEnabled(guildId) {
+    return enabledGuilds.has(guildId) && enabledGuilds.get(guildId).enabled === true;
+}
+
 function enableModeration(guildId, enabledBy) {
     if (!canEnableModeration(guildId)) {
-        return { success: false, error: 'This guild is not authorized to use moderation features.' };
+        return { success: false, error: 'This guild is not authorized.' };
     }
     
     enabledGuilds.set(guildId, {
         enabled: true,
         enabledBy,
         enabledAt: new Date().toISOString(),
-        settings: getDefaultSettings()
+        settings: getDefaultSettings(),
+        stats: { total: 0, byCategory: {}, byUser: {} }
     });
     
-    // Initialize tracked members for this guild
     if (!trackedMembers.has(guildId)) {
         trackedMembers.set(guildId, new Map());
     }
     
-    saveConfig();
-    console.log(`[Moderation] Enabled for guild ${guildId} by user ${enabledBy}`);
+    saveConfig(guildId);
     return { success: true };
 }
 
-/**
- * Disable moderation for a guild
- */
 function disableModeration(guildId, disabledBy) {
     if (!enabledGuilds.has(guildId)) {
-        return { success: false, error: 'Moderation is not enabled for this guild.' };
+        return { success: false, error: 'Moderation is not enabled.' };
     }
     
     const config = enabledGuilds.get(guildId);
     config.enabled = false;
     config.disabledBy = disabledBy;
     config.disabledAt = new Date().toISOString();
-    enabledGuilds.set(guildId, config);
     
-    // Clear tracked members
     trackedMembers.delete(guildId);
-    
-    saveConfig();
-    console.log(`[Moderation] Disabled for guild ${guildId} by user ${disabledBy}`);
+    saveConfig(guildId);
     return { success: true };
 }
 
-/**
- * Get moderation settings for a guild
- */
 function getSettings(guildId) {
     const config = enabledGuilds.get(guildId);
     return config?.settings || getDefaultSettings();
 }
 
-/**
- * Update moderation settings for a guild
- */
 function updateSettings(guildId, newSettings) {
     if (!enabledGuilds.has(guildId)) {
-        return { success: false, error: 'Moderation is not enabled for this guild.' };
+        return { success: false, error: 'Moderation is not enabled.' };
     }
     
     const config = enabledGuilds.get(guildId);
     config.settings = { ...config.settings, ...newSettings };
-    enabledGuilds.set(guildId, config);
-    
-    saveConfig();
+    saveConfig(guildId);
     return { success: true };
 }
 
-/**
- * Get status for a guild
- */
 function getStatus(guildId) {
     const config = enabledGuilds.get(guildId);
     return {
@@ -222,100 +271,153 @@ function getStatus(guildId) {
         enabledBy: config?.enabledBy || null,
         enabledAt: config?.enabledAt || null,
         settings: config?.settings || getDefaultSettings(),
+        stats: config?.stats || { total: 0, byCategory: {}, byUser: {} },
         trackedMembersCount: trackedMembers.get(guildId)?.size || 0
     };
 }
 
-// ============ AI MODERATION FUNCTIONS ============
+// ============ WHITELIST FUNCTIONS ============
 
-/**
- * The function schema for AI moderation responses
- */
+function isWhitelisted(guildId, member) {
+    const settings = getSettings(guildId);
+    
+    // Check user whitelist
+    if (settings.whitelistUsers?.includes(member.id)) {
+        return true;
+    }
+    
+    // Check role whitelist
+    if (member.roles?.cache) {
+        for (const roleId of settings.whitelistRoles || []) {
+            if (member.roles.cache.has(roleId)) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+// ============ RATE LIMITING ============
+
+function isOnAlertCooldown(guildId, userId) {
+    const key = `${guildId}:${userId}`;
+    const cooldownUntil = alertCooldowns.get(key);
+    
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+        return true;
+    }
+    
+    return false;
+}
+
+function setAlertCooldown(guildId, userId) {
+    const key = `${guildId}:${userId}`;
+    alertCooldowns.set(key, Date.now() + ALERT_COOLDOWN_MS);
+}
+
+// ============ STATISTICS ============
+
+function recordDetection(guildId, userId, category) {
+    const config = enabledGuilds.get(guildId);
+    if (!config) return;
+    
+    if (!config.stats) {
+        config.stats = { total: 0, byCategory: {}, byUser: {} };
+    }
+    
+    config.stats.total++;
+    config.stats.byCategory[category] = (config.stats.byCategory[category] || 0) + 1;
+    config.stats.byUser[userId] = (config.stats.byUser[userId] || 0) + 1;
+    
+    // Save periodically (every 10 detections)
+    if (config.stats.total % 10 === 0) {
+        saveConfig(guildId);
+    }
+}
+
+// ============ AI MODERATION ============
+
 const MODERATION_FUNCTION = {
     name: 'moderationResult',
-    description: 'Report the moderation analysis result',
+    description: 'Report moderation analysis result',
     parameters: {
         type: 'object',
         properties: {
-            isUnsafe: {
-                type: 'boolean',
-                description: 'Whether the content is unsafe/violates rules'
-            },
-            severity: {
-                type: 'string',
-                enum: ['low', 'medium', 'high', 'critical'],
-                description: 'Severity level of the violation'
-            },
-            categories: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Categories of violation detected (scam, spam, nsfw, harassment, etc.)'
-            },
-            reason: {
-                type: 'string',
-                description: 'Brief explanation of why content is unsafe'
-            },
-            confidence: {
-                type: 'number',
-                description: 'Confidence level 0-1'
-            }
+            isUnsafe: { type: 'boolean' },
+            severity: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] },
+            categories: { type: 'array', items: { type: 'string' } },
+            reason: { type: 'string' },
+            confidence: { type: 'number' }
         },
         required: ['isUnsafe', 'severity', 'categories', 'reason', 'confidence']
     }
 };
 
 /**
- * Analyze text content using AI with function calling
+ * Analyze with fallback patterns (no AI needed)
  */
-async function analyzeTextContent(content, aiProvider = null) {
-    try {
-        // Dynamic import to avoid circular dependencies
-        const aiManager = require('../ai-providers');
-        
-        const messages = [
-            { role: 'system', content: TEXT_MODERATION_PROMPT },
-            { role: 'user', content: `Analyze this message:\n\n${content}` }
-        ];
-        
-        // Use function calling
-        const response = await aiManager.generateWithFunctions(messages, [MODERATION_FUNCTION], {
-            functionCall: { name: 'moderationResult' },
-            maxTokens: 200,
-            temperature: 0.1
-        });
-        
-        if (response?.functionCall?.name === 'moderationResult') {
+function analyzeWithPatterns(content) {
+    for (const { pattern, category, severity } of FALLBACK_PATTERNS) {
+        if (pattern.test(content)) {
             return {
                 success: true,
-                result: response.functionCall.arguments
+                result: {
+                    isUnsafe: true,
+                    severity,
+                    categories: [category],
+                    reason: `Matched pattern: ${category}`,
+                    confidence: 0.7
+                }
             };
         }
-        
-        // Fallback: try to parse response as JSON
-        if (response?.content) {
-            try {
-                const parsed = JSON.parse(response.content);
-                return { success: true, result: parsed };
-            } catch {
-                // Not JSON, assume safe
-                return {
-                    success: true,
-                    result: {
-                        isUnsafe: false,
-                        severity: 'low',
-                        categories: [],
-                        reason: 'Could not parse AI response',
-                        confidence: 0.5
-                    }
-                };
-            }
-        }
-        
-        return { success: false, error: 'No valid response from AI' };
-    } catch (error) {
-        console.error('[Moderation] Text analysis error:', error);
-        return { success: false, error: error.message };
     }
+    
+    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'No patterns matched', confidence: 1.0 } };
+}
+
+/**
+ * Analyze text content using AI with function calling
+ */
+async function analyzeTextContent(content, settings) {
+    // Try AI first if enabled
+    if (settings?.useAI) {
+        try {
+            const aiManager = require('../ai-providers');
+            
+            const messages = [
+                { role: 'system', content: TEXT_MODERATION_PROMPT },
+                { role: 'user', content: `Analyze: ${content.substring(0, 500)}` }
+            ];
+            
+            const response = await aiManager.generateWithFunctions(messages, [MODERATION_FUNCTION], {
+                functionCall: { name: 'moderationResult' },
+                maxTokens: 150,
+                temperature: 0.1
+            });
+            
+            if (response?.functionCall?.name === 'moderationResult') {
+                return { success: true, result: response.functionCall.arguments };
+            }
+            
+            // Try parsing response as JSON
+            if (response?.content) {
+                try {
+                    const parsed = JSON.parse(response.content);
+                    return { success: true, result: parsed };
+                } catch {}
+            }
+        } catch (error) {
+            console.warn('[Moderation] AI analysis failed, using fallback:', error.message);
+        }
+    }
+    
+    // Fallback to pattern matching
+    if (settings?.useFallbackPatterns !== false) {
+        return analyzeWithPatterns(content);
+    }
+    
+    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'AI unavailable', confidence: 0.5 } };
 }
 
 /**
@@ -324,22 +426,19 @@ async function analyzeTextContent(content, aiProvider = null) {
 async function analyzeImageContent(imageUrl, settings) {
     try {
         const fetch = require('node-fetch');
-        
         const ollamaUrl = settings?.ollamaUrl || 'http://localhost:11434';
         const model = settings?.ollamaModel || 'llava';
         
-        // Download image and convert to base64
         const imageResponse = await fetch(imageUrl);
         const imageBuffer = await imageResponse.buffer();
         const base64Image = imageBuffer.toString('base64');
         
-        // Call Ollama with the image
         const response = await fetch(`${ollamaUrl}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: model,
-                prompt: IMAGE_MODERATION_PROMPT + '\n\nRespond with JSON: {"isUnsafe": boolean, "severity": "low"|"medium"|"high"|"critical", "categories": [], "reason": "string", "confidence": number}',
+                model,
+                prompt: IMAGE_MODERATION_PROMPT,
                 images: [base64Image],
                 stream: false
             })
@@ -348,69 +447,39 @@ async function analyzeImageContent(imageUrl, settings) {
         const data = await response.json();
         
         if (data.response) {
-            try {
-                // Try to extract JSON from response
-                const jsonMatch = data.response.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                    const parsed = JSON.parse(jsonMatch[0]);
-                    return { success: true, result: parsed };
-                }
-            } catch {
-                // Parsing failed
+            const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                return { success: true, result: JSON.parse(jsonMatch[0]) };
             }
         }
-        
-        return {
-            success: true,
-            result: {
-                isUnsafe: false,
-                severity: 'low',
-                categories: [],
-                reason: 'Could not analyze image',
-                confidence: 0.3
-            }
-        };
     } catch (error) {
-        console.error('[Moderation] Image analysis error:', error);
-        return { success: false, error: error.message };
+        console.warn('[Moderation] Image analysis failed:', error.message);
     }
+    
+    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'Could not analyze', confidence: 0.3 } };
 }
 
-// ============ MESSAGE MONITORING ============
+// ============ TRACKING ============
 
-/**
- * Check if a member should be monitored
- */
 function shouldMonitorMember(member, settings) {
     if (!settings.monitorNewMembers) return false;
-    
     const accountAge = Date.now() - member.user.createdAt.getTime();
     const thresholdMs = settings.newMemberThresholdDays * 24 * 60 * 60 * 1000;
-    
     return accountAge < thresholdMs;
 }
 
-/**
- * Start tracking a member
- */
 function startTracking(guildId, userId) {
     if (!trackedMembers.has(guildId)) {
         trackedMembers.set(guildId, new Map());
     }
-    
-    const guildTracked = trackedMembers.get(guildId);
-    guildTracked.set(userId, {
+    trackedMembers.get(guildId).set(userId, {
         joinedAt: Date.now(),
         lastMessageAt: null,
         messageCount: 0,
-        paused: false,
-        pausedUntil: null
+        paused: false
     });
 }
 
-/**
- * Check if member is being tracked and not paused
- */
 function isActivelyTracking(guildId, userId) {
     const guildTracked = trackedMembers.get(guildId);
     if (!guildTracked) return false;
@@ -418,306 +487,162 @@ function isActivelyTracking(guildId, userId) {
     const tracking = guildTracked.get(userId);
     if (!tracking) return false;
     
-    // Check if monitoring duration expired
     if (Date.now() - tracking.joinedAt > MONITORING_DURATION_MS) {
         guildTracked.delete(userId);
         return false;
     }
     
-    // Check if paused
-    if (tracking.paused) {
-        if (tracking.pausedUntil && Date.now() < tracking.pausedUntil) {
-            return false;
-        }
-        // Auto-resume
-        tracking.paused = false;
-        tracking.pausedUntil = null;
+    if (tracking.paused && tracking.pausedUntil && Date.now() < tracking.pausedUntil) {
+        return false;
     }
     
+    tracking.paused = false;
     return true;
 }
 
-/**
- * Update tracking on message
- */
-function updateTracking(guildId, userId) {
-    const guildTracked = trackedMembers.get(guildId);
-    if (!guildTracked) return;
-    
-    const tracking = guildTracked.get(userId);
-    if (!tracking) return;
-    
-    tracking.lastMessageAt = Date.now();
-    tracking.messageCount++;
-    
-    // Resume if paused
-    if (tracking.paused) {
-        tracking.paused = false;
-        tracking.pausedUntil = null;
+function pauseTracking(guildId, userId) {
+    const tracking = trackedMembers.get(guildId)?.get(userId);
+    if (tracking) {
+        tracking.paused = true;
+        tracking.pausedUntil = Date.now() + PAUSE_DURATION_MS;
     }
 }
 
-/**
- * Pause tracking for a member
- */
-function pauseTracking(guildId, userId) {
-    const guildTracked = trackedMembers.get(guildId);
-    if (!guildTracked) return;
-    
-    const tracking = guildTracked.get(userId);
-    if (!tracking) return;
-    
-    tracking.paused = true;
-    tracking.pausedUntil = Date.now() + PAUSE_DURATION_MS;
+// ============ SEVERITY CHECK ============
+
+const SEVERITY_LEVELS = { low: 1, medium: 2, high: 3, critical: 4 };
+
+function meetsMinSeverity(resultSeverity, minSeverity) {
+    return (SEVERITY_LEVELS[resultSeverity] || 0) >= (SEVERITY_LEVELS[minSeverity] || 2);
 }
 
 // ============ ALERT SYSTEM ============
 
-/**
- * Build an alert embed for detected content
- */
-function buildAlertEmbed(message, analysisResult, contentType = 'text') {
-    const colors = {
-        low: 0xFFCC00,
-        medium: 0xFF9900,
-        high: 0xFF3300,
-        critical: 0xFF0000
-    };
+function buildAlertEmbed(message, result, contentType) {
+    const colors = { low: 0xFFCC00, medium: 0xFF9900, high: 0xFF3300, critical: 0xFF0000 };
     
-    const embed = new EmbedBuilder()
-        .setTitle(`🚨 ${contentType === 'image' ? 'Image' : 'Message'} Flagged - ${analysisResult.severity.toUpperCase()}`)
-        .setColor(colors[analysisResult.severity] || 0xFF0000)
+    return new EmbedBuilder()
+        .setTitle(`🚨 ${contentType === 'image' ? 'Image' : 'Message'} Flagged - ${result.severity.toUpperCase()}`)
+        .setColor(colors[result.severity] || 0xFF0000)
+        .addFields(
+            { name: '👤 User', value: `${message.author.tag}\n<@${message.author.id}>`, inline: true },
+            { name: '📍 Channel', value: `<#${message.channel.id}>`, inline: true },
+            { name: '🏷️ Categories', value: result.categories?.join(', ') || 'Unknown', inline: true },
+            { name: '📝 Reason', value: result.reason || 'No reason', inline: false },
+            { name: '💬 Preview', value: `\`\`\`${(message.content || '').substring(0, 150)}\`\`\``, inline: false },
+            { name: '🔗 Jump', value: `[Go to message](${message.url})`, inline: true },
+            { name: '📊 Confidence', value: `${Math.round((result.confidence || 0) * 100)}%`, inline: true }
+        )
+        .setFooter({ text: 'Jarvis AI Moderation' })
         .setTimestamp();
-    
-    // User info
-    embed.addFields({
-        name: '👤 User',
-        value: `${message.author.tag} (<@${message.author.id}>)\nID: \`${message.author.id}\``,
-        inline: true
-    });
-    
-    // Channel info
-    embed.addFields({
-        name: '📍 Channel',
-        value: `<#${message.channel.id}>`,
-        inline: true
-    });
-    
-    // Categories
-    if (analysisResult.categories?.length > 0) {
-        embed.addFields({
-            name: '🏷️ Categories',
-            value: analysisResult.categories.join(', '),
-            inline: true
-        });
-    }
-    
-    // Reason
-    embed.addFields({
-        name: '📝 Reason',
-        value: analysisResult.reason || 'No reason provided',
-        inline: false
-    });
-    
-    // Content preview (truncated)
-    if (contentType === 'text' && message.content) {
-        const preview = message.content.length > 200 
-            ? message.content.substring(0, 200) + '...' 
-            : message.content;
-        embed.addFields({
-            name: '💬 Content Preview',
-            value: `\`\`\`${preview}\`\`\``,
-            inline: false
-        });
-    }
-    
-    // Message link
-    embed.addFields({
-        name: '🔗 Jump to Message',
-        value: `[Click here](${message.url})`,
-        inline: true
-    });
-    
-    // Confidence
-    embed.addFields({
-        name: '📊 Confidence',
-        value: `${Math.round((analysisResult.confidence || 0) * 100)}%`,
-        inline: true
-    });
-    
-    embed.setFooter({ text: 'Jarvis AI Moderation • Automated Detection' });
-    
-    return embed;
 }
 
-/**
- * Send alert to configured targets
- */
-async function sendAlert(message, analysisResult, contentType, client) {
+async function sendAlert(message, result, contentType, client) {
     const guildId = message.guild.id;
     const settings = getSettings(guildId);
+    const embed = buildAlertEmbed(message, result, contentType);
     
-    const embed = buildAlertEmbed(message, analysisResult, contentType);
-    
-    // Build ping string
+    // Build pings
     const pings = [];
+    if (settings.pingOwner) pings.push(`<@${message.guild.ownerId}>`);
+    for (const roleId of settings.pingRoles || []) pings.push(`<@&${roleId}>`);
+    for (const userId of settings.pingUsers || []) pings.push(`<@${userId}>`);
+    const pingString = pings.join(' ');
     
-    if (settings.pingOwner) {
-        pings.push(`<@${message.guild.ownerId}>`);
-    }
-    
-    for (const roleId of settings.pingRoles || []) {
-        pings.push(`<@&${roleId}>`);
-    }
-    
-    for (const userId of settings.pingUsers || []) {
-        pings.push(`<@${userId}>`);
-    }
-    
-    const pingString = pings.length > 0 ? pings.join(' ') : '';
-    
-    // Always send alert in the current channel where content was detected
+    // Send in current channel
     try {
-        await message.channel.send({
-            content: `🚨 **Suspicious content detected!** ${pingString}`,
-            embeds: [embed]
-        });
+        await message.channel.send({ content: `🚨 **Suspicious content detected!** ${pingString}`, embeds: [embed] });
     } catch (error) {
-        console.error('[Moderation] Failed to send alert in channel:', error);
+        console.error('[Moderation] Failed to send alert:', error.message);
     }
     
-    // Also send to log channel if configured (for record keeping)
+    // Also send to log channel if configured
     if (settings.logChannel && settings.logChannel !== message.channel.id) {
         try {
             const channel = await client.channels.fetch(settings.logChannel);
-            if (channel) {
-                await channel.send({
-                    content: pingString,
-                    embeds: [embed]
-                });
-            }
-        } catch (error) {
-            console.error('[Moderation] Failed to send to log channel:', error);
-        }
-    }
-    
-    // Also DM the server owner if pingOwner is enabled and no log channel
-    if (settings.pingOwner && !settings.logChannel) {
-        try {
-            const owner = await message.guild.fetchOwner();
-            if (owner) {
-                await owner.send({
-                    content: `🚨 **Content flagged in ${message.guild.name}**`,
-                    embeds: [embed]
-                });
-            }
-        } catch (error) {
-            console.error('[Moderation] Failed to DM owner:', error);
-        }
+            if (channel) await channel.send({ content: pingString, embeds: [embed] });
+        } catch {}
     }
 }
 
 // ============ MESSAGE HANDLER ============
 
-/**
- * Handle incoming message for moderation
- */
 async function handleMessage(message, client) {
-    // Skip if not in a guild or from a bot
     if (!message.guild || message.author.bot) return { handled: false };
     
     const guildId = message.guild.id;
-    
-    // Check if moderation is enabled
-    if (!isEnabled(guildId)) {
-        return { handled: false, reason: 'Moderation not enabled' };
-    }
+    if (!isEnabled(guildId)) return { handled: false };
     
     const settings = getSettings(guildId);
     const userId = message.author.id;
+    const member = message.member || await message.guild.members.fetch(userId).catch(() => null);
     
-    // Check if we should monitor this member
+    // Check whitelist
+    if (member && isWhitelisted(guildId, member)) {
+        return { handled: false, reason: 'Whitelisted' };
+    }
+    
+    // Check if tracking
     if (!isActivelyTracking(guildId, userId)) {
-        // Check if this is a new member we should start tracking
-        const member = message.member || await message.guild.members.fetch(userId).catch(() => null);
         if (member && shouldMonitorMember(member, settings)) {
             startTracking(guildId, userId);
         } else {
-            return { handled: false, reason: 'Member not being tracked' };
+            return { handled: false };
         }
     }
     
-    // Update tracking
-    updateTracking(guildId, userId);
-    
-    // Skip if AI is disabled
-    if (!settings.useAI) {
-        return { handled: false, reason: 'AI moderation disabled' };
+    // Check rate limit
+    if (isOnAlertCooldown(guildId, userId)) {
+        return { handled: false, reason: 'On cooldown' };
     }
     
-    try {
-        // Analyze text content
-        if (message.content && message.content.length > 3) {
-            const textResult = await analyzeTextContent(message.content);
-            
-            if (textResult.success && textResult.result?.isUnsafe) {
-                await sendAlert(message, textResult.result, 'text', client);
+    // Analyze in background (non-blocking)
+    setImmediate(async () => {
+        try {
+            // Text analysis
+            if (message.content?.length > 3) {
+                const textResult = await analyzeTextContent(message.content, settings);
                 
-                // Pause tracking after detection to avoid spam
-                pauseTracking(guildId, userId);
-                
-                return {
-                    handled: true,
-                    detected: true,
-                    type: 'text',
-                    result: textResult.result
-                };
-            }
-        }
-        
-        // Analyze image attachments
-        for (const attachment of message.attachments.values()) {
-            if (attachment.contentType?.startsWith('image/')) {
-                const imageResult = await analyzeImageContent(attachment.url, settings);
-                
-                if (imageResult.success && imageResult.result?.isUnsafe) {
-                    await sendAlert(message, imageResult.result, 'image', client);
-                    
-                    pauseTracking(guildId, userId);
-                    
-                    return {
-                        handled: true,
-                        detected: true,
-                        type: 'image',
-                        result: imageResult.result
-                    };
+                if (textResult.success && textResult.result?.isUnsafe) {
+                    if (meetsMinSeverity(textResult.result.severity, settings.minSeverity || 'medium')) {
+                        await sendAlert(message, textResult.result, 'text', client);
+                        setAlertCooldown(guildId, userId);
+                        pauseTracking(guildId, userId);
+                        recordDetection(guildId, userId, textResult.result.categories?.[0] || 'unknown');
+                    }
                 }
             }
+            
+            // Image analysis
+            for (const attachment of message.attachments.values()) {
+                if (attachment.contentType?.startsWith('image/')) {
+                    const imageResult = await analyzeImageContent(attachment.url, settings);
+                    
+                    if (imageResult.success && imageResult.result?.isUnsafe) {
+                        if (meetsMinSeverity(imageResult.result.severity, settings.minSeverity || 'medium')) {
+                            await sendAlert(message, imageResult.result, 'image', client);
+                            setAlertCooldown(guildId, userId);
+                            pauseTracking(guildId, userId);
+                            recordDetection(guildId, userId, imageResult.result.categories?.[0] || 'image');
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Moderation] Analysis error:', error.message);
         }
-        
-        return { handled: true, detected: false };
-    } catch (error) {
-        console.error('[Moderation] Error handling message:', error);
-        return { handled: false, error: error.message };
-    }
+    });
+    
+    return { handled: true };
 }
 
-/**
- * Handle member join - just start tracking if needed
- * (No longer sends warnings - users have join/leave logs for that)
- */
 async function handleMemberJoin(member, client) {
     const guildId = member.guild.id;
-    
-    if (!isEnabled(guildId)) {
-        return { handled: false };
-    }
+    if (!isEnabled(guildId)) return { handled: false };
     
     const settings = getSettings(guildId);
-    
     if (shouldMonitorMember(member, settings)) {
         startTracking(guildId, member.id);
-        console.log(`[Moderation] Started tracking new member ${member.user.tag} in guild ${guildId}`);
         return { handled: true, tracking: true };
     }
     
@@ -725,7 +650,6 @@ async function handleMemberJoin(member, client) {
 }
 
 module.exports = {
-    // Config
     ALLOWED_GUILDS,
     canEnableModeration,
     isEnabled,
@@ -734,23 +658,14 @@ module.exports = {
     getSettings,
     updateSettings,
     getStatus,
-    
-    // Tracking
-    startTracking,
-    isActivelyTracking,
-    pauseTracking,
-    
-    // Analysis
+    isWhitelisted,
     analyzeTextContent,
     analyzeImageContent,
-    MODERATION_FUNCTION,
-    
-    // Handlers
+    analyzeWithPatterns,
     handleMessage,
     handleMemberJoin,
     sendAlert,
-    
-    // Reload config
     loadConfig,
-    saveConfig
+    saveConfig,
+    MODERATION_FUNCTION
 };
