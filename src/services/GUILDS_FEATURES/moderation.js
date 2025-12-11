@@ -576,8 +576,18 @@ async function sendAlert(message, analysisResult, contentType, client) {
     
     const pingString = pings.length > 0 ? pings.join(' ') : '';
     
-    // Send to log channel if configured
-    if (settings.logChannel) {
+    // Always send alert in the current channel where content was detected
+    try {
+        await message.channel.send({
+            content: `🚨 **Suspicious content detected!** ${pingString}`,
+            embeds: [embed]
+        });
+    } catch (error) {
+        console.error('[Moderation] Failed to send alert in channel:', error);
+    }
+    
+    // Also send to log channel if configured (for record keeping)
+    if (settings.logChannel && settings.logChannel !== message.channel.id) {
         try {
             const channel = await client.channels.fetch(settings.logChannel);
             if (channel) {
@@ -589,8 +599,10 @@ async function sendAlert(message, analysisResult, contentType, client) {
         } catch (error) {
             console.error('[Moderation] Failed to send to log channel:', error);
         }
-    } else {
-        // DM the server owner
+    }
+    
+    // Also DM the server owner if pingOwner is enabled and no log channel
+    if (settings.pingOwner && !settings.logChannel) {
         try {
             const owner = await message.guild.fetchOwner();
             if (owner) {

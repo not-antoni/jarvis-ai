@@ -431,7 +431,7 @@ const commandDefinitions = [
     },
     // ============ FUN COMMANDS (Available Everywhere) ============
     {
-        name: 'aatrox',
+        name: 'Aatrox',
         description: 'GYAATROX',
         category: 'Fun',
         usage: '/aatrox',
