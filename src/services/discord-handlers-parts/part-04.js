@@ -3297,8 +3297,7 @@
                     break;
                 }
                 // ============ FUN FEATURES ============
-                case 'aatrox':
-                case 'Aatrox': {
+                case 'aatrox': {
                     telemetryMetadata.category = 'fun';
                     // Send the Aatrox gif - available in both guilds and DMs
                     response = 'https://tenor.com/view/aatrox-gyattrox-gyaatrox-lol-league-of-legends-gif-16706958126825166451';

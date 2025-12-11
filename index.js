@@ -1710,7 +1710,7 @@ const allCommands = [
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     // ============ FUN COMMANDS ============
     new SlashCommandBuilder()
-        .setName('Aatrox')
+        .setName('aatrox')
         .setDescription('GYAATROX')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
