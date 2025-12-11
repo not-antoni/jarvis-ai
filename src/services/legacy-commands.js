@@ -6,10 +6,11 @@
  * They mirror slash command functionality for users who prefer text commands
  */
 
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const selfhostFeatures = require('./selfhost-features');
 const starkEconomy = require('./stark-economy');
 const funFeatures = require('./fun-features');
+const moderation = require('./GUILDS_FEATURES/moderation');
 
 const LEGACY_PREFIX = '.j';
 
@@ -38,7 +39,7 @@ const HELP_PAGES = [
         title: '📜 Legacy Commands - Page 1/4',
         subtitle: 'Fun Commands',
         fields: [
-            { name: '🎮 **Fun**', value: '`.j rapbattle <bars>` - Rap battle Jarvis\n`.j roast @user` - Roast someone\n`.j soul` - View Jarvis soul\n`.j 8ball <question>` - Magic 8-ball', inline: false },
+            { name: '🎮 **Fun**', value: '`.j roast @user` - Roast someone\n`.j soul` - View Jarvis soul\n`.j 8ball <question>` - Magic 8-ball\n`.j aatrox` - GYAATROX', inline: false },
             { name: '😂 **More Fun**', value: '`.j dadjoke` - Get a dad joke\n`.j pickupline` - Get a pickup line\n`.j rate <thing>` - Rate something\n`.j roll [dice]` - Roll dice (e.g., 2d6)', inline: false }
         ]
     },
@@ -197,34 +198,12 @@ const legacyCommands = {
         }
     },
     
-    // Rap battle
-    rapbattle: {
-        description: 'Challenge Jarvis to a rap battle',
-        usage: '.j rapbattle <your bars>',
+    // Aatrox
+    aatrox: {
+        description: 'GYAATROX',
+        usage: '.j aatrox',
         execute: async (message, args) => {
-            const bars = args.join(' ').trim();
-            if (!bars) {
-                await message.reply('Drop some bars first, human! 🎤 Usage: `.j rapbattle <your rap>`');
-                return true;
-            }
-            
-            const username = message.author.displayName || message.author.username;
-            const battle = selfhostFeatures.processRapBattle(bars, username);
-            
-            const embed = new EmbedBuilder()
-                .setTitle('🎤 HUMANOID vs HUMAN 🎤')
-                .setDescription('*Who\'s the fastest rapper?*')
-                .setColor(0xff6b6b)
-                .addFields(
-                    { name: '👤 Your Attempt', value: `> ${bars.substring(0, 200)}${bars.length > 200 ? '...' : ''}`, inline: false },
-                    { name: '🤖 JARVIS Counter-Rap', value: battle.counterRap, inline: false },
-                    { name: '🏆 Verdict', value: battle.verdict, inline: false }
-                )
-                .setFooter({ text: '🎤 HUMANOID vs HUMAN • Rap Battle System' })
-                .setTimestamp();
-            
-            selfhostFeatures.jarvisSoul.evolve('roast', 'positive');
-            await message.reply({ embeds: [embed] });
+            await message.reply('https://tenor.com/view/aatrox-gyattrox-gyaatrox-lol-league-of-legends-gif-16706958126825166451');
             return true;
         }
     },
@@ -820,6 +799,179 @@ const legacyCommands = {
                 .setColor(vibe.overallScore > 50 ? 0x2ecc71 : 0xe74c3c)
                 .addFields({ name: '📊 Score', value: `${vibe.overallScore}/100`, inline: true });
             await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+    
+    // ============ MODERATION COMMANDS (Admin/Owner Only) ============
+    enable: {
+        description: 'Enable a feature (moderation)',
+        usage: '.j enable moderation',
+        execute: async (message, args) => {
+            // Only works in guilds
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+            
+            // Check permissions - must be admin or owner
+            const isOwner = message.guild.ownerId === message.author.id;
+            const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator);
+            
+            if (!isOwner && !isAdmin) {
+                await message.reply('🔒 This command requires Administrator permissions or Server Owner status.');
+                return true;
+            }
+            
+            const feature = (args[0] || '').toLowerCase();
+            
+            if (feature !== 'moderation') {
+                await message.reply('**Usage:** `.j enable moderation`\n\nAvailable features: `moderation`');
+                return true;
+            }
+            
+            // Check if guild is allowed
+            if (!moderation.canEnableModeration(message.guild.id)) {
+                await message.reply('❌ This server is not authorized to enable moderation features.\n\nContact the bot developer for access.');
+                return true;
+            }
+            
+            // Enable moderation
+            const result = moderation.enableModeration(message.guild.id, message.author.id);
+            
+            if (result.success) {
+                const embed = new EmbedBuilder()
+                    .setTitle('✅ Moderation Enabled')
+                    .setColor(0x2ECC71)
+                    .setDescription('Moderation features are now **enabled** for this server.')
+                    .addFields(
+                        { name: '🛡️ Features Activated', value: '• New account detection\n• Alt account warnings\n• Spam pattern detection\n• Bot-like username flags\n• Suspicious avatar alerts', inline: false },
+                        { name: '📢 Alerts', value: 'Suspicious members will be reported to the server owner via DM.', inline: false },
+                        { name: '⚙️ Configure', value: 'Use `.j moderation settings` to customize (coming soon)', inline: false }
+                    )
+                    .setFooter({ text: `Enabled by ${message.author.tag}` })
+                    .setTimestamp();
+                
+                await message.reply({ embeds: [embed] });
+            } else {
+                await message.reply(`❌ Failed to enable moderation: ${result.error}`);
+            }
+            
+            return true;
+        }
+    },
+    
+    disable: {
+        description: 'Disable a feature (moderation)',
+        usage: '.j disable moderation',
+        execute: async (message, args) => {
+            // Only works in guilds
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+            
+            // Check permissions - must be admin or owner
+            const isOwner = message.guild.ownerId === message.author.id;
+            const isAdmin = message.member?.permissions?.has(PermissionFlagsBits.Administrator);
+            
+            if (!isOwner && !isAdmin) {
+                await message.reply('🔒 This command requires Administrator permissions or Server Owner status.');
+                return true;
+            }
+            
+            const feature = (args[0] || '').toLowerCase();
+            
+            if (feature !== 'moderation') {
+                await message.reply('**Usage:** `.j disable moderation`\n\nAvailable features: `moderation`');
+                return true;
+            }
+            
+            // Disable moderation
+            const result = moderation.disableModeration(message.guild.id, message.author.id);
+            
+            if (result.success) {
+                const embed = new EmbedBuilder()
+                    .setTitle('❌ Moderation Disabled')
+                    .setColor(0xE74C3C)
+                    .setDescription('Moderation features are now **disabled** for this server.')
+                    .addFields(
+                        { name: '🔇 Alerts Stopped', value: 'New member alerts will no longer be sent.', inline: false }
+                    )
+                    .setFooter({ text: `Disabled by ${message.author.tag}` })
+                    .setTimestamp();
+                
+                await message.reply({ embeds: [embed] });
+            } else {
+                await message.reply(`❌ ${result.error}`);
+            }
+            
+            return true;
+        }
+    },
+    
+    moderation: {
+        description: 'View moderation status and settings',
+        usage: '.j moderation [status|settings]',
+        aliases: ['mod'],
+        execute: async (message, args) => {
+            // Only works in guilds
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+            
+            const subcommand = (args[0] || 'status').toLowerCase();
+            const status = moderation.getStatus(message.guild.id);
+            
+            if (subcommand === 'status' || subcommand === 'info') {
+                const embed = new EmbedBuilder()
+                    .setTitle('🛡️ Moderation Status')
+                    .setColor(status.isEnabled ? 0x2ECC71 : 0x95A5A6)
+                    .addFields(
+                        { name: 'Status', value: status.isEnabled ? '✅ **Enabled**' : '❌ **Disabled**', inline: true },
+                        { name: 'Authorized', value: status.canEnable ? '✅ Yes' : '❌ No', inline: true }
+                    );
+                
+                if (status.isEnabled && status.enabledBy) {
+                    embed.addFields({ 
+                        name: 'Enabled By', 
+                        value: `<@${status.enabledBy}> on ${new Date(status.enabledAt).toLocaleDateString()}`, 
+                        inline: false 
+                    });
+                }
+                
+                if (!status.canEnable) {
+                    embed.addFields({
+                        name: '⚠️ Not Authorized',
+                        value: 'This server is not on the whitelist for moderation features.',
+                        inline: false
+                    });
+                }
+                
+                await message.reply({ embeds: [embed] });
+            } else if (subcommand === 'settings') {
+                if (!status.isEnabled) {
+                    await message.reply('Moderation is not enabled. Use `.j enable moderation` first.');
+                    return true;
+                }
+                
+                const s = status.settings;
+                const embed = new EmbedBuilder()
+                    .setTitle('⚙️ Moderation Settings')
+                    .setColor(0x3498DB)
+                    .addFields(
+                        { name: '🕐 Account Age Thresholds', value: `Critical: <${s.criticalAccountAgeDays} day\nHigh Risk: <${s.highRiskAccountAgeDays} days\nThreshold: <${s.newAccountThresholdDays} days`, inline: true },
+                        { name: '🔍 Detection', value: `Spam Patterns: ${s.detectSpamPatterns ? '✅' : '❌'}\nSuspicious Avatars: ${s.detectSuspiciousAvatars ? '✅' : '❌'}\nAlt Accounts: ${s.detectAltAccounts ? '✅' : '❌'}`, inline: true },
+                        { name: '📢 Notifications', value: `On Join: ${s.notifyOnJoin ? '✅' : '❌'}\nLog Channel: ${s.logChannel ? `<#${s.logChannel}>` : 'DM Owner'}\nMention Owner: ${s.mentionOwner ? '✅' : '❌'}`, inline: true }
+                    )
+                    .setFooter({ text: 'Settings configuration coming soon' });
+                
+                await message.reply({ embeds: [embed] });
+            } else {
+                await message.reply('**Usage:**\n`.j moderation status` - View status\n`.j moderation settings` - View settings');
+            }
+            
             return true;
         }
     }

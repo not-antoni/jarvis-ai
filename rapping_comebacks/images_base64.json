@@ -1,5 +1,0 @@
-{
-  "_info": "Base64 encoded images for rap battle comebacks. Each entry has a name and base64 data.",
-  "_usage": "Run 'node scripts/base64-image-converter.js add <image_path>' to add new images",
-  "images": []
-}
