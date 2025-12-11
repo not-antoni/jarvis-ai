@@ -6,9 +6,17 @@
  */
 
 const guildFeatures = require('./guild-features');
+const moderation = require('./moderation');
+const antiScam = require('./anti-scam');
 
 module.exports = {
     guildFeatures,
-    // Re-export specific features
-    antiScam: require('./anti-scam')
+    moderation,
+    antiScam,
+    
+    // Convenience re-exports
+    isEnabled: moderation.isEnabled,
+    enableModeration: moderation.enableModeration,
+    disableModeration: moderation.disableModeration,
+    handleMemberJoin: moderation.handleMemberJoin
 };

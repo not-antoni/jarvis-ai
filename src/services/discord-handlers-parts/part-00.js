@@ -55,6 +55,7 @@ const { getSentientAgent } = require('../agents/sentient-core');
 const legacyCommands = require('./legacy-commands');
 const starkEconomy = require('./stark-economy');
 const { AchievementsSystem, ACHIEVEMENTS } = require('./achievements');
+const guildModeration = require('./GUILDS_FEATURES/moderation');
 const achievements = new AchievementsSystem();
 
 function isCommandEnabled(commandName) {
@@ -747,8 +748,15 @@ class DiscordHandlers {
         }
     }
 
-    async handleGuildMemberAdd(member) {
+    async handleGuildMemberAdd(member, client) {
         await this.sendMemberLogEvent(member, 'join');
+        
+        // Run guild moderation checks if enabled
+        try {
+            await guildModeration.handleMemberJoin(member, client);
+        } catch (error) {
+            console.error('[GuildModeration] Error in handleMemberJoin:', error);
+        }
     }
 
     async handleGuildMemberRemove(member) {

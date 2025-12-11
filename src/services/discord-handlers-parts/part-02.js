@@ -655,11 +655,6 @@
 
         const userId = message.author.id;
         
-        // Block chat if user is in rap battle or recently ended one (3 second cooldown)
-        if (this.rapBattles.has(userId) || this.isRapBattleBlocked(userId)) {
-            return; // Silently ignore messages during rap battle
-        }
-        
         const messageScope = 'message:jarvis';
         const allowWakeWords = Boolean(config.discord?.messageContent?.enabled);
         const rawContent = typeof message.content === 'string' ? message.content : '';

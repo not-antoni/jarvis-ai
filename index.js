@@ -3724,7 +3724,7 @@ client.on("messageDelete", async (message) => {
 });
 
 client.on("guildMemberAdd", async (member) => {
-    await discordHandlers.handleGuildMemberAdd(member);
+    await discordHandlers.handleGuildMemberAdd(member, client);
 });
 
 client.on("guildMemberRemove", async (member) => {
