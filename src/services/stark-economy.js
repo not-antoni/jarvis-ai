@@ -536,12 +536,23 @@ async function getCollection() {
 }
 
 /**
+ * Ensure a value is a valid number, fallback to default
+ */
+function ensureNumber(value, defaultValue = 0) {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : defaultValue;
+}
+
+/**
  * Load user from DB or create new
  */
 async function loadUser(userId, username = 'Unknown') {
     // Check cache first
     if (userCache.has(userId)) {
-        return userCache.get(userId);
+        const cached = userCache.get(userId);
+        // Validate cached balance is not NaN
+        cached.balance = ensureNumber(cached.balance, ECONOMY_CONFIG.startingBalance);
+        return cached;
     }
 
     try {
@@ -570,6 +581,15 @@ async function loadUser(userId, username = 'Unknown') {
                 updatedAt: new Date()
             };
             await col.insertOne(user);
+        } else {
+            // Validate and fix NaN values from DB
+            user.balance = ensureNumber(user.balance, ECONOMY_CONFIG.startingBalance);
+            user.totalEarned = ensureNumber(user.totalEarned, 0);
+            user.totalLost = ensureNumber(user.totalLost, 0);
+            user.totalGambled = ensureNumber(user.totalGambled, 0);
+            user.gamesPlayed = ensureNumber(user.gamesPlayed, 0);
+            user.gamesWon = ensureNumber(user.gamesWon, 0);
+            user.dailyStreak = ensureNumber(user.dailyStreak, 0);
         }
 
         userCache.set(userId, user);
@@ -592,6 +612,14 @@ async function loadUser(userId, username = 'Unknown') {
  * Save user to DB
  */
 async function saveUser(userId, userData) {
+    // Validate all numeric fields before saving
+    userData.balance = ensureNumber(userData.balance, ECONOMY_CONFIG.startingBalance);
+    userData.totalEarned = ensureNumber(userData.totalEarned, 0);
+    userData.totalLost = ensureNumber(userData.totalLost, 0);
+    userData.totalGambled = ensureNumber(userData.totalGambled, 0);
+    userData.gamesPlayed = ensureNumber(userData.gamesPlayed, 0);
+    userData.gamesWon = ensureNumber(userData.gamesWon, 0);
+    userData.dailyStreak = ensureNumber(userData.dailyStreak, 0);
     userData.updatedAt = new Date();
     userCache.set(userId, userData);
 
@@ -624,17 +652,18 @@ async function getBalance(userId, username) {
  */
 async function modifyBalance(userId, amount, reason = 'unknown') {
     const user = await loadUser(userId);
-    const oldBalance = user.balance;
-    user.balance = Math.max(0, user.balance + amount);
+    const safeAmount = ensureNumber(amount, 0);
+    const oldBalance = ensureNumber(user.balance, ECONOMY_CONFIG.startingBalance);
+    user.balance = Math.max(0, oldBalance + safeAmount);
 
-    if (amount > 0) {
-        user.totalEarned = (user.totalEarned || 0) + amount;
+    if (safeAmount > 0) {
+        user.totalEarned = ensureNumber(user.totalEarned, 0) + safeAmount;
     } else {
-        user.totalLost = (user.totalLost || 0) + Math.abs(amount);
+        user.totalLost = ensureNumber(user.totalLost, 0) + Math.abs(safeAmount);
     }
 
     await saveUser(userId, user);
-    return { oldBalance, newBalance: user.balance, change: amount };
+    return { oldBalance, newBalance: user.balance, change: safeAmount };
 }
 
 /**
@@ -1150,7 +1179,7 @@ async function getLeaderboard(limit = 10, client = null) {
                 rank: i + 1,
                 userId: u.userId,
                 username: username,
-                balance: u.balance,
+                balance: ensureNumber(u.balance, 0),
                 hasGoldenName: (u.inventory || []).some(item => item.id === 'golden_name'),
                 hasVipBadge: (u.inventory || []).some(item => item.id === 'vip_badge')
             };

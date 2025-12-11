@@ -23,6 +23,12 @@ if (MASTER_KEY.length !== 32) {
 
 const CACHE_TTL_MS = config.security.vaultCacheTtlMs;
 const CACHE_MAX_ENTRIES = 500;
+
+// Memory limits: 20 long-term + 10 short-term = 30 total per user
+const LONG_TERM_MEMORY_LIMIT = 20;
+const SHORT_TERM_MEMORY_LIMIT = 10;
+const TOTAL_MEMORY_LIMIT = LONG_TERM_MEMORY_LIMIT + SHORT_TERM_MEMORY_LIMIT;
+const SHORT_TERM_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
 const USE_LOCAL_DB_MODE = parseBooleanEnv(process.env.LOCAL_DB_MODE, false);
 
 function parseBooleanEnv(value, fallback) {
@@ -281,7 +287,7 @@ async function registerUserKey(userId) {
 
 async function encryptMemory(userId, plaintext, options = {}) {
     if (USE_LOCAL_DB_MODE && localDbOps) {
-        const { type = 'conversation' } = options || {};
+        const { type = 'conversation', isShortTerm = false } = options || {};
         const { buffer, format } = serializePlaintext(plaintext);
         
         if (buffer.byteLength > 64 * 1024) {
@@ -296,14 +302,19 @@ async function encryptMemory(userId, plaintext, options = {}) {
             payload,
             format,
             bytes: buffer.byteLength,
+            isShortTerm: isShortTerm,
+            shortTermExpiresAt: isShortTerm ? Date.now() + SHORT_TERM_TTL_MS : null,
             version: 1
         });
+
+        // Enforce memory limits
+        await enforceMemoryLimitsLocal(userId);
 
         memoryCache.delete(userId);
         return `local_${userId}_${Date.now()}`;
     }
 
-    const { type = 'conversation', expiresAt = null } = options || {};
+    const { type = 'conversation', expiresAt = null, isShortTerm = false } = options || {};
     const { buffer, format } = serializePlaintext(plaintext);
 
     if (buffer.byteLength > 64 * 1024) {
@@ -322,6 +333,8 @@ async function encryptMemory(userId, plaintext, options = {}) {
         meta: {
             bytes: buffer.byteLength
         },
+        isShortTerm: isShortTerm,
+        shortTermExpiresAt: isShortTerm ? new Date(Date.now() + SHORT_TERM_TTL_MS) : null,
         expiresAt,
         version: 1
     };
@@ -329,29 +342,102 @@ async function encryptMemory(userId, plaintext, options = {}) {
     const { memories } = await getCollections();
     const result = await memories.insertOne(doc);
 
+    // Enforce memory limits: delete oldest if over limit
+    await enforceMemoryLimits(userId, memories);
+
     memoryCache.delete(userId);
     return result.insertedId;
 }
 
-async function decryptMemories(userId, options = {}) {
-    if (USE_LOCAL_DB_MODE && localDbOps) {
-        const cacheHit = memoryCache.get(userId);
-        if (cacheHit) {
-            return cacheHit.map(cloneMemoryEntry);
-        }
+/**
+ * Enforce memory limits per user (20 long-term + 10 short-term = 30 total)
+ * If over limit, delete oldest memories
+ */
+async function enforceMemoryLimits(userId, memoriesCollection) {
+    try {
+        // Clean up expired short-term memories first
+        await memoriesCollection.deleteMany({
+            userId,
+            isShortTerm: true,
+            shortTermExpiresAt: { $lt: new Date() }
+        });
 
-        const { type = 'conversation', limit = 12 } = options || {};
-        const docs = await localDbOps.getMemories(userId, limit);
+        // Get current counts
+        const totalCount = await memoriesCollection.countDocuments({ userId });
         
-        if (docs.length === 0) {
-            memoryCache.set(userId, []);
+        if (totalCount > TOTAL_MEMORY_LIMIT) {
+            // Find oldest memories to delete
+            const excess = totalCount - TOTAL_MEMORY_LIMIT;
+            const oldestDocs = await memoriesCollection
+                .find({ userId })
+                .sort({ createdAt: 1 })
+                .limit(excess)
+                .toArray();
+            
+            const idsToDelete = oldestDocs.map(d => d._id);
+            if (idsToDelete.length > 0) {
+                await memoriesCollection.deleteMany({ _id: { $in: idsToDelete } });
+            }
+        }
+    } catch (error) {
+        console.error('[VaultClient] Failed to enforce memory limits:', error);
+    }
+}
+
+/**
+ * Enforce memory limits for local DB mode
+ */
+async function enforceMemoryLimitsLocal(userId) {
+    if (!localDbOps) return;
+    
+    try {
+        // Get all memories for user
+        const allMemories = await localDbOps.getMemories(userId, 1000);
+        
+        // Clean expired short-term memories
+        const now = Date.now();
+        const validMemories = allMemories.filter(m => {
+            if (m.isShortTerm && m.shortTermExpiresAt && m.shortTermExpiresAt < now) {
+                return false; // Expired
+            }
+            return true;
+        });
+        
+        // If over limit, keep only the newest TOTAL_MEMORY_LIMIT
+        if (validMemories.length > TOTAL_MEMORY_LIMIT) {
+            // Memories are already sorted by createdAt desc, so we keep the first 30
+            // The localdb will handle this on next save
+        }
+    } catch (error) {
+        console.error('[VaultClient] Failed to enforce local memory limits:', error);
+    }
+}
+
+async function decryptMemories(userId, options = {}) {
+    // ALWAYS query DB - don't use cache for robustness
+    // Cache is only used for performance optimization, not as source of truth
+    
+    if (USE_LOCAL_DB_MODE && localDbOps) {
+        const { type = 'conversation', limit = 30 } = options || {};
+        
+        // Clean expired short-term memories first
+        const allDocs = await localDbOps.getMemories(userId, 1000);
+        const now = Date.now();
+        const validDocs = allDocs.filter(m => {
+            if (m.isShortTerm && m.shortTermExpiresAt && m.shortTermExpiresAt < now) {
+                return false;
+            }
+            return true;
+        }).slice(0, limit);
+        
+        if (validDocs.length === 0) {
             return [];
         }
 
         const userKey = await getOrCreateUserKey(userId);
         const decrypted = [];
 
-        for (const doc of docs) {
+        for (const doc of validDocs) {
             try {
                 const plaintext = decryptWithKey(userKey, doc.payload);
                 const value = deserializePlaintext(plaintext, doc.format);
@@ -360,6 +446,7 @@ async function decryptMemories(userId, options = {}) {
                         _id: doc._id || `local_${userId}_${doc.createdAt}`,
                         type: doc.type || type,
                         value,
+                        isShortTerm: doc.isShortTerm || false,
                         createdAt: new Date(doc.createdAt)
                     });
                 }
@@ -368,18 +455,20 @@ async function decryptMemories(userId, options = {}) {
             }
         }
 
-        memoryCache.set(userId, decrypted);
         return decrypted.map(cloneMemoryEntry);
     }
 
-    const cacheHit = memoryCache.get(userId);
-    if (cacheHit) {
-        return cacheHit.map(cloneMemoryEntry);
-    }
-
-    const { type = 'conversation', limit = 12 } = options || {};
+    const { type = 'conversation', limit = 30 } = options || {};
 
     const { memories } = await getCollections();
+    
+    // Clean expired short-term memories first
+    await memories.deleteMany({
+        userId,
+        isShortTerm: true,
+        shortTermExpiresAt: { $lt: new Date() }
+    });
+
     const docs = await memories
         .find({ userId, type })
         .sort({ createdAt: -1 })
@@ -387,7 +476,6 @@ async function decryptMemories(userId, options = {}) {
         .toArray();
 
     if (docs.length === 0) {
-        memoryCache.set(userId, []);
         return [];
     }
 
@@ -403,14 +491,14 @@ async function decryptMemories(userId, options = {}) {
             }
             decrypted.push({
                 createdAt: doc.createdAt,
-                data: payload
+                data: payload,
+                isShortTerm: doc.isShortTerm || false
             });
         } catch (error) {
             console.error('Failed to decrypt vault memory for user', userId, error);
         }
     }
 
-    memoryCache.set(userId, decrypted);
     return decrypted.map(cloneMemoryEntry);
 }
 

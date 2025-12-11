@@ -2239,7 +2239,7 @@
             }
 
             // Check if sentience is enabled for this guild - if so, bypass feature flag check for sentience-related commands
-            const SENTIENCE_COMMANDS = ['soul', 'rapbattle', 'roast', 'sentient'];
+            const SENTIENCE_COMMANDS = ['soul', 'roast', 'sentient'];
             const isSentienceCommand = SENTIENCE_COMMANDS.includes(commandName);
             const sentienceEnabled = guild && isSentienceCommand ? selfhostFeatures.isSentienceEnabled(guild.id) : false;
             
@@ -3297,6 +3297,12 @@
                     break;
                 }
                 // ============ FUN FEATURES ============
+                case 'aatrox': {
+                    telemetryMetadata.category = 'fun';
+                    // Send the Aatrox gif - available in both guilds and DMs
+                    response = 'https://tenor.com/view/aatrox-gyattrox-gyaatrox-lol-league-of-legends-gif-16706958126825166451';
+                    break;
+                }
                 case 'roast': {
                     telemetryMetadata.category = 'fun';
                     const target = interaction.options.getUser('user') || interaction.user;
