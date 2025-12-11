@@ -41,8 +41,14 @@ let enabledGuilds = new Map();
 const trackedMembers = new Map();
 
 // Rate limiting for alerts (prevent spam)
+// Global rate limit: 10 alerts max per 2 seconds
+const alertTimestamps = []; // Array of timestamps for sliding window
+const MAX_ALERTS_PER_WINDOW = 10;
+const RATE_LIMIT_WINDOW_MS = 2000; // 2 seconds
+
+// Per-user cooldown (prevent spam from same user)
 const alertCooldowns = new Map(); // `${guildId}:${userId}` -> timestamp
-const ALERT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between alerts per user
+const ALERT_COOLDOWN_MS = 30 * 1000; // 30 seconds between alerts per user
 
 // Detection statistics
 const detectionStats = new Map(); // guildId -> { total, byCategory, byUser }
@@ -300,7 +306,37 @@ function isWhitelisted(guildId, member) {
 
 // ============ RATE LIMITING ============
 
+/**
+ * Check if global rate limit is exceeded (10 alerts per 2 seconds)
+ */
+function isGlobalRateLimited() {
+    const now = Date.now();
+    
+    // Remove timestamps outside the window
+    while (alertTimestamps.length > 0 && alertTimestamps[0] < now - RATE_LIMIT_WINDOW_MS) {
+        alertTimestamps.shift();
+    }
+    
+    return alertTimestamps.length >= MAX_ALERTS_PER_WINDOW;
+}
+
+/**
+ * Record an alert for rate limiting
+ */
+function recordAlert() {
+    alertTimestamps.push(Date.now());
+}
+
+/**
+ * Check if user is on cooldown
+ */
 function isOnAlertCooldown(guildId, userId) {
+    // Check global rate limit first
+    if (isGlobalRateLimited()) {
+        return true;
+    }
+    
+    // Check per-user cooldown
     const key = `${guildId}:${userId}`;
     const cooldownUntil = alertCooldowns.get(key);
     
@@ -314,6 +350,7 @@ function isOnAlertCooldown(guildId, userId) {
 function setAlertCooldown(guildId, userId) {
     const key = `${guildId}:${userId}`;
     alertCooldowns.set(key, Date.now() + ALERT_COOLDOWN_MS);
+    recordAlert(); // Record for global rate limit
 }
 
 // ============ STATISTICS ============
