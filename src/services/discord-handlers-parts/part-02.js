@@ -641,6 +641,16 @@
 
         await moderationFilters.handleMessage(message);
 
+        // ============ AI CONTENT MODERATION ============
+        // Check messages from tracked members for suspicious content
+        if (message.guild && config.discord?.messageContent?.enabled) {
+            try {
+                await guildModeration.handleMessage(message, client);
+            } catch (error) {
+                // Silently fail - don't block normal message processing
+            }
+        }
+
         // ============ LEGACY COMMANDS (.j prefix) ============
         // Only works when Message Content Intent is enabled
         if (config.discord?.messageContent?.enabled) {

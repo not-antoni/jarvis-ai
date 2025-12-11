@@ -1710,8 +1710,8 @@ const allCommands = [
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     // ============ FUN COMMANDS ============
     new SlashCommandBuilder()
-        .setName('rapbattle')
-        .setDescription('HUMANOID vs HUMAN - challenge Jarvis to a rap battle!')
+        .setName('aatrox')
+        .setDescription('GYAATROX')
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName('roast')

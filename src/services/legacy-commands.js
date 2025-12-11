@@ -957,19 +957,82 @@ const legacyCommands = {
                 }
                 
                 const s = status.settings;
+                const pingRoles = s.pingRoles?.length > 0 ? s.pingRoles.map(r => `<@&${r}>`).join(', ') : 'None';
+                const pingUsers = s.pingUsers?.length > 0 ? s.pingUsers.map(u => `<@${u}>`).join(', ') : 'None';
+                
                 const embed = new EmbedBuilder()
                     .setTitle('⚙️ Moderation Settings')
                     .setColor(0x3498DB)
                     .addFields(
-                        { name: '🕐 Account Age Thresholds', value: `Critical: <${s.criticalAccountAgeDays} day\nHigh Risk: <${s.highRiskAccountAgeDays} days\nThreshold: <${s.newAccountThresholdDays} days`, inline: true },
-                        { name: '🔍 Detection', value: `Spam Patterns: ${s.detectSpamPatterns ? '✅' : '❌'}\nSuspicious Avatars: ${s.detectSuspiciousAvatars ? '✅' : '❌'}\nAlt Accounts: ${s.detectAltAccounts ? '✅' : '❌'}`, inline: true },
-                        { name: '📢 Notifications', value: `On Join: ${s.notifyOnJoin ? '✅' : '❌'}\nLog Channel: ${s.logChannel ? `<#${s.logChannel}>` : 'DM Owner'}\nMention Owner: ${s.mentionOwner ? '✅' : '❌'}`, inline: true }
+                        { name: '🤖 AI Detection', value: `Enabled: ${s.useAI ? '✅' : '❌'}\nProvider: ${s.aiProvider || 'openai'}\nOllama: ${s.ollamaModel || 'llava'}`, inline: true },
+                        { name: '👤 New Member Monitoring', value: `Monitor New: ${s.monitorNewMembers ? '✅' : '❌'}\nThreshold: <${s.newMemberThresholdDays} days\nDuration: ${s.monitorDurationHours}h`, inline: true },
+                        { name: '📢 Notifications', value: `Ping Owner: ${s.pingOwner ? '✅' : '❌'}\nLog Channel: ${s.logChannel ? `<#${s.logChannel}>` : 'DM Owner'}`, inline: true },
+                        { name: '🔔 Ping Roles', value: pingRoles, inline: true },
+                        { name: '🔔 Ping Users', value: pingUsers, inline: true },
+                        { name: '⚡ Tracked Members', value: `${status.trackedMembersCount || 0} active`, inline: true }
                     )
-                    .setFooter({ text: 'Settings configuration coming soon' });
+                    .setFooter({ text: 'Use .j moderation pingrole/pinguser to configure' });
                 
                 await message.reply({ embeds: [embed] });
+            } else if (subcommand === 'pingrole') {
+                // .j moderation pingrole @role
+                const role = message.mentions.roles.first();
+                if (!role) {
+                    await message.reply('**Usage:** `.j moderation pingrole @role`\nMention a role to add/remove from ping list.');
+                    return true;
+                }
+                
+                const s = status.settings;
+                const pingRoles = s.pingRoles || [];
+                
+                if (pingRoles.includes(role.id)) {
+                    // Remove
+                    const newRoles = pingRoles.filter(r => r !== role.id);
+                    moderation.updateSettings(message.guild.id, { pingRoles: newRoles });
+                    await message.reply(`✅ Removed <@&${role.id}> from moderation ping list.`);
+                } else {
+                    // Add
+                    pingRoles.push(role.id);
+                    moderation.updateSettings(message.guild.id, { pingRoles });
+                    await message.reply(`✅ Added <@&${role.id}> to moderation ping list.`);
+                }
+            } else if (subcommand === 'pinguser') {
+                // .j moderation pinguser @user
+                const user = message.mentions.users.first();
+                if (!user) {
+                    await message.reply('**Usage:** `.j moderation pinguser @user`\nMention a user to add/remove from ping list.');
+                    return true;
+                }
+                
+                const s = status.settings;
+                const pingUsers = s.pingUsers || [];
+                
+                if (pingUsers.includes(user.id)) {
+                    // Remove
+                    const newUsers = pingUsers.filter(u => u !== user.id);
+                    moderation.updateSettings(message.guild.id, { pingUsers: newUsers });
+                    await message.reply(`✅ Removed <@${user.id}> from moderation ping list.`);
+                } else {
+                    // Add
+                    pingUsers.push(user.id);
+                    moderation.updateSettings(message.guild.id, { pingUsers });
+                    await message.reply(`✅ Added <@${user.id}> to moderation ping list.`);
+                }
+            } else if (subcommand === 'logchannel') {
+                // .j moderation logchannel #channel
+                const channel = message.mentions.channels.first();
+                if (!channel) {
+                    await message.reply('**Usage:** `.j moderation logchannel #channel`\nMention a channel for moderation logs. Use `.j moderation logchannel clear` to DM owner instead.');
+                    return true;
+                }
+                
+                moderation.updateSettings(message.guild.id, { logChannel: channel.id });
+                await message.reply(`✅ Moderation logs will be sent to <#${channel.id}>.`);
+            } else if (args[0]?.toLowerCase() === 'logchannel' && args[1]?.toLowerCase() === 'clear') {
+                moderation.updateSettings(message.guild.id, { logChannel: null });
+                await message.reply('✅ Moderation logs will be sent to the server owner via DM.');
             } else {
-                await message.reply('**Usage:**\n`.j moderation status` - View status\n`.j moderation settings` - View settings');
+                await message.reply('**Usage:**\n`.j moderation status` - View status\n`.j moderation settings` - View settings\n`.j moderation pingrole @role` - Add/remove ping role\n`.j moderation pinguser @user` - Add/remove ping user\n`.j moderation logchannel #channel` - Set log channel');
             }
             
             return true;
