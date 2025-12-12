@@ -68,14 +68,17 @@
         // Parse Discord mentions to show display names instead of raw IDs
         // Handles user mentions <@123> and <@!123>, role mentions <@&123>, channel mentions <#123>
         if (message.mentions) {
-            // Replace user mentions with @displayName (falls back to username)
-            for (const [userId, user] of message.mentions.users) {
-                const displayName = user.displayName || user.globalName || user.username;
-                const mentionPatterns = [
-                    new RegExp(`<@!?${userId}>`, 'g')
-                ];
-                for (const pattern of mentionPatterns) {
-                    cleanContent = cleanContent.replace(pattern, `@${displayName}`);
+            // Prefer guild member display names (nicknames), fall back to globalName/username
+            const memberMap = message.mentions.members;
+            if (memberMap && memberMap.size > 0) {
+                for (const [userId, member] of memberMap) {
+                    const displayName = member?.displayName || member?.user?.globalName || member?.user?.username || 'user';
+                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `@${displayName}`);
+                }
+            } else {
+                for (const [userId, user] of message.mentions.users) {
+                    const displayName = user?.globalName || user?.username || 'user';
+                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `@${displayName}`);
                 }
             }
             // Replace role mentions with @rolename
@@ -206,6 +209,20 @@
                 } else {
                     fullContent = cleanContent.substring(0, config.ai.maxInputLength);
                 }
+            }
+
+            if (process.env.JARVIS_DEBUG_AI_INPUT === '1') {
+                console.log('[Jarvis AI Input]', {
+                    userId: message.author?.id,
+                    hasReply: Boolean(message.reference?.messageId),
+                    replyContextChars: repliedContext ? repliedContext.length : 0,
+                    userPromptChars: typeof cleanContent === 'string' ? cleanContent.length : 0,
+                    fullPromptChars: typeof fullContent === 'string' ? fullContent.length : 0,
+                    images: Array.isArray(imageAttachments) ? imageAttachments.length : 0,
+                    fromReplyImages: Array.isArray(imageAttachments)
+                        ? imageAttachments.filter(i => i && i.fromReply).length
+                        : 0
+                });
             }
 
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
