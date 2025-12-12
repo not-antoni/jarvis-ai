@@ -245,11 +245,13 @@
                 await message.reply("Response circuits tangled, sir. Clarify your request?");
             }
         } catch (error) {
-            console.error("Error processing message:", error);
+            // Generate unique error code for debugging
+            const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+            console.error(`[${errorId}] Error processing message:`, error);
             try {
-                await message.reply("Technical difficulties, sir. One moment, please.");
+                await message.reply(`Technical difficulties, sir. (${errorId}) Please try again shortly.`);
             } catch (err) {
-                console.error("Failed to send error reply:", err);
+                console.error(`[${errorId}] Failed to send error reply:`, err);
             }
         }
     }

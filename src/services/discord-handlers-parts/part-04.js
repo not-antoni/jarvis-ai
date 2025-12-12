@@ -4731,19 +4731,24 @@
         } catch (error) {
             telemetryStatus = 'error';
             telemetryError = error;
-            console.error('Error processing interaction:', error);
+            
+            // Generate unique error code for debugging
+            const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+            console.error(`[${errorId}] Error processing interaction:`, error);
+            
             try {
+                const errorMessage = `Technical difficulties, sir. (${errorId}) Please try again shortly.`;
                 if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply("Technical difficulties, sir. One moment, please.");
+                    await interaction.reply(errorMessage);
                 } else if (interaction.deferred && !interaction.replied) {
-                    await interaction.editReply("Technical difficulties, sir. One moment, please.");
+                    await interaction.editReply(errorMessage);
                 }
             } catch (editError) {
                 if (editError.code === 10062) {
                     telemetryMetadata.reason = 'unknown-interaction';
-                    console.warn('Ignored unknown interaction during error reply.');
+                    console.warn(`[${errorId}] Ignored unknown interaction during error reply.`);
                 } else {
-                    console.error('Failed to send error reply:', editError.code, editError.message);
+                    console.error(`[${errorId}] Failed to send error reply:`, editError.code, editError.message);
                 }
             }
             shouldSetCooldown = true;

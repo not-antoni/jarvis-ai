@@ -844,8 +844,9 @@
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const mathTriggerPattern = /\bjarvis\s+math\b/i;
-        // Allow search keyword even when Jarvis is invoked via mention (where "jarvis" may not appear in cleanContent).
-        const searchTriggerPattern = /\bsearch\b/i;
+        // Require "search" with context - either "jarvis search" or just "search" when Jarvis was mentioned/invoked
+        // But avoid triggering on casual uses like "I was searching for my keys"
+        const searchTriggerPattern = /\b(?:jarvis\s+)?search\s+(?:for\s+)?(?:the\s+)?(?:web\s+)?(.+)/i;
         const hasMathTrigger = mathTriggerPattern.test(cleanContent);
         const ytMatch = cleanContent.match(ytCommandPattern);
         const hasSearchTrigger = searchTriggerPattern.test(cleanContent);
@@ -866,20 +867,24 @@
             }
         }
 
-        // If the user said "search" but didn't use the explicit "jarvis search" phrase,
+        // If the user said "search [query]" but didn't use the explicit "jarvis search" phrase,
         // synthesize a Brave invocation so the search pipeline still works.
+        // The new pattern captures the query after "search" to avoid false positives.
         if (hasSearchTrigger && !braveInvocation.triggered && !rawBraveInvocation.triggered) {
-            const lower = cleanContent.toLowerCase();
-            const idx = lower.indexOf('search');
-            const tail = idx >= 0 ? cleanContent.slice(idx + 'search'.length).trim() : '';
-            braveInvocation = {
-                ...defaultBraveInvocation,
-                triggered: true,
-                query: tail,
-                rawQuery: tail,
-                invocation: cleanContent,
-                explicit: false,
-            };
+            const searchMatch = cleanContent.match(searchTriggerPattern);
+            const extractedQuery = searchMatch?.[1]?.trim() || '';
+            
+            // Only trigger if we actually have a query (avoids "I was searching" false positives)
+            if (extractedQuery.length > 2) {
+                braveInvocation = {
+                    ...defaultBraveInvocation,
+                    triggered: true,
+                    query: extractedQuery,
+                    rawQuery: extractedQuery,
+                    invocation: cleanContent,
+                    explicit: false,
+                };
+            }
         }
 
         if (hasMathTrigger) {
