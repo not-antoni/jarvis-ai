@@ -1,6 +1,18 @@
 
-            if (hasSearchTrigger) {
-                await message.reply('Web search is now handled by `/search`, sir.');
+            // Web search support via keyword trigger ("jarvis search ...")
+            // Uses existing Brave integration for stability.
+            const activeInvocation = braveInvocation.triggered ? braveInvocation : rawBraveInvocation;
+            const querySource = activeInvocation?.query || '';
+            const invocationContext = activeInvocation?.invocation || null;
+            const rawSegmentCandidate = activeInvocation?.rawQuery || activeInvocation?.invocation || rawContent;
+            const explicitDetected = Boolean(activeInvocation?.explicit);
+
+            if (explicitDetected) {
+                await message.reply({
+                    content: braveSearch.getExplicitQueryMessage
+                        ? braveSearch.getExplicitQueryMessage()
+                        : 'I must decline that request, sir. My safety filters forbid it.'
+                });
                 this.setCooldown(message.author.id, messageScope);
                 return;
             }
