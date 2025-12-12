@@ -1741,7 +1741,7 @@
 
         // Error log status buttons
         try {
-            const errorLogger = require('../error-logger');
+            const errorLogger = require('./error-logger');
             const handled = await errorLogger.handleStatusButton(interaction);
             if (handled) {
                 return;
@@ -4752,7 +4752,7 @@
                         };
                     } catch (error) {
                         try {
-                            const errorLogger = require('../error-logger');
+                            const errorLogger = require('./error-logger');
                             await errorLogger.log({
                                 error,
                                 context: {
@@ -4805,7 +4805,7 @@
                         };
                     } catch (error) {
                         try {
-                            const errorLogger = require('../error-logger');
+                            const errorLogger = require('./error-logger');
                             await errorLogger.log({
                                 error,
                                 context: {
@@ -4887,7 +4887,7 @@
 
             // Report to error log channel for production triage
             try {
-                const errorLogger = require('../error-logger');
+                const errorLogger = require('./error-logger');
                 await errorLogger.log({
                     error,
                     errorId,
