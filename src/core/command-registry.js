@@ -217,7 +217,7 @@ const commandDefinitions = [
         description: 'Generate a secure password.',
         category: 'Utilities',
         usage: '/pwdgen [length] [symbols]',
-        feature: 'utilities',
+        feature: 'utilitiesExtras',
         ephemeral: true
     },
     {
@@ -225,7 +225,7 @@ const commandDefinitions = [
         description: 'Generate a QR code image for a text payload.',
         category: 'Utilities',
         usage: '/qrcode text:<value>',
-        feature: 'utilities',
+        feature: 'utilitiesExtras',
         ephemeral: false
     },
     {

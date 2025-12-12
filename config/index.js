@@ -190,6 +190,7 @@ const rawConfig = {
     features: {
         coreChat: true,
         utilities: true,
+        utilitiesExtras: true,
         providers: true,
         reset: true,
         invite: true,

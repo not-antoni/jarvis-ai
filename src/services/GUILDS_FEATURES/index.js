@@ -9,6 +9,10 @@ const guildFeatures = require('./guild-features');
 const moderation = require('./moderation');
 const antiScam = require('./anti-scam');
 
+if (antiScam && typeof antiScam.isAvailable === 'function' && antiScam.isAvailable() === false) {
+    console.warn('[GuildFeatures] antiScam is loaded but is not available (placeholder / missing intents or keys).');
+}
+
 module.exports = {
     guildFeatures,
     moderation,

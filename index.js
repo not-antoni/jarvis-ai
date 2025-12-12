@@ -3836,6 +3836,21 @@ process.on("unhandledRejection", (err) => {
     // Log but don't exit - let the bot continue running
 });
 
+process.on("uncaughtException", (err) => {
+    console.error("Uncaught exception:", err);
+    try {
+        errorLogger.log({
+            error: err,
+            context: {
+                location: 'process.uncaughtException',
+                command: 'uncaughtException'
+            }
+        });
+    } catch {
+        // ignore
+    }
+});
+
 process.on("SIGTERM", async () => {
     console.log("Jarvis is powering down...");
     try {
