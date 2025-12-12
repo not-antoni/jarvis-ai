@@ -259,20 +259,27 @@ const FALLBACK_PATTERNS = [
 ];
 
 // ============ DATABASE FUNCTIONS ============
+// Uses data-sync service for robust MongoDB ↔ local migration
+
+const dataSync = require('../data-sync');
 
 /**
  * Initialize database connection
  */
 async function initDatabase() {
     try {
+        const mongoAvailable = await dataSync.checkMongoConnection();
         if (LOCAL_DB_MODE || SELFHOST_MODE) {
-            // Use local database
-            localDb = require('../../localdb');
-            console.log('[Moderation] Using local database');
+            console.log('[Moderation] Using local database (selfhost mode)');
+            // If MongoDB was available before, sync data to local
+            if (mongoAvailable) {
+                console.log('[Moderation] Syncing MongoDB data to local for offline use...');
+                await dataSync.syncMongoToLocal(COLLECTION_NAME);
+            }
         } else {
-            // Use MongoDB
-            database = require('../database');
-            console.log('[Moderation] Using MongoDB');
+            console.log('[Moderation] Using MongoDB (production mode)');
+            // Sync any pending local changes to MongoDB
+            await dataSync.syncPendingChanges();
         }
     } catch (error) {
         console.error('[Moderation] Failed to initialize database:', error);
@@ -280,27 +287,29 @@ async function initDatabase() {
 }
 
 /**
- * Load config from database
+ * Load config from database (uses smart read - tries both sources)
  */
 async function loadConfig() {
     try {
-        if (LOCAL_DB_MODE || SELFHOST_MODE) {
-            // Load from local file
-            const dataPath = path.join(__dirname, '../../../data/moderation-config.json');
-            if (fs.existsSync(dataPath)) {
-                const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-                enabledGuilds = new Map(Object.entries(data.enabledGuilds || {}));
-            }
-        } else if (database?.isConnected) {
-            // Load from MongoDB
-            const collection = database.getCollection(COLLECTION_NAME);
-            if (collection) {
-                const configs = await collection.find({}).toArray();
-                for (const config of configs) {
-                    enabledGuilds.set(config.guildId, config);
+        // Smart read tries MongoDB first, falls back to local, keeps both in sync
+        const preferLocal = LOCAL_DB_MODE || SELFHOST_MODE;
+        const data = await dataSync.smartRead(COLLECTION_NAME, preferLocal);
+        
+        if (data) {
+            // Handle array format (from MongoDB)
+            if (Array.isArray(data)) {
+                for (const config of data) {
+                    if (config.guildId) {
+                        enabledGuilds.set(config.guildId, config);
+                    }
                 }
+            } 
+            // Handle object format (from local file)
+            else if (data.enabledGuilds) {
+                enabledGuilds = new Map(Object.entries(data.enabledGuilds));
             }
         }
+        
         console.log('[Moderation] Loaded config for', enabledGuilds.size, 'guilds');
     } catch (error) {
         console.error('[Moderation] Failed to load config:', error);
@@ -308,38 +317,21 @@ async function loadConfig() {
 }
 
 /**
- * Save config to database
+ * Save config to database (uses smart write - writes to both MongoDB and local)
  */
 async function saveConfig(guildId) {
     try {
         const config = enabledGuilds.get(guildId);
         if (!config) return;
         
-        if (LOCAL_DB_MODE || SELFHOST_MODE) {
-            // Save to local file
-            const dataDir = path.join(__dirname, '../../../data');
-            const dataPath = path.join(dataDir, 'moderation-config.json');
-            
-            if (!fs.existsSync(dataDir)) {
-                fs.mkdirSync(dataDir, { recursive: true });
-            }
-            
-            const data = {
-                enabledGuilds: Object.fromEntries(enabledGuilds),
-                updatedAt: new Date().toISOString()
-            };
-            fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
-        } else if (database?.isConnected) {
-            // Save to MongoDB
-            const collection = database.getCollection(COLLECTION_NAME);
-            if (collection) {
-                await collection.updateOne(
-                    { guildId },
-                    { $set: { ...config, guildId, updatedAt: new Date() } },
-                    { upsert: true }
-                );
-            }
-        }
+        // Prepare data for storage
+        const data = {
+            enabledGuilds: Object.fromEntries(enabledGuilds),
+            updatedAt: new Date().toISOString()
+        };
+        
+        // Smart write saves to both MongoDB and local, handles failures gracefully
+        await dataSync.smartWrite(COLLECTION_NAME, data);
     } catch (error) {
         console.error('[Moderation] Failed to save config:', error);
     }
