@@ -284,7 +284,7 @@ class AIProviderManager {
       this.providers.push({
         name: `GoogleAI${index + 1}`,
         client: new GoogleGenerativeAI(key),
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-pro',
         type: 'google',
         family: 'google',
         costTier: 'free',
