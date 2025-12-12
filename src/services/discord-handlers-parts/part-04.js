@@ -2006,57 +2006,72 @@
     }
 
     async handleMemoryCommand(interaction) {
-        const limitOption = interaction.options.getInteger('entries');
-        const limit = Math.max(1, Math.min(limitOption || 5, 10));
-        const user = interaction.user;
-        const userId = user.id;
-        const userName = user.displayName || user.username;
+        try {
+            const limitOption = interaction.options.getInteger('entries');
+            const limit = Math.max(1, Math.min(limitOption || 5, 30));
+            const user = interaction.user;
+            const userId = user.id;
+            const userName = user.displayName || user.username;
 
-        if (!database.isConnected) {
-            await interaction.editReply('Memory subsystem offline, sir. Please try again later.');
-            return;
-        }
-
-        const profile = await database.getUserProfile(userId, userName);
-        const memoryPreferenceRaw = profile?.preferences?.memoryOpt ?? 'opt-in';
-        const preference = String(memoryPreferenceRaw).toLowerCase();
-        const isOptedOut = preference === 'opt-out';
-
-        let historyEntries = [];
-        let usedSecureMemories = false;
-
-        if (!isOptedOut) {
-            try {
-                const secureMemories = await vaultClient.decryptMemories(userId, { limit });
-                if (secureMemories.length) {
-                    usedSecureMemories = true;
-                    historyEntries = secureMemories
-                        .map((entry) => ({
-                            createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date(),
-                            prompt: entry.data?.userMessage || entry.data?.prompt || null,
-                            reply: entry.data?.jarvisResponse || entry.data?.response || null
-                        }))
-                        .sort((a, b) => b.createdAt - a.createdAt);
-                }
-            } catch (error) {
-                console.error('Failed to decrypt secure memories for memory command:', error);
+            if (!database.isConnected) {
+                await interaction.editReply('Memory subsystem offline, sir. Please try again later.');
+                return;
             }
 
-            if (!historyEntries.length) {
+            const profile = await database.getUserProfile(userId, userName);
+            const memoryPreferenceRaw = profile?.preferences?.memoryOpt ?? 'opt-in';
+            const preference = String(memoryPreferenceRaw).toLowerCase();
+            const isOptedOut = preference === 'opt-out';
+
+            let historyEntries = [];
+            let usedSecureMemories = false;
+
+            if (!isOptedOut) {
                 try {
-                    const conversations = await database.getRecentConversations(userId, limit);
-                    historyEntries = conversations
-                        .map((conv) => ({
-                            createdAt: conv.createdAt ? new Date(conv.createdAt) : (conv.timestamp ? new Date(conv.timestamp) : new Date()),
-                            prompt: conv.userMessage || null,
-                            reply: conv.jarvisResponse || null
-                        }))
-                        .sort((a, b) => b.createdAt - a.createdAt);
+                    // We want to show up to 20 long-term + 10 short-term (30 total)
+                    const secureMemories = await vaultClient.decryptMemories(userId, { limit: 60 });
+                    if (secureMemories.length) {
+                        usedSecureMemories = true;
+
+                        const normalize = (entry) => {
+                            const payload = entry?.data || entry?.value || entry?.payload || null;
+                            return {
+                                createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date(),
+                                prompt: payload?.userMessage || payload?.prompt || null,
+                                reply: payload?.jarvisResponse || payload?.response || null,
+                                isShortTerm: !!entry.isShortTerm
+                            };
+                        };
+
+                        const normalized = secureMemories
+                            .map(normalize)
+                            .filter((e) => e.prompt || e.reply)
+                            .sort((a, b) => b.createdAt - a.createdAt);
+
+                        const longTerm = normalized.filter((e) => !e.isShortTerm).slice(0, 20);
+                        const shortTerm = normalized.filter((e) => e.isShortTerm).slice(0, 10);
+                        historyEntries = [...longTerm, ...shortTerm].slice(0, limit);
+                    }
                 } catch (error) {
-                    console.error('Failed to load recent conversations for memory command:', error);
+                    console.error('Failed to decrypt secure memories for memory command:', error);
+                }
+
+                if (!historyEntries.length) {
+                    try {
+                        const conversations = await database.getRecentConversations(userId, limit);
+                        historyEntries = conversations
+                            .map((conv) => ({
+                                createdAt: conv.createdAt ? new Date(conv.createdAt) : (conv.timestamp ? new Date(conv.timestamp) : new Date()),
+                                prompt: conv.userMessage || null,
+                                reply: conv.jarvisResponse || null,
+                                isShortTerm: false
+                            }))
+                            .sort((a, b) => b.createdAt - a.createdAt);
+                    } catch (error) {
+                        console.error('Failed to load recent conversations for memory command:', error);
+                    }
                 }
             }
-        }
 
         const formatSnippet = (text) => {
             if (!text) {
@@ -2066,14 +2081,15 @@
             return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean;
         };
 
-        const lines = historyEntries.slice(0, limit).map((entry) => {
+            const lines = historyEntries.slice(0, limit).map((entry) => {
             const timestamp = `<t:${Math.floor(entry.createdAt.getTime() / 1000)}:R>`;
             const prompt = formatSnippet(entry.prompt);
             const reply = formatSnippet(entry.reply);
-            return `• ${timestamp}\n  • Prompt: ${prompt}\n  • Reply: ${reply}`;
-        });
+                const tag = usedSecureMemories ? (entry.isShortTerm ? ' (short-term)' : ' (long-term)') : '';
+                return `• ${timestamp}${tag}\n  • Prompt: ${prompt}\n  • Reply: ${reply}`;
+            });
 
-        const embed = new EmbedBuilder()
+            const embed = new EmbedBuilder()
             .setTitle('Memory Diagnostics')
             .setColor(isOptedOut ? 0x64748b : 0x38bdf8)
             .addFields(
@@ -2088,18 +2104,24 @@
             )
             .setFooter({ text: 'Use /opt to change your memory preference.' });
 
-        if (isOptedOut) {
-            embed.addFields({ name: 'Status', value: 'All stored memories have been purged per your preference, sir.' });
-        } else if (lines.length) {
-            embed.addFields({
-                name: `Recent Memories ${usedSecureMemories ? '(secure vault)' : ''}`,
-                value: lines.join('\n\n')
-            });
-        } else {
-            embed.addFields({ name: 'Recent Memories', value: 'No stored entries yet, sir.' });
-        }
+            if (isOptedOut) {
+                embed.addFields({ name: 'Status', value: 'All stored memories have been purged per your preference, sir.' });
+            } else if (lines.length) {
+                embed.addFields({
+                    name: `Recent Memories ${usedSecureMemories ? '(secure vault — 20 long-term + 10 short-term)' : ''}`,
+                    value: lines.join('\n\n')
+                });
+            } else {
+                embed.addFields({ name: 'Recent Memories', value: 'No stored entries yet, sir.' });
+            }
 
-        await interaction.editReply({ embeds: [embed] });
+            await interaction.editReply({ embeds: [embed] });
+        } catch (error) {
+            console.error('handleMemoryCommand failed:', error);
+            try {
+                await interaction.editReply('Memory diagnostics failed internally, sir. Please try again shortly.');
+            } catch {}
+        }
     }
 
     async handlePersonaCommand(interaction) {
