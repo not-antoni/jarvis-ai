@@ -1669,7 +1669,7 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName("providers")
         .setDescription("List available AI providers")
-        .setContexts([InteractionContextType.Guild]),
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
         .setName("joke")
         .setDescription("Pull a random safe-mode joke")
