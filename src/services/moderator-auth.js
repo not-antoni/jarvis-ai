@@ -95,22 +95,25 @@ function verifySetupToken(userId, token) {
     return true;
 }
 
+// Data sync service for robust MongoDB ↔ local migration
+const dataSync = require('./data-sync');
+
 /**
- * Load auth data from storage
+ * Load auth data from storage (uses smart read for automatic sync)
  */
 async function loadAuthData() {
     try {
-        if (SELFHOST_MODE || LOCAL_DB_MODE) {
-            if (fs.existsSync(AUTH_FILE)) {
-                return JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
+        const preferLocal = SELFHOST_MODE || LOCAL_DB_MODE;
+        const data = await dataSync.smartRead(COLLECTION_NAME, preferLocal);
+        
+        // Handle different data formats
+        if (data) {
+            if (Array.isArray(data) && data.length > 0) {
+                // MongoDB array format - find authData doc
+                const authDoc = data.find(d => d._id === 'authData');
+                return authDoc || { users: {} };
             }
-            return { users: {} };
-        } else if (database?.isConnected) {
-            const collection = database.getCollection(COLLECTION_NAME);
-            if (collection) {
-                const data = await collection.findOne({ _id: 'authData' });
-                return data || { users: {} };
-            }
+            return data;
         }
     } catch (error) {
         console.error('[ModeratorAuth] Failed to load auth data:', error);
@@ -119,25 +122,13 @@ async function loadAuthData() {
 }
 
 /**
- * Save auth data to storage
+ * Save auth data to storage (uses smart write - saves to both)
  */
 async function saveAuthData(data) {
     try {
-        if (SELFHOST_MODE || LOCAL_DB_MODE) {
-            if (!fs.existsSync(DATA_DIR)) {
-                fs.mkdirSync(DATA_DIR, { recursive: true });
-            }
-            fs.writeFileSync(AUTH_FILE, JSON.stringify(data, null, 2));
-        } else if (database?.isConnected) {
-            const collection = database.getCollection(COLLECTION_NAME);
-            if (collection) {
-                await collection.updateOne(
-                    { _id: 'authData' },
-                    { $set: data },
-                    { upsert: true }
-                );
-            }
-        }
+        // Add _id for MongoDB compatibility
+        const dataWithId = { ...data, _id: 'authData' };
+        await dataSync.smartWrite(COLLECTION_NAME, dataWithId);
     } catch (error) {
         console.error('[ModeratorAuth] Failed to save auth data:', error);
     }
