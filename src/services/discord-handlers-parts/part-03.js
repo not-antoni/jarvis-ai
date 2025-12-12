@@ -65,6 +65,28 @@
             }
         }
 
+        // Parse Discord mentions to show usernames instead of raw IDs
+        // Handles user mentions <@123> and <@!123>, role mentions <@&123>, channel mentions <#123>
+        if (message.mentions) {
+            // Replace user mentions with @username
+            for (const [userId, user] of message.mentions.users) {
+                const mentionPatterns = [
+                    new RegExp(`<@!?${userId}>`, 'g')
+                ];
+                for (const pattern of mentionPatterns) {
+                    cleanContent = cleanContent.replace(pattern, `@${user.username}`);
+                }
+            }
+            // Replace role mentions with @rolename
+            for (const [roleId, role] of message.mentions.roles) {
+                cleanContent = cleanContent.replace(new RegExp(`<@&${roleId}>`, 'g'), `@${role.name}`);
+            }
+            // Replace channel mentions with #channelname
+            for (const [channelId, channel] of message.mentions.channels) {
+                cleanContent = cleanContent.replace(new RegExp(`<#${channelId}>`, 'g'), `#${channel.name}`);
+            }
+        }
+
         try {
             await message.channel.sendTyping();
         } catch (err) {
