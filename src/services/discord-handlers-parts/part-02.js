@@ -790,11 +790,50 @@
             return;
         }
 
-        // 🚫 Clean mentions + @everyone/@here
-        let cleanContent = message.content
-            .replace(/<@!?\d+>/g, "")  // user mentions
-            .replace(/@everyone/g, "") // NEW
-            .replace(/@here/g, "")     // NEW
+        // 🧠 Preserve mention context: replace mentions with display names (nicknames) instead of stripping them.
+        // Only remove Jarvis' own mention and @everyone/@here.
+        let cleanContent = typeof message.content === 'string' ? message.content : '';
+
+        // Replace user mentions using guild member display names when available.
+        try {
+            if (message.mentions?.members && message.mentions.members.size > 0) {
+                for (const [userId, member] of message.mentions.members) {
+                    const displayName = member?.displayName || member?.user?.globalName || member?.user?.username || 'user';
+                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `@${displayName}`);
+                }
+            } else if (message.mentions?.users && message.mentions.users.size > 0) {
+                for (const [userId, user] of message.mentions.users) {
+                    const displayName = user?.globalName || user?.username || 'user';
+                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `@${displayName}`);
+                }
+            }
+
+            // Replace role/channel mentions too (helps AI keep context).
+            if (message.mentions?.roles && message.mentions.roles.size > 0) {
+                for (const [roleId, role] of message.mentions.roles) {
+                    cleanContent = cleanContent.replace(new RegExp(`<@&${roleId}>`, 'g'), `@${role.name}`);
+                }
+            }
+            if (message.mentions?.channels && message.mentions.channels.size > 0) {
+                for (const [channelId, channel] of message.mentions.channels) {
+                    cleanContent = cleanContent.replace(new RegExp(`<#${channelId}>`, 'g'), `#${channel.name}`);
+                }
+            }
+        } catch (e) {
+            console.warn('[Jarvis] Mention parsing failed:', e.message);
+        }
+
+        // Remove Jarvis mention so prompts don't get cluttered
+        try {
+            if (client?.user?.id) {
+                cleanContent = cleanContent.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
+            }
+        } catch (_) {}
+
+        // Remove broadcast pings
+        cleanContent = cleanContent
+            .replace(/@everyone/g, '')
+            .replace(/@here/g, '')
             .trim();
 
         // Check for clip command first (overrides AI response)
