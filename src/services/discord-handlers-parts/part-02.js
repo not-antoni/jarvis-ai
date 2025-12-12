@@ -844,7 +844,8 @@
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const mathTriggerPattern = /\bjarvis\s+math\b/i;
-        const searchTriggerPattern = /\bjarvis\s+search\b/i;
+        // Allow search keyword even when Jarvis is invoked via mention (where "jarvis" may not appear in cleanContent).
+        const searchTriggerPattern = /\bsearch\b/i;
         const hasMathTrigger = mathTriggerPattern.test(cleanContent);
         const ytMatch = cleanContent.match(ytCommandPattern);
         const hasSearchTrigger = searchTriggerPattern.test(cleanContent);
@@ -863,6 +864,22 @@
                 console.error('Failed to parse cleaned Brave invocation:', error);
                 braveInvocation = defaultBraveInvocation;
             }
+        }
+
+        // If the user said "search" but didn't use the explicit "jarvis search" phrase,
+        // synthesize a Brave invocation so the search pipeline still works.
+        if (hasSearchTrigger && !braveInvocation.triggered && !rawBraveInvocation.triggered) {
+            const lower = cleanContent.toLowerCase();
+            const idx = lower.indexOf('search');
+            const tail = idx >= 0 ? cleanContent.slice(idx + 'search'.length).trim() : '';
+            braveInvocation = {
+                ...defaultBraveInvocation,
+                triggered: true,
+                query: tail,
+                rawQuery: tail,
+                invocation: cleanContent,
+                explicit: false,
+            };
         }
 
         if (hasMathTrigger) {

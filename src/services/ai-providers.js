@@ -278,6 +278,8 @@ class AIProviderManager {
     const googleKeys = [
       process.env.GOOGLE_AI_API_KEY,
       process.env.GOOGLE_AI_API_KEY2,
+      process.env.GOOGLE_AI_API_KEY3,
+      process.env.GOOGLE_AI_API_KEY4,
     ].filter(Boolean);
 
     googleKeys.forEach((key, index) => {
