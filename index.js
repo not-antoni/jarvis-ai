@@ -2927,6 +2927,11 @@ app.get('/:id.:ext', (req, res, next) => {
 app.use("/webhook", webhookRouter);
 
 app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Mount moderator dashboard routes
+const moderatorRouter = require('./src/routes/moderator');
+app.use('/moderator', moderatorRouter);
 
 // Mount dashboard API routes
 const dashboardRouter = require('./routes/dashboard');
