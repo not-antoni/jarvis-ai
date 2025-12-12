@@ -44,6 +44,7 @@ const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
 const starkEconomy = require('./src/services/stark-economy');
+const errorLogger = require('./src/services/error-logger');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -3649,6 +3650,13 @@ client.once(Events.ClientReady, async () => {
     
     // Store client globally for economy DMs
     global.discordClient = client;
+
+    // Attach Discord client for error logging + queued flush
+    try {
+        errorLogger.setClient(client);
+    } catch (e) {
+        console.warn('[ErrorLogger] Failed to attach client:', e.message);
+    }
     
     // Initialize user features service with Discord client for reminders
     try {
@@ -3797,11 +3805,34 @@ cron.schedule('0 2 * * *', () => {
 // ------------------------ Error Handling ------------------------
 client.on("error", (err) => {
     console.error("Discord client error:", err);
+    try {
+        errorLogger.log({
+            error: err,
+            context: {
+                location: 'discord.client.error',
+                command: 'client.error',
+                extra: { message: err?.message }
+            }
+        });
+    } catch {
+        // ignore
+    }
     // Don't exit on Discord errors, just log them
 });
 
 process.on("unhandledRejection", (err) => {
     console.error("Unhandled promise rejection:", err);
+    try {
+        errorLogger.log({
+            error: err,
+            context: {
+                location: 'process.unhandledRejection',
+                command: 'unhandledRejection'
+            }
+        });
+    } catch {
+        // ignore
+    }
     // Log but don't exit - let the bot continue running
 });
 
