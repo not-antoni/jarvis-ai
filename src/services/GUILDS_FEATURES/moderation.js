@@ -95,20 +95,157 @@ CATEGORY:safe
 REASON:Normal conversation message
 CONFIDENCE:0.98`;
 
-const OLLAMA_IMAGE_PROMPT = `You are an image content moderation AI. Analyze this image.
+const OLLAMA_IMAGE_PROMPT = `You are an image content moderation AI. Analyze this image carefully.
 
-Check for:
-- NSFW/inappropriate content
-- Scam imagery (fake giveaways, crypto scams)
+CRITICAL - Flag these as HIGH/CRITICAL severity scams:
+- Screenshots of crypto wallets, Bitcoin transactions, or trading platforms
+- People sitting at computers showing trading dashboards or profits
+- "Proof" screenshots of payments, withdrawals, or earnings
+- Fake Discord/Steam gift card images
+- QR codes (often used for crypto scams)
+- Screenshots designed to build fake trust or credibility
+- Photoshopped bank statements or transaction confirmations
+- Images showing "guaranteed returns" or investment opportunities
+
+Also check for:
+- NSFW/inappropriate/sexual content
 - Gore or disturbing content
-- Spam/advertising
+- Spam/advertising images
+- Fake giveaway announcements
 
 Respond in this EXACT format:
 ACTION:FLAG or ACTION:SAFE
 SEVERITY:low|medium|high|critical
-CATEGORY:nsfw|scam|gore|spam|safe
-REASON:<brief explanation>
+CATEGORY:crypto_scam|nsfw|gore|spam|safe
+REASON:<brief explanation of what you detected>
 CONFIDENCE:<0.0-1.0>`;
+
+// Jarvis persona alert messages - randomly selected for variety
+const JARVIS_ALERTS = {
+    detection: [
+        "🚨 **Sir, I've detected a potential threat!**",
+        "🚨 **Security breach identified, sir.**",
+        "🚨 **Alert! Suspicious activity detected.**",
+        "🚨 **Sir, I've intercepted something concerning.**",
+        "🚨 **Threat detected in this sector, sir.**"
+    ],
+    scam: [
+        "A scammer has been identified attempting to distribute malicious content.",
+        "I've flagged what appears to be a scam attempt.",
+        "This looks like a classic social engineering attack, sir.",
+        "Potential phishing or fraud attempt detected."
+    ],
+    spam: [
+        "Spam content detected from this user.",
+        "This appears to be unsolicited promotional content.",
+        "I've identified spam patterns in this message."
+    ],
+    nsfw: [
+        "Inappropriate content has been flagged.",
+        "NSFW material detected, sir.",
+        "This content violates server guidelines."
+    ],
+    harmful: [
+        "Potentially harmful content identified.",
+        "I've detected concerning language patterns.",
+        "This message contains potentially threatening content."
+    ],
+    recommendation: [
+        "I recommend immediate investigation.",
+        "Manual review is advised, sir.",
+        "Please review at your earliest convenience.",
+        "Awaiting your orders on how to proceed."
+    ]
+};
+
+/**
+ * Get random element from array
+ */
+function randomChoice(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * Build Jarvis-style alert message
+ */
+function buildJarvisAlert(category, pings) {
+    const detection = randomChoice(JARVIS_ALERTS.detection);
+    const categoryMessages = JARVIS_ALERTS[category] || JARVIS_ALERTS.scam;
+    const description = randomChoice(categoryMessages);
+    const recommendation = randomChoice(JARVIS_ALERTS.recommendation);
+    
+    return `${detection} ${pings}\n\n${description}\n${recommendation}`;
+}
+
+// Risk scoring weights
+const RISK_FACTORS = {
+    newAccount: { days: 7, weight: 30 },      // Account < 7 days old
+    veryNewAccount: { days: 1, weight: 50 },  // Account < 1 day old
+    noAvatar: { weight: 15 },                  // Default avatar
+    newMember: { days: 1, weight: 20 },        // Joined server < 1 day ago
+    cryptoKeywords: { weight: 25 },            // Message contains crypto terms
+    urgencyLanguage: { weight: 20 },           // "Act now", "Limited time", etc.
+    suspiciousLinks: { weight: 35 },           // Shortened URLs, suspicious domains
+    massmentions: { weight: 15 }               // @everyone, @here
+};
+
+/**
+ * Calculate risk score for a message/user
+ */
+function calculateRiskScore(message, member, context) {
+    let score = 0;
+    const factors = [];
+    
+    // Account age
+    if (context.accountAgeDays < 1) {
+        score += RISK_FACTORS.veryNewAccount.weight;
+        factors.push('Very new account (<1 day)');
+    } else if (context.accountAgeDays < 7) {
+        score += RISK_FACTORS.newAccount.weight;
+        factors.push('New account (<7 days)');
+    }
+    
+    // No avatar
+    if (!message.author.avatar) {
+        score += RISK_FACTORS.noAvatar.weight;
+        factors.push('Default avatar');
+    }
+    
+    // New member
+    if (context.memberAgeDays !== null && context.memberAgeDays < 1) {
+        score += RISK_FACTORS.newMember.weight;
+        factors.push('Just joined server');
+    }
+    
+    // Crypto keywords
+    const cryptoPattern = /crypto|bitcoin|btc|eth|ethereum|nft|airdrop|wallet|blockchain|defi|token/i;
+    if (cryptoPattern.test(context.messageContent)) {
+        score += RISK_FACTORS.cryptoKeywords.weight;
+        factors.push('Crypto keywords');
+    }
+    
+    // Urgency language
+    const urgencyPattern = /act now|limited time|hurry|fast|quick|urgent|immediately|don't miss|last chance/i;
+    if (urgencyPattern.test(context.messageContent)) {
+        score += RISK_FACTORS.urgencyLanguage.weight;
+        factors.push('Urgency language');
+    }
+    
+    // Suspicious links
+    const linkPattern = /bit\.ly|tinyurl|t\.co|discord\.gift|discordgift|steamcommunity\.ru/i;
+    if (linkPattern.test(context.messageContent)) {
+        score += RISK_FACTORS.suspiciousLinks.weight;
+        factors.push('Suspicious links');
+    }
+    
+    // Mass mentions
+    if (/@everyone|@here/.test(context.messageContent)) {
+        score += RISK_FACTORS.massmentions.weight;
+        factors.push('Mass mentions');
+    }
+    
+    return { score: Math.min(score, 100), factors };
+}
 
 // Fallback patterns for when AI is unavailable
 const FALLBACK_PATTERNS = [
@@ -701,29 +838,71 @@ function meetsMinSeverity(resultSeverity, minSeverity) {
 
 // ============ ALERT SYSTEM ============
 
-function buildAlertEmbed(message, result, contentType) {
+function buildAlertEmbed(message, result, contentType, context, riskData) {
     const colors = { low: 0xFFCC00, medium: 0xFF9900, high: 0xFF3300, critical: 0xFF0000 };
+    const severityEmojis = { low: '🟡', medium: '🟠', high: '🔴', critical: '⛔' };
     
-    return new EmbedBuilder()
-        .setTitle(`🚨 ${contentType === 'image' ? 'Image' : 'Message'} Flagged - ${result.severity.toUpperCase()}`)
+    const embed = new EmbedBuilder()
+        .setTitle(`${severityEmojis[result.severity] || '🚨'} Threat Level: ${result.severity.toUpperCase()}`)
         .setColor(colors[result.severity] || 0xFF0000)
+        .setThumbnail(message.author.displayAvatarURL({ dynamic: true, size: 64 }))
         .addFields(
-            { name: '👤 User', value: `${message.author.tag}\n<@${message.author.id}>`, inline: true },
-            { name: '📍 Channel', value: `<#${message.channel.id}>`, inline: true },
-            { name: '🏷️ Categories', value: result.categories?.join(', ') || 'Unknown', inline: true },
-            { name: '📝 Reason', value: result.reason || 'No reason', inline: false },
-            { name: '💬 Preview', value: `\`\`\`${(message.content || '').substring(0, 150)}\`\`\``, inline: false },
-            { name: '🔗 Jump', value: `[Go to message](${message.url})`, inline: true },
-            { name: '📊 Confidence', value: `${Math.round((result.confidence || 0) * 100)}%`, inline: true }
-        )
-        .setFooter({ text: 'Jarvis AI Moderation' })
+            { name: '👤 Suspect', value: `${message.author.tag}\n<@${message.author.id}>\nID: \`${message.author.id}\``, inline: true },
+            { name: '📍 Location', value: `<#${message.channel.id}>\n${message.guild.name}`, inline: true },
+            { name: '🏷️ Threat Type', value: result.categories?.join(', ') || 'Unknown', inline: true }
+        );
+    
+    // Add risk score if available
+    if (riskData) {
+        const riskBar = '█'.repeat(Math.floor(riskData.score / 10)) + '░'.repeat(10 - Math.floor(riskData.score / 10));
+        embed.addFields({
+            name: '⚠️ Risk Assessment',
+            value: `\`[${riskBar}]\` **${riskData.score}%**\n${riskData.factors.length > 0 ? riskData.factors.join(' • ') : 'No additional risk factors'}`,
+            inline: false
+        });
+    }
+    
+    // Add context
+    if (context) {
+        embed.addFields({
+            name: '� Account Info',
+            value: `Account Age: **${context.accountAgeDays}** days\nMember Since: **${context.memberAgeDays !== null ? context.memberAgeDays + ' days' : 'Unknown'}**\nHas Avatar: ${message.author.avatar ? '✅' : '❌'}`,
+            inline: true
+        });
+    }
+    
+    embed.addFields(
+        { name: '📝 AI Analysis', value: result.reason || 'No details provided', inline: false },
+        { name: '💬 Message Preview', value: `\`\`\`${(message.content || '[No text content]').substring(0, 200)}${message.content?.length > 200 ? '...' : ''}\`\`\``, inline: false },
+        { name: '🔗 Evidence', value: `[Jump to Message](${message.url})`, inline: true },
+        { name: '📊 AI Confidence', value: `${Math.round((result.confidence || 0) * 100)}%`, inline: true },
+        { name: '🕐 Detected', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+    );
+    
+    // Add recommended actions based on severity
+    const actions = {
+        low: '• Monitor user activity\n• No immediate action required',
+        medium: '• Review message content\n• Consider issuing a warning',
+        high: '• Delete the message\n• Issue a formal warning\n• Consider timeout',
+        critical: '• **Immediately delete content**\n• **Ban user if confirmed scammer**\n• Report to Discord if necessary'
+    };
+    
+    embed.addFields({
+        name: '📋 Recommended Actions',
+        value: actions[result.severity] || actions.medium,
+        inline: false
+    });
+    
+    embed.setFooter({ text: 'Jarvis Security System • Threat Detection Unit' })
         .setTimestamp();
+    
+    return embed;
 }
 
-async function sendAlert(message, result, contentType, client) {
+async function sendAlert(message, result, contentType, client, context, riskData) {
     const guildId = message.guild.id;
     const settings = getSettings(guildId);
-    const embed = buildAlertEmbed(message, result, contentType);
+    const embed = buildAlertEmbed(message, result, contentType, context, riskData);
     
     // Build pings
     const pings = [];
@@ -732,9 +911,13 @@ async function sendAlert(message, result, contentType, client) {
     for (const userId of settings.pingUsers || []) pings.push(`<@${userId}>`);
     const pingString = pings.join(' ');
     
+    // Build Jarvis-style alert message
+    const category = result.categories?.[0] || 'scam';
+    const alertMessage = buildJarvisAlert(category, pingString);
+    
     // Send in current channel
     try {
-        await message.channel.send({ content: `🚨 **Suspicious content detected!** ${pingString}`, embeds: [embed] });
+        await message.channel.send({ content: alertMessage, embeds: [embed] });
     } catch (error) {
         console.error('[Moderation] Failed to send alert:', error.message);
     }
@@ -785,10 +968,12 @@ async function handleMessage(message, client) {
             // Text analysis - pass full message and member for rich context
             if (message.content?.length > 3) {
                 const textResult = await analyzeTextContent(message, member, settings);
+                const context = textResult.context;
+                const riskData = context ? calculateRiskScore(message, member, context) : null;
                 
                 if (textResult.success && textResult.result?.isUnsafe) {
                     if (meetsMinSeverity(textResult.result.severity, settings.minSeverity || 'medium')) {
-                        await sendAlert(message, textResult.result, 'text', client);
+                        await sendAlert(message, textResult.result, 'text', client, context, riskData);
                         setAlertCooldown(guildId, userId);
                         pauseTracking(guildId, userId);
                         recordDetection(guildId, userId, textResult.result.categories?.[0] || 'unknown');
@@ -800,10 +985,12 @@ async function handleMessage(message, client) {
             for (const attachment of message.attachments.values()) {
                 if (attachment.contentType?.startsWith('image/')) {
                     const imageResult = await analyzeImageContent(attachment.url, message, member, settings);
+                    const context = imageResult.context;
+                    const riskData = context ? calculateRiskScore(message, member, context) : null;
                     
                     if (imageResult.success && imageResult.result?.isUnsafe) {
                         if (meetsMinSeverity(imageResult.result.severity, settings.minSeverity || 'medium')) {
-                            await sendAlert(message, imageResult.result, 'image', client);
+                            await sendAlert(message, imageResult.result, 'image', client, context, riskData);
                             setAlertCooldown(guildId, userId);
                             pauseTracking(guildId, userId);
                             recordDetection(guildId, userId, imageResult.result.categories?.[0] || 'image');
@@ -850,5 +1037,6 @@ module.exports = {
     sendAlert,
     loadConfig,
     saveConfig,
-    MODERATION_FUNCTION
+    parseAIResponse,
+    buildModerationContext
 };
