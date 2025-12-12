@@ -1908,10 +1908,10 @@ const allCommands = [
         .addIntegerOption((option) =>
             option
                 .setName('entries')
-                .setDescription('Number of entries to review (1-10)')
+                .setDescription('Number of entries to review (1-30)')
                 .setRequired(false)
                 .setMinValue(1)
-                .setMaxValue(10)
+                .setMaxValue(30)
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
