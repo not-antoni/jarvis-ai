@@ -338,6 +338,11 @@ class AIProviderManager {
       process.env.OLLAMA_API_KEY3,
       process.env.OLLAMA_API_KEY4,
       process.env.OLLAMA_API_KEY5,
+      process.env.OLLAMA_API_KEY6,
+      process.env.OLLAMA_API_KEY7,
+      process.env.OLLAMA_API_KEY8,
+      process.env.OLLAMA_API_KEY9,
+      process.env.OLLAMA_API_KEY10,
     ].filter(Boolean);
 
     const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
