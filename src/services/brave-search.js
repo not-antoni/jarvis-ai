@@ -9,6 +9,20 @@ const config = require('../../config');
 
 const ZERO_WIDTH_CHAR_PATTERN = /[\u200B-\u200D\u200E-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
 
+// IP address patterns to redact from search results (prevents leaking bot's IP)
+const IPV4_PATTERN = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
+const IPV6_PATTERN = /\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}\b/g;
+
+/**
+ * Redact IP addresses from text to prevent leaking bot's hosting IP
+ */
+function redactIPAddresses(text) {
+    if (typeof text !== 'string') return text;
+    return text
+        .replace(IPV4_PATTERN, '[IP REDACTED]')
+        .replace(IPV6_PATTERN, '[IP REDACTED]');
+}
+
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -998,7 +1012,8 @@ class BraveSearch {
         const snippetParts = [];
 
         if (result.description) {
-            snippetParts.push(this.truncate(result.description, 350));
+            // Redact IP addresses to prevent leaking bot's hosting IP
+            snippetParts.push(redactIPAddresses(this.truncate(result.description, 350)));
         }
 
         const metaBits = [];
@@ -1009,7 +1024,7 @@ class BraveSearch {
             snippetParts.push(metaBits.join(' • '));
         }
 
-        return snippetParts.join('\n');
+        return redactIPAddresses(snippetParts.join('\n'));
     }
 
     async searchWeb(query, options = {}) {
@@ -1337,10 +1352,10 @@ class BraveSearch {
             },
             fields: secondaryResults.slice(0, 2).map((result, index) => ({
                 name: `${index + 2}. ${result.title}`,
-                value: this.truncate([
+                value: redactIPAddresses(this.truncate([
                     result.description,
                     result.displayUrl || result.url
-                ].filter(Boolean).join('\n') || result.url, 1024)
+                ].filter(Boolean).join('\n') || result.url, 1024))
             })),
             footer: {
                 text: 'Powered by Brave Search'
