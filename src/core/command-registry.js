@@ -213,6 +213,22 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'pwdgen',
+        description: 'Generate a secure password.',
+        category: 'Utilities',
+        usage: '/pwdgen [length] [symbols]',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
+        name: 'qrcode',
+        description: 'Generate a QR code image for a text payload.',
+        category: 'Utilities',
+        usage: '/qrcode text:<value>',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
         name: 'news',
         description: 'Fetch curated headlines via Brave Search.',
         category: 'Utilities',

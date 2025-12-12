@@ -1739,6 +1739,17 @@
             return;
         }
 
+        // Error log status buttons
+        try {
+            const errorLogger = require('../error-logger');
+            const handled = await errorLogger.handleStatusButton(interaction);
+            if (handled) {
+                return;
+            }
+        } catch (e) {
+            // ignore
+        }
+
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ content: 'Interactive controls are currently unavailable, sir.', ephemeral: true });
         }
@@ -4693,6 +4704,123 @@
                     );
                     break;
                 }
+                case 'pwdgen': {
+                    telemetryMetadata.category = 'utilities';
+                    try {
+                        const crypto = require('crypto');
+                        const lengthRaw = interaction.options.getInteger('length');
+                        const length = Math.max(8, Math.min(64, Number.isFinite(lengthRaw) ? lengthRaw : 16));
+                        const includeSymbols = interaction.options.getBoolean('symbols') !== false;
+
+                        const lowers = 'abcdefghijklmnopqrstuvwxyz';
+                        const uppers = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                        const digits = '0123456789';
+                        const symbols = '!@#$%^&*()-_=+[]{};:,.?/';
+
+                        let pool = lowers + uppers + digits;
+                        if (includeSymbols) pool += symbols;
+
+                        // Ensure at least one from each required class
+                        const required = [
+                            lowers[crypto.randomInt(lowers.length)],
+                            uppers[crypto.randomInt(uppers.length)],
+                            digits[crypto.randomInt(digits.length)],
+                        ];
+                        if (includeSymbols) {
+                            required.push(symbols[crypto.randomInt(symbols.length)]);
+                        }
+
+                        if (length < required.length) {
+                            response = 'Length too short for the selected character requirements, sir.';
+                            break;
+                        }
+
+                        const chars = [...required];
+                        while (chars.length < length) {
+                            chars.push(pool[crypto.randomInt(pool.length)]);
+                        }
+
+                        // Fisher-Yates shuffle
+                        for (let i = chars.length - 1; i > 0; i--) {
+                            const j = crypto.randomInt(i + 1);
+                            [chars[i], chars[j]] = [chars[j], chars[i]];
+                        }
+
+                        const password = chars.join('');
+                        response = {
+                            content: `Here is your generated password (keep it private), sir:\n\n\`\`\`${password}\`\`\``,
+                        };
+                    } catch (error) {
+                        try {
+                            const errorLogger = require('../error-logger');
+                            await errorLogger.log({
+                                error,
+                                context: {
+                                    location: 'slash:pwdgen',
+                                    user: `${interaction.user.username} (${interaction.user.id})`,
+                                    guild: interaction.guild ? `${interaction.guild.name} (${interaction.guild.id})` : 'DM',
+                                    channel: `${interaction.channelId}`,
+                                    command: 'pwdgen'
+                                }
+                            });
+                        } catch {}
+                        response = 'Password generator failed, sir.';
+                    }
+                    break;
+                }
+                case 'qrcode': {
+                    telemetryMetadata.category = 'utilities';
+                    try {
+                        const { AttachmentBuilder } = require('discord.js');
+                        const text = (interaction.options.getString('text') || '').trim();
+                        if (!text.length) {
+                            response = 'Provide text to encode, sir.';
+                            break;
+                        }
+
+                        // Prefer local qrcode library if installed, fallback to a remote QR image endpoint.
+                        let pngBuffer = null;
+                        try {
+                            const qrcode = require('qrcode');
+                            pngBuffer = await qrcode.toBuffer(text, {
+                                type: 'png',
+                                errorCorrectionLevel: 'M',
+                                margin: 2,
+                                width: 512,
+                            });
+                        } catch {
+                            const url = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(text)}`;
+                            const res = await fetch(url);
+                            if (!res.ok) {
+                                throw new Error(`QR service failed: ${res.status}`);
+                            }
+                            const arr = await res.arrayBuffer();
+                            pngBuffer = Buffer.from(arr);
+                        }
+
+                        const attachment = new AttachmentBuilder(pngBuffer, { name: 'qrcode.png' });
+                        response = {
+                            content: 'QR code generated, sir.',
+                            files: [attachment]
+                        };
+                    } catch (error) {
+                        try {
+                            const errorLogger = require('../error-logger');
+                            await errorLogger.log({
+                                error,
+                                context: {
+                                    location: 'slash:qrcode',
+                                    user: `${interaction.user.username} (${interaction.user.id})`,
+                                    guild: interaction.guild ? `${interaction.guild.name} (${interaction.guild.id})` : 'DM',
+                                    channel: `${interaction.channelId}`,
+                                    command: 'qrcode'
+                                }
+                            });
+                        } catch {}
+                        response = 'QR code generation failed, sir.';
+                    }
+                    break;
+                }
                 default: {
                     response = await this.jarvis.handleUtilityCommand(
                         commandName,
@@ -4756,6 +4884,28 @@
             // Generate unique error code for debugging
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
             console.error(`[${errorId}] Error processing interaction:`, error);
+
+            // Report to error log channel for production triage
+            try {
+                const errorLogger = require('../error-logger');
+                await errorLogger.log({
+                    error,
+                    errorId,
+                    context: {
+                        location: 'slash:handleSlashCommand',
+                        user: `${interaction.user?.username || 'unknown'} (${interaction.user?.id || 'unknown'})`,
+                        guild: interaction.guild ? `${interaction.guild.name} (${interaction.guild.id})` : 'DM',
+                        channel: `${interaction.channelId || 'unknown'}`,
+                        command: `${interaction.commandName || 'unknown'}`,
+                        extra: {
+                            customId: interaction.customId,
+                            options: interaction.options?._hoistedOptions || null
+                        }
+                    }
+                });
+            } catch {
+                // ignore
+            }
             
             try {
                 const errorMessage = `Technical difficulties, sir. (${errorId}) Please try again shortly.`;
