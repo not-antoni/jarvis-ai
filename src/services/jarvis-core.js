@@ -1670,7 +1670,27 @@ Respond as ${nameUsed}, maintaining all MCU Jarvis tone and brevity rules.`;
                 );
             }
 
-            const jarvisResponse = aiResponse.content?.trim();
+            let jarvisResponse = aiResponse.content?.trim();
+            
+            // Loop detection - check if we're stuck in a repetitive pattern
+            try {
+                const { loopDetection } = require('../core/loop-detection');
+                const channelId = interaction.channelId || interaction.channel?.id || 'dm';
+                
+                // Record this turn and check for loops
+                loopDetection.recordTurn(userId, channelId, jarvisResponse);
+                const loopCheck = loopDetection.checkForLoop(userId, channelId);
+                
+                if (loopCheck.isLoop && loopCheck.confidence > 0.7) {
+                    console.warn(`[LoopDetection] Detected ${loopCheck.type} for user ${userId}: ${loopCheck.message}`);
+                    // Append recovery prompt to break the loop
+                    const recovery = loopDetection.getRecoveryPrompt(loopCheck.type);
+                    jarvisResponse = `${recovery}\n\n${jarvisResponse}`;
+                }
+            } catch (e) {
+                // Loop detection not critical, continue without it
+            }
+            
             if (allowsLongTermMemory) {
                 await database.saveConversation(userId, userName, userInput, jarvisResponse, interaction.guild?.id);
             }

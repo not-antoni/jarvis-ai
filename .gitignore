@@ -61,3 +61,6 @@ vendor/
 # Keep VS Code settings
 !.vscode/
 !.vscode/settings.json
+
+# Vendor/external repos for analysis
+vendor/
