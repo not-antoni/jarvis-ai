@@ -2789,6 +2789,45 @@ const allCommands = [
                             { name: "Leave", value: "leave" }
                         )))
         .setContexts([InteractionContextType.Guild]),
+    // ============ USER FEATURES ============
+    new SlashCommandBuilder()
+        .setName('remind')
+        .setDescription('Set a reminder for later')
+        .addSubcommand(sub =>
+            sub
+                .setName('set')
+                .setDescription('Create a new reminder')
+                .addStringOption(opt =>
+                    opt.setName('message').setDescription('What to remind you about').setRequired(true))
+                .addStringOption(opt =>
+                    opt.setName('time').setDescription('When (e.g., "in 2 hours", "at 3pm", "tomorrow")').setRequired(true)))
+        .addSubcommand(sub =>
+            sub
+                .setName('list')
+                .setDescription('View your pending reminders'))
+        .addSubcommand(sub =>
+            sub
+                .setName('cancel')
+                .setDescription('Cancel a reminder')
+                .addStringOption(opt =>
+                    opt.setName('id').setDescription('Reminder ID to cancel').setRequired(true)))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('timezone')
+        .setDescription('Set your timezone for reminders and time displays')
+        .addStringOption(opt =>
+            opt.setName('zone').setDescription('Timezone (e.g., "America/New_York", "Europe/London", "Asia/Tokyo")').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('wakeword')
+        .setDescription('Set a custom wake word that triggers Jarvis for you')
+        .addStringOption(opt =>
+            opt.setName('word').setDescription('Your custom wake word (2-20 characters, alphanumeric)').setRequired(false))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('mystats')
+        .setDescription('View your Jarvis interaction statistics')
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     ...musicCommandList.map((command) => command.data)
 ];
 
