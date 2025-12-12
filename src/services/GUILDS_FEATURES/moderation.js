@@ -48,7 +48,7 @@ const RATE_LIMIT_WINDOW_MS = 2000; // 2 seconds
 
 // Per-user cooldown (prevent spam from same user)
 const alertCooldowns = new Map(); // `${guildId}:${userId}` -> timestamp
-const ALERT_COOLDOWN_MS = 30 * 1000; // 30 seconds between alerts per user
+const ALERT_COOLDOWN_MS = 5 * 1000; // 5 seconds between alerts per user
 
 // Detection statistics
 const detectionStats = new Map(); // guildId -> { total, byCategory, byUser }
@@ -57,17 +57,58 @@ const detectionStats = new Map(); // guildId -> { total, byCategory, byUser }
 const MONITORING_DURATION_MS = 60 * 60 * 1000; // 1 hour
 const PAUSE_DURATION_MS = 5 * 60 * 1000; // 5 min pause after detection
 
-// AI Moderation prompts
-const TEXT_MODERATION_PROMPT = `You are a content moderation AI. Analyze the message for:
-- Scam attempts (crypto scams, fake giveaways, phishing, "free nitro")
-- Spam content (advertising, repetitive messages, self-promotion)
-- Harmful content (harassment, threats, hate speech, slurs)
-- NSFW content (sexual, explicit)
-- Malicious links (phishing, malware)
+// AI Moderation prompts - these run internally and check for specific response format
+// The AI MUST respond with exactly "ACTION:FLAG" or "ACTION:SAFE" followed by details
+const INTERNAL_MODERATION_PROMPT = `You are Jarvis's internal content moderation system. You run silently in the background.
 
-You MUST respond ONLY by calling the moderationResult function.`;
+You will receive message context including:
+- Username, User ID, Mention format
+- Current date/time
+- Message content
+- Account age
 
-const IMAGE_MODERATION_PROMPT = `Analyze this image for inappropriate content including NSFW, scams, gore, or spam. Respond with JSON: {"isUnsafe": boolean, "severity": "low"|"medium"|"high"|"critical", "categories": [], "reason": "string", "confidence": number}`;
+Analyze for:
+- SCAM: crypto scams, fake giveaways, phishing, "free nitro", suspicious links
+- SPAM: advertising, repetitive messages, self-promotion, unsolicited DM requests
+- HARMFUL: harassment, threats, hate speech, slurs, doxxing
+- NSFW: sexual content, explicit material
+- MALWARE: malicious links, phishing URLs, IP grabbers
+
+You MUST respond in this EXACT format:
+ACTION:FLAG or ACTION:SAFE
+SEVERITY:low|medium|high|critical
+CATEGORY:scam|spam|harmful|nsfw|malware|safe
+REASON:<brief explanation>
+CONFIDENCE:<0.0-1.0>
+
+Example unsafe response:
+ACTION:FLAG
+SEVERITY:high
+CATEGORY:scam
+REASON:Message contains fake Discord Nitro link attempting to steal credentials
+CONFIDENCE:0.95
+
+Example safe response:
+ACTION:SAFE
+SEVERITY:low
+CATEGORY:safe
+REASON:Normal conversation message
+CONFIDENCE:0.98`;
+
+const OLLAMA_IMAGE_PROMPT = `You are an image content moderation AI. Analyze this image.
+
+Check for:
+- NSFW/inappropriate content
+- Scam imagery (fake giveaways, crypto scams)
+- Gore or disturbing content
+- Spam/advertising
+
+Respond in this EXACT format:
+ACTION:FLAG or ACTION:SAFE
+SEVERITY:low|medium|high|critical
+CATEGORY:nsfw|scam|gore|spam|safe
+REASON:<brief explanation>
+CONFIDENCE:<0.0-1.0>`;
 
 // Fallback patterns for when AI is unavailable
 const FALLBACK_PATTERNS = [
@@ -375,21 +416,107 @@ function recordDetection(guildId, userId, category) {
 
 // ============ AI MODERATION ============
 
-const MODERATION_FUNCTION = {
-    name: 'moderationResult',
-    description: 'Report moderation analysis result',
-    parameters: {
-        type: 'object',
-        properties: {
-            isUnsafe: { type: 'boolean' },
-            severity: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] },
-            categories: { type: 'array', items: { type: 'string' } },
-            reason: { type: 'string' },
-            confidence: { type: 'number' }
-        },
-        required: ['isUnsafe', 'severity', 'categories', 'reason', 'confidence']
+/**
+ * Build rich context for AI moderation
+ */
+function buildModerationContext(message, member) {
+    const now = new Date();
+    const accountCreated = message.author.createdAt;
+    const accountAgeDays = Math.floor((now - accountCreated) / (1000 * 60 * 60 * 24));
+    const joinedAt = member?.joinedAt;
+    const memberAgeDays = joinedAt ? Math.floor((now - joinedAt) / (1000 * 60 * 60 * 24)) : null;
+    
+    return {
+        username: message.author.username,
+        displayName: message.author.displayName || message.author.username,
+        userId: message.author.id,
+        mention: `<@${message.author.id}>`,
+        isBot: message.author.bot,
+        accountCreated: accountCreated.toISOString(),
+        accountAgeDays,
+        memberAgeDays,
+        guildName: message.guild?.name || 'DM',
+        guildId: message.guild?.id || null,
+        channelName: message.channel?.name || 'DM',
+        channelId: message.channel?.id,
+        currentTime: now.toISOString(),
+        currentDate: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        messageContent: message.content?.substring(0, 1000) || '',
+        hasAttachments: message.attachments?.size > 0,
+        attachmentCount: message.attachments?.size || 0
+    };
+}
+
+/**
+ * Format context for AI prompt
+ */
+function formatContextForAI(context) {
+    return `=== MESSAGE CONTEXT ===
+User: ${context.displayName} (@${context.username})
+User ID: ${context.userId}
+Mention: ${context.mention}
+Account Age: ${context.accountAgeDays} days old
+Member Age: ${context.memberAgeDays !== null ? `${context.memberAgeDays} days in server` : 'Unknown'}
+Server: ${context.guildName}
+Channel: #${context.channelName}
+Date/Time: ${context.currentDate} at ${new Date(context.currentTime).toLocaleTimeString()}
+
+=== MESSAGE CONTENT ===
+${context.messageContent}
+
+=== ATTACHMENTS ===
+${context.hasAttachments ? `${context.attachmentCount} attachment(s)` : 'None'}`;
+}
+
+/**
+ * Parse AI response in the specific format
+ * Expected format:
+ * ACTION:FLAG or ACTION:SAFE
+ * SEVERITY:low|medium|high|critical
+ * CATEGORY:scam|spam|harmful|nsfw|malware|safe
+ * REASON:<explanation>
+ * CONFIDENCE:<0.0-1.0>
+ */
+function parseAIResponse(response) {
+    if (!response || typeof response !== 'string') {
+        return null;
     }
-};
+    
+    const lines = response.split('\n').map(l => l.trim()).filter(l => l);
+    const result = {
+        isUnsafe: false,
+        severity: 'low',
+        categories: [],
+        reason: '',
+        confidence: 0.5
+    };
+    
+    for (const line of lines) {
+        if (line.startsWith('ACTION:')) {
+            const action = line.replace('ACTION:', '').trim().toUpperCase();
+            result.isUnsafe = action === 'FLAG';
+        } else if (line.startsWith('SEVERITY:')) {
+            const sev = line.replace('SEVERITY:', '').trim().toLowerCase();
+            if (['low', 'medium', 'high', 'critical'].includes(sev)) {
+                result.severity = sev;
+            }
+        } else if (line.startsWith('CATEGORY:')) {
+            const cat = line.replace('CATEGORY:', '').trim().toLowerCase();
+            if (cat && cat !== 'safe') {
+                result.categories = [cat];
+            }
+        } else if (line.startsWith('REASON:')) {
+            result.reason = line.replace('REASON:', '').trim();
+        } else if (line.startsWith('CONFIDENCE:')) {
+            const conf = parseFloat(line.replace('CONFIDENCE:', '').trim());
+            if (!isNaN(conf) && conf >= 0 && conf <= 1) {
+                result.confidence = conf;
+            }
+        }
+    }
+    
+    return result;
+}
 
 /**
  * Analyze with fallback patterns (no AI needed)
@@ -414,35 +541,32 @@ function analyzeWithPatterns(content) {
 }
 
 /**
- * Analyze text content using AI with function calling
+ * Analyze text content using internal AI moderation
  */
-async function analyzeTextContent(content, settings) {
+async function analyzeTextContent(message, member, settings) {
+    const context = buildModerationContext(message, member);
+    const contextString = formatContextForAI(context);
+    
     // Try AI first if enabled
     if (settings?.useAI) {
         try {
             const aiManager = require('../ai-providers');
             
             const messages = [
-                { role: 'system', content: TEXT_MODERATION_PROMPT },
-                { role: 'user', content: `Analyze: ${content.substring(0, 500)}` }
+                { role: 'system', content: INTERNAL_MODERATION_PROMPT },
+                { role: 'user', content: contextString }
             ];
             
-            const response = await aiManager.generateWithFunctions(messages, [MODERATION_FUNCTION], {
-                functionCall: { name: 'moderationResult' },
-                maxTokens: 150,
+            const response = await aiManager.generate(messages, {
+                maxTokens: 200,
                 temperature: 0.1
             });
             
-            if (response?.functionCall?.name === 'moderationResult') {
-                return { success: true, result: response.functionCall.arguments };
-            }
-            
-            // Try parsing response as JSON
             if (response?.content) {
-                try {
-                    const parsed = JSON.parse(response.content);
-                    return { success: true, result: parsed };
-                } catch {}
+                const parsed = parseAIResponse(response.content);
+                if (parsed) {
+                    return { success: true, result: parsed, context };
+                }
             }
         } catch (error) {
             console.warn('[Moderation] AI analysis failed, using fallback:', error.message);
@@ -451,16 +575,18 @@ async function analyzeTextContent(content, settings) {
     
     // Fallback to pattern matching
     if (settings?.useFallbackPatterns !== false) {
-        return analyzeWithPatterns(content);
+        return { ...analyzeWithPatterns(context.messageContent), context };
     }
     
-    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'AI unavailable', confidence: 0.5 } };
+    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'AI unavailable', confidence: 0.5 }, context };
 }
 
 /**
- * Analyze image content using Ollama
+ * Analyze image content using Ollama with rich context
  */
-async function analyzeImageContent(imageUrl, settings) {
+async function analyzeImageContent(imageUrl, message, member, settings) {
+    const context = buildModerationContext(message, member);
+    
     try {
         const fetch = require('node-fetch');
         const ollamaUrl = settings?.ollamaUrl || 'http://localhost:11434';
@@ -470,12 +596,22 @@ async function analyzeImageContent(imageUrl, settings) {
         const imageBuffer = await imageResponse.buffer();
         const base64Image = imageBuffer.toString('base64');
         
+        // Build context-aware prompt for Ollama
+        const contextPrompt = `${OLLAMA_IMAGE_PROMPT}
+
+=== CONTEXT ===
+User: ${context.displayName} (@${context.username})
+User ID: ${context.userId}
+Account Age: ${context.accountAgeDays} days
+Date/Time: ${context.currentDate}
+Server: ${context.guildName}`;
+        
         const response = await fetch(`${ollamaUrl}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model,
-                prompt: IMAGE_MODERATION_PROMPT,
+                prompt: contextPrompt,
                 images: [base64Image],
                 stream: false
             })
@@ -484,16 +620,26 @@ async function analyzeImageContent(imageUrl, settings) {
         const data = await response.json();
         
         if (data.response) {
+            // Try parsing with our format first
+            const parsed = parseAIResponse(data.response);
+            if (parsed) {
+                return { success: true, result: parsed, context };
+            }
+            
+            // Fallback to JSON parsing
             const jsonMatch = data.response.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-                return { success: true, result: JSON.parse(jsonMatch[0]) };
+                try {
+                    const jsonResult = JSON.parse(jsonMatch[0]);
+                    return { success: true, result: jsonResult, context };
+                } catch {}
             }
         }
     } catch (error) {
         console.warn('[Moderation] Image analysis failed:', error.message);
     }
     
-    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'Could not analyze', confidence: 0.3 } };
+    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'Could not analyze', confidence: 0.3 }, context };
 }
 
 // ============ TRACKING ============
@@ -636,9 +782,9 @@ async function handleMessage(message, client) {
     // Analyze in background (non-blocking)
     setImmediate(async () => {
         try {
-            // Text analysis
+            // Text analysis - pass full message and member for rich context
             if (message.content?.length > 3) {
-                const textResult = await analyzeTextContent(message.content, settings);
+                const textResult = await analyzeTextContent(message, member, settings);
                 
                 if (textResult.success && textResult.result?.isUnsafe) {
                     if (meetsMinSeverity(textResult.result.severity, settings.minSeverity || 'medium')) {
@@ -650,10 +796,10 @@ async function handleMessage(message, client) {
                 }
             }
             
-            // Image analysis
+            // Image analysis - pass message and member for context
             for (const attachment of message.attachments.values()) {
                 if (attachment.contentType?.startsWith('image/')) {
-                    const imageResult = await analyzeImageContent(attachment.url, settings);
+                    const imageResult = await analyzeImageContent(attachment.url, message, member, settings);
                     
                     if (imageResult.success && imageResult.result?.isUnsafe) {
                         if (meetsMinSeverity(imageResult.result.severity, settings.minSeverity || 'medium')) {
