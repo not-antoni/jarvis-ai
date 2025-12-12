@@ -117,7 +117,7 @@
             }
 
             // Extract image attachments for vision processing
-            const imageAttachments = message.attachments
+            let imageAttachments = message.attachments
                 ? Array.from(message.attachments.values())
                     .filter(att => {
                         const contentType = att.contentType || '';
@@ -127,6 +127,37 @@
                     })
                     .map(att => ({ url: att.url, contentType: att.contentType }))
                 : [];
+
+            // Also check for images in replied message (for "what is this image" type queries)
+            if (message.reference?.messageId && imageAttachments.length === 0) {
+                try {
+                    const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+                    if (repliedMessage?.attachments?.size > 0) {
+                        const repliedImages = Array.from(repliedMessage.attachments.values())
+                            .filter(att => {
+                                const contentType = att.contentType || '';
+                                const ext = (att.name || '').split('.').pop()?.toLowerCase();
+                                const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                                return contentType.startsWith('image/') || imageExts.includes(ext);
+                            })
+                            .map(att => ({ url: att.url, contentType: att.contentType, fromReply: true }));
+                        imageAttachments = [...imageAttachments, ...repliedImages];
+                    }
+                    // Also check embeds for images (e.g., Discord CDN previews, Tenor GIFs)
+                    if (repliedMessage?.embeds?.length > 0) {
+                        for (const embed of repliedMessage.embeds) {
+                            if (embed.image?.url) {
+                                imageAttachments.push({ url: embed.image.url, contentType: 'image/unknown', fromReply: true });
+                            }
+                            if (embed.thumbnail?.url && !imageAttachments.some(a => a.url === embed.thumbnail.url)) {
+                                imageAttachments.push({ url: embed.thumbnail.url, contentType: 'image/unknown', fromReply: true });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[Vision] Failed to fetch replied message for images:', err.message);
+                }
+            }
 
             const response = await this.jarvis.generateResponse(message, cleanContent, false, contextualMemory, imageAttachments);
 
