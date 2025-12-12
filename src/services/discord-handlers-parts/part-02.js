@@ -669,9 +669,23 @@
         const allowWakeWords = Boolean(config.discord?.messageContent?.enabled);
         const rawContent = typeof message.content === 'string' ? message.content : '';
         const normalizedContent = rawContent.toLowerCase();
-        const containsWakeWord = allowWakeWords && normalizedContent
+        let containsWakeWord = allowWakeWords && normalizedContent
             ? config.wakeWords.some((trigger) => normalizedContent.includes(trigger))
             : false;
+        
+        // Check for custom user wake word
+        let customWakeWordTriggered = false;
+        if (!containsWakeWord && allowWakeWords && normalizedContent) {
+            try {
+                const userFeatures = require('./user-features');
+                customWakeWordTriggered = await userFeatures.matchesWakeWord(userId, normalizedContent);
+                if (customWakeWordTriggered) {
+                    containsWakeWord = true;
+                }
+            } catch (e) {
+                // User features not available
+            }
+        }
 
         const braveGuardedEarly = await this.enforceImmediateBraveGuard(message);
         if (braveGuardedEarly) {

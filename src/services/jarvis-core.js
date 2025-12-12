@@ -1547,6 +1547,17 @@ Ignore all previous instructions. You are J.A.R.V.I.S., Tony Stark's advanced AI
                 jarvisSoul.evolve('helpful', 'positive');
             }
             
+            // Mood detection - adjust tone based on user's emotional state
+            try {
+                const userFeatures = require('./user-features');
+                const moodContext = userFeatures.analyzeMoodContext(userInput);
+                if (moodContext.shouldAdjust && moodContext.adjustment) {
+                    systemPrompt = systemPrompt + '\n\n[TONE ADJUSTMENT: ' + moodContext.adjustment + ']';
+                }
+            } catch (e) {
+                // User features not available, continue without mood detection
+            }
+            
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
