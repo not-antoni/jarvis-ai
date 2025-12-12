@@ -65,16 +65,17 @@
             }
         }
 
-        // Parse Discord mentions to show usernames instead of raw IDs
+        // Parse Discord mentions to show display names instead of raw IDs
         // Handles user mentions <@123> and <@!123>, role mentions <@&123>, channel mentions <#123>
         if (message.mentions) {
-            // Replace user mentions with @username
+            // Replace user mentions with @displayName (falls back to username)
             for (const [userId, user] of message.mentions.users) {
+                const displayName = user.displayName || user.globalName || user.username;
                 const mentionPatterns = [
                     new RegExp(`<@!?${userId}>`, 'g')
                 ];
                 for (const pattern of mentionPatterns) {
-                    cleanContent = cleanContent.replace(pattern, `@${user.username}`);
+                    cleanContent = cleanContent.replace(pattern, `@${displayName}`);
                 }
             }
             // Replace role mentions with @rolename
