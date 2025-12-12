@@ -36,6 +36,7 @@
     "canvas": "^3.2.0",
     "cheerio": "^1.0.0-rc.12",
     "cohere-ai": "^7.19.0",
+    "cookie-parser": "^1.4.7",
     "discord-interactions": "^3.2.0",
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.3",
