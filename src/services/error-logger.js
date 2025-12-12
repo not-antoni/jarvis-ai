@@ -1,6 +1,10 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder } = require('discord.js');
+const crypto = require('crypto');
+const { LRUCache } = require('lru-cache');
 
 const ERROR_LOG_CHANNEL_ID = process.env.ERROR_LOG_CHANNEL_ID || '1437020146689507449';
+const ERROR_LOG_DEDUPE_TTL_MS = process.env.ERROR_LOG_DEDUPE_TTL_MS ? Number(process.env.ERROR_LOG_DEDUPE_TTL_MS) : 30000;
+const ERROR_LOG_MAX_PER_MINUTE = process.env.ERROR_LOG_MAX_PER_MINUTE ? Number(process.env.ERROR_LOG_MAX_PER_MINUTE) : 20;
 
 const STATUS = {
     pending: { label: 'Pending', color: 0xfacc15 },
@@ -30,6 +34,12 @@ class ErrorLogger {
     constructor() {
         this.client = null;
         this.pendingQueue = [];
+        this.recentFingerprints = new LRUCache({
+            max: 500,
+            ttl: ERROR_LOG_DEDUPE_TTL_MS,
+        });
+        this.windowStartMs = Date.now();
+        this.windowCount = 0;
     }
 
     setClient(client) {
@@ -69,6 +79,34 @@ class ErrorLogger {
     async log({ error, context = {}, errorId = null }) {
         const resolvedId = errorId || createErrorId();
 
+        const location = context.location || 'unknown';
+        const errorText = error instanceof Error
+            ? `${error.name}: ${error.message}`
+            : String(error);
+
+        const fingerprint = crypto
+            .createHash('sha1')
+            .update(`${location}|${errorText}`)
+            .digest('hex')
+            .slice(0, 16);
+
+        const now = Date.now();
+        if (now - this.windowStartMs > 60000) {
+            this.windowStartMs = now;
+            this.windowCount = 0;
+        }
+
+        if (this.recentFingerprints.has(fingerprint)) {
+            return resolvedId;
+        }
+
+        if (this.windowCount >= ERROR_LOG_MAX_PER_MINUTE) {
+            return resolvedId;
+        }
+
+        this.recentFingerprints.set(fingerprint, true);
+        this.windowCount += 1;
+
         if (!this.client) {
             this.pendingQueue.push({ error, context, errorId: resolvedId });
             return resolvedId;
@@ -79,10 +117,6 @@ class ErrorLogger {
             this.pendingQueue.push({ error, context, errorId: resolvedId });
             return resolvedId;
         }
-
-        const errorText = error instanceof Error
-            ? `${error.name}: ${error.message}`
-            : String(error);
 
         const stack = error instanceof Error ? error.stack : null;
 

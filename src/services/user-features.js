@@ -62,6 +62,7 @@ class UserFeaturesService {
         this.discordClient = null;
         this.reminderCheckInterval = null;
         this.isInitialized = false;
+        this._warned = new Set();
     }
 
     /**
@@ -96,9 +97,17 @@ class UserFeaturesService {
      */
     async loadRemindersFromDatabase() {
         if (!this.database) return;
+
+        if (typeof this.database.getActiveReminders !== 'function') {
+            if (!this._warned.has('reminders:getActiveReminders')) {
+                this._warned.add('reminders:getActiveReminders');
+                console.warn('[UserFeatures] Reminder persistence not fully configured (missing database.getActiveReminders).');
+            }
+            return;
+        }
         
         try {
-            const reminders = await this.database.getActiveReminders?.();
+            const reminders = await this.database.getActiveReminders();
             if (Array.isArray(reminders)) {
                 for (const rem of reminders) {
                     if (rem.scheduledFor > Date.now()) {
@@ -326,11 +335,16 @@ class UserFeaturesService {
         activeReminders.set(reminder.id, reminder);
         
         // Persist to database
-        if (this.database) {
+        if (this.database && typeof this.database.saveReminder === 'function') {
             try {
                 await this.database.saveReminder(reminder);
             } catch (e) {
                 console.error('[Reminders] Failed to persist:', e);
+            }
+        } else if (this.database) {
+            if (!this._warned.has('reminders:saveReminder')) {
+                this._warned.add('reminders:saveReminder');
+                console.warn('[UserFeatures] Reminder persistence not fully configured (missing database.saveReminder).');
             }
         }
         
@@ -367,11 +381,16 @@ class UserFeaturesService {
         
         activeReminders.delete(reminderId);
         
-        if (this.database) {
+        if (this.database && typeof this.database.deleteReminder === 'function') {
             try {
                 await this.database.deleteReminder(reminderId);
             } catch (e) {
                 console.error('[Reminders] Failed to delete:', e);
+            }
+        } else if (this.database) {
+            if (!this._warned.has('reminders:deleteReminder')) {
+                this._warned.add('reminders:deleteReminder');
+                console.warn('[UserFeatures] Reminder persistence not fully configured (missing database.deleteReminder).');
             }
         }
         

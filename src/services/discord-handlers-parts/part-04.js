@@ -4789,6 +4789,10 @@
                                 width: 512,
                             });
                         } catch {
+                            const allowExternalFallback = String(process.env.ALLOW_QR_EXTERNAL_FALLBACK || '1').toLowerCase() === '1';
+                            if (!allowExternalFallback) {
+                                throw new Error('External QR fallback disabled');
+                            }
                             const url = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(text)}`;
                             const res = await fetch(url);
                             if (!res.ok) {
