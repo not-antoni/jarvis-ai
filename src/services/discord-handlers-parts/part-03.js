@@ -128,38 +128,51 @@
                     .map(att => ({ url: att.url, contentType: att.contentType }))
                 : [];
 
-            // Also check for images in replied message (for "what is this image" type queries)
-            if (message.reference?.messageId && imageAttachments.length === 0) {
+            // Also check for images AND text in replied message
+            let repliedContext = '';
+            if (message.reference?.messageId) {
                 try {
                     const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-                    if (repliedMessage?.attachments?.size > 0) {
-                        const repliedImages = Array.from(repliedMessage.attachments.values())
-                            .filter(att => {
-                                const contentType = att.contentType || '';
-                                const ext = (att.name || '').split('.').pop()?.toLowerCase();
-                                const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-                                return contentType.startsWith('image/') || imageExts.includes(ext);
-                            })
-                            .map(att => ({ url: att.url, contentType: att.contentType, fromReply: true }));
-                        imageAttachments = [...imageAttachments, ...repliedImages];
+                    
+                    // Extract text from replied message for context
+                    if (repliedMessage?.content && repliedMessage.content.trim()) {
+                        repliedContext = `[Replied to message from ${repliedMessage.author?.username || 'user'}: "${repliedMessage.content.substring(0, 500)}"]\n\n`;
                     }
-                    // Also check embeds for images (e.g., Discord CDN previews, Tenor GIFs)
-                    if (repliedMessage?.embeds?.length > 0) {
-                        for (const embed of repliedMessage.embeds) {
-                            if (embed.image?.url) {
-                                imageAttachments.push({ url: embed.image.url, contentType: 'image/unknown', fromReply: true });
-                            }
-                            if (embed.thumbnail?.url && !imageAttachments.some(a => a.url === embed.thumbnail.url)) {
-                                imageAttachments.push({ url: embed.thumbnail.url, contentType: 'image/unknown', fromReply: true });
+                    
+                    // Extract images from replied message (only if current message has no images)
+                    if (imageAttachments.length === 0) {
+                        if (repliedMessage?.attachments?.size > 0) {
+                            const repliedImages = Array.from(repliedMessage.attachments.values())
+                                .filter(att => {
+                                    const contentType = att.contentType || '';
+                                    const ext = (att.name || '').split('.').pop()?.toLowerCase();
+                                    const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                                    return contentType.startsWith('image/') || imageExts.includes(ext);
+                                })
+                                .map(att => ({ url: att.url, contentType: att.contentType, fromReply: true }));
+                            imageAttachments = [...imageAttachments, ...repliedImages];
+                        }
+                        // Also check embeds for images (e.g., Discord CDN previews, Tenor GIFs)
+                        if (repliedMessage?.embeds?.length > 0) {
+                            for (const embed of repliedMessage.embeds) {
+                                if (embed.image?.url) {
+                                    imageAttachments.push({ url: embed.image.url, contentType: 'image/unknown', fromReply: true });
+                                }
+                                if (embed.thumbnail?.url && !imageAttachments.some(a => a.url === embed.thumbnail.url)) {
+                                    imageAttachments.push({ url: embed.thumbnail.url, contentType: 'image/unknown', fromReply: true });
+                                }
                             }
                         }
                     }
                 } catch (err) {
-                    console.warn('[Vision] Failed to fetch replied message for images:', err.message);
+                    console.warn('[Vision] Failed to fetch replied message:', err.message);
                 }
             }
 
-            const response = await this.jarvis.generateResponse(message, cleanContent, false, contextualMemory, imageAttachments);
+            // Combine replied context with user's message
+            const fullContent = repliedContext ? repliedContext + cleanContent : cleanContent;
+
+            const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
 
             if (typeof response === "string" && response.trim()) {
                 await message.reply(response);
