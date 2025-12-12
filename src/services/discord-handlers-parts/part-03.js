@@ -134,9 +134,12 @@
                 try {
                     const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
                     
-                    // Extract text from replied message for context
+                    // Extract text from replied message for context (limit to leave room for user's message)
                     if (repliedMessage?.content && repliedMessage.content.trim()) {
-                        repliedContext = `[Replied to message from ${repliedMessage.author?.username || 'user'}: "${repliedMessage.content.substring(0, 500)}"]\n\n`;
+                        // Reserve space for user's message, cap replied context
+                        const maxReplyContext = Math.min(300, Math.max(100, config.ai.maxInputLength - cleanContent.length - 50));
+                        const trimmedReply = repliedMessage.content.substring(0, maxReplyContext);
+                        repliedContext = `[Replied to ${repliedMessage.author?.username || 'user'}: "${trimmedReply}${repliedMessage.content.length > maxReplyContext ? '...' : ''}"]\n`;
                     }
                     
                     // Extract images from replied message (only if current message has no images)
@@ -169,8 +172,18 @@
                 }
             }
 
-            // Combine replied context with user's message
-            const fullContent = repliedContext ? repliedContext + cleanContent : cleanContent;
+            // Combine replied context with user's message, respecting max length
+            let fullContent = repliedContext ? repliedContext + cleanContent : cleanContent;
+            if (fullContent.length > config.ai.maxInputLength) {
+                // Prioritize user's message, trim replied context if needed
+                const availableForReply = config.ai.maxInputLength - cleanContent.length - 20;
+                if (availableForReply > 50 && repliedContext) {
+                    repliedContext = repliedContext.substring(0, availableForReply) + '..."]\n';
+                    fullContent = repliedContext + cleanContent;
+                } else {
+                    fullContent = cleanContent.substring(0, config.ai.maxInputLength);
+                }
+            }
 
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
 
