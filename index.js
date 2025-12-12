@@ -3650,6 +3650,17 @@ client.once(Events.ClientReady, async () => {
     // Store client globally for economy DMs
     global.discordClient = client;
     
+    // Initialize user features service with Discord client for reminders
+    try {
+        const userFeatures = require('./src/services/user-features');
+        userFeatures.setDiscordClient(client);
+        if (database.isConnected) {
+            userFeatures.init(database, client);
+        }
+    } catch (e) {
+        console.warn('[UserFeatures] Failed to initialize:', e.message);
+    }
+    
     // Start Stark Bucks multiplier event scheduler (250% bonus every 3 hours)
     starkEconomy.startMultiplierScheduler();
 

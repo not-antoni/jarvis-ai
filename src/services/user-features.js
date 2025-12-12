@@ -59,16 +59,57 @@ const TONE_ADJUSTMENTS = {
 class UserFeaturesService {
     constructor() {
         this.database = null;
+        this.discordClient = null;
         this.reminderCheckInterval = null;
+        this.isInitialized = false;
     }
 
     /**
-     * Initialize with database reference
+     * Initialize with database and Discord client references
+     * @param {Object} database - Database service
+     * @param {Object} discordClient - Discord.js client for sending DMs
      */
-    init(database) {
+    init(database, discordClient = null) {
+        if (this.isInitialized) {
+            console.log('[UserFeatures] Already initialized, skipping');
+            return;
+        }
+        
         this.database = database;
+        this.discordClient = discordClient;
         this.startReminderChecker();
-        console.log('[UserFeatures] Service initialized');
+        this.loadRemindersFromDatabase();
+        this.isInitialized = true;
+        console.log('[UserFeatures] Service initialized' + (discordClient ? ' with Discord client' : ' (no Discord client)'));
+    }
+
+    /**
+     * Set Discord client (can be called after init)
+     */
+    setDiscordClient(client) {
+        this.discordClient = client;
+        console.log('[UserFeatures] Discord client attached');
+    }
+
+    /**
+     * Load reminders from database on startup
+     */
+    async loadRemindersFromDatabase() {
+        if (!this.database) return;
+        
+        try {
+            const reminders = await this.database.getActiveReminders?.();
+            if (Array.isArray(reminders)) {
+                for (const rem of reminders) {
+                    if (rem.scheduledFor > Date.now()) {
+                        activeReminders.set(rem.id, rem);
+                    }
+                }
+                console.log(`[UserFeatures] Loaded ${activeReminders.size} active reminders from database`);
+            }
+        } catch (e) {
+            console.warn('[UserFeatures] Could not load reminders from database:', e.message);
+        }
     }
 
     // ==================== CONVERSATION THREADING ====================
@@ -343,15 +384,29 @@ class UserFeaturesService {
     startReminderChecker() {
         if (this.reminderCheckInterval) return;
         
+        // Check every 15 seconds for better accuracy
         this.reminderCheckInterval = setInterval(() => {
-            this.checkReminders();
-        }, 30000); // Check every 30 seconds
+            this.checkAndDeliverReminders();
+        }, 15000);
+        
+        console.log('[UserFeatures] Reminder checker started (15s interval)');
     }
 
     /**
-     * Check and fire due reminders
+     * Stop the reminder checker
      */
-    async checkReminders() {
+    stopReminderChecker() {
+        if (this.reminderCheckInterval) {
+            clearInterval(this.reminderCheckInterval);
+            this.reminderCheckInterval = null;
+            console.log('[UserFeatures] Reminder checker stopped');
+        }
+    }
+
+    /**
+     * Check for due reminders and deliver them via DM
+     */
+    async checkAndDeliverReminders() {
         const now = Date.now();
         const dueReminders = [];
         
@@ -362,7 +417,87 @@ class UserFeaturesService {
             }
         }
         
-        return dueReminders;
+        if (dueReminders.length === 0) return;
+        
+        console.log(`[UserFeatures] Processing ${dueReminders.length} due reminder(s)`);
+        
+        for (const reminder of dueReminders) {
+            await this.deliverReminder(reminder);
+        }
+    }
+
+    /**
+     * Deliver a single reminder to the user via DM
+     */
+    async deliverReminder(reminder) {
+        if (!this.discordClient) {
+            console.warn('[UserFeatures] Cannot deliver reminder - no Discord client');
+            return false;
+        }
+        
+        try {
+            // Fetch the user
+            const user = await this.discordClient.users.fetch(reminder.userId).catch(() => null);
+            
+            if (!user) {
+                console.warn(`[UserFeatures] Could not find user ${reminder.userId} for reminder`);
+                return false;
+            }
+            
+            // Create DM channel and send reminder
+            const dmChannel = await user.createDM().catch(() => null);
+            
+            if (!dmChannel) {
+                console.warn(`[UserFeatures] Could not create DM with user ${reminder.userId}`);
+                return false;
+            }
+            
+            const reminderEmbed = {
+                color: 0x3498db,
+                title: '⏰ Reminder',
+                description: reminder.message,
+                footer: { 
+                    text: `Set ${this.formatRelativeTime(reminder.createdAt)}` 
+                },
+                timestamp: new Date().toISOString()
+            };
+            
+            await dmChannel.send({ 
+                content: `Hey <@${reminder.userId}>, here's your reminder:`,
+                embeds: [reminderEmbed] 
+            });
+            
+            console.log(`[UserFeatures] Delivered reminder to ${user.tag}: "${reminder.message.substring(0, 50)}..."`);
+            
+            // Clean up from database
+            if (this.database?.deleteReminder) {
+                await this.database.deleteReminder(reminder.id).catch(() => {});
+            }
+            
+            return true;
+        } catch (error) {
+            console.error(`[UserFeatures] Failed to deliver reminder ${reminder.id}:`, error.message);
+            return false;
+        }
+    }
+
+    /**
+     * Format relative time (e.g., "2 hours ago")
+     */
+    formatRelativeTime(timestamp) {
+        const seconds = Math.floor((Date.now() - timestamp) / 1000);
+        
+        if (seconds < 60) return 'just now';
+        if (seconds < 3600) return `${Math.floor(seconds / 60)} minute(s) ago`;
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)} hour(s) ago`;
+        return `${Math.floor(seconds / 86400)} day(s) ago`;
+    }
+
+    /**
+     * Get count of active reminders (for health checks)
+     */
+    getActiveReminderCount() {
+        return activeReminders.size;
     }
 
     // ==================== CUSTOM WAKE WORDS ====================
