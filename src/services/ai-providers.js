@@ -267,7 +267,7 @@ class AIProviderManager {
           apiKey: key,
           baseURL: 'https://api.groq.com/openai/v1',
         }),
-        model: 'llama-3.3-70b-versatile',
+        model: 'moonshotai/kimi-k2-instruct',
         type: 'openai-chat',
         family: 'groq',
         costTier: 'free',
@@ -286,7 +286,7 @@ class AIProviderManager {
       this.providers.push({
         name: `GoogleAI${index + 1}`,
         client: new GoogleGenerativeAI(key),
-        model: 'gemini-2.5-pro',
+        model: 'gemini-2.5-flash',
         type: 'google',
         family: 'google',
         costTier: 'free',
