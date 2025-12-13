@@ -86,7 +86,7 @@ router.post('/login', async (req, res) => {
     const token = auth.createSession(userId, { id: userId });
     res.cookie('moderator_session', token, { 
         httpOnly: true, 
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: 12 * 60 * 60 * 1000,
         sameSite: 'lax'
     });
     
@@ -130,7 +130,7 @@ router.get('/callback', async (req, res) => {
         const sessionToken = auth.createSession(discordUser.id, discordUser);
         res.cookie('moderator_session', sessionToken, { 
             httpOnly: true, 
-            maxAge: 24 * 60 * 60 * 1000,
+            maxAge: 12 * 60 * 60 * 1000,
             sameSite: 'lax'
         });
         
@@ -188,7 +188,7 @@ router.post('/setup', async (req, res) => {
     const sessionToken = auth.createSession(userId, { id: userId });
     res.cookie('moderator_session', sessionToken, { 
         httpOnly: true, 
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: 12 * 60 * 60 * 1000,
         sameSite: 'lax'
     });
     
