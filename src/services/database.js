@@ -77,6 +77,12 @@ class DatabaseManager {
         }
     }
 
+    getCollection(collectionName) {
+        if (!this.isConnected || !this.db) return null;
+        if (!collectionName) return null;
+        return this.db.collection(String(collectionName));
+    }
+
     async createIndexes() {
         if (!this.db) return;
 
@@ -513,17 +519,20 @@ class DatabaseManager {
         if (!this.isConnected || !this.db) throw new Error('Database not connected');
         if (!reminder || !reminder.id) throw new Error('Invalid reminder payload');
 
+        const { createdAt, scheduledFor, ...rest } = reminder;
+
         await this.db
             .collection(config.database.collections.reminders)
             .updateOne(
                 { id: reminder.id },
                 {
                     $set: {
-                        ...reminder,
+                        ...rest,
+                        scheduledFor: Number(scheduledFor),
                         updatedAt: new Date()
                     },
                     $setOnInsert: {
-                        createdAt: reminder.createdAt ? new Date(reminder.createdAt) : new Date()
+                        createdAt: createdAt ? new Date(createdAt) : new Date()
                     }
                 },
                 { upsert: true }

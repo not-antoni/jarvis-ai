@@ -63,6 +63,7 @@ class UserFeaturesService {
         this.reminderCheckInterval = null;
         this.isInitialized = false;
         this._warned = new Set();
+        this._lastReminderLoadAt = 0;
     }
 
     /**
@@ -110,11 +111,20 @@ class UserFeaturesService {
             const reminders = await this.database.getActiveReminders();
             if (Array.isArray(reminders)) {
                 for (const rem of reminders) {
-                    if (rem.scheduledFor > Date.now()) {
-                        activeReminders.set(rem.id, rem);
-                    }
+                    const scheduledFor = rem?.scheduledFor instanceof Date
+                        ? rem.scheduledFor.getTime()
+                        : Number(rem?.scheduledFor);
+                    if (!Number.isFinite(scheduledFor)) continue;
+
+                    const createdAt = rem?.createdAt instanceof Date
+                        ? rem.createdAt.getTime()
+                        : Number(rem?.createdAt || Date.now());
+
+                    activeReminders.set(rem.id, { ...rem, scheduledFor, createdAt });
                 }
                 console.log(`[UserFeatures] Loaded ${activeReminders.size} active reminders from database`);
+                this._lastReminderLoadAt = Date.now();
+                this.checkAndDeliverReminders().catch(() => {});
             }
         } catch (e) {
             console.warn('[UserFeatures] Could not load reminders from database:', e.message);
@@ -426,6 +436,14 @@ class UserFeaturesService {
      * Check for due reminders and deliver them via DM
      */
     async checkAndDeliverReminders() {
+        if (this.database?.isConnected && typeof this.database.getActiveReminders === 'function') {
+            const now = Date.now();
+            if (activeReminders.size === 0 && now - (this._lastReminderLoadAt || 0) > 5 * 60 * 1000) {
+                this._lastReminderLoadAt = now;
+                await this.loadRemindersFromDatabase();
+            }
+        }
+
         const now = Date.now();
 
         const dueIds = [];
