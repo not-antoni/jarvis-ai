@@ -2136,6 +2136,8 @@
     }
 
     async handlePersonaCommand(interaction) {
+        await interaction.editReply('Persona switching has been disabled. Jarvis primary protocol is now fixed, sir.');
+        return;
         const requested = interaction.options.getString('mode');
         const previewOnly = interaction.options.getBoolean('preview') || false;
         const catalogue = this.jarvis.getPersonaCatalogue();
@@ -2499,30 +2501,14 @@
                     await this.handleJokeCommand(interaction);
                     return;
                 }
-                case 'opt': {
-                    telemetryMetadata.category = 'utilities';
-                    await this.handleOptCommand(interaction);
-                    return;
-                }
                 case 'memory': {
                     telemetryMetadata.category = 'utilities';
                     await this.handleMemoryCommand(interaction);
                     return;
                 }
-                case 'persona': {
+                case 'opt': {
                     telemetryMetadata.category = 'utilities';
-                    await this.handlePersonaCommand(interaction);
-                    return;
-                }
-                // ============ USER FEATURES ============
-                case 'remind': {
-                    telemetryMetadata.category = 'utilities';
-                    await this.handleRemindCommand(interaction);
-                    return;
-                }
-                case 'timezone': {
-                    telemetryMetadata.category = 'utilities';
-                    await this.handleTimezoneCommand(interaction);
+                    await this.handleOptCommand(interaction);
                     return;
                 }
                 case 'wakeword': {
