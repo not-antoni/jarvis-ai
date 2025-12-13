@@ -15,8 +15,15 @@ class Logger {
         this.enableConsoleLogging = process.env.ENABLE_CONSOLE_LOGGING !== 'false';
 
         // Ensure log directory exists
-        if (this.enableFileLogging && !fs.existsSync(this.logDir)) {
-            fs.mkdirSync(this.logDir, { recursive: true });
+        if (this.enableFileLogging) {
+            try {
+                if (!fs.existsSync(this.logDir)) {
+                    fs.mkdirSync(this.logDir, { recursive: true });
+                }
+            } catch (error) {
+                this.enableFileLogging = false;
+                console.error('Failed to create log directory:', error.message);
+            }
         }
 
         this.levels = {
@@ -25,6 +32,8 @@ class Logger {
             info: 2,
             debug: 3
         };
+
+        this._fileWriteQueue = Promise.resolve();
     }
 
     /**
@@ -55,17 +64,20 @@ class Logger {
     writeToFile(level, formatted) {
         if (!this.enableFileLogging) return;
 
-        try {
-            const logFile = path.join(this.logDir, `${level}.log`);
-            const allLogFile = path.join(this.logDir, 'combined.log');
+        const line = formatted + '\n';
+        const logFile = path.join(this.logDir, `${level}.log`);
+        const allLogFile = path.join(this.logDir, 'combined.log');
 
-            fs.appendFileSync(logFile, formatted + '\n');
-            fs.appendFileSync(allLogFile, formatted + '\n');
-        } catch (error) {
-            // Fallback to console if file write fails
-            console.error('Failed to write log file:', error.message);
-            console.log(formatted);
-        }
+        this._fileWriteQueue = this._fileWriteQueue
+            .then(() => Promise.all([fs.promises.appendFile(logFile, line), fs.promises.appendFile(allLogFile, line)]))
+            .catch(error => {
+                console.error('Failed to write log file:', error.message);
+                try {
+                    console.log(formatted);
+                } catch {
+                    // ignore
+                }
+            });
     }
 
     /**

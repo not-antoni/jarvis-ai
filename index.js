@@ -3564,7 +3564,25 @@ async function registerSlashCommands() {
 
 // ------------------------ Uptime Server ------------------------
 const app = express();
+app.disable('x-powered-by');
 app.set('trust proxy', true);
+
+let helmet = null;
+try {
+    helmet = require('helmet');
+} catch {
+    helmet = null;
+}
+if (helmet) {
+    app.use(helmet());
+} else {
+    app.use((req, res, next) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        next();
+    });
+}
 app.use(cookieParser());
 // Serve ephemeral temp files at short root paths like /123456789.png
 app.get('/:id.:ext', (req, res, next) => {
@@ -3595,8 +3613,9 @@ app.get('/:id.:ext', (req, res, next) => {
 // Webhook forwarder requires raw body parsing for signature validation, so mount before json middleware
 app.use('/webhook', webhookRouter);
 
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
+const bodyLimit = process.env.JSON_BODY_LIMIT || '500kb';
+app.use(express.json({ limit: bodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
 // Mount moderator dashboard routes
 const moderatorRouter = require('./src/routes/moderator');
@@ -3606,9 +3625,12 @@ app.use('/moderator', moderatorRouter);
 const dashboardRouter = require('./routes/dashboard');
 
 function getDashboardPassword() {
-    const raw = process.env.PASSWORD;
-    const value = typeof raw === 'string' ? raw.trim() : '';
-    return value || null;
+    const candidates = [process.env.DASHBOARD_PASSWORD, process.env.PASSWORD];
+    for (const raw of candidates) {
+        const value = typeof raw === 'string' ? raw.trim() : '';
+        if (value) return value;
+    }
+    return null;
 }
 
 function makeDashboardCookieValue(password) {

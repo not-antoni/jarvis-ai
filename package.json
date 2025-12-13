@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "verify": "node scripts/deploy.js",
-    "test": "node --test tests/utils/*.test.js tests/database.test.js tests/vault-client.test.js tests/meme.test.js",
+    "test": "node scripts/run-node-tests.js",
+    "test:manual": "node tests/selfhost-features.test.js && node tests/sentient-core.test.js && node tests/yt-dlp-manager.test.js && node tests/scraping.test.js",
     "agent": "node tests/test-jarvis-live.js",
     "agent:test": "node tests/test-new-agent.js",
     "perf": "node tests/test-module-perf.js",

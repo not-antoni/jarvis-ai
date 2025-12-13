@@ -20,15 +20,38 @@ const { createAgentDiagnosticsRouter } = require('../utils/agent-diagnostics');
 function createExpressApp(options = {}) {
     const app = express();
 
+    app.disable('x-powered-by');
+
     // Trust proxy (for Render, etc.)
     app.set('trust proxy', true);
+
+    let helmet = null;
+    try {
+        helmet = require('helmet');
+    } catch {
+        helmet = null;
+    }
+    if (helmet) {
+        app.use(helmet());
+    } else {
+        app.use((req, res, next) => {
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.setHeader('X-Frame-Options', 'DENY');
+            res.setHeader('Referrer-Policy', 'no-referrer');
+            next();
+        });
+    }
 
     // Request ID middleware (must be first)
     app.use(requestIdMiddleware());
 
+    // Webhook routes
+    app.use('/webhook', webhookRouter);
+
     // Body parsing
-    app.use(express.json({ limit: '10mb' }));
-    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    const bodyLimit = process.env.JSON_BODY_LIMIT || '500kb';
+    app.use(express.json({ limit: bodyLimit }));
+    app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
     // Metrics middleware
     app.use((req, res, next) => {
@@ -143,9 +166,6 @@ function createExpressApp(options = {}) {
             }
         })
     );
-
-    // Webhook routes
-    app.use('/webhook', webhookRouter);
 
     // Agent diagnostics routes
     const agentDiagnosticsRouter = createAgentDiagnosticsRouter();

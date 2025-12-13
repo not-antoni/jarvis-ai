@@ -3,6 +3,8 @@
  * Centralized constants to avoid magic numbers and strings throughout the codebase
  */
 
+const ONE_DAY_SECONDS = 60 * 60 * 24;
+
 module.exports = {
     // Time constants (in milliseconds)
     TIME: {
@@ -16,11 +18,11 @@ module.exports = {
 
     // Database TTL values (in seconds)
     DB_TTL: {
-        NINETY_DAYS: 60 * 60 * 24 * 90,
-        SIXTY_DAYS: 60 * 60 * 24 * 60,
-        THIRTY_DAYS: 60 * 60 * 24 * 30,
-        SEVEN_DAYS: 60 * 60 * 24 * 7,
-        ONE_DAY: 60 * 60 * 24
+        NINETY_DAYS: ONE_DAY_SECONDS * 90,
+        SIXTY_DAYS: ONE_DAY_SECONDS * 60,
+        THIRTY_DAYS: ONE_DAY_SECONDS * 30,
+        SEVEN_DAYS: ONE_DAY_SECONDS * 7,
+        ONE_DAY: ONE_DAY_SECONDS
     },
 
     // Rate limiting
