@@ -81,7 +81,7 @@ async function resolveDiscordUserData(userId) {
 }
 
 // Session validation middleware
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
     const token = req.cookies?.moderator_session;
     if (!token) {
         return res.redirect('/moderator?error=not_authenticated');
@@ -92,8 +92,30 @@ function requireAuth(req, res, next) {
         res.clearCookie('moderator_session', { path: '/' });
         return res.redirect('/moderator?error=session_expired');
     }
-    
+
     req.session = session;
+
+    try {
+        const d = req.session.discordData;
+        const hasIdentity = Boolean(d && d.id);
+        const hasName = Boolean(d && (d.global_name || d.username));
+        const hasAvatar = Boolean(d && (d.avatar || d.avatar_url));
+
+        // Some login flows create a session with `{ id }` only.
+        // Hydrate it so the dashboard can display avatar + name.
+        if (!hasIdentity || !hasName || !hasAvatar) {
+            const resolved = await resolveDiscordUserData(req.session.userId);
+            if (resolved && resolved.id) {
+                req.session.discordData = {
+                    ...(req.session.discordData || {}),
+                    ...resolved
+                };
+            }
+        }
+    } catch {
+        // Non-fatal; dashboard can still render with userId.
+    }
+
     next();
 }
 
