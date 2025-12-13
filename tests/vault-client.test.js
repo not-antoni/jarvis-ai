@@ -8,7 +8,7 @@ process.env.VAULT_CACHE_TTL_MS = process.env.VAULT_CACHE_TTL_MS || '120000';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const vaultClient = require('../vault-client');
+const vaultClient = require('../src/services/vault-client');
 const {
     __dangerouslySetCollectionsForTests,
     __resetCachesForTests

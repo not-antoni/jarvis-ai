@@ -6,10 +6,10 @@ process.env.MONGO_URI_MAIN = process.env.MONGO_URI_MAIN || 'mongodb://localhost:
 process.env.MONGO_URI_VAULT = process.env.MONGO_URI_VAULT || 'mongodb://localhost:27017/test_vault';
 process.env.MASTER_KEY_BASE64 = process.env.MASTER_KEY_BASE64 || Buffer.alloc(32).toString('base64');
 
-const databaseSingleton = require('../database');
+const databaseSingleton = require('../src/services/database');
 const DatabaseManager = databaseSingleton.constructor;
 const config = require('../config');
-const vaultClient = require('../vault-client');
+const vaultClient = require('../src/services/vault-client');
 
 function createManager() {
     const manager = new DatabaseManager();
