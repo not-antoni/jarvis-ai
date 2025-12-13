@@ -41,7 +41,8 @@ class ToolOutput {
  */
 class ToolInvocation {
     constructor(options) {
-        this.callId = options.callId || `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        this.callId =
+            options.callId || `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         this.toolName = options.toolName;
         this.arguments = options.arguments || {};
         this.context = options.context || {};
@@ -57,9 +58,9 @@ class ToolInvocation {
  * Approval requirement enum
  */
 const ApprovalRequirement = {
-    SKIP: 'skip',           // No approval needed
-    NEEDS_APPROVAL: 'needs_approval',  // User must approve
-    FORBIDDEN: 'forbidden'   // Cannot be executed
+    SKIP: 'skip', // No approval needed
+    NEEDS_APPROVAL: 'needs_approval', // User must approve
+    FORBIDDEN: 'forbidden' // Cannot be executed
 };
 
 /**
@@ -91,7 +92,7 @@ class ToolHandler extends EventEmitter {
             isMutating: spec.isMutating || false,
             ...spec
         };
-        
+
         // Metrics
         this.metrics = {
             callCount: 0,
@@ -158,7 +159,11 @@ class ToolHandler extends EventEmitter {
         // Check required parameters
         if (params.required) {
             for (const required of params.required) {
-                if (!(required in args) || args[required] === undefined || args[required] === null) {
+                if (
+                    !(required in args) ||
+                    args[required] === undefined ||
+                    args[required] === null
+                ) {
                     errors.push(`Missing required parameter: ${required}`);
                 }
             }
@@ -170,7 +175,7 @@ class ToolHandler extends EventEmitter {
                 if (key in args && args[key] !== undefined) {
                     const value = args[key];
                     const expectedType = schema.type;
-                    
+
                     if (expectedType === 'string' && typeof value !== 'string') {
                         errors.push(`Parameter '${key}' should be string, got ${typeof value}`);
                     } else if (expectedType === 'number' && typeof value !== 'number') {
@@ -179,7 +184,10 @@ class ToolHandler extends EventEmitter {
                         errors.push(`Parameter '${key}' should be boolean, got ${typeof value}`);
                     } else if (expectedType === 'array' && !Array.isArray(value)) {
                         errors.push(`Parameter '${key}' should be array, got ${typeof value}`);
-                    } else if (expectedType === 'object' && (typeof value !== 'object' || Array.isArray(value))) {
+                    } else if (
+                        expectedType === 'object' &&
+                        (typeof value !== 'object' || Array.isArray(value))
+                    ) {
                         errors.push(`Parameter '${key}' should be object, got ${typeof value}`);
                     }
                 }
@@ -215,7 +223,9 @@ class ToolHandler extends EventEmitter {
             // Validate
             const validation = this.validate(invocation);
             if (!validation.valid) {
-                const output = ToolOutput.error(`Validation failed: ${validation.errors.join(', ')}`);
+                const output = ToolOutput.error(
+                    `Validation failed: ${validation.errors.join(', ')}`
+                );
                 this.recordMetrics(startTime, false);
                 this.emit('execute:error', { invocation, error: output.content, handler: this });
                 return output;
@@ -229,12 +239,11 @@ class ToolHandler extends EventEmitter {
 
             // Ensure result is ToolOutput
             const output = result instanceof ToolOutput ? result : ToolOutput.success(result);
-            
+
             this.recordMetrics(startTime, output.success);
             this.emit('execute:complete', { invocation, output, handler: this });
-            
-            return output;
 
+            return output;
         } catch (error) {
             const output = ToolOutput.error(error.message, { stack: error.stack });
             this.metrics.lastError = error.message;
@@ -265,7 +274,7 @@ class ToolHandler extends EventEmitter {
         const duration = Date.now() - startTime;
         this.metrics.callCount++;
         this.metrics.totalDuration += duration;
-        
+
         if (success) {
             this.metrics.successCount++;
         } else {
@@ -277,7 +286,8 @@ class ToolHandler extends EventEmitter {
      * Get tool statistics
      */
     getStats() {
-        const { callCount, successCount, failureCount, totalDuration, lastCall, lastError } = this.metrics;
+        const { callCount, successCount, failureCount, totalDuration, lastCall, lastError } =
+            this.metrics;
         return {
             name: this.name,
             kind: this.kind,
@@ -286,7 +296,8 @@ class ToolHandler extends EventEmitter {
             successCount,
             failureCount,
             avgDuration: callCount > 0 ? Math.round(totalDuration / callCount) : 0,
-            successRate: callCount > 0 ? ((successCount / callCount) * 100).toFixed(1) + '%' : 'N/A',
+            successRate:
+                callCount > 0 ? ((successCount / callCount) * 100).toFixed(1) + '%' : 'N/A',
             lastCall: lastCall ? new Date(lastCall).toISOString() : null,
             lastError
         };
@@ -340,8 +351,8 @@ class FunctionHandler extends ToolHandler {
  */
 class ShellHandler extends ToolHandler {
     constructor(spec, options = {}) {
-        super({ 
-            ...spec, 
+        super({
+            ...spec,
             kind: ToolKind.SHELL,
             isMutating: true,
             requiresApproval: options.requiresApproval !== false
@@ -351,7 +362,18 @@ class ShellHandler extends ToolHandler {
 
     isMutating(invocation) {
         // Check if command is known safe
-        const safeCommands = ['ls', 'pwd', 'echo', 'cat', 'head', 'tail', 'grep', 'find', 'which', 'whoami'];
+        const safeCommands = [
+            'ls',
+            'pwd',
+            'echo',
+            'cat',
+            'head',
+            'tail',
+            'grep',
+            'find',
+            'which',
+            'whoami'
+        ];
         const command = invocation.arguments.command || '';
         const firstWord = command.split(/\s+/)[0];
         return !safeCommands.includes(firstWord);
@@ -363,7 +385,7 @@ class ShellHandler extends ToolHandler {
         const execAsync = promisify(exec);
 
         const { command, cwd, timeout } = invocation.arguments;
-        
+
         try {
             const { stdout, stderr } = await execAsync(command, {
                 cwd: cwd || process.cwd(),
@@ -391,4 +413,3 @@ module.exports = {
     ToolKind,
     ApprovalRequirement
 };
-

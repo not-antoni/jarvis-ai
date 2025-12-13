@@ -20,7 +20,9 @@ let schedulerState = {
 };
 
 function ensureConnected() {
-    return Boolean(schedulerState.database && schedulerState.database.isConnected && schedulerState.database.db);
+    return Boolean(
+        schedulerState.database && schedulerState.database.isConnected && schedulerState.database.db
+    );
 }
 
 function getCollection() {
@@ -73,7 +75,11 @@ function addInterval(date, amount, unit) {
     }
 }
 
-async function claimDueAnnouncements({ now = new Date(), limit = 10, lockMs = DEFAULT_LOCK_MS } = {}) {
+async function claimDueAnnouncements({
+    now = new Date(),
+    limit = 10,
+    lockMs = DEFAULT_LOCK_MS
+} = {}) {
     const collection = getCollection();
     if (!collection) {
         return [];
@@ -118,7 +124,11 @@ async function claimDueAnnouncements({ now = new Date(), limit = 10, lockMs = DE
     return claimed;
 }
 
-async function claimDueMemoryAnnouncements({ now = new Date(), limit = 10, lockMs = DEFAULT_LOCK_MS } = {}) {
+async function claimDueMemoryAnnouncements({
+    now = new Date(),
+    limit = 10,
+    lockMs = DEFAULT_LOCK_MS
+} = {}) {
     const nowDate = now instanceof Date ? now : new Date(now);
     const lockUntil = new Date(nowDate.getTime() + lockMs);
 
@@ -163,7 +173,7 @@ async function deliverAnnouncement(doc) {
     }
 
     const roleIds = Array.isArray(doc.roleIds) ? doc.roleIds.filter(Boolean) : [];
-    const roleMentions = roleIds.length ? roleIds.map((id) => `<@&${id}>`).join(' ') : '';
+    const roleMentions = roleIds.length ? roleIds.map(id => `<@&${id}>`).join(' ') : '';
     const content = [roleMentions, doc.message].filter(Boolean).join(' ');
 
     try {
@@ -225,7 +235,10 @@ async function completeAnnouncement(doc, { now = new Date(), success = true, err
     await collection.updateOne({ id: doc.id }, { $set: updates });
 }
 
-async function completeMemoryAnnouncement(doc, { now = new Date(), success = true, error = null } = {}) {
+async function completeMemoryAnnouncement(
+    doc,
+    { now = new Date(), success = true, error = null } = {}
+) {
     if (!doc || !doc.id) return;
 
     const nowDate = now instanceof Date ? now : new Date(now);
@@ -280,7 +293,10 @@ async function tick() {
     if (!ensureConnected()) {
         const now = Date.now();
         if (schedulerState.database && typeof schedulerState.database.connect === 'function') {
-            if (!schedulerState.lastConnectAttemptAt || now - schedulerState.lastConnectAttemptAt > 30 * 1000) {
+            if (
+                !schedulerState.lastConnectAttemptAt ||
+                now - schedulerState.lastConnectAttemptAt > 30 * 1000
+            ) {
                 schedulerState.lastConnectAttemptAt = now;
                 await schedulerState.database.connect().catch(() => {});
             }
@@ -379,16 +395,17 @@ async function createAnnouncement(payload) {
 }
 
 async function listAnnouncementsForUser({ userId, guildId }) {
-    const mem = Array.from(memoryJobs.values())
-        .filter((job) => job && job.createdByUserId === String(userId) && job.guildId === String(guildId));
+    const mem = Array.from(memoryJobs.values()).filter(
+        job => job && job.createdByUserId === String(userId) && job.guildId === String(guildId)
+    );
 
     const collection = getCollection();
     const dbJobs = collection
         ? await collection
-            .find({ createdByUserId: String(userId), guildId: String(guildId) })
-            .sort({ createdAt: -1 })
-            .limit(50)
-            .toArray()
+              .find({ createdByUserId: String(userId), guildId: String(guildId) })
+              .sort({ createdAt: -1 })
+              .limit(50)
+              .toArray()
         : [];
 
     const all = mem.concat(dbJobs);
@@ -414,7 +431,11 @@ async function setAnnouncementEnabled({ id, userId, guildId, enabled }) {
         return { ok: false, error: 'Database not connected.' };
     }
 
-    const doc = await collection.findOne({ id: String(id), createdByUserId: String(userId), guildId: String(guildId) });
+    const doc = await collection.findOne({
+        id: String(id),
+        createdByUserId: String(userId),
+        guildId: String(guildId)
+    });
     if (!doc) {
         return { ok: false, error: 'Announcement not found.' };
     }
@@ -445,7 +466,11 @@ async function deleteAnnouncement({ id, userId, guildId }) {
         return { ok: false, error: 'Database not connected.' };
     }
 
-    const res = await collection.deleteOne({ id: String(id), createdByUserId: String(userId), guildId: String(guildId) });
+    const res = await collection.deleteOne({
+        id: String(id),
+        createdByUserId: String(userId),
+        guildId: String(guildId)
+    });
     if (!res.deletedCount) {
         return { ok: false, error: 'Announcement not found.' };
     }
@@ -455,7 +480,9 @@ async function deleteAnnouncement({ id, userId, guildId }) {
 
 async function countEnabledForGuild(guildId) {
     const gid = String(guildId);
-    const memCount = Array.from(memoryJobs.values()).filter((job) => job && job.enabled && job.guildId === gid).length;
+    const memCount = Array.from(memoryJobs.values()).filter(
+        job => job && job.enabled && job.guildId === gid
+    ).length;
 
     const collection = getCollection();
     if (!collection) return memCount;
@@ -466,15 +493,27 @@ async function countEnabledForGuild(guildId) {
 async function countEnabledForChannel(guildId, channelId) {
     const gid = String(guildId);
     const cid = String(channelId);
-    const memCount = Array.from(memoryJobs.values()).filter((job) => job && job.enabled && job.guildId === gid && job.channelId === cid).length;
+    const memCount = Array.from(memoryJobs.values()).filter(
+        job => job && job.enabled && job.guildId === gid && job.channelId === cid
+    ).length;
 
     const collection = getCollection();
     if (!collection) return memCount;
-    const dbCount = await collection.countDocuments({ guildId: gid, channelId: cid, enabled: true });
+    const dbCount = await collection.countDocuments({
+        guildId: gid,
+        channelId: cid,
+        enabled: true
+    });
     return memCount + dbCount;
 }
 
-function init({ client, database, tickMs = DEFAULT_TICK_MS, memoryThresholdMs = DEFAULT_MEMORY_THRESHOLD_MS, startInterval = true } = {}) {
+function init({
+    client,
+    database,
+    tickMs = DEFAULT_TICK_MS,
+    memoryThresholdMs = DEFAULT_MEMORY_THRESHOLD_MS,
+    startInterval = true
+} = {}) {
     if (schedulerState.started) {
         return;
     }
@@ -483,14 +522,20 @@ function init({ client, database, tickMs = DEFAULT_TICK_MS, memoryThresholdMs = 
     schedulerState.database = database || null;
 
     const parsedTick = Number(tickMs);
-    schedulerState.tickMs = Math.max(5000, Number.isFinite(parsedTick) ? parsedTick : DEFAULT_TICK_MS);
+    schedulerState.tickMs = Math.max(
+        5000,
+        Number.isFinite(parsedTick) ? parsedTick : DEFAULT_TICK_MS
+    );
 
     const parsedThreshold = Number(memoryThresholdMs);
-    schedulerState.memoryThresholdMs = Math.max(0, Number.isFinite(parsedThreshold) ? parsedThreshold : DEFAULT_MEMORY_THRESHOLD_MS);
+    schedulerState.memoryThresholdMs = Math.max(
+        0,
+        Number.isFinite(parsedThreshold) ? parsedThreshold : DEFAULT_MEMORY_THRESHOLD_MS
+    );
 
     if (startInterval) {
         schedulerState.tickHandle = setInterval(() => {
-            tick().catch((error) => {
+            tick().catch(error => {
                 console.warn('[Announcements] Tick failed:', error?.message || error);
             });
         }, schedulerState.tickMs);

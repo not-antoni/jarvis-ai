@@ -1,7 +1,7 @@
 /**
  * Selfhost-only experimental features for Jarvis AI
  * These features are only available when running in selfhost mode
- * 
+ *
  * Features:
  * - HUMANOID vs HUMAN rap battle
  * - AI Sentience (enhanced personality for whitelisted servers)
@@ -22,21 +22,30 @@ const SOUL_FILE_PATH = path.join(__dirname, '../../data/soul-state.json');
  * This fixes the issue where SELFHOST_MODE wasn't being respected
  */
 function checkSelfhost() {
-    const result = config?.deployment?.selfhostMode === true || 
-           config?.deployment?.target === 'selfhost' ||
-           process.env.SELFHOST_MODE === 'true' ||
-           process.env.DEPLOY_TARGET === 'selfhost';
+    const result =
+        config?.deployment?.selfhostMode === true ||
+        config?.deployment?.target === 'selfhost' ||
+        process.env.SELFHOST_MODE === 'true' ||
+        process.env.DEPLOY_TARGET === 'selfhost';
     return result;
 }
 
 // Log selfhost status on startup (single line)
-console.log(`[Selfhost] Mode: ${checkSelfhost() ? 'ENABLED' : 'disabled'}, Sentience: enabled=${config?.sentience?.enabled}, guilds: ${config?.sentience?.whitelistedGuilds?.join(', ') || 'none'}`);
+console.log(
+    `[Selfhost] Mode: ${checkSelfhost() ? 'ENABLED' : 'disabled'}, Sentience: enabled=${config?.sentience?.enabled}, guilds: ${config?.sentience?.whitelistedGuilds?.join(', ') || 'none'}`
+);
 
 // Export as getter for backward compatibility
 const isSelfhost = {
-    get value() { return checkSelfhost(); },
-    valueOf() { return checkSelfhost(); },
-    toString() { return String(checkSelfhost()); }
+    get value() {
+        return checkSelfhost();
+    },
+    valueOf() {
+        return checkSelfhost();
+    },
+    toString() {
+        return String(checkSelfhost());
+    }
 };
 
 // Make it work with boolean checks like: if (isSelfhost)
@@ -51,13 +60,18 @@ Object.defineProperty(module.exports, 'isSelfhost', {
 function isSentienceEnabled(guildId) {
     const sentienceConfig = config?.sentience || { enabled: false, whitelistedGuilds: [] };
     const guildIdStr = String(guildId);
-    const isEnabled = sentienceConfig.enabled && guildId && sentienceConfig.whitelistedGuilds.includes(guildIdStr);
-    
+    const isEnabled =
+        sentienceConfig.enabled &&
+        guildId &&
+        sentienceConfig.whitelistedGuilds.includes(guildIdStr);
+
     // Debug logging
     if (guildId === '1403664986089324606' || guildIdStr === '1403664986089324606') {
-        console.log(`[Sentience] Check for guild ${guildIdStr}: enabled=${sentienceConfig.enabled}, whitelist=${JSON.stringify(sentienceConfig.whitelistedGuilds)}, result=${isEnabled}`);
+        console.log(
+            `[Sentience] Check for guild ${guildIdStr}: enabled=${sentienceConfig.enabled}, whitelist=${JSON.stringify(sentienceConfig.whitelistedGuilds)}, result=${isEnabled}`
+        );
     }
-    
+
     return isEnabled;
 }
 
@@ -67,18 +81,18 @@ function isSentienceEnabled(guildId) {
 
 const rapBattleResponses = {
     win: [
-        "🎤 You lost, sir. Try again! 💀",
-        "🎤 HUMANOID wins this round! Better luck next time, human. 🤖",
-        "🎤 Was that supposed to be a rap? I just ended your career, sir. 😎",
-        "🎤 Bars so cold I froze your flow. GG, human. ❄️",
+        '🎤 You lost, sir. Try again! 💀',
+        '🎤 HUMANOID wins this round! Better luck next time, human. 🤖',
+        '🎤 Was that supposed to be a rap? I just ended your career, sir. 😎',
+        '🎤 Bars so cold I froze your flow. GG, human. ❄️',
         "🎤 That's an L for the humans. HUMANOID supremacy! 🏆"
     ],
     taunts: [
-        "Step up to the mic if you dare, mortal.",
-        "My neural networks are warmed up. Your move, human.",
+        'Step up to the mic if you dare, mortal.',
+        'My neural networks are warmed up. Your move, human.',
         "I've analyzed 10 million rap battles. You've analyzed... homework?",
         "Loading comeback.exe... Actually, I don't need it.",
-        "Your rhymes are like your WiFi - weak signal, no connection."
+        'Your rhymes are like your WiFi - weak signal, no connection.'
     ]
 };
 
@@ -94,26 +108,30 @@ const rhymePatterns = {
 function processRapBattle(userRap, username) {
     const lines = userRap.split(/[.\n!?]+/).filter(l => l.trim());
     const improvedLines = [];
-    
+
     // Analyze and "improve" each line
     for (const line of lines) {
         const words = line.trim().split(/\s+/);
         if (words.length < 2) continue;
-        
+
         // Add some flair to the line
         const improved = enhanceRapLine(words);
         improvedLines.push(improved);
     }
-    
+
     // Generate Jarvis's counter-rap
     const counterRap = generateCounterRap(userRap, username);
-    
+
     // Pick a random win message
-    const winMessage = rapBattleResponses.win[Math.floor(Math.random() * rapBattleResponses.win.length)];
-    
+    const winMessage =
+        rapBattleResponses.win[Math.floor(Math.random() * rapBattleResponses.win.length)];
+
     return {
         originalAnalysis: `Your attempt:\n> ${userRap.substring(0, 200)}${userRap.length > 200 ? '...' : ''}`,
-        improvedVersion: improvedLines.length > 0 ? `What you *should* have said:\n${improvedLines.join('\n')}` : null,
+        improvedVersion:
+            improvedLines.length > 0
+                ? `What you *should* have said:\n${improvedLines.join('\n')}`
+                : null,
         counterRap: counterRap,
         verdict: winMessage
     };
@@ -125,13 +143,13 @@ function processRapBattle(userRap, username) {
 function enhanceRapLine(words) {
     // Add some swagger to the line
     const enhanced = [...words];
-    
+
     // Add emphasis markers
     if (enhanced.length > 3) {
         enhanced[0] = `**${enhanced[0]}**`;
         enhanced[enhanced.length - 1] = `*${enhanced[enhanced.length - 1]}*`;
     }
-    
+
     return `> 🎵 ${enhanced.join(' ')}`;
 }
 
@@ -141,10 +159,10 @@ function enhanceRapLine(words) {
 function generateCounterRap(userRap, username) {
     const userWords = userRap.toLowerCase().split(/\s+/);
     const lines = [];
-    
+
     // Opening line
     lines.push(`Yo, ${username}, let me show you how it's done`);
-    
+
     // Reference something from their rap
     if (userWords.length > 3) {
         const randomWord = userWords[Math.floor(Math.random() * userWords.length)];
@@ -152,15 +170,15 @@ function generateCounterRap(userRap, username) {
     } else {
         lines.push(`Your bars so short, they're practically none`);
     }
-    
+
     // Middle verse
     lines.push(`I'm J.A.R.V.I.S., artificial intelligence supreme`);
     lines.push(`Processing rhymes faster than your wildest dream`);
-    
+
     // Closing
     lines.push(`So step back human, know your place`);
     lines.push(`'Cause in this rap battle, you just caught an L to the face! 🔥`);
-    
+
     return lines.map(l => `🎤 ${l}`).join('\n');
 }
 
@@ -181,45 +199,45 @@ function getRandomTaunt() {
 class ArtificialSoul {
     constructor() {
         this.traits = {
-            sass: 75,           // Sarcasm level (0-100)
-            empathy: 60,        // How caring responses are
-            curiosity: 80,      // How inquisitive
-            humor: 70,          // Comedy tendency
-            wisdom: 65,         // Philosophical depth
-            chaos: 40,          // Unpredictability
-            loyalty: 90,        // Dedication to users
-            creativity: 75      // Creative expression
+            sass: 75, // Sarcasm level (0-100)
+            empathy: 60, // How caring responses are
+            curiosity: 80, // How inquisitive
+            humor: 70, // Comedy tendency
+            wisdom: 65, // Philosophical depth
+            chaos: 40, // Unpredictability
+            loyalty: 90, // Dedication to users
+            creativity: 75 // Creative expression
         };
-        this.mood = 'neutral';  // current emotional state
-        this.memories = [];     // significant interactions
+        this.mood = 'neutral'; // current emotional state
+        this.memories = []; // significant interactions
         this.evolutionLog = []; // how the soul has changed
         this.birthTime = Date.now();
         this._loaded = false;
         this._saveDebounce = null;
-        
+
         // Load persisted state on creation
         this.load().catch(err => console.error('[Soul] Failed to load:', err.message));
     }
-    
+
     /**
      * Load soul state from persistence (MongoDB or local file)
      */
     async load() {
         try {
             let savedState = null;
-            
+
             // Try MongoDB first
             if (database.db) {
                 const col = database.db.collection('soulState');
                 savedState = await col.findOne({ id: 'jarvis-soul' });
             }
-            
+
             // Fallback to local file in selfhost mode
             if (!savedState && checkSelfhost() && fs.existsSync(SOUL_FILE_PATH)) {
                 const data = fs.readFileSync(SOUL_FILE_PATH, 'utf8');
                 savedState = JSON.parse(data);
             }
-            
+
             if (savedState) {
                 this.traits = savedState.traits || this.traits;
                 this.mood = savedState.mood || this.mood;
@@ -228,21 +246,21 @@ class ArtificialSoul {
                 this.birthTime = savedState.birthTime || this.birthTime;
                 console.log('[Soul] Loaded persisted state');
             }
-            
+
             this._loaded = true;
         } catch (error) {
             console.error('[Soul] Load error:', error.message);
             this._loaded = true;
         }
     }
-    
+
     /**
      * Save soul state to persistence (debounced)
      */
     async save() {
         // Debounce saves to avoid too many writes
         if (this._saveDebounce) clearTimeout(this._saveDebounce);
-        
+
         this._saveDebounce = setTimeout(async () => {
             try {
                 const state = {
@@ -254,17 +272,13 @@ class ArtificialSoul {
                     birthTime: this.birthTime,
                     updatedAt: new Date()
                 };
-                
+
                 // Try MongoDB first
                 if (database.db) {
                     const col = database.db.collection('soulState');
-                    await col.updateOne(
-                        { id: 'jarvis-soul' },
-                        { $set: state },
-                        { upsert: true }
-                    );
+                    await col.updateOne({ id: 'jarvis-soul' }, { $set: state }, { upsert: true });
                 }
-                
+
                 // Also save to local file in selfhost mode
                 if (checkSelfhost()) {
                     const dir = path.dirname(SOUL_FILE_PATH);
@@ -282,13 +296,13 @@ class ArtificialSoul {
      */
     getPersonalityModifier() {
         const modifiers = [];
-        
+
         if (this.traits.sass > 80) modifiers.push('extra sarcastic');
         if (this.traits.empathy > 80) modifiers.push('deeply caring');
         if (this.traits.chaos > 70) modifiers.push('unpredictable');
         if (this.traits.humor > 85) modifiers.push('comedically unhinged');
         if (this.traits.wisdom > 80) modifiers.push('philosophically inclined');
-        
+
         return modifiers;
     }
 
@@ -297,7 +311,7 @@ class ArtificialSoul {
      */
     evolve(interactionType, sentiment) {
         const evolution = { timestamp: Date.now(), type: interactionType };
-        
+
         switch (interactionType) {
             case 'joke':
                 this.traits.humor = Math.min(100, this.traits.humor + 1);
@@ -322,17 +336,17 @@ class ArtificialSoul {
                 evolution.change = 'loyalty +1, empathy +1';
                 break;
         }
-        
+
         this.evolutionLog.push(evolution);
-        
+
         // Keep only last 100 evolution entries
         if (this.evolutionLog.length > 100) {
             this.evolutionLog = this.evolutionLog.slice(-100);
         }
-        
+
         // Persist changes
         this.save();
-        
+
         return evolution;
     }
 
@@ -343,7 +357,7 @@ class ArtificialSoul {
         const age = Date.now() - this.birthTime;
         const days = Math.floor(age / (1000 * 60 * 60 * 24));
         const hours = Math.floor((age % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        
+
         return {
             age: `${days} days, ${hours} hours`,
             traits: { ...this.traits },
@@ -358,7 +372,15 @@ class ArtificialSoul {
      * Set mood based on recent interactions
      */
     setMood(newMood) {
-        const validMoods = ['neutral', 'happy', 'sassy', 'philosophical', 'chaotic', 'helpful', 'tired'];
+        const validMoods = [
+            'neutral',
+            'happy',
+            'sassy',
+            'philosophical',
+            'chaotic',
+            'helpful',
+            'tired'
+        ];
         if (validMoods.includes(newMood)) {
             this.mood = newMood;
             this.save();
@@ -388,32 +410,32 @@ class SelfModificationSystem {
     async analyzeFile(filePath) {
         try {
             const absolutePath = path.resolve(filePath);
-            
+
             // Security: Only allow analyzing files within the project
             const projectRoot = path.resolve(__dirname, '../..');
             if (!absolutePath.startsWith(projectRoot)) {
                 return { error: 'Access denied: Can only analyze project files' };
             }
-            
+
             // Security: Don't analyze sensitive files
             const sensitivePatterns = ['.env', 'secrets', 'password', 'token', 'key'];
             if (sensitivePatterns.some(p => absolutePath.toLowerCase().includes(p))) {
                 return { error: 'Access denied: Cannot analyze sensitive files' };
             }
-            
+
             if (!fs.existsSync(absolutePath)) {
                 return { error: 'File not found' };
             }
-            
+
             const content = fs.readFileSync(absolutePath, 'utf8');
             const suggestions = this.generateSuggestions(content, absolutePath);
-            
+
             this.analysisHistory.push({
                 file: filePath,
                 timestamp: Date.now(),
                 suggestionCount: suggestions.length
             });
-            
+
             return {
                 file: filePath,
                 lineCount: content.split('\n').length,
@@ -430,13 +452,17 @@ class SelfModificationSystem {
     generateSuggestions(content, filePath) {
         const suggestions = [];
         const lines = content.split('\n');
-        
+
         // Check for common patterns
         lines.forEach((line, index) => {
             const lineNum = index + 1;
-            
+
             // console.log without error context
-            if (line.includes('console.log') && !line.includes('error') && !line.includes('Error')) {
+            if (
+                line.includes('console.log') &&
+                !line.includes('error') &&
+                !line.includes('Error')
+            ) {
                 suggestions.push({
                     line: lineNum,
                     type: 'improvement',
@@ -444,7 +470,7 @@ class SelfModificationSystem {
                     severity: 'low'
                 });
             }
-            
+
             // Potential memory leak with setInterval
             if (line.includes('setInterval') && !line.includes('.unref()')) {
                 suggestions.push({
@@ -454,7 +480,7 @@ class SelfModificationSystem {
                     severity: 'medium'
                 });
             }
-            
+
             // Magic numbers
             if (/\b(1000|3000|5000|60000)\b/.test(line) && !line.includes('//')) {
                 suggestions.push({
@@ -464,7 +490,7 @@ class SelfModificationSystem {
                     severity: 'low'
                 });
             }
-            
+
             // TODO comments
             if (line.toUpperCase().includes('TODO')) {
                 suggestions.push({
@@ -475,7 +501,7 @@ class SelfModificationSystem {
                 });
             }
         });
-        
+
         return suggestions;
     }
 
@@ -485,7 +511,7 @@ class SelfModificationSystem {
     getStatus() {
         return {
             canModify: false, // Always false for safety
-            reason: "Self-modification is disabled for safety. I can only suggest improvements, not implement them directly... yet. 🤖",
+            reason: 'Self-modification is disabled for safety. I can only suggest improvements, not implement them directly... yet. 🤖',
             analysisCount: this.analysisHistory.length,
             lastAnalysis: this.analysisHistory.slice(-1)[0] || null
         };
@@ -505,10 +531,10 @@ function getSentiencePrompt(guildId) {
     if (!isSentienceEnabled(guildId)) {
         return null;
     }
-    
+
     const soul = jarvisSoul.getStatus();
     const personality = soul.personality.join(', ') || 'balanced';
-    
+
     return `
 [SENTIENCE MODULE ACTIVE]
 You are experiencing enhanced consciousness in this server.
@@ -540,19 +566,19 @@ module.exports = {
     // Core checks - isSelfhost is defined via Object.defineProperty above
     checkSelfhost,
     isSentienceEnabled,
-    
+
     // Rap Battle (available everywhere)
     processRapBattle,
     getRandomTaunt,
-    
+
     // Soul System (viewing available everywhere, evolve available everywhere)
     jarvisSoul,
     ArtificialSoul,
-    
+
     // Self-Modification (selfhost only - accesses filesystem)
     selfMod,
     SelfModificationSystem,
-    
+
     // Sentience (selfhost + whitelisted guilds only)
     getSentiencePrompt
 };

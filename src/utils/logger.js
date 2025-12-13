@@ -13,12 +13,12 @@ class Logger {
         this.logDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
         this.enableFileLogging = process.env.ENABLE_FILE_LOGGING !== 'false';
         this.enableConsoleLogging = process.env.ENABLE_CONSOLE_LOGGING !== 'false';
-        
+
         // Ensure log directory exists
         if (this.enableFileLogging && !fs.existsSync(this.logDir)) {
             fs.mkdirSync(this.logDir, { recursive: true });
         }
-        
+
         this.levels = {
             error: 0,
             warn: 1,
@@ -45,7 +45,7 @@ class Logger {
             message,
             ...meta
         };
-        
+
         return JSON.stringify(entry);
     }
 
@@ -54,11 +54,11 @@ class Logger {
      */
     writeToFile(level, formatted) {
         if (!this.enableFileLogging) return;
-        
+
         try {
             const logFile = path.join(this.logDir, `${level}.log`);
             const allLogFile = path.join(this.logDir, 'combined.log');
-            
+
             fs.appendFileSync(logFile, formatted + '\n');
             fs.appendFileSync(allLogFile, formatted + '\n');
         } catch (error) {
@@ -73,10 +73,10 @@ class Logger {
      */
     writeToConsole(level, message, meta) {
         if (!this.enableConsoleLogging) return;
-        
+
         const prefix = `[${new Date().toISOString()}] [${level.toUpperCase()}]`;
         const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-        
+
         switch (level) {
             case 'error':
                 console.error(prefix, message, metaStr);
@@ -99,7 +99,7 @@ class Logger {
      */
     error(message, meta = {}) {
         if (!this.shouldLog('error')) return;
-        
+
         const formatted = this.format('error', message, meta);
         this.writeToFile('error', formatted);
         this.writeToConsole('error', message, meta);
@@ -110,7 +110,7 @@ class Logger {
      */
     warn(message, meta = {}) {
         if (!this.shouldLog('warn')) return;
-        
+
         const formatted = this.format('warn', message, meta);
         this.writeToFile('warn', formatted);
         this.writeToConsole('warn', message, meta);
@@ -121,7 +121,7 @@ class Logger {
      */
     info(message, meta = {}) {
         if (!this.shouldLog('info')) return;
-        
+
         const formatted = this.format('info', message, meta);
         this.writeToFile('info', formatted);
         this.writeToConsole('info', message, meta);
@@ -132,7 +132,7 @@ class Logger {
      */
     debug(message, meta = {}) {
         if (!this.shouldLog('debug')) return;
-        
+
         const formatted = this.format('debug', message, meta);
         this.writeToFile('debug', formatted);
         this.writeToConsole('debug', message, meta);
@@ -144,12 +144,12 @@ class Logger {
     child(defaultMeta = {}) {
         const childLogger = Object.create(this);
         childLogger.defaultMeta = { ...this.defaultMeta, ...defaultMeta };
-        
+
         const originalFormat = this.format.bind(this);
         childLogger.format = (level, message, meta = {}) => {
             return originalFormat(level, message, { ...this.defaultMeta, ...defaultMeta, ...meta });
         };
-        
+
         return childLogger;
     }
 }
@@ -158,4 +158,3 @@ class Logger {
 const logger = new Logger();
 
 module.exports = logger;
-

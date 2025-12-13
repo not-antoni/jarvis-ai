@@ -1,6 +1,6 @@
 /**
  * Moderator Dashboard Authentication Service
- * 
+ *
  * Production (Render): Discord OAuth + password
  * Selfhost: Password-only mode (user ID + password)
  */
@@ -74,26 +74,32 @@ function generateSessionToken() {
 
 function base64urlEncode(input) {
     const buffer = Buffer.isBuffer(input) ? input : Buffer.from(String(input));
-    return buffer
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/g, '');
+    return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 function base64urlDecode(input) {
-    const str = String(input || '').replace(/-/g, '+').replace(/_/g, '/');
+    const str = String(input || '')
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
     const pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4));
     return Buffer.from(str + pad, 'base64');
 }
 
 function getSessionSigningKey() {
-    const raw = (process.env.MODERATOR_SESSION_SECRET || process.env.MASTER_KEY_BASE64 || process.env.DISCORD_TOKEN || '').trim();
+    const raw = (
+        process.env.MODERATOR_SESSION_SECRET ||
+        process.env.MASTER_KEY_BASE64 ||
+        process.env.DISCORD_TOKEN ||
+        ''
+    ).trim();
     if (!raw) {
         throw new Error('No session signing secret configured');
     }
 
-    if ((process.env.MODERATOR_SESSION_SECRET || process.env.MASTER_KEY_BASE64) && /^[A-Za-z0-9+/=]+$/.test(raw)) {
+    if (
+        (process.env.MODERATOR_SESSION_SECRET || process.env.MASTER_KEY_BASE64) &&
+        /^[A-Za-z0-9+/=]+$/.test(raw)
+    ) {
         try {
             const decoded = Buffer.from(raw, 'base64');
             if (decoded.length >= 32) {
@@ -108,10 +114,7 @@ function getSessionSigningKey() {
 }
 
 function signSessionPayload(payloadBase64) {
-    return crypto
-        .createHmac('sha256', getSessionSigningKey())
-        .update(payloadBase64)
-        .digest();
+    return crypto.createHmac('sha256', getSessionSigningKey()).update(payloadBase64).digest();
 }
 
 function createSignedSessionToken(sessionPayload) {
@@ -135,7 +138,10 @@ function parseSignedSessionToken(token) {
     const expectedSig = signSessionPayload(payloadBase64);
     const providedSig = base64urlDecode(sigBase64);
 
-    if (providedSig.length !== expectedSig.length || !crypto.timingSafeEqual(providedSig, expectedSig)) {
+    if (
+        providedSig.length !== expectedSig.length ||
+        !crypto.timingSafeEqual(providedSig, expectedSig)
+    ) {
         return null;
     }
 
@@ -184,7 +190,7 @@ async function loadAuthData() {
     try {
         const preferLocal = SELFHOST_MODE || LOCAL_DB_MODE;
         const data = await dataSync.smartRead(COLLECTION_NAME, preferLocal);
-        
+
         // Handle different data formats
         if (data) {
             if (Array.isArray(data) && data.length > 0) {
@@ -227,15 +233,15 @@ async function hasPassword(userId) {
 async function setPassword(userId, password) {
     const data = await loadAuthData();
     const { hash, salt } = hashPassword(password);
-    
+
     if (!data.users[userId]) {
         data.users[userId] = {};
     }
-    
+
     data.users[userId].passwordHash = hash;
     data.users[userId].passwordSalt = salt;
     data.users[userId].passwordSetAt = new Date().toISOString();
-    
+
     await saveAuthData(data);
     return true;
 }
@@ -246,11 +252,11 @@ async function setPassword(userId, password) {
 async function verifyUserPassword(userId, password) {
     const data = await loadAuthData();
     const user = data.users[userId];
-    
+
     if (!user?.passwordHash || !user?.passwordSalt) {
         return false;
     }
-    
+
     return verifyPassword(password, user.passwordHash, user.passwordSalt);
 }
 
@@ -366,7 +372,7 @@ function getOAuthUrl(state) {
         throw new Error('DISCORD_CLIENT_ID is not configured');
     }
     const redirectUri = getRedirectUri();
-    
+
     const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
@@ -374,7 +380,7 @@ function getOAuthUrl(state) {
         scope: 'identify guilds',
         state
     });
-    
+
     return `https://discord.com/oauth2/authorize?${params.toString()}`;
 }
 
@@ -385,12 +391,12 @@ function getRedirectUri() {
     if (process.env.DASHBOARD_DOMAIN) {
         return `${process.env.DASHBOARD_DOMAIN}/moderator/callback`;
     }
-    
+
     // Auto-detect Render URL
     if (process.env.RENDER_EXTERNAL_URL) {
         return `${process.env.RENDER_EXTERNAL_URL}/moderator/callback`;
     }
-    
+
     // Fallback to localhost
     const port = process.env.PORT || 3000;
     return `http://localhost:${port}/moderator/callback`;
@@ -409,7 +415,7 @@ async function exchangeCode(code) {
     if (!process.env.DISCORD_CLIENT_SECRET) {
         throw new Error('DISCORD_CLIENT_SECRET is not configured');
     }
-    
+
     const params = new URLSearchParams({
         client_id: clientId,
         client_secret: process.env.DISCORD_CLIENT_SECRET,
@@ -417,17 +423,17 @@ async function exchangeCode(code) {
         code,
         redirect_uri: getRedirectUri()
     });
-    
+
     const response = await fetch('https://discord.com/api/oauth2/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params
     });
-    
+
     if (!response.ok) {
         throw new Error('Failed to exchange code');
     }
-    
+
     return response.json();
 }
 
@@ -436,15 +442,15 @@ async function exchangeCode(code) {
  */
 async function getDiscordUser(accessToken) {
     const fetch = require('node-fetch');
-    
+
     const response = await fetch('https://discord.com/api/users/@me', {
         headers: { Authorization: `Bearer ${accessToken}` }
     });
-    
+
     if (!response.ok) {
         throw new Error('Failed to get user info');
     }
-    
+
     return response.json();
 }
 
@@ -454,17 +460,17 @@ async function getDiscordUser(accessToken) {
 async function isAuthorizedModerator(userId, guildId) {
     const moderation = require('./GUILDS_FEATURES/moderation');
     const status = moderation.getStatus(guildId);
-    
+
     if (!status.isEnabled) return false;
-    
+
     // Check if user is in pingUsers
     if (status.settings.pingUsers?.includes(userId)) {
         return true;
     }
-    
+
     // Owner always has access
     // (This would need guild data to check, handled in route)
-    
+
     return false;
 }
 
@@ -475,15 +481,15 @@ async function sendPasswordSetupDM(client, userId, guildId) {
     try {
         const user = await client.users.fetch(userId);
         if (!user) return false;
-        
+
         const token = generateSetupToken(userId);
         const baseUrl = getRedirectUri().replace('/moderator/callback', '');
         const setupUrl = `${baseUrl}/moderator/setup?userId=${userId}&token=${token}`;
-        
+
         await user.send({
             content: `🔐 **Sir, you've been granted access to the Moderator Dashboard.**\n\nPlease set up your password to secure your account:\n${setupUrl}\n\n*This link expires in 30 minutes.*\n\n— Jarvis Security System`
         });
-        
+
         return true;
     } catch (error) {
         console.error('[ModeratorAuth] Failed to send setup DM:', error);

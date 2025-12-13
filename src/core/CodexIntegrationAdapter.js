@@ -22,16 +22,10 @@ class CodexIntegrationAdapter {
      * Register a Jarvis tool to the smart registry
      */
     registerJarvisTool(name, description, parameters, handler, options = {}) {
-        return this.registry.registerTool(
-            name,
-            description,
-            parameters,
-            handler,
-            {
-                category: 'jarvis',
-                ...options
-            }
-        );
+        return this.registry.registerTool(name, description, parameters, handler, {
+            category: 'jarvis',
+            ...options
+        });
     }
 
     /**
@@ -40,17 +34,11 @@ class CodexIntegrationAdapter {
     registerExternalTool(name, description, parameters, handler, options = {}) {
         const toolName = `external_${name}`;
         this.externalTools.set(name, { name, description, parameters, handler });
-        
-        return this.registry.registerTool(
-            toolName,
-            description,
-            parameters,
-            handler,
-            {
-                category: 'external',
-                ...options
-            }
-        );
+
+        return this.registry.registerTool(toolName, description, parameters, handler, {
+            category: 'external',
+            ...options
+        });
     }
 
     /**
@@ -59,9 +47,9 @@ class CodexIntegrationAdapter {
     discoverTools(query, options = {}) {
         const limit = options.limit || 5;
         const category = options.category || 'all';
-        
+
         const selected = this.registry.selectTools(query, { category });
-        
+
         return selected.map(tool => ({
             name: tool.name,
             description: tool.description,
@@ -76,7 +64,7 @@ class CodexIntegrationAdapter {
     async executeTool(name, args = {}, context = {}) {
         // Try exact match first
         let tool = this.registry.getTool(name);
-        
+
         // If not found, try to find similar
         if (!tool) {
             const discovered = this.discoverTools(name, { limit: 1 });
@@ -115,7 +103,7 @@ class CodexIntegrationAdapter {
      */
     getCompatibilityReport() {
         const tools = this.registry.getAllTools();
-        
+
         return {
             totalTools: tools.length,
             byCategory: this._groupBy(tools, t => t.options.category),
@@ -135,7 +123,7 @@ class CodexIntegrationAdapter {
      */
     async batchExecute(queries, context = {}) {
         const results = [];
-        
+
         for (const query of queries) {
             const result = await this.executeWithPlanning(query, {}, context);
             results.push({
@@ -153,7 +141,7 @@ class CodexIntegrationAdapter {
     getExecutionInsights() {
         const stats = this.registry.getStats();
         const history = this.registry.getHistory(50);
-        
+
         const insights = {
             stats,
             topTools: this._getTopTools(stats.tools, 5),
@@ -168,8 +156,8 @@ class CodexIntegrationAdapter {
      * Register Discord approval handler
      */
     registerDiscordApproval(client, options = {}) {
-        this.orchestrator.registerApprovalHandler(async (approval) => {
-            return new Promise((resolve) => {
+        this.orchestrator.registerApprovalHandler(async approval => {
+            return new Promise(resolve => {
                 // Implementation would depend on Discord client
                 // This is a template
                 console.log(`[Codex] Requesting approval for: ${approval.toolName}`);
@@ -190,7 +178,7 @@ class CodexIntegrationAdapter {
                         tool.name,
                         tool.description,
                         tool.inputSchema,
-                        (args) => server.callTool(tool.name, args),
+                        args => server.callTool(tool.name, args),
                         { requiresApproval: true }
                     );
                 }
@@ -225,13 +213,13 @@ class CodexIntegrationAdapter {
 
     _analyzeFailures(history) {
         const failures = history.filter(h => !h.result.success);
-        
+
         if (failures.length === 0) {
             return { count: 0, patterns: [] };
         }
 
         const byTool = this._groupBy(failures, h => h.toolName);
-        
+
         return {
             count: failures.length,
             patterns: Object.entries(byTool).map(([tool, fails]) => ({

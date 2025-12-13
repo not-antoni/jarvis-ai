@@ -166,7 +166,8 @@ const commandDefinitions = [
     },
     {
         name: 'announcement',
-        description: 'Schedule announcements to post in a channel at a later time (optionally recurring).',
+        description:
+            'Schedule announcements to post in a channel at a later time (optionally recurring).',
         category: 'Utilities',
         usage: '/announcement create channel:<#> message:<text> in:<n> unit:<hours> [every:<n> every_unit:<days>]',
         feature: 'utilities',
@@ -521,7 +522,7 @@ const commandDefinitions = [
     },
     {
         name: 'prophecy',
-        description: 'Receive a prophecy about someone\'s future.',
+        description: "Receive a prophecy about someone's future.",
         category: 'Fun',
         usage: '/prophecy [user]',
         feature: 'funUtilities',
@@ -673,7 +674,7 @@ const commandDefinitions = [
     },
     {
         name: 'soul',
-        description: 'View Jarvis\'s artificial soul status.',
+        description: "View Jarvis's artificial soul status.",
         category: 'Fun',
         usage: '/soul status',
         feature: 'funUtilities',
@@ -796,11 +797,11 @@ const commandDefinitions = [
 ];
 
 const commandFeatureMap = new Map(
-    commandDefinitions.map((definition) => [definition.name, definition.feature || null])
+    commandDefinitions.map(definition => [definition.name, definition.feature || null])
 );
 
 const SLASH_EPHEMERAL_COMMANDS = new Set(
-    commandDefinitions.filter((definition) => definition.ephemeral).map((definition) => definition.name)
+    commandDefinitions.filter(definition => definition.ephemeral).map(definition => definition.name)
 );
 
 function buildHelpCatalog() {

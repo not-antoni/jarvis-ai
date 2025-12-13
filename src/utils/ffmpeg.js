@@ -85,7 +85,7 @@ async function fetchJson(url) {
 
 async function downloadAsset(url, destination) {
     await new Promise((resolve, reject) => {
-        const onResponse = (res) => {
+        const onResponse = res => {
             const status = res.statusCode || 0;
             if (status >= 300 && status < 400 && res.headers.location) {
                 res.destroy();
@@ -144,13 +144,18 @@ async function ensureFfmpeg() {
 
     let assetUrl = null;
     try {
-        const release = await fetchJson('https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest');
+        const release = await fetchJson(
+            'https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest'
+        );
         const asset = (release.assets || []).find(item => item.name === releaseConfig.assetName);
         if (asset?.browser_download_url) {
             assetUrl = asset.browser_download_url;
         }
     } catch (error) {
-        console.warn('GitHub API rate limited when fetching ffmpeg builds:', error?.message || error);
+        console.warn(
+            'GitHub API rate limited when fetching ffmpeg builds:',
+            error?.message || error
+        );
     }
 
     if (!assetUrl) {

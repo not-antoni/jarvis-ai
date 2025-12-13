@@ -116,13 +116,13 @@ test('sanitizeObject: With schema', () => {
         age: { type: 'integer', options: { min: 0, max: 150 } },
         active: { type: 'boolean', default: false }
     };
-    
+
     const input = {
         name: '  John  ',
         age: '25',
         active: 'true'
     };
-    
+
     const result = sanitizeObject(input, schema);
     assert.strictEqual(result.name, 'John');
     assert.strictEqual(result.age, 25);
@@ -135,4 +135,3 @@ test('removeDangerousChars: Remove dangerous patterns', () => {
     assert.ok(!result.includes('<script>'));
     assert.ok(!result.includes('javascript:'));
 });
-

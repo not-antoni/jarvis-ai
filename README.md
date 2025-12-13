@@ -2,9 +2,9 @@
 
 **Just A Rather Very Intelligent System** — A feature-rich Discord bot inspired by Tony Stark's AI assistant.
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)](https://discord.js.org)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D18-green.svg)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-green.svg)](https://nodejs.org)
 
 > **145 JavaScript files • 51,000+ lines of code • 100% open source**
 
@@ -73,20 +73,31 @@ npm start
 
 ```env
 DISCORD_TOKEN=your_bot_token
-DISCORD_CLIENT_ID=your_client_id
-MONGODB_URI=mongodb://localhost:27017/jarvis
-OPENAI_API_KEY=sk-...
+MONGO_URI_MAIN=mongodb://localhost:27017/jarvis_ai
+MONGO_URI_VAULT=mongodb://localhost:27017/jarvis_vault
+MASTER_KEY_BASE64=base64_32_byte_key
 ```
 
 ### Optional
 
 ```env
-ANTHROPIC_API_KEY=...    # Claude
-GOOGLE_GEMINI_KEY=...    # Gemini
+# Dashboard / monitoring
+PASSWORD=...             # Password gate for /dashboard and /api/dashboard/*
+HEALTH_TOKEN=...         # Locks down /health, /providers/status, /metrics/commands
+
+# AI providers (configure at least one)
+OPENROUTER_API_KEY=...
+GROQ_API_KEY=...
+GOOGLE_AI_API_KEY=...
+OPENAI_API_KEY=...
+
+# Extras
 BRAVE_API_KEY=...        # Web search
 YOUTUBE_API_KEY=...      # YouTube
-GITHUB_TOKEN=...         # API rate limits
-TOPGG_TOKEN=...          # Vote rewards
+
+# OAuth (optional, used by moderator auth)
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
 ```
 
 ---
@@ -148,7 +159,7 @@ jarvis-ai/
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 **Disclaimer:** "J.A.R.V.I.S." and Iron Man references are fan content. Not affiliated with Marvel or Disney.
 

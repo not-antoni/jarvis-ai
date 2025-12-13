@@ -22,12 +22,12 @@ const colors = {
 };
 
 const log = {
-    header: (msg) => console.log(`\n${colors.bright}${colors.cyan}━━━ ${msg} ━━━${colors.reset}\n`),
-    success: (msg) => console.log(`${colors.green}✓${colors.reset} ${msg}`),
-    warn: (msg) => console.log(`${colors.yellow}!${colors.reset} ${msg}`),
-    error: (msg) => console.log(`${colors.red}✗${colors.reset} ${msg}`),
-    info: (msg) => console.log(`${colors.blue}ℹ${colors.reset} ${msg}`),
-    item: (msg) => console.log(`  ${colors.dim}→${colors.reset} ${msg}`)
+    header: msg => console.log(`\n${colors.bright}${colors.cyan}━━━ ${msg} ━━━${colors.reset}\n`),
+    success: msg => console.log(`${colors.green}✓${colors.reset} ${msg}`),
+    warn: msg => console.log(`${colors.yellow}!${colors.reset} ${msg}`),
+    error: msg => console.log(`${colors.red}✗${colors.reset} ${msg}`),
+    info: msg => console.log(`${colors.blue}ℹ${colors.reset} ${msg}`),
+    item: msg => console.log(`  ${colors.dim}→${colors.reset} ${msg}`)
 };
 
 // Check categories
@@ -54,14 +54,14 @@ function fail(msg) {
 
 async function checkDiscord() {
     log.header('Discord Configuration');
-    
+
     if (process.env.DISCORD_TOKEN) {
         pass('DISCORD_TOKEN is set');
         // Basic token format check
         if (process.env.DISCORD_TOKEN.length > 50) {
             pass('Token format looks valid');
         } else {
-            warn('Token seems short - verify it\'s complete');
+            warn("Token seems short - verify it's complete");
         }
     } else {
         fail('DISCORD_TOKEN is not set');
@@ -76,12 +76,12 @@ async function checkDiscord() {
 
 async function checkDatabase() {
     log.header('Database Configuration');
-    
+
     const localMode = process.env.LOCAL_DB_MODE === '1';
-    
+
     if (localMode) {
         pass('Running in LOCAL_DB_MODE (no MongoDB required)');
-        
+
         // Check local-db directory
         const localDir = path.join(__dirname, '..', 'data', 'local-db');
         if (fs.existsSync(localDir)) {
@@ -93,7 +93,7 @@ async function checkDatabase() {
     } else {
         if (process.env.MONGO_URI_MAIN) {
             pass('MONGO_URI_MAIN is set');
-            
+
             // Try to parse and check format
             try {
                 const uri = process.env.MONGO_URI_MAIN;
@@ -123,13 +123,13 @@ async function checkDatabase() {
 
 async function checkAIProviders() {
     log.header('AI Providers');
-    
+
     const providers = {
-        'OPENROUTER_API_KEY': 'OpenRouter (free tier available)',
-        'GROQ_API_KEY': 'Groq (free tier, very fast)',
-        'GOOGLE_AI_API_KEY': 'Google AI Studio (free Gemini)',
-        'OPENAI': 'OpenAI (paid)',
-        'AI_GATEWAY_API_KEY': 'DeepSeek via Gateway'
+        OPENROUTER_API_KEY: 'OpenRouter (free tier available)',
+        GROQ_API_KEY: 'Groq (free tier, very fast)',
+        GOOGLE_AI_API_KEY: 'Google AI Studio (free Gemini)',
+        OPENAI: 'OpenAI (paid)',
+        AI_GATEWAY_API_KEY: 'DeepSeek via Gateway'
     };
 
     let hasProvider = false;
@@ -175,7 +175,7 @@ ${colors.yellow}To get free AI access:${colors.reset}
 
 async function checkAgentFeatures() {
     log.header('Agent Features');
-    
+
     if (process.env.SELFHOST_MODE === 'true') {
         pass('Self-host mode enabled');
     } else {
@@ -184,7 +184,7 @@ async function checkAgentFeatures() {
 
     if (process.env.HEADLESS_BROWSER_ENABLED === 'true') {
         pass('Headless browser enabled');
-        
+
         // Check if puppeteer is installed
         try {
             require.resolve('puppeteer');
@@ -211,7 +211,7 @@ async function checkAgentFeatures() {
 
 async function checkOptionalServices() {
     log.header('Optional Services');
-    
+
     if (process.env.YOUTUBE_API_KEY) {
         pass('YouTube API configured');
     } else {
@@ -233,7 +233,7 @@ async function checkOptionalServices() {
 
 async function checkNewAgentSystem() {
     log.header('New Agent System (Codex-inspired)');
-    
+
     const coreFiles = [
         'src/core/ToolHandler.js',
         'src/core/AgentToolRegistry.js',
@@ -262,13 +262,8 @@ async function checkNewAgentSystem() {
 
 async function checkProjectStructure() {
     log.header('Project Structure');
-    
-    const requiredDirs = [
-        'src/core',
-        'src/agents',
-        'src/commands',
-        'data'
-    ];
+
+    const requiredDirs = ['src/core', 'src/agents', 'src/commands', 'data'];
 
     for (const dir of requiredDirs) {
         const fullPath = path.join(__dirname, '..', dir);
@@ -317,13 +312,15 @@ ${colors.red}Failed:${colors.reset} ${checks.failed}
     if (checks.failed === 0) {
         console.log(`${colors.green}${colors.bright}Setup looks good! 🎉${colors.reset}\n`);
     } else {
-        console.log(`${colors.yellow}Some issues need attention. Check the output above.${colors.reset}\n`);
+        console.log(
+            `${colors.yellow}Some issues need attention. Check the output above.${colors.reset}\n`
+        );
     }
 
     // Quick fix suggestions
     if (checks.failed > 0) {
         console.log(`${colors.cyan}Quick fixes:${colors.reset}`);
-        
+
         if (!process.env.DISCORD_TOKEN) {
             log.item('Add DISCORD_TOKEN to your .env file');
         }
@@ -338,4 +335,3 @@ ${colors.red}Failed:${colors.reset} ${checks.failed}
 }
 
 main().catch(console.error);
-

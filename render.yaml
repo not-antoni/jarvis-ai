@@ -68,5 +68,7 @@ services:
         sync: false
       - key: HEALTH_TOKEN
         sync: false
+      - key: PASSWORD
+        sync: false
       - key: PORT
         generateValue: true

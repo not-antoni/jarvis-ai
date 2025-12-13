@@ -4,7 +4,7 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const VAULT_DIR = path.join(DATA_DIR, 'vault');
 const LOCAL_DB_FILE = path.join(DATA_DIR, 'local-db.json');
-const LOCAL_DIR = path.join(DATA_DIR, 'collections');  // Per-collection JSON files
+const LOCAL_DIR = path.join(DATA_DIR, 'collections'); // Per-collection JSON files
 const EXPORTS_DIR = path.join(DATA_DIR, 'mongo-exports'); // MongoDB exports
 
 function ensureDir(dirPath) {
@@ -62,7 +62,8 @@ function listExports() {
         if (!fs.existsSync(EXPORTS_DIR)) {
             return [];
         }
-        return fs.readdirSync(EXPORTS_DIR)
+        return fs
+            .readdirSync(EXPORTS_DIR)
             .filter(f => f.endsWith('.json'))
             .map(f => path.join(EXPORTS_DIR, f))
             .sort((a, b) => {
@@ -84,7 +85,8 @@ function syncFromLatestExport() {
             return null;
         }
 
-        const files = fs.readdirSync(exportsDir)
+        const files = fs
+            .readdirSync(exportsDir)
             .filter(f => f.endsWith('.json'))
             .sort()
             .reverse();
@@ -97,7 +99,7 @@ function syncFromLatestExport() {
         const exportPath = path.join(exportsDir, latestFile);
         const content = JSON.parse(fs.readFileSync(exportPath, 'utf8'));
 
-        const normalizeExtendedJson = (value) => {
+        const normalizeExtendedJson = value => {
             if (value === null || value === undefined) return value;
             if (Array.isArray(value)) return value.map(normalizeExtendedJson);
             if (typeof value !== 'object') return value;
@@ -211,17 +213,17 @@ module.exports = {
     DATA_DIR,
     LOCAL_DIR,
     EXPORTS_DIR,
-    
+
     // Core functions
     loadLocalDb,
     saveLocalDb,
     syncFromLatestExport,
-    
+
     // Collection-based operations
     readCollection,
     writeCollection,
     listExports,
-    
+
     // Vault ops
     vaultOps
 };

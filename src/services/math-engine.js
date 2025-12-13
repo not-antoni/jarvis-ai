@@ -32,15 +32,59 @@ function clearFunction(name) {
 }
 
 const RESERVED_KEYWORDS = new Set([
-    'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
-    'asin', 'acos', 'atan', 'acot', 'asec', 'acsc',
-    'arcsin', 'arccos', 'arctan', 'arccot', 'arcsec', 'arccsc',
-    'sinh', 'cosh', 'tanh', 'coth', 'sech', 'csch',
-    'log', 'ln', 'sqrt', 'abs', 'sign', 'sgn', 'exp',
-    'floor', 'ceil', 'round', 'min', 'max', 'mod',
-    'gcd', 'lcm', 'diff', 'integrate', 'factor',
-    'expand', 'simplify', 'sum', 'product', 'pow',
-    'and', 'or', 'xor', 'not', 'pi', 'e'
+    'sin',
+    'cos',
+    'tan',
+    'cot',
+    'sec',
+    'csc',
+    'asin',
+    'acos',
+    'atan',
+    'acot',
+    'asec',
+    'acsc',
+    'arcsin',
+    'arccos',
+    'arctan',
+    'arccot',
+    'arcsec',
+    'arccsc',
+    'sinh',
+    'cosh',
+    'tanh',
+    'coth',
+    'sech',
+    'csch',
+    'log',
+    'ln',
+    'sqrt',
+    'abs',
+    'sign',
+    'sgn',
+    'exp',
+    'floor',
+    'ceil',
+    'round',
+    'min',
+    'max',
+    'mod',
+    'gcd',
+    'lcm',
+    'diff',
+    'integrate',
+    'factor',
+    'expand',
+    'simplify',
+    'sum',
+    'product',
+    'pow',
+    'and',
+    'or',
+    'xor',
+    'not',
+    'pi',
+    'e'
 ]);
 
 const MAX_INPUT_LENGTH = 240;
@@ -248,7 +292,9 @@ class MathSolver {
             expression = derivativeNotation[2].trim();
         }
 
-        const wrtMatch = expression.match(/(.+?)(?:with respect to|wrt)\s+([a-zA-Z][a-zA-Z0-9]*)$/i);
+        const wrtMatch = expression.match(
+            /(.+?)(?:with respect to|wrt)\s+([a-zA-Z][a-zA-Z0-9]*)$/i
+        );
         if (wrtMatch) {
             expression = wrtMatch[1].trim();
             variable = variable || wrtMatch[2];
@@ -280,7 +326,11 @@ class MathSolver {
             const [, funcName, varName, funcExpr] = funcDefMatch;
             storeFunction(funcName, varName, funcExpr.trim());
             // Return a confirmation message marker
-            this._lastFunctionDefined = { name: funcName, variable: varName, expression: funcExpr.trim() };
+            this._lastFunctionDefined = {
+                name: funcName,
+                variable: varName,
+                expression: funcExpr.trim()
+            };
             return funcExpr.trim(); // Return expression for display
         }
 
@@ -359,7 +409,10 @@ class MathSolver {
             const normalizedValue = assignment.value.replace(/\b(?:pi|π)\b/gi, 'pi');
             scope[assignment.variable] = nerdamer(normalizedValue).evaluate().text();
             const pattern = new RegExp(`\\b${assignment.variable}\\b`, 'g');
-            preparedExpression = preparedExpression.replace(pattern, `(${scope[assignment.variable]})`);
+            preparedExpression = preparedExpression.replace(
+                pattern,
+                `(${scope[assignment.variable]})`
+            );
         }
 
         return { expression: preparedExpression, scope };
@@ -367,14 +420,14 @@ class MathSolver {
 
     handleEvaluate(parsed) {
         const { expression, assignments, placeholders } = parsed;
-        
+
         // Check if this was a function definition
         if (this._lastFunctionDefined) {
             const { name, variable, expression: funcExpr } = this._lastFunctionDefined;
             this._lastFunctionDefined = null;
             return `Function ${name}(${variable}) = ${funcExpr} stored (use ${name}(value) to evaluate, expires in 60s)`;
         }
-        
+
         const { expression: preparedExpression } = this.applyAssignments(expression, assignments);
         const result = nerdamer(preparedExpression).evaluate().text();
         return this.restorePlaceholders(result, placeholders);

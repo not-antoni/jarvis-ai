@@ -7,12 +7,10 @@ const DEFAULT_MAX_ENTRIES = 50_000;
 
 class CooldownManager {
     constructor({ defaultCooldownMs = 5_000, maxEntries = DEFAULT_MAX_ENTRIES } = {}) {
-        this.defaultCooldownMs = Number.isFinite(defaultCooldownMs) && defaultCooldownMs > 0
-            ? defaultCooldownMs
-            : 5_000;
-        this.maxEntries = Number.isFinite(maxEntries) && maxEntries > 0
-            ? maxEntries
-            : DEFAULT_MAX_ENTRIES;
+        this.defaultCooldownMs =
+            Number.isFinite(defaultCooldownMs) && defaultCooldownMs > 0 ? defaultCooldownMs : 5_000;
+        this.maxEntries =
+            Number.isFinite(maxEntries) && maxEntries > 0 ? maxEntries : DEFAULT_MAX_ENTRIES;
         this.cooldowns = new Map();
     }
 
@@ -85,9 +83,10 @@ class CooldownManager {
      */
     prune(maxAgeMs = null) {
         const now = Date.now();
-        const windowMs = Number.isFinite(maxAgeMs) && maxAgeMs > 0
-            ? maxAgeMs
-            : Math.max(this.defaultCooldownMs * 10, 60 * 60 * 1000);
+        const windowMs =
+            Number.isFinite(maxAgeMs) && maxAgeMs > 0
+                ? maxAgeMs
+                : Math.max(this.defaultCooldownMs * 10, 60 * 60 * 1000);
 
         for (const [key, timestamp] of this.cooldowns.entries()) {
             if (now - timestamp > windowMs) {
@@ -116,4 +115,3 @@ class CooldownManager {
 }
 
 module.exports = CooldownManager;
-

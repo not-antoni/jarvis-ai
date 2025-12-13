@@ -74,7 +74,7 @@ async function runDump() {
     await database.disconnect();
 }
 
-runDump().catch(async (error) => {
+runDump().catch(async error => {
     console.error('Nightly dump failed:', error);
     try {
         await database.disconnect();
@@ -83,4 +83,3 @@ runDump().catch(async (error) => {
     }
     process.exit(1);
 });
-

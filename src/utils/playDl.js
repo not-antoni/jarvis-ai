@@ -7,7 +7,13 @@
 // play-dl disabled - too unreliable on shared IPs, yt-dlp works better
 const play = null;
 
-const { acquireAudio, cancelDownload, isNetscapeFormat, parseNetscapeCookies, COOKIE_ENV_KEYS } = require('./ytDlp');
+const {
+    acquireAudio,
+    cancelDownload,
+    isNetscapeFormat,
+    parseNetscapeCookies,
+    COOKIE_ENV_KEYS
+} = require('./ytDlp');
 const fs = require('fs');
 const { StreamType } = require('@discordjs/voice');
 
@@ -23,9 +29,7 @@ const RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
  * Convert cookies to the string format play-dl expects
  */
 function cookiesToString(cookies) {
-    return cookies
-        .map(c => `${c.name}=${c.value}`)
-        .join('; ');
+    return cookies.map(c => `${c.name}=${c.value}`).join('; ');
 }
 
 /**
@@ -33,26 +37,28 @@ function cookiesToString(cookies) {
  */
 async function initializePlayDl() {
     if (!play) return false;
-    
+
     for (const key of COOKIE_ENV_KEYS) {
         const raw = process.env[key];
         if (!raw || !raw.trim()) continue;
-        
+
         let cookieString = null;
-        
+
         // Check if Netscape format
         if (isNetscapeFormat(raw)) {
             const cookies = parseNetscapeCookies(raw);
             if (cookies.length > 0) {
                 cookieString = cookiesToString(cookies);
-                console.log(`play-dl: Parsed ${cookies.length} cookies from Netscape format (${key})`);
+                console.log(
+                    `play-dl: Parsed ${cookies.length} cookies from Netscape format (${key})`
+                );
             }
         } else if (raw.includes('=') && raw.includes(';')) {
             // Already in cookie string format
             cookieString = raw.trim();
             console.log(`play-dl: Using cookie string from ${key}`);
         }
-        
+
         if (cookieString) {
             try {
                 await play.setToken({
@@ -74,32 +80,34 @@ async function initializePlayDl() {
 
 // Initialize on module load
 let authInitialized = false;
-const initPromise = initializePlayDl().then(result => {
-    authInitialized = result;
-}).catch(error => {
-    console.warn('play-dl init failed:', error.message);
-});
+const initPromise = initializePlayDl()
+    .then(result => {
+        authInitialized = result;
+    })
+    .catch(error => {
+        console.warn('play-dl init failed:', error.message);
+    });
 
 /**
  * Try to get stream via play-dl (fast, but can be rate-limited)
  */
 async function tryPlayDl(videoUrl, streamState) {
     if (!play) throw new Error('play-dl not available');
-    
+
     // Check if we're in rate limit cooldown
     if (playDlRateLimited && Date.now() < rateLimitResetTime) {
         throw new Error('play-dl rate limited, skipping');
     }
-    
+
     // Normalize URL - play-dl can be picky about format
     let normalizedUrl = videoUrl;
-    
+
     // Extract video ID and rebuild clean URL
     const videoIdMatch = videoUrl.match(/(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
     if (videoIdMatch) {
         normalizedUrl = `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
     }
-    
+
     // Skip validation - just try to stream directly
     // play-dl's validate() can fail even for valid videos
     const streamResult = await play.stream(normalizedUrl, {
@@ -114,7 +122,7 @@ async function tryPlayDl(videoUrl, streamState) {
 
     // Clear rate limit flag on success
     playDlRateLimited = false;
-    
+
     streamState.stream = streamResult.stream;
     streamState.method = 'play-dl';
 
@@ -122,7 +130,9 @@ async function tryPlayDl(videoUrl, streamState) {
         stream: streamResult.stream,
         type: streamResult.type,
         cleanup: () => {
-            try { streamResult.stream.destroy(); } catch (e) {}
+            try {
+                streamResult.stream.destroy();
+            } catch (e) {}
             activeStreams.delete(streamState.videoId);
         }
     };
@@ -133,24 +143,28 @@ async function tryPlayDl(videoUrl, streamState) {
  */
 async function tryYtDlp(videoId, videoUrl, streamState) {
     console.log(`Falling back to yt-dlp for ${videoId}`);
-    
+
     const ticket = await acquireAudio(videoId, videoUrl);
-    
+
     if (streamState.aborted) {
         ticket.release();
         throw new Error('Stream cancelled');
     }
-    
+
     const fileStream = fs.createReadStream(ticket.filePath);
     streamState.stream = fileStream;
     streamState.method = 'yt-dlp';
-    
+
     return {
         stream: fileStream,
         type: StreamType.OggOpus,
         cleanup: () => {
-            try { fileStream.destroy(); } catch (e) {}
-            try { ticket.release(); } catch (e) {}
+            try {
+                fileStream.destroy();
+            } catch (e) {}
+            try {
+                ticket.release();
+            } catch (e) {}
             activeStreams.delete(streamState.videoId);
         }
     };
@@ -178,14 +192,14 @@ async function getAudioStream(videoId, videoUrl) {
             return result;
         } catch (error) {
             const msg = error.message || String(error);
-            
+
             // Mark rate limited and set cooldown
             if (msg.includes('429') || msg.includes('rate')) {
                 console.warn('play-dl hit 429, switching to yt-dlp for next 10 minutes');
                 playDlRateLimited = true;
                 rateLimitResetTime = Date.now() + RATE_LIMIT_COOLDOWN_MS;
             }
-            
+
             console.warn(`play-dl failed: ${msg}, trying yt-dlp...`);
         }
     }
@@ -197,38 +211,42 @@ async function getAudioStream(videoId, videoUrl) {
         return result;
     } catch (error) {
         activeStreams.delete(videoId);
-        
+
         const msg = error.message || String(error);
-        
+
         if (msg === 'Download cancelled') {
             throw new Error('Stream cancelled');
         }
-        
+
         if (msg.includes('Sign in') || msg.includes('age')) {
             throw new Error('This video requires sign-in (age-restricted)');
         }
-        
+
         if (msg.includes('unavailable') || msg.includes('private')) {
             throw new Error('Video is unavailable or private');
         }
-        
+
         throw new Error(`Unable to play: ${msg}`);
     }
 }
 
 /**
  * Cancel an active stream
- * @param {string} videoId 
+ * @param {string} videoId
  */
 function cancelStream(videoId) {
     const state = activeStreams.get(videoId);
     if (state) {
         state.aborted = true;
         if (state.stream) {
-            try { state.stream.destroy(); } catch (e) {}
+            try {
+                state.stream.destroy();
+            } catch (e) {}
         }
         // Also cancel yt-dlp download if in progress
-        try { cancelDownload(videoId); } catch (e) {}
+        try {
+            cancelDownload(videoId);
+        } catch (e) {}
         activeStreams.delete(videoId);
     }
 }
@@ -295,7 +313,7 @@ async function getVideoInfo(url) {
 async function healthCheck() {
     try {
         await initPromise;
-        
+
         return {
             ready: true,
             playDlAvailable: !!play,

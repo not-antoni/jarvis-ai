@@ -7,10 +7,10 @@ const LRUCache =
     typeof LruModule === 'function'
         ? LruModule
         : typeof LruModule?.LRUCache === 'function'
-            ? LruModule.LRUCache
-            : typeof LruModule?.default === 'function'
-                ? LruModule.default
-                : null;
+          ? LruModule.LRUCache
+          : typeof LruModule?.default === 'function'
+            ? LruModule.default
+            : null;
 
 if (!LRUCache) {
     throw new Error('Failed to load LRUCache constructor from lru-cache module');
@@ -65,7 +65,7 @@ async function getCollections() {
     if (USE_LOCAL_DB_MODE) {
         throw new Error('Vault not available in LOCAL_DB_MODE');
     }
-    
+
     if (testCollectionsOverride) {
         return testCollectionsOverride;
     }
@@ -74,7 +74,7 @@ async function getCollections() {
         vaultCollectionsPromise = (async () => {
             await connectVault();
             const db = getVaultDb();
-            
+
             if (!db) {
                 throw new Error('Vault database connection failed');
             }
@@ -83,8 +83,14 @@ async function getCollections() {
             const memories = db.collection(memoriesCollectionName);
 
             await Promise.all([
-                userKeys.createIndex({ userId: 1 }, { unique: true, name: 'userKeys_userId_unique' }),
-                memories.createIndex({ userId: 1, createdAt: -1 }, { name: 'memories_userId_createdAt' }),
+                userKeys.createIndex(
+                    { userId: 1 },
+                    { unique: true, name: 'userKeys_userId_unique' }
+                ),
+                memories.createIndex(
+                    { userId: 1, createdAt: -1 },
+                    { name: 'memories_userId_createdAt' }
+                ),
                 memories.createIndex(
                     { createdAt: 1 },
                     {
@@ -95,7 +101,7 @@ async function getCollections() {
             ]);
 
             return { userKeys, memories };
-        })().catch((error) => {
+        })().catch(error => {
             vaultCollectionsPromise = null;
             throw error;
         });
@@ -289,7 +295,7 @@ async function encryptMemory(userId, plaintext, options = {}) {
     if (USE_LOCAL_DB_MODE && localDbOps) {
         const { type = 'conversation', isShortTerm = false } = options || {};
         const { buffer, format } = serializePlaintext(plaintext);
-        
+
         if (buffer.byteLength > 64 * 1024) {
             throw new Error('Memory payload exceeds 64KB limit');
         }
@@ -364,7 +370,7 @@ async function enforceMemoryLimits(userId, memoriesCollection) {
 
         // Get current counts
         const totalCount = await memoriesCollection.countDocuments({ userId });
-        
+
         if (totalCount > TOTAL_MEMORY_LIMIT) {
             // Find oldest memories to delete
             const excess = totalCount - TOTAL_MEMORY_LIMIT;
@@ -373,7 +379,7 @@ async function enforceMemoryLimits(userId, memoriesCollection) {
                 .sort({ createdAt: 1 })
                 .limit(excess)
                 .toArray();
-            
+
             const idsToDelete = oldestDocs.map(d => d._id);
             if (idsToDelete.length > 0) {
                 await memoriesCollection.deleteMany({ _id: { $in: idsToDelete } });
@@ -389,11 +395,11 @@ async function enforceMemoryLimits(userId, memoriesCollection) {
  */
 async function enforceMemoryLimitsLocal(userId) {
     if (!localDbOps) return;
-    
+
     try {
         // Get all memories for user
         const allMemories = await localDbOps.getMemories(userId, 1000);
-        
+
         // Clean expired short-term memories
         const now = Date.now();
         const validMemories = allMemories.filter(m => {
@@ -402,7 +408,7 @@ async function enforceMemoryLimitsLocal(userId) {
             }
             return true;
         });
-        
+
         // If over limit, keep only the newest TOTAL_MEMORY_LIMIT
         if (validMemories.length > TOTAL_MEMORY_LIMIT) {
             // Memories are already sorted by createdAt desc, so we keep the first 30
@@ -416,20 +422,22 @@ async function enforceMemoryLimitsLocal(userId) {
 async function decryptMemories(userId, options = {}) {
     // ALWAYS query DB - don't use cache for robustness
     // Cache is only used for performance optimization, not as source of truth
-    
+
     if (USE_LOCAL_DB_MODE && localDbOps) {
         const { type = 'conversation', limit = 30 } = options || {};
-        
+
         // Clean expired short-term memories first
         const allDocs = await localDbOps.getMemories(userId, 1000);
         const now = Date.now();
-        const validDocs = allDocs.filter(m => {
-            if (m.isShortTerm && m.shortTermExpiresAt && m.shortTermExpiresAt < now) {
-                return false;
-            }
-            return true;
-        }).slice(0, limit);
-        
+        const validDocs = allDocs
+            .filter(m => {
+                if (m.isShortTerm && m.shortTermExpiresAt && m.shortTermExpiresAt < now) {
+                    return false;
+                }
+                return true;
+            })
+            .slice(0, limit);
+
         if (validDocs.length === 0) {
             return [];
         }
@@ -461,7 +469,7 @@ async function decryptMemories(userId, options = {}) {
     const { type = 'conversation', limit = 30 } = options || {};
 
     const { memories } = await getCollections();
-    
+
     // Clean expired short-term memories first
     await memories.deleteMany({
         userId,

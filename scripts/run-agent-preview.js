@@ -14,7 +14,9 @@ async function main() {
     }
 
     if (config?.deployment?.target !== 'selfhost' || !config?.deployment?.liveAgentMode) {
-        console.error('Agent preview is disabled. Set DEPLOY_TARGET=selfhost and LIVE_AGENT_MODE=true.');
+        console.error(
+            'Agent preview is disabled. Set DEPLOY_TARGET=selfhost and LIVE_AGENT_MODE=true.'
+        );
         process.exit(1);
     }
 

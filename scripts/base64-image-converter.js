@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Base64 Image Converter for Rap Battle Comebacks
- * 
+ *
  * Usage:
  *   node scripts/base64-image-converter.js add <image_path> [name]     - Add image to base64 storage
  *   node scripts/base64-image-converter.js remove <name>               - Remove image by name
@@ -48,68 +48,78 @@ function formatBytes(bytes) {
 
 function addImage(imagePath, customName) {
     const fullPath = path.resolve(imagePath);
-    
+
     if (!fs.existsSync(fullPath)) {
         console.error(`❌ File not found: ${fullPath}`);
         process.exit(1);
     }
-    
+
     const ext = path.extname(fullPath).toLowerCase();
     if (!SUPPORTED_FORMATS.includes(ext)) {
         console.error(`❌ Unsupported format: ${ext}. Supported: ${SUPPORTED_FORMATS.join(', ')}`);
         process.exit(1);
     }
-    
+
     const stats = fs.statSync(fullPath);
     if (stats.size > MAX_FILE_SIZE) {
-        console.error(`❌ File too large: ${formatBytes(stats.size)}. Max: ${formatBytes(MAX_FILE_SIZE)}`);
+        console.error(
+            `❌ File too large: ${formatBytes(stats.size)}. Max: ${formatBytes(MAX_FILE_SIZE)}`
+        );
         process.exit(1);
     }
-    
+
     const storage = loadStorage();
     const totalSize = getTotalSize(storage);
-    
+
     if (totalSize + stats.size > MAX_TOTAL_SIZE) {
-        console.error(`❌ Would exceed total storage limit. Current: ${formatBytes(totalSize)}, Max: ${formatBytes(MAX_TOTAL_SIZE)}`);
+        console.error(
+            `❌ Would exceed total storage limit. Current: ${formatBytes(totalSize)}, Max: ${formatBytes(MAX_TOTAL_SIZE)}`
+        );
         process.exit(1);
     }
-    
+
     const name = customName || path.basename(fullPath, ext);
-    
+
     // Check for duplicate names
     if (storage.images.some(img => img.name === name)) {
         console.error(`❌ Image with name "${name}" already exists. Use a different name.`);
         process.exit(1);
     }
-    
+
     const imageBuffer = fs.readFileSync(fullPath);
     const base64Data = imageBuffer.toString('base64');
-    const mimeType = ext === '.png' ? 'image/png' 
-        : ext === '.webp' ? 'image/webp'
-        : ext === '.gif' ? 'image/gif'
-        : 'image/jpeg';
-    
+    const mimeType =
+        ext === '.png'
+            ? 'image/png'
+            : ext === '.webp'
+              ? 'image/webp'
+              : ext === '.gif'
+                ? 'image/gif'
+                : 'image/jpeg';
+
     storage.images.push({
         name,
         mimeType,
         data: base64Data,
         addedAt: new Date().toISOString()
     });
-    
+
     saveStorage(storage);
     console.log(`✅ Added "${name}" (${formatBytes(stats.size)})`);
-    console.log(`📊 Total storage: ${formatBytes(getTotalSize(storage))} / ${formatBytes(MAX_TOTAL_SIZE)}`);
+    console.log(
+        `📊 Total storage: ${formatBytes(getTotalSize(storage))} / ${formatBytes(MAX_TOTAL_SIZE)}`
+    );
 }
 
 function removeImage(name) {
     const storage = loadStorage();
     const index = storage.images.findIndex(img => img.name === name);
-    
+
     if (index === -1) {
         console.error(`❌ Image "${name}" not found`);
         process.exit(1);
     }
-    
+
     const removed = storage.images.splice(index, 1)[0];
     saveStorage(storage);
     console.log(`✅ Removed "${name}" (freed ${formatBytes(getBase64Size(removed.data))})`);
@@ -117,29 +127,31 @@ function removeImage(name) {
 
 function listImages() {
     const storage = loadStorage();
-    
+
     if (storage.images.length === 0) {
         console.log('📭 No images stored');
         return;
     }
-    
+
     console.log(`📷 Stored images (${storage.images.length}):\n`);
     storage.images.forEach((img, i) => {
         const size = formatBytes(getBase64Size(img.data));
         console.log(`  ${i + 1}. ${img.name} (${img.mimeType}, ${size})`);
     });
-    console.log(`\n📊 Total: ${formatBytes(getTotalSize(storage))} / ${formatBytes(MAX_TOTAL_SIZE)}`);
+    console.log(
+        `\n📊 Total: ${formatBytes(getTotalSize(storage))} / ${formatBytes(MAX_TOTAL_SIZE)}`
+    );
 }
 
 function exportImage(name, outputPath) {
     const storage = loadStorage();
     const img = storage.images.find(i => i.name === name);
-    
+
     if (!img) {
         console.error(`❌ Image "${name}" not found`);
         process.exit(1);
     }
-    
+
     const buffer = Buffer.from(img.data, 'base64');
     fs.writeFileSync(outputPath, buffer);
     console.log(`✅ Exported "${name}" to ${outputPath}`);
@@ -149,13 +161,15 @@ function showSize() {
     const storage = loadStorage();
     const totalSize = getTotalSize(storage);
     const percentage = ((totalSize / MAX_TOTAL_SIZE) * 100).toFixed(1);
-    
-    console.log(`📊 Storage usage: ${formatBytes(totalSize)} / ${formatBytes(MAX_TOTAL_SIZE)} (${percentage}%)`);
+
+    console.log(
+        `📊 Storage usage: ${formatBytes(totalSize)} / ${formatBytes(MAX_TOTAL_SIZE)} (${percentage}%)`
+    );
     console.log(`📷 Images stored: ${storage.images.length}`);
 }
 
 // CLI
-const [,, command, ...args] = process.argv;
+const [, , command, ...args] = process.argv;
 
 switch (command) {
     case 'add':

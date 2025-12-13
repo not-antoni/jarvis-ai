@@ -44,10 +44,9 @@ test('Metrics: Response time percentiles', () => {
     for (let i = 1; i <= 100; i++) {
         metrics.recordResponseTime(i);
     }
-    
+
     const m = metrics.getMetrics();
     assert.ok(m.performance.p50 > 0);
     assert.ok(m.performance.p95 > 0);
     assert.ok(m.performance.p99 > 0);
 });
-

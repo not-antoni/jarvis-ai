@@ -25,15 +25,27 @@ function parseBooleanEnv(envValue, fallback = false) {
     return Boolean(fallback);
 }
 
-const enableMessageContentIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_MESSAGE_CONTENT, false);
+const enableMessageContentIntent = parseBooleanEnv(
+    process.env.DISCORD_ENABLE_MESSAGE_CONTENT,
+    false
+);
 const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE_INTENT, false);
 const deploymentTarget = (process.env.DEPLOY_TARGET || 'render').trim().toLowerCase();
 const selfhostMode = parseBooleanEnv(process.env.SELFHOST_MODE, false);
 const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, true);
 const liveAgentModeEnabled = parseBooleanEnv(process.env.LIVE_AGENT_MODE, true);
-const agentAllowlist = (process.env.AGENT_ALLOWLIST_DOMAINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-const agentDenylist = (process.env.AGENT_DENYLIST_DOMAINS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-const agentPreferredProviders = (process.env.AGENT_PREFERRED_PROVIDERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const agentAllowlist = (process.env.AGENT_ALLOWLIST_DOMAINS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+const agentDenylist = (process.env.AGENT_DENYLIST_DOMAINS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+const agentPreferredProviders = (process.env.AGENT_PREFERRED_PROVIDERS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
 
 const baseIntents = [
     'Guilds',
@@ -102,7 +114,9 @@ const rawConfig = {
     },
     security: {
         masterKeyBase64: process.env.MASTER_KEY_BASE64,
-        vaultCacheTtlMs: process.env.VAULT_CACHE_TTL_MS ? Number(process.env.VAULT_CACHE_TTL_MS) : undefined
+        vaultCacheTtlMs: process.env.VAULT_CACHE_TTL_MS
+            ? Number(process.env.VAULT_CACHE_TTL_MS)
+            : undefined
     },
 
     // Deployment target controls infra-specific toggles.
@@ -112,8 +126,12 @@ const rawConfig = {
         headlessBrowser: headlessBrowserEnabled, // enable when running a local headless browser instead of external APIs
         agentReady: parseBooleanEnv(process.env.AGENT_READY, false), // set to true when agent mode is fully configured and ready
         autoExportMongo: parseBooleanEnv(process.env.SELFHOST_AUTO_EXPORT_MONGO, false),
-        exportPath: process.env.SELFHOST_EXPORT_PATH || path.join(__dirname, 'data', 'mongo-exports'),
-        exportCollections: (process.env.SELFHOST_EXPORT_COLLECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean),
+        exportPath:
+            process.env.SELFHOST_EXPORT_PATH || path.join(__dirname, 'data', 'mongo-exports'),
+        exportCollections: (process.env.SELFHOST_EXPORT_COLLECTIONS || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean),
         liveAgentMode: liveAgentModeEnabled,
         agentAllowlist,
         agentDenylist,
@@ -131,7 +149,7 @@ const rawConfig = {
         fallbackChance: 0.12,
         // Provider selection: "auto" for random selection, or specific provider type
         // Options: "auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"
-        provider: process.env.AI_PROVIDER || "auto",
+        provider: process.env.AI_PROVIDER || 'auto'
     },
 
     // Server Configuration
@@ -164,7 +182,10 @@ const rawConfig = {
             if (!envGuilds) {
                 return [defaultGuild];
             }
-            const guilds = envGuilds.split(',').map(s => s.trim()).filter(Boolean);
+            const guilds = envGuilds
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean);
             // Always include default guild if not already present
             if (!guilds.includes(defaultGuild)) {
                 guilds.push(defaultGuild);

@@ -10,7 +10,7 @@ class ErrorContextDebugger {
         this.consoleLogs = [];
         this.errorSnapshots = [];
         this.jsErrors = [];
-        
+
         this.config = {
             captureNetworkRequests: true,
             captureConsoleLogs: true,
@@ -36,8 +36,8 @@ class ErrorContextDebugger {
         }
 
         // Listen for page errors
-        page.on('error', (error) => this.recordJSError(error));
-        page.on('pageerror', (error) => this.recordJSError(error));
+        page.on('error', error => this.recordJSError(error));
+        page.on('pageerror', error => this.recordJSError(error));
     }
 
     /**
@@ -46,7 +46,7 @@ class ErrorContextDebugger {
     setupNetworkListener() {
         if (!this.page) return;
 
-        this.page.on('request', (request) => {
+        this.page.on('request', request => {
             this.recordNetworkRequest({
                 url: request.url(),
                 method: request.method(),
@@ -56,7 +56,7 @@ class ErrorContextDebugger {
             });
         });
 
-        this.page.on('response', (response) => {
+        this.page.on('response', response => {
             this.recordNetworkResponse({
                 url: response.url(),
                 status: response.status(),
@@ -65,7 +65,7 @@ class ErrorContextDebugger {
             });
         });
 
-        this.page.on('requestfailed', (request) => {
+        this.page.on('requestfailed', request => {
             this.recordNetworkFailure({
                 url: request.url(),
                 failure: request.failure().errorText,
@@ -80,7 +80,7 @@ class ErrorContextDebugger {
     setupConsoleListener() {
         if (!this.page) return;
 
-        this.page.on('console', (msg) => {
+        this.page.on('console', msg => {
             this.recordConsoleLog({
                 type: msg.type(),
                 text: msg.text(),
@@ -164,7 +164,7 @@ class ErrorContextDebugger {
 
         try {
             const buffer = await this.page.screenshot({ type: 'png' });
-            
+
             this.errorSnapshots.push({
                 operation,
                 error: error.message,
@@ -180,7 +180,10 @@ class ErrorContextDebugger {
 
             return buffer;
         } catch (screenshotError) {
-            console.error('[ErrorContextDebugger] Screenshot capture failed:', screenshotError.message);
+            console.error(
+                '[ErrorContextDebugger] Screenshot capture failed:',
+                screenshotError.message
+            );
             return null;
         }
     }
@@ -193,7 +196,7 @@ class ErrorContextDebugger {
 
         try {
             const html = await this.page.content();
-            
+
             return {
                 operation,
                 error: error.message,
@@ -237,7 +240,7 @@ class ErrorContextDebugger {
      */
     getResourceBreakdown() {
         const breakdown = {};
-        
+
         for (const request of this.networkRequests) {
             const type = request.resourceType;
             breakdown[type] = (breakdown[type] || 0) + 1;
@@ -321,7 +324,9 @@ class ErrorContextDebugger {
             jsErrors: this.jsErrors,
             errorSnapshots: this.errorSnapshots.map(snap => ({
                 ...snap,
-                screenshotBuffer: snap.screenshotBuffer ? `<buffer ${snap.screenshotBuffer.length} bytes>` : null
+                screenshotBuffer: snap.screenshotBuffer
+                    ? `<buffer ${snap.screenshotBuffer.length} bytes>`
+                    : null
             }))
         };
     }

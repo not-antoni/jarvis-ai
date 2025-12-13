@@ -1,8 +1,4 @@
-const DEFAULT_WHITELIST = [
-    '1403664986089324606',
-    '858444090374881301',
-    '833376882896142393'
-];
+const DEFAULT_WHITELIST = ['1403664986089324606', '858444090374881301', '833376882896142393'];
 
 function parseEnvList(raw) {
     if (!raw || typeof raw !== 'string') {

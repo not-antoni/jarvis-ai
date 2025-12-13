@@ -1,6 +1,6 @@
 /**
  * Guild Moderation System - AI-Powered Content Detection
- * 
+ *
  * Features:
  * - AI-based text content moderation (using function calling)
  * - Image content moderation via Ollama
@@ -10,7 +10,7 @@
  * - Rate limiting to avoid alert spam
  * - Whitelist for trusted users/roles
  * - Fallback pattern matching when AI unavailable
- * 
+ *
  * ONLY enabled for specific guilds via .j enable moderation
  */
 
@@ -31,7 +31,7 @@ const COLLECTION_NAME = 'guildModeration';
 
 // Allowed guilds that CAN enable moderation (whitelist)
 const ALLOWED_GUILDS = [
-    '858444090374881301'  // Primary guild
+    '858444090374881301' // Primary guild
 ];
 
 // In-memory cache of enabled guilds
@@ -124,37 +124,37 @@ CONFIDENCE:<0.0-1.0>`;
 const JARVIS_ALERTS = {
     detection: [
         "🚨 **Sir, I've detected a potential threat!**",
-        "🚨 **Security breach identified, sir.**",
-        "🚨 **Alert! Suspicious activity detected.**",
+        '🚨 **Security breach identified, sir.**',
+        '🚨 **Alert! Suspicious activity detected.**',
         "🚨 **Sir, I've intercepted something concerning.**",
-        "🚨 **Threat detected in this sector, sir.**"
+        '🚨 **Threat detected in this sector, sir.**'
     ],
     scam: [
-        "A scammer has been identified attempting to distribute malicious content.",
+        'A scammer has been identified attempting to distribute malicious content.',
         "I've flagged what appears to be a scam attempt.",
-        "This looks like a classic social engineering attack, sir.",
-        "Potential phishing or fraud attempt detected."
+        'This looks like a classic social engineering attack, sir.',
+        'Potential phishing or fraud attempt detected.'
     ],
     spam: [
-        "Spam content detected from this user.",
-        "This appears to be unsolicited promotional content.",
+        'Spam content detected from this user.',
+        'This appears to be unsolicited promotional content.',
         "I've identified spam patterns in this message."
     ],
     nsfw: [
-        "Inappropriate content has been flagged.",
-        "NSFW material detected, sir.",
-        "This content violates server guidelines."
+        'Inappropriate content has been flagged.',
+        'NSFW material detected, sir.',
+        'This content violates server guidelines.'
     ],
     harmful: [
-        "Potentially harmful content identified.",
+        'Potentially harmful content identified.',
         "I've detected concerning language patterns.",
-        "This message contains potentially threatening content."
+        'This message contains potentially threatening content.'
     ],
     recommendation: [
-        "I recommend immediate investigation.",
-        "Manual review is advised, sir.",
-        "Please review at your earliest convenience.",
-        "Awaiting your orders on how to proceed."
+        'I recommend immediate investigation.',
+        'Manual review is advised, sir.',
+        'Please review at your earliest convenience.',
+        'Awaiting your orders on how to proceed.'
     ]
 };
 
@@ -173,20 +173,20 @@ function buildJarvisAlert(category, pings) {
     const categoryMessages = JARVIS_ALERTS[category] || JARVIS_ALERTS.scam;
     const description = randomChoice(categoryMessages);
     const recommendation = randomChoice(JARVIS_ALERTS.recommendation);
-    
+
     return `${detection} ${pings}\n\n${description}\n${recommendation}`;
 }
 
 // Risk scoring weights
 const RISK_FACTORS = {
-    newAccount: { days: 7, weight: 30 },      // Account < 7 days old
-    veryNewAccount: { days: 1, weight: 50 },  // Account < 1 day old
-    noAvatar: { weight: 15 },                  // Default avatar
-    newMember: { days: 1, weight: 20 },        // Joined server < 1 day ago
-    cryptoKeywords: { weight: 25 },            // Message contains crypto terms
-    urgencyLanguage: { weight: 20 },           // "Act now", "Limited time", etc.
-    suspiciousLinks: { weight: 35 },           // Shortened URLs, suspicious domains
-    massmentions: { weight: 15 }               // @everyone, @here
+    newAccount: { days: 7, weight: 30 }, // Account < 7 days old
+    veryNewAccount: { days: 1, weight: 50 }, // Account < 1 day old
+    noAvatar: { weight: 15 }, // Default avatar
+    newMember: { days: 1, weight: 20 }, // Joined server < 1 day ago
+    cryptoKeywords: { weight: 25 }, // Message contains crypto terms
+    urgencyLanguage: { weight: 20 }, // "Act now", "Limited time", etc.
+    suspiciousLinks: { weight: 35 }, // Shortened URLs, suspicious domains
+    massmentions: { weight: 15 } // @everyone, @here
 };
 
 /**
@@ -195,7 +195,7 @@ const RISK_FACTORS = {
 function calculateRiskScore(message, member, context) {
     let score = 0;
     const factors = [];
-    
+
     // Account age
     if (context.accountAgeDays < 1) {
         score += RISK_FACTORS.veryNewAccount.weight;
@@ -204,55 +204,69 @@ function calculateRiskScore(message, member, context) {
         score += RISK_FACTORS.newAccount.weight;
         factors.push('New account (<7 days)');
     }
-    
+
     // No avatar
     if (!message.author.avatar) {
         score += RISK_FACTORS.noAvatar.weight;
         factors.push('Default avatar');
     }
-    
+
     // New member
     if (context.memberAgeDays !== null && context.memberAgeDays < 1) {
         score += RISK_FACTORS.newMember.weight;
         factors.push('Just joined server');
     }
-    
+
     // Crypto keywords
-    const cryptoPattern = /crypto|bitcoin|btc|eth|ethereum|nft|airdrop|wallet|blockchain|defi|token/i;
+    const cryptoPattern =
+        /crypto|bitcoin|btc|eth|ethereum|nft|airdrop|wallet|blockchain|defi|token/i;
     if (cryptoPattern.test(context.messageContent)) {
         score += RISK_FACTORS.cryptoKeywords.weight;
         factors.push('Crypto keywords');
     }
-    
+
     // Urgency language
-    const urgencyPattern = /act now|limited time|hurry|fast|quick|urgent|immediately|don't miss|last chance/i;
+    const urgencyPattern =
+        /act now|limited time|hurry|fast|quick|urgent|immediately|don't miss|last chance/i;
     if (urgencyPattern.test(context.messageContent)) {
         score += RISK_FACTORS.urgencyLanguage.weight;
         factors.push('Urgency language');
     }
-    
+
     // Suspicious links
     const linkPattern = /bit\.ly|tinyurl|t\.co|discord\.gift|discordgift|steamcommunity\.ru/i;
     if (linkPattern.test(context.messageContent)) {
         score += RISK_FACTORS.suspiciousLinks.weight;
         factors.push('Suspicious links');
     }
-    
+
     // Mass mentions
     if (/@everyone|@here/.test(context.messageContent)) {
         score += RISK_FACTORS.massmentions.weight;
         factors.push('Mass mentions');
     }
-    
+
     return { score: Math.min(score, 100), factors };
 }
 
 // Fallback patterns for when AI is unavailable
 const FALLBACK_PATTERNS = [
     { pattern: /free\s*nitro|discord\.gift|discordgift/i, category: 'scam', severity: 'high' },
-    { pattern: /click\s*(here|this|now)|bit\.ly|tinyurl|t\.co/i, category: 'spam', severity: 'medium' },
-    { pattern: /crypto\s*(airdrop|giveaway)|nft\s*(mint|drop|free)/i, category: 'scam', severity: 'high' },
-    { pattern: /earn\s*\$\d+|investment\s*opportunity|passive\s*income/i, category: 'scam', severity: 'high' },
+    {
+        pattern: /click\s*(here|this|now)|bit\.ly|tinyurl|t\.co/i,
+        category: 'spam',
+        severity: 'medium'
+    },
+    {
+        pattern: /crypto\s*(airdrop|giveaway)|nft\s*(mint|drop|free)/i,
+        category: 'scam',
+        severity: 'high'
+    },
+    {
+        pattern: /earn\s*\$\d+|investment\s*opportunity|passive\s*income/i,
+        category: 'scam',
+        severity: 'high'
+    },
     { pattern: /18\+|nsfw|onlyfans|fansly|porn/i, category: 'nsfw', severity: 'medium' },
     { pattern: /@everyone|@here/i, category: 'spam', severity: 'low' },
     { pattern: /dm\s*me|check\s*my\s*(bio|profile)/i, category: 'spam', severity: 'low' }
@@ -294,7 +308,7 @@ async function loadConfig() {
         // Smart read tries MongoDB first, falls back to local, keeps both in sync
         const preferLocal = LOCAL_DB_MODE || SELFHOST_MODE;
         const data = await dataSync.smartRead(COLLECTION_NAME, preferLocal);
-        
+
         if (data) {
             // Handle array format (from MongoDB)
             if (Array.isArray(data)) {
@@ -303,13 +317,13 @@ async function loadConfig() {
                         enabledGuilds.set(config.guildId, config);
                     }
                 }
-            } 
+            }
             // Handle object format (from local file)
             else if (data.enabledGuilds) {
                 enabledGuilds = new Map(Object.entries(data.enabledGuilds));
             }
         }
-        
+
         console.log('[Moderation] Loaded config for', enabledGuilds.size, 'guilds');
     } catch (error) {
         console.error('[Moderation] Failed to load config:', error);
@@ -323,13 +337,13 @@ async function saveConfig(guildId) {
     try {
         const config = enabledGuilds.get(guildId);
         if (!config) return;
-        
+
         // Prepare data for storage
         const data = {
             enabledGuilds: Object.fromEntries(enabledGuilds),
             updatedAt: new Date().toISOString()
         };
-        
+
         // Smart write saves to both MongoDB and local, handles failures gracefully
         await dataSync.smartWrite(COLLECTION_NAME, data);
     } catch (error) {
@@ -351,27 +365,27 @@ function getDefaultSettings() {
         pingRoles: [],
         pingUsers: [],
         pingOwner: true,
-        
+
         // Whitelist (bypass moderation)
         whitelistRoles: [],
         whitelistUsers: [],
-        
+
         // Detection settings
         monitorNewMembers: true,
         newMemberThresholdDays: 7,
         monitorDurationHours: 1,
         minSeverity: 'medium', // low, medium, high, critical
-        
+
         // AI settings
         useAI: true,
         aiProvider: 'openai',
         ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
         ollamaModel: 'llava',
         useFallbackPatterns: true, // Use pattern matching as backup
-        
+
         // Log channel
         logChannel: null,
-        
+
         // Actions
         autoDelete: false,
         autoMute: false,
@@ -391,7 +405,7 @@ function enableModeration(guildId, enabledBy) {
     if (!canEnableModeration(guildId)) {
         return { success: false, error: 'This guild is not authorized.' };
     }
-    
+
     enabledGuilds.set(guildId, {
         enabled: true,
         enabledBy,
@@ -399,11 +413,11 @@ function enableModeration(guildId, enabledBy) {
         settings: getDefaultSettings(),
         stats: { total: 0, byCategory: {}, byUser: {} }
     });
-    
+
     if (!trackedMembers.has(guildId)) {
         trackedMembers.set(guildId, new Map());
     }
-    
+
     saveConfig(guildId);
     return { success: true };
 }
@@ -412,12 +426,12 @@ function disableModeration(guildId, disabledBy) {
     if (!enabledGuilds.has(guildId)) {
         return { success: false, error: 'Moderation is not enabled.' };
     }
-    
+
     const config = enabledGuilds.get(guildId);
     config.enabled = false;
     config.disabledBy = disabledBy;
     config.disabledAt = new Date().toISOString();
-    
+
     trackedMembers.delete(guildId);
     saveConfig(guildId);
     return { success: true };
@@ -432,7 +446,7 @@ function updateSettings(guildId, newSettings) {
     if (!enabledGuilds.has(guildId)) {
         return { success: false, error: 'Moderation is not enabled.' };
     }
-    
+
     const config = enabledGuilds.get(guildId);
     config.settings = { ...config.settings, ...newSettings };
     saveConfig(guildId);
@@ -456,12 +470,12 @@ function getStatus(guildId) {
 
 function isWhitelisted(guildId, member) {
     const settings = getSettings(guildId);
-    
+
     // Check user whitelist
     if (settings.whitelistUsers?.includes(member.id)) {
         return true;
     }
-    
+
     // Check role whitelist
     if (member.roles?.cache) {
         for (const roleId of settings.whitelistRoles || []) {
@@ -470,7 +484,7 @@ function isWhitelisted(guildId, member) {
             }
         }
     }
-    
+
     return false;
 }
 
@@ -481,12 +495,12 @@ function isWhitelisted(guildId, member) {
  */
 function isGlobalRateLimited() {
     const now = Date.now();
-    
+
     // Remove timestamps outside the window
     while (alertTimestamps.length > 0 && alertTimestamps[0] < now - RATE_LIMIT_WINDOW_MS) {
         alertTimestamps.shift();
     }
-    
+
     return alertTimestamps.length >= MAX_ALERTS_PER_WINDOW;
 }
 
@@ -505,15 +519,15 @@ function isOnAlertCooldown(guildId, userId) {
     if (isGlobalRateLimited()) {
         return true;
     }
-    
+
     // Check per-user cooldown
     const key = `${guildId}:${userId}`;
     const cooldownUntil = alertCooldowns.get(key);
-    
+
     if (cooldownUntil && Date.now() < cooldownUntil) {
         return true;
     }
-    
+
     return false;
 }
 
@@ -528,15 +542,15 @@ function setAlertCooldown(guildId, userId) {
 function recordDetection(guildId, userId, category) {
     const config = enabledGuilds.get(guildId);
     if (!config) return;
-    
+
     if (!config.stats) {
         config.stats = { total: 0, byCategory: {}, byUser: {} };
     }
-    
+
     config.stats.total++;
     config.stats.byCategory[category] = (config.stats.byCategory[category] || 0) + 1;
     config.stats.byUser[userId] = (config.stats.byUser[userId] || 0) + 1;
-    
+
     // Save periodically (every 10 detections)
     if (config.stats.total % 10 === 0) {
         saveConfig(guildId);
@@ -554,7 +568,7 @@ function buildModerationContext(message, member) {
     const accountAgeDays = Math.floor((now - accountCreated) / (1000 * 60 * 60 * 24));
     const joinedAt = member?.joinedAt;
     const memberAgeDays = joinedAt ? Math.floor((now - joinedAt) / (1000 * 60 * 60 * 24)) : null;
-    
+
     return {
         username: message.author.username,
         displayName: message.author.displayName || message.author.username,
@@ -569,7 +583,12 @@ function buildModerationContext(message, member) {
         channelName: message.channel?.name || 'DM',
         channelId: message.channel?.id,
         currentTime: now.toISOString(),
-        currentDate: now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        currentDate: now.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        }),
         messageContent: message.content?.substring(0, 1000) || '',
         hasAttachments: message.attachments?.size > 0,
         attachmentCount: message.attachments?.size || 0
@@ -610,8 +629,11 @@ function parseAIResponse(response) {
     if (!response || typeof response !== 'string') {
         return null;
     }
-    
-    const lines = response.split('\n').map(l => l.trim()).filter(l => l);
+
+    const lines = response
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l);
     const result = {
         isUnsafe: false,
         severity: 'low',
@@ -619,7 +641,7 @@ function parseAIResponse(response) {
         reason: '',
         confidence: 0.5
     };
-    
+
     for (const line of lines) {
         if (line.startsWith('ACTION:')) {
             const action = line.replace('ACTION:', '').trim().toUpperCase();
@@ -643,7 +665,7 @@ function parseAIResponse(response) {
             }
         }
     }
-    
+
     return result;
 }
 
@@ -665,8 +687,17 @@ function analyzeWithPatterns(content) {
             };
         }
     }
-    
-    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'No patterns matched', confidence: 1.0 } };
+
+    return {
+        success: true,
+        result: {
+            isUnsafe: false,
+            severity: 'low',
+            categories: [],
+            reason: 'No patterns matched',
+            confidence: 1.0
+        }
+    };
 }
 
 /**
@@ -675,22 +706,22 @@ function analyzeWithPatterns(content) {
 async function analyzeTextContent(message, member, settings) {
     const context = buildModerationContext(message, member);
     const contextString = formatContextForAI(context);
-    
+
     // Try AI first if enabled
     if (settings?.useAI) {
         try {
             const aiManager = require('../ai-providers');
-            
+
             const messages = [
                 { role: 'system', content: INTERNAL_MODERATION_PROMPT },
                 { role: 'user', content: contextString }
             ];
-            
+
             const response = await aiManager.generate(messages, {
                 maxTokens: 200,
                 temperature: 0.1
             });
-            
+
             if (response?.content) {
                 const parsed = parseAIResponse(response.content);
                 if (parsed) {
@@ -701,13 +732,23 @@ async function analyzeTextContent(message, member, settings) {
             console.warn('[Moderation] AI analysis failed, using fallback:', error.message);
         }
     }
-    
+
     // Fallback to pattern matching
     if (settings?.useFallbackPatterns !== false) {
         return { ...analyzeWithPatterns(context.messageContent), context };
     }
-    
-    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'AI unavailable', confidence: 0.5 }, context };
+
+    return {
+        success: true,
+        result: {
+            isUnsafe: false,
+            severity: 'low',
+            categories: [],
+            reason: 'AI unavailable',
+            confidence: 0.5
+        },
+        context
+    };
 }
 
 /**
@@ -715,16 +756,16 @@ async function analyzeTextContent(message, member, settings) {
  */
 async function analyzeImageContent(imageUrl, message, member, settings) {
     const context = buildModerationContext(message, member);
-    
+
     try {
         const fetch = require('node-fetch');
         const ollamaUrl = settings?.ollamaUrl || 'http://localhost:11434';
         const model = settings?.ollamaModel || 'llava';
-        
+
         const imageResponse = await fetch(imageUrl);
         const imageBuffer = await imageResponse.buffer();
         const base64Image = imageBuffer.toString('base64');
-        
+
         // Build context-aware prompt for Ollama
         const contextPrompt = `${OLLAMA_IMAGE_PROMPT}
 
@@ -734,7 +775,7 @@ User ID: ${context.userId}
 Account Age: ${context.accountAgeDays} days
 Date/Time: ${context.currentDate}
 Server: ${context.guildName}`;
-        
+
         const response = await fetch(`${ollamaUrl}/api/generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -745,16 +786,16 @@ Server: ${context.guildName}`;
                 stream: false
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.response) {
             // Try parsing with our format first
             const parsed = parseAIResponse(data.response);
             if (parsed) {
                 return { success: true, result: parsed, context };
             }
-            
+
             // Fallback to JSON parsing
             const jsonMatch = data.response.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
@@ -767,8 +808,18 @@ Server: ${context.guildName}`;
     } catch (error) {
         console.warn('[Moderation] Image analysis failed:', error.message);
     }
-    
-    return { success: true, result: { isUnsafe: false, severity: 'low', categories: [], reason: 'Could not analyze', confidence: 0.3 }, context };
+
+    return {
+        success: true,
+        result: {
+            isUnsafe: false,
+            severity: 'low',
+            categories: [],
+            reason: 'Could not analyze',
+            confidence: 0.3
+        },
+        context
+    };
 }
 
 // ============ TRACKING ============
@@ -795,19 +846,19 @@ function startTracking(guildId, userId) {
 function isActivelyTracking(guildId, userId) {
     const guildTracked = trackedMembers.get(guildId);
     if (!guildTracked) return false;
-    
+
     const tracking = guildTracked.get(userId);
     if (!tracking) return false;
-    
+
     if (Date.now() - tracking.joinedAt > MONITORING_DURATION_MS) {
         guildTracked.delete(userId);
         return false;
     }
-    
+
     if (tracking.paused && tracking.pausedUntil && Date.now() < tracking.pausedUntil) {
         return false;
     }
-    
+
     tracking.paused = false;
     return true;
 }
@@ -831,29 +882,45 @@ function meetsMinSeverity(resultSeverity, minSeverity) {
 // ============ ALERT SYSTEM ============
 
 function buildAlertEmbed(message, result, contentType, context, riskData) {
-    const colors = { low: 0xFFCC00, medium: 0xFF9900, high: 0xFF3300, critical: 0xFF0000 };
+    const colors = { low: 0xffcc00, medium: 0xff9900, high: 0xff3300, critical: 0xff0000 };
     const severityEmojis = { low: '🟡', medium: '🟠', high: '🔴', critical: '⛔' };
-    
+
     const embed = new EmbedBuilder()
-        .setTitle(`${severityEmojis[result.severity] || '🚨'} Threat Level: ${result.severity.toUpperCase()}`)
-        .setColor(colors[result.severity] || 0xFF0000)
+        .setTitle(
+            `${severityEmojis[result.severity] || '🚨'} Threat Level: ${result.severity.toUpperCase()}`
+        )
+        .setColor(colors[result.severity] || 0xff0000)
         .setThumbnail(message.author.displayAvatarURL({ dynamic: true, size: 64 }))
         .addFields(
-            { name: '👤 Suspect', value: `${message.author.tag}\n<@${message.author.id}>\nID: \`${message.author.id}\``, inline: true },
-            { name: '📍 Location', value: `<#${message.channel.id}>\n${message.guild.name}`, inline: true },
-            { name: '🏷️ Threat Type', value: result.categories?.join(', ') || 'Unknown', inline: true }
+            {
+                name: '👤 Suspect',
+                value: `${message.author.tag}\n<@${message.author.id}>\nID: \`${message.author.id}\``,
+                inline: true
+            },
+            {
+                name: '📍 Location',
+                value: `<#${message.channel.id}>\n${message.guild.name}`,
+                inline: true
+            },
+            {
+                name: '🏷️ Threat Type',
+                value: result.categories?.join(', ') || 'Unknown',
+                inline: true
+            }
         );
-    
+
     // Add risk score if available
     if (riskData) {
-        const riskBar = '█'.repeat(Math.floor(riskData.score / 10)) + '░'.repeat(10 - Math.floor(riskData.score / 10));
+        const riskBar =
+            '█'.repeat(Math.floor(riskData.score / 10)) +
+            '░'.repeat(10 - Math.floor(riskData.score / 10));
         embed.addFields({
             name: '⚠️ Risk Assessment',
             value: `\`[${riskBar}]\` **${riskData.score}%**\n${riskData.factors.length > 0 ? riskData.factors.join(' • ') : 'No additional risk factors'}`,
             inline: false
         });
     }
-    
+
     // Add context
     if (context) {
         embed.addFields({
@@ -862,32 +929,40 @@ function buildAlertEmbed(message, result, contentType, context, riskData) {
             inline: true
         });
     }
-    
+
     embed.addFields(
         { name: '📝 AI Analysis', value: result.reason || 'No details provided', inline: false },
-        { name: '💬 Message Preview', value: `\`\`\`${(message.content || '[No text content]').substring(0, 200)}${message.content?.length > 200 ? '...' : ''}\`\`\``, inline: false },
+        {
+            name: '💬 Message Preview',
+            value: `\`\`\`${(message.content || '[No text content]').substring(0, 200)}${message.content?.length > 200 ? '...' : ''}\`\`\``,
+            inline: false
+        },
         { name: '🔗 Evidence', value: `[Jump to Message](${message.url})`, inline: true },
-        { name: '📊 AI Confidence', value: `${Math.round((result.confidence || 0) * 100)}%`, inline: true },
+        {
+            name: '📊 AI Confidence',
+            value: `${Math.round((result.confidence || 0) * 100)}%`,
+            inline: true
+        },
         { name: '🕐 Detected', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
     );
-    
+
     // Add recommended actions based on severity
     const actions = {
         low: '• Monitor user activity\n• No immediate action required',
         medium: '• Review message content\n• Consider issuing a warning',
         high: '• Delete the message\n• Issue a formal warning\n• Consider timeout',
-        critical: '• **Immediately delete content**\n• **Ban user if confirmed scammer**\n• Report to Discord if necessary'
+        critical:
+            '• **Immediately delete content**\n• **Ban user if confirmed scammer**\n• Report to Discord if necessary'
     };
-    
+
     embed.addFields({
         name: '📋 Recommended Actions',
         value: actions[result.severity] || actions.medium,
         inline: false
     });
-    
-    embed.setFooter({ text: 'Jarvis Security System • Threat Detection Unit' })
-        .setTimestamp();
-    
+
+    embed.setFooter({ text: 'Jarvis Security System • Threat Detection Unit' }).setTimestamp();
+
     return embed;
 }
 
@@ -895,25 +970,25 @@ async function sendAlert(message, result, contentType, client, context, riskData
     const guildId = message.guild.id;
     const settings = getSettings(guildId);
     const embed = buildAlertEmbed(message, result, contentType, context, riskData);
-    
+
     // Build pings
     const pings = [];
     if (settings.pingOwner) pings.push(`<@${message.guild.ownerId}>`);
     for (const roleId of settings.pingRoles || []) pings.push(`<@&${roleId}>`);
     for (const userId of settings.pingUsers || []) pings.push(`<@${userId}>`);
     const pingString = pings.join(' ');
-    
+
     // Build Jarvis-style alert message
     const category = result.categories?.[0] || 'scam';
     const alertMessage = buildJarvisAlert(category, pingString);
-    
+
     // Send in current channel
     try {
         await message.channel.send({ content: alertMessage, embeds: [embed] });
     } catch (error) {
         console.error('[Moderation] Failed to send alert:', error.message);
     }
-    
+
     // Also send to log channel if configured
     if (settings.logChannel && settings.logChannel !== message.channel.id) {
         try {
@@ -927,19 +1002,19 @@ async function sendAlert(message, result, contentType, client, context, riskData
 
 async function handleMessage(message, client) {
     if (!message.guild || message.author.bot) return { handled: false };
-    
+
     const guildId = message.guild.id;
     if (!isEnabled(guildId)) return { handled: false };
-    
+
     const settings = getSettings(guildId);
     const userId = message.author.id;
-    const member = message.member || await message.guild.members.fetch(userId).catch(() => null);
-    
+    const member = message.member || (await message.guild.members.fetch(userId).catch(() => null));
+
     // Check whitelist
     if (member && isWhitelisted(guildId, member)) {
         return { handled: false, reason: 'Whitelisted' };
     }
-    
+
     // Check if tracking
     if (!isActivelyTracking(guildId, userId)) {
         if (member && shouldMonitorMember(member, settings)) {
@@ -948,12 +1023,12 @@ async function handleMessage(message, client) {
             return { handled: false };
         }
     }
-    
+
     // Check rate limit
     if (isOnAlertCooldown(guildId, userId)) {
         return { handled: false, reason: 'On cooldown' };
     }
-    
+
     // Analyze in background (non-blocking)
     setImmediate(async () => {
         try {
@@ -962,30 +1037,67 @@ async function handleMessage(message, client) {
                 const textResult = await analyzeTextContent(message, member, settings);
                 const context = textResult.context;
                 const riskData = context ? calculateRiskScore(message, member, context) : null;
-                
+
                 if (textResult.success && textResult.result?.isUnsafe) {
-                    if (meetsMinSeverity(textResult.result.severity, settings.minSeverity || 'medium')) {
-                        await sendAlert(message, textResult.result, 'text', client, context, riskData);
+                    if (
+                        meetsMinSeverity(
+                            textResult.result.severity,
+                            settings.minSeverity || 'medium'
+                        )
+                    ) {
+                        await sendAlert(
+                            message,
+                            textResult.result,
+                            'text',
+                            client,
+                            context,
+                            riskData
+                        );
                         setAlertCooldown(guildId, userId);
                         pauseTracking(guildId, userId);
-                        recordDetection(guildId, userId, textResult.result.categories?.[0] || 'unknown');
+                        recordDetection(
+                            guildId,
+                            userId,
+                            textResult.result.categories?.[0] || 'unknown'
+                        );
                     }
                 }
             }
-            
+
             // Image analysis - pass message and member for context
             for (const attachment of message.attachments.values()) {
                 if (attachment.contentType?.startsWith('image/')) {
-                    const imageResult = await analyzeImageContent(attachment.url, message, member, settings);
+                    const imageResult = await analyzeImageContent(
+                        attachment.url,
+                        message,
+                        member,
+                        settings
+                    );
                     const context = imageResult.context;
                     const riskData = context ? calculateRiskScore(message, member, context) : null;
-                    
+
                     if (imageResult.success && imageResult.result?.isUnsafe) {
-                        if (meetsMinSeverity(imageResult.result.severity, settings.minSeverity || 'medium')) {
-                            await sendAlert(message, imageResult.result, 'image', client, context, riskData);
+                        if (
+                            meetsMinSeverity(
+                                imageResult.result.severity,
+                                settings.minSeverity || 'medium'
+                            )
+                        ) {
+                            await sendAlert(
+                                message,
+                                imageResult.result,
+                                'image',
+                                client,
+                                context,
+                                riskData
+                            );
                             setAlertCooldown(guildId, userId);
                             pauseTracking(guildId, userId);
-                            recordDetection(guildId, userId, imageResult.result.categories?.[0] || 'image');
+                            recordDetection(
+                                guildId,
+                                userId,
+                                imageResult.result.categories?.[0] || 'image'
+                            );
                         }
                     }
                 }
@@ -994,20 +1106,20 @@ async function handleMessage(message, client) {
             console.error('[Moderation] Analysis error:', error.message);
         }
     });
-    
+
     return { handled: true };
 }
 
 async function handleMemberJoin(member, client) {
     const guildId = member.guild.id;
     if (!isEnabled(guildId)) return { handled: false };
-    
+
     const settings = getSettings(guildId);
     if (shouldMonitorMember(member, settings)) {
         startTracking(guildId, member.id);
         return { handled: true, tracking: true };
     }
-    
+
     return { handled: false };
 }
 

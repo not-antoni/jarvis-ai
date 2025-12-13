@@ -40,7 +40,10 @@ function measureCaptionBox(width, text) {
 function renderCaptionOverlay(width, text) {
     const norm = normalize(text);
     if (!norm) throw new Error('Caption text is required');
-    const { fontSize, padding, maxWidth, lines, lineHeight, boxHeight } = measureCaptionBox(width, norm);
+    const { fontSize, padding, maxWidth, lines, lineHeight, boxHeight } = measureCaptionBox(
+        width,
+        norm
+    );
     const canvas = createCanvas(width, boxHeight);
     const ctx = canvas.getContext('2d');
     // Solid white background to avoid black fill when stacking
@@ -65,9 +68,9 @@ async function run(cmd, args, options = {}) {
     return new Promise((resolve, reject) => {
         const ps = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], ...options });
         let stderr = '';
-        ps.stderr.on('data', (d) => (stderr += d.toString()));
+        ps.stderr.on('data', d => (stderr += d.toString()));
         ps.on('error', reject);
-        ps.on('close', (code) => {
+        ps.on('close', code => {
             if (code === 0) resolve();
             else reject(new Error(stderr || `ffmpeg exited with code ${code}`));
         });
@@ -99,23 +102,30 @@ async function captionAnimated({ inputBuffer, captionText }) {
 
     const args = [
         '-y',
-        '-loop', '1', '-i', overlayPath,
-        '-i', inPath,
+        '-loop',
+        '1',
+        '-i',
+        overlayPath,
+        '-i',
+        inPath,
         '-filter_complex',
         // Normalize to 30fps and cap width to 720 (preserve AR). Use positional args for scale for broader ffmpeg compatibility.
         '[1:v]fps=30,scale=if(gte(iw,720),720,iw):-2:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[gif];' +
-        '[0:v]format=rgba,setsar=1,setpts=PTS-STARTPTS[ov];' +
-        '[ov][gif]vstack=inputs=2:shortest=1[v];' +
-        '[v]split[v0][v1];' +
-        '[v0]palettegen=stats_mode=full[pal];' +
-        '[v1][pal]paletteuse=dither=sierra2_4a:diff_mode=rectangle',
-        '-gifflags', '-offsetting',
+            '[0:v]format=rgba,setsar=1,setpts=PTS-STARTPTS[ov];' +
+            '[ov][gif]vstack=inputs=2:shortest=1[v];' +
+            '[v]split[v0][v1];' +
+            '[v0]palettegen=stats_mode=full[pal];' +
+            '[v1][pal]paletteuse=dither=sierra2_4a:diff_mode=rectangle',
+        '-gifflags',
+        '-offsetting',
         outPath
     ];
 
     await run(ffmpegPath, args);
     const out = fs.readFileSync(outPath);
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {}
     return out;
 }
 

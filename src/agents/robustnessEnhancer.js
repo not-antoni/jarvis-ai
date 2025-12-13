@@ -61,7 +61,7 @@ class RobustnessEnhancer {
         };
 
         // Memory pressure recovery
-        this.strategies.handleMemoryPressure = async (browser) => {
+        this.strategies.handleMemoryPressure = async browser => {
             try {
                 // Collect garbage
                 await browser.close().catch(() => {});
@@ -108,7 +108,9 @@ class RobustnessEnhancer {
                 }
 
                 if (errorMsg.includes('econnrefused') || errorMsg.includes('enotfound')) {
-                    console.log(`[RobustnessEnhancer] Network error on attempt ${attempt}/${maxRetries}`);
+                    console.log(
+                        `[RobustnessEnhancer] Network error on attempt ${attempt}/${maxRetries}`
+                    );
                     const recovery = await this.strategies.handleNetworkError(page, error);
                     if (!recovery.recovered || attempt === maxRetries) throw error;
                     continue;
@@ -187,9 +189,11 @@ class RobustnessEnhancer {
             }
 
             // Check for JS errors
-            const jsErrors = await page.evaluate(() => {
-                return window.__jsErrors || [];
-            }).catch(() => []);
+            const jsErrors = await page
+                .evaluate(() => {
+                    return window.__jsErrors || [];
+                })
+                .catch(() => []);
 
             if (jsErrors.length > 0) {
                 issues.push({ type: 'js_error', count: jsErrors.length });
@@ -199,14 +203,17 @@ class RobustnessEnhancer {
 
             // Check for memory issues
             const metrics = await page.metrics();
-            if (metrics && metrics.JSHeapUsedSize > 1e9) { // > 1GB
+            if (metrics && metrics.JSHeapUsedSize > 1e9) {
+                // > 1GB
                 issues.push({ type: 'high_memory', recoverable: true });
             }
 
             // Check for network issues
-            const unreachable = await page.evaluate(() => {
-                return !navigator.onLine;
-            }).catch(() => false);
+            const unreachable = await page
+                .evaluate(() => {
+                    return !navigator.onLine;
+                })
+                .catch(() => false);
 
             if (unreachable) {
                 issues.push({ type: 'offline', recovered: false });

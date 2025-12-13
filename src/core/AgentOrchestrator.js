@@ -62,7 +62,7 @@ class AgentOrchestrator extends EventEmitter {
             approvalTimeout: 60000,
             autoApproveNonMutating: true,
             sessionApprovals: new Map(),
-            
+
             // Retry settings
             maxRetries: 3,
             baseRetryDelay: 1000,
@@ -110,8 +110,10 @@ class AgentOrchestrator extends EventEmitter {
 
             // Step 1: Approval
             const approvalResult = await this._handleApproval(handler, invocation);
-            if (approvalResult.decision === ApprovalDecision.DENIED || 
-                approvalResult.decision === ApprovalDecision.ABORT) {
+            if (
+                approvalResult.decision === ApprovalDecision.DENIED ||
+                approvalResult.decision === ApprovalDecision.ABORT
+            ) {
                 throw ToolError.rejected(approvalResult.reason || 'User denied');
             }
 
@@ -120,19 +122,19 @@ class AgentOrchestrator extends EventEmitter {
 
             const duration = Date.now() - startTime;
             this._recordExecution(invocation, result, duration);
-            
+
             this.emit('orchestration:complete', { invocation, result, duration });
             return result;
-
         } catch (error) {
             const duration = Date.now() - startTime;
-            const result = error instanceof ToolError 
-                ? ToolOutput.error(error.message, { code: error.code, ...error.metadata })
-                : ToolOutput.error(error.message);
+            const result =
+                error instanceof ToolError
+                    ? ToolOutput.error(error.message, { code: error.code, ...error.metadata })
+                    : ToolOutput.error(error.message);
 
             this._recordExecution(invocation, result, duration);
             this.emit('orchestration:error', { invocation, error, duration });
-            
+
             return result;
         }
     }
@@ -155,9 +157,9 @@ class AgentOrchestrator extends EventEmitter {
                 return { decision: ApprovalDecision.APPROVED };
 
             case ApprovalRequirement.FORBIDDEN:
-                return { 
-                    decision: ApprovalDecision.DENIED, 
-                    reason: requirement.reason || 'Tool is forbidden' 
+                return {
+                    decision: ApprovalDecision.DENIED,
+                    reason: requirement.reason || 'Tool is forbidden'
                 };
 
             case ApprovalRequirement.NEEDS_APPROVAL:
@@ -213,7 +215,6 @@ class AgentOrchestrator extends EventEmitter {
             }
 
             return decision;
-
         } catch (error) {
             return { decision: ApprovalDecision.TIMEOUT, reason: error.message };
         }
@@ -224,15 +225,17 @@ class AgentOrchestrator extends EventEmitter {
      */
     async _collectApprovals(request) {
         const results = await Promise.all(
-            this.approvalHandlers.map(handler => 
-                handler(request).catch(e => ({ decision: ApprovalDecision.DENIED, error: e.message }))
+            this.approvalHandlers.map(handler =>
+                handler(request).catch(e => ({
+                    decision: ApprovalDecision.DENIED,
+                    error: e.message
+                }))
             )
         );
 
         // All must approve
-        const denied = results.find(r => 
-            r.decision === ApprovalDecision.DENIED || 
-            r.decision === ApprovalDecision.ABORT
+        const denied = results.find(
+            r => r.decision === ApprovalDecision.DENIED || r.decision === ApprovalDecision.ABORT
         );
 
         if (denied) {
@@ -240,7 +243,9 @@ class AgentOrchestrator extends EventEmitter {
         }
 
         // Check for session approval
-        const sessionApproval = results.find(r => r.decision === ApprovalDecision.APPROVED_FOR_SESSION);
+        const sessionApproval = results.find(
+            r => r.decision === ApprovalDecision.APPROVED_FOR_SESSION
+        );
         if (sessionApproval) {
             return sessionApproval;
         }
@@ -271,7 +276,9 @@ class AgentOrchestrator extends EventEmitter {
 
             try {
                 if (this.options.verbose && attempt > 1) {
-                    console.log(`[AgentOrchestrator] Retry attempt ${attempt}/${this.options.maxRetries} for ${handler.name}`);
+                    console.log(
+                        `[AgentOrchestrator] Retry attempt ${attempt}/${this.options.maxRetries} for ${handler.name}`
+                    );
                 }
 
                 const result = await this._executeWithTimeout(
@@ -289,7 +296,6 @@ class AgentOrchestrator extends EventEmitter {
                 }
 
                 lastError = result;
-
             } catch (error) {
                 if (!this._isRetryableError(error)) {
                     throw error;
@@ -324,11 +330,18 @@ class AgentOrchestrator extends EventEmitter {
      */
     _isRetryable(result) {
         if (result.success) return false;
-        
+
         const content = result.content?.toLowerCase() || '';
         const retryablePatterns = [
-            'timeout', 'network', 'econnrefused', 'enotfound',
-            'rate limit', '429', '503', '502', 'overloaded',
+            'timeout',
+            'network',
+            'econnrefused',
+            'enotfound',
+            'rate limit',
+            '429',
+            '503',
+            '502',
+            'overloaded',
             'temporarily unavailable'
         ];
 
@@ -340,19 +353,22 @@ class AgentOrchestrator extends EventEmitter {
      */
     _isRetryableError(error) {
         const message = error.message?.toLowerCase() || '';
-        return message.includes('timeout') ||
-               message.includes('network') ||
-               message.includes('econnrefused');
+        return (
+            message.includes('timeout') ||
+            message.includes('network') ||
+            message.includes('econnrefused')
+        );
     }
 
     /**
      * Calculate retry delay with exponential backoff and jitter
      */
     _calculateRetryDelay(attempt) {
-        const baseDelay = this.options.baseRetryDelay * 
+        const baseDelay =
+            this.options.baseRetryDelay *
             Math.pow(this.options.retryBackoffMultiplier, attempt - 1);
         const cappedDelay = Math.min(baseDelay, this.options.maxRetryDelay);
-        
+
         // Add jitter
         const jitter = cappedDelay * this.options.retryJitter * (Math.random() * 2 - 1);
         return Math.round(cappedDelay + jitter);
@@ -387,7 +403,7 @@ class AgentOrchestrator extends EventEmitter {
      */
     async runBatch(toolCalls, context = {}) {
         const results = [];
-        
+
         for (const call of toolCalls) {
             const result = await this.run(call.name, call.args || {}, context);
             results.push({
@@ -408,12 +424,12 @@ class AgentOrchestrator extends EventEmitter {
      * Run tools in parallel (only non-mutating)
      */
     async runParallel(toolCalls, context = {}) {
-        const promises = toolCalls.map(call => 
+        const promises = toolCalls.map(call =>
             this.run(call.name, call.args || {}, context)
                 .then(result => ({ toolName: call.name, result }))
-                .catch(error => ({ 
-                    toolName: call.name, 
-                    result: ToolOutput.error(error.message) 
+                .catch(error => ({
+                    toolName: call.name,
+                    result: ToolOutput.error(error.message)
                 }))
         );
 
@@ -426,7 +442,7 @@ class AgentOrchestrator extends EventEmitter {
     async planAndExecute(query, context = {}) {
         // Select relevant tools
         const selectedTools = this.registry.selectTools(query, { limit: 3 });
-        
+
         if (selectedTools.length === 0) {
             return {
                 success: false,
@@ -459,12 +475,17 @@ class AgentOrchestrator extends EventEmitter {
             totalExecutions: this.executionHistory.length,
             successful,
             failed,
-            successRate: this.executionHistory.length > 0 
-                ? ((successful / this.executionHistory.length) * 100).toFixed(1) + '%'
-                : 'N/A',
-            avgDuration: this.executionHistory.length > 0
-                ? Math.round(this.executionHistory.reduce((sum, e) => sum + e.duration, 0) / this.executionHistory.length)
-                : 0,
+            successRate:
+                this.executionHistory.length > 0
+                    ? ((successful / this.executionHistory.length) * 100).toFixed(1) + '%'
+                    : 'N/A',
+            avgDuration:
+                this.executionHistory.length > 0
+                    ? Math.round(
+                          this.executionHistory.reduce((sum, e) => sum + e.duration, 0) /
+                              this.executionHistory.length
+                      )
+                    : 0,
             approvalHandlers: this.approvalHandlers.length,
             sessionApprovals: this.sessionApprovals.size
         };
@@ -511,4 +532,3 @@ module.exports = {
     SandboxType,
     ToolError
 };
-

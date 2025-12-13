@@ -32,13 +32,13 @@ test('impact meme renders with top and bottom text', async () => {
     assert.ok(buffer.length > 0);
 });
 
-test('caption image requests unicode emoji assets from Twemoji CDN', async (t) => {
+test('caption image requests unicode emoji assets from Twemoji CDN', async t => {
     const source = createSampleImageBuffer();
     const calls = [];
     const emojiCanvas = createCanvas(48, 48);
 
     memeCanvas._internal.emojiImageCache.clear();
-    memeCanvas._internal.setEmojiImageLoader(async (url) => {
+    memeCanvas._internal.setEmojiImageLoader(async url => {
         if (typeof url === 'string') {
             calls.push(url);
         }
@@ -54,18 +54,18 @@ test('caption image requests unicode emoji assets from Twemoji CDN', async (t) =
     assert.ok(Buffer.isBuffer(buffer));
     assert.ok(buffer.length > 0);
     assert.ok(
-        calls.some((url) => typeof url === 'string' && url.includes('twemoji@latest')),
+        calls.some(url => typeof url === 'string' && url.includes('twemoji@latest')),
         'Expected Twemoji CDN request for unicode emoji'
     );
 });
 
-test('caption image resolves custom emoji assets via Discord CDN', async (t) => {
+test('caption image resolves custom emoji assets via Discord CDN', async t => {
     const source = createSampleImageBuffer();
     const calls = [];
     const emojiCanvas = createCanvas(48, 48);
 
     memeCanvas._internal.emojiImageCache.clear();
-    memeCanvas._internal.setEmojiImageLoader(async (url) => {
+    memeCanvas._internal.setEmojiImageLoader(async url => {
         if (typeof url === 'string') {
             calls.push(url);
         }
@@ -84,7 +84,7 @@ test('caption image resolves custom emoji assets via Discord CDN', async (t) => 
     assert.ok(Buffer.isBuffer(buffer));
     assert.ok(buffer.length > 0);
     assert.ok(
-        calls.some((url) => url.startsWith('https://cdn.discordapp.com/emojis/123456789012345678')),
+        calls.some(url => url.startsWith('https://cdn.discordapp.com/emojis/123456789012345678')),
         'Expected Discord CDN request for custom emoji'
     );
 });

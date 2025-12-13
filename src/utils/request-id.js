@@ -21,13 +21,13 @@ function requestIdMiddleware() {
     return (req, res, next) => {
         // Get existing request ID from header or generate new one
         const requestId = req.headers['x-request-id'] || generateRequestId();
-        
+
         // Attach to request object
         req.requestId = requestId;
-        
+
         // Add to response headers
         res.setHeader('X-Request-ID', requestId);
-        
+
         next();
     };
 }
@@ -53,7 +53,7 @@ function runWithRequestId(requestId, fn) {
     if (requestContext) {
         return requestContext.run({ requestId }, fn);
     }
-    
+
     // Fallback for environments without AsyncLocalStorage
     const oldContext = global.__requestContext;
     global.__requestContext = { requestId };
@@ -73,7 +73,7 @@ function getRequestId() {
         const store = requestContext.getStore();
         return store ? store.requestId : null;
     }
-    
+
     // Fallback
     return global.__requestContext?.requestId || null;
 }
@@ -84,4 +84,3 @@ module.exports = {
     runWithRequestId,
     getRequestId
 };
-

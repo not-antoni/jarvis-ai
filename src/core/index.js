@@ -6,17 +6,22 @@
 // Core components
 const { AgentCore, createAgent } = require('./AgentCore');
 const AgentToolRegistry = require('./AgentToolRegistry');
-const { AgentOrchestrator, ApprovalDecision, SandboxType, ToolError } = require('./AgentOrchestrator');
+const {
+    AgentOrchestrator,
+    ApprovalDecision,
+    SandboxType,
+    ToolError
+} = require('./AgentOrchestrator');
 
 // Tool system
-const { 
-    ToolHandler, 
-    FunctionHandler, 
+const {
+    ToolHandler,
+    FunctionHandler,
     ShellHandler,
-    ToolOutput, 
-    ToolInvocation, 
-    ToolKind, 
-    ApprovalRequirement 
+    ToolOutput,
+    ToolInvocation,
+    ToolKind,
+    ApprovalRequirement
 } = require('./ToolHandler');
 
 // AI Provider
@@ -35,14 +40,14 @@ module.exports = {
     // Main agent
     AgentCore,
     createAgent,
-    
+
     // Registry & Orchestration
     AgentToolRegistry,
     AgentOrchestrator,
     ApprovalDecision,
     SandboxType,
     ToolError,
-    
+
     // Tool system
     ToolHandler,
     FunctionHandler,
@@ -51,20 +56,19 @@ module.exports = {
     ToolInvocation,
     ToolKind,
     ApprovalRequirement,
-    
+
     // AI
     FreeAIProvider,
     setupFreeAI,
     FREE_MODELS,
-    
+
     // Built-in tools
     ScreenshotTool,
     QuickScreenshotTool,
-    
+
     // Legacy (deprecated but available)
     SmartToolRegistry,
     ToolOrchestrator,
     CodexIntegrationAdapter,
     SmartToolDefinition
 };
-

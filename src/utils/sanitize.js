@@ -13,7 +13,7 @@ const constants = require('../core/constants');
  */
 function sanitizeString(input, options = {}) {
     if (typeof input !== 'string') {
-        if (input == null) return '';
+        if (input === null || input === undefined) return '';
         input = String(input);
     }
 
@@ -83,16 +83,18 @@ function sanitizeUrl(url) {
 
     try {
         const parsed = new URL(trimmed);
-        
+
         // Only allow http/https
         if (!['http:', 'https:'].includes(parsed.protocol)) {
             return null;
         }
 
         // Check for dangerous patterns
-        if (parsed.hostname.includes('localhost') || 
+        if (
+            parsed.hostname.includes('localhost') ||
             parsed.hostname.includes('127.0.0.1') ||
-            parsed.hostname.includes('0.0.0.0')) {
+            parsed.hostname.includes('0.0.0.0')
+        ) {
             // Allow localhost in development only
             if (process.env.NODE_ENV === 'production') {
                 return null;
@@ -112,7 +114,7 @@ function sanitizeUrl(url) {
  */
 function sanitizeObjectId(id) {
     if (typeof id !== 'string') return null;
-    
+
     const trimmed = id.trim();
     if (!trimmed) return null;
 
@@ -131,7 +133,7 @@ function sanitizeObjectId(id) {
  */
 function sanitizeDiscordId(id) {
     if (typeof id !== 'string') return null;
-    
+
     const trimmed = id.trim();
     if (!trimmed) return null;
 
@@ -150,13 +152,9 @@ function sanitizeDiscordId(id) {
  * @returns {number|null} Sanitized integer or null
  */
 function sanitizeInteger(value, options = {}) {
-    const {
-        min = -Infinity,
-        max = Infinity,
-        defaultValue = null
-    } = options;
+    const { min = -Infinity, max = Infinity, defaultValue = null } = options;
 
-    if (value == null) return defaultValue;
+    if (value === null || value === undefined) return defaultValue;
 
     const num = parseInt(value, 10);
     if (isNaN(num)) return defaultValue;
@@ -248,7 +246,7 @@ function sanitizeObject(obj, schema) {
  */
 function removeDangerousChars(input) {
     if (typeof input !== 'string') return '';
-    
+
     return input
         .replace(/[<>]/g, '') // Remove HTML brackets
         .replace(/javascript:/gi, '') // Remove javascript: protocol
@@ -264,7 +262,7 @@ function removeDangerousChars(input) {
  */
 function sanitizePings(input) {
     if (typeof input !== 'string') return '';
-    
+
     return input
         .replace(/@everyone/gi, '@\u200Beveryone') // Zero-width space
         .replace(/@here/gi, '@\u200Bhere')

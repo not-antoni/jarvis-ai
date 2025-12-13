@@ -9,7 +9,7 @@ class ResourcePool {
         this.maxIdleTimeMs = config.maxIdleTimeMs || 30 * 60 * 1000; // 30 min
         this.maxBrowserLifetimeMs = config.maxBrowserLifetimeMs || 2 * 60 * 60 * 1000; // 2 hours
         this.preWarmCount = config.preWarmCount || 2;
-        
+
         this.availableBrowsers = [];
         this.activeBrowsers = new Map(); // browserId -> { browser, createdAt, lastUsedAt, sessionCount }
         this.waitingQueue = [];
@@ -21,7 +21,7 @@ class ResourcePool {
             poolMisses: 0,
             averageWaitTimeMs: 0
         };
-        
+
         this.cleanupInterval = setInterval(() => this.cleanup(), 60000); // Every 60s
     }
 
@@ -30,18 +30,18 @@ class ResourcePool {
      */
     async acquire(puppeteer, options = {}) {
         const startTime = Date.now();
-        
+
         // Try to get available browser
         if (this.availableBrowsers.length > 0) {
             const browserId = this.availableBrowsers.shift();
             const browserData = this.activeBrowsers.get(browserId);
-            
+
             if (browserData) {
                 browserData.lastUsedAt = Date.now();
                 browserData.sessionCount++;
                 this.metrics.poolHits++;
                 this.metrics.reused++;
-                
+
                 // Check if browser still connected
                 if (browserData.browser?.connected) {
                     return { browser: browserData.browser, browserId, fromPool: true };
@@ -67,9 +67,10 @@ class ResourcePool {
             }, options.timeoutMs || 30000);
 
             this.waitingQueue.push({
-                resolve: (result) => {
+                resolve: result => {
                     clearTimeout(timeout);
-                    this.metrics.averageWaitTimeMs = (this.metrics.averageWaitTimeMs + (Date.now() - startTime)) / 2;
+                    this.metrics.averageWaitTimeMs =
+                        (this.metrics.averageWaitTimeMs + (Date.now() - startTime)) / 2;
                     resolve(result);
                 },
                 reject,
@@ -83,7 +84,7 @@ class ResourcePool {
      */
     async createNewBrowser(puppeteer, options = {}) {
         const browserId = `browser_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-        
+
         try {
             const browser = await puppeteer.launch({
                 headless: 'new',
@@ -184,9 +185,11 @@ class ResourcePool {
             }
 
             // Remove idle browsers if pool is large
-            if (this.availableBrowsers.length > this.preWarmCount &&
+            if (
+                this.availableBrowsers.length > this.preWarmCount &&
                 now - browserData.lastUsedAt > this.maxIdleTimeMs &&
-                this.availableBrowsers.includes(browserId)) {
+                this.availableBrowsers.includes(browserId)
+            ) {
                 await this.destroy(browserId);
             }
 

@@ -14,7 +14,7 @@ class AdvancedSessionManager {
         this.maxPoolSize = config.maxPoolSize || 5;
         this.sessionTTLMs = config.sessionTTLMs || 60 * 60 * 1000; // 1 hour
         this.persistState = config.persistState !== false; // Enable by default
-        
+
         this.stats = {
             totalCreated: 0,
             totalDestroyed: 0,
@@ -35,7 +35,10 @@ class AdvancedSessionManager {
         try {
             await fs.mkdir(this.persistenceDir, { recursive: true });
         } catch (error) {
-            console.error('[AdvancedSessionManager] Failed to create persistence dir:', error.message);
+            console.error(
+                '[AdvancedSessionManager] Failed to create persistence dir:',
+                error.message
+            );
         }
     }
 
@@ -81,7 +84,7 @@ class AdvancedSessionManager {
         if (this.sessionPool.length > 0) {
             const sessionId = this.sessionPool.shift();
             const session = this.sessionStore.get(sessionId);
-            
+
             if (session) {
                 session.lastAccessAt = Date.now();
                 session.accessCount++;
@@ -177,7 +180,7 @@ class AdvancedSessionManager {
         if (!fromSession || !toSession || !page) return;
 
         try {
-            await page.evaluate((data) => {
+            await page.evaluate(data => {
                 for (const [key, value] of Object.entries(data)) {
                     localStorage.setItem(key, value);
                 }
@@ -241,7 +244,7 @@ class AdvancedSessionManager {
 
             // Restore local storage
             if (Object.keys(session.localStorage).length > 0) {
-                await page.evaluate((data) => {
+                await page.evaluate(data => {
                     for (const [key, value] of Object.entries(data)) {
                         localStorage.setItem(key, value);
                     }
@@ -262,7 +265,7 @@ class AdvancedSessionManager {
 
         try {
             const filePath = path.join(this.persistenceDir, `${sessionId}.json`);
-            
+
             const state = {
                 id: session.id,
                 createdAt: session.createdAt,

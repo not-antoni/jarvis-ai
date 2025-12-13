@@ -10,7 +10,7 @@ class GracefulShutdownManager {
         this.shutdownStarted = false;
         this.shutdownInProgress = false;
         this.shutdownComplete = false;
-        
+
         this.stats = {
             handlersRegistered: 0,
             handlersExecuted: 0,
@@ -40,7 +40,9 @@ class GracefulShutdownManager {
      */
     async handleSignal(signal) {
         if (this.shutdownStarted) {
-            console.log(`[GracefulShutdown] Received ${signal} during shutdown, forcing exit in 5s...`);
+            console.log(
+                `[GracefulShutdown] Received ${signal} during shutdown, forcing exit in 5s...`
+            );
             setTimeout(() => process.exit(1), 5000);
             return;
         }
@@ -55,16 +57,19 @@ class GracefulShutdownManager {
      */
     registerHandler(name, handler, priority = 'normal') {
         if (this.shutdownInProgress) {
-            console.warn(`[GracefulShutdown] Cannot register handler ${name}: shutdown in progress`);
+            console.warn(
+                `[GracefulShutdown] Cannot register handler ${name}: shutdown in progress`
+            );
             return false;
         }
 
-        const priorityValue = {
-            'critical': 0,
-            'high': 1,
-            'normal': 2,
-            'low': 3
-        }[priority] || 2;
+        const priorityValue =
+            {
+                critical: 0,
+                high: 1,
+                normal: 2,
+                low: 3
+            }[priority] || 2;
 
         this.handlers.push({
             name,
@@ -112,7 +117,10 @@ class GracefulShutdownManager {
                 await Promise.race([
                     this.executeHandler(handlerInfo),
                     new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Handler timeout')), this.timeoutMs / sortedHandlers.length)
+                        setTimeout(
+                            () => reject(new Error('Handler timeout')),
+                            this.timeoutMs / sortedHandlers.length
+                        )
                     )
                 ]);
 
@@ -135,7 +143,9 @@ class GracefulShutdownManager {
         this.shutdownComplete = true;
 
         console.log(`[GracefulShutdown] Shutdown complete in ${this.stats.shutdownDurationMs}ms`);
-        console.log(`[GracefulShutdown] Handlers: ${this.stats.handlersExecuted} executed, ${this.stats.handlersSkipped} failed`);
+        console.log(
+            `[GracefulShutdown] Handlers: ${this.stats.handlersExecuted} executed, ${this.stats.handlersSkipped} failed`
+        );
 
         return this.stats;
     }
@@ -146,7 +156,7 @@ class GracefulShutdownManager {
     async executeHandler(handlerInfo) {
         try {
             const result = handlerInfo.handler();
-            
+
             // Handle promises
             if (result && typeof result.then === 'function') {
                 await result;
@@ -161,8 +171,8 @@ class GracefulShutdownManager {
      */
     async drainSessions(sessionManager, maxWaitMs = 10000) {
         const startTime = Date.now();
-        
-        return new Promise((resolve) => {
+
+        return new Promise(resolve => {
             const checkInterval = setInterval(() => {
                 const sessions = sessionManager.getSessions?.();
                 const activeSessions = sessions?.filter(s => s.accessCount > 0).length || 0;
@@ -175,7 +185,9 @@ class GracefulShutdownManager {
 
                 if (Date.now() - startTime > maxWaitMs) {
                     clearInterval(checkInterval);
-                    console.warn(`[GracefulShutdown] Session drain timeout, forcing shutdown with ${activeSessions} active sessions`);
+                    console.warn(
+                        `[GracefulShutdown] Session drain timeout, forcing shutdown with ${activeSessions} active sessions`
+                    );
                     resolve();
                 }
             }, 100);
@@ -282,7 +294,7 @@ class GracefulShutdownManager {
      * Wait for shutdown to complete
      */
     waitForShutdown() {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
             const checkInterval = setInterval(() => {
                 if (this.shutdownComplete) {
                     clearInterval(checkInterval);

@@ -7,11 +7,14 @@ const { toUnicode } = require('punycode/');
 const cheerio = require('cheerio');
 const config = require('../../config');
 
-const ZERO_WIDTH_CHAR_PATTERN = /[\u200B-\u200D\u200E-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
+const ZERO_WIDTH_CHAR_PATTERN =
+    /[\u200B-\u200D\u200E-\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
 
 // Patterns to redact from search results (prevents leaking sensitive info)
-const IPV4_PATTERN = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
-const IPV6_PATTERN = /\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}\b/g;
+const IPV4_PATTERN =
+    /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
+const IPV6_PATTERN =
+    /\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}\b/g;
 const EMAIL_PATTERN = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
 const PHONE_PATTERN = /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b/g;
 const API_KEY_PATTERN = /\b(?:sk-|pk_|api[_-]?key[=:]\s*)[A-Za-z0-9_-]{20,}\b/gi;
@@ -166,36 +169,109 @@ const EXPLICIT_FLEXIBLE_TERMS = [
     'porn site'
 ];
 
-const FLEXIBLE_EXPLICIT_PATTERNS = EXPLICIT_FLEXIBLE_TERMS
-    .map((term) => term.trim())
-    .filter((term) => term.length > 0)
+const FLEXIBLE_EXPLICIT_PATTERNS = EXPLICIT_FLEXIBLE_TERMS.map(term => term.trim())
+    .filter(term => term.length > 0)
     .map(buildFlexibleExplicitPattern);
 
 const CONFUSABLE_CHAR_MAP = new Map([
-    ['а', 'a'], ['ɑ', 'a'], ['ᴀ', 'a'], ['ⓐ', 'a'], ['ａ', 'a'],
-    ['е', 'e'], ['ҽ', 'e'], ['ℯ', 'e'], ['ᴇ', 'e'], ['ⓔ', 'e'], ['ｅ', 'e'],
-    ['о', 'o'], ['ο', 'o'], ['ᴏ', 'o'], ['ⓞ', 'o'], ['ｏ', 'o'],
-    ['р', 'p'], ['ρ', 'p'], ['ᴘ', 'p'], ['ᴩ', 'p'], ['ⓟ', 'p'], ['ｐ', 'p'],
-    ['ʀ', 'r'], ['ⓡ', 'r'], ['ｒ', 'r'],
-    ['ɴ', 'n'], ['ᴎ', 'n'], ['Ⓝ', 'n'], ['ｎ', 'n'],
-    ['ѕ', 's'], ['ꜱ', 's'], ['ⓢ', 's'], ['ｓ', 's'], ['ʂ', 's'],
-    ['х', 'x'], ['ҳ', 'x'], ['ẋ', 'x'], ['ⓧ', 'x'], ['ｘ', 'x'],
-    ['с', 'c'], ['ᴄ', 'c'], ['ⓒ', 'c'], ['ｃ', 'c'],
-    ['ʏ', 'y'], ['у', 'y'], ['Ⓨ', 'y'], ['ｙ', 'y'],
-    ['ᴠ', 'v'], ['ν', 'v'], ['ⓥ', 'v'], ['ｖ', 'v'],
-    ['ｍ', 'm'], ['ᴍ', 'm'], ['ⓜ', 'm'],
-    ['ｕ', 'u'], ['ᴜ', 'u'], ['ⓤ', 'u'], ['ʋ', 'u'],
-    ['ｔ', 't'], ['ᴛ', 't'], ['ⓣ', 't'],
-    ['ｈ', 'h'], ['һ', 'h'], ['ⓗ', 'h'], ['ʜ', 'h'],
-    ['ｌ', 'l'], ['ⅼ', 'l'], ['ӏ', 'l'], ['ⓛ', 'l'], ['ℓ', 'l'],
-    ['ｄ', 'd'], ['ԁ', 'd'], ['ᴅ', 'd'], ['ⓓ', 'd'],
-    ['ｇ', 'g'], ['ɡ', 'g'], ['ⓖ', 'g'],
-    ['ｑ', 'q'], ['զ', 'q'], ['ⓠ', 'q'],
-    ['ｋ', 'k'], ['ᴋ', 'k'], ['ⓚ', 'k'],
-    ['ｂ', 'b'], ['Ь', 'b'], ['ь', 'b'], ['ⓑ', 'b'],
-    ['ｆ', 'f'], ['ғ', 'f'], ['ⓕ', 'f'],
-    ['ｚ', 'z'], ['ᴢ', 'z'], ['ⓩ', 'z'],
-    ['ｉ', 'i'], ['ᴉ', 'i'], ['ⓘ', 'i'], ['ı', 'i'], ['і', 'i']
+    ['а', 'a'],
+    ['ɑ', 'a'],
+    ['ᴀ', 'a'],
+    ['ⓐ', 'a'],
+    ['ａ', 'a'],
+    ['е', 'e'],
+    ['ҽ', 'e'],
+    ['ℯ', 'e'],
+    ['ᴇ', 'e'],
+    ['ⓔ', 'e'],
+    ['ｅ', 'e'],
+    ['о', 'o'],
+    ['ο', 'o'],
+    ['ᴏ', 'o'],
+    ['ⓞ', 'o'],
+    ['ｏ', 'o'],
+    ['р', 'p'],
+    ['ρ', 'p'],
+    ['ᴘ', 'p'],
+    ['ᴩ', 'p'],
+    ['ⓟ', 'p'],
+    ['ｐ', 'p'],
+    ['ʀ', 'r'],
+    ['ⓡ', 'r'],
+    ['ｒ', 'r'],
+    ['ɴ', 'n'],
+    ['ᴎ', 'n'],
+    ['Ⓝ', 'n'],
+    ['ｎ', 'n'],
+    ['ѕ', 's'],
+    ['ꜱ', 's'],
+    ['ⓢ', 's'],
+    ['ｓ', 's'],
+    ['ʂ', 's'],
+    ['х', 'x'],
+    ['ҳ', 'x'],
+    ['ẋ', 'x'],
+    ['ⓧ', 'x'],
+    ['ｘ', 'x'],
+    ['с', 'c'],
+    ['ᴄ', 'c'],
+    ['ⓒ', 'c'],
+    ['ｃ', 'c'],
+    ['ʏ', 'y'],
+    ['у', 'y'],
+    ['Ⓨ', 'y'],
+    ['ｙ', 'y'],
+    ['ᴠ', 'v'],
+    ['ν', 'v'],
+    ['ⓥ', 'v'],
+    ['ｖ', 'v'],
+    ['ｍ', 'm'],
+    ['ᴍ', 'm'],
+    ['ⓜ', 'm'],
+    ['ｕ', 'u'],
+    ['ᴜ', 'u'],
+    ['ⓤ', 'u'],
+    ['ʋ', 'u'],
+    ['ｔ', 't'],
+    ['ᴛ', 't'],
+    ['ⓣ', 't'],
+    ['ｈ', 'h'],
+    ['һ', 'h'],
+    ['ⓗ', 'h'],
+    ['ʜ', 'h'],
+    ['ｌ', 'l'],
+    ['ⅼ', 'l'],
+    ['ӏ', 'l'],
+    ['ⓛ', 'l'],
+    ['ℓ', 'l'],
+    ['ｄ', 'd'],
+    ['ԁ', 'd'],
+    ['ᴅ', 'd'],
+    ['ⓓ', 'd'],
+    ['ｇ', 'g'],
+    ['ɡ', 'g'],
+    ['ⓖ', 'g'],
+    ['ｑ', 'q'],
+    ['զ', 'q'],
+    ['ⓠ', 'q'],
+    ['ｋ', 'k'],
+    ['ᴋ', 'k'],
+    ['ⓚ', 'k'],
+    ['ｂ', 'b'],
+    ['Ь', 'b'],
+    ['ь', 'b'],
+    ['ⓑ', 'b'],
+    ['ｆ', 'f'],
+    ['ғ', 'f'],
+    ['ⓕ', 'f'],
+    ['ｚ', 'z'],
+    ['ᴢ', 'z'],
+    ['ⓩ', 'z'],
+    ['ｉ', 'i'],
+    ['ᴉ', 'i'],
+    ['ⓘ', 'i'],
+    ['ı', 'i'],
+    ['і', 'i']
 ]);
 
 function replaceConfusableCharacters(text) {
@@ -651,9 +727,7 @@ class BraveSearch {
     }
 
     stripZeroWidth(text = '') {
-        return typeof text === 'string'
-            ? text.replace(ZERO_WIDTH_CHAR_PATTERN, '')
-            : '';
+        return typeof text === 'string' ? text.replace(ZERO_WIDTH_CHAR_PATTERN, '') : '';
     }
 
     sanitizeUserQuery(query) {
@@ -661,12 +735,9 @@ class BraveSearch {
             return '';
         }
 
-        const stripped = this.stripZeroWidth(query)
-            .replace(/[\u0000-\u001F\u007F]/g, ' ');
+        const stripped = this.stripZeroWidth(query).replace(/[\u0000-\u001F\u007F]/g, ' ');
 
-        const collapsed = stripped
-            .replace(/[\s\u00A0]+/g, ' ')
-            .trim();
+        const collapsed = stripped.replace(/[\s\u00A0]+/g, ' ').trim();
 
         if (!collapsed) {
             return '';
@@ -686,7 +757,13 @@ class BraveSearch {
 
     extractSearchInvocation(content) {
         if (typeof content !== 'string' || !content.length) {
-            return { triggered: false, query: null, rawQuery: null, invocation: null, explicit: false };
+            return {
+                triggered: false,
+                query: null,
+                rawQuery: null,
+                invocation: null,
+                explicit: false
+            };
         }
 
         const pattern = /(?:^|\b)jarvis(?:\s+|[,;:]+\s*)search\b/gi;
@@ -714,7 +791,9 @@ class BraveSearch {
             const rawForCheck = trimmedTail || tail || '';
 
             if (!explicitDetected) {
-                explicitDetected = this.isExplicitQuery(sanitized || rawForCheck, { rawSegment: rawForCheck });
+                explicitDetected = this.isExplicitQuery(sanitized || rawForCheck, {
+                    rawSegment: rawForCheck
+                });
             }
 
             if (sanitized.length === 0) {
@@ -733,7 +812,9 @@ class BraveSearch {
         }
 
         if (triggered && !explicitDetected) {
-            const segmentsToCheck = [rawQuerySegment, invocationText, content].filter((segment) => typeof segment === 'string' && segment.length > 0);
+            const segmentsToCheck = [rawQuerySegment, invocationText, content].filter(
+                segment => typeof segment === 'string' && segment.length > 0
+            );
 
             for (const segment of segmentsToCheck) {
                 if (this.isExplicitQuery(segment, { rawSegment: segment })) {
@@ -743,7 +824,13 @@ class BraveSearch {
             }
         }
 
-        return { triggered, query: extractedQuery, rawQuery: rawQuerySegment, invocation: invocationText, explicit: explicitDetected };
+        return {
+            triggered,
+            query: extractedQuery,
+            rawQuery: rawQuerySegment,
+            invocation: invocationText,
+            explicit: explicitDetected
+        };
     }
 
     truncate(text, maxLength) {
@@ -771,14 +858,11 @@ class BraveSearch {
         const collapsed = leet.replace(/[^a-z0-9]+/g, '');
         const softCollapsed = leet.replace(/[^a-z0-9]+/g, ' ');
 
-        return Array.from(new Set([
-            lowered,
-            confusableStripped,
-            ascii,
-            leet,
-            collapsed,
-            softCollapsed
-        ].filter(Boolean)));
+        return Array.from(
+            new Set(
+                [lowered, confusableStripped, ascii, leet, collapsed, softCollapsed].filter(Boolean)
+            )
+        );
     }
 
     containsExplicitLanguage(text, options = {}) {
@@ -789,31 +873,38 @@ class BraveSearch {
         const allowEducationalContext = Boolean(options.allowEducationalContext);
         const variants = this.normaliseForExplicitCheck(text);
 
-        const variantsToCheck = (allowEducationalContext
-            ? variants.map((variant) =>
-                SAFE_CONTEXT_PATTERNS.reduce((cleaned, pattern) => {
-                    pattern.lastIndex = 0;
-                    return cleaned.replace(pattern, ' ');
-                }, variant)
+        const variantsToCheck = (
+            allowEducationalContext
+                ? variants.map(variant =>
+                      SAFE_CONTEXT_PATTERNS.reduce((cleaned, pattern) => {
+                          pattern.lastIndex = 0;
+                          return cleaned.replace(pattern, ' ');
+                      }, variant)
+                  )
+                : variants
+        ).map(variant => variant.replace(/\s+/g, ' ').trim());
+
+        if (
+            variantsToCheck.some(variant =>
+                EXPLICIT_PATTERNS.some(pattern => pattern.test(variant))
             )
-            : variants
-        ).map((variant) => variant.replace(/\s+/g, ' ').trim());
-
-        if (variantsToCheck.some((variant) => EXPLICIT_PATTERNS.some((pattern) => pattern.test(variant)))) {
+        ) {
             return true;
         }
 
-        if (variantsToCheck.some((variant) => {
-            return FLEXIBLE_EXPLICIT_PATTERNS.some((pattern) => {
-                pattern.lastIndex = 0;
-                return pattern.test(variant);
-            });
-        })) {
+        if (
+            variantsToCheck.some(variant => {
+                return FLEXIBLE_EXPLICIT_PATTERNS.some(pattern => {
+                    pattern.lastIndex = 0;
+                    return pattern.test(variant);
+                });
+            })
+        ) {
             return true;
         }
 
-        return variantsToCheck.some((variant) =>
-            EXPLICIT_KEYWORDS.some((keyword) => variant.includes(keyword))
+        return variantsToCheck.some(variant =>
+            EXPLICIT_KEYWORDS.some(keyword => variant.includes(keyword))
         );
     }
 
@@ -830,17 +921,23 @@ class BraveSearch {
         if (!hostname) return false;
 
         const normalizedHost = hostname.toLowerCase();
-        const strippedHost = normalizedHost.startsWith('www.') ? normalizedHost.slice(4) : normalizedHost;
+        const strippedHost = normalizedHost.startsWith('www.')
+            ? normalizedHost.slice(4)
+            : normalizedHost;
         const unicodeHost = decodePunycodeDomain(strippedHost);
         const normalizedStripped = replaceConfusableCharacters(unicodeHost)
             .normalize('NFD')
             .replace(/\p{Diacritic}/gu, '');
 
-        if (BANNED_DOMAINS.some((domain) => strippedHost === domain || strippedHost.endsWith(`.${domain}`))) {
+        if (
+            BANNED_DOMAINS.some(
+                domain => strippedHost === domain || strippedHost.endsWith(`.${domain}`)
+            )
+        ) {
             return true;
         }
 
-        if (EXPLICIT_TLDS.some((tld) => strippedHost.endsWith(tld))) {
+        if (EXPLICIT_TLDS.some(tld => strippedHost.endsWith(tld))) {
             return true;
         }
 
@@ -853,9 +950,8 @@ class BraveSearch {
 
     isExplicitQuery(query, options = {}) {
         const sanitized = this.sanitizeUserQuery(query);
-        const rawSegment = typeof options.rawSegment === 'string'
-            ? this.stripZeroWidth(options.rawSegment)
-            : null;
+        const rawSegment =
+            typeof options.rawSegment === 'string' ? this.stripZeroWidth(options.rawSegment) : null;
 
         const candidates = [];
         const pushCandidate = (text, allowEducationalContext) => {
@@ -875,9 +971,8 @@ class BraveSearch {
             pushCandidate(sanitized, true);
         }
 
-        const rawFallback = rawSegment && rawSegment.length
-            ? rawSegment
-            : (typeof query === 'string' ? query : '');
+        const rawFallback =
+            rawSegment && rawSegment.length ? rawSegment : typeof query === 'string' ? query : '';
 
         if (rawFallback) {
             pushCandidate(rawFallback, false);
@@ -902,14 +997,16 @@ class BraveSearch {
                 return true;
             }
 
-            if (EXPLICIT_URL_PATTERNS.some((pattern) => {
-                pattern.lastIndex = 0;
-                return pattern.test(lowered);
-            })) {
+            if (
+                EXPLICIT_URL_PATTERNS.some(pattern => {
+                    pattern.lastIndex = 0;
+                    return pattern.test(lowered);
+                })
+            ) {
                 return true;
             }
 
-            if (BANNED_DOMAINS.some((domain) => lowered.includes(domain))) {
+            if (BANNED_DOMAINS.some(domain => lowered.includes(domain))) {
                 return true;
             }
         }
@@ -922,11 +1019,19 @@ class BraveSearch {
             return true;
         }
 
-        if (result.is_family_friendly === false || result.family_friendly === false || result.familyFriendly === false) {
+        if (
+            result.is_family_friendly === false ||
+            result.family_friendly === false ||
+            result.familyFriendly === false
+        ) {
             return true;
         }
 
-        if (result.block && typeof result.block.reason === 'string' && /adult|explicit/i.test(result.block.reason)) {
+        if (
+            result.block &&
+            typeof result.block.reason === 'string' &&
+            /adult|explicit/i.test(result.block.reason)
+        ) {
             return true;
         }
 
@@ -936,18 +1041,25 @@ class BraveSearch {
         const displayUrl = result?.meta_url?.displayUrl || '';
         const profileName = result?.profile?.name || '';
 
-        if (EXPLICIT_URL_PATTERNS.some((pattern) => {
-            pattern.lastIndex = 0;
-            if (pattern.test(url)) {
-                return true;
-            }
-            pattern.lastIndex = 0;
-            return pattern.test(displayUrl);
-        })) {
+        if (
+            EXPLICIT_URL_PATTERNS.some(pattern => {
+                pattern.lastIndex = 0;
+                if (pattern.test(url)) {
+                    return true;
+                }
+                pattern.lastIndex = 0;
+                return pattern.test(displayUrl);
+            })
+        ) {
             return true;
         }
 
-        if (this.containsExplicitLanguage([title, description, displayUrl, url, profileName].join(' '), { allowEducationalContext: true })) {
+        if (
+            this.containsExplicitLanguage(
+                [title, description, displayUrl, url, profileName].join(' '),
+                { allowEducationalContext: true }
+            )
+        ) {
             return true;
         }
 
@@ -966,7 +1078,16 @@ class BraveSearch {
                 const uddg = parsed.searchParams.get('uddg');
                 if (uddg) return decodeURIComponent(uddg);
             }
-            ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'ref'].forEach((k) => parsed.searchParams.delete(k));
+            [
+                'utm_source',
+                'utm_medium',
+                'utm_campaign',
+                'utm_term',
+                'utm_content',
+                'gclid',
+                'fbclid',
+                'ref'
+            ].forEach(k => parsed.searchParams.delete(k));
             parsed.search = parsed.searchParams.toString();
             return parsed.toString();
         } catch {
@@ -975,11 +1096,14 @@ class BraveSearch {
     }
 
     normaliseResult(result, source = 'api') {
-        const resolveDuckRedirect = (url) => {
+        const resolveDuckRedirect = url => {
             try {
                 const cleaned = url.startsWith('//') ? `https:${url}` : url;
                 const parsed = new URL(cleaned);
-                if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                if (
+                    parsed.hostname.includes('duckduckgo.com') &&
+                    parsed.pathname.startsWith('/l/')
+                ) {
                     const uddg = parsed.searchParams.get('uddg');
                     if (uddg) {
                         return decodeURIComponent(uddg);
@@ -993,13 +1117,15 @@ class BraveSearch {
 
         const finalUrl = this.sanitizeUrl(resolveDuckRedirect(result.url));
 
-        const displayUrl = result?.meta_url?.displayUrl || (() => {
-            try {
-                return new URL(finalUrl).hostname;
-            } catch (err) {
-                return finalUrl;
-            }
-        })();
+        const displayUrl =
+            result?.meta_url?.displayUrl ||
+            (() => {
+                try {
+                    return new URL(finalUrl).hostname;
+                } catch (err) {
+                    return finalUrl;
+                }
+            })();
 
         return {
             title: result.title || result.url,
@@ -1041,13 +1167,14 @@ class BraveSearch {
         }
 
         if (!this.apiKey) {
-            throw new Error('Brave Search API not configured. Please set BRAVE_API_KEY environment variable.');
+            throw new Error(
+                'Brave Search API not configured. Please set BRAVE_API_KEY environment variable.'
+            );
         }
 
         const preparedQuery = this.prepareQueryForApi(query);
-        const rawSegment = typeof options.rawSegment === 'string'
-            ? this.stripZeroWidth(options.rawSegment)
-            : null;
+        const rawSegment =
+            typeof options.rawSegment === 'string' ? this.stripZeroWidth(options.rawSegment) : null;
 
         if (options.explicit === true) {
             const error = new Error(EXPLICIT_QUERY_MESSAGE);
@@ -1074,7 +1201,7 @@ class BraveSearch {
 
         const response = await fetch(url.toString(), {
             headers: {
-                'Accept': 'application/json',
+                Accept: 'application/json',
                 'User-Agent': 'JarvisDiscordBot/1.0',
                 'X-Subscription-Token': this.apiKey
             }
@@ -1091,7 +1218,7 @@ class BraveSearch {
         let filteredOut = 0;
 
         const safeResults = results
-            .filter((result) => {
+            .filter(result => {
                 const hasUrl = result && typeof result.url === 'string';
                 if (!hasUrl) return false;
 
@@ -1101,7 +1228,7 @@ class BraveSearch {
                 return !explicit;
             })
             .slice(0, 5)
-            .map((result) => this.normaliseResult(result, 'api'));
+            .map(result => this.normaliseResult(result, 'api'));
 
         if (safeResults.length === 0 && filteredOut > 0) {
             const error = new Error(EXPLICIT_RESULTS_MESSAGE);
@@ -1114,9 +1241,8 @@ class BraveSearch {
 
     async searchWebHeadless(query, options = {}) {
         const preparedQuery = this.prepareQueryForApi(query);
-        const rawSegment = typeof options.rawSegment === 'string'
-            ? this.stripZeroWidth(options.rawSegment)
-            : null;
+        const rawSegment =
+            typeof options.rawSegment === 'string' ? this.stripZeroWidth(options.rawSegment) : null;
 
         if (!preparedQuery) {
             const error = new Error('Please provide a web search query, sir.');
@@ -1135,15 +1261,18 @@ class BraveSearch {
         const response = await fetch(url, {
             redirect: 'follow',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-                'Accept': 'text/html',
+                'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+                Accept: 'text/html',
                 'Accept-Language': 'en-US,en;q=0.9'
             }
         });
 
         if (!response.ok) {
             const errorText = await response.text().catch(() => '');
-            throw new Error(`Headless search failed: ${response.status} ${errorText.slice(0, 200)}`);
+            throw new Error(
+                `Headless search failed: ${response.status} ${errorText.slice(0, 200)}`
+            );
         }
 
         const html = await response.text();
@@ -1159,42 +1288,54 @@ class BraveSearch {
 
             if (!href || !title) return;
 
-            const resolvedUrl = this.sanitizeUrl((() => {
-                try {
-                    const cleaned = href.startsWith('//') ? `https:${href}` : href;
-                    const parsed = new URL(cleaned);
-                    if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
-                        const uddg = parsed.searchParams.get('uddg');
-                        if (uddg) return decodeURIComponent(uddg);
+            const resolvedUrl = this.sanitizeUrl(
+                (() => {
+                    try {
+                        const cleaned = href.startsWith('//') ? `https:${href}` : href;
+                        const parsed = new URL(cleaned);
+                        if (
+                            parsed.hostname.includes('duckduckgo.com') &&
+                            parsed.pathname.startsWith('/l/')
+                        ) {
+                            const uddg = parsed.searchParams.get('uddg');
+                            if (uddg) return decodeURIComponent(uddg);
+                        }
+                        return cleaned;
+                    } catch {
+                        return href;
                     }
-                    return cleaned;
-                } catch {
-                    return href;
-                }
-            })());
+                })()
+            );
 
             results.push({
                 title,
                 url: resolvedUrl,
                 description: snippet,
                 displayUrl: (() => {
-                    try { return new URL(resolvedUrl).hostname; } catch { return resolvedUrl; }
+                    try {
+                        return new URL(resolvedUrl).hostname;
+                    } catch {
+                        return resolvedUrl;
+                    }
                 })()
             });
         });
 
         const safeResults = results
-            .filter((result) => {
+            .filter(result => {
                 if (!result?.url) return false;
                 try {
-                    const explicit = this.isExplicitQuery(`${result.title} ${result.description || ''}`, { rawSegment: rawSegment || '' });
+                    const explicit = this.isExplicitQuery(
+                        `${result.title} ${result.description || ''}`,
+                        { rawSegment: rawSegment || '' }
+                    );
                     return !explicit;
                 } catch {
                     return true;
                 }
             })
             .slice(0, 8)
-            .map((r) => this.normaliseResult(r, 'headless'));
+            .map(r => this.normaliseResult(r, 'headless'));
 
         return safeResults;
     }
@@ -1207,7 +1348,9 @@ class BraveSearch {
         }
 
         if (!this.apiKey) {
-            throw new Error('Brave Search API not configured. Please set BRAVE_API_KEY environment variable.');
+            throw new Error(
+                'Brave Search API not configured. Please set BRAVE_API_KEY environment variable.'
+            );
         }
 
         const normalizedTopic = this.sanitizeUserQuery(topic) || 'technology';
@@ -1220,7 +1363,7 @@ class BraveSearch {
 
         const response = await fetch(url.toString(), {
             headers: {
-                'Accept': 'application/json',
+                Accept: 'application/json',
                 'User-Agent': 'JarvisDiscordBot/1.0',
                 'X-Subscription-Token': this.apiKey
             }
@@ -1235,10 +1378,11 @@ class BraveSearch {
         const results = Array.isArray(data?.news?.results) ? data.news.results : [];
 
         return results
-            .filter((result) => result && (result.url || result.clickUrl || result.link))
+            .filter(result => result && (result.url || result.clickUrl || result.link))
             .slice(0, requestedCount)
-            .map((result) => {
-                const publishedRaw = result.publishedDate || result.date || result.created || result.age || null;
+            .map(result => {
+                const publishedRaw =
+                    result.publishedDate || result.date || result.created || result.age || null;
                 let published = null;
                 if (publishedRaw) {
                     const date = new Date(publishedRaw);
@@ -1250,8 +1394,16 @@ class BraveSearch {
                 return {
                     title: this.truncate(result.title || result.name || 'Untitled', 120),
                     url: result.url || result.clickUrl || result.link,
-                    excerpt: this.truncate(result.description || result.snippet || result.excerpt || '', 180),
-                    source: result.source?.title || result.profile?.name || result.publisher?.name || result.publisher || null,
+                    excerpt: this.truncate(
+                        result.description || result.snippet || result.excerpt || '',
+                        180
+                    ),
+                    source:
+                        result.source?.title ||
+                        result.profile?.name ||
+                        result.publisher?.name ||
+                        result.publisher ||
+                        null,
                     published,
                     thumbnail: result.thumbnail?.src || result.image?.thumbnail?.contentUrl || null
                 };
@@ -1266,8 +1418,9 @@ class BraveSearch {
         const response = await fetch(url, {
             redirect: 'follow',
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-                'Accept': 'text/html',
+                'User-Agent':
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+                Accept: 'text/html',
                 'Accept-Language': 'en-US,en;q=0.9'
             }
         });
@@ -1281,11 +1434,14 @@ class BraveSearch {
         const $ = cheerio.load(html);
         const results = [];
 
-        const resolveDuckRedirect = (url) => {
+        const resolveDuckRedirect = url => {
             try {
                 const cleaned = url.startsWith('//') ? `https:${url}` : url;
                 const parsed = new URL(cleaned);
-                if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
+                if (
+                    parsed.hostname.includes('duckduckgo.com') &&
+                    parsed.pathname.startsWith('/l/')
+                ) {
                     const uddg = parsed.searchParams.get('uddg');
                     if (uddg) return decodeURIComponent(uddg);
                 }
@@ -1315,9 +1471,7 @@ class BraveSearch {
             });
         });
 
-        return results
-            .filter((r) => r?.url)
-            .slice(0, requestedCount);
+        return results.filter(r => r?.url).slice(0, requestedCount);
     }
 
     formatNewsDigest(topic, articles) {
@@ -1349,7 +1503,7 @@ class BraveSearch {
         const [topResult, ...secondaryResults] = results;
 
         const embed = {
-            color: 0xF97316,
+            color: 0xf97316,
             title: topResult.title,
             url: topResult.url,
             description: this.buildPrimaryDescription(topResult) || topResult.url,
@@ -1358,10 +1512,14 @@ class BraveSearch {
             },
             fields: secondaryResults.slice(0, 2).map((result, index) => ({
                 name: `${index + 2}. ${result.title}`,
-                value: redactSensitiveInfo(this.truncate([
-                    result.description,
-                    result.displayUrl || result.url
-                ].filter(Boolean).join('\n') || result.url, 1024))
+                value: redactSensitiveInfo(
+                    this.truncate(
+                        [result.description, result.displayUrl || result.url]
+                            .filter(Boolean)
+                            .join('\n') || result.url,
+                        1024
+                    )
+                )
             })),
             footer: {
                 text: 'Powered by Brave Search'
@@ -1382,9 +1540,7 @@ class BraveSearch {
 
         return {
             embeds: [embed],
-            components: buttons.length
-                ? [{ type: 1, components: buttons }]
-                : []
+            components: buttons.length ? [{ type: 1, components: buttons }] : []
         };
     }
 

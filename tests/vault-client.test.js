@@ -1,6 +1,7 @@
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || 'test-token';
 process.env.MONGO_URI_MAIN = process.env.MONGO_URI_MAIN || 'mongodb://localhost:27017/jarvis-ai';
-process.env.MONGO_URI_VAULT = process.env.MONGO_URI_VAULT || 'mongodb://localhost:27017/jarvis-vault';
+process.env.MONGO_URI_VAULT =
+    process.env.MONGO_URI_VAULT || 'mongodb://localhost:27017/jarvis-vault';
 process.env.MASTER_KEY_BASE64 =
     process.env.MASTER_KEY_BASE64 || Buffer.alloc(32, 1).toString('base64');
 process.env.VAULT_CACHE_TTL_MS = process.env.VAULT_CACHE_TTL_MS || '120000';
@@ -9,10 +10,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const vaultClient = require('../src/services/vault-client');
-const {
-    __dangerouslySetCollectionsForTests,
-    __resetCachesForTests
-} = vaultClient;
+const { __dangerouslySetCollectionsForTests, __resetCachesForTests } = vaultClient;
 const { createVaultTestCollections } = require('./helpers/inMemoryVaultCollections');
 
 test.after(() => {
@@ -78,9 +76,7 @@ test('decrypt under concurrent load stays below one second', async () => {
 
     const start = process.hrtime.bigint();
     await Promise.all(
-        Array.from({ length: 100 }, () =>
-            vaultClient.decryptMemories(userId, { limit: 12 })
-        )
+        Array.from({ length: 100 }, () => vaultClient.decryptMemories(userId, { limit: 12 }))
     );
     const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
 

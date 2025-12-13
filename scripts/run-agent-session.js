@@ -64,7 +64,10 @@ function readUrlsFromFile(filePath) {
     if (!filePath) return [];
     try {
         const raw = fs.readFileSync(filePath, 'utf8');
-        return raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        return raw
+            .split(/\r?\n/)
+            .map(l => l.trim())
+            .filter(Boolean);
     } catch (err) {
         console.error('Failed to read URL file:', err.message);
         return [];
@@ -86,7 +89,9 @@ async function sendWebhook(webhook, payload) {
 
 async function main() {
     if (config?.deployment?.target !== 'selfhost' || !config?.deployment?.liveAgentMode) {
-        console.error('Agent preview is disabled. Set DEPLOY_TARGET=selfhost and LIVE_AGENT_MODE=true.');
+        console.error(
+            'Agent preview is disabled. Set DEPLOY_TARGET=selfhost and LIVE_AGENT_MODE=true.'
+        );
         process.exit(1);
     }
 
@@ -101,12 +106,18 @@ async function main() {
     }
 
     const now = new Date().toISOString();
-    const known = new Map(state.entries.map((e) => [e.url, e]));
+    const known = new Map(state.entries.map(e => [e.url, e]));
 
     if (!opts.resume) {
         for (const url of inputUrls) {
             if (!known.has(url)) {
-                state.entries.push({ url, status: 'pending', summary: null, error: null, updatedAt: now });
+                state.entries.push({
+                    url,
+                    status: 'pending',
+                    summary: null,
+                    error: null,
+                    updatedAt: now
+                });
             } else if (opts.force) {
                 const entry = known.get(url);
                 entry.status = 'pending';
@@ -116,7 +127,7 @@ async function main() {
         }
     }
 
-    const toProcess = state.entries.filter((e) => e.status !== 'done');
+    const toProcess = state.entries.filter(e => e.status !== 'done');
     if (!toProcess.length) {
         console.log('Nothing to process.');
         return;
@@ -146,7 +157,7 @@ async function main() {
                     }
                 ]
             };
-            await sendWebhook(webhook, payload).catch((err) => {
+            await sendWebhook(webhook, payload).catch(err => {
                 console.warn('Webhook send failed:', err.message);
             });
         } catch (err) {

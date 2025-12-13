@@ -1,7 +1,8 @@
 const youtubeSearch = require('../services/youtube-search');
 const { searchYouTube, getVideoInfo } = require('./playDl');
 
-const YOUTUBE_URL_REGEX = /^(?:https?:\/\/)?(?:www\.|m\.)?(?:(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/))|(?:youtu\.be\/))([\w-]{11})(?:[?&][^\s]*)?$/i;
+const YOUTUBE_URL_REGEX =
+    /^(?:https?:\/\/)?(?:www\.|m\.)?(?:(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/))|(?:youtu\.be\/))([\w-]{11})(?:[?&][^\s]*)?$/i;
 
 async function getVideo(query) {
     const directId = extractVideoId(query);
@@ -13,7 +14,10 @@ async function getVideo(query) {
                 return directResult;
             }
         } catch (error) {
-            console.warn('Direct YouTube lookup failed, falling back to search:', error?.message || error);
+            console.warn(
+                'Direct YouTube lookup failed, falling back to search:',
+                error?.message || error
+            );
         }
 
         return {

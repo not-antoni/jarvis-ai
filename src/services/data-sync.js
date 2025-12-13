@@ -1,6 +1,6 @@
 /**
  * Data Sync Service - Robust Database Handler
- * 
+ *
  * Features:
  * - MongoDB ↔ Local file migration
  * - Automatic fallback when MongoDB unavailable
@@ -110,10 +110,10 @@ async function readMongo(collectionName) {
     try {
         const database = require('./database');
         if (!database?.isConnected) return null;
-        
+
         const collection = database.getCollection(collectionName);
         if (!collection) return null;
-        
+
         const docs = await collection.find({}).toArray();
         return docs;
     } catch (e) {
@@ -129,10 +129,10 @@ async function writeMongo(collectionName, data) {
     try {
         const database = require('./database');
         if (!database?.isConnected) return false;
-        
+
         const collection = database.getCollection(collectionName);
         if (!collection) return false;
-        
+
         // For array of documents
         if (Array.isArray(data)) {
             // Clear and reinsert
@@ -142,13 +142,9 @@ async function writeMongo(collectionName, data) {
             }
         } else {
             // For single document with _id
-            await collection.replaceOne(
-                { _id: data._id || 'default' },
-                data,
-                { upsert: true }
-            );
+            await collection.replaceOne({ _id: data._id || 'default' }, data, { upsert: true });
         }
-        
+
         syncState.lastMongoSync = new Date().toISOString();
         saveSyncState();
         return true;
@@ -164,13 +160,13 @@ async function writeMongo(collectionName, data) {
  */
 async function syncMongoToLocal(collectionName) {
     console.log(`[DataSync] Syncing ${collectionName} from MongoDB to local...`);
-    
+
     const mongoData = await readMongo(collectionName);
     if (mongoData === null) {
         console.log(`[DataSync] No MongoDB data found for ${collectionName}`);
         return false;
     }
-    
+
     const success = writeLocal(collectionName, mongoData);
     if (success) {
         console.log(`[DataSync] Successfully synced ${collectionName} to local storage`);
@@ -184,13 +180,13 @@ async function syncMongoToLocal(collectionName) {
  */
 async function syncLocalToMongo(collectionName) {
     console.log(`[DataSync] Syncing ${collectionName} from local to MongoDB...`);
-    
+
     const localData = readLocal(collectionName);
     if (localData === null) {
         console.log(`[DataSync] No local data found for ${collectionName}`);
         return false;
     }
-    
+
     const success = await writeMongo(collectionName, localData);
     if (success) {
         console.log(`[DataSync] Successfully synced ${collectionName} to MongoDB`);
@@ -204,11 +200,11 @@ async function syncLocalToMongo(collectionName) {
  */
 async function smartRead(collectionName, preferLocal = false) {
     const mongoAvailable = await checkMongoConnection();
-    
+
     if (preferLocal || !mongoAvailable) {
         // Read from local
         const localData = readLocal(collectionName);
-        
+
         // If we have local data and MongoDB becomes available, sync to MongoDB
         if (localData && mongoAvailable) {
             // Check if local is newer
@@ -218,13 +214,13 @@ async function smartRead(collectionName, preferLocal = false) {
                 await writeMongo(collectionName, localData);
             }
         }
-        
+
         return localData;
     }
-    
+
     // Read from MongoDB
     const mongoData = await readMongo(collectionName);
-    
+
     // Also write to local as backup
     if (mongoData) {
         writeLocal(collectionName, mongoData);
@@ -235,7 +231,7 @@ async function smartRead(collectionName, preferLocal = false) {
             return localData;
         }
     }
-    
+
     return mongoData;
 }
 
@@ -244,15 +240,15 @@ async function smartRead(collectionName, preferLocal = false) {
  */
 async function smartWrite(collectionName, data) {
     const mongoAvailable = await checkMongoConnection();
-    
+
     // Always write to local as backup
     const localSuccess = writeLocal(collectionName, data);
-    
+
     if (mongoAvailable) {
         const mongoSuccess = await writeMongo(collectionName, data);
         return mongoSuccess && localSuccess;
     }
-    
+
     // Queue for later sync if MongoDB unavailable
     if (!mongoAvailable && localSuccess) {
         syncState.pendingChanges.push({
@@ -261,7 +257,7 @@ async function smartWrite(collectionName, data) {
         });
         saveSyncState();
     }
-    
+
     return localSuccess;
 }
 
@@ -270,21 +266,23 @@ async function smartWrite(collectionName, data) {
  */
 async function syncPendingChanges() {
     if (syncState.pendingChanges.length === 0) return;
-    
+
     const mongoAvailable = await checkMongoConnection();
     if (!mongoAvailable) return;
-    
-    console.log(`[DataSync] Syncing ${syncState.pendingChanges.length} pending changes to MongoDB...`);
-    
+
+    console.log(
+        `[DataSync] Syncing ${syncState.pendingChanges.length} pending changes to MongoDB...`
+    );
+
     const collections = [...new Set(syncState.pendingChanges.map(c => c.collection))];
-    
+
     for (const collectionName of collections) {
         await syncLocalToMongo(collectionName);
     }
-    
+
     syncState.pendingChanges = [];
     saveSyncState();
-    
+
     console.log('[DataSync] All pending changes synced');
 }
 
@@ -299,16 +297,16 @@ async function exportAllToLocal() {
         'userProfiles',
         'economy'
     ];
-    
+
     console.log('[DataSync] Exporting all MongoDB data to local...');
-    
+
     let success = 0;
     for (const collection of collections) {
         if (await syncMongoToLocal(collection)) {
             success++;
         }
     }
-    
+
     console.log(`[DataSync] Exported ${success}/${collections.length} collections`);
     return success;
 }
@@ -324,16 +322,16 @@ async function importAllFromLocal() {
         'userProfiles',
         'economy'
     ];
-    
+
     console.log('[DataSync] Importing all local data to MongoDB...');
-    
+
     let success = 0;
     for (const collection of collections) {
         if (await syncLocalToMongo(collection)) {
             success++;
         }
     }
-    
+
     console.log(`[DataSync] Imported ${success}/${collections.length} collections`);
     return success;
 }
@@ -355,7 +353,7 @@ function getSyncStatus() {
 setInterval(async () => {
     const wasAvailable = syncState.mongoAvailable;
     const isAvailable = await checkMongoConnection();
-    
+
     // MongoDB just became available
     if (!wasAvailable && isAvailable) {
         console.log('[DataSync] MongoDB connection restored, syncing pending changes...');

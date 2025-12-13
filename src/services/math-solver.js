@@ -26,7 +26,7 @@ function runMathWorker(rawInput) {
             reject(new Error('Math subsystem timed out, sir.'));
         }, TIMEOUT_MS);
 
-        worker.once('message', (message) => {
+        worker.once('message', message => {
             clearTimeout(timer);
             worker.terminate();
             if (message?.success) {
@@ -36,7 +36,7 @@ function runMathWorker(rawInput) {
             }
         });
 
-        worker.once('error', (err) => {
+        worker.once('error', err => {
             clearTimeout(timer);
             worker.terminate();
             reject(err);

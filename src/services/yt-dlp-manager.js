@@ -1,6 +1,6 @@
 /**
  * yt-dlp Manager - Auto-updating yt-dlp for YouTube playback
- * 
+ *
  * Features:
  * - Auto-downloads latest yt-dlp on startup
  * - Auto-updates when new version available
@@ -39,7 +39,7 @@ class YtDlpManager {
      */
     async initialize() {
         console.log('[yt-dlp] Initializing...');
-        
+
         // Ensure bin directory exists
         if (!fs.existsSync(this.binDir)) {
             fs.mkdirSync(this.binDir, { recursive: true });
@@ -48,7 +48,7 @@ class YtDlpManager {
 
         // Load current version from file
         this.currentVersion = this.loadVersionFromFile();
-        
+
         // Check if executable exists
         if (!fs.existsSync(this.executablePath)) {
             console.log('[yt-dlp] Not found, downloading...');
@@ -62,7 +62,7 @@ class YtDlpManager {
         if (await this.verify()) {
             this.ready = true;
             console.log(`[yt-dlp] Ready! Version: ${this.currentVersion || 'unknown'}`);
-            
+
             // Schedule periodic update checks
             this.scheduleUpdateChecks();
         } else {
@@ -104,37 +104,45 @@ class YtDlpManager {
         return new Promise((resolve, reject) => {
             const headers = {
                 'User-Agent': 'Jarvis-Discord-Bot/1.0',
-                'Accept': 'application/vnd.github.v3+json'
+                Accept: 'application/vnd.github.v3+json'
             };
-            
+
             // Add auth token if available (increases rate limit from 60 to 5000/hour)
             if (GITHUB_TOKEN) {
                 headers['Authorization'] = `token ${GITHUB_TOKEN}`;
                 console.log('[yt-dlp] Using authenticated GitHub request');
             }
-            
+
             const options = { headers };
 
-            https.get(GITHUB_API_RELEASES, options, (res) => {
-                if (res.statusCode === 302 || res.statusCode === 301) {
-                    // Follow redirect
-                    https.get(res.headers.location, options, (res2) => {
-                        this.handleGitHubResponse(res2, resolve, reject);
-                    }).on('error', reject);
-                    return;
-                }
-                this.handleGitHubResponse(res, resolve, reject);
-            }).on('error', reject);
+            https
+                .get(GITHUB_API_RELEASES, options, res => {
+                    if (res.statusCode === 302 || res.statusCode === 301) {
+                        // Follow redirect
+                        https
+                            .get(res.headers.location, options, res2 => {
+                                this.handleGitHubResponse(res2, resolve, reject);
+                            })
+                            .on('error', reject);
+                        return;
+                    }
+                    this.handleGitHubResponse(res, resolve, reject);
+                })
+                .on('error', reject);
         });
     }
 
     handleGitHubResponse(res, resolve, reject) {
         let data = '';
-        res.on('data', chunk => data += chunk);
+        res.on('data', chunk => (data += chunk));
         res.on('end', () => {
             try {
                 if (res.statusCode !== 200) {
-                    reject(new Error(`GitHub API returned ${res.statusCode}: ${data.substring(0, 200)}`));
+                    reject(
+                        new Error(
+                            `GitHub API returned ${res.statusCode}: ${data.substring(0, 200)}`
+                        )
+                    );
                     return;
                 }
                 const release = JSON.parse(data);
@@ -150,7 +158,7 @@ class YtDlpManager {
      */
     getDownloadUrl(release) {
         const assets = release.assets || [];
-        
+
         let assetName;
         if (this.isWindows) {
             assetName = 'yt-dlp.exe';
@@ -167,15 +175,15 @@ class YtDlpManager {
         const asset = assets.find(a => a.name === assetName);
         if (!asset) {
             // Try alternative names
-            const alternatives = this.isWindows 
+            const alternatives = this.isWindows
                 ? ['yt-dlp_win.exe', 'yt-dlp_x86.exe']
                 : ['yt-dlp', 'yt-dlp_linux_aarch64'];
-            
+
             for (const alt of alternatives) {
                 const altAsset = assets.find(a => a.name === alt);
                 if (altAsset) return altAsset.browser_download_url;
             }
-            
+
             throw new Error(`No suitable yt-dlp binary found for ${process.platform}`);
         }
 
@@ -189,62 +197,82 @@ class YtDlpManager {
         return new Promise((resolve, reject) => {
             const file = fs.createWriteStream(destPath);
             const protocol = url.startsWith('https') ? https : http;
-            
+
             // Build headers with optional auth
             const downloadHeaders = { 'User-Agent': 'Jarvis-Discord-Bot/1.0' };
             if (GITHUB_TOKEN) {
                 downloadHeaders['Authorization'] = `token ${GITHUB_TOKEN}`;
             }
 
-            const request = (downloadUrl) => {
-                protocol.get(downloadUrl, {
-                    headers: downloadHeaders
-                }, (response) => {
-                    // Handle redirects
-                    if (response.statusCode === 302 || response.statusCode === 301) {
-                        file.close();
-                        fs.unlinkSync(destPath);
-                        const newFile = fs.createWriteStream(destPath);
-                        const redirectProtocol = response.headers.location.startsWith('https') ? https : http;
-                        
-                        redirectProtocol.get(response.headers.location, {
+            const request = downloadUrl => {
+                protocol
+                    .get(
+                        downloadUrl,
+                        {
                             headers: downloadHeaders
-                        }, (redirectRes) => {
-                            if (redirectRes.statusCode !== 200) {
-                                newFile.close();
-                                reject(new Error(`Download failed: ${redirectRes.statusCode}`));
+                        },
+                        response => {
+                            // Handle redirects
+                            if (response.statusCode === 302 || response.statusCode === 301) {
+                                file.close();
+                                fs.unlinkSync(destPath);
+                                const newFile = fs.createWriteStream(destPath);
+                                const redirectProtocol = response.headers.location.startsWith(
+                                    'https'
+                                )
+                                    ? https
+                                    : http;
+
+                                redirectProtocol
+                                    .get(
+                                        response.headers.location,
+                                        {
+                                            headers: downloadHeaders
+                                        },
+                                        redirectRes => {
+                                            if (redirectRes.statusCode !== 200) {
+                                                newFile.close();
+                                                reject(
+                                                    new Error(
+                                                        `Download failed: ${redirectRes.statusCode}`
+                                                    )
+                                                );
+                                                return;
+                                            }
+                                            redirectRes.pipe(newFile);
+                                            newFile.on('finish', () => {
+                                                newFile.close();
+                                                resolve();
+                                            });
+                                        }
+                                    )
+                                    .on('error', err => {
+                                        newFile.close();
+                                        fs.unlinkSync(destPath);
+                                        reject(err);
+                                    });
                                 return;
                             }
-                            redirectRes.pipe(newFile);
-                            newFile.on('finish', () => {
-                                newFile.close();
+
+                            if (response.statusCode !== 200) {
+                                file.close();
+                                fs.unlinkSync(destPath);
+                                reject(new Error(`Download failed: ${response.statusCode}`));
+                                return;
+                            }
+
+                            response.pipe(file);
+                            file.on('finish', () => {
+                                file.close();
                                 resolve();
                             });
-                        }).on('error', (err) => {
-                            newFile.close();
-                            fs.unlinkSync(destPath);
-                            reject(err);
-                        });
-                        return;
-                    }
-
-                    if (response.statusCode !== 200) {
+                        }
+                    )
+                    .on('error', err => {
                         file.close();
                         fs.unlinkSync(destPath);
-                        reject(new Error(`Download failed: ${response.statusCode}`));
-                        return;
-                    }
-
-                    response.pipe(file);
-                    file.on('finish', () => {
-                        file.close();
-                        resolve();
+                        reject(err);
                     });
-                }).on('error', (err) => {
-                    file.close();
-                    fs.unlinkSync(destPath);
-                    reject(err);
-                });
             };
 
             request(url);
@@ -309,7 +337,9 @@ class YtDlpManager {
             this.latestVersion = release.tag_name;
 
             if (!this.currentVersion || this.currentVersion !== this.latestVersion) {
-                console.log(`[yt-dlp] Update available: ${this.currentVersion || 'none'} -> ${this.latestVersion}`);
+                console.log(
+                    `[yt-dlp] Update available: ${this.currentVersion || 'none'} -> ${this.latestVersion}`
+                );
                 await this.downloadLatest();
             } else {
                 console.log(`[yt-dlp] Already up to date: ${this.currentVersion}`);
@@ -343,7 +373,7 @@ class YtDlpManager {
                 timeout: 30000,
                 windowsHide: true
             }).trim();
-            
+
             console.log(`[yt-dlp] Verified working: ${version}`);
             if (!this.currentVersion) {
                 this.currentVersion = version;
@@ -366,7 +396,8 @@ class YtDlpManager {
 
         return new Promise((resolve, reject) => {
             const args = [
-                '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio',
+                '-f',
+                'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio',
                 '-g', // Get URL only
                 '--no-warnings',
                 '--no-playlist',
@@ -380,15 +411,15 @@ class YtDlpManager {
             let stdout = '';
             let stderr = '';
 
-            proc.stdout.on('data', (data) => {
+            proc.stdout.on('data', data => {
                 stdout += data.toString();
             });
 
-            proc.stderr.on('data', (data) => {
+            proc.stderr.on('data', data => {
                 stderr += data.toString();
             });
 
-            proc.on('close', (code) => {
+            proc.on('close', code => {
                 if (code === 0 && stdout.trim()) {
                     resolve(stdout.trim().split('\n')[0]);
                 } else {
@@ -423,15 +454,15 @@ class YtDlpManager {
             let stdout = '';
             let stderr = '';
 
-            proc.stdout.on('data', (data) => {
+            proc.stdout.on('data', data => {
                 stdout += data.toString();
             });
 
-            proc.stderr.on('data', (data) => {
+            proc.stderr.on('data', data => {
                 stderr += data.toString();
             });
 
-            proc.on('close', (code) => {
+            proc.on('close', code => {
                 if (code === 0 && stdout.trim()) {
                     try {
                         const info = JSON.parse(stdout);
@@ -464,12 +495,7 @@ class YtDlpManager {
         }
 
         return new Promise((resolve, reject) => {
-            const args = [
-                `ytsearch${limit}:${query}`,
-                '-j',
-                '--flat-playlist',
-                '--no-warnings'
-            ];
+            const args = [`ytsearch${limit}:${query}`, '-j', '--flat-playlist', '--no-warnings'];
 
             const proc = spawn(this.executablePath, args, {
                 timeout: 30000
@@ -478,18 +504,20 @@ class YtDlpManager {
             let stdout = '';
             let stderr = '';
 
-            proc.stdout.on('data', (data) => {
+            proc.stdout.on('data', data => {
                 stdout += data.toString();
             });
 
-            proc.stderr.on('data', (data) => {
+            proc.stderr.on('data', data => {
                 stderr += data.toString();
             });
 
-            proc.on('close', (code) => {
+            proc.on('close', code => {
                 if (code === 0 && stdout.trim()) {
                     try {
-                        const results = stdout.trim().split('\n')
+                        const results = stdout
+                            .trim()
+                            .split('\n')
                             .filter(line => line.trim())
                             .map(line => {
                                 try {
@@ -498,7 +526,9 @@ class YtDlpManager {
                                         title: info.title || 'Unknown',
                                         author: info.uploader || info.channel || 'Unknown',
                                         duration: (info.duration || 0) * 1000,
-                                        url: info.url || `https://www.youtube.com/watch?v=${info.id}`,
+                                        url:
+                                            info.url ||
+                                            `https://www.youtube.com/watch?v=${info.id}`,
                                         identifier: info.id || null
                                     };
                                 } catch {
@@ -530,7 +560,9 @@ class YtDlpManager {
             latestVersion: this.latestVersion,
             executablePath: this.executablePath,
             platform: this.isWindows ? 'windows' : 'linux',
-            lastUpdateCheck: this.lastUpdateCheck ? new Date(this.lastUpdateCheck).toISOString() : null,
+            lastUpdateCheck: this.lastUpdateCheck
+                ? new Date(this.lastUpdateCheck).toISOString()
+                : null,
             githubAuth: !!GITHUB_TOKEN // Shows if GitHub auth is configured
         };
     }

@@ -11,13 +11,19 @@ const config = require('../../config');
 let FreeAIProvider, BrowserAgent, aiManager;
 try {
     FreeAIProvider = require('../core/FreeAIProvider').FreeAIProvider;
-} catch { FreeAIProvider = null; }
+} catch {
+    FreeAIProvider = null;
+}
 try {
     BrowserAgent = require('../agents/browserAgent');
-} catch { BrowserAgent = null; }
+} catch {
+    BrowserAgent = null;
+}
 try {
     aiManager = require('../services/ai-providers');
-} catch { aiManager = null; }
+} catch {
+    aiManager = null;
+}
 
 const DEFAULT_MAX_BYTES = 200_000;
 const FETCH_TIMEOUT_MS = 10_000;
@@ -32,19 +38,36 @@ function sanitizeUrl(url) {
             throw new Error('Invalid protocol');
         }
         const host = parsed.hostname.toLowerCase();
-        if (Array.isArray(config?.deployment?.agentDenylist) && config.deployment.agentDenylist.length) {
-            if (config.deployment.agentDenylist.some((d) => host === d || host.endsWith(`.${d}`))) {
+        if (
+            Array.isArray(config?.deployment?.agentDenylist) &&
+            config.deployment.agentDenylist.length
+        ) {
+            if (config.deployment.agentDenylist.some(d => host === d || host.endsWith(`.${d}`))) {
                 throw new Error('Domain is denied for agent preview');
             }
         }
-        if (Array.isArray(config?.deployment?.agentAllowlist) && config.deployment.agentAllowlist.length) {
-            const allowed = config.deployment.agentAllowlist.some((d) => host === d || host.endsWith(`.${d}`));
+        if (
+            Array.isArray(config?.deployment?.agentAllowlist) &&
+            config.deployment.agentAllowlist.length
+        ) {
+            const allowed = config.deployment.agentAllowlist.some(
+                d => host === d || host.endsWith(`.${d}`)
+            );
             if (!allowed) {
                 throw new Error('Domain not in allowlist for agent preview');
             }
         }
         // Strip trackers
-        ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid', 'ref'].forEach((k) => parsed.searchParams.delete(k));
+        [
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_term',
+            'utm_content',
+            'gclid',
+            'fbclid',
+            'ref'
+        ].forEach(k => parsed.searchParams.delete(k));
         parsed.search = parsed.searchParams.toString();
         return parsed.toString();
     } catch (err) {
@@ -57,7 +80,7 @@ function sanitizeUrl(url) {
  */
 function getBrowserAgent() {
     if (!BrowserAgent) return null;
-    
+
     if (!sharedBrowser) {
         const browserConfig = {
             ...config,
@@ -80,43 +103,43 @@ async function fetchWithBrowser(url) {
     if (!browser || !browser.enabled) {
         return null; // Fall back to simple fetch
     }
-    
+
     const sessionKey = `preview-${Date.now()}`;
-    
+
     try {
         await browser.startSession(sessionKey);
         const session = browser.getSession(sessionKey);
-        
+
         if (!session?.page) {
             throw new Error('Failed to create browser session');
         }
-        
+
         const page = session.page;
         await page.setViewport({ width: 1280, height: 800 });
-        
+
         // Navigate with timeout
-        await page.goto(url, { 
+        await page.goto(url, {
             waitUntil: 'networkidle2',
-            timeout: 15000 
+            timeout: 15000
         });
-        
+
         // Extract content
         const title = await page.title();
         const text = await page.evaluate(() => {
             // Remove scripts and styles
             document.querySelectorAll('script, style, noscript, iframe').forEach(el => el.remove());
-            
+
             // Try to find main content
             const main = document.querySelector('article, main, [role="main"]');
             if (main) return main.innerText;
-            
+
             return document.body?.innerText || '';
         });
-        
+
         // Take screenshot
         let screenshot = null;
         try {
-            screenshot = await page.screenshot({ 
+            screenshot = await page.screenshot({
                 type: 'png',
                 fullPage: false,
                 encoding: 'base64'
@@ -124,18 +147,19 @@ async function fetchWithBrowser(url) {
         } catch (e) {
             console.warn('Screenshot failed:', e.message);
         }
-        
+
         await browser.closeSession(sessionKey);
-        
+
         return {
             title: title || '',
             text: text?.replace(/\s+/g, ' ').trim() || '',
             screenshot,
             rendered: true
         };
-        
     } catch (error) {
-        try { await browser.closeSession(sessionKey); } catch {}
+        try {
+            await browser.closeSession(sessionKey);
+        } catch {}
         console.warn('Browser fetch failed:', error.message);
         return null;
     }
@@ -154,7 +178,7 @@ async function fetchPage(url, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
             signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (JarvisAgent/2.0; CODEX)',
-                'Accept': 'text/html',
+                Accept: 'text/html',
                 'Accept-Language': 'en-US,en;q=0.9'
             }
         });
@@ -176,7 +200,7 @@ async function fetchPage(url, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
         const chunks = [];
 
         await new Promise((resolve, reject) => {
-            res.body.on('data', (chunk) => {
+            res.body.on('data', chunk => {
                 received += chunk.length;
                 if (received > maxBytes) {
                     const keep = maxBytes - (received - chunk.length);
@@ -206,7 +230,7 @@ function extractText(html) {
 
     const candidates = [];
     const selectors = ['article', 'main', 'div'];
-    selectors.forEach((sel) => {
+    selectors.forEach(sel => {
         $(sel).each((_, el) => {
             const text = $(el).text().replace(/\s+/g, ' ').trim();
             candidates.push({ text, length: text.length });
@@ -214,11 +238,9 @@ function extractText(html) {
     });
 
     candidates.sort((a, b) => b.length - a.length);
-    const best = candidates.find((c) => c.length > 300) || candidates[0];
+    const best = candidates.find(c => c.length > 300) || candidates[0];
 
-    const bodyText = best?.text
-        ? best.text
-        : $('body').text().replace(/\s+/g, ' ').trim();
+    const bodyText = best?.text ? best.text : $('body').text().replace(/\s+/g, ' ').trim();
 
     return { title, text: bodyText };
 }
@@ -240,9 +262,9 @@ function getAI() {
 async function summarizeText({ title, text, url, hasScreenshot }) {
     const truncated = text.slice(0, 4000);
     const ai = getAI();
-    
+
     const systemPrompt = `You are JARVIS, an advanced AI assistant. Provide a concise, informative summary of the web page. Use bullet points for key information. Keep it under 150 words. Be helpful and precise.`;
-    
+
     const userPrompt = `URL: ${url}
 Title: ${title || 'N/A'}
 ${hasScreenshot ? '(Screenshot captured)' : ''}
@@ -251,7 +273,7 @@ Content:
 ${truncated}`;
 
     let summary;
-    
+
     try {
         if (ai?.generateResponse) {
             // New FreeAIProvider
@@ -267,16 +289,16 @@ ${truncated}`;
     } catch (e) {
         console.warn('AI summarization failed:', e.message);
     }
-    
+
     if (!summary || !String(summary).trim()) {
         // Fallback: extract key sentences
         const sentences = truncated.match(/[^.!?]+[.!?]+/g) || [];
         const fallback = sentences.slice(0, 3).join(' ').trim();
-        summary = fallback 
+        summary = fallback
             ? `📄 **${title || 'Page'}**\n\n${fallback}...`
             : `Page loaded but no summary available.`;
     }
-    
+
     return String(summary).trim();
 }
 
@@ -289,8 +311,11 @@ async function summarizeUrl(url, options = {}) {
     }
 
     const safeUrl = sanitizeUrl(url);
-    let title, text, screenshot = null, rendered = false;
-    
+    let title,
+        text,
+        screenshot = null,
+        rendered = false;
+
     // Try browser first (JS rendering + screenshot)
     if (options.useBrowser !== false) {
         const browserResult = await fetchWithBrowser(safeUrl);
@@ -301,7 +326,7 @@ async function summarizeUrl(url, options = {}) {
             rendered = browserResult.rendered;
         }
     }
-    
+
     // Fallback to simple fetch
     if (!text) {
         const html = await fetchPage(safeUrl);
@@ -309,24 +334,24 @@ async function summarizeUrl(url, options = {}) {
         title = extracted.title;
         text = extracted.text;
     }
-    
+
     if (!text) {
         throw new Error('No readable text extracted from page.');
     }
-    
-    const summary = await summarizeText({ 
-        title, 
-        text, 
+
+    const summary = await summarizeText({
+        title,
+        text,
         url: safeUrl,
         hasScreenshot: !!screenshot
     });
-    
+
     return {
         title: title || safeUrl,
         url: safeUrl,
         summary,
-        screenshot,  // Base64 PNG or null
-        rendered     // true if browser was used
+        screenshot, // Base64 PNG or null
+        rendered // true if browser was used
     };
 }
 
@@ -336,36 +361,38 @@ async function summarizeUrl(url, options = {}) {
 async function screenshotUrl(url) {
     const safeUrl = sanitizeUrl(url);
     const browser = getBrowserAgent();
-    
+
     if (!browser || !browser.enabled) {
         throw new Error('Browser not available for screenshots');
     }
-    
+
     const sessionKey = `screenshot-${Date.now()}`;
-    
+
     try {
         await browser.startSession(sessionKey);
         const session = browser.getSession(sessionKey);
         const page = session.page;
-        
+
         await page.setViewport({ width: 1280, height: 800 });
         await page.goto(safeUrl, { waitUntil: 'networkidle2', timeout: 15000 });
-        
+
         const title = await page.title();
-        const screenshot = await page.screenshot({ 
+        const screenshot = await page.screenshot({
             type: 'png',
-            fullPage: false 
+            fullPage: false
         });
-        
+
         await browser.closeSession(sessionKey);
-        
+
         return {
             title: title || safeUrl,
             url: safeUrl,
-            screenshot  // Buffer
+            screenshot // Buffer
         };
     } catch (error) {
-        try { await browser.closeSession(sessionKey); } catch {}
+        try {
+            await browser.closeSession(sessionKey);
+        } catch {}
         throw error;
     }
 }

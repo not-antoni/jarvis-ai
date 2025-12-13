@@ -8,12 +8,20 @@ const router = express.Router();
 
 const FORWARD_WEBHOOK = process.env.FORWARD_WEBHOOK;
 if (!FORWARD_WEBHOOK) {
-    console.warn('FORWARD_WEBHOOK is not configured. Incoming Discord webhooks will be acknowledged but not forwarded.');
+    console.warn(
+        'FORWARD_WEBHOOK is not configured. Incoming Discord webhooks will be acknowledged but not forwarded.'
+    );
 }
 
-const DISCORD_PUBLIC_KEY = (process.env.DISCORD_WEBHOOK_PUBLIC_KEY || process.env.DISCORD_PUBLIC_KEY || '').trim();
+const DISCORD_PUBLIC_KEY = (
+    process.env.DISCORD_WEBHOOK_PUBLIC_KEY ||
+    process.env.DISCORD_PUBLIC_KEY ||
+    ''
+).trim();
 if (!DISCORD_PUBLIC_KEY) {
-    console.warn('DISCORD_WEBHOOK_PUBLIC_KEY (or DISCORD_PUBLIC_KEY) is not configured. Discord signature verification will fail.');
+    console.warn(
+        'DISCORD_WEBHOOK_PUBLIC_KEY (or DISCORD_PUBLIC_KEY) is not configured. Discord signature verification will fail.'
+    );
 }
 
 const DISCORD_BOT_TOKEN = (process.env.DISCORD_TOKEN || process.env.BOT_TOKEN || '').trim();
@@ -26,8 +34,8 @@ const WEBHOOK_MIN_INTERVAL_MS = 750;
 const WEBHOOK_FAILURE_LOG_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const webhookFailureLog = [];
 
-const rawBodyParser = express.raw({ type: 'application/json' });
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const rawBodyParser = express.raw({ type: 'application/json', limit: '1mb' });
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 let webhookSendPromise = Promise.resolve();
 let lastWebhookSendAt = 0;
@@ -106,7 +114,7 @@ router.post('/', rawBodyParser, async (req, res) => {
     console.log(`🔔 Received Discord webhook event: ${eventInfo.type}`);
 
     if (FORWARD_WEBHOOK) {
-        forwardEventPayload(payload, eventInfo).catch((error) => {
+        forwardEventPayload(payload, eventInfo).catch(error => {
             console.error('⚠️ Failed to enqueue Discord webhook forward:', error);
         });
     }
@@ -170,7 +178,8 @@ async function sendWebhookWithRetry(body, attempt = 1) {
             return;
         }
 
-        const shouldRetry = RETRYABLE_STATUS_CODES.has(response.status) && attempt < MAX_WEBHOOK_RETRY_ATTEMPTS;
+        const shouldRetry =
+            RETRYABLE_STATUS_CODES.has(response.status) && attempt < MAX_WEBHOOK_RETRY_ATTEMPTS;
         if (shouldRetry) {
             const retryAfterRaw = response.headers.get('retry-after');
             const retryAfterSeconds = retryAfterRaw ? Number(retryAfterRaw) : null;
@@ -178,7 +187,9 @@ async function sendWebhookWithRetry(body, attempt = 1) {
                 ? Math.max(retryAfterSeconds * 1000, WEBHOOK_MIN_INTERVAL_MS)
                 : Math.min(4000, attempt * 1500);
 
-            console.warn(`⚠️ Discord server webhook responded with ${response.status}. Retrying in ${retryDelay}ms (attempt ${attempt + 1}/${MAX_WEBHOOK_RETRY_ATTEMPTS}).`);
+            console.warn(
+                `⚠️ Discord server webhook responded with ${response.status}. Retrying in ${retryDelay}ms (attempt ${attempt + 1}/${MAX_WEBHOOK_RETRY_ATTEMPTS}).`
+            );
             await wait(retryDelay);
             return sendWebhookWithRetry(body, attempt + 1);
         }
@@ -194,7 +205,9 @@ async function sendWebhookWithRetry(body, attempt = 1) {
         }
 
         const retryDelay = Math.min(5000, attempt * 1500);
-        console.warn(`⚠️ Error sending webhook payload (attempt ${attempt}). Retrying in ${retryDelay}ms.`);
+        console.warn(
+            `⚠️ Error sending webhook payload (attempt ${attempt}). Retrying in ${retryDelay}ms.`
+        );
         await wait(retryDelay);
         return sendWebhookWithRetry(body, attempt + 1);
     }
@@ -233,14 +246,20 @@ async function maybeAttachGuildOwner(eventInfo) {
             return eventInfo;
         }
 
-        const response = await fetch(`https://discord.com/api/v10/guilds/${guild.id}/members/${guild.owner_id}`, {
-            headers: {
-                Authorization: `Bot ${DISCORD_BOT_TOKEN}`
+        const response = await fetch(
+            `https://discord.com/api/v10/guilds/${guild.id}/members/${guild.owner_id}`,
+            {
+                headers: {
+                    Authorization: `Bot ${DISCORD_BOT_TOKEN}`
+                }
             }
-        });
+        );
 
         if (!response.ok) {
-            console.warn(`⚠️ Failed to fetch guild owner ${guild.owner_id} for guild ${guild.id}:`, response.status);
+            console.warn(
+                `⚠️ Failed to fetch guild owner ${guild.owner_id} for guild ${guild.id}:`,
+                response.status
+            );
             return eventInfo;
         }
 
@@ -294,7 +313,8 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
     const eventName = (() => {
         if (eventInfo?.raw?.name) return eventInfo.raw.name;
         if (eventInfo?.type) return eventInfo.type;
-        if (typeof originalPayload?.event_type !== 'undefined') return String(originalPayload.event_type);
+        if (typeof originalPayload?.event_type !== 'undefined')
+            return String(originalPayload.event_type);
         if (typeof originalPayload?.type !== 'undefined') return `Type ${originalPayload.type}`;
         return 'Unknown Event';
     })();
@@ -303,7 +323,8 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
     const user = data.user || null;
     const guild = data.guild || null;
     const userDisplayName = user ? buildUserDisplayName(user) : 'Unknown user';
-    const guildDisplayName = guild?.name || (data.integration_type === 1 ? 'Direct Authorization' : null);
+    const guildDisplayName =
+        guild?.name || (data.integration_type === 1 ? 'Direct Authorization' : null);
     const userAvatarUrl = buildUserAvatarUrl(user);
     const guildIconUrl = buildGuildIconUrl(guild);
 
@@ -321,9 +342,14 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
         });
     }
     if (guild?.owner_id) {
-        const guildOwnerUser = data.guild_owner?.user || data.guild_owner || (user?.id === guild.owner_id ? user : null);
+        const guildOwnerUser =
+            data.guild_owner?.user ||
+            data.guild_owner ||
+            (user?.id === guild.owner_id ? user : null);
         const ownerUsername = guildOwnerUser?.username || guildOwnerUser?.global_name || null;
-        const ownerLabel = ownerUsername ? `${ownerUsername} (\`${guild.owner_id}\`)` : `\`${guild.owner_id}\``;
+        const ownerLabel = ownerUsername
+            ? `${ownerUsername} (\`${guild.owner_id}\`)`
+            : `\`${guild.owner_id}\``;
         fields.push({
             name: 'Owner',
             value: ownerLabel,
@@ -333,20 +359,22 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
 
     const embed = {
         title: `Discord Event: ${eventName}`,
-        color: 0x5865F2,
+        color: 0x5865f2,
         timestamp: new Date().toISOString(),
         description,
         fields: fields.length ? fields : undefined,
-        author: user ? {
-            name: userDisplayName,
-            icon_url: userAvatarUrl || undefined,
-            url: user?.id ? `https://discord.com/users/${user.id}` : undefined
-        } : undefined,
+        author: user
+            ? {
+                  name: userDisplayName,
+                  icon_url: userAvatarUrl || undefined,
+                  url: user?.id ? `https://discord.com/users/${user.id}` : undefined
+              }
+            : undefined,
         thumbnail: guildIconUrl ? { url: guildIconUrl } : undefined,
         footer: guildDisplayName ? { text: guildDisplayName } : undefined
     };
 
-    Object.keys(embed).forEach((key) => {
+    Object.keys(embed).forEach(key => {
         if (embed[key] == null) {
             delete embed[key];
         }

@@ -1,0 +1,16 @@
+node_modules/
+vendor/
+external/
+dashboard/
+src/services/discord-handlers-parts/
+data/
+build/
+.cache/
+logs/
+**/*.min.js
+tests/test-*.js
+tests/scraping.test.js
+tests/selfhost-features.test.js
+tests/sentient-core.test.js
+tests/smart-tools-integration.test.js
+tests/yt-dlp-manager.test.js

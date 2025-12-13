@@ -8,7 +8,7 @@ class YouTubeSearch {
     constructor() {
         this.youtube = null;
         this.apiKey = process.env.YT_API_KEY || process.env.YOUTUBE_API_KEY;
-        
+
         if (this.apiKey) {
             this.youtube = google.youtube({
                 version: 'v3',
@@ -21,7 +21,9 @@ class YouTubeSearch {
 
     async searchVideo(query) {
         if (!this.youtube) {
-            throw new Error('YouTube API not configured. Please set YOUTUBE_API_KEY environment variable.');
+            throw new Error(
+                'YouTube API not configured. Please set YOUTUBE_API_KEY environment variable.'
+            );
         }
 
         try {
@@ -41,7 +43,9 @@ class YouTubeSearch {
                     channel: video.snippet.channelTitle,
                     description: video.snippet.description.substring(0, 200) + '...',
                     url: `https://www.youtube.com/watch?v=${video.id.videoId}`,
-                    thumbnail: video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.default?.url,
+                    thumbnail:
+                        video.snippet.thumbnails.medium?.url ||
+                        video.snippet.thumbnails.default?.url,
                     publishedAt: new Date(video.snippet.publishedAt).toLocaleDateString()
                 };
             } else {
@@ -55,7 +59,7 @@ class YouTubeSearch {
 
     formatVideoResponse(videoData) {
         if (!videoData) {
-            return "No relevant videos found, sir. Perhaps try a different search term?";
+            return 'No relevant videos found, sir. Perhaps try a different search term?';
         }
 
         return videoData.url;
@@ -63,7 +67,9 @@ class YouTubeSearch {
 
     async getVideoById(videoId) {
         if (!this.youtube) {
-            throw new Error('YouTube API not configured. Please set YOUTUBE_API_KEY environment variable.');
+            throw new Error(
+                'YouTube API not configured. Please set YOUTUBE_API_KEY environment variable.'
+            );
         }
 
         try {
@@ -83,7 +89,10 @@ class YouTubeSearch {
                 channel: item.snippet.channelTitle,
                 description: item.snippet.description?.substring(0, 200) ?? null,
                 url: `https://www.youtube.com/watch?v=${videoId}`,
-                thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || null,
+                thumbnail:
+                    item.snippet.thumbnails?.medium?.url ||
+                    item.snippet.thumbnails?.default?.url ||
+                    null,
                 duration: parseISODuration(item.contentDetails?.duration)
             };
         } catch (error) {

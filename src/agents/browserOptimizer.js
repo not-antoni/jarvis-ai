@@ -38,7 +38,7 @@ class BrowserOptimizer {
                 Object.defineProperty(navigator, 'webdriver', { get: () => false });
                 Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
                 Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-                Object.defineProperty(navigator, 'permissions', { 
+                Object.defineProperty(navigator, 'permissions', {
                     get: () => ({
                         query: () => Promise.resolve({ state: 'granted' })
                     })
@@ -66,14 +66,21 @@ class BrowserOptimizer {
 
         try {
             const randomString = () => Math.random().toString(36).substring(2, 15);
-            
+
             await this.page.evaluateOnNewDocument(() => {
                 // Override canvas fingerprinting
                 const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-                HTMLCanvasElement.prototype.toDataURL = function(...args) {
+                HTMLCanvasElement.prototype.toDataURL = function (...args) {
                     const context = this.getContext('2d');
                     if (context) {
-                        context.fillStyle = 'rgb(' + Math.floor(Math.random() * 255) + ',' + Math.floor(Math.random() * 255) + ',' + Math.floor(Math.random() * 255) + ')';
+                        context.fillStyle =
+                            'rgb(' +
+                            Math.floor(Math.random() * 255) +
+                            ',' +
+                            Math.floor(Math.random() * 255) +
+                            ',' +
+                            Math.floor(Math.random() * 255) +
+                            ')';
                         context.fillRect(0, 0, 1, 1);
                     }
                     return originalToDataURL.apply(this, args);
@@ -81,7 +88,7 @@ class BrowserOptimizer {
 
                 // Override WebGL fingerprinting
                 const getParameter = WebGLRenderingContext.prototype.getParameter;
-                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                WebGLRenderingContext.prototype.getParameter = function (parameter) {
                     if (parameter === 37445) {
                         return 'Intel Inc.';
                     }
@@ -94,8 +101,8 @@ class BrowserOptimizer {
 
             // Random screen resolution variations
             await this.page.evaluateOnNewDocument(() => {
-                Object.defineProperty(window, 'devicePixelRatio', { 
-                    get: () => Math.random() > 0.5 ? 1 : 2 
+                Object.defineProperty(window, 'devicePixelRatio', {
+                    get: () => (Math.random() > 0.5 ? 1 : 2)
                 });
             });
 
@@ -114,18 +121,26 @@ class BrowserOptimizer {
         try {
             await this.page.setRequestInterception(true);
 
-            this.page.on('request', (request) => {
+            this.page.on('request', request => {
                 const resourceType = request.resourceType();
                 const url = request.url();
 
                 // Block tracking and ads
-                if (/google-analytics|googletagmanager|facebook\.com|doubleclick\.net|hotjar|mixpanel|segment\.com|amplitude\.com/.test(url)) {
+                if (
+                    /google-analytics|googletagmanager|facebook\.com|doubleclick\.net|hotjar|mixpanel|segment\.com|amplitude\.com/.test(
+                        url
+                    )
+                ) {
                     request.abort();
                     return;
                 }
 
                 // Block media unless needed
-                if (resourceType === 'image' || resourceType === 'media' || resourceType === 'font') {
+                if (
+                    resourceType === 'image' ||
+                    resourceType === 'media' ||
+                    resourceType === 'font'
+                ) {
                     // Allow images but with lower priority
                     request.continue({ resourceType: 'image' });
                     return;
@@ -191,28 +206,43 @@ class BrowserOptimizer {
                     typing: 0
                 };
 
-                document.addEventListener('mousemove', () => {
-                    window.__antiBot__.mouseMoves++;
-                }, true);
+                document.addEventListener(
+                    'mousemove',
+                    () => {
+                        window.__antiBot__.mouseMoves++;
+                    },
+                    true
+                );
 
-                document.addEventListener('click', () => {
-                    window.__antiBot__.clicks++;
-                }, true);
+                document.addEventListener(
+                    'click',
+                    () => {
+                        window.__antiBot__.clicks++;
+                    },
+                    true
+                );
 
-                document.addEventListener('keypress', () => {
-                    window.__antiBot__.typing++;
-                }, true);
+                document.addEventListener(
+                    'keypress',
+                    () => {
+                        window.__antiBot__.typing++;
+                    },
+                    true
+                );
             });
 
             // Add navigation timing delays
             await this.page.evaluateOnNewDocument(() => {
                 const originalFetch = window.fetch;
-                window.fetch = function(...args) {
+                window.fetch = function (...args) {
                     // Add slight delay to make it look human
                     return new Promise(resolve => {
-                        setTimeout(() => {
-                            originalFetch.apply(this, args).then(resolve);
-                        }, Math.random() * 100 + 50);
+                        setTimeout(
+                            () => {
+                                originalFetch.apply(this, args).then(resolve);
+                            },
+                            Math.random() * 100 + 50
+                        );
                     });
                 };
             });
@@ -235,8 +265,8 @@ class BrowserOptimizer {
      * Human-like scrolling
      */
     async humanScroll(page, scrollHeight = null) {
-        await page.evaluate((height) => {
-            return new Promise((resolve) => {
+        await page.evaluate(height => {
+            return new Promise(resolve => {
                 let totalScroll = 0;
                 const scrollStep = Math.floor(Math.random() * 100) + 50; // 50-150px
                 const delayBetweenScrolls = Math.random() * 300 + 100; // 100-400ms
@@ -260,7 +290,7 @@ class BrowserOptimizer {
     async humanClick(selector) {
         if (!this.page) throw new Error('No page instance');
 
-        await this.page.evaluate((sel) => {
+        await this.page.evaluate(sel => {
             const element = document.querySelector(sel);
             if (!element) throw new Error(`Element not found: ${sel}`);
 

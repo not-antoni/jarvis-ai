@@ -37,8 +37,10 @@ class CaptchaHandler {
                 }
 
                 // Check for generic "challenge" pages
-                if (document.body.textContent.includes('Verify you are human') ||
-                    document.body.textContent.includes('challenge')) {
+                if (
+                    document.body.textContent.includes('Verify you are human') ||
+                    document.body.textContent.includes('challenge')
+                ) {
                     return 'unknown_challenge';
                 }
 
@@ -87,7 +89,7 @@ class CaptchaHandler {
             const token = await this.solveWithService(siteKey, pageUrl, captchaType);
 
             // Inject token into page
-            await page.evaluate((token) => {
+            await page.evaluate(token => {
                 if (window.grecaptcha) {
                     window.grecaptcha.callback(token);
                 } else if (window.hcaptcha) {
@@ -161,7 +163,9 @@ class CaptchaHandler {
         const startTime = Date.now();
 
         while (Date.now() - startTime < this.timeout) {
-            const res = await fetch(`http://2captcha.com/api/res.php?key=${this.apiKey}&action=get&id=${captchaId}`);
+            const res = await fetch(
+                `http://2captcha.com/api/res.php?key=${this.apiKey}&action=get&id=${captchaId}`
+            );
             const text = await res.text();
 
             if (text === 'CAPCHA_NOT_READY') {

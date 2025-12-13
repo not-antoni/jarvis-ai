@@ -16,34 +16,46 @@ class APIResponseStandardizer {
     getDefaultErrorCodes() {
         return {
             // Client errors (4xx)
-            'INVALID_REQUEST': { code: 40001, httpStatus: 400, message: 'Invalid request' },
-            'MISSING_PARAMETER': { code: 40002, httpStatus: 400, message: 'Missing required parameter' },
-            'INVALID_PARAMETER': { code: 40003, httpStatus: 400, message: 'Invalid parameter value' },
-            'UNAUTHORIZED': { code: 40101, httpStatus: 401, message: 'Unauthorized' },
-            'FORBIDDEN': { code: 40301, httpStatus: 403, message: 'Forbidden' },
-            'NOT_FOUND': { code: 40401, httpStatus: 404, message: 'Resource not found' },
-            'CONFLICT': { code: 40901, httpStatus: 409, message: 'Conflict' },
-            'UNPROCESSABLE': { code: 42201, httpStatus: 422, message: 'Unprocessable entity' },
-            
+            INVALID_REQUEST: { code: 40001, httpStatus: 400, message: 'Invalid request' },
+            MISSING_PARAMETER: {
+                code: 40002,
+                httpStatus: 400,
+                message: 'Missing required parameter'
+            },
+            INVALID_PARAMETER: { code: 40003, httpStatus: 400, message: 'Invalid parameter value' },
+            UNAUTHORIZED: { code: 40101, httpStatus: 401, message: 'Unauthorized' },
+            FORBIDDEN: { code: 40301, httpStatus: 403, message: 'Forbidden' },
+            NOT_FOUND: { code: 40401, httpStatus: 404, message: 'Resource not found' },
+            CONFLICT: { code: 40901, httpStatus: 409, message: 'Conflict' },
+            UNPROCESSABLE: { code: 42201, httpStatus: 422, message: 'Unprocessable entity' },
+
             // Rate limiting (429)
-            'RATE_LIMIT_EXCEEDED': { code: 42901, httpStatus: 429, message: 'Rate limit exceeded' },
-            'MINUTE_LIMIT': { code: 42902, httpStatus: 429, message: 'Minute rate limit exceeded' },
-            'HOUR_LIMIT': { code: 42903, httpStatus: 429, message: 'Hour rate limit exceeded' },
-            'DAY_LIMIT': { code: 42904, httpStatus: 429, message: 'Day rate limit exceeded' },
-            'COST_LIMIT': { code: 42905, httpStatus: 429, message: 'Cost quota exceeded' },
-            
+            RATE_LIMIT_EXCEEDED: { code: 42901, httpStatus: 429, message: 'Rate limit exceeded' },
+            MINUTE_LIMIT: { code: 42902, httpStatus: 429, message: 'Minute rate limit exceeded' },
+            HOUR_LIMIT: { code: 42903, httpStatus: 429, message: 'Hour rate limit exceeded' },
+            DAY_LIMIT: { code: 42904, httpStatus: 429, message: 'Day rate limit exceeded' },
+            COST_LIMIT: { code: 42905, httpStatus: 429, message: 'Cost quota exceeded' },
+
             // Server errors (5xx)
-            'INTERNAL_ERROR': { code: 50001, httpStatus: 500, message: 'Internal server error' },
-            'SERVICE_UNAVAILABLE': { code: 50301, httpStatus: 503, message: 'Service unavailable' },
-            'DATABASE_ERROR': { code: 50002, httpStatus: 500, message: 'Database error' },
-            'EXTERNAL_SERVICE_ERROR': { code: 50201, httpStatus: 502, message: 'External service error' },
-            
+            INTERNAL_ERROR: { code: 50001, httpStatus: 500, message: 'Internal server error' },
+            SERVICE_UNAVAILABLE: { code: 50301, httpStatus: 503, message: 'Service unavailable' },
+            DATABASE_ERROR: { code: 50002, httpStatus: 500, message: 'Database error' },
+            EXTERNAL_SERVICE_ERROR: {
+                code: 50201,
+                httpStatus: 502,
+                message: 'External service error'
+            },
+
             // Agent-specific errors
-            'AGENT_UNAVAILABLE': { code: 50401, httpStatus: 503, message: 'Agent unavailable' },
-            'SESSION_EXPIRED': { code: 40902, httpStatus: 409, message: 'Session expired' },
-            'MAX_SESSIONS_EXCEEDED': { code: 42906, httpStatus: 429, message: 'Max concurrent sessions exceeded' },
-            'BROWSER_CRASH': { code: 50402, httpStatus: 500, message: 'Browser crashed' },
-            'NAVIGATION_TIMEOUT': { code: 50403, httpStatus: 500, message: 'Navigation timeout' }
+            AGENT_UNAVAILABLE: { code: 50401, httpStatus: 503, message: 'Agent unavailable' },
+            SESSION_EXPIRED: { code: 40902, httpStatus: 409, message: 'Session expired' },
+            MAX_SESSIONS_EXCEEDED: {
+                code: 42906,
+                httpStatus: 429,
+                message: 'Max concurrent sessions exceeded'
+            },
+            BROWSER_CRASH: { code: 50402, httpStatus: 500, message: 'Browser crashed' },
+            NAVIGATION_TIMEOUT: { code: 50403, httpStatus: 500, message: 'Navigation timeout' }
         };
     }
 
@@ -99,7 +111,7 @@ class APIResponseStandardizer {
      */
     error(errorKey, details = {}, httpOverride = null) {
         const errorDef = this.errorCodes[errorKey] || this.errorCodes['INTERNAL_ERROR'];
-        
+
         return {
             success: false,
             status: 'error',
@@ -119,7 +131,7 @@ class APIResponseStandardizer {
      */
     rateLimitError(errorKey, retryAfterMs, quota = null) {
         const errorDef = this.errorCodes[errorKey] || this.errorCodes['RATE_LIMIT_EXCEEDED'];
-        
+
         return {
             success: false,
             status: 'rate_limited',
@@ -169,9 +181,10 @@ class APIResponseStandardizer {
         const message = error.message?.toUpperCase() || '';
 
         let errorKey = 'INTERNAL_ERROR';
-        
+
         if (message.includes('TIMEOUT')) errorKey = 'NAVIGATION_TIMEOUT';
-        if (message.includes('RATE_LIMIT') || message.includes('429')) errorKey = 'RATE_LIMIT_EXCEEDED';
+        if (message.includes('RATE_LIMIT') || message.includes('429'))
+            errorKey = 'RATE_LIMIT_EXCEEDED';
         if (message.includes('UNAUTHORIZED')) errorKey = 'UNAUTHORIZED';
         if (message.includes('FORBIDDEN')) errorKey = 'FORBIDDEN';
         if (message.includes('NOT_FOUND') || message.includes('404')) errorKey = 'NOT_FOUND';
@@ -224,7 +237,7 @@ class APIResponseStandardizer {
             const originalJson = res.json;
 
             // Override json method
-            res.json = function(data) {
+            res.json = function (data) {
                 // If already formatted, send as-is
                 if (data && (data.success === true || data.success === false)) {
                     return originalJson.call(this, data);

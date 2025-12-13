@@ -1,7 +1,7 @@
 /**
  * Stark Bucks Economy System
  * A robust economy with persistence, shop, games, and leaderboards
- * 
+ *
  * Features:
  * - MongoDB persistence (auto-saves)
  * - Shop system with items
@@ -98,7 +98,7 @@ const SHOP_ITEMS = {
     arc_reactor: {
         id: 'arc_reactor',
         name: '💠 Mini Arc Reactor',
-        description: 'Legendary collector item - proves you\'re a true Stark fan',
+        description: "Legendary collector item - proves you're a true Stark fan",
         price: 10000,
         type: 'legendary',
         oneTime: true
@@ -290,29 +290,37 @@ const MINIGAME_REWARDS = {
             { name: '⚡ Thor threw you some Asgardian gold', reward: 90, chance: 0.02 },
             { name: '🛡️ Black Widow left a tip', reward: 40, chance: 0.02 },
             { name: '🤖 Vision calculated you need help', reward: 60, chance: 0.02 },
-            { name: '🧙 Doctor Strange opened a portal and dropped coins', reward: 80, chance: 0.02 },
+            {
+                name: '🧙 Doctor Strange opened a portal and dropped coins',
+                reward: 80,
+                chance: 0.02
+            },
             { name: '🦝 Rocket felt generous (rare!)', reward: 70, chance: 0.02 },
             { name: '🌳 Groot gave you a twig (worth something?)', reward: 5, chance: 0.02 },
-            { name: '👑 T\'Challa\'s Wakandan charity fund', reward: 85, chance: 0.02 },
+            { name: "👑 T'Challa's Wakandan charity fund", reward: 85, chance: 0.02 },
             { name: '🧬 Bruce Banner felt bad for you', reward: 35, chance: 0.02 },
             { name: '🎯 Yelena Belova threw you a ruble', reward: 10, chance: 0.02 },
             { name: '🔮 Wanda felt your pain (literally)', reward: 55, chance: 0.02 },
-            { name: '🦇 Moon Knight\'s alter ego donated', reward: 45, chance: 0.02 },
+            { name: "🦇 Moon Knight's alter ego donated", reward: 45, chance: 0.02 },
             { name: '⚔️ Loki tricked you into thinking you got money', reward: 0, chance: 0.02 },
-            { name: '🕸️ Venom symbiote tried to help (it didn\'t)', reward: -10, chance: 0.02 },
+            { name: "🕸️ Venom symbiote tried to help (it didn't)", reward: -10, chance: 0.02 },
             { name: '👻 Ghost Rider felt your suffering', reward: 50, chance: 0.02 },
-            { name: '🎭 Deadpool gave you $4 (he\'s broke too)', reward: 4, chance: 0.02 },
-            { name: '🌙 Daredevil heard your plea (he\'s blind but generous)', reward: 30, chance: 0.02 },
+            { name: "🎭 Deadpool gave you $4 (he's broke too)", reward: 4, chance: 0.02 },
+            {
+                name: "🌙 Daredevil heard your plea (he's blind but generous)",
+                reward: 30,
+                chance: 0.02
+            },
             { name: '🔥 Human Torch warmed your heart (and wallet)', reward: 40, chance: 0.02 },
             { name: '❄️ Iceman froze you out (no money)', reward: 0, chance: 0.02 },
             { name: '🧲 Magneto threw you some spare metal', reward: 15, chance: 0.02 },
-            { name: '👽 Nick Fury\'s eye saw your struggle', reward: 65, chance: 0.02 },
-            { name: '🦂 Scorpion tried to help (he\'s broke)', reward: 0, chance: 0.02 },
+            { name: "👽 Nick Fury's eye saw your struggle", reward: 65, chance: 0.02 },
+            { name: "🦂 Scorpion tried to help (he's broke)", reward: 0, chance: 0.02 },
             { name: '🕷️ Miles Morales shared his allowance', reward: 20, chance: 0.02 },
             { name: '🦇 Batroc the Leaper felt generous', reward: 12, chance: 0.02 },
             { name: '🌊 Namor threw you some underwater treasure', reward: 95, chance: 0.02 },
             { name: '⚔️ Taskmaster copied your begging technique', reward: 0, chance: 0.02 },
-            { name: '🦾 Winter Soldier\'s metal arm dropped coins', reward: 35, chance: 0.02 },
+            { name: "🦾 Winter Soldier's metal arm dropped coins", reward: 35, chance: 0.02 },
             { name: '🦅 Falcon felt bad for you', reward: 25, chance: 0.02 },
             { name: '🕷️ Black Cat stole money then gave it to you', reward: 65, chance: 0.02 },
             { name: '👑 Killmonger felt a moment of pity', reward: 40, chance: 0.02 },
@@ -326,10 +334,10 @@ const MINIGAME_REWARDS = {
             { name: '🎭 Joker gave you a fake dollar', reward: 0, chance: 0.02 },
             { name: '🦅 Red Skull ignored you (Nazi vibes)', reward: 0, chance: 0.02 },
             { name: '⚔️ Crossbones felt generous', reward: 30, chance: 0.02 },
-            { name: '🦾 Ultron calculated you\'re useless', reward: 0, chance: 0.02 },
+            { name: "🦾 Ultron calculated you're useless", reward: 0, chance: 0.02 },
             { name: '👑 Thanos felt your pain (snapped away)', reward: 0, chance: 0.02 },
             { name: '🌙 Blade gave you some cash', reward: 45, chance: 0.02 },
-            { name: '🦂 Morbius felt bad (he\'s a vampire)', reward: 20, chance: 0.02 }
+            { name: "🦂 Morbius felt bad (he's a vampire)", reward: 20, chance: 0.02 }
         ]
     },
     crime: {
@@ -342,31 +350,51 @@ const MINIGAME_REWARDS = {
             { name: '🚨 Got caught! Paid bail', reward: -150, chance: 0.02 },
             { name: '👮 Arrested! Lost everything', reward: -300, chance: 0.02 },
             { name: '💀 Got beat up by the victim', reward: -100, chance: 0.02 },
-            { name: '🍕 Stole pizza from Spider-Man (he\'s mad)', reward: 50, chance: 0.02 },
+            { name: "🍕 Stole pizza from Spider-Man (he's mad)", reward: 50, chance: 0.02 },
             { name: '🦹 Broke into Oscorp (found nothing)', reward: 0, chance: 0.02 },
             { name: '💼 Snatched a briefcase (it was empty)', reward: 25, chance: 0.02 },
             { name: '🎰 Robbed a casino (got lucky!)', reward: 400, chance: 0.02 },
             { name: '🏪 Shoplifted from a convenience store', reward: 75, chance: 0.02 },
-            { name: '📱 Stole someone\'s phone (they tracked you)', reward: -50, chance: 0.02 },
+            { name: "📱 Stole someone's phone (they tracked you)", reward: -50, chance: 0.02 },
             { name: '🚲 Stole a bike (it was a trap bike)', reward: -75, chance: 0.02 },
             { name: '🎨 Art heist gone wrong (fake painting)', reward: 10, chance: 0.02 },
             { name: '💳 Credit card fraud (got caught immediately)', reward: -200, chance: 0.02 },
-            { name: '🏠 Broke into Avengers Tower (Jarvis called security)', reward: -250, chance: 0.02 },
+            {
+                name: '🏠 Broke into Avengers Tower (Jarvis called security)',
+                reward: -250,
+                chance: 0.02
+            },
             { name: '🦝 Tried to rob Rocket (he robbed you instead)', reward: -175, chance: 0.02 },
-            { name: '⚡ Stole Thor\'s hammer (you can\'t lift it)', reward: 0, chance: 0.02 },
-            { name: '🛡️ Tried to steal Cap\'s shield (it came back)', reward: -50, chance: 0.02 },
-            { name: '🧙 Stole from Doctor Strange (he opened a portal)', reward: -100, chance: 0.02 },
+            { name: "⚡ Stole Thor's hammer (you can't lift it)", reward: 0, chance: 0.02 },
+            { name: "🛡️ Tried to steal Cap's shield (it came back)", reward: -50, chance: 0.02 },
+            {
+                name: '🧙 Stole from Doctor Strange (he opened a portal)',
+                reward: -100,
+                chance: 0.02
+            },
             { name: '🕷️ Tried to steal from Kingpin (bad idea)', reward: -300, chance: 0.02 },
             { name: '👑 Stole from Wakanda (Shuri caught you)', reward: -150, chance: 0.02 },
-            { name: '🌙 Broke into Moon Knight\'s place (he has 3 personalities)', reward: -125, chance: 0.02 },
+            {
+                name: "🌙 Broke into Moon Knight's place (he has 3 personalities)",
+                reward: -125,
+                chance: 0.02
+            },
             { name: '🔥 Tried to rob Human Torch (you got burned)', reward: -80, chance: 0.02 },
             { name: '❄️ Stole from Iceman (frozen solid)', reward: -60, chance: 0.02 },
-            { name: '🧲 Tried to steal Magneto\'s helmet (he controlled it)', reward: -90, chance: 0.02 },
+            {
+                name: "🧲 Tried to steal Magneto's helmet (he controlled it)",
+                reward: -90,
+                chance: 0.02
+            },
             { name: '🦇 Broke into Wayne Manor (wrong universe)', reward: 0, chance: 0.02 },
-            { name: '👻 Tried to rob Ghost Rider (your soul is now in debt)', reward: -400, chance: 0.02 },
-            { name: '🎭 Deadpool caught you (he\'s keeping the money)', reward: -25, chance: 0.02 },
+            {
+                name: '👻 Tried to rob Ghost Rider (your soul is now in debt)',
+                reward: -400,
+                chance: 0.02
+            },
+            { name: "🎭 Deadpool caught you (he's keeping the money)", reward: -25, chance: 0.02 },
             { name: '🕸️ Stole from Venom (symbiote attached to you)', reward: -200, chance: 0.02 },
-            { name: '🌊 Tried to rob Namor (he\'s underwater)', reward: 0, chance: 0.02 },
+            { name: "🌊 Tried to rob Namor (he's underwater)", reward: 0, chance: 0.02 },
             { name: '🔮 Stole from Wanda (reality broke)', reward: -350, chance: 0.02 },
             { name: '⚔️ Tried to rob Loki (he tricked you)', reward: -100, chance: 0.02 },
             { name: '🦅 Stole from Hawkeye (he shot an arrow at you)', reward: -70, chance: 0.02 },
@@ -374,16 +402,24 @@ const MINIGAME_REWARDS = {
             { name: '🦎 Stole from Lizard (he bit you)', reward: -45, chance: 0.02 },
             { name: '⚡ Tried to rob Electro (you got zapped)', reward: -65, chance: 0.02 },
             { name: '🔥 Stole from Sandman (he buried you)', reward: -40, chance: 0.02 },
-            { name: '🦾 Broke into Doc Ock\'s lab (tentacles caught you)', reward: -110, chance: 0.02 },
+            {
+                name: "🦾 Broke into Doc Ock's lab (tentacles caught you)",
+                reward: -110,
+                chance: 0.02
+            },
             { name: '🦅 Tried to rob Vulture (he dropped you)', reward: -85, chance: 0.02 },
             { name: '🎭 Stole from Mysterio (it was all illusions)', reward: 0, chance: 0.02 },
-            { name: '🦇 Broke into Kraven\'s trophy room (he hunted you)', reward: -120, chance: 0.02 },
+            {
+                name: "🦇 Broke into Kraven's trophy room (he hunted you)",
+                reward: -120,
+                chance: 0.02
+            },
             { name: '🦂 Tried to rob Rhino (he charged you)', reward: -95, chance: 0.02 },
             { name: '⚔️ Stole from Taskmaster (he copied your moves)', reward: -30, chance: 0.02 },
-            { name: '🦾 Broke into Ultron\'s base (robots attacked)', reward: -180, chance: 0.02 },
+            { name: "🦾 Broke into Ultron's base (robots attacked)", reward: -180, chance: 0.02 },
             { name: '👑 Tried to rob Thanos (he snapped you)', reward: -500, chance: 0.02 },
-            { name: '🌙 Stole from Blade (he\'s a vampire hunter)', reward: -35, chance: 0.02 },
-            { name: '🦂 Broke into Morbius\'s lab (vampire vibes)', reward: -20, chance: 0.02 }
+            { name: "🌙 Stole from Blade (he's a vampire hunter)", reward: -35, chance: 0.02 },
+            { name: "🦂 Broke into Morbius's lab (vampire vibes)", reward: -20, chance: 0.02 }
         ]
     },
     postmeme: {
@@ -444,76 +480,106 @@ const MINIGAME_REWARDS = {
     search: {
         cooldown: 60 * 1000, // 1 minute
         locations: [
-            { name: "Tony's couch cushions", outcomes: [
-                { result: 'Found some loose change!', reward: 50, chance: 0.2 },
-                { result: 'Found old pizza... gross', reward: 0, chance: 0.2 },
-                { result: 'Found a $20 bill!', reward: 20, chance: 0.2 },
-                { result: 'Found nothing but lint', reward: 0, chance: 0.2 },
-                { result: 'Found Tony\'s spare arc reactor (worthless)', reward: 0, chance: 0.2 }
-            ]},
-            { name: "the Stark Industries dumpster", outcomes: [
-                { result: 'Found discarded prototype parts!', reward: 150, chance: 0.2 },
-                { result: 'Just garbage... literally', reward: 5, chance: 0.2 },
-                { result: 'Security caught you!', reward: -50, chance: 0.2 },
-                { result: 'Found broken tech worth something', reward: 75, chance: 0.2 },
-                { result: 'Found nothing but coffee cups', reward: 0, chance: 0.2 }
-            ]},
-            { name: "Happy's car", outcomes: [
-                { result: 'Found his emergency stash!', reward: 100, chance: 0.2 },
-                { result: 'Nothing but gym gear', reward: 0, chance: 0.2 },
-                { result: 'Happy saw you! Awkward...', reward: -20, chance: 0.2 },
-                { result: 'Found spare change in cup holder', reward: 15, chance: 0.2 },
-                { result: 'Found Happy\'s gym membership card', reward: 0, chance: 0.2 }
-            ]},
-            { name: "the Avengers compound", outcomes: [
-                { result: 'Found Thor\'s forgotten gold!', reward: 300, chance: 0.2 },
-                { result: 'Picked up some spare parts', reward: 80, chance: 0.2 },
-                { result: 'Empty... everyone\'s on a mission', reward: 20, chance: 0.2 },
-                { result: 'SHIELD detained you briefly', reward: -100, chance: 0.2 },
-                { result: 'Found Cap\'s old shield polish', reward: 0, chance: 0.2 }
-            ]},
-            { name: "Pepper's office", outcomes: [
-                { result: 'Found some spare change', reward: 25, chance: 0.2 },
-                { result: 'Found nothing (she\'s organized)', reward: 0, chance: 0.2 },
-                { result: 'Pepper caught you!', reward: -30, chance: 0.2 },
-                { result: 'Found a lost wallet', reward: 60, chance: 0.2 },
-                { result: 'Found old business cards', reward: 0, chance: 0.2 }
-            ]},
-            { name: "the Quinjet hangar", outcomes: [
-                { result: 'Found spare parts worth money', reward: 120, chance: 0.2 },
-                { result: 'Found nothing but fuel', reward: 0, chance: 0.2 },
-                { result: 'Got caught by security', reward: -75, chance: 0.2 },
-                { result: 'Found Hawkeye\'s arrow stash', reward: 40, chance: 0.2 },
-                { result: 'Found Black Widow\'s hidden cash', reward: 90, chance: 0.2 }
-            ]},
-            { name: "the training room", outcomes: [
-                { result: 'Found some dropped coins', reward: 30, chance: 0.2 },
-                { result: 'Found nothing but sweat', reward: 0, chance: 0.2 },
-                { result: 'Got caught by Cap', reward: -40, chance: 0.2 },
-                { result: 'Found Hulk\'s torn pants (worthless)', reward: 0, chance: 0.2 },
-                { result: 'Found spare equipment', reward: 50, chance: 0.2 }
-            ]},
-            { name: "the lab", outcomes: [
-                { result: 'Found experimental tech', reward: 180, chance: 0.2 },
-                { result: 'Found nothing but beakers', reward: 0, chance: 0.2 },
-                { result: 'Broke something expensive!', reward: -150, chance: 0.2 },
-                { result: 'Found Shuri\'s prototype', reward: 200, chance: 0.2 },
-                { result: 'Found Banner\'s research notes', reward: 35, chance: 0.2 }
-            ]},
-            { name: "the kitchen", outcomes: [
-                { result: 'Found some cash in the fridge', reward: 45, chance: 0.2 },
-                { result: 'Found nothing but leftovers', reward: 0, chance: 0.2 },
-                { result: 'Thor ate everything', reward: 0, chance: 0.2 },
-                { result: 'Found Tony\'s hidden snack stash', reward: 20, chance: 0.2 },
-                { result: 'Found Pepper\'s emergency fund', reward: 70, chance: 0.2 }
-            ]},
-            { name: "the armory", outcomes: [
-                { result: 'Found spare weapons worth money', reward: 160, chance: 0.2 },
-                { result: 'Found nothing (locked)', reward: 0, chance: 0.2 },
-                { result: 'Got caught by security!', reward: -200, chance: 0.2 },
-                { result: 'Found War Machine\'s spare parts', reward: 110, chance: 0.2 },
-                { result: 'Found Iron Man\'s old repulsors', reward: 140, chance: 0.2 }
-            ]}
+            {
+                name: "Tony's couch cushions",
+                outcomes: [
+                    { result: 'Found some loose change!', reward: 50, chance: 0.2 },
+                    { result: 'Found old pizza... gross', reward: 0, chance: 0.2 },
+                    { result: 'Found a $20 bill!', reward: 20, chance: 0.2 },
+                    { result: 'Found nothing but lint', reward: 0, chance: 0.2 },
+                    { result: "Found Tony's spare arc reactor (worthless)", reward: 0, chance: 0.2 }
+                ]
+            },
+            {
+                name: 'the Stark Industries dumpster',
+                outcomes: [
+                    { result: 'Found discarded prototype parts!', reward: 150, chance: 0.2 },
+                    { result: 'Just garbage... literally', reward: 5, chance: 0.2 },
+                    { result: 'Security caught you!', reward: -50, chance: 0.2 },
+                    { result: 'Found broken tech worth something', reward: 75, chance: 0.2 },
+                    { result: 'Found nothing but coffee cups', reward: 0, chance: 0.2 }
+                ]
+            },
+            {
+                name: "Happy's car",
+                outcomes: [
+                    { result: 'Found his emergency stash!', reward: 100, chance: 0.2 },
+                    { result: 'Nothing but gym gear', reward: 0, chance: 0.2 },
+                    { result: 'Happy saw you! Awkward...', reward: -20, chance: 0.2 },
+                    { result: 'Found spare change in cup holder', reward: 15, chance: 0.2 },
+                    { result: "Found Happy's gym membership card", reward: 0, chance: 0.2 }
+                ]
+            },
+            {
+                name: 'the Avengers compound',
+                outcomes: [
+                    { result: "Found Thor's forgotten gold!", reward: 300, chance: 0.2 },
+                    { result: 'Picked up some spare parts', reward: 80, chance: 0.2 },
+                    { result: "Empty... everyone's on a mission", reward: 20, chance: 0.2 },
+                    { result: 'SHIELD detained you briefly', reward: -100, chance: 0.2 },
+                    { result: "Found Cap's old shield polish", reward: 0, chance: 0.2 }
+                ]
+            },
+            {
+                name: "Pepper's office",
+                outcomes: [
+                    { result: 'Found some spare change', reward: 25, chance: 0.2 },
+                    { result: "Found nothing (she's organized)", reward: 0, chance: 0.2 },
+                    { result: 'Pepper caught you!', reward: -30, chance: 0.2 },
+                    { result: 'Found a lost wallet', reward: 60, chance: 0.2 },
+                    { result: 'Found old business cards', reward: 0, chance: 0.2 }
+                ]
+            },
+            {
+                name: 'the Quinjet hangar',
+                outcomes: [
+                    { result: 'Found spare parts worth money', reward: 120, chance: 0.2 },
+                    { result: 'Found nothing but fuel', reward: 0, chance: 0.2 },
+                    { result: 'Got caught by security', reward: -75, chance: 0.2 },
+                    { result: "Found Hawkeye's arrow stash", reward: 40, chance: 0.2 },
+                    { result: "Found Black Widow's hidden cash", reward: 90, chance: 0.2 }
+                ]
+            },
+            {
+                name: 'the training room',
+                outcomes: [
+                    { result: 'Found some dropped coins', reward: 30, chance: 0.2 },
+                    { result: 'Found nothing but sweat', reward: 0, chance: 0.2 },
+                    { result: 'Got caught by Cap', reward: -40, chance: 0.2 },
+                    { result: "Found Hulk's torn pants (worthless)", reward: 0, chance: 0.2 },
+                    { result: 'Found spare equipment', reward: 50, chance: 0.2 }
+                ]
+            },
+            {
+                name: 'the lab',
+                outcomes: [
+                    { result: 'Found experimental tech', reward: 180, chance: 0.2 },
+                    { result: 'Found nothing but beakers', reward: 0, chance: 0.2 },
+                    { result: 'Broke something expensive!', reward: -150, chance: 0.2 },
+                    { result: "Found Shuri's prototype", reward: 200, chance: 0.2 },
+                    { result: "Found Banner's research notes", reward: 35, chance: 0.2 }
+                ]
+            },
+            {
+                name: 'the kitchen',
+                outcomes: [
+                    { result: 'Found some cash in the fridge', reward: 45, chance: 0.2 },
+                    { result: 'Found nothing but leftovers', reward: 0, chance: 0.2 },
+                    { result: 'Thor ate everything', reward: 0, chance: 0.2 },
+                    { result: "Found Tony's hidden snack stash", reward: 20, chance: 0.2 },
+                    { result: "Found Pepper's emergency fund", reward: 70, chance: 0.2 }
+                ]
+            },
+            {
+                name: 'the armory',
+                outcomes: [
+                    { result: 'Found spare weapons worth money', reward: 160, chance: 0.2 },
+                    { result: 'Found nothing (locked)', reward: 0, chance: 0.2 },
+                    { result: 'Got caught by security!', reward: -200, chance: 0.2 },
+                    { result: "Found War Machine's spare parts", reward: 110, chance: 0.2 },
+                    { result: "Found Iron Man's old repulsors", reward: 140, chance: 0.2 }
+                ]
+            }
         ]
     }
 };
@@ -625,11 +691,7 @@ async function saveUser(userId, userData) {
 
     try {
         const col = await getCollection();
-        await col.updateOne(
-            { userId: userId },
-            { $set: userData },
-            { upsert: true }
-        );
+        await col.updateOne({ userId: userId }, { $set: userData }, { upsert: true });
     } catch (error) {
         console.error('[StarkEconomy] Failed to save user:', error);
     }
@@ -689,12 +751,12 @@ function checkCooldown(userId, action, cooldownMs) {
 async function getActiveEffects(userId) {
     const user = await loadUser(userId);
     const now = Date.now();
-    
+
     // Filter out expired effects
     user.activeEffects = (user.activeEffects || []).filter(effect => {
         return effect.expiresAt > now;
     });
-    
+
     await saveUser(userId, user);
     return user.activeEffects;
 }
@@ -704,7 +766,7 @@ async function getActiveEffects(userId) {
  */
 async function applyItemEffect(userId, item) {
     const user = await loadUser(userId);
-    
+
     if (item.duration) {
         user.activeEffects = user.activeEffects || [];
         user.activeEffects.push({
@@ -713,7 +775,7 @@ async function applyItemEffect(userId, item) {
             expiresAt: Date.now() + item.duration
         });
     }
-    
+
     await saveUser(userId, user);
 }
 
@@ -739,25 +801,32 @@ async function claimDaily(userId, username) {
     }
 
     // Check streak
-    const wasYesterday = timeSinceLastDaily < (ECONOMY_CONFIG.dailyCooldown * 2);
+    const wasYesterday = timeSinceLastDaily < ECONOMY_CONFIG.dailyCooldown * 2;
     if (wasYesterday) {
-        user.dailyStreak = Math.min(ensureNumber(user.dailyStreak, 0) + 1, ensureNumber(ECONOMY_CONFIG.maxDailyStreak, 30));
+        user.dailyStreak = Math.min(
+            ensureNumber(user.dailyStreak, 0) + 1,
+            ensureNumber(ECONOMY_CONFIG.maxDailyStreak, 30)
+        );
     } else {
         user.dailyStreak = 1; // Reset streak
     }
 
     // Calculate reward
     const configuredDailyReward = ECONOMY_CONFIG.dailyReward;
-    const baseReward = (configuredDailyReward && typeof configuredDailyReward === 'object')
-        ? ensureNumber(configuredDailyReward.min, 0) +
-            Math.random() * (ensureNumber(configuredDailyReward.max, 0) - ensureNumber(configuredDailyReward.min, 0))
-        : ensureNumber(configuredDailyReward, 0);
+    const baseReward =
+        configuredDailyReward && typeof configuredDailyReward === 'object'
+            ? ensureNumber(configuredDailyReward.min, 0) +
+              Math.random() *
+                  (ensureNumber(configuredDailyReward.max, 0) -
+                      ensureNumber(configuredDailyReward.min, 0))
+            : ensureNumber(configuredDailyReward, 0);
 
     let reward = Math.floor(baseReward);
     reward = ensureNumber(reward, 0);
-    
+
     // Streak bonus
-    const streakBonus = ensureNumber(user.dailyStreak, 0) * ensureNumber(ECONOMY_CONFIG.dailyStreakBonus, 0);
+    const streakBonus =
+        ensureNumber(user.dailyStreak, 0) * ensureNumber(ECONOMY_CONFIG.dailyStreakBonus, 0);
     reward = ensureNumber(reward + streakBonus, reward);
 
     // Check for double daily item
@@ -770,7 +839,8 @@ async function claimDaily(userId, username) {
         }
     }
 
-    user.balance = ensureNumber(user.balance, ECONOMY_CONFIG.startingBalance) + ensureNumber(reward, 0);
+    user.balance =
+        ensureNumber(user.balance, ECONOMY_CONFIG.startingBalance) + ensureNumber(reward, 0);
     user.totalEarned = ensureNumber(user.totalEarned, 0) + ensureNumber(reward, 0);
     user.lastDaily = now;
 
@@ -791,26 +861,30 @@ async function claimDaily(userId, username) {
  */
 async function work(userId, username) {
     const user = await loadUser(userId, username);
-    
+
     // Check for work cooldown reduction
     const effects = await getActiveEffects(userId);
     let cooldownMultiplier = 1;
     effects.forEach(e => {
         if (e.effect?.workCooldownReduction) {
-            cooldownMultiplier *= (1 - e.effect.workCooldownReduction);
+            cooldownMultiplier *= 1 - e.effect.workCooldownReduction;
         }
     });
 
-    const cooldown = checkCooldown(userId, 'work', ECONOMY_CONFIG.workCooldown * cooldownMultiplier);
+    const cooldown = checkCooldown(
+        userId,
+        'work',
+        ECONOMY_CONFIG.workCooldown * cooldownMultiplier
+    );
     if (cooldown.onCooldown) {
         return { success: false, cooldown: cooldown.remaining };
     }
 
     let reward = Math.floor(
-        ECONOMY_CONFIG.workReward.min + 
-        Math.random() * (ECONOMY_CONFIG.workReward.max - ECONOMY_CONFIG.workReward.min)
+        ECONOMY_CONFIG.workReward.min +
+            Math.random() * (ECONOMY_CONFIG.workReward.max - ECONOMY_CONFIG.workReward.min)
     );
-    
+
     // Apply multiplier bonus if event active
     if (isMultiplierActive()) {
         reward = Math.floor(reward * ECONOMY_CONFIG.multiplierBonus);
@@ -951,7 +1025,11 @@ async function playSlots(userId, bet) {
             multiplier = ECONOMY_CONFIG.slotsMultipliers.triple;
             resultType = 'triple';
         }
-    } else if (results[0] === results[1] || results[1] === results[2] || results[0] === results[2]) {
+    } else if (
+        results[0] === results[1] ||
+        results[1] === results[2] ||
+        results[0] === results[2]
+    ) {
         multiplier = ECONOMY_CONFIG.slotsMultipliers.double;
         resultType = 'double';
     }
@@ -1151,43 +1229,44 @@ async function getInventory(userId) {
 async function getLeaderboard(limit = 10, client = null) {
     try {
         const col = await getCollection();
-        const users = await col
-            .find({})
-            .sort({ balance: -1 })
-            .limit(limit)
-            .toArray();
+        const users = await col.find({}).sort({ balance: -1 }).limit(limit).toArray();
 
         // Fetch current usernames from Discord if client is provided
-        const leaderboardEntries = await Promise.all(users.map(async (u, i) => {
-            let username = u.username || 'Unknown';
-            
-            // Try to get current username from Discord
-            if (client) {
-                try {
-                    // Check cache first
-                    let discordUser = client.users.cache.get(u.userId);
-                    if (!discordUser) {
-                        // Fetch from API if not in cache
-                        discordUser = await client.users.fetch(u.userId).catch(() => null);
-                    }
-                    if (discordUser) {
-                        username = discordUser.globalName || discordUser.username || username;
-                    }
-                } catch (error) {
-                    // If fetch fails, use stored username
-                    console.warn(`[StarkEconomy] Failed to fetch username for user ${u.userId}:`, error.message);
-                }
-            }
+        const leaderboardEntries = await Promise.all(
+            users.map(async (u, i) => {
+                let username = u.username || 'Unknown';
 
-            return {
-                rank: i + 1,
-                userId: u.userId,
-                username: username,
-                balance: ensureNumber(u.balance, 0),
-                hasGoldenName: (u.inventory || []).some(item => item.id === 'golden_name'),
-                hasVipBadge: (u.inventory || []).some(item => item.id === 'vip_badge')
-            };
-        }));
+                // Try to get current username from Discord
+                if (client) {
+                    try {
+                        // Check cache first
+                        let discordUser = client.users.cache.get(u.userId);
+                        if (!discordUser) {
+                            // Fetch from API if not in cache
+                            discordUser = await client.users.fetch(u.userId).catch(() => null);
+                        }
+                        if (discordUser) {
+                            username = discordUser.globalName || discordUser.username || username;
+                        }
+                    } catch (error) {
+                        // If fetch fails, use stored username
+                        console.warn(
+                            `[StarkEconomy] Failed to fetch username for user ${u.userId}:`,
+                            error.message
+                        );
+                    }
+                }
+
+                return {
+                    rank: i + 1,
+                    userId: u.userId,
+                    username: username,
+                    balance: ensureNumber(u.balance, 0),
+                    hasGoldenName: (u.inventory || []).some(item => item.id === 'golden_name'),
+                    hasVipBadge: (u.inventory || []).some(item => item.id === 'vip_badge')
+                };
+            })
+        );
 
         return leaderboardEntries;
     } catch (error) {
@@ -1208,9 +1287,7 @@ async function getUserStats(userId) {
         totalGambled: user.totalGambled || 0,
         gamesPlayed: user.gamesPlayed || 0,
         gamesWon: user.gamesWon || 0,
-        winRate: user.gamesPlayed > 0 
-            ? Math.round((user.gamesWon / user.gamesPlayed) * 100) 
-            : 0,
+        winRate: user.gamesPlayed > 0 ? Math.round((user.gamesWon / user.gamesPlayed) * 100) : 0,
         dailyStreak: user.dailyStreak || 0,
         inventoryCount: (user.inventory || []).length,
         memberSince: user.createdAt
@@ -1226,10 +1303,11 @@ async function getUserStats(userId) {
  */
 async function cleanup() {
     const now = Date.now();
-    
+
     // Clear old cooldowns from memory
     for (const [key, timestamp] of cooldowns.entries()) {
-        if (now - timestamp > 24 * 60 * 60 * 1000) { // 24 hours
+        if (now - timestamp > 24 * 60 * 60 * 1000) {
+            // 24 hours
             cooldowns.delete(key);
         }
     }
@@ -1244,10 +1322,7 @@ async function cleanup() {
     // Clean expired effects in database
     try {
         const col = await getCollection();
-        await col.updateMany(
-            {},
-            { $pull: { activeEffects: { expiresAt: { $lt: now } } } }
-        );
+        await col.updateMany({}, { $pull: { activeEffects: { expiresAt: { $lt: now } } } });
     } catch (error) {
         console.error('[StarkEconomy] Cleanup failed:', error);
     }
@@ -1355,16 +1430,17 @@ async function postmeme(userId) {
  */
 async function search(userId, locationIndex = null) {
     const game = MINIGAME_REWARDS.search;
-    
+
     const cooldown = checkCooldown(userId, 'search', game.cooldown);
     if (cooldown.onCooldown) {
         return { success: false, cooldown: cooldown.remaining };
     }
 
     // Pick random location if not specified
-    const location = locationIndex !== null && game.locations[locationIndex] 
-        ? game.locations[locationIndex] 
-        : game.locations[Math.floor(Math.random() * game.locations.length)];
+    const location =
+        locationIndex !== null && game.locations[locationIndex]
+            ? game.locations[locationIndex]
+            : game.locations[Math.floor(Math.random() * game.locations.length)];
 
     // Pick random outcome from location
     const roll = Math.random();
@@ -1490,7 +1566,9 @@ function getMultiplierStatus() {
         active,
         multiplier: active ? ECONOMY_CONFIG.multiplierBonus : 1,
         endsAt: active ? multiplierEndTime : null,
-        nextEventIn: active ? null : Math.max(0, (lastMultiplierStart + ECONOMY_CONFIG.multiplierInterval) - Date.now())
+        nextEventIn: active
+            ? null
+            : Math.max(0, lastMultiplierStart + ECONOMY_CONFIG.multiplierInterval - Date.now())
     };
 }
 
@@ -1510,11 +1588,11 @@ async function startMultiplierEvent() {
  */
 function getBoostText() {
     if (!isMultiplierActive()) return '';
-    
+
     const remaining = multiplierEndTime - Date.now();
     const hours = Math.floor(remaining / (60 * 60 * 1000));
     const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
-    
+
     return `\n\n🎉 **600% BOOST ACTIVE!** All earnings x6! (${hours}h ${minutes}m remaining)`;
 }
 
@@ -1522,14 +1600,14 @@ function getBoostText() {
 let multiplierInterval = null;
 function startMultiplierScheduler() {
     if (multiplierInterval) clearInterval(multiplierInterval);
-    
+
     // Start first event after 3 hours
     multiplierInterval = setInterval(() => {
         if (!isMultiplierActive()) {
             startMultiplierEvent();
         }
     }, ECONOMY_CONFIG.multiplierInterval);
-    
+
     console.log('[StarkEconomy] Multiplier event scheduler started (every 3 hours)');
 }
 
@@ -1541,12 +1619,12 @@ module.exports = {
     // Config
     ECONOMY_CONFIG,
     SHOP_ITEMS,
-    
+
     // Core
     getBalance,
     modifyBalance,
     loadUser,
-    
+
     // Games
     claimDaily,
     work,
@@ -1554,17 +1632,17 @@ module.exports = {
     playSlots,
     coinflip,
     rob,
-    
+
     // Shop
     getShopItems,
     buyItem,
     getInventory,
     getActiveEffects,
-    
+
     // Stats
     getLeaderboard,
     getUserStats,
-    
+
     // Minigames
     hunt,
     fish,
@@ -1575,10 +1653,10 @@ module.exports = {
     search,
     getSearchLocations,
     give,
-    
+
     // Maintenance
     cleanup,
-    
+
     // Multiplier Events
     isMultiplierActive,
     getMultiplier,

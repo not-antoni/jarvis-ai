@@ -1,15 +1,15 @@
 /**
  * Anti-Scam & Alt Account Detection
- * 
+ *
  * Guild-specific feature for detecting and warning about:
  * - New accounts (created recently)
  * - Alt accounts (suspicious patterns)
  * - Potential scammers
- * 
+ *
  * REQUIREMENTS:
  * - MESSAGE_CONTENT intent (not currently available)
  * - Additional API keys for enhanced detection (TODO)
- * 
+ *
  * This is a PLACEHOLDER implementation. Full functionality requires:
  * 1. Discord MESSAGE_CONTENT privileged intent
  * 2. Additional API integrations for scam detection
@@ -25,7 +25,7 @@ const guildFeatures = require('./guild-features');
 async function analyzeMember(member) {
     const guildId = member.guild.id;
     const config = guildFeatures.getGuildConfig(guildId);
-    
+
     if (!config || !config.features.antiScam) {
         return { shouldWarn: false, reason: null };
     }
@@ -56,7 +56,10 @@ async function analyzeMember(member) {
         });
     }
     // Check if account was created this year
-    else if (settings.flagThisYearAccounts && accountCreatedAt.getFullYear() === now.getFullYear()) {
+    else if (
+        settings.flagThisYearAccounts &&
+        accountCreatedAt.getFullYear() === now.getFullYear()
+    ) {
         warnings.push({
             level: 'medium',
             message: `⚠️ **MEDIUM RISK**: Account created this year (${accountAgeDays} days old)`,
@@ -64,7 +67,10 @@ async function analyzeMember(member) {
         });
     }
     // Check against threshold
-    else if (settings.newAccountThresholdDays && accountAgeDays < settings.newAccountThresholdDays) {
+    else if (
+        settings.newAccountThresholdDays &&
+        accountAgeDays < settings.newAccountThresholdDays
+    ) {
         warnings.push({
             level: 'low',
             message: `ℹ️ **LOW RISK**: Account is ${accountAgeDays} days old`,
@@ -144,7 +150,7 @@ async function sendWarningToAdmins(guild, message) {
  */
 async function handleMemberJoin(member) {
     const guildId = member.guild.id;
-    
+
     // Check if this guild has anti-scam enabled
     if (!guildFeatures.isFeatureEnabled(guildId, 'antiScam')) {
         return;
@@ -152,7 +158,7 @@ async function handleMemberJoin(member) {
 
     try {
         const analysis = await analyzeMember(member);
-        
+
         if (analysis.shouldWarn) {
             const warningMessage = formatWarningMessage(analysis, member);
             await sendWarningToAdmins(member.guild, warningMessage);

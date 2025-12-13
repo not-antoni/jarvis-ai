@@ -89,13 +89,21 @@ class RetryPolicy {
         if (message.includes('TIMEOUT') || message.includes('EXCEEDED')) {
             return 'TIMEOUT';
         }
-        if (message.includes('ECONNREFUSED') || message.includes('ENOTFOUND') || message.includes('NETWORK')) {
+        if (
+            message.includes('ECONNREFUSED') ||
+            message.includes('ENOTFOUND') ||
+            message.includes('NETWORK')
+        ) {
             return 'NETWORK';
         }
         if (message.includes('CRASH') || message.includes('EXITED')) {
             return 'BROWSER_CRASH';
         }
-        if (message.includes('429') || message.includes('RATE_LIMIT') || message.includes('TOO_MANY')) {
+        if (
+            message.includes('429') ||
+            message.includes('RATE_LIMIT') ||
+            message.includes('TOO_MANY')
+        ) {
             return 'RATE_LIMIT';
         }
         if (message.includes('INVALID') || message.includes('MALFORMED')) {

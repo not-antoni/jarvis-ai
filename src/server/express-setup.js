@@ -46,7 +46,7 @@ function createExpressApp(options = {}) {
         res.on('finish', () => {
             const duration = Date.now() - startTime;
             metrics.recordRequest(req.path, duration, res.statusCode < 400, res.statusCode);
-            
+
             logger.info('Request completed', {
                 method: req.method,
                 path: req.path,
@@ -60,82 +60,89 @@ function createExpressApp(options = {}) {
     });
 
     // Health check endpoint
-    app.get('/health', asyncHandler(async (req, res) => {
-        const HEALTH_TOKEN = process.env.HEALTH_TOKEN;
-        
-        // Check authentication if token is set
-        if (HEALTH_TOKEN && !isRenderHealthCheck(req)) {
-            const authHeader = req.headers?.authorization;
-            const providedToken = authHeader?.startsWith('Bearer ') 
-                ? authHeader.slice(7).trim()
-                : req.query?.token;
-            
-            if (providedToken !== HEALTH_TOKEN) {
-                return res.status(401).json({
-                    status: 'unauthorized',
-                    error: 'Valid bearer token required'
+    app.get(
+        '/health',
+        asyncHandler(async (req, res) => {
+            const HEALTH_TOKEN = process.env.HEALTH_TOKEN;
+
+            // Check authentication if token is set
+            if (HEALTH_TOKEN && !isRenderHealthCheck(req)) {
+                const authHeader = req.headers?.authorization;
+                const providedToken = authHeader?.startsWith('Bearer ')
+                    ? authHeader.slice(7).trim()
+                    : req.query?.token;
+
+                if (providedToken !== HEALTH_TOKEN) {
+                    return res.status(401).json({
+                        status: 'unauthorized',
+                        error: 'Valid bearer token required'
+                    });
+                }
+            }
+
+            // Fast path for Render health checks
+            if (isRenderHealthUserAgent(req) && !req.query.deep) {
+                return res.status(200).json({ status: 'ok' });
+            }
+
+            const deep = ['1', 'true', 'yes', 'deep'].includes(
+                String(req.query.deep || '').toLowerCase()
+            );
+
+            try {
+                const snapshot = await gatherHealthSnapshot({
+                    includeProviders: true,
+                    redactProviders: false,
+                    pingDatabase: deep,
+                    attemptReconnect: deep
+                });
+
+                const healthyProviders = snapshot.providers.filter(
+                    p => !p.hasError && !p.isDisabled
+                ).length;
+
+                const status =
+                    snapshot.env.hasAllRequired &&
+                    snapshot.database.connected &&
+                    healthyProviders > 0
+                        ? 'ok'
+                        : 'degraded';
+
+                res.json({
+                    status,
+                    env: snapshot.env,
+                    database: snapshot.database,
+                    providers: snapshot.providers,
+                    system: snapshot.system,
+                    counts: {
+                        providersTotal: snapshot.providers.length,
+                        providersHealthy: healthyProviders
+                    }
+                });
+            } catch (error) {
+                logger.error('Health endpoint failed', { error: error.message });
+                res.status(500).json({
+                    status: 'error',
+                    error: error.message
                 });
             }
-        }
-
-        // Fast path for Render health checks
-        if (isRenderHealthUserAgent(req) && !req.query.deep) {
-            return res.status(200).json({ status: 'ok' });
-        }
-
-        const deep = ['1', 'true', 'yes', 'deep'].includes(
-            String(req.query.deep || '').toLowerCase()
-        );
-
-        try {
-            const snapshot = await gatherHealthSnapshot({
-                includeProviders: true,
-                redactProviders: false,
-                pingDatabase: deep,
-                attemptReconnect: deep
-            });
-
-            const healthyProviders = snapshot.providers.filter(
-                p => !p.hasError && !p.isDisabled
-            ).length;
-
-            const status = snapshot.env.hasAllRequired && 
-                          snapshot.database.connected && 
-                          healthyProviders > 0
-                ? 'ok'
-                : 'degraded';
-
-            res.json({
-                status,
-                env: snapshot.env,
-                database: snapshot.database,
-                providers: snapshot.providers,
-                system: snapshot.system,
-                counts: {
-                    providersTotal: snapshot.providers.length,
-                    providersHealthy: healthyProviders
-                }
-            });
-        } catch (error) {
-            logger.error('Health endpoint failed', { error: error.message });
-            res.status(500).json({
-                status: 'error',
-                error: error.message
-            });
-        }
-    }));
+        })
+    );
 
     // Metrics endpoint
-    app.get('/metrics', asyncHandler(async (req, res) => {
-        const format = req.query.format || 'json';
-        
-        if (format === 'prometheus') {
-            res.setHeader('Content-Type', 'text/plain');
-            res.send(metrics.getPrometheusMetrics());
-        } else {
-            res.json(metrics.getMetrics());
-        }
-    }));
+    app.get(
+        '/metrics',
+        asyncHandler(async (req, res) => {
+            const format = req.query.format || 'json';
+
+            if (format === 'prometheus') {
+                res.setHeader('Content-Type', 'text/plain');
+                res.send(metrics.getPrometheusMetrics());
+            } else {
+                res.json(metrics.getMetrics());
+            }
+        })
+    );
 
     // Webhook routes
     app.use('/webhook', webhookRouter);
@@ -195,7 +202,9 @@ function isRenderHealthCheck(req) {
     const ua = String(req.headers?.['user-agent'] || '').toLowerCase();
     if (ua.includes('render/health')) return true;
 
-    const forwardedFor = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+    const forwardedFor = String(req.headers?.['x-forwarded-for'] || '')
+        .split(',')[0]
+        .trim();
     if (forwardedFor.startsWith('10.') || forwardedFor === '127.0.0.1' || forwardedFor === '::1') {
         return true;
     }
@@ -215,4 +224,3 @@ function isRenderHealthUserAgent(req) {
 module.exports = {
     createExpressApp
 };
-

@@ -31,18 +31,17 @@ test('Logger: Log levels', () => {
     // Test that different log levels work
     const originalLevel = process.env.LOG_LEVEL;
     process.env.LOG_LEVEL = 'error';
-    
+
     logger.error('Error log');
     logger.warn('Warn log');
     logger.info('Info log');
     logger.debug('Debug log');
-    
+
     if (originalLevel) {
         process.env.LOG_LEVEL = originalLevel;
     } else {
         delete process.env.LOG_LEVEL;
     }
-    
+
     assert.ok(true, 'Log levels should work');
 });
-

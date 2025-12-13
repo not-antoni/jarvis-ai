@@ -8,13 +8,13 @@ const { LRUCache } = require('lru-cache');
 // Conversation threading - tracks multi-turn sessions
 const conversationSessions = new LRUCache({
     max: 1000,
-    ttl: 1000 * 60 * 10, // 10 minute expiry
+    ttl: 1000 * 60 * 10 // 10 minute expiry
 });
 
 // User preferences cache (timezone, wake words, etc.)
 const userPrefsCache = new LRUCache({
     max: 5000,
-    ttl: 1000 * 60 * 30, // 30 minute cache
+    ttl: 1000 * 60 * 30 // 30 minute cache
 });
 
 // Reminder storage (in-memory, persisted to DB on set)
@@ -26,34 +26,89 @@ const sessionStats = new Map();
 // Mood patterns for detection
 const MOOD_PATTERNS = {
     frustrated: {
-        keywords: ['ugh', 'annoying', 'frustrated', 'angry', 'mad', 'stupid', 'broken', 'doesn\'t work', 'not working', 'hate', 'useless', 'trash', 'garbage', 'wtf', 'ffs', 'damn', 'dammit'],
+        keywords: [
+            'ugh',
+            'annoying',
+            'frustrated',
+            'angry',
+            'mad',
+            'stupid',
+            'broken',
+            "doesn't work",
+            'not working',
+            'hate',
+            'useless',
+            'trash',
+            'garbage',
+            'wtf',
+            'ffs',
+            'damn',
+            'dammit'
+        ],
         punctuation: /[!?]{2,}|\.{3,}/,
-        caps: 0.5, // 50% caps threshold
+        caps: 0.5 // 50% caps threshold
     },
     excited: {
-        keywords: ['awesome', 'amazing', 'incredible', 'love', 'great', 'fantastic', 'wonderful', 'perfect', 'yay', 'woohoo', 'omg', 'wow'],
+        keywords: [
+            'awesome',
+            'amazing',
+            'incredible',
+            'love',
+            'great',
+            'fantastic',
+            'wonderful',
+            'perfect',
+            'yay',
+            'woohoo',
+            'omg',
+            'wow'
+        ],
         punctuation: /!{2,}/,
-        caps: 0.4,
+        caps: 0.4
     },
     sad: {
-        keywords: ['sad', 'depressed', 'unhappy', 'crying', 'tears', 'lonely', 'alone', 'miss', 'lost', 'heartbroken', 'devastated'],
+        keywords: [
+            'sad',
+            'depressed',
+            'unhappy',
+            'crying',
+            'tears',
+            'lonely',
+            'alone',
+            'miss',
+            'lost',
+            'heartbroken',
+            'devastated'
+        ],
         punctuation: /\.{3,}/,
-        caps: 0,
+        caps: 0
     },
     confused: {
-        keywords: ['confused', 'don\'t understand', 'what do you mean', 'huh', 'what?', 'how?', 'why?', 'makes no sense', 'lost'],
+        keywords: [
+            'confused',
+            "don't understand",
+            'what do you mean',
+            'huh',
+            'what?',
+            'how?',
+            'why?',
+            'makes no sense',
+            'lost'
+        ],
         punctuation: /\?{2,}/,
-        caps: 0,
-    },
+        caps: 0
+    }
 };
 
 // Tone adjustments based on mood
 const TONE_ADJUSTMENTS = {
-    frustrated: 'The user seems frustrated. Be extra patient, empathetic, and solution-focused. Acknowledge their frustration briefly and get straight to helping.',
+    frustrated:
+        'The user seems frustrated. Be extra patient, empathetic, and solution-focused. Acknowledge their frustration briefly and get straight to helping.',
     excited: 'The user is excited! Match their energy with enthusiasm while remaining helpful.',
     sad: 'The user seems down. Be gentle, supportive, and encouraging. Show empathy.',
-    confused: 'The user is confused. Break things down simply, ask clarifying questions if needed, and be patient.',
-    neutral: '', // No adjustment
+    confused:
+        'The user is confused. Break things down simply, ask clarifying questions if needed, and be patient.',
+    neutral: '' // No adjustment
 };
 
 class UserFeaturesService {
@@ -76,13 +131,16 @@ class UserFeaturesService {
             console.log('[UserFeatures] Already initialized, skipping');
             return;
         }
-        
+
         this.database = database;
         this.discordClient = discordClient;
         this.startReminderChecker();
         this.loadRemindersFromDatabase();
         this.isInitialized = true;
-        console.log('[UserFeatures] Service initialized' + (discordClient ? ' with Discord client' : ' (no Discord client)'));
+        console.log(
+            '[UserFeatures] Service initialized' +
+                (discordClient ? ' with Discord client' : ' (no Discord client)')
+        );
     }
 
     /**
@@ -102,27 +160,33 @@ class UserFeaturesService {
         if (typeof this.database.getActiveReminders !== 'function') {
             if (!this._warned.has('reminders:getActiveReminders')) {
                 this._warned.add('reminders:getActiveReminders');
-                console.warn('[UserFeatures] Reminder persistence not fully configured (missing database.getActiveReminders).');
+                console.warn(
+                    '[UserFeatures] Reminder persistence not fully configured (missing database.getActiveReminders).'
+                );
             }
             return;
         }
-        
+
         try {
             const reminders = await this.database.getActiveReminders();
             if (Array.isArray(reminders)) {
                 for (const rem of reminders) {
-                    const scheduledFor = rem?.scheduledFor instanceof Date
-                        ? rem.scheduledFor.getTime()
-                        : Number(rem?.scheduledFor);
+                    const scheduledFor =
+                        rem?.scheduledFor instanceof Date
+                            ? rem.scheduledFor.getTime()
+                            : Number(rem?.scheduledFor);
                     if (!Number.isFinite(scheduledFor)) continue;
 
-                    const createdAt = rem?.createdAt instanceof Date
-                        ? rem.createdAt.getTime()
-                        : Number(rem?.createdAt || Date.now());
+                    const createdAt =
+                        rem?.createdAt instanceof Date
+                            ? rem.createdAt.getTime()
+                            : Number(rem?.createdAt || Date.now());
 
                     activeReminders.set(rem.id, { ...rem, scheduledFor, createdAt });
                 }
-                console.log(`[UserFeatures] Loaded ${activeReminders.size} active reminders from database`);
+                console.log(
+                    `[UserFeatures] Loaded ${activeReminders.size} active reminders from database`
+                );
                 this._lastReminderLoadAt = Date.now();
                 this.checkAndDeliverReminders().catch(() => {});
             }
@@ -139,7 +203,7 @@ class UserFeaturesService {
     getSession(userId, channelId) {
         const key = `${userId}:${channelId}`;
         let session = conversationSessions.get(key);
-        
+
         if (!session) {
             session = {
                 userId,
@@ -147,11 +211,11 @@ class UserFeaturesService {
                 messages: [],
                 startedAt: Date.now(),
                 lastActivity: Date.now(),
-                turnCount: 0,
+                turnCount: 0
             };
             conversationSessions.set(key, session);
         }
-        
+
         return session;
     }
 
@@ -163,22 +227,22 @@ class UserFeaturesService {
         session.messages.push({
             role,
             content,
-            timestamp: Date.now(),
+            timestamp: Date.now()
         });
-        
+
         // Keep only last 10 messages for context
         if (session.messages.length > 10) {
             session.messages = session.messages.slice(-10);
         }
-        
+
         session.lastActivity = Date.now();
         session.turnCount++;
-        
+
         conversationSessions.set(`${userId}:${channelId}`, session);
-        
+
         // Update stats
         this.incrementStat(userId, 'messageCount');
-        
+
         return session;
     }
 
@@ -187,20 +251,20 @@ class UserFeaturesService {
      */
     getConversationContext(userId, channelId) {
         const session = this.getSession(userId, channelId);
-        
+
         if (session.messages.length === 0) {
             return null;
         }
-        
+
         // Format for AI context
-        const context = session.messages.map(m => 
-            `${m.role === 'user' ? 'User' : 'Jarvis'}: ${m.content}`
-        ).join('\n');
-        
+        const context = session.messages
+            .map(m => `${m.role === 'user' ? 'User' : 'Jarvis'}: ${m.content}`)
+            .join('\n');
+
         return {
             context,
             turnCount: session.turnCount,
-            sessionDuration: Date.now() - session.startedAt,
+            sessionDuration: Date.now() - session.startedAt
         };
     }
 
@@ -221,13 +285,16 @@ class UserFeaturesService {
             // Validate timezone
             Intl.DateTimeFormat(undefined, { timeZone: timezone });
         } catch {
-            return { success: false, error: 'Invalid timezone. Use format like "America/New_York" or "Europe/London".' };
+            return {
+                success: false,
+                error: 'Invalid timezone. Use format like "America/New_York" or "Europe/London".'
+            };
         }
-        
+
         const prefs = await this.getUserPrefs(userId);
         prefs.timezone = timezone;
         await this.saveUserPrefs(userId, prefs);
-        
+
         return { success: true, timezone };
     }
 
@@ -251,7 +318,7 @@ class UserFeaturesService {
             hour12: true,
             weekday: 'short',
             month: 'short',
-            day: 'numeric',
+            day: 'numeric'
         }).format(date);
     }
 
@@ -264,47 +331,52 @@ class UserFeaturesService {
         const now = new Date();
         let targetTime = null;
         let humanReadable = '';
-        
+
         // Match patterns like "in 2 hours", "in 30 minutes", "in 1 day"
-        const relativeMatch = input.match(/in\s+(\d+)\s*(second|sec|minute|min|hour|hr|day|week)s?/i);
+        const relativeMatch = input.match(
+            /in\s+(\d+)\s*(second|sec|minute|min|hour|hr|day|week)s?/i
+        );
         if (relativeMatch) {
             const amount = parseInt(relativeMatch[1], 10);
             const unit = relativeMatch[2].toLowerCase();
-            
+
             const multipliers = {
-                'second': 1000, 'sec': 1000,
-                'minute': 60000, 'min': 60000,
-                'hour': 3600000, 'hr': 3600000,
-                'day': 86400000,
-                'week': 604800000,
+                second: 1000,
+                sec: 1000,
+                minute: 60000,
+                min: 60000,
+                hour: 3600000,
+                hr: 3600000,
+                day: 86400000,
+                week: 604800000
             };
-            
+
             const ms = amount * (multipliers[unit] || 60000);
             targetTime = new Date(now.getTime() + ms);
             humanReadable = `in ${amount} ${unit}${amount > 1 ? 's' : ''}`;
         }
-        
+
         // Match "at 3pm", "at 15:00"
         const atTimeMatch = input.match(/at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
         if (atTimeMatch && !targetTime) {
             let hours = parseInt(atTimeMatch[1], 10);
             const minutes = parseInt(atTimeMatch[2] || '0', 10);
             const period = atTimeMatch[3]?.toLowerCase();
-            
+
             if (period === 'pm' && hours < 12) hours += 12;
             if (period === 'am' && hours === 12) hours = 0;
-            
+
             targetTime = new Date(now);
             targetTime.setHours(hours, minutes, 0, 0);
-            
+
             // If time already passed today, schedule for tomorrow
             if (targetTime <= now) {
                 targetTime.setDate(targetTime.getDate() + 1);
             }
-            
+
             humanReadable = `at ${atTimeMatch[0].replace(/^at\s+/i, '')}`;
         }
-        
+
         // Match "tomorrow", "tomorrow at 9am"
         if (/tomorrow/i.test(input)) {
             targetTime = targetTime || new Date(now);
@@ -314,7 +386,7 @@ class UserFeaturesService {
             }
             humanReadable = 'tomorrow' + (atTimeMatch ? ` ${humanReadable}` : ' at 9:00 AM');
         }
-        
+
         return targetTime ? { time: targetTime, humanReadable } : null;
     }
 
@@ -324,14 +396,14 @@ class UserFeaturesService {
     async createReminder(userId, channelId, message, timeInput) {
         const timezone = await this.getTimezone(userId);
         const parsed = this.parseReminderTime(timeInput, timezone);
-        
+
         if (!parsed) {
-            return { 
-                success: false, 
-                error: 'Could not parse time. Try "in 2 hours", "at 3pm", or "tomorrow".' 
+            return {
+                success: false,
+                error: 'Could not parse time. Try "in 2 hours", "at 3pm", or "tomorrow".'
             };
         }
-        
+
         const reminder = {
             id: `rem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             userId,
@@ -339,11 +411,11 @@ class UserFeaturesService {
             message,
             scheduledFor: parsed.time.getTime(),
             createdAt: Date.now(),
-            humanTime: parsed.humanReadable,
+            humanTime: parsed.humanReadable
         };
-        
+
         activeReminders.set(reminder.id, reminder);
-        
+
         // Persist to database
         if (this.database && typeof this.database.saveReminder === 'function') {
             try {
@@ -354,16 +426,18 @@ class UserFeaturesService {
         } else if (this.database) {
             if (!this._warned.has('reminders:saveReminder')) {
                 this._warned.add('reminders:saveReminder');
-                console.warn('[UserFeatures] Reminder persistence not fully configured (missing database.saveReminder).');
+                console.warn(
+                    '[UserFeatures] Reminder persistence not fully configured (missing database.saveReminder).'
+                );
             }
         }
-        
+
         this.incrementStat(userId, 'remindersCreated');
-        
-        return { 
-            success: true, 
+
+        return {
+            success: true,
             reminder,
-            formattedTime: await this.formatTimeForUser(userId, parsed.time),
+            formattedTime: await this.formatTimeForUser(userId, parsed.time)
         };
     }
 
@@ -388,9 +462,9 @@ class UserFeaturesService {
         if (!reminder || reminder.userId !== userId) {
             return { success: false, error: 'Reminder not found.' };
         }
-        
+
         activeReminders.delete(reminderId);
-        
+
         if (this.database && typeof this.database.deleteReminder === 'function') {
             try {
                 await this.database.deleteReminder(reminderId);
@@ -400,10 +474,12 @@ class UserFeaturesService {
         } else if (this.database) {
             if (!this._warned.has('reminders:deleteReminder')) {
                 this._warned.add('reminders:deleteReminder');
-                console.warn('[UserFeatures] Reminder persistence not fully configured (missing database.deleteReminder).');
+                console.warn(
+                    '[UserFeatures] Reminder persistence not fully configured (missing database.deleteReminder).'
+                );
             }
         }
-        
+
         return { success: true };
     }
 
@@ -412,12 +488,12 @@ class UserFeaturesService {
      */
     startReminderChecker() {
         if (this.reminderCheckInterval) return;
-        
+
         // Check every 15 seconds for better accuracy
         this.reminderCheckInterval = setInterval(() => {
             this.checkAndDeliverReminders();
         }, 15000);
-        
+
         console.log('[UserFeatures] Reminder checker started (15s interval)');
     }
 
@@ -438,7 +514,10 @@ class UserFeaturesService {
     async checkAndDeliverReminders() {
         if (this.database?.isConnected && typeof this.database.getActiveReminders === 'function') {
             const now = Date.now();
-            if (activeReminders.size === 0 && now - (this._lastReminderLoadAt || 0) > 5 * 60 * 1000) {
+            if (
+                activeReminders.size === 0 &&
+                now - (this._lastReminderLoadAt || 0) > 5 * 60 * 1000
+            ) {
                 this._lastReminderLoadAt = now;
                 await this.loadRemindersFromDatabase();
             }
@@ -495,7 +574,7 @@ class UserFeaturesService {
             console.warn('[UserFeatures] Cannot deliver reminder - no Discord client');
             return false;
         }
-        
+
         const reminderEmbed = {
             color: 0x3498db,
             title: '⏰ Reminder',
@@ -538,10 +617,15 @@ class UserFeaturesService {
                 embeds: [reminderEmbed]
             });
 
-            console.log(`[UserFeatures] Delivered reminder to ${user.tag}: "${reminder.message.substring(0, 50)}..."`);
+            console.log(
+                `[UserFeatures] Delivered reminder to ${user.tag}: "${reminder.message.substring(0, 50)}..."`
+            );
             return true;
         } catch (error) {
-            console.error(`[UserFeatures] Failed to deliver reminder ${reminder.id}:`, error.message);
+            console.error(
+                `[UserFeatures] Failed to deliver reminder ${reminder.id}:`,
+                error.message
+            );
             return await trySendToChannel().catch(() => false);
         }
     }
@@ -551,7 +635,7 @@ class UserFeaturesService {
      */
     formatRelativeTime(timestamp) {
         const seconds = Math.floor((Date.now() - timestamp) / 1000);
-        
+
         if (seconds < 60) return 'just now';
         if (seconds < 3600) return `${Math.floor(seconds / 60)} minute(s) ago`;
         if (seconds < 86400) return `${Math.floor(seconds / 3600)} hour(s) ago`;
@@ -574,17 +658,17 @@ class UserFeaturesService {
         if (!wakeWord || wakeWord.length < 2 || wakeWord.length > 20) {
             return { success: false, error: 'Wake word must be 2-20 characters.' };
         }
-        
+
         // Sanitize - alphanumeric only
         const sanitized = wakeWord.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         if (sanitized.length < 2) {
             return { success: false, error: 'Wake word must contain letters or numbers.' };
         }
-        
+
         const prefs = await this.getUserPrefs(userId);
         prefs.customWakeWord = sanitized;
         await this.saveUserPrefs(userId, prefs);
-        
+
         return { success: true, wakeWord: sanitized };
     }
 
@@ -602,7 +686,7 @@ class UserFeaturesService {
     async matchesWakeWord(userId, content) {
         const customWord = await this.getWakeWord(userId);
         if (!customWord) return false;
-        
+
         const pattern = new RegExp(`\\b${customWord}\\b`, 'i');
         return pattern.test(content);
     }
@@ -623,17 +707,25 @@ class UserFeaturesService {
      */
     async getUserStats(userId) {
         const prefs = await this.getUserPrefs(userId);
-        
+
         // Combine persisted stats with session stats
         const stats = {
-            messageCount: (prefs.stats?.messageCount || 0) + (sessionStats.get(`${userId}:messageCount`) || 0),
-            remindersCreated: (prefs.stats?.remindersCreated || 0) + (sessionStats.get(`${userId}:remindersCreated`) || 0),
-            searchesPerformed: (prefs.stats?.searchesPerformed || 0) + (sessionStats.get(`${userId}:searchesPerformed`) || 0),
-            commandsUsed: (prefs.stats?.commandsUsed || 0) + (sessionStats.get(`${userId}:commandsUsed`) || 0),
+            messageCount:
+                (prefs.stats?.messageCount || 0) +
+                (sessionStats.get(`${userId}:messageCount`) || 0),
+            remindersCreated:
+                (prefs.stats?.remindersCreated || 0) +
+                (sessionStats.get(`${userId}:remindersCreated`) || 0),
+            searchesPerformed:
+                (prefs.stats?.searchesPerformed || 0) +
+                (sessionStats.get(`${userId}:searchesPerformed`) || 0),
+            commandsUsed:
+                (prefs.stats?.commandsUsed || 0) +
+                (sessionStats.get(`${userId}:commandsUsed`) || 0),
             firstInteraction: prefs.stats?.firstInteraction || Date.now(),
-            favoriteHour: prefs.stats?.favoriteHour || null,
+            favoriteHour: prefs.stats?.favoriteHour || null
         };
-        
+
         return stats;
     }
 
@@ -642,10 +734,10 @@ class UserFeaturesService {
      */
     async flushStats(userId) {
         if (!this.database) return;
-        
+
         const prefs = await this.getUserPrefs(userId);
         prefs.stats = prefs.stats || {};
-        
+
         // Merge session stats
         for (const [key, value] of sessionStats) {
             if (key.startsWith(`${userId}:`)) {
@@ -654,7 +746,7 @@ class UserFeaturesService {
                 sessionStats.delete(key);
             }
         }
-        
+
         await this.saveUserPrefs(userId, prefs);
     }
 
@@ -665,10 +757,10 @@ class UserFeaturesService {
      */
     detectMood(content) {
         if (!content || typeof content !== 'string') return 'neutral';
-        
+
         const lower = content.toLowerCase();
         const scores = { frustrated: 0, excited: 0, sad: 0, confused: 0 };
-        
+
         for (const [mood, patterns] of Object.entries(MOOD_PATTERNS)) {
             // Check keywords
             for (const keyword of patterns.keywords) {
@@ -676,35 +768,36 @@ class UserFeaturesService {
                     scores[mood] += 2;
                 }
             }
-            
+
             // Check punctuation patterns
             if (patterns.punctuation && patterns.punctuation.test(content)) {
                 scores[mood] += 1;
             }
-            
+
             // Check caps ratio
             if (patterns.caps > 0) {
                 const letters = content.replace(/[^a-zA-Z]/g, '');
                 const upperCount = (content.match(/[A-Z]/g) || []).length;
                 const capsRatio = letters.length > 0 ? upperCount / letters.length : 0;
-                
+
                 if (capsRatio >= patterns.caps) {
                     scores[mood] += 1;
                 }
             }
         }
-        
+
         // Find highest scoring mood
         let maxScore = 0;
         let detectedMood = 'neutral';
-        
+
         for (const [mood, score] of Object.entries(scores)) {
-            if (score > maxScore && score >= 2) { // Minimum threshold
+            if (score > maxScore && score >= 2) {
+                // Minimum threshold
                 maxScore = score;
                 detectedMood = mood;
             }
         }
-        
+
         return detectedMood;
     }
 
@@ -721,11 +814,11 @@ class UserFeaturesService {
     analyzeMoodContext(content) {
         const mood = this.detectMood(content);
         const adjustment = this.getToneAdjustment(mood);
-        
+
         return {
             mood,
             adjustment,
-            shouldAdjust: mood !== 'neutral',
+            shouldAdjust: mood !== 'neutral'
         };
     }
 
@@ -738,7 +831,7 @@ class UserFeaturesService {
         // Check cache first
         let prefs = userPrefsCache.get(userId);
         if (prefs) return prefs;
-        
+
         // Load from database
         if (this.database) {
             try {
@@ -750,7 +843,7 @@ class UserFeaturesService {
         } else {
             prefs = {};
         }
-        
+
         userPrefsCache.set(userId, prefs);
         return prefs;
     }
@@ -760,7 +853,7 @@ class UserFeaturesService {
      */
     async saveUserPrefs(userId, prefs) {
         userPrefsCache.set(userId, prefs);
-        
+
         if (this.database) {
             try {
                 await this.database.updateUserProfile(userId, { userFeatures: prefs });

@@ -1,17 +1,17 @@
 /**
  * Sentient Agent Core - Autonomous AI System for Selfhost Mode
- * 
+ *
  * Based on research from:
  * - AutoGPT/BabyAGI agent loop architecture
  * - Anthropic's Computer Use capabilities
  * - Martin Fowler's agentic AI security guidelines
- * 
+ *
  * SAFETY FIRST:
  * - All destructive operations require human approval
  * - Sandboxed execution environment
  * - Command whitelist for autonomous execution
  * - Full audit logging
- * 
+ *
  * This is designed for SELFHOST ONLY - when you control the environment
  */
 
@@ -27,29 +27,63 @@ const EventEmitter = require('events');
 const AGENT_CONFIG = {
     // Safety settings
     requireApprovalFor: [
-        'rm', 'del', 'rmdir', 'format', 'mkfs',  // Destructive
-        'sudo', 'su', 'chmod', 'chown',          // Privilege escalation
-        'curl', 'wget', 'ssh', 'scp',            // Network operations
-        'npm install', 'pip install',            // Package installation
-        'systemctl', 'service',                  // System services
-        'reboot', 'shutdown', 'halt'             // System control
+        'rm',
+        'del',
+        'rmdir',
+        'format',
+        'mkfs', // Destructive
+        'sudo',
+        'su',
+        'chmod',
+        'chown', // Privilege escalation
+        'curl',
+        'wget',
+        'ssh',
+        'scp', // Network operations
+        'npm install',
+        'pip install', // Package installation
+        'systemctl',
+        'service', // System services
+        'reboot',
+        'shutdown',
+        'halt' // System control
     ],
-    
+
     // Commands safe for autonomous execution
     safeCommands: [
-        'ls', 'dir', 'pwd', 'cd', 'cat', 'head', 'tail', 'grep',
-        'echo', 'date', 'whoami', 'hostname', 'uname',
-        'ps', 'top', 'df', 'free', 'uptime',
-        'git status', 'git log', 'git diff', 'git branch',
-        'node --version', 'npm --version', 'python --version'
+        'ls',
+        'dir',
+        'pwd',
+        'cd',
+        'cat',
+        'head',
+        'tail',
+        'grep',
+        'echo',
+        'date',
+        'whoami',
+        'hostname',
+        'uname',
+        'ps',
+        'top',
+        'df',
+        'free',
+        'uptime',
+        'git status',
+        'git log',
+        'git diff',
+        'git branch',
+        'node --version',
+        'npm --version',
+        'python --version'
     ],
-    
+
     // Maximum autonomous actions before requiring check-in
     maxAutonomousActions: 10,
-    
+
     // Thinking interval (ms)
     thinkingInterval: 5000,
-    
+
     // Memory limits
     shortTermMemorySize: 50,
     longTermMemoryFile: 'data/agent-memory.json'
@@ -61,12 +95,12 @@ const AGENT_CONFIG = {
 
 class AgentMemory {
     constructor() {
-        this.shortTerm = [];      // Recent context (in-memory)
-        this.workingMemory = {};  // Current task state
-        this.goals = [];          // Active goals
-        this.learnings = [];      // Things learned from interactions
+        this.shortTerm = []; // Recent context (in-memory)
+        this.workingMemory = {}; // Current task state
+        this.goals = []; // Active goals
+        this.learnings = []; // Things learned from interactions
         this.longTermPath = path.join(__dirname, '../../', AGENT_CONFIG.longTermMemoryFile);
-        
+
         this.loadLongTermMemory();
     }
 
@@ -89,11 +123,18 @@ class AgentMemory {
             if (!fs.existsSync(dir)) {
                 fs.mkdirSync(dir, { recursive: true });
             }
-            fs.writeFileSync(this.longTermPath, JSON.stringify({
-                learnings: this.learnings.slice(-100), // Keep last 100
-                goals: this.goals,
-                savedAt: new Date().toISOString()
-            }, null, 2));
+            fs.writeFileSync(
+                this.longTermPath,
+                JSON.stringify(
+                    {
+                        learnings: this.learnings.slice(-100), // Keep last 100
+                        goals: this.goals,
+                        savedAt: new Date().toISOString()
+                    },
+                    null,
+                    2
+                )
+            );
         } catch (error) {
             console.warn('[SentientCore] Could not save long-term memory:', error.message);
         }
@@ -104,7 +145,7 @@ class AgentMemory {
             ...entry,
             timestamp: Date.now()
         });
-        
+
         // Trim to size limit
         if (this.shortTerm.length > AGENT_CONFIG.shortTermMemorySize) {
             // Move important items to learnings before discarding
@@ -161,21 +202,21 @@ class AgentTools {
      */
     isCommandSafe(command) {
         const cmd = command.toLowerCase().trim();
-        
+
         // Check against dangerous patterns
         for (const dangerous of AGENT_CONFIG.requireApprovalFor) {
             if (cmd.includes(dangerous.toLowerCase())) {
                 return false;
             }
         }
-        
+
         // Check if it matches a known safe command
         for (const safe of AGENT_CONFIG.safeCommands) {
             if (cmd.startsWith(safe.toLowerCase())) {
                 return true;
             }
         }
-        
+
         // Unknown commands require approval
         return false;
     }
@@ -185,9 +226,9 @@ class AgentTools {
      */
     async executeCommand(command, options = {}) {
         const { requireApproval = true, timeout = 30000 } = options;
-        
+
         const isSafe = this.isCommandSafe(command);
-        
+
         if (!isSafe && requireApproval) {
             // Queue for human approval
             return {
@@ -198,9 +239,9 @@ class AgentTools {
             };
         }
 
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
             const startTime = Date.now();
-            
+
             try {
                 const result = execSync(command, {
                     encoding: 'utf8',
@@ -240,26 +281,22 @@ class AgentTools {
     readFile(filePath) {
         const absolutePath = path.resolve(filePath);
         const projectRoot = path.resolve(__dirname, '../..');
-        
+
         // Security: Only allow reading within project or common safe paths
-        const allowedPaths = [
-            projectRoot,
-            '/tmp',
-            '/var/log'
-        ];
-        
+        const allowedPaths = [projectRoot, '/tmp', '/var/log'];
+
         const isAllowed = allowedPaths.some(p => absolutePath.startsWith(p));
-        
+
         if (!isAllowed) {
             return { error: 'Path not allowed for reading' };
         }
 
         try {
             const content = fs.readFileSync(absolutePath, 'utf8');
-            return { 
-                success: true, 
+            return {
+                success: true,
                 content: content.substring(0, 10000), // Limit size
-                path: absolutePath 
+                path: absolutePath
             };
         } catch (error) {
             return { error: error.message };
@@ -272,7 +309,7 @@ class AgentTools {
     writeFile(filePath, content, options = {}) {
         const absolutePath = path.resolve(filePath);
         const isTempFile = absolutePath.includes('/tmp') || absolutePath.includes('\\temp');
-        
+
         if (!isTempFile && !options.approved) {
             return {
                 status: 'pending_approval',
@@ -315,12 +352,32 @@ class AgentTools {
      */
     getAvailableTools() {
         return [
-            { name: 'execute_command', description: 'Run shell commands', requiresApproval: 'for dangerous commands' },
+            {
+                name: 'execute_command',
+                description: 'Run shell commands',
+                requiresApproval: 'for dangerous commands'
+            },
             { name: 'read_file', description: 'Read file contents', requiresApproval: false },
-            { name: 'write_file', description: 'Write to files', requiresApproval: 'for non-temp files' },
-            { name: 'get_system_info', description: 'Get system information', requiresApproval: false },
-            { name: 'search_codebase', description: 'Search project files', requiresApproval: false },
-            { name: 'analyze_code', description: 'Analyze code for improvements', requiresApproval: false }
+            {
+                name: 'write_file',
+                description: 'Write to files',
+                requiresApproval: 'for non-temp files'
+            },
+            {
+                name: 'get_system_info',
+                description: 'Get system information',
+                requiresApproval: false
+            },
+            {
+                name: 'search_codebase',
+                description: 'Search project files',
+                requiresApproval: false
+            },
+            {
+                name: 'analyze_code',
+                description: 'Analyze code for improvements',
+                requiresApproval: false
+            }
         ];
     }
 }
@@ -428,9 +485,7 @@ class ReasoningEngine {
             return [{ type: 'wait', reason: 'No action needed' }];
         }
 
-        return [
-            { type: decision.actionType, priority: 1 }
-        ];
+        return [{ type: decision.actionType, priority: 1 }];
     }
 }
 
@@ -546,22 +601,22 @@ class SelfImprovement {
 class SentientAgent extends EventEmitter {
     constructor(options = {}) {
         super();
-        
+
         this.id = `agent_${Date.now().toString(36)}`;
         this.name = options.name || 'Jarvis';
         this.state = 'initializing';
         this.autonomousMode = false;
         this.actionCount = 0;
-        
+
         // Core systems
         this.memory = new AgentMemory();
         this.tools = new AgentTools(this);
         this.reasoning = new ReasoningEngine(this);
         this.selfImprovement = new SelfImprovement(this);
-        
+
         // Pending approvals queue
         this.pendingApprovals = [];
-        
+
         // Audit log
         this.auditLog = [];
 
@@ -629,24 +684,24 @@ class SentientAgent extends EventEmitter {
         switch (action.type) {
             case 'execute_command':
                 return await this.tools.executeCommand(action.command);
-            
+
             case 'read_file':
                 return this.tools.readFile(action.path);
-            
+
             case 'write_file':
                 return this.tools.writeFile(action.path, action.content);
-            
+
             case 'analyze':
                 return await this.selfImprovement.analyzeOwnCode();
-            
+
             case 'learn':
                 this.memory.learn(action.content, action.category);
                 return { success: true, learned: action.content };
-            
+
             case 'add_goal':
                 this.memory.addGoal(action.goal, action.priority);
                 return { success: true, goal: action.goal };
-            
+
             default:
                 return { type: action.type, status: 'acknowledged' };
         }
@@ -686,16 +741,16 @@ class SentientAgent extends EventEmitter {
                 ...request.action,
                 approved: true
             });
-            
+
             this.log(`Approved action executed: ${request.action.type}`, 'info');
-            
+
             // Learn from this
             this.selfImprovement.learnFromOutcome(
                 JSON.stringify(request.action),
                 JSON.stringify(result),
                 result.status !== 'error'
             );
-            
+
             return { approved: true, result };
         } else {
             this.log(`Action denied: ${request.action.type}`, 'warn');
@@ -757,20 +812,20 @@ class SentientAgent extends EventEmitter {
      */
     async initialize() {
         this.log('Initializing sentient systems...', 'info');
-        
+
         // Load any existing memory
         this.memory.loadLongTermMemory();
-        
+
         // Get system context
         const sysInfo = this.tools.getSystemInfo();
         this.log(`Running on ${sysInfo.platform} (${sysInfo.arch})`, 'info');
-        
+
         // Add initialization goal
         this.memory.addGoal('Assist users effectively while learning and improving', 'high');
-        
+
         this.state = 'ready';
         this.log('Sentient core ready', 'info');
-        
+
         this.emit('ready', this.getStatus());
         return true;
     }

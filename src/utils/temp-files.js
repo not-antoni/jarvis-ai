@@ -9,7 +9,10 @@ function ensureDir() {
 }
 
 function guessExtFromName(name) {
-    const ext = path.extname(name || '').toLowerCase().replace(/^\./, '');
+    const ext = path
+        .extname(name || '')
+        .toLowerCase()
+        .replace(/^\./, '');
     return ext || 'bin';
 }
 
@@ -32,7 +35,9 @@ function buildPath(id, ext) {
 
 function saveTempFile(buffer, filenameOrExt, { ttlMs = FOUR_HOURS_MS } = {}) {
     ensureDir();
-    const ext = filenameOrExt.includes('.') ? guessExtFromName(filenameOrExt) : (filenameOrExt || 'bin');
+    const ext = filenameOrExt.includes('.')
+        ? guessExtFromName(filenameOrExt)
+        : filenameOrExt || 'bin';
     const id = randomId();
     const diskName = `${id}.${ext}`;
     const filePath = path.join(TEMP_DIR, diskName);
@@ -45,10 +50,17 @@ function saveTempFile(buffer, filenameOrExt, { ttlMs = FOUR_HOURS_MS } = {}) {
     const url = `${getPublicBaseUrl()}${mountPath}`;
 
     const delay = expiresAt - Date.now();
-    setTimeout(() => {
-        try { fs.unlinkSync(filePath); } catch (_) {}
-        try { fs.unlinkSync(`${filePath}.json`); } catch (_) {}
-    }, Math.max(1000, delay)).unref();
+    setTimeout(
+        () => {
+            try {
+                fs.unlinkSync(filePath);
+            } catch (_) {}
+            try {
+                fs.unlinkSync(`${filePath}.json`);
+            } catch (_) {}
+        },
+        Math.max(1000, delay)
+    ).unref();
 
     return { id, ext, path: mountPath, url, filePath, expiresAt };
 }
@@ -63,12 +75,18 @@ function sweepExpired() {
             const meta = JSON.parse(fs.readFileSync(path.join(TEMP_DIR, name), 'utf8'));
             if (!meta || !meta.expiresAt || meta.expiresAt <= now) {
                 const base = name.replace(/\.json$/, '');
-                try { fs.unlinkSync(path.join(TEMP_DIR, base)); } catch (_) {}
-                try { fs.unlinkSync(path.join(TEMP_DIR, name)); } catch (_) {}
+                try {
+                    fs.unlinkSync(path.join(TEMP_DIR, base));
+                } catch (_) {}
+                try {
+                    fs.unlinkSync(path.join(TEMP_DIR, name));
+                } catch (_) {}
             }
         } catch (_) {
             // cleanup invalid meta
-            try { fs.unlinkSync(path.join(TEMP_DIR, name)); } catch (_) {}
+            try {
+                fs.unlinkSync(path.join(TEMP_DIR, name));
+            } catch (_) {}
         }
     }
 }

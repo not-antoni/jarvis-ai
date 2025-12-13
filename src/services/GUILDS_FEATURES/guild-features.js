@@ -1,6 +1,6 @@
 /**
  * Guild Features Manager
- * 
+ *
  * Manages which features are enabled for specific guilds.
  * Add guild IDs and their enabled features here.
  */
@@ -57,8 +57,8 @@ function getGuildConfig(guildId) {
  * @returns {string[]} Array of guild IDs
  */
 function getGuildsWithFeature(feature) {
-    return Object.keys(GUILD_CONFIGS).filter(guildId => 
-        GUILD_CONFIGS[guildId].features[feature] === true
+    return Object.keys(GUILD_CONFIGS).filter(
+        guildId => GUILD_CONFIGS[guildId].features[feature] === true
     );
 }
 

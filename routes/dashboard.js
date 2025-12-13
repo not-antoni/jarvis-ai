@@ -31,7 +31,7 @@ const metrics = {
     recentLogs: [],
     maxLogs: 500,
     lastResetMonth: new Date().getMonth(), // Track which month we last reset
-    lastResetYear: new Date().getFullYear(),
+    lastResetYear: new Date().getFullYear()
 };
 
 // Persistence helpers
@@ -94,7 +94,7 @@ async function saveMetrics() {
         totalTokensOut: metrics.totalTokensOut,
         lastResetMonth: metrics.lastResetMonth,
         lastResetYear: metrics.lastResetYear,
-        savedAt: new Date().toISOString(),
+        savedAt: new Date().toISOString()
     };
 
     if (IS_SELFHOST) {
@@ -113,11 +113,9 @@ async function saveMetrics() {
         try {
             const db = await getDatabase();
             if (db && db.db) {
-                await db.db.collection(METRICS_COLLECTION).updateOne(
-                    { _id: 'metrics' },
-                    { $set: payload },
-                    { upsert: true }
-                );
+                await db.db
+                    .collection(METRICS_COLLECTION)
+                    .updateOne({ _id: 'metrics' }, { $set: payload }, { upsert: true });
             }
         } catch (e) {
             console.warn('Failed to save dashboard metrics to MongoDB:', e.message);
@@ -150,7 +148,7 @@ function clearMetrics(reason) {
 
 function checkTokenThreshold() {
     // Clear metrics if tokens exceed threshold (Render only)
-    if (!IS_SELFHOST && (metrics.totalTokensIn + metrics.totalTokensOut) >= TOKEN_CLEAR_THRESHOLD) {
+    if (!IS_SELFHOST && metrics.totalTokensIn + metrics.totalTokensOut >= TOKEN_CLEAR_THRESHOLD) {
         clearMetrics(`Token threshold reached (${TOKEN_CLEAR_THRESHOLD.toLocaleString()})`);
     }
 }
@@ -159,11 +157,15 @@ function checkMonthlyReset() {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    
+
     // Reset if we're in a new month
-    if (currentYear > metrics.lastResetYear || 
-        (currentYear === metrics.lastResetYear && currentMonth > metrics.lastResetMonth)) {
-        clearMetrics(`Monthly reset (${now.toLocaleString('default', { month: 'long', year: 'numeric' })})`);
+    if (
+        currentYear > metrics.lastResetYear ||
+        (currentYear === metrics.lastResetYear && currentMonth > metrics.lastResetMonth)
+    ) {
+        clearMetrics(
+            `Monthly reset (${now.toLocaleString('default', { month: 'long', year: 'numeric' })})`
+        );
     }
 }
 
@@ -182,7 +184,7 @@ router.use((req, res, next) => {
 });
 
 // Initialize with Discord client
-router.setDiscordClient = (client) => {
+router.setDiscordClient = client => {
     discordClient = client;
 };
 
@@ -192,7 +194,7 @@ function addLog(level, source, message) {
         timestamp: new Date().toLocaleTimeString(),
         level,
         source,
-        message,
+        message
     };
     metrics.recentLogs.unshift(log);
     if (metrics.recentLogs.length > metrics.maxLogs) {
@@ -206,13 +208,17 @@ router.trackAICall = (success, provider) => {
     if (success) metrics.aiSuccessCount++;
     else metrics.aiFailCount++;
     metrics.lastProviderUsed = provider;
-    addLog(success ? 'success' : 'error', 'AI', `${provider}: ${success ? 'Response generated' : 'Request failed'}`);
+    addLog(
+        success ? 'success' : 'error',
+        'AI',
+        `${provider}: ${success ? 'Response generated' : 'Request failed'}`
+    );
     scheduleSave();
 };
 
 router.trackTokens = (tokensIn, tokensOut) => {
-    metrics.totalTokensIn += (tokensIn || 0);
-    metrics.totalTokensOut += (tokensOut || 0);
+    metrics.totalTokensIn += tokensIn || 0;
+    metrics.totalTokensOut += tokensOut || 0;
     checkTokenThreshold();
     scheduleSave();
 };
@@ -238,7 +244,7 @@ router.getMetrics = () => ({
     messagesProcessed: metrics.messagesProcessed,
     aiCallCount: metrics.aiCallCount,
     aiSuccessCount: metrics.aiSuccessCount,
-    aiFailCount: metrics.aiFailCount,
+    aiFailCount: metrics.aiFailCount
 });
 
 /**
@@ -257,7 +263,7 @@ router.get('/health', async (req, res) => {
             discordStats = {
                 guilds: discordClient.guilds.cache.size,
                 users: discordClient.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0),
-                channels: discordClient.channels.cache.size,
+                channels: discordClient.channels.cache.size
             };
         }
 
@@ -271,7 +277,7 @@ router.get('/health', async (req, res) => {
             failedRequests: 0,
             successRate: '100',
             providers: 0,
-            activeProviders: 0,
+            activeProviders: 0
         };
         try {
             const aiManager = require('../src/services/ai-providers');
@@ -302,12 +308,12 @@ router.get('/health', async (req, res) => {
                 used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
                 total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
                 system: Math.round(os.totalmem() / 1024 / 1024 / 1024),
-                rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+                rss: Math.round(process.memoryUsage().rss / 1024 / 1024)
             },
             cpu: os.loadavg()[0].toFixed(2),
             platform: process.platform,
             nodeVersion: process.version,
-            deploymentMode: process.env.SELFHOST_MODE === 'true' ? 'selfhost' : 'render',
+            deploymentMode: process.env.SELFHOST_MODE === 'true' ? 'selfhost' : 'render'
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -333,7 +339,7 @@ router.get('/providers', async (req, res) => {
         res.json({
             providers,
             count: providers.length,
-            active: providers.filter(p => !p.isDisabled).length,
+            active: providers.filter(p => !p.isDisabled).length
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -356,22 +362,22 @@ router.post('/providers/test', async (req, res) => {
                 [{ role: 'user', content: 'Say "test successful" in exactly 2 words.' }],
                 { preferredProvider: provider }
             );
-            
+
             metrics.aiCallCount++;
             metrics.aiSuccessCount++;
-            
+
             res.json({
                 success: true,
                 provider,
                 latency: Date.now() - startTime,
-                response: response.content?.substring(0, 100),
+                response: response.content?.substring(0, 100)
             });
         } catch (err) {
             res.json({
                 success: false,
                 provider,
                 latency: Date.now() - startTime,
-                error: err.message,
+                error: err.message
             });
         }
     } catch (error) {
@@ -390,7 +396,7 @@ router.post('/providers/reinitialize', async (req, res) => {
         res.json({
             success: true,
             message: `Reinitialized ${count} AI providers`,
-            count,
+            count
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -425,44 +431,73 @@ router.get('/agents', async (req, res) => {
             const AgentMonitor = require('../src/agents/agentMonitor');
             const monitor = AgentMonitor.getInstance();
             const health = monitor.getHealthReport();
-            
+
             agentMetrics = {
                 memory: {
                     value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
                     status: process.memoryUsage().heapUsed < 500 * 1024 * 1024 ? 'good' : 'warning',
-                    details: `${Math.round(process.memoryUsage().heapUsed / process.memoryUsage().heapTotal * 100)}% of heap`,
+                    details: `${Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100)}% of heap`
                 },
                 cpu: {
-                    value: `${(os.loadavg()[0] * 100 / os.cpus().length).toFixed(0)}%`,
+                    value: `${((os.loadavg()[0] * 100) / os.cpus().length).toFixed(0)}%`,
                     status: os.loadavg()[0] < os.cpus().length ? 'good' : 'warning',
-                    details: `${os.cpus().length} cores available`,
+                    details: `${os.cpus().length} cores available`
                 },
                 activeTasks: {
                     value: health.operations?.length || 0,
                     status: 'good',
-                    details: 'Active operations',
+                    details: 'Active operations'
                 },
                 errors: {
                     value: health.alerts?.filter(a => a.level === 'ERROR').length || 0,
                     status: health.alerts?.some(a => a.level === 'ERROR') ? 'warning' : 'good',
-                    details: 'Last 24 hours',
-                },
+                    details: 'Last 24 hours'
+                }
             };
         } catch (err) {
             // Default metrics if agent monitor not available
             agentMetrics = {
-                memory: { value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`, status: 'good', details: 'Node.js heap' },
-                cpu: { value: `${(os.loadavg()[0] * 10).toFixed(0)}%`, status: 'good', details: `${os.cpus().length} cores` },
+                memory: {
+                    value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+                    status: 'good',
+                    details: 'Node.js heap'
+                },
+                cpu: {
+                    value: `${(os.loadavg()[0] * 10).toFixed(0)}%`,
+                    status: 'good',
+                    details: `${os.cpus().length} cores`
+                },
                 activeTasks: { value: 0, status: 'good', details: 'No active tasks' },
-                errors: { value: 0, status: 'good', details: 'No errors' },
+                errors: { value: 0, status: 'good', details: 'No errors' }
             };
         }
 
         // Default agent list
         agents = [
-            { name: 'BrowserAgent', type: 'Web Automation', status: 'idle', sessions: 0, tasks: 0, uptime: '—' },
-            { name: 'ProductionAgent', type: 'Task Orchestration', status: 'running', sessions: 1, tasks: metrics.requestCount, uptime: formatUptime(Date.now() - metrics.botStartTime) },
-            { name: 'ScraperAgent', type: 'Data Collection', status: 'idle', sessions: 0, tasks: 0, uptime: '—' },
+            {
+                name: 'BrowserAgent',
+                type: 'Web Automation',
+                status: 'idle',
+                sessions: 0,
+                tasks: 0,
+                uptime: '—'
+            },
+            {
+                name: 'ProductionAgent',
+                type: 'Task Orchestration',
+                status: 'running',
+                sessions: 1,
+                tasks: metrics.requestCount,
+                uptime: formatUptime(Date.now() - metrics.botStartTime)
+            },
+            {
+                name: 'ScraperAgent',
+                type: 'Data Collection',
+                status: 'idle',
+                sessions: 0,
+                tasks: 0,
+                uptime: '—'
+            }
         ];
 
         res.json({ agents, metrics: agentMetrics });
@@ -479,18 +514,18 @@ router.get('/logs', async (req, res) => {
     try {
         const { level, limit = 100 } = req.query;
         let logs = metrics.recentLogs;
-        
+
         // Filter by level if specified
         if (level && level !== 'all') {
             logs = logs.filter(l => l.level === level);
         }
-        
+
         // Limit results
         logs = logs.slice(0, parseInt(limit));
-        
+
         res.json({
             logs,
-            total: metrics.recentLogs.length,
+            total: metrics.recentLogs.length
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -509,8 +544,8 @@ router.get('/local-ai/status', async (req, res) => {
 
         // Check if Ollama is running
         try {
-            const response = await fetch('http://localhost:11434/api/tags', { 
-                signal: AbortSignal.timeout(2000) 
+            const response = await fetch('http://localhost:11434/api/tags', {
+                signal: AbortSignal.timeout(2000)
             });
             if (response.ok) {
                 status = 'running';
@@ -521,7 +556,7 @@ router.get('/local-ai/status', async (req, res) => {
                     quantization: m.details?.quantization_level || 'unknown',
                     context: 8,
                     speed: '~50',
-                    loaded: false,
+                    loaded: false
                 }));
             }
         } catch {
@@ -561,7 +596,7 @@ router.get('/settings', async (req, res) => {
             selfhostMode: config.deployment?.selfhostMode || false,
             defaultProvider: config.ai?.provider || 'auto',
             maxTokens: config.ai?.maxTokens || 500,
-            temperature: config.ai?.temperature || 1,
+            temperature: config.ai?.temperature || 1
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

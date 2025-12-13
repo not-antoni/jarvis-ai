@@ -26,7 +26,7 @@ class ProductionAgent {
         this.config = new AgentConfig(config.config);
         this.browserAgent = new BrowserAgent(this.config);
         this.agentMonitor = new AgentMonitor();
-        
+
         // Performance & reliability
         this.resourcePool = new ResourcePool({
             maxPoolSize: config.maxPoolSize || 5,
@@ -36,7 +36,7 @@ class ProductionAgent {
         this.cache = new CacheManager();
         this.optimizer = new BrowserOptimizer();
         this.debugger = new ErrorContextDebugger();
-        
+
         // Sessions & tracking
         this.sessionManager = new AdvancedSessionManager();
         this.tracer = new DistributedTracer();
@@ -44,7 +44,7 @@ class ProductionAgent {
             requestsPerMinute: config.requestsPerMinute || 60,
             dailyCostLimit: config.dailyCostLimit || 10000
         });
-        
+
         // Shutdown & API
         this.shutdown = new GracefulShutdownManager();
         this.apiStandardizer = new APIResponseStandardizer();
@@ -133,7 +133,6 @@ class ProductionAgent {
                 this.resourcePool.release(browserId);
 
                 return result;
-
             } catch (error) {
                 // Record error
                 this.tracer.recordSpanEvent(spanId, 'error', { error: error.message });
@@ -142,25 +141,25 @@ class ProductionAgent {
 
                 // Capture debug context
                 if (this.debugger.page) {
-                    const errorReport = await this.debugger.generateErrorReport(operationName, error);
+                    const errorReport = await this.debugger.generateErrorReport(
+                        operationName,
+                        error
+                    );
                     this.tracer.recordSpanEvent(spanId, 'error_context', { report: errorReport });
                 }
 
                 throw error;
-
             } finally {
                 // Always release session and clean up rate limit
                 await this.sessionManager.releaseToPool(session.id);
                 this.rateLimiter.decrementSession(userId);
             }
-
         } catch (error) {
             this.tracer.endSpan(spanId, 'failed', error);
             this.tracer.endTrace(traceId, 'failed', error);
 
             // Convert to API response
             throw this.apiStandardizer.fromError(error, { traceId, spanId });
-
         } finally {
             this.tracer.endSpan(spanId);
             this.tracer.endTrace(traceId);
@@ -171,35 +170,59 @@ class ProductionAgent {
      * Setup graceful shutdown
      */
     setupShutdownHandlers() {
-        this.shutdown.registerHandler('drain-sessions', async () => {
-            console.log('[ProductionAgent] Draining sessions...');
-            await this.shutdown.drainSessions(this.sessionManager);
-        }, 'critical');
+        this.shutdown.registerHandler(
+            'drain-sessions',
+            async () => {
+                console.log('[ProductionAgent] Draining sessions...');
+                await this.shutdown.drainSessions(this.sessionManager);
+            },
+            'critical'
+        );
 
-        this.shutdown.registerHandler('cache-shutdown', async () => {
-            console.log('[ProductionAgent] Shutting down cache...');
-            this.cache.shutdown();
-        }, 'high');
+        this.shutdown.registerHandler(
+            'cache-shutdown',
+            async () => {
+                console.log('[ProductionAgent] Shutting down cache...');
+                this.cache.shutdown();
+            },
+            'high'
+        );
 
-        this.shutdown.registerHandler('resource-pool-drain', async () => {
-            console.log('[ProductionAgent] Draining resource pool...');
-            await this.resourcePool.drain();
-        }, 'high');
+        this.shutdown.registerHandler(
+            'resource-pool-drain',
+            async () => {
+                console.log('[ProductionAgent] Draining resource pool...');
+                await this.resourcePool.drain();
+            },
+            'high'
+        );
 
-        this.shutdown.registerHandler('session-manager-shutdown', async () => {
-            console.log('[ProductionAgent] Saving sessions...');
-            await this.sessionManager.shutdown();
-        }, 'high');
+        this.shutdown.registerHandler(
+            'session-manager-shutdown',
+            async () => {
+                console.log('[ProductionAgent] Saving sessions...');
+                await this.sessionManager.shutdown();
+            },
+            'high'
+        );
 
-        this.shutdown.registerHandler('rate-limiter-shutdown', async () => {
-            console.log('[ProductionAgent] Shutting down rate limiter...');
-            this.rateLimiter.shutdown();
-        }, 'normal');
+        this.shutdown.registerHandler(
+            'rate-limiter-shutdown',
+            async () => {
+                console.log('[ProductionAgent] Shutting down rate limiter...');
+                this.rateLimiter.shutdown();
+            },
+            'normal'
+        );
 
-        this.shutdown.registerHandler('browser-agent-cleanup', async () => {
-            console.log('[ProductionAgent] Cleaning up browser agent...');
-            await this.browserAgent.close?.();
-        }, 'normal');
+        this.shutdown.registerHandler(
+            'browser-agent-cleanup',
+            async () => {
+                console.log('[ProductionAgent] Cleaning up browser agent...');
+                await this.browserAgent.close?.();
+            },
+            'normal'
+        );
     }
 
     /**
@@ -291,7 +314,7 @@ async function exampleExpressSetup(app) {
             const result = await agent.executeOperation(
                 userId,
                 operationName,
-                async (page) => {
+                async page => {
                     await page.goto(url);
                     return {
                         title: await page.title(),
