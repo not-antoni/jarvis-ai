@@ -15,7 +15,7 @@ const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === 
 
 // Session storage (in-memory for simplicity, could be Redis in production)
 const sessions = new Map();
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 // Pending password setups (userId -> { token, expires })
 const pendingSetups = new Map();
@@ -69,6 +69,81 @@ function verifyPassword(password, storedHash, salt) {
  */
 function generateSessionToken() {
     return crypto.randomBytes(32).toString('hex');
+}
+
+function base64urlEncode(input) {
+    const buffer = Buffer.isBuffer(input) ? input : Buffer.from(String(input));
+    return buffer
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
+}
+
+function base64urlDecode(input) {
+    const str = String(input || '').replace(/-/g, '+').replace(/_/g, '/');
+    const pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4));
+    return Buffer.from(str + pad, 'base64');
+}
+
+function getSessionSigningKey() {
+    const raw = (process.env.MODERATOR_SESSION_SECRET || process.env.MASTER_KEY_BASE64 || process.env.DISCORD_TOKEN || '').trim();
+    if (!raw) {
+        throw new Error('No session signing secret configured');
+    }
+
+    if ((process.env.MODERATOR_SESSION_SECRET || process.env.MASTER_KEY_BASE64) && /^[A-Za-z0-9+/=]+$/.test(raw)) {
+        try {
+            const decoded = Buffer.from(raw, 'base64');
+            if (decoded.length >= 32) {
+                return decoded;
+            }
+        } catch {
+            // fall through
+        }
+    }
+
+    return crypto.createHash('sha256').update(raw).digest();
+}
+
+function signSessionPayload(payloadBase64) {
+    return crypto
+        .createHmac('sha256', getSessionSigningKey())
+        .update(payloadBase64)
+        .digest();
+}
+
+function createSignedSessionToken(sessionPayload) {
+    const payloadBase64 = base64urlEncode(Buffer.from(JSON.stringify(sessionPayload)));
+    const sigBase64 = base64urlEncode(signSessionPayload(payloadBase64));
+    return `${payloadBase64}.${sigBase64}`;
+}
+
+function parseSignedSessionToken(token) {
+    const raw = String(token || '');
+    const parts = raw.split('.');
+    if (parts.length !== 2) {
+        return null;
+    }
+
+    const [payloadBase64, sigBase64] = parts;
+    if (!payloadBase64 || !sigBase64) {
+        return null;
+    }
+
+    const expectedSig = signSessionPayload(payloadBase64);
+    const providedSig = base64urlDecode(sigBase64);
+
+    if (providedSig.length !== expectedSig.length || !crypto.timingSafeEqual(providedSig, expectedSig)) {
+        return null;
+    }
+
+    try {
+        const payload = JSON.parse(base64urlDecode(payloadBase64).toString('utf8'));
+        return payload;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -182,12 +257,21 @@ async function verifyUserPassword(userId, password) {
  * Create session for user
  */
 function createSession(userId, discordData = null) {
-    const token = generateSessionToken();
+    const now = Date.now();
+    const sessionPayload = {
+        v: 1,
+        userId,
+        discordData,
+        iat: now,
+        exp: now + SESSION_DURATION_MS
+    };
+
+    const token = createSignedSessionToken(sessionPayload);
     sessions.set(token, {
         userId,
         discordData,
-        createdAt: Date.now(),
-        expiresAt: Date.now() + SESSION_DURATION_MS
+        createdAt: now,
+        expiresAt: sessionPayload.exp
     });
     return token;
 }
@@ -196,14 +280,33 @@ function createSession(userId, discordData = null) {
  * Validate session
  */
 function validateSession(token) {
-    const session = sessions.get(token);
-    if (!session) return null;
-    
-    if (Date.now() > session.expiresAt) {
-        sessions.delete(token);
+    const cached = sessions.get(token);
+    if (cached) {
+        if (Date.now() > cached.expiresAt) {
+            sessions.delete(token);
+            return null;
+        }
+        return cached;
+    }
+
+    const payload = parseSignedSessionToken(token);
+    if (!payload || !payload.userId || !payload.exp) {
         return null;
     }
-    
+
+    const expiresAt = Number(payload.exp);
+    if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) {
+        return null;
+    }
+
+    const session = {
+        userId: payload.userId,
+        discordData: payload.discordData || null,
+        createdAt: Number(payload.iat) || Date.now(),
+        expiresAt
+    };
+
+    sessions.set(token, session);
     return session;
 }
 
