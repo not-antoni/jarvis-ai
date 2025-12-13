@@ -97,13 +97,32 @@ function syncFromLatestExport() {
         const exportPath = path.join(exportsDir, latestFile);
         const content = JSON.parse(fs.readFileSync(exportPath, 'utf8'));
 
+        const normalizeExtendedJson = (value) => {
+            if (value === null || value === undefined) return value;
+            if (Array.isArray(value)) return value.map(normalizeExtendedJson);
+            if (typeof value !== 'object') return value;
+
+            if (Object.prototype.hasOwnProperty.call(value, '$date')) {
+                return String(value.$date);
+            }
+
+            const out = {};
+            for (const [k, v] of Object.entries(value)) {
+                out[k] = normalizeExtendedJson(v);
+            }
+            return out;
+        };
+
+        const vaultUserKeysRaw = content.vaultUserKeys || content.vault_vaultUserKeys || [];
+        const vaultMemoriesRaw = content.vaultMemories || content.vault_vaultMemories || [];
+
         const localDb = {
             vault: {
-                userKeys: content.vaultUserKeys || [],
-                memories: content.vaultMemories || []
+                userKeys: normalizeExtendedJson(vaultUserKeysRaw),
+                memories: normalizeExtendedJson(vaultMemoriesRaw)
             },
             moderation: {
-                filters: content.moderationFilters || []
+                filters: normalizeExtendedJson(content.moderationFilters || [])
             }
         };
 

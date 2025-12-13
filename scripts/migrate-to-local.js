@@ -43,6 +43,7 @@ const COLLECTIONS = Object.values(config.database.collections);
 // Local MongoDB default URI
 const LOCAL_MONGO_URI = process.env.LOCAL_MONGO_URI || 'mongodb://localhost:27017';
 const LOCAL_DB_NAME = process.env.LOCAL_MONGO_DB_NAME || 'jarvis_local';
+const LOCAL_VAULT_DB_NAME = process.env.LOCAL_MONGO_VAULT_DB_NAME || process.env.LOCAL_MONGO_DB_VAULT_NAME || process.env.MONGO_DB_VAULT_NAME || 'jarvis_vault';
 const BACKUPS_DIR = path.join(localdb.DATA_DIR, 'backups');
 
 /**
@@ -328,6 +329,7 @@ async function importToLocalMongo(exportData) {
     try {
         await client.connect();
         const db = client.db(LOCAL_DB_NAME);
+        const vaultDb = client.db(LOCAL_VAULT_DB_NAME);
         
         log.success(`Connected to local database: ${LOCAL_DB_NAME}`);
         
@@ -335,16 +337,17 @@ async function importToLocalMongo(exportData) {
         
         for (const [collName, docs] of Object.entries(exportData)) {
             if (!docs || docs.length === 0) continue;
-            
-            // Skip vault collections for main db
-            if (collName.startsWith('vault_')) continue;
-            
-            log.step(`Importing ${collName}...`);
+
+            const isVaultCollection = collName.startsWith('vault_');
+            const targetDb = isVaultCollection ? vaultDb : db;
+            const targetName = isVaultCollection ? collName.slice('vault_'.length) : collName;
+
+            log.step(`Importing ${isVaultCollection ? `vault/${targetName}` : targetName}...`);
             
             try {
                 // Drop existing collection to do clean import
                 try {
-                    await db.collection(collName).drop();
+                    await targetDb.collection(targetName).drop();
                 } catch (e) {
                     // Collection might not exist, that's fine
                 }
@@ -353,13 +356,13 @@ async function importToLocalMongo(exportData) {
                 const deserialized = docs.map(deserializeDoc);
                 
                 if (deserialized.length > 0) {
-                    await db.collection(collName).insertMany(deserialized, { ordered: false });
+                    await targetDb.collection(targetName).insertMany(deserialized, { ordered: false });
                 }
                 
                 totalImported += docs.length;
-                log.success(`  ${collName}: ${docs.length} documents`);
+                log.success(`  ${isVaultCollection ? `vault/${targetName}` : targetName}: ${docs.length} documents`);
             } catch (err) {
-                log.error(`  ${collName}: ${err.message}`);
+                log.error(`  ${isVaultCollection ? `vault/${targetName}` : targetName}: ${err.message}`);
             }
         }
         
@@ -399,14 +402,36 @@ async function syncToLocalJsonDb(exportData, skipBackup = false) {
     
     let totalSynced = 0;
     
+    const vaultUserKeys = exportData.vault_vaultUserKeys || exportData.vaultUserKeys || [];
+    const vaultMemories = exportData.vault_vaultMemories || exportData.vaultMemories || [];
+
     for (const [collName, docs] of Object.entries(exportData)) {
         if (!docs || docs.length === 0) continue;
-        if (collName.startsWith('vault_')) continue; // Skip vault for JSON db
+        if (collName.startsWith('vault_')) continue; // Vault handled separately
         
         log.step(`Writing ${collName}...`);
         localdb.writeCollection(collName, docs);
         totalSynced += docs.length;
         log.success(`  ${collName}: ${docs.length} documents`);
+    }
+
+    if (vaultUserKeys.length || vaultMemories.length) {
+        try {
+            const local = localdb.loadLocalDb();
+            if (!local.vault) local.vault = {};
+
+            if (vaultUserKeys.length) {
+                local.vault.userKeys = vaultUserKeys.map(deserializeDoc);
+            }
+            if (vaultMemories.length) {
+                local.vault.memories = vaultMemories.map(deserializeDoc);
+            }
+
+            localdb.saveLocalDb(local);
+            log.success(`  vault: ${vaultUserKeys.length + vaultMemories.length} documents`);
+        } catch (e) {
+            log.warn(`  vault: ${e.message}`);
+        }
     }
     
     log.success(`\nSynced ${totalSynced} documents to local JSON database`);
@@ -705,6 +730,8 @@ ${colors.cyan}╔═════════════════════
             log.info('\nTo use local MongoDB, update your .env:');
             log.step(`MONGO_URI_MAIN=${LOCAL_MONGO_URI}`);
             log.step(`MONGO_DB_MAIN_NAME=${LOCAL_DB_NAME}`);
+            log.step(`MONGO_URI_VAULT=${LOCAL_MONGO_URI}`);
+            log.step(`MONGO_DB_VAULT_NAME=${LOCAL_VAULT_DB_NAME}`);
             log.step('SELFHOST_MODE=1');
         }
         return;
