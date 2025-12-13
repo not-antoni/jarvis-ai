@@ -9,7 +9,9 @@ let schedulerState = {
     started: false,
     tickHandle: null,
     client: null,
-    database: null
+    database: null,
+    lastConnectAttemptAt: 0,
+    warnedNotConnected: false
 };
 
 function ensureConnected() {
@@ -185,8 +187,24 @@ async function completeAnnouncement(doc, { now = new Date(), success = true, err
 
 async function tick() {
     if (!ensureConnected()) {
-        return;
+        const now = Date.now();
+        if (schedulerState.database && typeof schedulerState.database.connect === 'function') {
+            if (!schedulerState.lastConnectAttemptAt || now - schedulerState.lastConnectAttemptAt > 30 * 1000) {
+                schedulerState.lastConnectAttemptAt = now;
+                await schedulerState.database.connect().catch(() => {});
+            }
+        }
+
+        if (!ensureConnected()) {
+            if (!schedulerState.warnedNotConnected) {
+                schedulerState.warnedNotConnected = true;
+                console.warn('[Announcements] Scheduler idle - database not connected');
+            }
+            return;
+        }
     }
+
+    schedulerState.warnedNotConnected = false;
 
     const due = await claimDueAnnouncements({ limit: 10 }).catch(() => []);
     if (!due.length) {
