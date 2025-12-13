@@ -4,6 +4,9 @@ const config = require('../../config');
 
 const DEFAULT_TICK_MS = 15 * 1000;
 const DEFAULT_LOCK_MS = 60 * 1000;
+const DEFAULT_MEMORY_THRESHOLD_MS = 10 * 60 * 1000;
+
+const memoryJobs = new Map();
 
 let schedulerState = {
     started: false,
@@ -11,7 +14,9 @@ let schedulerState = {
     client: null,
     database: null,
     lastConnectAttemptAt: 0,
-    warnedNotConnected: false
+    warnedNotConnected: false,
+    tickMs: DEFAULT_TICK_MS,
+    memoryThresholdMs: DEFAULT_MEMORY_THRESHOLD_MS
 };
 
 function ensureConnected() {
@@ -27,6 +32,7 @@ function getCollection() {
 
 function normalizeUnit(unit) {
     const raw = String(unit || '').toLowerCase();
+    if (raw === 'second' || raw === 'seconds') return 'seconds';
     if (raw === 'minute' || raw === 'minutes') return 'minutes';
     if (raw === 'hour' || raw === 'hours') return 'hours';
     if (raw === 'day' || raw === 'days') return 'days';
@@ -44,6 +50,9 @@ function addInterval(date, amount, unit) {
 
     const d = new Date(date);
     switch (normalized) {
+        case 'seconds':
+            d.setTime(d.getTime() + n * 1000);
+            return d;
         case 'minutes':
             d.setTime(d.getTime() + n * 60 * 1000);
             return d;
@@ -109,6 +118,37 @@ async function claimDueAnnouncements({ now = new Date(), limit = 10, lockMs = DE
     return claimed;
 }
 
+async function claimDueMemoryAnnouncements({ now = new Date(), limit = 10, lockMs = DEFAULT_LOCK_MS } = {}) {
+    const nowDate = now instanceof Date ? now : new Date(now);
+    const lockUntil = new Date(nowDate.getTime() + lockMs);
+
+    const candidates = [];
+    for (const job of memoryJobs.values()) {
+        if (!job || !job.enabled) continue;
+        if (!job.nextRunAt || new Date(job.nextRunAt) > nowDate) continue;
+
+        const lockedUntil = job.lockedUntil ? new Date(job.lockedUntil) : null;
+        if (lockedUntil && lockedUntil > nowDate) continue;
+
+        candidates.push(job);
+    }
+
+    candidates.sort((a, b) => new Date(a.nextRunAt).getTime() - new Date(b.nextRunAt).getTime());
+
+    const claimed = [];
+    for (const job of candidates.slice(0, limit)) {
+        const stored = memoryJobs.get(job.id);
+        if (!stored) continue;
+
+        stored.lockedUntil = lockUntil;
+        stored.updatedAt = new Date();
+        memoryJobs.set(stored.id, stored);
+        claimed.push(stored);
+    }
+
+    return claimed;
+}
+
 async function deliverAnnouncement(doc) {
     if (!schedulerState.client) {
         return { ok: false, error: new Error('Discord client not attached') };
@@ -165,8 +205,8 @@ async function completeAnnouncement(doc, { now = new Date(), success = true, err
             updates.nextRunAt = next;
             updates.enabled = Boolean(next);
         } else {
-            updates.enabled = false;
-            updates.nextRunAt = null;
+            await collection.deleteOne({ id: doc.id }).catch(() => null);
+            return;
         }
     } else {
         const currentErrors = Number(doc.errorCount) || 0;
@@ -185,7 +225,58 @@ async function completeAnnouncement(doc, { now = new Date(), success = true, err
     await collection.updateOne({ id: doc.id }, { $set: updates });
 }
 
+async function completeMemoryAnnouncement(doc, { now = new Date(), success = true, error = null } = {}) {
+    if (!doc || !doc.id) return;
+
+    const nowDate = now instanceof Date ? now : new Date(now);
+    const stored = memoryJobs.get(doc.id);
+    if (!stored) return;
+
+    stored.updatedAt = nowDate;
+    stored.lockedUntil = null;
+
+    const repeatEvery = stored.repeatEvery;
+    const repeatUnit = stored.repeatUnit;
+
+    if (success) {
+        stored.lastRunAt = nowDate;
+        stored.errorCount = 0;
+        stored.lastError = null;
+
+        if (repeatEvery && repeatUnit) {
+            const next = addInterval(nowDate, repeatEvery, repeatUnit);
+            stored.nextRunAt = next;
+            stored.enabled = Boolean(next);
+            memoryJobs.set(stored.id, stored);
+            return;
+        }
+
+        memoryJobs.delete(stored.id);
+        return;
+    }
+
+    const currentErrors = Number(stored.errorCount) || 0;
+    const nextErrorCount = currentErrors + 1;
+    stored.errorCount = nextErrorCount;
+    stored.lastError = error ? String(error.message || error) : 'Unknown error';
+
+    if (nextErrorCount >= 5) {
+        stored.enabled = false;
+        stored.nextRunAt = null;
+    } else {
+        stored.nextRunAt = new Date(nowDate.getTime() + 5 * 60 * 1000);
+    }
+
+    memoryJobs.set(stored.id, stored);
+}
+
 async function tick() {
+    const dueMemory = await claimDueMemoryAnnouncements({ limit: 10 }).catch(() => []);
+    for (const job of dueMemory) {
+        const result = await deliverAnnouncement(job);
+        await completeMemoryAnnouncement(job, { success: result.ok, error: result.error });
+    }
+
     if (!ensureConnected()) {
         const now = Date.now();
         if (schedulerState.database && typeof schedulerState.database.connect === 'function') {
@@ -218,11 +309,6 @@ async function tick() {
 }
 
 async function createAnnouncement(payload) {
-    const collection = getCollection();
-    if (!collection) {
-        throw new Error('Database not connected');
-    }
-
     const now = new Date();
 
     const delayAmount = Number(payload.delayAmount);
@@ -248,7 +334,12 @@ async function createAnnouncement(payload) {
         repeatUnit = repUnit;
     }
 
-    const id = `ann_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const delayMs = new Date(nextRunAt).getTime() - now.getTime();
+    const shouldUseMemory = !repeatEvery && delayMs <= schedulerState.memoryThresholdMs;
+
+    const id = shouldUseMemory
+        ? `memann_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+        : `ann_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     const doc = {
         id,
@@ -273,27 +364,54 @@ async function createAnnouncement(payload) {
         throw new Error('Message is required');
     }
 
+    if (shouldUseMemory) {
+        memoryJobs.set(doc.id, doc);
+        return doc;
+    }
+
+    const collection = getCollection();
+    if (!collection) {
+        throw new Error('Database not connected');
+    }
+
     await collection.insertOne(doc);
     return doc;
 }
 
 async function listAnnouncementsForUser({ userId, guildId }) {
-    const collection = getCollection();
-    if (!collection) {
-        return [];
-    }
+    const mem = Array.from(memoryJobs.values())
+        .filter((job) => job && job.createdByUserId === String(userId) && job.guildId === String(guildId));
 
-    return collection
-        .find({ createdByUserId: String(userId), guildId: String(guildId) })
-        .sort({ createdAt: -1 })
-        .limit(50)
-        .toArray();
+    const collection = getCollection();
+    const dbJobs = collection
+        ? await collection
+            .find({ createdByUserId: String(userId), guildId: String(guildId) })
+            .sort({ createdAt: -1 })
+            .limit(50)
+            .toArray()
+        : [];
+
+    const all = mem.concat(dbJobs);
+    all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return all.slice(0, 50);
 }
 
 async function setAnnouncementEnabled({ id, userId, guildId, enabled }) {
+    const mem = memoryJobs.get(String(id));
+    if (mem && mem.createdByUserId === String(userId) && mem.guildId === String(guildId)) {
+        mem.enabled = Boolean(enabled);
+        mem.updatedAt = new Date();
+        mem.lockedUntil = null;
+        if (enabled && !mem.nextRunAt) {
+            mem.nextRunAt = new Date(Date.now() + 60 * 1000);
+        }
+        memoryJobs.set(mem.id, mem);
+        return { ok: true };
+    }
+
     const collection = getCollection();
     if (!collection) {
-        throw new Error('Database not connected');
+        return { ok: false, error: 'Database not connected.' };
     }
 
     const doc = await collection.findOne({ id: String(id), createdByUserId: String(userId), guildId: String(guildId) });
@@ -316,9 +434,15 @@ async function setAnnouncementEnabled({ id, userId, guildId, enabled }) {
 }
 
 async function deleteAnnouncement({ id, userId, guildId }) {
+    const mem = memoryJobs.get(String(id));
+    if (mem && mem.createdByUserId === String(userId) && mem.guildId === String(guildId)) {
+        memoryJobs.delete(mem.id);
+        return { ok: true };
+    }
+
     const collection = getCollection();
     if (!collection) {
-        throw new Error('Database not connected');
+        return { ok: false, error: 'Database not connected.' };
     }
 
     const res = await collection.deleteOne({ id: String(id), createdByUserId: String(userId), guildId: String(guildId) });
@@ -330,18 +454,27 @@ async function deleteAnnouncement({ id, userId, guildId }) {
 }
 
 async function countEnabledForGuild(guildId) {
+    const gid = String(guildId);
+    const memCount = Array.from(memoryJobs.values()).filter((job) => job && job.enabled && job.guildId === gid).length;
+
     const collection = getCollection();
-    if (!collection) return 0;
-    return collection.countDocuments({ guildId: String(guildId), enabled: true });
+    if (!collection) return memCount;
+    const dbCount = await collection.countDocuments({ guildId: gid, enabled: true });
+    return memCount + dbCount;
 }
 
 async function countEnabledForChannel(guildId, channelId) {
+    const gid = String(guildId);
+    const cid = String(channelId);
+    const memCount = Array.from(memoryJobs.values()).filter((job) => job && job.enabled && job.guildId === gid && job.channelId === cid).length;
+
     const collection = getCollection();
-    if (!collection) return 0;
-    return collection.countDocuments({ guildId: String(guildId), channelId: String(channelId), enabled: true });
+    if (!collection) return memCount;
+    const dbCount = await collection.countDocuments({ guildId: gid, channelId: cid, enabled: true });
+    return memCount + dbCount;
 }
 
-function init({ client, database, tickMs = DEFAULT_TICK_MS } = {}) {
+function init({ client, database, tickMs = DEFAULT_TICK_MS, memoryThresholdMs = DEFAULT_MEMORY_THRESHOLD_MS, startInterval = true } = {}) {
     if (schedulerState.started) {
         return;
     }
@@ -349,18 +482,31 @@ function init({ client, database, tickMs = DEFAULT_TICK_MS } = {}) {
     schedulerState.client = client || null;
     schedulerState.database = database || null;
 
-    schedulerState.tickHandle = setInterval(() => {
-        tick().catch((error) => {
-            console.warn('[Announcements] Tick failed:', error?.message || error);
-        });
-    }, Math.max(5000, Number(tickMs) || DEFAULT_TICK_MS));
+    const parsedTick = Number(tickMs);
+    schedulerState.tickMs = Math.max(5000, Number.isFinite(parsedTick) ? parsedTick : DEFAULT_TICK_MS);
+
+    const parsedThreshold = Number(memoryThresholdMs);
+    schedulerState.memoryThresholdMs = Math.max(0, Number.isFinite(parsedThreshold) ? parsedThreshold : DEFAULT_MEMORY_THRESHOLD_MS);
+
+    if (startInterval) {
+        schedulerState.tickHandle = setInterval(() => {
+            tick().catch((error) => {
+                console.warn('[Announcements] Tick failed:', error?.message || error);
+            });
+        }, schedulerState.tickMs);
+    }
 
     schedulerState.started = true;
     console.log('[Announcements] Scheduler started');
 }
 
+async function runOnce() {
+    return tick();
+}
+
 module.exports = {
     init,
+    runOnce,
     createAnnouncement,
     listAnnouncementsForUser,
     setAnnouncementEnabled,
