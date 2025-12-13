@@ -540,9 +540,10 @@ class DatabaseManager {
     async getActiveReminders() {
         if (!this.isConnected || !this.db) return [];
         const now = Date.now();
+        const graceMs = 24 * 60 * 60 * 1000;
         return this.db
             .collection(config.database.collections.reminders)
-            .find({ scheduledFor: { $gt: now } })
+            .find({ scheduledFor: { $gt: now - graceMs } })
             .sort({ scheduledFor: 1 })
             .limit(500)
             .toArray();
