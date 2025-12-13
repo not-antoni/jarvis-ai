@@ -148,9 +148,7 @@ async function verifyDeployment() {
     });
 
     console.log(`\n📊 AI Providers: ${providers.totalFamilies} configured`);
-    console.log(
-        `📊 Optional APIs: ${env.optionalConfigured}/${env.optionalTotal} configured`
-    );
+    console.log(`📊 Optional APIs: ${env.optionalConfigured}/${env.optionalTotal} configured`);
 
     if (!env.hasAllRequired) {
         console.log('\n❌ Deployment will fail - missing required environment variables');
