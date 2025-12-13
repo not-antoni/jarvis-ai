@@ -45,6 +45,7 @@ const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics'
 const ytDlpManager = require('./src/services/yt-dlp-manager');
 const starkEconomy = require('./src/services/stark-economy');
 const errorLogger = require('./src/services/error-logger');
+const announcementScheduler = require('./src/services/announcement-scheduler');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -2778,6 +2779,114 @@ const allCommands = [
                     opt.setName('id').setDescription('Reminder ID to cancel').setRequired(true)))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
+        .setName('reminders')
+        .setDescription('Set a reminder for later (alias)')
+        .addSubcommand(sub =>
+            sub
+                .setName('set')
+                .setDescription('Create a new reminder')
+                .addStringOption(opt =>
+                    opt.setName('message').setDescription('What to remind you about').setRequired(true))
+                .addStringOption(opt =>
+                    opt.setName('time').setDescription('When (e.g., "in 2 hours", "at 3pm", "tomorrow")').setRequired(true)))
+        .addSubcommand(sub =>
+            sub
+                .setName('list')
+                .setDescription('View your pending reminders'))
+        .addSubcommand(sub =>
+            sub
+                .setName('cancel')
+                .setDescription('Cancel a reminder')
+                .addStringOption(opt =>
+                    opt.setName('id').setDescription('Reminder ID to cancel').setRequired(true)))
+        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
+    new SlashCommandBuilder()
+        .setName('announcement')
+        .setDescription('Schedule recurring announcements (DB-backed)')
+        .addSubcommand(sub =>
+            sub
+                .setName('create')
+                .setDescription('Create a new scheduled announcement')
+                .addChannelOption(opt =>
+                    opt
+                        .setName('channel')
+                        .setDescription('Channel to send in')
+                        .setRequired(true)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+                .addStringOption(opt =>
+                    opt
+                        .setName('message')
+                        .setDescription('Message to send')
+                        .setRequired(true))
+                .addIntegerOption(opt =>
+                    opt
+                        .setName('in')
+                        .setDescription('Send after this many units (e.g. 2)')
+                        .setRequired(true)
+                        .setMinValue(1)
+                        .setMaxValue(525600))
+                .addStringOption(opt =>
+                    opt
+                        .setName('unit')
+                        .setDescription('Unit for the delay')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'Minutes', value: 'minutes' },
+                            { name: 'Hours', value: 'hours' },
+                            { name: 'Days', value: 'days' },
+                            { name: 'Weeks', value: 'weeks' },
+                            { name: 'Months', value: 'months' }
+                        ))
+                .addIntegerOption(opt =>
+                    opt
+                        .setName('every')
+                        .setDescription('Repeat every N units (omit for one-time)')
+                        .setRequired(false)
+                        .setMinValue(1)
+                        .setMaxValue(525600))
+                .addStringOption(opt =>
+                    opt
+                        .setName('every_unit')
+                        .setDescription('Unit for repeat interval (required if every is set)')
+                        .setRequired(false)
+                        .addChoices(
+                            { name: 'Minutes', value: 'minutes' },
+                            { name: 'Hours', value: 'hours' },
+                            { name: 'Days', value: 'days' },
+                            { name: 'Weeks', value: 'weeks' },
+                            { name: 'Months', value: 'months' }
+                        ))
+                .addRoleOption(opt =>
+                    opt.setName('role1').setDescription('Role to ping (optional)').setRequired(false))
+                .addRoleOption(opt =>
+                    opt.setName('role2').setDescription('Role to ping (optional)').setRequired(false))
+                .addRoleOption(opt =>
+                    opt.setName('role3').setDescription('Role to ping (optional)').setRequired(false))
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('list')
+                .setDescription('List your scheduled announcements'))
+        .addSubcommand(sub =>
+            sub
+                .setName('disable')
+                .setDescription('Disable a scheduled announcement')
+                .addStringOption(opt =>
+                    opt.setName('id').setDescription('Announcement ID').setRequired(true)))
+        .addSubcommand(sub =>
+            sub
+                .setName('enable')
+                .setDescription('Enable a scheduled announcement')
+                .addStringOption(opt =>
+                    opt.setName('id').setDescription('Announcement ID').setRequired(true)))
+        .addSubcommand(sub =>
+            sub
+                .setName('delete')
+                .setDescription('Delete a scheduled announcement')
+                .addStringOption(opt =>
+                    opt.setName('id').setDescription('Announcement ID').setRequired(true)))
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
         .setName('timezone')
         .setDescription('Set your timezone for reminders and time displays')
         .addStringOption(opt =>
@@ -3622,16 +3731,16 @@ client.once(Events.ClientReady, async () => {
         console.warn('[ErrorLogger] Failed to attach client:', e.message);
     }
     
-    // Initialize user features service with Discord client for reminders
-    try {
-        const userFeatures = require('./src/services/user-features');
-        userFeatures.setDiscordClient(client);
-        if (database.isConnected) {
-            userFeatures.init(database, client);
+    const userFeatures = (() => {
+        try {
+            const service = require('./src/services/user-features');
+            service.setDiscordClient(client);
+            return service;
+        } catch (e) {
+            console.warn('[UserFeatures] Failed to attach Discord client:', e.message);
+            return null;
         }
-    } catch (e) {
-        console.warn('[UserFeatures] Failed to initialize:', e.message);
-    }
+    })();
     
     // Start Stark Bucks multiplier event scheduler (250% bonus every 3 hours)
     starkEconomy.startMultiplierScheduler();
@@ -3668,6 +3777,22 @@ client.once(Events.ClientReady, async () => {
             databaseConnected = true;
         } catch (error) {
             console.error("Failed to connect to MongoDB on startup:", error);
+        }
+    }
+
+    if (userFeatures && databaseConnected) {
+        try {
+            userFeatures.init(database, client);
+        } catch (e) {
+            console.warn('[UserFeatures] Failed to initialize:', e.message);
+        }
+    }
+
+    if (databaseConnected) {
+        try {
+            announcementScheduler.init({ client, database });
+        } catch (e) {
+            console.warn('[Announcements] Failed to start scheduler:', e.message);
         }
     }
 

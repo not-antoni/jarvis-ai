@@ -133,6 +133,54 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
+        name: 'remind',
+        description: 'Set, list, or cancel a reminder.',
+        category: 'Personal Tools',
+        usage: '/remind set message:<text> time:<in 2 hours>',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
+        name: 'reminders',
+        description: 'Alias for /remind.',
+        category: 'Personal Tools',
+        usage: '/reminders list',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
+        name: 'timezone',
+        description: 'Set your timezone for reminders and timestamps.',
+        category: 'Personal Tools',
+        usage: '/timezone zone:Europe/London',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
+        name: 'wakeword',
+        description: 'Set a custom wake word that triggers Jarvis for you.',
+        category: 'Personal Tools',
+        usage: '/wakeword word:jarvis',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
+        name: 'mystats',
+        description: 'View your Jarvis interaction statistics.',
+        category: 'Personal Tools',
+        usage: '/mystats',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
+        name: 'announcement',
+        description: 'Schedule announcements to post in a channel at a later time (optionally recurring).',
+        category: 'Utilities',
+        usage: '/announcement create channel:<#> message:<text> in:<n> unit:<hours> [every:<n> every_unit:<days>]',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',
