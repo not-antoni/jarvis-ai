@@ -45,6 +45,12 @@ class ToolError extends Error {
         return new ToolError(`Operation timed out after ${timeoutMs}ms`, 'TIMEOUT', { timeoutMs });
     }
 
+    static approvalTimeout(timeoutMs) {
+        return new ToolError(`Approval timed out after ${timeoutMs}ms`, 'APPROVAL_TIMEOUT', {
+            timeoutMs
+        });
+    }
+
     static sandboxDenied(output) {
         return new ToolError('Sandbox denied operation', 'SANDBOX_DENIED', { output });
     }
@@ -115,6 +121,10 @@ class AgentOrchestrator extends EventEmitter {
                 approvalResult.decision === ApprovalDecision.ABORT
             ) {
                 throw ToolError.rejected(approvalResult.reason || 'User denied');
+            }
+
+            if (approvalResult.decision === ApprovalDecision.TIMEOUT) {
+                throw ToolError.approvalTimeout(this.options.approvalTimeout);
             }
 
             // Step 2: Execute with retry logic

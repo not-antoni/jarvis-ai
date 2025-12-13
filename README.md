@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)](https://discord.js.org)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D22-green.svg)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/node-24.12.0-green.svg)](https://nodejs.org)
 
 > **145 JavaScript files • 51,000+ lines of code • 100% open source**
 
@@ -82,8 +82,12 @@ MASTER_KEY_BASE64=base64_32_byte_key
 
 ```env
 # Dashboard / monitoring
-PASSWORD=...             # Password gate for /dashboard and /api/dashboard/*
+DASHBOARD_PASSWORD=...   # Password gate for /dashboard and /api/dashboard/* (preferred)
+PASSWORD=...             # Backwards-compatible fallback
 HEALTH_TOKEN=...         # Locks down /health, /providers/status, /metrics/commands
+
+# Webserver limits
+JSON_BODY_LIMIT=500kb    # Default JSON/urlencoded body limit (e.g. 2mb)
 
 # AI providers (configure at least one)
 OPENROUTER_API_KEY=...
@@ -123,6 +127,41 @@ Key files:
 - `.env` - Environment variables (secrets)
 - `config/index.js` - App configuration
 - `src/core/feature-flags.js` - Toggle features
+
+## Dashboard
+
+The bot serves a built-in dashboard UI:
+
+- `/dashboard` - UI (static build from `dashboard/dist`)
+- `/api/dashboard/*` - JSON API consumed by the UI
+
+### Dashboard login
+
+- If `DASHBOARD_PASSWORD` (or `PASSWORD`) is **unset/empty**, the dashboard is **open**.
+- If it’s set, you must log in at `/dashboard/login`.
+
+**Important:** Use `DASHBOARD_PASSWORD` instead of `PASSWORD`. `PASSWORD` is a very generic env var name and is commonly overridden by hosting platforms or other tooling, which results in “wrong password” even when your `.env` looks correct.
+
+If you changed the password, also clear the auth cookie by visiting `/dashboard/logout` (or clear cookies) and try again.
+
+## Webhook
+
+The service exposes `/webhook` for Discord interaction webhooks and verifies the request signature (requires `DISCORD_WEBHOOK_PUBLIC_KEY`).
+
+## Diagnostics
+
+If enabled, agent diagnostics are mounted under `/diagnostics/health/agent/*`.
+
+## Tests
+
+`npm test` runs only the `node:test`-based unit tests (auto-discovered).
+
+Some test files in `tests/` are manual/integration scripts and are intentionally excluded from `npm test`.
+To run them:
+
+```bash
+npm run test:manual
+```
 
 ---
 

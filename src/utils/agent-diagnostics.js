@@ -6,6 +6,7 @@
 const express = require('express');
 
 function createAgentDiagnosticsRouter(discordHandlers) {
+    if (!discordHandlers) return null;
     const router = express.Router();
 
     /**
