@@ -2779,28 +2779,6 @@ const allCommands = [
                     opt.setName('id').setDescription('Reminder ID to cancel').setRequired(true)))
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('reminders')
-        .setDescription('Set a reminder for later (alias)')
-        .addSubcommand(sub =>
-            sub
-                .setName('set')
-                .setDescription('Create a new reminder')
-                .addStringOption(opt =>
-                    opt.setName('message').setDescription('What to remind you about').setRequired(true))
-                .addStringOption(opt =>
-                    opt.setName('time').setDescription('When (e.g., "in 2 hours", "at 3pm", "tomorrow")').setRequired(true)))
-        .addSubcommand(sub =>
-            sub
-                .setName('list')
-                .setDescription('View your pending reminders'))
-        .addSubcommand(sub =>
-            sub
-                .setName('cancel')
-                .setDescription('Cancel a reminder')
-                .addStringOption(opt =>
-                    opt.setName('id').setDescription('Reminder ID to cancel').setRequired(true)))
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
         .setName('announcement')
         .setDescription('Schedule recurring announcements (DB-backed)')
         .addSubcommand(sub =>

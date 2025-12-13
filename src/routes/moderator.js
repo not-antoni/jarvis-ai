@@ -18,11 +18,54 @@ const cookieParser = require('cookie-parser');
 router.use(cookieParser());
 
 function shouldUseSecureCookies(req) {
-    if (process.env.RENDER_EXTERNAL_URL) return true;
-    if (process.env.DASHBOARD_DOMAIN && process.env.DASHBOARD_DOMAIN.startsWith('https://')) return true;
     if (req?.secure) return true;
     if (String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase() === 'https') return true;
+    if (process.env.DASHBOARD_DOMAIN && process.env.DASHBOARD_DOMAIN.startsWith('https://')) return true;
     return false;
+}
+
+function getCookieOptions(req, overrides = {}) {
+    return {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: shouldUseSecureCookies(req),
+        path: '/',
+        ...overrides
+    };
+}
+
+function getDiscordAvatarUrl(discordUser) {
+    if (!discordUser || !discordUser.id) return '';
+    if (discordUser.avatar) {
+        const ext = String(discordUser.avatar).startsWith('a_') ? 'gif' : 'png';
+        return `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.${ext}?size=64`;
+    }
+    return 'https://cdn.discordapp.com/embed/avatars/0.png';
+}
+
+function getDiscordClient() {
+    return global.discordClient || null;
+}
+
+function userOwnsGuild(userId, guildId) {
+    const client = getDiscordClient();
+    const guild = client?.guilds?.cache?.get(String(guildId));
+    return Boolean(guild && guild.ownerId === String(userId));
+}
+
+async function resolveDiscordUserData(userId) {
+    const client = getDiscordClient();
+    if (!client?.users?.fetch) return { id: String(userId) };
+
+    const user = await client.users.fetch(String(userId)).catch(() => null);
+    if (!user) return { id: String(userId) };
+
+    return {
+        id: user.id,
+        username: user.username,
+        global_name: user.globalName || null,
+        avatar: user.avatar || null
+    };
 }
 
 // Session validation middleware
@@ -34,7 +77,7 @@ function requireAuth(req, res, next) {
     
     const session = auth.validateSession(token);
     if (!session) {
-        res.clearCookie('moderator_session');
+        res.clearCookie('moderator_session', { path: '/' });
         return res.redirect('/moderator?error=session_expired');
     }
     
@@ -61,7 +104,7 @@ router.get('/', (req, res) => {
     } else {
         // Generate state for OAuth
         const state = require('crypto').randomBytes(16).toString('hex');
-        res.cookie('oauth_state', state, { httpOnly: true, maxAge: 600000 });
+        res.cookie('oauth_state', state, getCookieOptions(req, { maxAge: 600000 }));
         try {
             const oauthUrl = auth.getOAuthUrl(state);
             res.send(getOAuthLoginPage(oauthUrl, errorMsg));
@@ -91,13 +134,9 @@ router.post('/login', async (req, res) => {
     }
     
     // Create session
-    const token = auth.createSession(userId, { id: userId });
-    res.cookie('moderator_session', token, { 
-        httpOnly: true, 
-        maxAge: 12 * 60 * 60 * 1000,
-        sameSite: 'lax',
-        secure: shouldUseSecureCookies(req)
-    });
+    const discordData = await resolveDiscordUserData(userId);
+    const token = auth.createSession(userId, discordData);
+    res.cookie('moderator_session', token, getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 }));
     
     res.redirect('/moderator/dashboard');
 });
@@ -108,7 +147,7 @@ router.get('/callback', async (req, res) => {
     const storedState = req.cookies?.oauth_state;
     
     // Clear state cookie
-    res.clearCookie('oauth_state');
+    res.clearCookie('oauth_state', { path: '/' });
     
     // Verify state
     if (!state || state !== storedState) {
@@ -131,18 +170,13 @@ router.get('/callback', async (req, res) => {
                 id: discordUser.id, 
                 username: discordUser.username,
                 token: setupToken 
-            }), { httpOnly: true, maxAge: 1800000 });
+            }), getCookieOptions(req, { maxAge: 1800000 }));
             return res.redirect('/moderator/setup');
         }
         
         // Create session
         const sessionToken = auth.createSession(discordUser.id, discordUser);
-        res.cookie('moderator_session', sessionToken, { 
-            httpOnly: true, 
-            maxAge: 12 * 60 * 60 * 1000,
-            sameSite: 'lax',
-            secure: shouldUseSecureCookies(req)
-        });
+        res.cookie('moderator_session', sessionToken, getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 }));
         
         res.redirect('/moderator/dashboard');
     } catch (error) {
@@ -192,16 +226,11 @@ router.post('/setup', async (req, res) => {
     await auth.setPassword(userId, password);
     
     // Clear setup cookie
-    res.clearCookie('setup_user');
+    res.clearCookie('setup_user', { path: '/' });
     
     // Create session
     const sessionToken = auth.createSession(userId, { id: userId });
-    res.cookie('moderator_session', sessionToken, { 
-        httpOnly: true, 
-        maxAge: 12 * 60 * 60 * 1000,
-        sameSite: 'lax',
-        secure: shouldUseSecureCookies(req)
-    });
+    res.cookie('moderator_session', sessionToken, getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 }));
     
     res.redirect('/moderator/dashboard');
 });
@@ -209,27 +238,33 @@ router.post('/setup', async (req, res) => {
 // ============ DASHBOARD ============
 router.get('/dashboard', requireAuth, async (req, res) => {
     const userId = req.session.userId;
-    
-    // Get all guilds with moderation enabled
-    const allGuilds = moderation.ALLOWED_GUILDS;
+
+    const client = getDiscordClient();
     const guildStats = [];
-    
-    for (const guildId of allGuilds) {
-        const status = moderation.getStatus(guildId);
-        if (status.isEnabled) {
+
+    if (client?.guilds?.cache) {
+        for (const guild of client.guilds.cache.values()) {
+            if (guild.ownerId !== userId) continue;
+            const status = moderation.getStatus(guild.id);
             guildStats.push({
-                guildId,
+                guildId: guild.id,
+                guildName: guild.name,
+                guildIcon: typeof guild.iconURL === 'function' ? guild.iconURL({ size: 64 }) : null,
                 ...status
             });
         }
     }
-    
+
     res.send(getDashboardPage(req.session, guildStats));
 });
 
 // ============ API ENDPOINTS ============
 router.get('/api/stats/:guildId', requireAuth, async (req, res) => {
     const { guildId } = req.params;
+    if (!userOwnsGuild(req.session.userId, guildId)) {
+        res.status(403).json({ success: false, error: 'unauthorized' });
+        return;
+    }
     const status = moderation.getStatus(guildId);
     res.json(status);
 });
@@ -237,9 +272,78 @@ router.get('/api/stats/:guildId', requireAuth, async (req, res) => {
 router.post('/api/settings/:guildId', requireAuth, express.json(), async (req, res) => {
     const { guildId } = req.params;
     const settings = req.body;
+
+    if (!userOwnsGuild(req.session.userId, guildId)) {
+        res.status(403).json({ success: false, error: 'unauthorized' });
+        return;
+    }
+
+    if (!moderation.canEnableModeration(String(guildId))) {
+        res.json({ success: false, error: 'ask Stark for a invite, sir.' });
+        return;
+    }
     
     const result = moderation.updateSettings(guildId, settings);
     res.json(result);
+});
+
+// ============ GUILD MANAGEMENT PAGES ============
+router.get('/guild/:guildId', requireAuth, async (req, res) => {
+    const { guildId } = req.params;
+
+    if (!userOwnsGuild(req.session.userId, guildId)) {
+        return res.redirect('/moderator?error=unauthorized');
+    }
+
+    const client = getDiscordClient();
+    const guild = client?.guilds?.cache?.get(String(guildId)) || null;
+    const status = moderation.getStatus(String(guildId));
+    res.send(getGuildPage(req.session, guild, status, req.query?.error));
+});
+
+router.post('/guild/:guildId/toggle', requireAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { guildId } = req.params;
+    const enabled = String(req.body?.enabled || '').toLowerCase() === 'true';
+
+    if (!userOwnsGuild(req.session.userId, guildId)) {
+        return res.redirect('/moderator?error=unauthorized');
+    }
+
+    if (enabled && !moderation.canEnableModeration(String(guildId))) {
+        return res.redirect(`/moderator/guild/${guildId}?error=not_whitelisted`);
+    }
+
+    if (enabled) {
+        moderation.enableModeration(String(guildId), req.session.userId);
+    } else {
+        moderation.disableModeration(String(guildId), req.session.userId);
+    }
+
+    res.redirect(`/moderator/guild/${guildId}`);
+});
+
+router.post('/guild/:guildId/settings', requireAuth, express.urlencoded({ extended: true }), async (req, res) => {
+    const { guildId } = req.params;
+
+    if (!userOwnsGuild(req.session.userId, guildId)) {
+        return res.redirect('/moderator?error=unauthorized');
+    }
+
+    if (!moderation.canEnableModeration(String(guildId))) {
+        return res.redirect(`/moderator/guild/${guildId}?error=not_whitelisted`);
+    }
+
+    const patch = {
+        minSeverity: req.body?.minSeverity,
+        useAI: req.body?.useAI === 'on',
+        useFallbackPatterns: req.body?.useFallbackPatterns === 'on',
+        autoDelete: req.body?.autoDelete === 'on',
+        autoMute: req.body?.autoMute === 'on',
+        autoBan: req.body?.autoBan === 'on'
+    };
+
+    moderation.updateSettings(String(guildId), patch);
+    res.redirect(`/moderator/guild/${guildId}`);
 });
 
 // ============ LOGOUT ============
@@ -248,7 +352,7 @@ router.get('/logout', (req, res) => {
     if (token) {
         auth.destroySession(token);
     }
-    res.clearCookie('moderator_session');
+    res.clearCookie('moderator_session', { path: '/' });
     res.redirect('/moderator');
 });
 
@@ -376,6 +480,166 @@ function getOAuthLoginPage(oauthUrl, error = '') {
 </html>`;
 }
 
+function getGuildPage(session, guild, status, errorCode = '') {
+    const userLabel = session.discordData?.global_name || session.discordData?.username || session.userId;
+    const userAvatar = getDiscordAvatarUrl(session.discordData);
+    const guildName = guild?.name || 'Unknown Guild';
+    const guildIcon = typeof guild?.iconURL === 'function' ? guild.iconURL({ size: 64 }) : null;
+    const canEnable = Boolean(status?.canEnable);
+    const isEnabled = Boolean(status?.isEnabled);
+    const settings = status?.settings || {};
+    const error = String(errorCode || '');
+
+    const errorBanner = (!canEnable && !isEnabled) ? 'ask Stark for a invite, sir.' : '';
+    const showNotWhitelisted = error === 'not_whitelisted';
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guild Moderation - Jarvis</title>
+    <style>
+        ${getBaseStyles()}
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+        }
+        .user-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.2);
+            object-fit: cover;
+            background: rgba(0,0,0,0.2);
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-enabled {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+        }
+        .status-disabled {
+            background: rgba(255, 255, 255, 0.12);
+            color: #cfcfcf;
+        }
+        .select {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .row > .card {
+            flex: 1 1 420px;
+        }
+        .muted {
+            color: #888;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <div class="user-badge">
+                    ${guildIcon ? `<img class="user-avatar" src="${guildIcon}" alt="icon">` : ''}
+                    <div>
+                        <h1 style="font-size: 1.4rem;">${guildName}</h1>
+                        <div class="muted">Guild ID: ${guild?.id || ''}</div>
+                    </div>
+                    <span class="status-badge ${isEnabled ? 'status-enabled' : 'status-disabled'}">${isEnabled ? 'Enabled' : 'Disabled'}</span>
+                </div>
+            </div>
+            <div>
+                <span class="user-badge" style="color: #888; margin-right: 15px;">
+                    ${userAvatar ? `<img class="user-avatar" src="${userAvatar}" alt="avatar">` : ''}
+                    <span>${userLabel}</span>
+                </span>
+                <a href="/moderator/dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: white; padding: 8px 16px; font-size: 14px;">Back</a>
+                <a href="/moderator/logout" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px; margin-left: 8px;">Logout</a>
+            </div>
+        </div>
+
+        ${showNotWhitelisted ? `<div class="error">ask Stark for a invite, sir.</div>` : ''}
+        ${errorBanner ? `<div class="error">${errorBanner}</div>` : ''}
+        ${(error && error !== 'not_whitelisted') ? `<div class="error">${error}</div>` : ''}
+
+        <div class="row">
+            <div class="card">
+                <h2 style="margin-bottom: 12px;">Toggle Moderation</h2>
+                <p class="muted" style="margin-bottom: 14px;">You can manage moderation for guilds you own. Whitelist applies.</p>
+
+                <form method="POST" action="/moderator/guild/${guild?.id || ''}/toggle">
+                    <input type="hidden" name="enabled" value="${isEnabled ? 'false' : 'true'}">
+                    <button type="submit" class="btn btn-primary" ${(!canEnable && !isEnabled) ? 'disabled' : ''}>
+                        ${isEnabled ? 'Disable Moderation' : 'Enable Moderation'}
+                    </button>
+                </form>
+
+                ${(!canEnable && !isEnabled) ? `<p class="muted" style="margin-top: 10px;">ask Stark for a invite, sir.</p>` : ''}
+            </div>
+
+            <div class="card">
+                <h2 style="margin-bottom: 12px;">Settings</h2>
+                ${!isEnabled ? `<p class="muted">Enable moderation to edit settings.</p>` : ''}
+                ${isEnabled ? `
+                <form method="POST" action="/moderator/guild/${guild?.id || ''}/settings">
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Minimum Severity</label>
+                    <select class="select" name="minSeverity" ${(!canEnable) ? 'disabled' : ''}>
+                        ${['low','medium','high','critical'].map(v => `<option value="${v}" ${(settings.minSeverity || 'medium') === v ? 'selected' : ''}>${v}</option>`).join('')}
+                    </select>
+
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Detection Options</label>
+                    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 15px;">
+                        <label><input type="checkbox" name="useAI" ${(settings.useAI ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Use AI</label>
+                        <label><input type="checkbox" name="useFallbackPatterns" ${(settings.useFallbackPatterns ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Use fallback patterns</label>
+                    </div>
+
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Actions</label>
+                    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 15px;">
+                        <label><input type="checkbox" name="autoDelete" ${(settings.autoDelete ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Auto delete</label>
+                        <label><input type="checkbox" name="autoMute" ${(settings.autoMute ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Auto mute</label>
+                        <label><input type="checkbox" name="autoBan" ${(settings.autoBan ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Auto ban</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" ${(!canEnable) ? 'disabled' : ''}>Save Settings</button>
+                    ${(!canEnable) ? `<p class="muted" style="margin-top: 10px;">ask Stark for a invite, sir.</p>` : ''}
+                </form>
+                ` : ''}
+            </div>
+        </div>
+
+        <div style="text-align: center; color: #666; font-size: 12px; margin-top: 40px;">
+            Jarvis Security System • Threat Detection Unit
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
 function getSelfhostLoginPage(error = '') {
     return `<!DOCTYPE html>
 <html lang="en">
@@ -461,6 +725,8 @@ function getSetupPage(userData, error = '') {
 function getDashboardPage(session, guildStats) {
     const totalDetections = guildStats.reduce((sum, g) => sum + (g.stats?.total || 0), 0);
     const trackedMembers = guildStats.reduce((sum, g) => sum + (g.trackedMembersCount || 0), 0);
+    const userLabel = session.discordData?.global_name || session.discordData?.username || session.userId;
+    const userAvatar = getDiscordAvatarUrl(session.discordData);
     
     return `<!DOCTYPE html>
 <html lang="en">
@@ -477,6 +743,19 @@ function getDashboardPage(session, guildStats) {
             padding: 20px 0;
             border-bottom: 1px solid rgba(255,255,255,0.1);
             margin-bottom: 30px;
+        }
+        .user-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.2);
+            object-fit: cover;
+            background: rgba(0,0,0,0.2);
         }
         .stats-grid {
             display: grid;
@@ -525,6 +804,10 @@ function getDashboardPage(session, guildStats) {
             background: rgba(46, 204, 113, 0.2);
             color: #2ecc71;
         }
+        .status-disabled {
+            background: rgba(255, 255, 255, 0.12);
+            color: #cfcfcf;
+        }
         .settings-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -551,7 +834,10 @@ function getDashboardPage(session, guildStats) {
                 <p style="color: #888; font-size: 14px;">Security System Status Overview</p>
             </div>
             <div>
-                <span style="color: #888; margin-right: 15px;">User: ${session.userId}</span>
+                <span class="user-badge" style="color: #888; margin-right: 15px;">
+                    ${userAvatar ? `<img class="user-avatar" src="${userAvatar}" alt="avatar">` : ''}
+                    <span>${userLabel}</span>
+                </span>
                 <a href="/moderator/logout" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">Logout</a>
             </div>
         </div>
@@ -567,7 +853,7 @@ function getDashboardPage(session, guildStats) {
             </div>
             <div class="stat-card">
                 <div class="stat-value">${guildStats.length}</div>
-                <div class="stat-label">Active Guilds</div>
+                <div class="stat-label">Owned Guilds</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">✅</div>
@@ -576,23 +862,27 @@ function getDashboardPage(session, guildStats) {
         </div>
         
         <div class="card">
-            <h2 style="margin-bottom: 20px;">📊 Guild Overview</h2>
+            <h2 style="margin-bottom: 20px;">🧰 Moderation Controls</h2>
             
             ${guildStats.length === 0 ? `
                 <p style="color: #888; text-align: center; padding: 40px;">
-                    No guilds have moderation enabled yet.<br>
-                    Use <code>.j enable moderation</code> in a server to get started.
+                    No manageable guilds found.<br>
+                    You can only manage guilds where you are the <strong>owner</strong> and Jarvis is present.
                 </p>
             ` : guildStats.map(guild => `
                 <div class="guild-card">
                     <div class="guild-header">
                         <div>
-                            <strong>Guild ID: ${guild.guildId}</strong>
-                            <span class="status-badge status-enabled" style="margin-left: 10px;">Enabled</span>
+                            <strong>${guild.guildName || 'Guild'} (${guild.guildId})</strong>
+                            <span class="status-badge ${guild.isEnabled ? 'status-enabled' : 'status-disabled'}" style="margin-left: 10px;">${guild.isEnabled ? 'Enabled' : 'Disabled'}</span>
                         </div>
                         <div style="color: #888; font-size: 13px;">
-                            Enabled by: ${guild.enabledBy || 'Unknown'}
+                            ${guild.canEnable ? '' : 'ask Stark for a invite, sir.'}
                         </div>
+                    </div>
+
+                    <div style="margin-top: 10px;">
+                        <a class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;" href="/moderator/guild/${guild.guildId}">Manage</a>
                     </div>
                     
                     <div class="settings-grid">

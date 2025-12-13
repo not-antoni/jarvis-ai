@@ -2613,8 +2613,7 @@
                     await this.handleMemoryCommand(interaction);
                     return;
                 }
-                case 'remind':
-                case 'reminders': {
+                case 'remind': {
                     telemetryMetadata.category = 'utilities';
                     await this.handleRemindCommand(interaction);
                     return;

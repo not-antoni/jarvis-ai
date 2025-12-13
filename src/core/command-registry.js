@@ -141,14 +141,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'reminders',
-        description: 'Alias for /remind.',
-        category: 'Personal Tools',
-        usage: '/reminders list',
-        feature: 'utilities',
-        ephemeral: true
-    },
-    {
         name: 'timezone',
         description: 'Set your timezone for reminders and timestamps.',
         category: 'Personal Tools',
