@@ -308,13 +308,18 @@ const legacyCommands = {
                 await message.reply(`⏰ You've already claimed today, sir. Come back in ${hours}h ${minutes}m.`);
                 return true;
             }
+
+            const safeReward = Number.isFinite(Number(result.reward)) ? Math.floor(Number(result.reward)) : 0;
+            const safeBalance = Number.isFinite(Number(result.newBalance)) ? Math.floor(Number(result.newBalance)) : 0;
+            const safeStreak = Number.isFinite(Number(result.streak)) ? Math.floor(Number(result.streak)) : 0;
+            const safeStreakBonus = Number.isFinite(Number(result.streakBonus)) ? Math.floor(Number(result.streakBonus)) : 0;
             
             const embed = new EmbedBuilder()
                 .setTitle('💰 Daily Reward Claimed!')
-                .setDescription(`You received **${result.reward}** Stark Bucks!${result.doubled ? ' (DOUBLED!)' : ''}\nNew balance: **${result.newBalance}** 💵`)
+                .setDescription(`You received **${safeReward}** Stark Bucks!${result.doubled ? ' (DOUBLED!)' : ''}\nNew balance: **${safeBalance}** 💵`)
                 .setColor(0x2ecc71)
                 .addFields(
-                    { name: '🔥 Streak', value: `${result.streak} days (+${result.streakBonus} bonus)`, inline: true }
+                    { name: '🔥 Streak', value: `${safeStreak} days (+${safeStreakBonus} bonus)`, inline: true }
                 )
                 .setFooter({ text: 'Come back tomorrow to keep your streak!' });
             
