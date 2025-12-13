@@ -53,6 +53,18 @@ function userOwnsGuild(userId, guildId) {
     return Boolean(guild && guild.ownerId === String(userId));
 }
 
+function parseDiscordIdList(input) {
+    if (!input) return [];
+    const raw = String(input);
+    const tokens = raw.split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
+    const ids = [];
+    for (const token of tokens) {
+        const match = token.match(/\d{15,20}/);
+        if (match) ids.push(match[0]);
+    }
+    return Array.from(new Set(ids));
+}
+
 async function resolveDiscordUserData(userId) {
     const client = getDiscordClient();
     if (!client?.users?.fetch) return { id: String(userId) };
@@ -339,7 +351,9 @@ router.post('/guild/:guildId/settings', requireAuth, express.urlencoded({ extend
         useFallbackPatterns: req.body?.useFallbackPatterns === 'on',
         autoDelete: req.body?.autoDelete === 'on',
         autoMute: req.body?.autoMute === 'on',
-        autoBan: req.body?.autoBan === 'on'
+        autoBan: req.body?.autoBan === 'on',
+        pingRoles: parseDiscordIdList(req.body?.pingRoles),
+        pingUsers: parseDiscordIdList(req.body?.pingUsers)
     };
 
     moderation.updateSettings(String(guildId), patch);
@@ -611,6 +625,12 @@ function getGuildPage(session, guild, status, errorCode = '') {
                     <select class="select" name="minSeverity" ${(!canEnable) ? 'disabled' : ''}>
                         ${['low','medium','high','critical'].map(v => `<option value="${v}" ${(settings.minSeverity || 'medium') === v ? 'selected' : ''}>${v}</option>`).join('')}
                     </select>
+
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Roles</label>
+                    <input type="text" name="pingRoles" placeholder="Role IDs or <@&role> mentions (comma/space separated)" value="${(settings.pingRoles || []).join(', ')}" ${(!canEnable) ? 'disabled' : ''}>
+
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Users</label>
+                    <input type="text" name="pingUsers" placeholder="User IDs or <@user> mentions (comma/space separated)" value="${(settings.pingUsers || []).join(', ')}" ${(!canEnable) ? 'disabled' : ''}>
 
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Detection Options</label>
                     <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 15px;">
