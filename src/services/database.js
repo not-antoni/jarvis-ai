@@ -101,6 +101,8 @@ class DatabaseManager {
             migrations: this.db.collection(config.database.collections.migrations),
             statusMessages: this.db.collection(config.database.collections.statusMessages),
             commandMetrics: this.db.collection(config.database.collections.commandMetrics),
+            reminders: this.db.collection(config.database.collections.reminders),
+            announcements: this.db.collection(config.database.collections.announcements),
         };
 
         const indexPlans = [
@@ -219,6 +221,26 @@ class DatabaseManager {
                     { key: { command: 1, subcommand: 1, context: 1 }, unique: true },
                     { key: { updatedAt: -1 }, name: 'commandMetrics_updatedAt_idx' },
                     { key: { updatedAt: 1 }, expireAfterSeconds: thirtyDays, name: 'commandMetrics_ttl' }
+                ]
+            },
+            {
+                label: 'reminders',
+                collection: collections.reminders,
+                definitions: [
+                    { key: { id: 1 }, unique: true },
+                    { key: { userId: 1, scheduledFor: 1 } },
+                    { key: { scheduledFor: 1 } }
+                ]
+            },
+            {
+                label: 'announcements',
+                collection: collections.announcements,
+                definitions: [
+                    { key: { id: 1 }, unique: true },
+                    { key: { guildId: 1, enabled: 1, nextRunAt: 1 } },
+                    { key: { guildId: 1, channelId: 1, enabled: 1 } },
+                    { key: { createdByUserId: 1, guildId: 1 } },
+                    { key: { lockedUntil: 1 } }
                 ]
             }
         ];
@@ -460,6 +482,70 @@ class DatabaseManager {
                 },
                 { upsert: true }
             );
+    }
+
+    async updateUserProfile(userId, updates = {}) {
+        if (!this.isConnected || !this.db) throw new Error('Database not connected');
+        if (!userId) throw new Error('Missing userId');
+
+        const sanitizedUpdates = (updates && typeof updates === 'object') ? { ...updates } : {};
+        delete sanitizedUpdates.userId;
+
+        await this.db
+            .collection(config.database.collections.userProfiles)
+            .updateOne(
+                { userId },
+                {
+                    $set: {
+                        ...sanitizedUpdates,
+                        lastSeen: new Date()
+                    },
+                    $setOnInsert: {
+                        userId,
+                        firstMet: new Date()
+                    }
+                },
+                { upsert: true }
+            );
+    }
+
+    async saveReminder(reminder) {
+        if (!this.isConnected || !this.db) throw new Error('Database not connected');
+        if (!reminder || !reminder.id) throw new Error('Invalid reminder payload');
+
+        await this.db
+            .collection(config.database.collections.reminders)
+            .updateOne(
+                { id: reminder.id },
+                {
+                    $set: {
+                        ...reminder,
+                        updatedAt: new Date()
+                    },
+                    $setOnInsert: {
+                        createdAt: reminder.createdAt ? new Date(reminder.createdAt) : new Date()
+                    }
+                },
+                { upsert: true }
+            );
+    }
+
+    async deleteReminder(reminderId) {
+        if (!this.isConnected || !this.db) throw new Error('Database not connected');
+        await this.db
+            .collection(config.database.collections.reminders)
+            .deleteOne({ id: reminderId });
+    }
+
+    async getActiveReminders() {
+        if (!this.isConnected || !this.db) return [];
+        const now = Date.now();
+        return this.db
+            .collection(config.database.collections.reminders)
+            .find({ scheduledFor: { $gt: now } })
+            .sort({ scheduledFor: 1 })
+            .limit(500)
+            .toArray();
     }
 
     async clearUserMemories(userId) {

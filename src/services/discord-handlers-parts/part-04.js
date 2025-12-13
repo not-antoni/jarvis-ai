@@ -993,6 +993,113 @@
         }
     }
 
+    async handleAnnouncementCommand(interaction) {
+        const announcementScheduler = require('./announcement-scheduler');
+        const guildId = interaction.guildId;
+        const userId = interaction.user.id;
+        const subcommand = interaction.options.getSubcommand();
+
+        if (!guildId) {
+            await interaction.editReply('Announcements are only available in servers, sir.');
+            return;
+        }
+
+        try {
+            if (subcommand === 'create') {
+                const channel = interaction.options.getChannel('channel');
+                const message = interaction.options.getString('message');
+                const delayAmount = interaction.options.getInteger('in');
+                const delayUnit = interaction.options.getString('unit');
+                const repeatEvery = interaction.options.getInteger('every');
+                const repeatUnit = interaction.options.getString('every_unit');
+
+                const roleIds = [
+                    interaction.options.getRole('role1')?.id,
+                    interaction.options.getRole('role2')?.id,
+                    interaction.options.getRole('role3')?.id
+                ].filter(Boolean);
+
+                const enabledInGuild = await announcementScheduler.countEnabledForGuild(guildId);
+                if (enabledInGuild >= 10) {
+                    await interaction.editReply('This server already has the maximum of 10 active announcements, sir.');
+                    return;
+                }
+
+                const enabledInChannel = await announcementScheduler.countEnabledForChannel(guildId, channel.id);
+                if (enabledInChannel >= 2) {
+                    await interaction.editReply('That channel already has the maximum of 2 active announcements, sir.');
+                    return;
+                }
+
+                const doc = await announcementScheduler.createAnnouncement({
+                    guildId,
+                    channelId: channel.id,
+                    message,
+                    roleIds,
+                    createdByUserId: userId,
+                    delayAmount,
+                    delayUnit,
+                    repeatEvery,
+                    repeatUnit
+                });
+
+                const when = doc.nextRunAt ? `<t:${Math.floor(new Date(doc.nextRunAt).getTime() / 1000)}:F>` : 'Unknown';
+                const repeating = doc.repeatEvery && doc.repeatUnit
+                    ? `Repeats every ${doc.repeatEvery} ${doc.repeatUnit}.`
+                    : 'One-time announcement.';
+
+                await interaction.editReply(`✅ Announcement scheduled, sir.\n**ID:** \`${doc.id}\`\n**Channel:** <#${doc.channelId}>\n**Next:** ${when}\n${repeating}`);
+                return;
+            }
+
+            if (subcommand === 'list') {
+                const jobs = await announcementScheduler.listAnnouncementsForUser({ userId, guildId });
+                if (!jobs.length) {
+                    await interaction.editReply('No scheduled announcements found, sir.');
+                    return;
+                }
+
+                const lines = jobs.slice(0, 15).map((job, idx) => {
+                    const next = job.nextRunAt ? `<t:${Math.floor(new Date(job.nextRunAt).getTime() / 1000)}:R>` : 'n/a';
+                    const status = job.enabled ? '✅ enabled' : '⛔ disabled';
+                    const repeat = job.repeatEvery && job.repeatUnit ? `every ${job.repeatEvery} ${job.repeatUnit}` : 'one-time';
+                    return `${idx + 1}. \`${job.id}\` ${status} in <#${job.channelId}> (${repeat}) next: ${next}`;
+                });
+
+                await interaction.editReply(`📋 **Your Announcements**\n\n${lines.join('\n')}`);
+                return;
+            }
+
+            if (subcommand === 'disable' || subcommand === 'enable') {
+                const id = interaction.options.getString('id');
+                const enabled = subcommand === 'enable';
+                const result = await announcementScheduler.setAnnouncementEnabled({ id, userId, guildId, enabled });
+                if (!result.ok) {
+                    await interaction.editReply(result.error || 'Unable to update announcement, sir.');
+                    return;
+                }
+                await interaction.editReply(enabled ? '✅ Announcement enabled, sir.' : '⛔ Announcement disabled, sir.');
+                return;
+            }
+
+            if (subcommand === 'delete') {
+                const id = interaction.options.getString('id');
+                const result = await announcementScheduler.deleteAnnouncement({ id, userId, guildId });
+                if (!result.ok) {
+                    await interaction.editReply(result.error || 'Unable to delete announcement, sir.');
+                    return;
+                }
+                await interaction.editReply('🗑️ Announcement deleted, sir.');
+                return;
+            }
+
+            await interaction.editReply('Unknown announcement action, sir.');
+        } catch (error) {
+            console.error('[/announcement] Error:', error);
+            await interaction.editReply('Announcement scheduling failed internally, sir.');
+        }
+    }
+
     async handleReactionRemove(reaction, user) {
         if (!database.isConnected || !reaction || !user || user.bot) {
             return;
@@ -2504,6 +2611,22 @@
                 case 'memory': {
                     telemetryMetadata.category = 'utilities';
                     await this.handleMemoryCommand(interaction);
+                    return;
+                }
+                case 'remind':
+                case 'reminders': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handleRemindCommand(interaction);
+                    return;
+                }
+                case 'timezone': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handleTimezoneCommand(interaction);
+                    return;
+                }
+                case 'announcement': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handleAnnouncementCommand(interaction);
                     return;
                 }
                 case 'opt': {
