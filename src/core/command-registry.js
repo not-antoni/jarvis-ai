@@ -133,14 +133,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'persona',
-        description: 'Preview or switch Jarvis into alternate personas.',
-        category: 'Personal Tools',
-        usage: '/persona mode:<persona> [preview:true]',
-        feature: 'utilities',
-        ephemeral: true
-    },
-    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',

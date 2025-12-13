@@ -1916,28 +1916,6 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('persona')
-        .setDescription('Switch Jarvis between alternate personas')
-        .addStringOption((option) =>
-            option
-                .setName('mode')
-                .setDescription('Persona to activate or preview')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Jarvis (default)', value: 'jarvis' },
-                    { name: 'Tony Stark', value: 'stark' },
-                    { name: 'FRIDAY', value: 'friday' },
-                    { name: 'Ultron', value: 'ultron' }
-                )
-        )
-        .addBooleanOption((option) =>
-            option
-                .setName('preview')
-                .setDescription('Preview tone without saving it')
-                .setRequired(false)
-        )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
         .setName("reset")
         .setDescription("Delete your conversation history and profile with Jarvis")
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
