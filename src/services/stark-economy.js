@@ -741,20 +741,24 @@ async function claimDaily(userId, username) {
     // Check streak
     const wasYesterday = timeSinceLastDaily < (ECONOMY_CONFIG.dailyCooldown * 2);
     if (wasYesterday) {
-        user.dailyStreak = Math.min((user.dailyStreak || 0) + 1, ECONOMY_CONFIG.maxStreak);
+        user.dailyStreak = Math.min(ensureNumber(user.dailyStreak, 0) + 1, ensureNumber(ECONOMY_CONFIG.maxDailyStreak, 30));
     } else {
         user.dailyStreak = 1; // Reset streak
     }
 
     // Calculate reward
-    let reward = Math.floor(
-        ECONOMY_CONFIG.dailyReward.min + 
-        Math.random() * (ECONOMY_CONFIG.dailyReward.max - ECONOMY_CONFIG.dailyReward.min)
-    );
+    const configuredDailyReward = ECONOMY_CONFIG.dailyReward;
+    const baseReward = (configuredDailyReward && typeof configuredDailyReward === 'object')
+        ? ensureNumber(configuredDailyReward.min, 0) +
+            Math.random() * (ensureNumber(configuredDailyReward.max, 0) - ensureNumber(configuredDailyReward.min, 0))
+        : ensureNumber(configuredDailyReward, 0);
+
+    let reward = Math.floor(baseReward);
+    reward = ensureNumber(reward, 0);
     
     // Streak bonus
-    const streakBonus = user.dailyStreak * ECONOMY_CONFIG.streakBonus;
-    reward += streakBonus;
+    const streakBonus = ensureNumber(user.dailyStreak, 0) * ensureNumber(ECONOMY_CONFIG.dailyStreakBonus, 0);
+    reward = ensureNumber(reward + streakBonus, reward);
 
     // Check for double daily item
     const hasDoubleDaily = (user.inventory || []).find(i => i.id === 'double_daily' && i.uses > 0);
@@ -766,8 +770,8 @@ async function claimDaily(userId, username) {
         }
     }
 
-    user.balance += reward;
-    user.totalEarned = (user.totalEarned || 0) + reward;
+    user.balance = ensureNumber(user.balance, ECONOMY_CONFIG.startingBalance) + ensureNumber(reward, 0);
+    user.totalEarned = ensureNumber(user.totalEarned, 0) + ensureNumber(reward, 0);
     user.lastDaily = now;
 
     await saveUser(userId, user);
