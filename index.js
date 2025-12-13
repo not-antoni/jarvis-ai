@@ -2262,20 +2262,6 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
     new SlashCommandBuilder()
-        .setName('ytdlp')
-        .setDescription('yt-dlp status and management')
-        .addSubcommand((sub) =>
-            sub
-                .setName('status')
-                .setDescription('Check yt-dlp version and status')
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName('update')
-                .setDescription('Force check for yt-dlp updates')
-        )
-        .setContexts([InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel]),
-    new SlashCommandBuilder()
         .setName('sentient')
         .setDescription('Jarvis Sentient Agent System (selfhost only)')
         .addSubcommand((sub) =>

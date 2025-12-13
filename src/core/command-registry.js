@@ -649,15 +649,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'ytdlp',
-        description: 'yt-dlp status and updates.',
-        category: 'Utilities',
-        usage: '/ytdlp status',
-        feature: 'music',
-        ephemeral: true,
-        hidden: true
-    },
-    {
         name: 'sentient',
         description: 'Sentient agent system controls.',
         category: 'Experimental',
