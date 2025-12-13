@@ -24,6 +24,9 @@ const pendingSetups = new Map();
 let database = null;
 const COLLECTION_NAME = 'moderatorAuth';
 
+// Discord OAuth configuration (client id can be derived from the bot if not set)
+let discordClientId = null;
+
 // Local file storage for selfhost
 const DATA_DIR = path.join(__dirname, '../../data');
 const AUTH_FILE = path.join(DATA_DIR, 'moderator-auth.json');
@@ -211,11 +214,37 @@ function destroySession(token) {
     sessions.delete(token);
 }
 
+function resolveDiscordClientId() {
+    const fromEnv = (
+        process.env.DISCORD_CLIENT_ID ||
+        process.env.DISCORD_APP_ID ||
+        process.env.DISCORD_APPLICATION_ID ||
+        process.env.APPLICATION_ID ||
+        ''
+    ).trim();
+
+    return fromEnv || (discordClientId ? String(discordClientId).trim() : '');
+}
+
+function setDiscordClient(client) {
+    try {
+        const derived = client?.application?.id || client?.user?.id;
+        if (derived) {
+            discordClientId = String(derived);
+        }
+    } catch {
+        // ignore
+    }
+}
+
 /**
  * Get Discord OAuth URL
  */
 function getOAuthUrl(state) {
-    const clientId = process.env.DISCORD_CLIENT_ID;
+    const clientId = resolveDiscordClientId();
+    if (!clientId) {
+        throw new Error('DISCORD_CLIENT_ID is not configured');
+    }
     const redirectUri = getRedirectUri();
     
     const params = new URLSearchParams({
@@ -252,9 +281,17 @@ function getRedirectUri() {
  */
 async function exchangeCode(code) {
     const fetch = require('node-fetch');
+
+    const clientId = resolveDiscordClientId();
+    if (!clientId) {
+        throw new Error('DISCORD_CLIENT_ID is not configured');
+    }
+    if (!process.env.DISCORD_CLIENT_SECRET) {
+        throw new Error('DISCORD_CLIENT_SECRET is not configured');
+    }
     
     const params = new URLSearchParams({
-        client_id: process.env.DISCORD_CLIENT_ID,
+        client_id: clientId,
         client_secret: process.env.DISCORD_CLIENT_SECRET,
         grant_type: 'authorization_code',
         code,
@@ -347,6 +384,7 @@ module.exports = {
     createSession,
     validateSession,
     destroySession,
+    setDiscordClient,
     getOAuthUrl,
     getRedirectUri,
     exchangeCode,

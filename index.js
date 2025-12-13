@@ -3724,6 +3724,15 @@ client.once(Events.ClientReady, async () => {
     // Store client globally for economy DMs
     global.discordClient = client;
 
+    try {
+        const moderatorAuth = require('./src/services/moderator-auth');
+        if (moderatorAuth?.setDiscordClient) {
+            moderatorAuth.setDiscordClient(client);
+        }
+    } catch (e) {
+        console.warn('[ModeratorAuth] Failed to attach Discord client:', e.message);
+    }
+
     // Attach Discord client for error logging + queued flush
     try {
         errorLogger.setClient(client);

@@ -54,8 +54,13 @@ router.get('/', (req, res) => {
         // Generate state for OAuth
         const state = require('crypto').randomBytes(16).toString('hex');
         res.cookie('oauth_state', state, { httpOnly: true, maxAge: 600000 });
-        const oauthUrl = auth.getOAuthUrl(state);
-        res.send(getOAuthLoginPage(oauthUrl, errorMsg));
+        try {
+            const oauthUrl = auth.getOAuthUrl(state);
+            res.send(getOAuthLoginPage(oauthUrl, errorMsg));
+        } catch (e) {
+            const message = errorMsg || `Discord OAuth is not configured: ${e.message}`;
+            res.send(getOAuthLoginPage('', message));
+        }
     }
 });
 
