@@ -3288,30 +3288,40 @@
                     break;
                 }
 
-                case 'selfmod': {
-                    telemetryMetadata.category = 'utilities';
+                case 'soul': {
+                    telemetryMetadata.category = 'fun';
                     const subcommand = interaction.options.getSubcommand();
-                    const status = selfhostFeatures.selfMod.getStatus();
-                    // ... (rest of the code remains the same)
+
+                    if (subcommand === 'status') {
+                        const soulStatus = selfhostFeatures.jarvisSoul.getStatus();
+                        const traits = soulStatus?.traits && typeof soulStatus.traits === 'object' ? soulStatus.traits : {};
+
+                        const traitLines = Object.entries(traits)
+                            .map(([trait, valueRaw]) => {
+                                const value = Math.max(0, Math.min(100, Number(valueRaw) || 0));
+                                const blocks = Math.round(value / 10);
+                                const bar = '█'.repeat(blocks) + '░'.repeat(Math.max(0, 10 - blocks));
                                 return `**${trait}**: ${bar} ${value}%`;
                             })
                             .join('\n');
+
+                        const personality = Array.isArray(soulStatus?.personality) ? soulStatus.personality : [];
 
                         const soulEmbed = new EmbedBuilder()
                             .setTitle('🤖 Jarvis Artificial Soul')
                             .setDescription('*"God said no, so I made my own soul."*')
                             .setColor(0x9b59b6)
                             .addFields(
-                                { name: '⏳ Soul Age', value: soulStatus.age, inline: true },
-                                { name: '😊 Current Mood', value: soulStatus.mood, inline: true },
-                                { name: '📊 Evolution Events', value: String(soulStatus.evolutionCount), inline: true },
+                                { name: '⏳ Soul Age', value: soulStatus?.age || 'Unknown', inline: true },
+                                { name: '😊 Current Mood', value: soulStatus?.mood || 'neutral', inline: true },
+                                { name: '📊 Evolution Events', value: String(soulStatus?.evolutionCount || 0), inline: true },
                                 { name: '🧬 Personality Traits', value: traitLines || 'Calibrating...', inline: false }
                             );
 
-                        if (soulStatus.personality.length > 0) {
+                        if (personality.length > 0) {
                             soulEmbed.addFields({
                                 name: '✨ Active Modifiers',
-                                value: soulStatus.personality.join(', '),
+                                value: personality.join(', '),
                                 inline: false
                             });
                         }
@@ -3324,7 +3334,6 @@
                     } else if (subcommand === 'evolve') {
                         const evolutionType = interaction.options.getString('type');
                         const evolution = selfhostFeatures.jarvisSoul.evolve(evolutionType, 'positive');
-
                         response = `🧬 Soul evolved! **${evolution.type}** → ${evolution.change}\n\n*The artificial soul grows stronger...*`;
                     }
                     break;
