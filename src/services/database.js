@@ -7,7 +7,9 @@ const config = require('../../config');
 const vaultClient = require('./vault-client');
 const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
 const localdb = require('../localdb');
-const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
+const LOCAL_DB_MODE =
+    String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() ===
+    '1';
 
 // LRU Cache for performance optimization
 const LruModule = require('lru-cache');
