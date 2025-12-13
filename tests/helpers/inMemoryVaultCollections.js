@@ -8,7 +8,33 @@ function deepClone(value) {
 }
 
 function matchesFilter(doc = {}, filter = {}) {
-    return Object.entries(filter).every(([key, value]) => doc[key] === value);
+    const toComparable = (value) => {
+        if (value instanceof Date) return value.getTime();
+        if (typeof value === 'string') {
+            const asDate = Date.parse(value);
+            if (!Number.isNaN(asDate)) return asDate;
+        }
+        return value;
+    };
+
+    const matchesCondition = (docValue, condition) => {
+        if (condition && typeof condition === 'object' && !Array.isArray(condition) && !(condition instanceof Date)) {
+            if (Object.prototype.hasOwnProperty.call(condition, '$in')) {
+                const haystack = Array.isArray(condition.$in) ? condition.$in : [];
+                return haystack.includes(docValue);
+            }
+            if (Object.prototype.hasOwnProperty.call(condition, '$lt')) {
+                return toComparable(docValue) < toComparable(condition.$lt);
+            }
+            if (Object.prototype.hasOwnProperty.call(condition, '$gt')) {
+                return toComparable(docValue) > toComparable(condition.$gt);
+            }
+        }
+
+        return docValue === condition;
+    };
+
+    return Object.entries(filter).every(([key, value]) => matchesCondition(doc[key], value));
 }
 
 function createUserKeysCollection() {
@@ -61,6 +87,9 @@ function createMemoriesCollection() {
     return {
         async createIndex() {
             return 'ok';
+        },
+        async countDocuments(filter = {}) {
+            return docs.filter((doc) => matchesFilter(doc, filter)).length;
         },
         async insertOne(doc) {
             const record = { ...deepClone(doc), _id: crypto.randomUUID() };
