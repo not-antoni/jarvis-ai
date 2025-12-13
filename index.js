@@ -3789,7 +3789,7 @@ client.once(Events.ClientReady, async () => {
         }
     }
 
-    if (userFeatures && databaseConnected) {
+    if (userFeatures) {
         try {
             userFeatures.init(database, client);
         } catch (e) {
@@ -3797,12 +3797,10 @@ client.once(Events.ClientReady, async () => {
         }
     }
 
-    if (databaseConnected) {
-        try {
-            announcementScheduler.init({ client, database });
-        } catch (e) {
-            console.warn('[Announcements] Failed to start scheduler:', e.message);
-        }
+    try {
+        announcementScheduler.init({ client, database });
+    } catch (e) {
+        console.warn('[Announcements] Failed to start scheduler:', e.message);
     }
 
     if (databaseConnected) {

@@ -427,21 +427,45 @@ class UserFeaturesService {
      */
     async checkAndDeliverReminders() {
         const now = Date.now();
-        const dueReminders = [];
-        
+
+        const dueIds = [];
         for (const [id, reminder] of activeReminders) {
-            if (reminder.scheduledFor <= now) {
-                dueReminders.push(reminder);
-                activeReminders.delete(id);
+            if (reminder?.scheduledFor <= now) {
+                dueIds.push(id);
             }
         }
-        
-        if (dueReminders.length === 0) return;
-        
-        console.log(`[UserFeatures] Processing ${dueReminders.length} due reminder(s)`);
-        
-        for (const reminder of dueReminders) {
-            await this.deliverReminder(reminder);
+
+        if (dueIds.length === 0) return;
+
+        console.log(`[UserFeatures] Processing ${dueIds.length} due reminder(s)`);
+
+        for (const id of dueIds) {
+            const reminder = activeReminders.get(id);
+            if (!reminder) continue;
+
+            const ok = await this.deliverReminder(reminder);
+            if (ok) {
+                activeReminders.delete(id);
+                if (this.database?.deleteReminder) {
+                    await this.database.deleteReminder(id).catch(() => {});
+                }
+                continue;
+            }
+
+            const retryCount = Number(reminder.retryCount) || 0;
+            const retryDelayMs = 5 * 60 * 1000;
+            const nextRetryAt = Date.now() + retryDelayMs;
+
+            reminder.retryCount = retryCount + 1;
+            reminder.scheduledFor = nextRetryAt;
+            reminder.updatedAt = Date.now();
+            activeReminders.set(id, reminder);
+
+            if (this.database?.saveReminder) {
+                await this.database.saveReminder(reminder).catch(() => {});
+            }
+
+            console.warn(`[UserFeatures] Reminder ${id} delivery failed; retrying in 5 minutes`);
         }
     }
 
@@ -454,49 +478,53 @@ class UserFeaturesService {
             return false;
         }
         
+        const reminderEmbed = {
+            color: 0x3498db,
+            title: '⏰ Reminder',
+            description: reminder.message,
+            footer: {
+                text: `Set ${this.formatRelativeTime(reminder.createdAt)}`
+            },
+            timestamp: new Date().toISOString()
+        };
+
+        const trySendToChannel = async () => {
+            const channelId = reminder.channelId;
+            if (!channelId) return false;
+            const channel = await this.discordClient.channels.fetch(channelId).catch(() => null);
+            if (!channel || typeof channel.send !== 'function') {
+                return false;
+            }
+            await channel.send({
+                content: `<@${reminder.userId}> ⏰ Reminder: ${reminder.message}`,
+                allowedMentions: { users: [reminder.userId] }
+            });
+            return true;
+        };
+
         try {
-            // Fetch the user
             const user = await this.discordClient.users.fetch(reminder.userId).catch(() => null);
-            
             if (!user) {
                 console.warn(`[UserFeatures] Could not find user ${reminder.userId} for reminder`);
-                return false;
+                return await trySendToChannel().catch(() => false);
             }
-            
-            // Create DM channel and send reminder
+
             const dmChannel = await user.createDM().catch(() => null);
-            
             if (!dmChannel) {
                 console.warn(`[UserFeatures] Could not create DM with user ${reminder.userId}`);
-                return false;
+                return await trySendToChannel().catch(() => false);
             }
-            
-            const reminderEmbed = {
-                color: 0x3498db,
-                title: '⏰ Reminder',
-                description: reminder.message,
-                footer: { 
-                    text: `Set ${this.formatRelativeTime(reminder.createdAt)}` 
-                },
-                timestamp: new Date().toISOString()
-            };
-            
-            await dmChannel.send({ 
+
+            await dmChannel.send({
                 content: `Hey <@${reminder.userId}>, here's your reminder:`,
-                embeds: [reminderEmbed] 
+                embeds: [reminderEmbed]
             });
-            
+
             console.log(`[UserFeatures] Delivered reminder to ${user.tag}: "${reminder.message.substring(0, 50)}..."`);
-            
-            // Clean up from database
-            if (this.database?.deleteReminder) {
-                await this.database.deleteReminder(reminder.id).catch(() => {});
-            }
-            
             return true;
         } catch (error) {
             console.error(`[UserFeatures] Failed to deliver reminder ${reminder.id}:`, error.message);
-            return false;
+            return await trySendToChannel().catch(() => false);
         }
     }
 
