@@ -17,6 +17,14 @@ const moderation = require('../services/GUILDS_FEATURES/moderation');
 const cookieParser = require('cookie-parser');
 router.use(cookieParser());
 
+function shouldUseSecureCookies(req) {
+    if (process.env.RENDER_EXTERNAL_URL) return true;
+    if (process.env.DASHBOARD_DOMAIN && process.env.DASHBOARD_DOMAIN.startsWith('https://')) return true;
+    if (req?.secure) return true;
+    if (String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase() === 'https') return true;
+    return false;
+}
+
 // Session validation middleware
 function requireAuth(req, res, next) {
     const token = req.cookies?.moderator_session;
@@ -87,7 +95,8 @@ router.post('/login', async (req, res) => {
     res.cookie('moderator_session', token, { 
         httpOnly: true, 
         maxAge: 12 * 60 * 60 * 1000,
-        sameSite: 'lax'
+        sameSite: 'lax',
+        secure: shouldUseSecureCookies(req)
     });
     
     res.redirect('/moderator/dashboard');
@@ -131,7 +140,8 @@ router.get('/callback', async (req, res) => {
         res.cookie('moderator_session', sessionToken, { 
             httpOnly: true, 
             maxAge: 12 * 60 * 60 * 1000,
-            sameSite: 'lax'
+            sameSite: 'lax',
+            secure: shouldUseSecureCookies(req)
         });
         
         res.redirect('/moderator/dashboard');
@@ -189,7 +199,8 @@ router.post('/setup', async (req, res) => {
     res.cookie('moderator_session', sessionToken, { 
         httpOnly: true, 
         maxAge: 12 * 60 * 60 * 1000,
-        sameSite: 'lax'
+        sameSite: 'lax',
+        secure: shouldUseSecureCookies(req)
     });
     
     res.redirect('/moderator/dashboard');
