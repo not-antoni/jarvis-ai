@@ -2809,6 +2809,7 @@ const allCommands = [
                         .setDescription('Unit for the delay')
                         .setRequired(true)
                         .addChoices(
+                            { name: 'Seconds', value: 'seconds' },
                             { name: 'Minutes', value: 'minutes' },
                             { name: 'Hours', value: 'hours' },
                             { name: 'Days', value: 'days' },
@@ -2828,6 +2829,7 @@ const allCommands = [
                         .setDescription('Unit for repeat interval (required if every is set)')
                         .setRequired(false)
                         .addChoices(
+                            { name: 'Seconds', value: 'seconds' },
                             { name: 'Minutes', value: 'minutes' },
                             { name: 'Hours', value: 'hours' },
                             { name: 'Days', value: 'days' },
@@ -3698,6 +3700,25 @@ app.get("/health", async (req, res) => {
 // ------------------------ Event Handlers ------------------------
 client.once(Events.ClientReady, async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
+
+    const announcementsRunOnce = String(process.env.ANNOUNCEMENTS_RUN_ONCE || '').toLowerCase() === '1';
+    if (announcementsRunOnce) {
+        try {
+            announcementScheduler.init({ client, database, startInterval: false });
+        } catch (e) {
+            console.warn('[AnnouncementsRunOnce] Failed to initialize announcement scheduler:', e.message);
+        }
+
+        try {
+            await announcementScheduler.runOnce();
+        } catch (e) {
+            console.warn('[AnnouncementsRunOnce] runOnce failed:', e?.message || e);
+        }
+
+        try { await database.disconnect(); } catch (e) { /* ignore */ }
+        try { client.destroy(); } catch (e) { /* ignore */ }
+        process.exit(0);
+    }
     
     // Store client globally for economy DMs
     global.discordClient = client;
@@ -3952,6 +3973,30 @@ process.on("SIGINT", async () => {
 // ------------------------ Boot ------------------------
 async function startBot() {
     try {
+        const announcementsRunOnce = String(process.env.ANNOUNCEMENTS_RUN_ONCE || '').toLowerCase() === '1';
+        if (announcementsRunOnce) {
+            let databaseConnected = false;
+            try {
+                await database.connect();
+                databaseConnected = true;
+            } catch (err) {
+                console.warn('[AnnouncementsRunOnce] Database connection failed; will still process in-memory jobs only.');
+            }
+
+            const disableDiscord = String(process.env.DISABLE_DISCORD || '').toLowerCase() === '1';
+            if (disableDiscord) {
+                console.warn('[AnnouncementsRunOnce] DISABLE_DISCORD=1 set; skipping Discord login and exiting.');
+                if (databaseConnected) {
+                    try { await database.disconnect(); } catch (e) { /* ignore */ }
+                }
+                process.exit(0);
+            }
+
+            await client.login(config.discord.token);
+            console.log('✅ Logged in for ANNOUNCEMENTS_RUN_ONCE');
+            return;
+        }
+
         // Start uptime server
         app.listen(config.server.port, '0.0.0.0', () => {
             console.log(`Uptime server listening on port ${config.server.port}`);
