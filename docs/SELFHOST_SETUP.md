@@ -110,14 +110,21 @@ SELFHOST_EXPORT_COLLECTIONS=conversations,userProfiles,guildConfigs
 DISCORD_TOKEN=your_token_here
 DISCORD_ENABLE_MESSAGE_CONTENT=true
 
+# Vault encryption (required)
+MASTER_KEY_BASE64=base64_32_byte_key
+
 # Optional: Database
 MONGO_URI_MAIN=mongodb://localhost:27017
+MONGO_URI_VAULT=mongodb://localhost:27017
 MONGO_DB_MAIN_NAME=jarvis_ai
 
 # Optional: AI Providers
 AI_PROVIDER=auto
 OPENAI_API_KEY=optional
 GROQ_API_KEY=optional
+
+# Optional: Dashboard access
+PASSWORD=optional
 ```
 
 ### Step 3: Start the Bot

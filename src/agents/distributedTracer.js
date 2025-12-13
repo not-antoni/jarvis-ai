@@ -9,7 +9,7 @@ class DistributedTracer {
         this.spans = new Map(); // spanId -> spanData
         this.maxTraces = config.maxTraces || 1000;
         this.maxSpansPerTrace = config.maxSpansPerTrace || 100;
-        
+
         this.stats = {
             totalTraces: 0,
             totalSpans: 0,
@@ -36,7 +36,7 @@ class DistributedTracer {
      */
     startTrace(operationName, metadata = {}) {
         const traceId = this.generateTraceId();
-        
+
         const trace = {
             traceId,
             operationName,
@@ -52,8 +52,9 @@ class DistributedTracer {
 
         // Cleanup if too many
         if (this.traces.size > this.maxTraces) {
-            const oldest = Array.from(this.traces.entries())
-                .sort((a, b) => a[1].startTime - b[1].startTime)[0];
+            const oldest = Array.from(this.traces.entries()).sort(
+                (a, b) => a[1].startTime - b[1].startTime
+            )[0];
             this.traces.delete(oldest[0]);
         }
 
@@ -76,7 +77,7 @@ class DistributedTracer {
         }
 
         const spanId = this.generateSpanId();
-        
+
         const span = {
             spanId,
             traceId,
@@ -179,14 +180,13 @@ class DistributedTracer {
         if (!trace) return null;
 
         const spans = trace.spans.map(spanId => this.spans.get(spanId));
-        
+
         return {
             ...trace,
             spans,
             spanCount: spans.length,
-            slowestSpan: spans.length > 0 
-                ? spans.reduce((a, b) => a.duration > b.duration ? a : b)
-                : null
+            slowestSpan:
+                spans.length > 0 ? spans.reduce((a, b) => (a.duration > b.duration ? a : b)) : null
         };
     }
 
@@ -204,7 +204,7 @@ class DistributedTracer {
         spans.sort((a, b) => a.startTime - b.startTime);
 
         for (const span of spans) {
-            const indent = (span.parentSpanId ? 2 : 0);
+            const indent = span.parentSpanId ? 2 : 0;
             timeline.push({
                 indent,
                 spanName: span.spanName,
@@ -237,9 +237,9 @@ class DistributedTracer {
 
         // Find root spans
         const roots = spans.filter(s => !s.parentSpanId);
-        
+
         let current = roots.length > 0 ? roots[0] : null;
-        
+
         while (current) {
             path.push({
                 spanName: current.spanName,
@@ -249,9 +249,10 @@ class DistributedTracer {
 
             // Find slowest child
             const children = spans.filter(s => s.parentSpanId === current.spanId);
-            current = children.length > 0
-                ? children.reduce((a, b) => a.duration > b.duration ? a : b)
-                : null;
+            current =
+                children.length > 0
+                    ? children.reduce((a, b) => (a.duration > b.duration ? a : b))
+                    : null;
         }
 
         return {
@@ -270,18 +271,20 @@ class DistributedTracer {
 
         const spans = trace.spans.map(spanId => this.spans.get(spanId));
         const durations = spans.map(s => s.duration).sort((a, b) => a - b);
-        
+
         const threshold = durations[Math.floor(durations.length * (percentileThreshold / 100))];
         const bottlenecks = spans.filter(s => s.duration >= threshold);
 
         return {
             traceId,
             threshold,
-            bottlenecks: bottlenecks.map(s => ({
-                spanName: s.spanName,
-                duration: s.duration,
-                percentage: ((s.duration / trace.duration) * 100).toFixed(2)
-            })).sort((a, b) => b.duration - a.duration)
+            bottlenecks: bottlenecks
+                .map(s => ({
+                    spanName: s.spanName,
+                    duration: s.duration,
+                    percentage: ((s.duration / trace.duration) * 100).toFixed(2)
+                }))
+                .sort((a, b) => b.duration - a.duration)
         };
     }
 
@@ -300,7 +303,7 @@ class DistributedTracer {
      */
     exportAllTraces() {
         const lines = [];
-        
+
         for (const traceId of this.traces.keys()) {
             const trace = this.getTrace(traceId);
             lines.push(JSON.stringify(trace));
@@ -317,21 +320,24 @@ class DistributedTracer {
             ...this.stats,
             tracesInMemory: this.traces.size,
             spansInMemory: this.spans.size,
-            averageSpansPerTrace: this.traces.size > 0 
-                ? Array.from(this.traces.values()).reduce((sum, t) => sum + t.spans.length, 0) / this.traces.size
-                : 0
+            averageSpansPerTrace:
+                this.traces.size > 0
+                    ? Array.from(this.traces.values()).reduce((sum, t) => sum + t.spans.length, 0) /
+                      this.traces.size
+                    : 0
         };
     }
 
     /**
      * Clear traces older than age
      */
-    clearOldTraces(ageMs = 3600000) { // 1 hour default
+    clearOldTraces(ageMs = 3600000) {
+        // 1 hour default
         const now = Date.now();
         const toDelete = [];
 
         for (const [traceId, trace] of this.traces.entries()) {
-            if (trace.endTime && (now - trace.endTime) > ageMs) {
+            if (trace.endTime && now - trace.endTime > ageMs) {
                 toDelete.push(traceId);
             }
         }

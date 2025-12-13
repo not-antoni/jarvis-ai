@@ -8,7 +8,7 @@ class CostRateLimiter {
         this.users = new Map(); // userId -> userData
         this.globalLimitMs = config.globalLimitMs || 1000; // 1 request per second global
         this.windowSizeMs = config.windowSizeMs || 60 * 1000; // 1 minute window
-        
+
         // Default per-user limits
         this.defaultLimits = {
             requestsPerMinute: config.requestsPerMinute || 60,
@@ -57,7 +57,7 @@ class CostRateLimiter {
      */
     checkRateLimit(userId, metadata = {}) {
         let user = this.users.get(userId);
-        
+
         if (!user) {
             user = this.registerUser(userId);
         }
@@ -100,7 +100,7 @@ class CostRateLimiter {
             result.allowed = false;
             result.reason = 'minute_limit_exceeded';
             const oldestInWindow = user.usage.minuteWindow[0];
-            result.retryAfterMs = Math.max(0, (oldestInWindow + this.windowSizeMs) - now);
+            result.retryAfterMs = Math.max(0, oldestInWindow + this.windowSizeMs - now);
             return result;
         }
 
@@ -137,7 +137,7 @@ class CostRateLimiter {
      */
     recordRequest(userId, metadata = {}) {
         let user = this.users.get(userId);
-        
+
         if (!user) {
             user = this.registerUser(userId);
         }
@@ -200,8 +200,8 @@ class CostRateLimiter {
      */
     cleanUserWindows(user, now) {
         const minuteAgo = now - this.windowSizeMs;
-        const hourAgo = now - (60 * this.windowSizeMs);
-        const dayAgo = now - (1440 * this.windowSizeMs);
+        const hourAgo = now - 60 * this.windowSizeMs;
+        const dayAgo = now - 1440 * this.windowSizeMs;
 
         // Clean minute window (1 minute)
         user.usage.minuteWindow = user.usage.minuteWindow.filter(t => t > minuteAgo);
@@ -229,7 +229,7 @@ class CostRateLimiter {
      */
     cleanup() {
         const now = Date.now();
-        const oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000);
+        const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
 
         for (const [userId, user] of this.users.entries()) {
             if (user.registeredAt < oneWeekAgo && user.usage.concurrentSessions === 0) {
@@ -274,8 +274,11 @@ class CostRateLimiter {
         return {
             ...this.stats,
             totalUsers: this.users.size,
-            activeUsers: Array.from(this.users.values()).filter(u => u.usage.concurrentSessions > 0).length,
-            suspendedUsers: Array.from(this.users.values()).filter(u => u.usage.status === 'suspended').length
+            activeUsers: Array.from(this.users.values()).filter(u => u.usage.concurrentSessions > 0)
+                .length,
+            suspendedUsers: Array.from(this.users.values()).filter(
+                u => u.usage.status === 'suspended'
+            ).length
         };
     }
 

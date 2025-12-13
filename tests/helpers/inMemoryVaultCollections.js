@@ -8,7 +8,7 @@ function deepClone(value) {
 }
 
 function matchesFilter(doc = {}, filter = {}) {
-    const toComparable = (value) => {
+    const toComparable = value => {
         if (value instanceof Date) return value.getTime();
         if (typeof value === 'string') {
             const asDate = Date.parse(value);
@@ -18,7 +18,12 @@ function matchesFilter(doc = {}, filter = {}) {
     };
 
     const matchesCondition = (docValue, condition) => {
-        if (condition && typeof condition === 'object' && !Array.isArray(condition) && !(condition instanceof Date)) {
+        if (
+            condition &&
+            typeof condition === 'object' &&
+            !Array.isArray(condition) &&
+            !(condition instanceof Date)
+        ) {
             if (Object.prototype.hasOwnProperty.call(condition, '$in')) {
                 const haystack = Array.isArray(condition.$in) ? condition.$in : [];
                 return haystack.includes(docValue);
@@ -45,7 +50,7 @@ function createUserKeysCollection() {
             return 'ok';
         },
         async findOne(filter = {}) {
-            const record = docs.find((doc) => matchesFilter(doc, filter));
+            const record = docs.find(doc => matchesFilter(doc, filter));
             return record ? deepClone(record) : null;
         },
         async insertOne(doc) {
@@ -54,7 +59,7 @@ function createUserKeysCollection() {
             return { insertedId: record._id };
         },
         async deleteOne(filter = {}) {
-            const index = docs.findIndex((doc) => matchesFilter(doc, filter));
+            const index = docs.findIndex(doc => matchesFilter(doc, filter));
             if (index === -1) {
                 return { deletedCount: 0 };
             }
@@ -65,7 +70,9 @@ function createUserKeysCollection() {
 }
 
 function sortDocuments(docs, sortSpec = {}) {
-    const [[field, direction]] = Object.entries(sortSpec).length ? Object.entries(sortSpec) : [[null, 1]];
+    const [[field, direction]] = Object.entries(sortSpec).length
+        ? Object.entries(sortSpec)
+        : [[null, 1]];
 
     if (!field) {
         return docs.slice();
@@ -89,7 +96,7 @@ function createMemoriesCollection() {
             return 'ok';
         },
         async countDocuments(filter = {}) {
-            return docs.filter((doc) => matchesFilter(doc, filter)).length;
+            return docs.filter(doc => matchesFilter(doc, filter)).length;
         },
         async insertOne(doc) {
             const record = { ...deepClone(doc), _id: crypto.randomUUID() };
@@ -97,7 +104,7 @@ function createMemoriesCollection() {
             return { insertedId: record._id };
         },
         find(filter = {}) {
-            const filtered = docs.filter((doc) => matchesFilter(doc, filter));
+            const filtered = docs.filter(doc => matchesFilter(doc, filter));
 
             return {
                 sort(sortSpec = {}) {
@@ -105,11 +112,14 @@ function createMemoriesCollection() {
 
                     return {
                         limit(limitValue) {
-                            const limited = typeof limitValue === 'number' ? sorted.slice(0, limitValue) : sorted.slice();
+                            const limited =
+                                typeof limitValue === 'number'
+                                    ? sorted.slice(0, limitValue)
+                                    : sorted.slice();
 
                             return {
                                 async toArray() {
-                                    return limited.map((doc) => deepClone(doc));
+                                    return limited.map(doc => deepClone(doc));
                                 }
                             };
                         }
@@ -118,7 +128,7 @@ function createMemoriesCollection() {
             };
         },
         async deleteMany(filter = {}) {
-            const retained = docs.filter((doc) => !matchesFilter(doc, filter));
+            const retained = docs.filter(doc => !matchesFilter(doc, filter));
             const deletedCount = docs.length - retained.length;
 
             docs.length = 0;

@@ -64,10 +64,23 @@ class ToolDefinition {
         // Fallback: If no keyword matches but tool has general search/utility category
         // and context has common information-seeking keywords, give it a baseline score
         if (score === 0 && context.keywords) {
-            const infoKeywords = ['find', 'search', 'information', 'get', 'retrieve', 'look', 'query'];
-            const hasInfoKeyword = context.keywords.some(kw => infoKeywords.includes(kw.toLowerCase()));
-            
-            if (hasInfoKeyword && (this.options.category === 'search' || this.options.category === 'utility')) {
+            const infoKeywords = [
+                'find',
+                'search',
+                'information',
+                'get',
+                'retrieve',
+                'look',
+                'query'
+            ];
+            const hasInfoKeyword = context.keywords.some(kw =>
+                infoKeywords.includes(kw.toLowerCase())
+            );
+
+            if (
+                hasInfoKeyword &&
+                (this.options.category === 'search' || this.options.category === 'utility')
+            ) {
                 score = 1; // Minimum relevance for search tools with info-seeking queries
             }
         }
@@ -128,7 +141,10 @@ class ToolDefinition {
             successCount: this.successCount,
             failureCount: this.failureCount,
             avgDuration: this.callCount > 0 ? this.totalDuration / this.callCount : 0,
-            successRate: this.callCount > 0 ? (this.successCount / this.callCount * 100).toFixed(2) + '%' : 'N/A'
+            successRate:
+                this.callCount > 0
+                    ? ((this.successCount / this.callCount) * 100).toFixed(2) + '%'
+                    : 'N/A'
         };
     }
 }

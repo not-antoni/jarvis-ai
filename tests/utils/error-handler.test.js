@@ -59,14 +59,14 @@ test('asyncHandler: Success case', async () => {
     const handler = asyncHandler(async (req, res) => {
         res.json({ success: true });
     });
-    
+
     const req = {};
     const res = {
-        json: (data) => {
+        json: data => {
             assert.strictEqual(data.success, true);
         }
     };
-    
+
     await handler(req, res, () => {});
 });
 
@@ -74,17 +74,16 @@ test('asyncHandler: Error case', async () => {
     const handler = asyncHandler(async (req, res) => {
         throw new ValidationError('Test error');
     });
-    
+
     const req = {};
     const res = {};
     let errorCaught = false;
-    
-    const next = (err) => {
+
+    const next = err => {
         errorCaught = true;
         assert.ok(err instanceof ValidationError);
     };
-    
+
     await handler(req, res, next);
     assert.strictEqual(errorCaught, true);
 });
-

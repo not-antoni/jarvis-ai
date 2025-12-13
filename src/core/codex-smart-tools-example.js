@@ -34,7 +34,7 @@ codex.registerJarvisTool(
         },
         required: ['query']
     },
-    async (args) => {
+    async args => {
         console.log(`[Tool] Searching web for: ${args.query}`);
         // Actual implementation would use Brave Search or similar
         return {
@@ -63,7 +63,7 @@ codex.registerJarvisTool(
         },
         required: ['query']
     },
-    async (args) => {
+    async args => {
         console.log(`[Tool] Playing music: ${args.query}`);
         return { playing: true, query: args.query };
     },
@@ -85,7 +85,7 @@ codex.registerJarvisTool(
         },
         required: ['command']
     },
-    async (args) => {
+    async args => {
         console.log(`[Tool] Executing: ${args.command}`);
         return { output: 'Command executed' };
     },
@@ -101,13 +101,9 @@ codex.registerJarvisTool(
 
 async function demonstrateDiscovery() {
     console.log('\n=== Tool Discovery Example ===\n');
-    
+
     // Discover tools for different queries
-    const queries = [
-        'search for information about AI',
-        'play some music',
-        'find weather data'
-    ];
+    const queries = ['search for information about AI', 'play some music', 'find weather data'];
 
     for (const query of queries) {
         const discovered = codex.discoverTools(query, { limit: 3 });
@@ -150,18 +146,18 @@ async function demonstrateStatistics() {
 
     // Get statistics
     const insights = codex.getExecutionInsights();
-    
+
     console.log('Registry Statistics:');
     console.log(`  Total tools: ${insights.stats.toolCount}`);
     console.log(`  Total executions: ${insights.stats.totalExecutions}`);
     console.log('');
-    
+
     console.log('Top tools by success:');
     insights.topTools.forEach(tool => {
         console.log(`  - ${tool.name}: ${tool.successCount}/${tool.callCount} successful`);
     });
     console.log('');
-    
+
     if (insights.recommendations.length > 0) {
         console.log('Recommendations:');
         insights.recommendations.forEach(rec => {
@@ -176,18 +172,18 @@ async function demonstrateCompatibilityReport() {
     console.log('\n=== Tool Compatibility Report ===\n');
 
     const report = codex.getCompatibilityReport();
-    
+
     console.log(`Total tools: ${report.totalTools}`);
     console.log(`Parallel-capable: ${report.supportParallel}`);
     console.log(`Require approval: ${report.requireApproval}`);
     console.log('');
-    
+
     console.log('Tools by category:');
     Object.entries(report.byCategory).forEach(([category, tools]) => {
         console.log(`  ${category}: ${tools.length} tools`);
     });
     console.log('');
-    
+
     console.log('Tool details:');
     report.details.forEach(detail => {
         const parallel = detail.parallel ? '✓' : '✗';
@@ -203,7 +199,7 @@ async function demonstrateExport() {
     console.log('\n=== Export for OpenAI Function Calling ===\n');
 
     const functions = codex.exportAsCodexTools();
-    
+
     console.log('Exported functions (OpenAI format):');
     console.log(JSON.stringify(functions, null, 2));
 }
@@ -213,14 +209,10 @@ async function demonstrateExport() {
 async function demonstrateBatchExecution() {
     console.log('\n=== Batch Execution Example ===\n');
 
-    const queries = [
-        'find python tutorials',
-        'play jazz music',
-        'search machine learning'
-    ];
+    const queries = ['find python tutorials', 'play jazz music', 'search machine learning'];
 
     const results = await codex.batchExecute(queries);
-    
+
     results.forEach((item, index) => {
         console.log(`[${index + 1}] Query: "${item.query}"`);
         console.log(`    Success: ${item.result.success}`);
@@ -237,10 +229,10 @@ async function demonstrateDirectExecution() {
     console.log('\n=== Direct Tool Execution Example ===\n');
 
     // Execute search tool
-    const searchResult = await codex.executeTool(
-        'search_web',
-        { query: 'artificial intelligence', limit: 5 }
-    );
+    const searchResult = await codex.executeTool('search_web', {
+        query: 'artificial intelligence',
+        limit: 5
+    });
 
     console.log('Search result:');
     console.log(`  Success: ${searchResult.success}`);
@@ -248,10 +240,10 @@ async function demonstrateDirectExecution() {
     console.log('');
 
     // Execute music tool
-    const musicResult = await codex.executeTool(
-        'play_music',
-        { query: 'ambient music', source: 'youtube' }
-    );
+    const musicResult = await codex.executeTool('play_music', {
+        query: 'ambient music',
+        source: 'youtube'
+    });
 
     console.log('Music result:');
     console.log(`  Success: ${musicResult.success}`);
@@ -269,7 +261,7 @@ async function runAllExamples() {
         await demonstrateExport();
         await demonstrateBatchExecution();
         await demonstrateSmartExecution();
-        
+
         console.log('\n✅ All examples completed successfully!\n');
     } catch (error) {
         console.error('Error running examples:', error);

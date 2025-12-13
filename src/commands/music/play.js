@@ -8,10 +8,7 @@ module.exports = {
         .setName('play')
         .setDescription('Play a YouTube video or add it to the queue.')
         .addStringOption(option =>
-            option
-                .setName('query')
-                .setDescription('Search term or YouTube URL')
-                .setRequired(true)
+            option.setName('query').setDescription('Search term or YouTube URL').setRequired(true)
         )
         .setDMPermission(false)
         .setContexts([InteractionContextType.Guild]),
@@ -62,7 +59,12 @@ module.exports = {
         }
 
         try {
-            const message = await musicManager.enqueue(interaction.guild.id, voiceChannel, video, interaction);
+            const message = await musicManager.enqueue(
+                interaction.guild.id,
+                voiceChannel,
+                video,
+                interaction
+            );
             await interaction.editReply(message);
         } catch (error) {
             console.error('Failed to enqueue track:', error);

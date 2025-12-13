@@ -64,15 +64,17 @@ function recordCommandRun({
     console.log(JSON.stringify(payload));
 
     if (database?.recordCommandMetric) {
-        database.recordCommandMetric({
-            command,
-            subcommand,
-            context,
-            status: payload.status,
-            latencyMs
-        }).catch((error) => {
-            console.warn('Failed to persist command metric:', error?.message || error);
-        });
+        database
+            .recordCommandMetric({
+                command,
+                subcommand,
+                context,
+                status: payload.status,
+                latencyMs
+            })
+            .catch(error => {
+                console.warn('Failed to persist command metric:', error?.message || error);
+            });
     }
 }
 

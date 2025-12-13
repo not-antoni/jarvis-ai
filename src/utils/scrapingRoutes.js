@@ -31,7 +31,8 @@ function createScrapingRouter(discordHandlers, productionAgent) {
 
         try {
             // Start trace
-            const traceId = productionAgent?.tracer?.startTrace('wikipedia_scrape', { article }) || 'local';
+            const traceId =
+                productionAgent?.tracer?.startTrace('wikipedia_scrape', { article }) || 'local';
             const spanId = productionAgent?.tracer?.startSpan(traceId, 'scrape_article') || 'local';
 
             // Get or create page
@@ -70,7 +71,6 @@ function createScrapingRouter(discordHandlers, productionAgent) {
                 success: true,
                 data: articleData
             });
-
         } catch (error) {
             console.error('[ScrapingAPI] Scrape failed:', error.message);
             res.status(500).json({
@@ -99,7 +99,6 @@ function createScrapingRouter(discordHandlers, productionAgent) {
                 query,
                 results: results || []
             });
-
         } catch (error) {
             res.status(500).json({
                 success: false,
@@ -126,7 +125,6 @@ function createScrapingRouter(discordHandlers, productionAgent) {
                 article,
                 related: related || []
             });
-
         } catch (error) {
             res.status(500).json({
                 success: false,
@@ -262,7 +260,6 @@ function createScrapingRouter(discordHandlers, productionAgent) {
                 results,
                 errors: errors.length > 0 ? errors : undefined
             });
-
         } catch (error) {
             res.status(500).json({
                 success: false,

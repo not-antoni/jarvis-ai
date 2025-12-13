@@ -19,8 +19,12 @@ class CryptoClient {
     async getQuote({ symbol, convert = 'USD' }) {
         this.ensureApiKey();
 
-        const upperSymbol = String(symbol || '').trim().toUpperCase();
-        const upperConvert = String(convert || 'USD').trim().toUpperCase();
+        const upperSymbol = String(symbol || '')
+            .trim()
+            .toUpperCase();
+        const upperConvert = String(convert || 'USD')
+            .trim()
+            .toUpperCase();
 
         if (!upperSymbol) {
             const error = new Error('Missing cryptocurrency symbol');
@@ -35,7 +39,7 @@ class CryptoClient {
         const response = await fetch(url.toString(), {
             headers: {
                 'X-CMC_PRO_API_KEY': this.apiKey,
-                'Accept': 'application/json'
+                Accept: 'application/json'
             }
         });
 

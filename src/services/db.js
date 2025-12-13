@@ -1,6 +1,8 @@
 const { MongoClient } = require('mongodb');
 const config = require('../../config');
-const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
+const LOCAL_DB_MODE =
+    String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() ===
+    '1';
 
 const {
     database: {
@@ -17,23 +19,29 @@ if (!mainUri || !vaultUri) {
     }
 }
 
-const mainClient = !LOCAL_DB_MODE && mainUri ? new MongoClient(mainUri, {
-    maxPoolSize: 25,
-    minPoolSize: 2,
-    serverSelectionTimeoutMS: 5000,
-    socketTimeoutMS: 45000,
-    retryWrites: true,
-    retryReads: true,
-}) : null;
+const mainClient =
+    !LOCAL_DB_MODE && mainUri
+        ? new MongoClient(mainUri, {
+              maxPoolSize: 25,
+              minPoolSize: 2,
+              serverSelectionTimeoutMS: 5000,
+              socketTimeoutMS: 45000,
+              retryWrites: true,
+              retryReads: true
+          })
+        : null;
 
-const vaultClient = !LOCAL_DB_MODE && vaultUri ? new MongoClient(vaultUri, {
-    maxPoolSize: 20,
-    minPoolSize: 1,
-    serverSelectionTimeoutMS: 5000,
-    socketTimeoutMS: 45000,
-    retryWrites: true,
-    retryReads: true,
-}) : null;
+const vaultClient =
+    !LOCAL_DB_MODE && vaultUri
+        ? new MongoClient(vaultUri, {
+              maxPoolSize: 20,
+              minPoolSize: 1,
+              serverSelectionTimeoutMS: 5000,
+              socketTimeoutMS: 45000,
+              retryWrites: true,
+              retryReads: true
+          })
+        : null;
 
 let mainDb = null;
 let vaultDb = null;
@@ -50,12 +58,13 @@ async function connectMain() {
     }
 
     if (!mainConnectPromise) {
-        mainConnectPromise = mainClient.connect()
-            .then((client) => {
+        mainConnectPromise = mainClient
+            .connect()
+            .then(client => {
                 mainDb = client.db(mainDbName);
                 return mainDb;
             })
-            .catch((error) => {
+            .catch(error => {
                 mainConnectPromise = null;
                 throw error;
             });
@@ -73,12 +82,13 @@ async function connectVault() {
     }
 
     if (!vaultConnectPromise) {
-        vaultConnectPromise = vaultClient.connect()
-            .then((client) => {
+        vaultConnectPromise = vaultClient
+            .connect()
+            .then(client => {
                 vaultDb = client.db(vaultDbName);
                 return vaultDb;
             })
-            .catch((error) => {
+            .catch(error => {
                 vaultConnectPromise = null;
                 throw error;
             });
@@ -98,7 +108,9 @@ async function initializeDatabaseClients() {
 function getJarvisDb() {
     if (LOCAL_DB_MODE) return null;
     if (!mainDb) {
-        throw new Error('Main database not connected. Call connectMain or initializeDatabaseClients first.');
+        throw new Error(
+            'Main database not connected. Call connectMain or initializeDatabaseClients first.'
+        );
     }
     return mainDb;
 }
@@ -106,7 +118,9 @@ function getJarvisDb() {
 function getVaultDb() {
     if (LOCAL_DB_MODE) return null;
     if (!vaultDb) {
-        throw new Error('Vault database not connected. Call connectVault or initializeDatabaseClients first.');
+        throw new Error(
+            'Vault database not connected. Call connectVault or initializeDatabaseClients first.'
+        );
     }
     return vaultDb;
 }

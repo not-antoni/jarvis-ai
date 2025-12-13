@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 process.env.DISCORD_TOKEN = process.env.DISCORD_TOKEN || 'test-token';
 process.env.MONGO_URI_MAIN = process.env.MONGO_URI_MAIN || 'mongodb://localhost:27017/test';
 process.env.MONGO_URI_VAULT = process.env.MONGO_URI_VAULT || 'mongodb://localhost:27017/test_vault';
-process.env.MASTER_KEY_BASE64 = process.env.MASTER_KEY_BASE64 || Buffer.alloc(32).toString('base64');
+process.env.MASTER_KEY_BASE64 =
+    process.env.MASTER_KEY_BASE64 || Buffer.alloc(32).toString('base64');
 
 const databaseSingleton = require('../src/services/database');
 const DatabaseManager = databaseSingleton.constructor;
@@ -34,7 +35,7 @@ test('updateGuildFeatures updates individual flags without clobbering other fiel
     const updateCalls = [];
 
     const mockCollection = {
-        findOne: async (filter) => {
+        findOne: async filter => {
             assert.deepEqual(filter, { guildId: 'guild-1' });
             return existingDoc;
         },
@@ -72,7 +73,7 @@ test('updateGuildFeatures inserts new guild config with defaults', async () => {
 
     const mockCollection = {
         findOne: async () => null,
-        insertOne: async (doc) => {
+        insertOne: async doc => {
             inserted.push(doc);
             return { insertedId: 'doc-new' };
         }
@@ -109,10 +110,10 @@ test('clearUserMemories deletes conversations and vault records', async () => {
 
     let deleteManyCalled = false;
     manager.db = {
-        collection: (name) => {
+        collection: name => {
             assert.equal(name, conversationsCollectionName);
             return {
-                deleteMany: async (filter) => {
+                deleteMany: async filter => {
                     deleteManyCalled = true;
                     assert.deepEqual(filter, { userId: 'user-42' });
                 }
@@ -122,7 +123,7 @@ test('clearUserMemories deletes conversations and vault records', async () => {
 
     const originalPurge = vaultClient.purgeUserMemories;
     let purgeCalled = false;
-    vaultClient.purgeUserMemories = async (userId) => {
+    vaultClient.purgeUserMemories = async userId => {
         purgeCalled = true;
         assert.equal(userId, 'user-42');
     };

@@ -233,7 +233,10 @@ class MusicManager {
                 if (newState.status === VoiceConnectionStatus.Disconnected) {
                     setTimeout(() => {
                         const state = this.queues.get(guildId);
-                        if (state?.connection === connection && newState.status === VoiceConnectionStatus.Disconnected) {
+                        if (
+                            state?.connection === connection &&
+                            newState.status === VoiceConnectionStatus.Disconnected
+                        ) {
                             this.cleanup(guildId);
                         }
                     }, 5000);
@@ -244,7 +247,9 @@ class MusicManager {
                 console.error('Voice connection error:', error);
                 const state = this.queues.get(guildId);
                 if (state?.textChannel) {
-                    state.textChannel.send('⚠️ Voice connection error, leaving channel.').catch(() => {});
+                    state.textChannel
+                        .send('⚠️ Voice connection error, leaving channel.')
+                        .catch(() => {});
                 }
                 this.cleanup(guildId);
             });
@@ -283,7 +288,9 @@ class MusicManager {
                     if (this.queues.has(guildId)) {
                         const queueState = this.queues.get(guildId);
                         if (queueState?.textChannel) {
-                            queueState.textChannel.send('⌛ Leaving voice channel due to inactivity.').catch(() => {});
+                            queueState.textChannel
+                                .send('⌛ Leaving voice channel due to inactivity.')
+                                .catch(() => {});
                         }
                         this.cleanup(guildId);
                     }
@@ -351,7 +358,6 @@ class MusicManager {
 
         this.queues.delete(guildId);
     }
-
 }
 
 module.exports = {

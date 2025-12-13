@@ -11,7 +11,7 @@ codex.registerJarvisTool(
     'scrape_wikipedia',
     'Scrape Wikipedia for information',
     { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    async (args) => ({ title: 'Test' }),
+    async args => ({ title: 'Test' }),
     { timeout: 5000, category: 'search' }
 );
 
@@ -19,15 +19,19 @@ codex.registerJarvisTool(
     'web_search',
     'Search the web for results',
     { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    async (args) => ({ results: [] }),
+    async args => ({ results: [] }),
     { timeout: 5000, category: 'search' }
 );
 
 codex.registerJarvisTool(
     'scrape_images',
     'Search and download images',
-    { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'number', default: 5 } }, required: ['query'] },
-    async (args) => ({ images: [] }),
+    {
+        type: 'object',
+        properties: { query: { type: 'string' }, limit: { type: 'number', default: 5 } },
+        required: ['query']
+    },
+    async args => ({ images: [] }),
     { timeout: 8000, category: 'media' }
 );
 
@@ -54,7 +58,7 @@ tools.forEach(tool => {
     console.log(`    Description: "${tool.description}"`);
     console.log(`    Category: ${tool.options.category}`);
     console.log(`    Score: ${score}`);
-    
+
     // Break down scoring
     let breakdown = 0;
     if (query.toLowerCase().includes(tool.name.toLowerCase())) {

@@ -11,10 +11,12 @@ class EmbeddingSystem {
     constructor() {
         this.client = null;
         this.localEndpoint = process.env.LOCAL_EMBEDDING_URL || null;
-        this.openAiKey = process.env.OPENAI || null;
+        this.openAiKey = process.env.OPENAI || process.env.OPENAI_API_KEY || null;
         this.hasExternalProvider = Boolean(this.openAiKey || this.localEndpoint);
         this.vectorSize = 512;
-        this.isAvailable = Boolean(this.hasExternalProvider || fs.existsSync(path.join(__dirname, 'data.jsonl')));
+        this.isAvailable = Boolean(
+            this.hasExternalProvider || fs.existsSync(path.join(__dirname, 'data.jsonl'))
+        );
         this.staticDataPath = path.join(__dirname, 'data.jsonl');
         this.staticKnowledge = null;
         this.staticKnowledgeVectors = null;
@@ -23,7 +25,9 @@ class EmbeddingSystem {
 
     ensureClient() {
         if (!this.openAiKey) {
-            throw new Error('OPENAI environment variable not set. Embedding operations are unavailable.');
+            throw new Error(
+                'OPENAI environment variable not set. Embedding operations are unavailable.'
+            );
         }
 
         if (!this.client) {
@@ -39,7 +43,7 @@ class EmbeddingSystem {
             return vector.map(() => 0);
         }
 
-        return vector.map((value) => value / magnitude);
+        return vector.map(value => value / magnitude);
     }
 
     dotProduct(a, b) {
@@ -71,7 +75,7 @@ class EmbeddingSystem {
 
         const payload = await response.json();
         const vector = Array.isArray(payload?.embedding)
-            ? payload.embedding.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+            ? payload.embedding.map(value => Number(value)).filter(value => Number.isFinite(value))
             : null;
 
         if (!vector || vector.length === 0) {
@@ -82,9 +86,10 @@ class EmbeddingSystem {
     }
 
     computeBagOfWordsEmbedding(text) {
-        const tokens = String(text || '')
-            .toLowerCase()
-            .match(/[a-z0-9]+/g) || [];
+        const tokens =
+            String(text || '')
+                .toLowerCase()
+                .match(/[a-z0-9]+/g) || [];
 
         if (!tokens.length) {
             return new Array(this.vectorSize).fill(0);
@@ -115,9 +120,10 @@ class EmbeddingSystem {
                 return this.staticKnowledge;
             }
 
-            const lines = fs.readFileSync(this.staticDataPath, 'utf8')
+            const lines = fs
+                .readFileSync(this.staticDataPath, 'utf8')
                 .split('\n')
-                .map((line) => line.trim())
+                .map(line => line.trim())
                 .filter(Boolean);
 
             this.staticKnowledge = lines
@@ -135,7 +141,10 @@ class EmbeddingSystem {
                             createdAt: null
                         };
                     } catch (error) {
-                        console.warn('Failed to parse static knowledge entry:', error?.message || error);
+                        console.warn(
+                            'Failed to parse static knowledge entry:',
+                            error?.message || error
+                        );
                         return null;
                     }
                 })
@@ -154,7 +163,7 @@ class EmbeddingSystem {
         }
 
         const entries = this.loadStaticKnowledge();
-        this.staticKnowledgeVectors = entries.map((entry) => {
+        this.staticKnowledgeVectors = entries.map(entry => {
             const combined = `${entry.title} ${entry.content}`;
             const vector = this.normalizeVector(this.computeBagOfWordsEmbedding(combined));
             return { entry, vector };
@@ -179,7 +188,10 @@ class EmbeddingSystem {
             try {
                 vector = await this.embedWithLocal(text);
             } catch (error) {
-                console.warn('Local embedding service failed, considering OpenAI fallback:', error.message);
+                console.warn(
+                    'Local embedding service failed, considering OpenAI fallback:',
+                    error.message
+                );
                 if (!this.openAiKey) {
                     throw error;
                 }
@@ -236,7 +248,7 @@ class EmbeddingSystem {
 
         const embedding = await this.embedText(text);
         const normalizedTags = Array.isArray(tags)
-            ? Array.from(new Set(tags.map((tag) => String(tag).trim()).filter(Boolean)))
+            ? Array.from(new Set(tags.map(tag => String(tag).trim()).filter(Boolean)))
             : [];
 
         let summary = null;
@@ -275,11 +287,11 @@ class EmbeddingSystem {
         const queryEmbedding = await this.embedText(query);
 
         const scored = entries
-            .map((entry) => ({
+            .map(entry => ({
                 entry,
                 score: this.dotProduct(queryEmbedding, entry.embedding || [])
             }))
-            .filter((item) => Number.isFinite(item.score) && item.score >= threshold)
+            .filter(item => Number.isFinite(item.score) && item.score >= threshold)
             .sort((a, b) => b.score - a.score);
 
         let results = scored.slice(0, limit);
@@ -292,11 +304,11 @@ class EmbeddingSystem {
                         entry,
                         score: this.dotProduct(queryEmbedding, vector)
                     }))
-                    .filter((item) => Number.isFinite(item.score) && item.score >= 0.05)
+                    .filter(item => Number.isFinite(item.score) && item.score >= 0.05)
                     .sort((a, b) => b.score - a.score);
 
                 const missing = limit - results.length;
-                const addition = staticScored.slice(0, missing).map((item) => ({
+                const addition = staticScored.slice(0, missing).map(item => ({
                     entry: {
                         _id: item.entry._id,
                         title: item.entry.title,
@@ -323,11 +335,13 @@ class EmbeddingSystem {
         }
 
         const lines = results.map(({ entry, score }, index) => {
-            const snippetSource = entry.summary && entry.summary.trim().length >= 20
-                ? entry.summary
-                : entry.text;
-            const preview = snippetSource.length > 240 ? `${snippetSource.slice(0, 237)}…` : snippetSource;
-            const createdAt = entry.createdAt ? `<t:${Math.floor(new Date(entry.createdAt).getTime() / 1000)}:R>` : 'unknown';
+            const snippetSource =
+                entry.summary && entry.summary.trim().length >= 20 ? entry.summary : entry.text;
+            const preview =
+                snippetSource.length > 240 ? `${snippetSource.slice(0, 237)}…` : snippetSource;
+            const createdAt = entry.createdAt
+                ? `<t:${Math.floor(new Date(entry.createdAt).getTime() / 1000)}:R>`
+                : 'unknown';
             const originLine = entry.isStatic
                 ? 'Source: static knowledge archive'
                 : `Saved ${createdAt}`;
@@ -366,13 +380,16 @@ class EmbeddingSystem {
             ].join('\n');
         });
 
-        const systemPrompt = 'You are Jarvis, an assistant that answers questions using provided server knowledge. Respond concisely, cite sources using [Sx] markers matching the provided source order, and mention when information is missing.';
+        const systemPrompt =
+            'You are Jarvis, an assistant that answers questions using provided server knowledge. Respond concisely, cite sources using [Sx] markers matching the provided source order, and mention when information is missing.';
         const userPrompt = [`Question: ${query}`, '', ...contextBlocks].join('\n');
 
         try {
             const response = await aiManager.generateResponse(systemPrompt, userPrompt, 450);
 
-            const answer = response?.content?.trim() || 'I encountered an issue while generating an answer, sir.';
+            const answer =
+                response?.content?.trim() ||
+                'I encountered an issue while generating an answer, sir.';
             const sources = results.map(({ entry }, index) => ({
                 label: `[S${index + 1}] ${entry.title || 'Untitled'}`,
                 id: entry._id

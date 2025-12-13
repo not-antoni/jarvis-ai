@@ -11,7 +11,8 @@ class ScreenshotTool extends ToolHandler {
     constructor(browserAgent, options = {}) {
         super({
             name: 'screenshot',
-            description: 'Capture a screenshot of a web page or browser session. Supports full page, viewport, and element-specific captures.',
+            description:
+                'Capture a screenshot of a web page or browser session. Supports full page, viewport, and element-specific captures.',
             kind: ToolKind.BROWSER,
             category: 'browser',
             timeout: options.timeout || 30000,
@@ -22,7 +23,8 @@ class ScreenshotTool extends ToolHandler {
                 properties: {
                     url: {
                         type: 'string',
-                        description: 'URL to navigate to before taking screenshot (optional if session exists)'
+                        description:
+                            'URL to navigate to before taking screenshot (optional if session exists)'
                     },
                     sessionId: {
                         type: 'string',
@@ -46,7 +48,8 @@ class ScreenshotTool extends ToolHandler {
                     },
                     waitFor: {
                         type: 'string',
-                        description: 'Wait condition: "load", "domcontentloaded", "networkidle0", "networkidle2"'
+                        description:
+                            'Wait condition: "load", "domcontentloaded", "networkidle0", "networkidle2"'
                     },
                     waitForSelector: {
                         type: 'string',
@@ -87,20 +90,22 @@ class ScreenshotTool extends ToolHandler {
         const contextKey = this._buildContextKey(invocation);
 
         let lastError = null;
-        
+
         for (let attempt = 1; attempt <= this.options.maxRetries; attempt++) {
             try {
                 const result = await this._attemptScreenshot(args, contextKey, attempt);
                 return result;
             } catch (error) {
                 lastError = error;
-                console.warn(`[ScreenshotTool] Attempt ${attempt}/${this.options.maxRetries} failed: ${error.message}`);
-                
+                console.warn(
+                    `[ScreenshotTool] Attempt ${attempt}/${this.options.maxRetries} failed: ${error.message}`
+                );
+
                 if (attempt < this.options.maxRetries) {
                     // Exponential backoff
                     const delay = this.options.retryDelay * Math.pow(2, attempt - 1);
                     await this._sleep(delay);
-                    
+
                     // Try to recover session if needed
                     if (this._isSessionError(error)) {
                         await this._recoverSession(contextKey);
@@ -109,9 +114,12 @@ class ScreenshotTool extends ToolHandler {
             }
         }
 
-        return ToolOutput.error(`Screenshot failed after ${this.options.maxRetries} attempts: ${lastError?.message}`, {
-            metadata: { attempts: this.options.maxRetries, lastError: lastError?.message }
-        });
+        return ToolOutput.error(
+            `Screenshot failed after ${this.options.maxRetries} attempts: ${lastError?.message}`,
+            {
+                metadata: { attempts: this.options.maxRetries, lastError: lastError?.message }
+            }
+        );
     }
 
     /**
@@ -132,7 +140,7 @@ class ScreenshotTool extends ToolHandler {
         } = args;
 
         // Get or create session
-        let session = sessionId 
+        let session = sessionId
             ? this.browserAgent.getSession(sessionId)
             : this.browserAgent.getSession(contextKey);
 
@@ -211,7 +219,7 @@ class ScreenshotTool extends ToolHandler {
      */
     async _navigateWithRetry(page, url, waitFor) {
         const maxNavigationRetries = 2;
-        
+
         for (let i = 0; i < maxNavigationRetries; i++) {
             try {
                 await page.goto(url, {
@@ -244,16 +252,18 @@ class ScreenshotTool extends ToolHandler {
         // Wait for any animations to complete
         try {
             await page.evaluate(() => {
-                return new Promise((resolve) => {
+                return new Promise(resolve => {
                     // Check for pending animations
                     const animations = document.getAnimations ? document.getAnimations() : [];
                     if (animations.length === 0) {
                         resolve();
                         return;
                     }
-                    
-                    Promise.all(animations.map(a => a.finished)).then(resolve).catch(resolve);
-                    
+
+                    Promise.all(animations.map(a => a.finished))
+                        .then(resolve)
+                        .catch(resolve);
+
                     // Fallback timeout
                     setTimeout(resolve, 2000);
                 });
@@ -265,7 +275,7 @@ class ScreenshotTool extends ToolHandler {
         // Scroll to ensure lazy-loaded content is visible (for full page)
         try {
             await page.evaluate(async () => {
-                await new Promise((resolve) => {
+                await new Promise(resolve => {
                     let totalHeight = 0;
                     const distance = 500;
                     const timer = setInterval(() => {
@@ -302,7 +312,9 @@ class ScreenshotTool extends ToolHandler {
 
             return await element.screenshot(options);
         } catch (error) {
-            console.warn(`[ScreenshotTool] Element capture failed, falling back to viewport: ${error.message}`);
+            console.warn(
+                `[ScreenshotTool] Element capture failed, falling back to viewport: ${error.message}`
+            );
             // Fallback to viewport capture
             return await page.screenshot({ ...options, fullPage: false });
         }
@@ -345,11 +357,13 @@ class ScreenshotTool extends ToolHandler {
      */
     _isSessionError(error) {
         const message = error.message.toLowerCase();
-        return message.includes('session') ||
-               message.includes('target') ||
-               message.includes('browser') ||
-               message.includes('closed') ||
-               message.includes('disconnected');
+        return (
+            message.includes('session') ||
+            message.includes('target') ||
+            message.includes('browser') ||
+            message.includes('closed') ||
+            message.includes('disconnected')
+        );
     }
 
     /**
@@ -361,7 +375,7 @@ class ScreenshotTool extends ToolHandler {
         } catch (e) {
             // Ignore close errors
         }
-        
+
         // Browser agent should auto-recover on next startSession
     }
 
@@ -388,7 +402,8 @@ class QuickScreenshotTool extends ToolHandler {
     constructor(options = {}) {
         super({
             name: 'quick_screenshot',
-            description: 'Take a quick screenshot of a URL without managing sessions. Uses a temporary browser instance.',
+            description:
+                'Take a quick screenshot of a URL without managing sessions. Uses a temporary browser instance.',
             kind: ToolKind.BROWSER,
             category: 'browser',
             timeout: options.timeout || 60000,
@@ -435,7 +450,7 @@ class QuickScreenshotTool extends ToolHandler {
         }
 
         let browser = null;
-        
+
         try {
             browser = await this.puppeteer.launch({
                 headless: 'new',
@@ -449,7 +464,7 @@ class QuickScreenshotTool extends ToolHandler {
 
             const page = await browser.newPage();
             await page.setViewport({ width, height });
-            
+
             await page.goto(url, {
                 waitUntil: 'networkidle2',
                 timeout: 30000
@@ -472,7 +487,6 @@ class QuickScreenshotTool extends ToolHandler {
                     size: buffer.length
                 }
             });
-
         } catch (error) {
             return ToolOutput.error(`Screenshot failed: ${error.message}`);
         } finally {
@@ -488,4 +502,3 @@ class QuickScreenshotTool extends ToolHandler {
 }
 
 module.exports = { ScreenshotTool, QuickScreenshotTool };
-

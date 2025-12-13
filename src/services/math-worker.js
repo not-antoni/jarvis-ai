@@ -8,10 +8,10 @@ if (!parentPort) {
 parentPort.on('message', ({ rawInput }) => {
     Promise.resolve()
         .then(() => solveMath(rawInput))
-        .then((result) => {
+        .then(result => {
             parentPort.postMessage({ success: true, result });
         })
-        .catch((error) => {
+        .catch(error => {
             parentPort.postMessage({
                 success: false,
                 error: error?.message || 'Math evaluation failed.'

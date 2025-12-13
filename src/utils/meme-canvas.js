@@ -52,11 +52,11 @@ async function fetchEmojiImage(url) {
     }
 
     const pending = loadImage(url)
-        .then((image) => {
+        .then(image => {
             emojiImageCache.set(url, image);
             return image;
         })
-        .catch((error) => {
+        .catch(error => {
             emojiImageCache.delete(url);
             throw error;
         });
@@ -120,7 +120,7 @@ function calculateFontSize(ctx, text, maxWidth, startingSize, minSize = 18) {
     while (size >= minSize) {
         ctx.font = `bold ${size}px "Impact", "Arial Black", sans-serif`;
         lines = wrapText(ctx, text, maxWidth);
-        const widest = Math.max(...lines.map((line) => ctx.measureText(line).width));
+        const widest = Math.max(...lines.map(line => ctx.measureText(line).width));
         if (widest <= maxWidth) {
             break;
         }
@@ -177,7 +177,7 @@ async function createCaptionImage(imageBuffer, captionText) {
     const words = [];
     for (const token of tokens) {
         if (token.type === 'text') {
-            token.value.split(/(\s+)/).forEach((piece) => {
+            token.value.split(/(\s+)/).forEach(piece => {
                 if (!piece) return;
                 words.push({ type: /\s+/.test(piece) ? 'space' : 'text', value: piece });
             });
@@ -199,7 +199,7 @@ async function createCaptionImage(imageBuffer, captionText) {
         }
     };
 
-    const measureText = (text) => ctx.measureText(text).width;
+    const measureText = text => ctx.measureText(text).width;
 
     for (const word of words) {
         if (word.type === 'text') {
@@ -267,7 +267,13 @@ async function createCaptionImage(imageBuffer, captionText) {
                         try {
                             const emojiImage = await loadEmojiAsset(url);
                             if (emojiImage) {
-                                outCtx.drawImage(emojiImage, cursorX, cursorY + (lineHeight - emojiSize) / 2, emojiSize, emojiSize);
+                                outCtx.drawImage(
+                                    emojiImage,
+                                    cursorX,
+                                    cursorY + (lineHeight - emojiSize) / 2,
+                                    emojiSize,
+                                    emojiSize
+                                );
                                 rendered = true;
                                 break;
                             }
@@ -278,7 +284,11 @@ async function createCaptionImage(imageBuffer, captionText) {
 
                     if (!rendered) {
                         outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-                        outCtx.fillText(segment.value, cursorX, cursorY + (lineHeight - emojiSize) / 2);
+                        outCtx.fillText(
+                            segment.value,
+                            cursorX,
+                            cursorY + (lineHeight - emojiSize) / 2
+                        );
                         outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
                     }
                 } else {
@@ -290,7 +300,13 @@ async function createCaptionImage(imageBuffer, captionText) {
                         try {
                             const emojiImage = await loadEmojiAsset(url);
                             if (emojiImage) {
-                                outCtx.drawImage(emojiImage, cursorX, cursorY + (lineHeight - emojiSize) / 2, emojiSize, emojiSize);
+                                outCtx.drawImage(
+                                    emojiImage,
+                                    cursorX,
+                                    cursorY + (lineHeight - emojiSize) / 2,
+                                    emojiSize,
+                                    emojiSize
+                                );
                                 rendered = true;
                                 break;
                             }
@@ -301,7 +317,11 @@ async function createCaptionImage(imageBuffer, captionText) {
 
                     if (!rendered) {
                         outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-                        outCtx.fillText(segment.value, cursorX, cursorY + (lineHeight - emojiSize) / 2);
+                        outCtx.fillText(
+                            segment.value,
+                            cursorX,
+                            cursorY + (lineHeight - emojiSize) / 2
+                        );
                         outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
                     }
                 }
@@ -354,11 +374,14 @@ async function createImpactMemeImage(imageBuffer, topText = '', bottomText = '')
             });
         } else if (position === 'bottom') {
             ctx.textBaseline = 'bottom';
-            lines.slice().reverse().forEach((line, idx) => {
-                const y = height - padding - idx * lineHeight;
-                ctx.strokeText(line, width / 2, y);
-                ctx.fillText(line, width / 2, y);
-            });
+            lines
+                .slice()
+                .reverse()
+                .forEach((line, idx) => {
+                    const y = height - padding - idx * lineHeight;
+                    ctx.strokeText(line, width / 2, y);
+                    ctx.fillText(line, width / 2, y);
+                });
         }
     };
 

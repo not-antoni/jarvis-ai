@@ -25,21 +25,36 @@ class AppError extends Error {
 
 class ValidationError extends AppError {
     constructor(message, metadata = {}) {
-        super(message, constants.HTTP_STATUS.BAD_REQUEST, constants.ERROR_CODES.INVALID_PARAMETER, metadata);
+        super(
+            message,
+            constants.HTTP_STATUS.BAD_REQUEST,
+            constants.ERROR_CODES.INVALID_PARAMETER,
+            metadata
+        );
         this.name = 'ValidationError';
     }
 }
 
 class NotFoundError extends AppError {
     constructor(resource, metadata = {}) {
-        super(`${resource} not found`, constants.HTTP_STATUS.NOT_FOUND, constants.ERROR_CODES.NOT_FOUND, metadata);
+        super(
+            `${resource} not found`,
+            constants.HTTP_STATUS.NOT_FOUND,
+            constants.ERROR_CODES.NOT_FOUND,
+            metadata
+        );
         this.name = 'NotFoundError';
     }
 }
 
 class UnauthorizedError extends AppError {
     constructor(message = 'Unauthorized', metadata = {}) {
-        super(message, constants.HTTP_STATUS.UNAUTHORIZED, constants.ERROR_CODES.UNAUTHORIZED, metadata);
+        super(
+            message,
+            constants.HTTP_STATUS.UNAUTHORIZED,
+            constants.ERROR_CODES.UNAUTHORIZED,
+            metadata
+        );
         this.name = 'UnauthorizedError';
     }
 }
@@ -53,10 +68,15 @@ class ForbiddenError extends AppError {
 
 class RateLimitError extends AppError {
     constructor(message = 'Rate limit exceeded', retryAfter = 0, metadata = {}) {
-        super(message, constants.HTTP_STATUS.TOO_MANY_REQUESTS, constants.ERROR_CODES.RATE_LIMIT_EXCEEDED, {
-            ...metadata,
-            retryAfter
-        });
+        super(
+            message,
+            constants.HTTP_STATUS.TOO_MANY_REQUESTS,
+            constants.ERROR_CODES.RATE_LIMIT_EXCEEDED,
+            {
+                ...metadata,
+                retryAfter
+            }
+        );
         this.name = 'RateLimitError';
     }
 }
@@ -66,7 +86,7 @@ class RateLimitError extends AppError {
  */
 function errorHandler(err, req, res, next) {
     const requestId = getRequestId() || req.requestId || 'unknown';
-    
+
     // Log error
     logger.error('Request error', {
         error: {
@@ -90,7 +110,7 @@ function errorHandler(err, req, res, next) {
 
     // Determine status code
     const statusCode = err.statusCode || err.status || 500;
-    
+
     // Determine error response
     const isOperational = err.isOperational || false;
     const isDevelopment = process.env.NODE_ENV === 'development';
@@ -138,18 +158,20 @@ function asyncHandler(fn) {
 function setupUnhandledRejectionHandler() {
     process.on('unhandledRejection', (reason, promise) => {
         logger.error('Unhandled promise rejection', {
-            reason: reason instanceof Error ? {
-                name: reason.name,
-                message: reason.message,
-                stack: reason.stack
-            } : reason,
+            reason:
+                reason instanceof Error
+                    ? {
+                          name: reason.name,
+                          message: reason.message,
+                          stack: reason.stack
+                      }
+                    : reason,
             promise
         });
 
-        metrics.recordError(
-            reason instanceof Error ? reason : new Error(String(reason)),
-            { type: 'unhandledRejection' }
-        );
+        metrics.recordError(reason instanceof Error ? reason : new Error(String(reason)), {
+            type: 'unhandledRejection'
+        });
     });
 }
 
@@ -157,7 +179,7 @@ function setupUnhandledRejectionHandler() {
  * Handle uncaught exceptions
  */
 function setupUncaughtExceptionHandler() {
-    process.on('uncaughtException', (error) => {
+    process.on('uncaughtException', error => {
         logger.error('Uncaught exception', {
             error: {
                 name: error.name,
@@ -194,4 +216,3 @@ module.exports = {
     asyncHandler,
     setupErrorHandlers
 };
-

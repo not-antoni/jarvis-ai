@@ -283,14 +283,19 @@ class ScraperUtils {
             const csv = [
                 csvHeaders.join(','),
                 ...data.map(row =>
-                    csvHeaders.map(header => {
-                        const value = row[header];
-                        // Escape values with commas or quotes
-                        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                            return `"${value.replace(/"/g, '""')}"`;
-                        }
-                        return value;
-                    }).join(',')
+                    csvHeaders
+                        .map(header => {
+                            const value = row[header];
+                            // Escape values with commas or quotes
+                            if (
+                                typeof value === 'string' &&
+                                (value.includes(',') || value.includes('"'))
+                            ) {
+                                return `"${value.replace(/"/g, '""')}"`;
+                            }
+                            return value;
+                        })
+                        .join(',')
                 )
             ].join('\n');
 
@@ -376,9 +381,7 @@ class ScraperUtils {
         const separator = cols.map(() => '---').join(' | ');
         const headerRow = cols.join(' | ');
 
-        const rows = data.map(row =>
-            cols.map(col => row[col] || '').join(' | ')
-        );
+        const rows = data.map(row => cols.map(col => row[col] || '').join(' | '));
 
         return [headerRow, separator, ...rows].join('\n');
     }
@@ -394,9 +397,7 @@ class ScraperUtils {
             const timeSinceLastCall = now - lastCall;
 
             if (timeSinceLastCall < interval) {
-                await new Promise(resolve =>
-                    setTimeout(resolve, interval - timeSinceLastCall)
-                );
+                await new Promise(resolve => setTimeout(resolve, interval - timeSinceLastCall));
             }
 
             lastCall = Date.now();

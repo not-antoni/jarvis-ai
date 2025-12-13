@@ -23,10 +23,10 @@
 - `GOOGLE_AI_API_KEY` - Google AI API key
 - `MIXTRAL_API_KEY` - Mixtral API key
 - `HF_TOKEN` - HuggingFace API key
-- `OPENAI` - OpenAI API key (used for GPT-5 Nano + embeddings)
+- `OPENAI` / `OPENAI_API_KEY` - OpenAI API key (used for OpenAI chat + embeddings)
 - `LOCAL_EMBEDDING_URL` - Optional HTTP endpoint for local embedding service (Ollama, Sentence Transformers, etc.)
 
-> **Note:** Configure at least one of `OPENAI` or `LOCAL_EMBEDDING_URL` to enable knowledge base embeddings and document summaries.
+> **Note:** Configure at least one of `OPENAI` / `OPENAI_API_KEY` or `LOCAL_EMBEDDING_URL` to enable knowledge base embeddings and document summaries.
 
 #### Additional (Optional):
 - `BRAVE_API_KEY` - Enables the `jarvis search` wake phrase using Brave Search with strict safe search and aggressive Jarvis-side explicit filtering (leetspeak/spacing detection, Unicode confusable/zero-width scrubbing, punycode decoding, NSFW domain/URL blocks, flexible regex / wordlist checks, and educational-context allowlists) plus an immediate Discord pre-flight guard so blocked phrases never reach Brave.
@@ -37,6 +37,7 @@
 - `FORWARD_WEBHOOK` - Verified Discord webhook URL that receives forwarded payloads from `/webhook`
 - `DISCORD_WEBHOOK_PUBLIC_KEY` - Discord public key used to validate signatures on incoming webhook requests (required for `/webhook`)
 - `HEALTH_TOKEN` - Optional bearer token that locks down `/health` (and other diagnostics endpoints) when deployed publicly
+- `PASSWORD` - Optional dashboard password. When set, `/dashboard` and `/api/dashboard/*` require a one-time password prompt that sets a 10-day HttpOnly cookie.
 - `MONGO_DB_MAIN_NAME` / `MONGO_DB_VAULT_NAME` - Override database names if you need to reuse existing schemas (defaults `jarvis_ai` / `jarvis_vault`)
 - `VAULT_USER_KEYS_COLLECTION` / `VAULT_MEMORIES_COLLECTION` - Custom collection names when sharing a database namespace
 
@@ -66,6 +67,17 @@
 - **Main endpoint**: `https://your-app.onrender.com/` - ASCII Animation Status Page
 - **Health endpoint**: `https://your-app.onrender.com/health` - Detailed status (JSON).  
   When `HEALTH_TOKEN` is set, supply `Authorization: Bearer <token>` or `?token=` with each request.
+
+### Dashboard Access
+
+- **Dashboard UI**: `https://your-app.onrender.com/dashboard`
+- **Dashboard API**: `https://your-app.onrender.com/api/dashboard/*`
+
+If `PASSWORD` is set:
+
+- Visiting `/dashboard` prompts for the password.
+- On success, the server sets a **10-day HttpOnly cookie** and redirects you into the dashboard.
+- The dashboard's API calls automatically work because the cookie is sent by the browser.
 
 ### Verification
 

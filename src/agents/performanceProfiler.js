@@ -7,12 +7,12 @@ class PerformanceProfiler {
     constructor(config = {}) {
         this.windowSizeMs = config.windowSizeMs || 60 * 60 * 1000; // 1 hour rolling window
         this.sampleInterval = config.sampleInterval || 1000; // Check every 1s
-        
+
         this.operations = []; // All operations with timing
         this.resourceUsage = []; // CPU, memory per operation
         this.pageLoadTimes = new Map(); // url -> [times]
         this.slowOperations = []; // Detected bottlenecks
-        
+
         this.metrics = {
             totalOperations: 0,
             totalSuccessful: 0,
@@ -115,7 +115,7 @@ class PerformanceProfiler {
         if (recent.length === 0) return;
 
         const durations = recent.map(op => op.durationMs).sort((a, b) => a - b);
-        
+
         this.metrics.averageOperationMs = durations.reduce((a, b) => a + b, 0) / durations.length;
         this.metrics.p50Ms = durations[Math.floor(durations.length * 0.5)];
         this.metrics.p95Ms = durations[Math.floor(durations.length * 0.95)];
@@ -265,12 +265,14 @@ class PerformanceProfiler {
         const lines = [];
         lines.push(`# HELP operation_duration_seconds Operation duration in seconds`);
         lines.push(`# TYPE operation_duration_seconds summary`);
-        lines.push(`operation_duration_seconds_sum ${this.metrics.averageOperationMs * this.metrics.totalOperations / 1000}`);
+        lines.push(
+            `operation_duration_seconds_sum ${(this.metrics.averageOperationMs * this.metrics.totalOperations) / 1000}`
+        );
         lines.push(`operation_duration_seconds_count ${this.metrics.totalOperations}`);
         lines.push(`operation_duration_seconds{quantile="0.5"} ${this.metrics.p50Ms / 1000}`);
         lines.push(`operation_duration_seconds{quantile="0.95"} ${this.metrics.p95Ms / 1000}`);
         lines.push(`operation_duration_seconds{quantile="0.99"} ${this.metrics.p99Ms / 1000}`);
-        
+
         lines.push(`# HELP operation_total Total operations`);
         lines.push(`# TYPE operation_total counter`);
         lines.push(`operation_total{status="successful"} ${this.metrics.totalSuccessful}`);

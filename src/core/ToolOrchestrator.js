@@ -24,7 +24,7 @@ class ToolOrchestrator {
      */
     async planExecution(query, context = {}) {
         const selectedTools = this.registry.selectTools(query, context);
-        
+
         if (selectedTools.length === 0) {
             return {
                 viable: false,
@@ -46,7 +46,7 @@ class ToolOrchestrator {
         };
 
         this.plans.set(plan.id, plan);
-        
+
         return {
             viable: true,
             plan
@@ -72,13 +72,12 @@ class ToolOrchestrator {
 
         // Get approvals from all handlers
         const approvals = await Promise.race([
-            Promise.all(
-                this.approvalHandlers.map(handler => 
-                    handler(approval)
-                )
-            ),
+            Promise.all(this.approvalHandlers.map(handler => handler(approval))),
             new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Approval timeout')), this.options.approvalTimeout)
+                setTimeout(
+                    () => reject(new Error('Approval timeout')),
+                    this.options.approvalTimeout
+                )
             )
         ]);
 
@@ -123,7 +122,9 @@ class ToolOrchestrator {
                 execution.planId = plan.plan.id;
                 if (this.options.verbose) {
                     console.log(`[ToolOrchestrator] Plan: ${plan.plan.id}`);
-                    console.log(`[ToolOrchestrator] Selected tools: ${plan.plan.selectedTools.map(t => t.name).join(', ')}`);
+                    console.log(
+                        `[ToolOrchestrator] Selected tools: ${plan.plan.selectedTools.map(t => t.name).join(', ')}`
+                    );
                 }
             }
 
@@ -175,13 +176,13 @@ class ToolOrchestrator {
                 for (let attempt = 0; attempt < this.options.maxRetries; attempt++) {
                     try {
                         result = await this.registry.executeTool(call.name, call.args, context);
-                        
+
                         if (result.success) {
                             break;
                         }
-                        
+
                         lastError = result.error;
-                        
+
                         if (attempt < this.options.maxRetries - 1) {
                             await this._delay(this.options.retryDelay);
                         }
@@ -222,7 +223,6 @@ class ToolOrchestrator {
                 duration,
                 executionId: execution.id
             };
-
         } catch (error) {
             return {
                 success: false,
@@ -249,7 +249,8 @@ class ToolOrchestrator {
     /**
      * Clear old plans
      */
-    clearOldPlans(ageMs = 3600000) { // 1 hour default
+    clearOldPlans(ageMs = 3600000) {
+        // 1 hour default
         const now = Date.now();
         for (const [id, plan] of this.plans.entries()) {
             const planTime = new Date(plan.createdAt).getTime();

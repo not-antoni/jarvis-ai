@@ -23,7 +23,10 @@ function measure(width, text) {
     for (const w of words) {
         const c = line ? `${line} ${w}` : w;
         if (ctx.measureText(c).width <= maxWidth || !line) line = c;
-        else { lines.push(line); line = w; }
+        else {
+            lines.push(line);
+            line = w;
+        }
     }
     if (line) lines.push(line);
     const lineHeight = Math.round(fontSize * 1.15);
@@ -60,7 +63,8 @@ async function run(cmd, args, options = {}) {
         ps.stderr.on('data', d => (stderr += d.toString()));
         ps.on('error', reject);
         ps.on('close', code => {
-            if (code === 0) resolve(); else reject(new Error(stderr || `ffmpeg exited ${code}`));
+            if (code === 0) resolve();
+            else reject(new Error(stderr || `ffmpeg exited ${code}`));
         });
     });
 }
@@ -83,21 +87,39 @@ async function captionToMp4({ inputBuffer, captionText }) {
 
     const outPath = path.join(tmp, 'out.mp4');
     const args = [
-        '-y', '-i', inPath, '-loop', '1', '-i', ovPath,
+        '-y',
+        '-i',
+        inPath,
+        '-loop',
+        '1',
+        '-i',
+        ovPath,
         '-filter_complex',
         // Scale/cap FPS for input, then stack overlay vertically
         '[0:v]fps=20,scale=if(gte(iw,720),720,iw):-2:flags=fast_bilinear,setsar=1,setpts=PTS-STARTPTS[vid];' +
-        '[1:v]format=rgba,setsar=1,setpts=PTS-STARTPTS[ov];' +
-        '[ov][vid]vstack=inputs=2:shortest=1[v]'
-        ,
-        '-map', '[v]', '-an',
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+            '[1:v]format=rgba,setsar=1,setpts=PTS-STARTPTS[ov];' +
+            '[ov][vid]vstack=inputs=2:shortest=1[v]',
+        '-map',
+        '[v]',
+        '-an',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'ultrafast',
+        '-crf',
+        '28',
+        '-pix_fmt',
+        'yuv420p',
+        '-movflags',
+        '+faststart',
         outPath
     ];
 
     await run(ffmpegPath, args);
     const out = fs.readFileSync(outPath);
-    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+    try {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    } catch {}
     return out;
 }
 

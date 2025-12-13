@@ -140,4 +140,3 @@ module.exports = {
         EXTERNAL_SERVICE_ERROR: 'EXTERNAL_SERVICE_ERROR'
     }
 };
-

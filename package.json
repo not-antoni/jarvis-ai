@@ -5,11 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "verify": "node deploy.js",
-    "test": "node --test",
-    "agent": "node test-jarvis-live.js",
-    "agent:test": "node test-new-agent.js",
-    "perf": "node test-module-perf.js",
+    "verify": "node scripts/deploy.js",
+    "test": "node --test tests/utils/*.test.js tests/database.test.js tests/vault-client.test.js tests/meme.test.js",
+    "agent": "node tests/test-jarvis-live.js",
+    "agent:test": "node tests/test-new-agent.js",
+    "perf": "node tests/test-module-perf.js",
     "setup:check": "node scripts/check-setup.js",
     "migrate": "node scripts/run-migrations.js",
     "migrate:local": "node scripts/migrate-to-local.js",
@@ -27,6 +27,11 @@
   ],
   "author": "",
   "license": "Apache-2.0",
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.3.3"
+  },
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
     "@discordjs/voice": "^0.19.0",

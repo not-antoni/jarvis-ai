@@ -36,13 +36,13 @@ function initializeApplication() {
  * @param {Object} resources - Resources to cleanup (server, database, etc.)
  */
 function setupGracefulShutdown(resources = {}) {
-    const shutdown = async (signal) => {
+    const shutdown = async signal => {
         logger.info(`Received ${signal}, starting graceful shutdown...`);
 
         try {
             // Close HTTP server
             if (resources.server) {
-                await new Promise((resolve) => {
+                await new Promise(resolve => {
                     resources.server.close(() => {
                         logger.info('HTTP server closed');
                         resolve();
@@ -74,7 +74,7 @@ function setupGracefulShutdown(resources = {}) {
     process.on('SIGINT', () => shutdown('SIGINT'));
 
     // Handle uncaught exceptions
-    process.on('uncaughtException', (error) => {
+    process.on('uncaughtException', error => {
         logger.error('Uncaught exception', {
             error: {
                 name: error.name,
@@ -90,4 +90,3 @@ module.exports = {
     initializeApplication,
     setupGracefulShutdown
 };
-

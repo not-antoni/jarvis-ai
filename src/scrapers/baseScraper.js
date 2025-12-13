@@ -11,10 +11,11 @@ class BaseScraper {
             waitUntil: options.waitUntil || 'networkidle2',
             retries: options.retries || 3,
             retryDelay: options.retryDelay || 1000,
-            userAgent: options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            userAgent:
+                options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             ...options
         };
-        
+
         this.stats = {
             totalPages: 0,
             successfulScapes: 0,
@@ -50,10 +51,12 @@ class BaseScraper {
                 console.log(`[BaseScraper] Successfully navigated to ${url}`);
                 this.stats.totalPages++;
                 return response;
-
             } catch (error) {
                 lastError = error;
-                console.warn(`[BaseScraper] Navigation attempt ${attempt}/${finalOptions.retries} failed:`, error.message);
+                console.warn(
+                    `[BaseScraper] Navigation attempt ${attempt}/${finalOptions.retries} failed:`,
+                    error.message
+                );
 
                 if (attempt < finalOptions.retries) {
                     await new Promise(r => setTimeout(r, finalOptions.retryDelay * attempt));
@@ -117,7 +120,11 @@ class BaseScraper {
      */
     async extractAttribute(page, selector, attribute) {
         try {
-            const value = await page.$eval(selector, (el, attr) => el.getAttribute(attr), attribute);
+            const value = await page.$eval(
+                selector,
+                (el, attr) => el.getAttribute(attr),
+                attribute
+            );
             return value;
         } catch (error) {
             return null;
@@ -129,24 +136,28 @@ class BaseScraper {
      */
     async extractImages(page, options = {}) {
         try {
-            const images = await page.$$eval('img', (imgs, opts) =>
-                imgs
-                    .filter(img => img.src && img.src.trim() !== '')
-                    .map(img => ({
-                        src: img.src,
-                        alt: img.alt || '',
-                        title: img.title || '',
-                        width: img.width || 0,
-                        height: img.height || 0,
-                        naturalWidth: img.naturalWidth || 0,
-                        naturalHeight: img.naturalHeight || 0,
-                        className: img.className || '',
-                        id: img.id || '',
-                        isVisible: img.offsetParent !== null
-                    }))
-                    .filter(img => opts.visibleOnly ? img.isVisible : true)
-                    .filter(img => opts.minWidth ? img.naturalWidth >= opts.minWidth : true)
-                    .filter(img => opts.minHeight ? img.naturalHeight >= opts.minHeight : true),
+            const images = await page.$$eval(
+                'img',
+                (imgs, opts) =>
+                    imgs
+                        .filter(img => img.src && img.src.trim() !== '')
+                        .map(img => ({
+                            src: img.src,
+                            alt: img.alt || '',
+                            title: img.title || '',
+                            width: img.width || 0,
+                            height: img.height || 0,
+                            naturalWidth: img.naturalWidth || 0,
+                            naturalHeight: img.naturalHeight || 0,
+                            className: img.className || '',
+                            id: img.id || '',
+                            isVisible: img.offsetParent !== null
+                        }))
+                        .filter(img => (opts.visibleOnly ? img.isVisible : true))
+                        .filter(img => (opts.minWidth ? img.naturalWidth >= opts.minWidth : true))
+                        .filter(img =>
+                            opts.minHeight ? img.naturalHeight >= opts.minHeight : true
+                        ),
                 options
             );
 
@@ -163,16 +174,22 @@ class BaseScraper {
      */
     async extractLinks(page, options = {}) {
         try {
-            const links = await page.$$eval('a', (as, opts) =>
-                as
-                    .map(a => ({
-                        href: a.href,
-                        text: a.innerText.trim(),
-                        title: a.title || '',
-                        target: a.target || '_self'
-                    }))
-                    .filter(link => link.href && link.href.trim() !== '')
-                    .filter(link => !opts.excludeExternal || link.href.includes(window.location.hostname)),
+            const links = await page.$$eval(
+                'a',
+                (as, opts) =>
+                    as
+                        .map(a => ({
+                            href: a.href,
+                            text: a.innerText.trim(),
+                            title: a.title || '',
+                            target: a.target || '_self'
+                        }))
+                        .filter(link => link.href && link.href.trim() !== '')
+                        .filter(
+                            link =>
+                                !opts.excludeExternal ||
+                                link.href.includes(window.location.hostname)
+                        ),
                 options
             );
 
@@ -254,7 +271,7 @@ class BaseScraper {
         try {
             const metadata = await page.evaluate(() => {
                 const head = document.head;
-                
+
                 return {
                     title: document.title,
                     description: head.querySelector('meta[name="description"]')?.content || '',
@@ -264,7 +281,8 @@ class BaseScraper {
                     charset: head.querySelector('meta[charset]')?.getAttribute('charset') || '',
                     viewport: head.querySelector('meta[name="viewport"]')?.content || '',
                     ogTitle: head.querySelector('meta[property="og:title"]')?.content || '',
-                    ogDescription: head.querySelector('meta[property="og:description"]')?.content || '',
+                    ogDescription:
+                        head.querySelector('meta[property="og:description"]')?.content || '',
                     ogImage: head.querySelector('meta[property="og:image"]')?.content || '',
                     url: window.location.href,
                     canonical: head.querySelector('link[rel="canonical"]')?.href || '',
@@ -289,7 +307,7 @@ class BaseScraper {
             const delay = options.delay || 500;
 
             for (let i = 0; i < scrollCount; i++) {
-                await page.evaluate((amount) => {
+                await page.evaluate(amount => {
                     window.scrollBy(0, amount);
                 }, scrollAmount);
                 await new Promise(r => setTimeout(r, delay));
@@ -309,9 +327,10 @@ class BaseScraper {
     getStats() {
         return {
             ...this.stats,
-            successRate: this.stats.totalPages > 0 
-                ? ((this.stats.successfulScapes / this.stats.totalPages) * 100).toFixed(2) + '%'
-                : 'N/A'
+            successRate:
+                this.stats.totalPages > 0
+                    ? ((this.stats.successfulScapes / this.stats.totalPages) * 100).toFixed(2) + '%'
+                    : 'N/A'
         };
     }
 }

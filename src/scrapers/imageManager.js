@@ -16,7 +16,7 @@ class ImageManager {
         this.maxDimensions = options.maxDimensions || 10000;
         this.supportedFormats = options.supportedFormats || ['jpg', 'jpeg', 'png', 'gif', 'webp'];
         this.timeout = options.timeout || 30000;
-        
+
         this.stats = {
             downloaded: 0,
             failed: 0,
@@ -63,7 +63,7 @@ class ImageManager {
             // Validate URL format
             const urlObj = new URL(url);
             const extension = this.getExtensionFromURL(url);
-            
+
             if (!this.supportedFormats.includes(extension.toLowerCase())) {
                 console.warn(`[ImageManager] Unsupported format: ${extension}`);
                 this.stats.skipped++;
@@ -95,7 +95,7 @@ class ImageManager {
 
             // Download image
             const buffer = await this.fetchImage(url);
-            
+
             if (!buffer) {
                 this.stats.failed++;
                 return null;
@@ -125,7 +125,6 @@ class ImageManager {
 
             console.log(`[ImageManager] Downloaded image: ${filename} (${buffer.length} bytes)`);
             return result;
-
         } catch (error) {
             console.error(`[ImageManager] Failed to download ${url}:`, error.message);
             this.stats.failed++;
@@ -145,21 +144,23 @@ class ImageManager {
             const protocol = url.startsWith('https') ? https : http;
 
             try {
-                protocol.get(url, { timeout: this.timeout }, (response) => {
-                    clearTimeout(timeout);
+                protocol
+                    .get(url, { timeout: this.timeout }, response => {
+                        clearTimeout(timeout);
 
-                    if (response.statusCode !== 200) {
-                        reject(new Error(`HTTP ${response.statusCode}`));
-                        return;
-                    }
+                        if (response.statusCode !== 200) {
+                            reject(new Error(`HTTP ${response.statusCode}`));
+                            return;
+                        }
 
-                    const chunks = [];
-                    response.on('data', chunk => chunks.push(chunk));
-                    response.on('end', () => {
-                        resolve(Buffer.concat(chunks));
-                    });
-                    response.on('error', reject);
-                }).on('error', reject);
+                        const chunks = [];
+                        response.on('data', chunk => chunks.push(chunk));
+                        response.on('end', () => {
+                            resolve(Buffer.concat(chunks));
+                        });
+                        response.on('error', reject);
+                    })
+                    .on('error', reject);
             } catch (error) {
                 clearTimeout(timeout);
                 reject(error);
@@ -174,7 +175,7 @@ class ImageManager {
         try {
             const urlPath = new URL(url).pathname;
             const extension = path.extname(urlPath).slice(1).toLowerCase();
-            
+
             if (extension && this.supportedFormats.includes(extension)) {
                 return extension;
             }
@@ -238,14 +239,20 @@ class ImageManager {
             try {
                 sharp = require('sharp');
             } catch {
-                console.warn('[ImageManager] Sharp not available for thumbnails. Install with: npm install sharp');
+                console.warn(
+                    '[ImageManager] Sharp not available for thumbnails. Install with: npm install sharp'
+                );
                 return null;
             }
 
             const width = options.width || 150;
             const height = options.height || 150;
             const filename = path.basename(filepath);
-            const thumbnailPath = path.join(this.storageDir, 'thumbnails', `thumb_${width}x${height}_${filename}`);
+            const thumbnailPath = path.join(
+                this.storageDir,
+                'thumbnails',
+                `thumb_${width}x${height}_${filename}`
+            );
 
             await sharp(filepath)
                 .resize(width, height, {
@@ -256,7 +263,6 @@ class ImageManager {
 
             console.log(`[ImageManager] Created thumbnail: ${path.basename(thumbnailPath)}`);
             return thumbnailPath;
-
         } catch (error) {
             console.warn(`[ImageManager] Failed to create thumbnail:`, error.message);
             return null;
@@ -298,7 +304,7 @@ class ImageManager {
             // Delete associated thumbnails
             const thumbnailsDir = path.join(this.storageDir, 'thumbnails');
             const thumbFiles = await fs.readdir(thumbnailsDir);
-            
+
             for (const thumbFile of thumbFiles) {
                 if (thumbFile.includes(filename)) {
                     await fs.unlink(path.join(thumbnailsDir, thumbFile));
@@ -343,7 +349,8 @@ class ImageManager {
             ...this.stats,
             cacheSize: this.downloadCache.size,
             totalSizeMB: (this.stats.totalSize / (1024 * 1024)).toFixed(2),
-            successRate: (this.stats.downloaded / (this.stats.downloaded + this.stats.failed)) * 100 || 0
+            successRate:
+                (this.stats.downloaded / (this.stats.downloaded + this.stats.failed)) * 100 || 0
         };
     }
 

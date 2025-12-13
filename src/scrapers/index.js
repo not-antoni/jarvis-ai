@@ -33,7 +33,7 @@ class ScrapingSystem {
     constructor(browserAgent, productionAgent = null) {
         this.browserAgent = browserAgent;
         this.productionAgent = productionAgent;
-        
+
         // Initialize components
         this.scraper = new WikipediaScraper(browserAgent);
         this.imageManager = new ImageManager();
@@ -45,30 +45,31 @@ class ScrapingSystem {
      */
     async scrapeArticle(articleTitle, options = {}) {
         const { downloadImages = true, includeStats = false } = options;
-        
-        const page = await this.browserAgent.startSession(
-            `scrape_${Date.now()}_${Math.random()}`
-        );
-        
+
+        const page = await this.browserAgent.startSession(`scrape_${Date.now()}_${Math.random()}`);
+
         try {
             const article = await this.scraper.scrapeArticle(page, articleTitle);
-            
+
             if (downloadImages && article.images.length > 0) {
                 const imageURLs = article.images.map(img => img.src);
                 const results = await this.imageManager.downloadImages(imageURLs);
                 article.images = results;
             }
-            
+
             if (includeStats) {
                 article.stats = this.scraper.getStats();
                 article.imageStats = this.imageManager.getStats();
             }
-            
+
             return article;
         } finally {
             // Cleanup session
             if (page && page.browser) {
-                await page.browser().disconnect().catch(() => {});
+                await page
+                    .browser()
+                    .disconnect()
+                    .catch(() => {});
             }
         }
     }
@@ -77,15 +78,16 @@ class ScrapingSystem {
      * Search and get results
      */
     async search(query, limit = 10) {
-        const page = await this.browserAgent.startSession(
-            `search_${Date.now()}`
-        );
-        
+        const page = await this.browserAgent.startSession(`search_${Date.now()}`);
+
         try {
             return await this.scraper.searchArticles(page, query, limit);
         } finally {
             if (page && page.browser) {
-                await page.browser().disconnect().catch(() => {});
+                await page
+                    .browser()
+                    .disconnect()
+                    .catch(() => {});
             }
         }
     }
@@ -94,15 +96,16 @@ class ScrapingSystem {
      * Get related articles
      */
     async getRelated(articleTitle) {
-        const page = await this.browserAgent.startSession(
-            `related_${Date.now()}`
-        );
-        
+        const page = await this.browserAgent.startSession(`related_${Date.now()}`);
+
         try {
             return await this.scraper.getRelatedArticles(page, articleTitle);
         } finally {
             if (page && page.browser) {
-                await page.browser().disconnect().catch(() => {});
+                await page
+                    .browser()
+                    .disconnect()
+                    .catch(() => {});
             }
         }
     }
@@ -147,14 +150,14 @@ class ScrapingSystem {
      */
     async exportData(data, format = 'json') {
         const filename = `export_${Date.now()}`;
-        
+
         if (format === 'json') {
             await ScraperUtils.saveJSON(`./exports/${filename}.json`, data);
         } else if (format === 'csv') {
             const headers = Object.keys(Array.isArray(data) ? data[0] : {});
             await ScraperUtils.saveCSV(`./exports/${filename}.csv`, data, headers);
         }
-        
+
         return filename;
     }
 
@@ -182,14 +185,14 @@ module.exports = {
     WikipediaScraper,
     ImageManager,
     ScraperUtils,
-    
+
     // System class
     ScrapingSystem,
-    
+
     // Router factory
     createScrapingAPI,
     createScrapingRouter,
-    
+
     // Demos
     runAllDemos,
     runDemo,

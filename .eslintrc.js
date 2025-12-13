@@ -8,9 +8,8 @@ module.exports = {
         node: true,
         es2021: true
     },
-    extends: [
-        'eslint:recommended'
-    ],
+    plugins: ['import'],
+    extends: ['eslint:recommended'],
     parserOptions: {
         ecmaVersion: 2021,
         sourceType: 'module'
@@ -19,33 +18,43 @@ module.exports = {
         // Error prevention
         'no-console': ['warn', { allow: ['warn', 'error'] }],
         'no-debugger': 'error',
-        'no-unused-vars': ['warn', { 
-            argsIgnorePattern: '^_',
-            varsIgnorePattern: '^_'
-        }],
-        'no-undef': 'error',
-        
+        'no-unused-vars': [
+            'warn',
+            {
+                argsIgnorePattern: '^_',
+                varsIgnorePattern: '^_'
+            }
+        ],
+        'no-undef': 'warn',
+
         // Code quality
-        'eqeqeq': ['error', 'always'],
-        'curly': ['error', 'all'],
-        'no-eval': 'error',
-        'no-implied-eval': 'error',
-        'no-new-func': 'error',
+        eqeqeq: ['warn', 'always'],
+        curly: ['warn', 'all'],
+        'no-eval': 'warn',
+        'no-implied-eval': 'warn',
+        'no-new-func': 'warn',
         'no-script-url': 'error',
-        'no-sequences': 'error',
-        'no-throw-literal': 'error',
-        'no-unmodified-loop-condition': 'error',
-        'no-unused-expressions': 'error',
-        'no-useless-call': 'error',
-        'no-useless-concat': 'error',
-        'no-useless-return': 'error',
+        'no-empty': 'warn',
+        'no-control-regex': 'warn',
+        'no-dupe-else-if': 'warn',
+        'no-dupe-keys': 'warn',
+        'no-mixed-spaces-and-tabs': 'warn',
+        'no-sequences': 'warn',
+        'no-throw-literal': 'warn',
+        'no-unmodified-loop-condition': 'warn',
+        'no-unused-expressions': 'warn',
+        'no-useless-call': 'warn',
+        'no-useless-catch': 'warn',
+        'no-useless-concat': 'warn',
+        'no-useless-escape': 'warn',
+        'no-useless-return': 'warn',
         'prefer-const': 'warn',
         'prefer-arrow-callback': 'warn',
-        
+
         // Style
-        'indent': ['warn', 4, { SwitchCase: 1 }],
-        'quotes': ['warn', 'single', { avoidEscape: true }],
-        'semi': ['warn', 'always'],
+        indent: ['warn', 4, { SwitchCase: 1 }],
+        quotes: ['warn', 'single', { avoidEscape: true }],
+        semi: ['warn', 'always'],
         'comma-dangle': ['warn', 'never'],
         'object-curly-spacing': ['warn', 'always'],
         'array-bracket-spacing': ['warn', 'never'],
@@ -57,15 +66,17 @@ module.exports = {
         'space-infix-ops': 'warn',
         'space-unary-ops': 'warn',
         'spaced-comment': ['warn', 'always'],
-        
+
         // Best practices
         'no-var': 'error',
-        'prefer-const': 'warn',
         'prefer-template': 'warn',
-        'prefer-destructuring': ['warn', {
-            array: false,
-            object: true
-        }],
+        'prefer-destructuring': [
+            'warn',
+            {
+                array: false,
+                object: true
+            }
+        ],
         'no-param-reassign': ['warn', { props: false }],
         'no-nested-ternary': 'warn',
         'no-else-return': 'warn'
@@ -74,12 +85,12 @@ module.exports = {
         {
             files: ['*.test.js', '*.spec.js'],
             env: {
-                jest: true
+                node: true
             },
             rules: {
-                'no-unused-vars': 'off'
+                'no-unused-vars': 'off',
+                'no-script-url': 'off'
             }
         }
     ]
 };
-

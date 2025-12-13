@@ -2,7 +2,33 @@ const config = require('../../config');
 const aiManager = require('./ai-providers');
 const database = require('./database');
 
-const REQUIRED_ENV_VARS = ['DISCORD_TOKEN', 'MONGO_URI_MAIN', 'MONGO_URI_VAULT', 'MASTER_KEY_BASE64'];
+function parseBooleanEnv(key, fallback = false) {
+    const value = process.env[key];
+    if (value == null) {
+        return Boolean(fallback);
+    }
+
+    const normalized = String(value).trim().toLowerCase();
+    if (!normalized) {
+        return Boolean(fallback);
+    }
+
+    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {
+        return true;
+    }
+    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {
+        return false;
+    }
+
+    return Boolean(fallback);
+}
+
+const localDbMode =
+    parseBooleanEnv('LOCAL_DB_MODE', false) || parseBooleanEnv('ALLOW_START_WITHOUT_DB', false);
+
+const REQUIRED_ENV_VARS = localDbMode
+    ? ['DISCORD_TOKEN', 'MASTER_KEY_BASE64']
+    : ['DISCORD_TOKEN', 'MONGO_URI_MAIN', 'MONGO_URI_VAULT', 'MASTER_KEY_BASE64'];
 const OPTIONAL_ENV_VARS = [
     'OPENROUTER_API_KEY',
     'GROQ_API_KEY',
@@ -88,12 +114,12 @@ async function gatherHealthSnapshot(options = {}) {
             snapshot.database.attemptedReconnect = true;
             try {
                 await database.connect();
-                snapshot.database.connected = true;
-                snapshot.database.reconnected = true;
-                temporaryConnection = true;
+                snapshot.database.connected = database.isConnected;
+                snapshot.database.reconnected = database.isConnected;
+                temporaryConnection = database.isConnected;
             } catch (error) {
                 snapshot.database.error = error.message;
-                snapshot.database.connected = false;
+                snapshot.database.connected = database.isConnected;
             }
         }
 

@@ -24,7 +24,7 @@ const BINARY_URLS = {
 
 // Unified cookie env var - supports Netscape format, JSON array, or cookie string
 const COOKIE_ENV_KEYS = [
-    'YT_COOKIES',           // Primary - use this one!
+    'YT_COOKIES', // Primary - use this one!
     'YTDLP_COOKIES',
     'YOUTUBE_COOKIES'
 ];
@@ -37,6 +37,16 @@ const COOKIE_FILE_NAME = 'youtube-cookies.txt';
 
 const cache = new Map(); // videoId -> { path, refs, timer, lastAccess }
 const pendingDownloads = new Map(); // videoId -> { promise, cancel }
+
+async function fileIsFresh(filePath) {
+    try {
+        const stats = await fs.promises.stat(filePath);
+        const ageMs = Date.now() - stats.mtimeMs;
+        return ageMs >= 0 && ageMs <= MAX_FILE_AGE_MS;
+    } catch {
+        return false;
+    }
+}
 
 async function ensureDirectories() {
     await fs.promises.mkdir(TEMP_DIR, { recursive: true });
@@ -76,7 +86,7 @@ async function ensureBinary() {
     const tempPath = path.join(BIN_DIR, `${binaryName}.download`);
 
     await new Promise((resolve, reject) => {
-        const onResponse = (res) => {
+        const onResponse = res => {
             const status = res.statusCode || 0;
 
             if (status >= 300 && status < 400 && res.headers.location) {
@@ -96,9 +106,7 @@ async function ensureBinary() {
             }
 
             const fileStream = fs.createWriteStream(tempPath, { mode: 0o755 });
-            pipeline(res, fileStream)
-                .then(resolve)
-                .catch(reject);
+            pipeline(res, fileStream).then(resolve).catch(reject);
         };
 
         https.get(downloadUrl, onResponse).on('error', reject);
@@ -116,15 +124,20 @@ async function ensureBinary() {
  * Check if the string is in Netscape cookie format
  */
 function isNetscapeFormat(str) {
-    return str.includes('# Netscape HTTP Cookie File') || 
-           str.includes('# HTTP Cookie File') ||
-           // Check for tab-separated cookie lines (7 fields)
-           str.split('\n').some(line => {
-               const trimmed = line.trim();
-               if (!trimmed || trimmed.startsWith('#')) return false;
-               const parts = trimmed.split('\t');
-               return parts.length >= 7 && (parts[0].includes('.youtube.com') || parts[0].includes('.google.com'));
-           });
+    return (
+        str.includes('# Netscape HTTP Cookie File') ||
+        str.includes('# HTTP Cookie File') ||
+        // Check for tab-separated cookie lines (7 fields)
+        str.split('\n').some(line => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) return false;
+            const parts = trimmed.split('\t');
+            return (
+                parts.length >= 7 &&
+                (parts[0].includes('.youtube.com') || parts[0].includes('.google.com'))
+            );
+        })
+    );
 }
 
 /**
@@ -133,17 +146,17 @@ function isNetscapeFormat(str) {
 function parseNetscapeCookies(str) {
     const cookies = [];
     const lines = str.split('\n');
-    
+
     for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) continue;
-        
+
         const parts = trimmed.split('\t');
         if (parts.length < 7) continue;
-        
+
         const [domain, , cookiePath, secure, expiry, name, value] = parts;
         if (!name || !value) continue;
-        
+
         cookies.push({
             domain,
             path: cookiePath,
@@ -153,14 +166,14 @@ function parseNetscapeCookies(str) {
             value
         });
     }
-    
+
     return cookies;
 }
 
 async function ensureCookiesFile() {
     await ensureDirectories();
     const filePath = path.join(BIN_DIR, COOKIE_FILE_NAME);
-    
+
     // Check for raw Netscape format first - use directly!
     for (const key of COOKIE_ENV_KEYS) {
         const raw = process.env[key];
@@ -171,7 +184,7 @@ async function ensureCookiesFile() {
             return filePath;
         }
     }
-    
+
     // Fall back to parsing other formats
     const cookies = readCookiesFromEnv();
     if (!cookies?.length) {
@@ -190,24 +203,21 @@ async function ensureCookiesFile() {
             continue;
         }
 
-        const domain = cookie.domain?.startsWith('.') ? cookie.domain : `.${(cookie.domain || 'youtube.com').replace(/^\.?/, '')}`;
+        const domain = cookie.domain?.startsWith('.')
+            ? cookie.domain
+            : `.${(cookie.domain || 'youtube.com').replace(/^\.?/, '')}`;
         const hostOnly = cookie.hostOnly ? 'FALSE' : 'TRUE';
         const pathValue = cookie.path ?? '/';
         const secure = cookie.secure ? 'TRUE' : 'FALSE';
         const expiry = cookie.expires ?? cookie.expirationDate ?? cookie.expiry ?? 0;
-        const expiresAt = typeof expiry === 'number' && expiry > 0
-            ? Math.floor(expiry > 10_000_000_000 ? expiry / 1000 : expiry)
-            : 0;
+        const expiresAt =
+            typeof expiry === 'number' && expiry > 0
+                ? Math.floor(expiry > 10_000_000_000 ? expiry / 1000 : expiry)
+                : 0;
 
-        lines.push([
-            domain,
-            hostOnly,
-            pathValue,
-            secure,
-            expiresAt,
-            String(name),
-            String(value)
-        ].join('\t'));
+        lines.push(
+            [domain, hostOnly, pathValue, secure, expiresAt, String(name), String(value)].join('\t')
+        );
     }
 
     await fs.promises.writeFile(filePath, `${lines.join('\n')}\n`, 'utf8');
@@ -266,8 +276,7 @@ function buildExtractorArgs(hasCookies) {
     }
 
     if (process.env.YTDLP_EXTRA_CLIENTS) {
-        const extras = process.env.YTDLP_EXTRA_CLIENTS
-            .split(',')
+        const extras = process.env.YTDLP_EXTRA_CLIENTS.split(',')
             .map(value => value.trim())
             .filter(Boolean);
         clients.push(...extras);
@@ -330,7 +339,11 @@ async function autoUpdateBinary(binaryPath, options = {}) {
         });
 
         try {
-            await fs.promises.writeFile(markerPath, JSON.stringify({ timestamp: Date.now() }), 'utf8');
+            await fs.promises.writeFile(
+                markerPath,
+                JSON.stringify({ timestamp: Date.now() }),
+                'utf8'
+            );
         } catch (error) {
             console.warn('Unable to persist yt-dlp update marker:', error?.message || error);
         }
@@ -446,7 +459,7 @@ async function createDownloadTask(videoId, videoUrl) {
     const { base, finalPath } = getTargetPaths(videoId);
     let currentChild = null;
 
-    const runOnce = async (useCookies) => {
+    const runOnce = async useCookies => {
         await cleanupArtifacts(base);
 
         const cookieFile = useCookies ? await ensureCookiesFile() : null;
@@ -459,16 +472,23 @@ async function createDownloadTask(videoId, videoUrl) {
             '--no-overwrites',
             '--no-part',
             '--no-mtime',
-            '-f', 'bestaudio/best',
+            '-f',
+            'bestaudio/best',
             '--no-playlist',
             '--extract-audio',
-            '--audio-format', 'opus',
-            '--audio-quality', '0',
-            '--output', `${base}.%(ext)s`,
+            '--audio-format',
+            'opus',
+            '--audio-quality',
+            '0',
+            '--output',
+            `${base}.%(ext)s`,
             '--no-progress',
-            '--concurrent-fragments', '4',
-            '--extractor-args', extractorArgs,
-            '--ffmpeg-location', ffmpegPath,
+            '--concurrent-fragments',
+            '4',
+            '--extractor-args',
+            extractorArgs,
+            '--ffmpeg-location',
+            ffmpegPath,
             videoUrl
         ];
 
@@ -501,37 +521,38 @@ async function createDownloadTask(videoId, videoUrl) {
             });
         }
 
-        const awaitCompletion = () => new Promise((resolve, reject) => {
-            const handleError = async (error) => {
-                await cleanupArtifacts(base).catch(() => {});
-                error.stderr = stderrChunks.join('');
-                reject(error);
-            };
+        const awaitCompletion = () =>
+            new Promise((resolve, reject) => {
+                const handleError = async error => {
+                    await cleanupArtifacts(base).catch(() => {});
+                    error.stderr = stderrChunks.join('');
+                    reject(error);
+                };
 
-            currentChild.on('error', handleError);
-            currentChild.on('close', async (code) => {
-                if (code !== 0) {
-                    await handleError(new Error(`yt-dlp exited with code ${code}`));
-                    return;
-                }
-
-                try {
-                    const files = await fs.promises.readdir(TEMP_DIR);
-                    const output = files
-                        .map(file => path.join(TEMP_DIR, file))
-                        .find(file => file.startsWith(base) && file.endsWith('.opus'));
-
-                    if (!output) {
-                        throw new Error('Extraction finished without producing an Opus file.');
+                currentChild.on('error', handleError);
+                currentChild.on('close', async code => {
+                    if (code !== 0) {
+                        await handleError(new Error(`yt-dlp exited with code ${code}`));
+                        return;
                     }
 
-                    await fs.promises.rename(output, finalPath);
-                    resolve(finalPath);
-                } catch (error) {
-                    await handleError(error);
-                }
+                    try {
+                        const files = await fs.promises.readdir(TEMP_DIR);
+                        const output = files
+                            .map(file => path.join(TEMP_DIR, file))
+                            .find(file => file.startsWith(base) && file.endsWith('.opus'));
+
+                        if (!output) {
+                            throw new Error('Extraction finished without producing an Opus file.');
+                        }
+
+                        await fs.promises.rename(output, finalPath);
+                        resolve(finalPath);
+                    } catch (error) {
+                        await handleError(error);
+                    }
+                });
             });
-        });
 
         try {
             return await awaitCompletion();
@@ -618,7 +639,7 @@ async function acquireAudio(videoId, videoUrl) {
 
     const task = await createDownloadTask(videoId, videoUrl);
     const wrappedPromise = task.promise
-        .then((path) => {
+        .then(path => {
             const cacheEntry = {
                 path,
                 refs: 1,
@@ -629,7 +650,7 @@ async function acquireAudio(videoId, videoUrl) {
             pendingDownloads.delete(videoId);
             return path;
         })
-        .catch((error) => {
+        .catch(error => {
             pendingDownloads.delete(videoId);
             cache.delete(videoId);
             throw error;

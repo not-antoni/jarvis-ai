@@ -7,7 +7,7 @@ const express = require('express');
 
 function createAgentDiagnosticsRouter(discordHandlers) {
     const router = express.Router();
-    
+
     /**
      * GET /health/agent/status
      * Quick health check - suitable for Kubernetes liveness probes
@@ -15,9 +15,9 @@ function createAgentDiagnosticsRouter(discordHandlers) {
     router.get('/health/agent/status', (req, res) => {
         const metrics = discordHandlers.browserAgent.getMetrics();
         const health = discordHandlers.agentMonitor.getHealthReport(discordHandlers.browserAgent);
-        
+
         const isHealthy = health.overallHealth >= 75 && metrics.circuitBreakerStatus === 'closed';
-        
+
         res.status(isHealthy ? 200 : 503).json({
             status: isHealthy ? 'healthy' : 'unhealthy',
             timestamp: Date.now(),
@@ -27,7 +27,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
             uptime: health.uptime
         });
     });
-    
+
     /**
      * GET /health/agent/detailed
      * Detailed metrics including operation breakdown
@@ -36,16 +36,18 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         const health = discordHandlers.agentMonitor.getHealthReport(discordHandlers.browserAgent);
         res.json(health);
     });
-    
+
     /**
      * GET /health/agent/diagnostics
      * Full diagnostics report for debugging
      */
     router.get('/health/agent/diagnostics', (req, res) => {
-        const report = discordHandlers.agentMonitor.generateDiagnosticsReport(discordHandlers.browserAgent);
+        const report = discordHandlers.agentMonitor.generateDiagnosticsReport(
+            discordHandlers.browserAgent
+        );
         res.json(report);
     });
-    
+
     /**
      * GET /health/agent/logs
      * Recent operation logs (last 50 by default)
@@ -55,7 +57,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         const logs = discordHandlers.agentMonitor.operationLog.slice(-limit);
         res.json({ limit, count: logs.length, logs });
     });
-    
+
     /**
      * GET /health/agent/alerts
      * Recent system alerts
@@ -65,7 +67,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         const alerts = discordHandlers.agentMonitor.alerts.slice(-limit);
         res.json({ limit, count: alerts.length, alerts });
     });
-    
+
     /**
      * POST /health/agent/restart
      * Manual restart of browser (requires auth token)
@@ -75,7 +77,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         if (token !== process.env.HEALTH_TOKEN) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        
+
         try {
             const success = await discordHandlers.browserAgent.restartBrowser();
             res.json({ success, timestamp: Date.now() });
@@ -92,7 +94,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         const monitor = discordHandlers.agentMonitor;
         const trend = monitor.getMemoryTrend();
         const memoryMetrics = monitor.getMemoryMetrics();
-        
+
         res.json({
             current: memoryMetrics,
             trend: trend,
@@ -100,7 +102,12 @@ function createAgentDiagnosticsRouter(discordHandlers) {
             analysis: {
                 isLeaking: trend.riskLevel !== 'low',
                 riskLevel: trend.riskLevel,
-                recommendedAction: trend.riskLevel === 'high' ? 'RESTART' : trend.riskLevel === 'medium' ? 'MONITOR' : 'OK'
+                recommendedAction:
+                    trend.riskLevel === 'high'
+                        ? 'RESTART'
+                        : trend.riskLevel === 'medium'
+                          ? 'MONITOR'
+                          : 'OK'
             }
         });
     });
@@ -113,14 +120,14 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         try {
             const RetryPolicy = require('../agents/retryPolicy');
             const retryPolicy = new RetryPolicy();
-            
+
             const errorTypes = ['TIMEOUT', 'NETWORK', 'BROWSER_CRASH', 'RATE_LIMIT', 'INVALID_URL'];
             const strategies = {};
-            
+
             for (const errorType of errorTypes) {
                 strategies[errorType] = retryPolicy.getRetryInfo(errorType);
             }
-            
+
             res.json({
                 strategies,
                 timestamp: Date.now()
@@ -138,13 +145,16 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         try {
             const handlers = discordHandlers;
             const healingState = handlers.autoHealer?.getState?.() || { enabled: false };
-            
+
             res.json({
                 autoHealing: healingState,
                 monitor: {
                     autoRestartCount: discordHandlers.agentMonitor.autoRestartCount,
                     alertCount: discordHandlers.agentMonitor.alerts.length,
-                    lastAlert: discordHandlers.agentMonitor.alerts[discordHandlers.agentMonitor.alerts.length - 1] || null
+                    lastAlert:
+                        discordHandlers.agentMonitor.alerts[
+                            discordHandlers.agentMonitor.alerts.length - 1
+                        ] || null
                 },
                 timestamp: Date.now()
             });
@@ -209,7 +219,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
             res.status(500).json({ error: err.message });
         }
     });
-    
+
     /**
      * GET /health/agent/prometheus
      * Prometheus-compatible metrics format
@@ -217,7 +227,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
     router.get('/health/agent/prometheus', (req, res) => {
         const metrics = discordHandlers.browserAgent.getMetrics();
         const health = discordHandlers.agentMonitor.getHealthReport(discordHandlers.browserAgent);
-        
+
         let lines = [
             '# HELP jarvis_agent_health Overall agent health score (0-100)',
             '# TYPE jarvis_agent_health gauge',
@@ -237,7 +247,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
             '',
             '# HELP jarvis_agent_memory_trend_slope Memory usage trend slope',
             '# TYPE jarvis_agent_memory_trend_slope gauge',
-            `jarvis_agent_memory_trend_slope ${(health.memory.trend?.slope || 0)}`,
+            `jarvis_agent_memory_trend_slope ${health.memory.trend?.slope || 0}`,
             '',
             '# HELP jarvis_agent_active_sessions Number of active browser sessions',
             '# TYPE jarvis_agent_active_sessions gauge',
@@ -287,11 +297,11 @@ function createAgentDiagnosticsRouter(discordHandlers) {
             '# TYPE jarvis_agent_alerts_total counter',
             `jarvis_agent_alerts_total ${discordHandlers.agentMonitor.alerts.length}`
         ];
-        
+
         res.set('Content-Type', 'text/plain; charset=utf-8');
         res.send(lines.join('\n') + '\n');
     });
-    
+
     return router;
 }
 

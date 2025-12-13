@@ -76,7 +76,6 @@ class WikipediaScraper extends BaseScraper {
 
             this.stats.successfulScapes++;
             return article;
-
         } catch (error) {
             console.error(`[WikipediaScraper] Failed to scrape article:`, error.message);
             this.stats.failedScrapes++;
@@ -110,34 +109,30 @@ class WikipediaScraper extends BaseScraper {
     async getArticleContent(page) {
         try {
             // Get all paragraphs
-            const paragraphs = await page.$$eval(
-                '#mw-content-text > .mw-parser-output > p',
-                ps => ps.map(p => p.innerText.trim()).filter(p => p.length > 0)
+            const paragraphs = await page.$$eval('#mw-content-text > .mw-parser-output > p', ps =>
+                ps.map(p => p.innerText.trim()).filter(p => p.length > 0)
             );
 
             // Get all headings and sections
-            const sections = await page.$$eval(
-                '#mw-content-text .mw-parser-output',
-                el => {
-                    const sections = [];
-                    let currentSection = null;
+            const sections = await page.$$eval('#mw-content-text .mw-parser-output', el => {
+                const sections = [];
+                let currentSection = null;
 
-                    Array.from(el.children).forEach(child => {
-                        if (child.tagName.match(/^H[2-6]$/)) {
-                            if (currentSection) sections.push(currentSection);
-                            currentSection = {
-                                heading: child.innerText,
-                                content: []
-                            };
-                        } else if (currentSection && child.tagName === 'P') {
-                            currentSection.content.push(child.innerText);
-                        }
-                    });
+                Array.from(el.children).forEach(child => {
+                    if (child.tagName.match(/^H[2-6]$/)) {
+                        if (currentSection) sections.push(currentSection);
+                        currentSection = {
+                            heading: child.innerText,
+                            content: []
+                        };
+                    } else if (currentSection && child.tagName === 'P') {
+                        currentSection.content.push(child.innerText);
+                    }
+                });
 
-                    if (currentSection) sections.push(currentSection);
-                    return sections;
-                }
-            );
+                if (currentSection) sections.push(currentSection);
+                return sections;
+            });
 
             return {
                 paragraphs,
@@ -190,20 +185,22 @@ class WikipediaScraper extends BaseScraper {
         try {
             const images = await page.$$eval(
                 '#mw-content-text img',
-                imgs => imgs
-                    .filter(img => img.src && !img.src.includes('pixel'))
-                    .map(img => ({
-                        src: img.src,
-                        alt: img.alt || '',
-                        title: img.title || '',
-                        width: img.width || 0,
-                        height: img.height || 0,
-                        naturalWidth: img.naturalWidth || 0,
-                        naturalHeight: img.naturalHeight || 0,
-                        // Get caption if it exists
-                        caption: img.closest('figure')?.querySelector('figcaption')?.innerText || ''
-                    }))
-                    .filter(img => img.naturalWidth > 100 && img.naturalHeight > 100) // Only large images
+                imgs =>
+                    imgs
+                        .filter(img => img.src && !img.src.includes('pixel'))
+                        .map(img => ({
+                            src: img.src,
+                            alt: img.alt || '',
+                            title: img.title || '',
+                            width: img.width || 0,
+                            height: img.height || 0,
+                            naturalWidth: img.naturalWidth || 0,
+                            naturalHeight: img.naturalHeight || 0,
+                            // Get caption if it exists
+                            caption:
+                                img.closest('figure')?.querySelector('figcaption')?.innerText || ''
+                        }))
+                        .filter(img => img.naturalWidth > 100 && img.naturalHeight > 100) // Only large images
             );
 
             console.log(`[WikipediaScraper] Found ${images.length} article images`);
@@ -221,9 +218,8 @@ class WikipediaScraper extends BaseScraper {
      */
     async getReferences(page) {
         try {
-            const references = await page.$$eval(
-                '.reference a',
-                as => as.map(a => ({
+            const references = await page.$$eval('.reference a', as =>
+                as.map(a => ({
                     text: a.innerText,
                     href: a.href || '',
                     title: a.title || ''
@@ -242,9 +238,8 @@ class WikipediaScraper extends BaseScraper {
      */
     async getArticleLinks(page) {
         try {
-            const links = await page.$$eval(
-                '#mw-content-text a[href*="http"]',
-                as => as.map(a => ({
+            const links = await page.$$eval('#mw-content-text a[href*="http"]', as =>
+                as.map(a => ({
                     href: a.href,
                     text: a.innerText,
                     title: a.title || ''
@@ -263,9 +258,8 @@ class WikipediaScraper extends BaseScraper {
      */
     async getCategories(page) {
         try {
-            const categories = await page.$$eval(
-                '#mw-normal-catlinks ul li a',
-                as => as.map(a => ({
+            const categories = await page.$$eval('#mw-normal-catlinks ul li a', as =>
+                as.map(a => ({
                     name: a.innerText,
                     href: a.href
                 }))
@@ -283,9 +277,8 @@ class WikipediaScraper extends BaseScraper {
      */
     async getWikilinks(page) {
         try {
-            const wikilinks = await page.$$eval(
-                '#mw-content-text a.mw-link-target',
-                as => as.map(a => ({
+            const wikilinks = await page.$$eval('#mw-content-text a.mw-link-target', as =>
+                as.map(a => ({
                     title: a.innerText,
                     href: a.href
                 }))
@@ -303,10 +296,10 @@ class WikipediaScraper extends BaseScraper {
      */
     async searchArticles(page, query, limit = 10) {
         console.log(`[WikipediaScraper] Searching for: ${query}`);
-        
+
         try {
             const searchURL = `${this.baseURL}/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=${limit}`;
-            
+
             await this.navigateToPage(page, searchURL, { waitUntil: 'load' });
 
             const results = await page.evaluate(() => {
@@ -336,7 +329,7 @@ class WikipediaScraper extends BaseScraper {
      */
     async getRelatedArticles(page, articleTitle) {
         console.log(`[WikipediaScraper] Getting related articles for: ${articleTitle}`);
-        
+
         try {
             const url = this.getArticleURL(articleTitle);
             await this.navigateToPage(page, url);
@@ -344,10 +337,11 @@ class WikipediaScraper extends BaseScraper {
             // Get links in the first few paragraphs
             const relatedLinks = await page.$$eval(
                 '#mw-content-text .mw-parser-output > p a.mw-link-target',
-                as => as.slice(0, 10).map(a => ({
-                    title: a.innerText,
-                    href: a.href
-                }))
+                as =>
+                    as.slice(0, 10).map(a => ({
+                        title: a.innerText,
+                        href: a.href
+                    }))
             );
 
             return relatedLinks;

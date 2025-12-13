@@ -6,7 +6,13 @@
 const EventEmitter = require('events');
 const AgentToolRegistry = require('./AgentToolRegistry');
 const { AgentOrchestrator, ApprovalDecision } = require('./AgentOrchestrator');
-const { ToolHandler, FunctionHandler, ToolOutput, ToolInvocation, ToolKind } = require('./ToolHandler');
+const {
+    ToolHandler,
+    FunctionHandler,
+    ToolOutput,
+    ToolInvocation,
+    ToolKind
+} = require('./ToolHandler');
 
 /**
  * Main Agent Core class
@@ -14,14 +20,14 @@ const { ToolHandler, FunctionHandler, ToolOutput, ToolInvocation, ToolKind } = r
 class AgentCore extends EventEmitter {
     constructor(options = {}) {
         super();
-        
+
         // Initialize registry and orchestrator
         this.registry = new AgentToolRegistry(options.registry || {});
         this.orchestrator = new AgentOrchestrator(this.registry, options.orchestrator || {});
-        
+
         // AI Provider (injected)
         this.aiProvider = options.aiProvider || null;
-        
+
         // Configuration
         this.options = {
             systemPrompt: options.systemPrompt || this._defaultSystemPrompt(),
@@ -41,11 +47,11 @@ class AgentCore extends EventEmitter {
         }
 
         // Forward events
-        this.registry.on('tool:start', (data) => this.emit('tool:start', data));
-        this.registry.on('tool:complete', (data) => this.emit('tool:complete', data));
-        this.registry.on('tool:error', (data) => this.emit('tool:error', data));
-        this.orchestrator.on('approval:requested', (data) => this.emit('approval:requested', data));
-        this.orchestrator.on('approval:decision', (data) => this.emit('approval:decision', data));
+        this.registry.on('tool:start', data => this.emit('tool:start', data));
+        this.registry.on('tool:complete', data => this.emit('tool:complete', data));
+        this.registry.on('tool:error', data => this.emit('tool:error', data));
+        this.orchestrator.on('approval:requested', data => this.emit('approval:requested', data));
+        this.orchestrator.on('approval:decision', data => this.emit('approval:decision', data));
     }
 
     /**
@@ -87,7 +93,8 @@ class AgentCore extends EventEmitter {
             return {
                 success: false,
                 error: 'No AI provider configured. Set one with setAIProvider() or use tools directly.',
-                suggestion: 'Get a free API key from OpenRouter (openrouter.ai) or Groq (console.groq.com)'
+                suggestion:
+                    'Get a free API key from OpenRouter (openrouter.ai) or Groq (console.groq.com)'
             };
         }
 
@@ -111,7 +118,7 @@ class AgentCore extends EventEmitter {
 
                 // Get AI response
                 const aiResponse = await this._getAIResponse(currentMessage, context);
-                
+
                 if (!aiResponse.success) {
                     return {
                         success: false,
@@ -149,7 +156,7 @@ class AgentCore extends EventEmitter {
 
                     // Build tool results message
                     currentMessage = this._formatToolResults(results);
-                    
+
                     // Add to history
                     this.conversationHistory.push({
                         role: 'assistant',
@@ -183,7 +190,6 @@ class AgentCore extends EventEmitter {
                 turns: turn,
                 duration: Date.now() - startTime
             };
-
         } catch (error) {
             this.emit('message:error', { error, context });
             return {
@@ -216,7 +222,6 @@ class AgentCore extends EventEmitter {
                 content: response.content,
                 provider: response.provider
             };
-
         } catch (error) {
             return {
                 success: false,
@@ -253,7 +258,7 @@ class AgentCore extends EventEmitter {
      */
     _extractToolCalls(content) {
         const toolCalls = [];
-        
+
         // Match tool call blocks
         const toolPattern = /```tool\n?([\s\S]*?)\n?```/g;
         let match;
@@ -300,9 +305,9 @@ class AgentCore extends EventEmitter {
 
         for (const call of toolCalls) {
             this.emit('tool:executing', { name: call.name, arguments: call.arguments });
-            
+
             const result = await this.orchestrator.run(call.name, call.arguments, context);
-            
+
             results.push({
                 name: call.name,
                 arguments: call.arguments,
@@ -406,7 +411,7 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
                 },
                 required: ['message']
             },
-            async (args) => args.message,
+            async args => args.message,
             { category: 'utility', parallel: true }
         );
 
@@ -426,11 +431,14 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
             {
                 type: 'object',
                 properties: {
-                    expression: { type: 'string', description: 'Math expression to evaluate (e.g., "2 + 2 * 3")' }
+                    expression: {
+                        type: 'string',
+                        description: 'Math expression to evaluate (e.g., "2 + 2 * 3")'
+                    }
                 },
                 required: ['expression']
             },
-            async (args) => {
+            async args => {
                 // Safe math eval (basic operations only)
                 const sanitized = args.expression.replace(/[^0-9+\-*/().%\s]/g, '');
                 try {
@@ -471,7 +479,7 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
                 },
                 required: ['url']
             },
-            async (args) => {
+            async args => {
                 try {
                     const response = await fetch(args.url, {
                         headers: args.headers || {},
@@ -512,4 +520,3 @@ module.exports = {
     AgentOrchestrator,
     ApprovalDecision
 };
-

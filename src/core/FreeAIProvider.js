@@ -106,19 +106,22 @@ class FreeAIProvider {
             .filter(k => k.startsWith('OPENROUTER_API_KEY'))
             .map(k => process.env[k])
             .filter(Boolean);
-        
+
         if (openRouterKeys.length > 0) {
             // Use first key, store all for rotation
             this._openRouterKeys = openRouterKeys;
             this._openRouterKeyIndex = 0;
-            this.clients.set('openrouter', new OpenAI({
-                apiKey: openRouterKeys[0],
-                baseURL: 'https://openrouter.ai/api/v1',
-                defaultHeaders: {
-                    'HTTP-Referer': process.env.APP_URL || 'https://jarvis-ai.local',
-                    'X-Title': 'Jarvis AI Agent'
-                }
-            }));
+            this.clients.set(
+                'openrouter',
+                new OpenAI({
+                    apiKey: openRouterKeys[0],
+                    baseURL: 'https://openrouter.ai/api/v1',
+                    defaultHeaders: {
+                        'HTTP-Referer': process.env.APP_URL || 'https://jarvis-ai.local',
+                        'X-Title': 'Jarvis AI Agent'
+                    }
+                })
+            );
             console.log(`[FreeAIProvider] Found ${openRouterKeys.length} OpenRouter key(s)`);
         }
 
@@ -127,17 +130,20 @@ class FreeAIProvider {
             .filter(k => k.startsWith('GROQ_API_KEY'))
             .map(k => process.env[k])
             .filter(Boolean);
-        
+
         if (groqKeys.length > 0) {
             this._groqKeys = groqKeys;
             this._groqKeyIndex = 0;
-            this.clients.set('groq', new OpenAI({
-                apiKey: groqKeys[0],
-                baseURL: 'https://api.groq.com/openai/v1'
-            }));
+            this.clients.set(
+                'groq',
+                new OpenAI({
+                    apiKey: groqKeys[0],
+                    baseURL: 'https://api.groq.com/openai/v1'
+                })
+            );
             console.log(`[FreeAIProvider] Found ${groqKeys.length} Groq key(s)`);
         }
-        
+
         // Check Google AI
         const googleKey = process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_AI_API_KEY2;
         if (googleKey) {
@@ -162,7 +168,9 @@ class FreeAIProvider {
         }
 
         if (this.currentProvider) {
-            console.log(`[FreeAIProvider] Using ${this.currentProvider} with model ${this.currentModel}`);
+            console.log(
+                `[FreeAIProvider] Using ${this.currentProvider} with model ${this.currentModel}`
+            );
         }
     }
 
@@ -196,7 +204,9 @@ class FreeAIProvider {
      */
     setProvider(provider, model = null) {
         if (!this.clients.has(provider)) {
-            throw new Error(`Provider ${provider} not configured. Set ${provider.toUpperCase()}_API_KEY environment variable.`);
+            throw new Error(
+                `Provider ${provider} not configured. Set ${provider.toUpperCase()}_API_KEY environment variable.`
+            );
         }
         this.currentProvider = provider;
         this.currentModel = model || this._getDefaultModel(provider);
@@ -209,8 +219,8 @@ class FreeAIProvider {
         if (!this.isAvailable()) {
             throw new Error(
                 'No AI provider available. Set one of these environment variables:\n' +
-                '  - OPENROUTER_API_KEY (get free at https://openrouter.ai)\n' +
-                '  - GROQ_API_KEY (get free at https://console.groq.com)'
+                    '  - OPENROUTER_API_KEY (get free at https://openrouter.ai)\n' +
+                    '  - GROQ_API_KEY (get free at https://console.groq.com)'
             );
         }
 
@@ -223,7 +233,7 @@ class FreeAIProvider {
 
         try {
             const client = this.clients.get(this.currentProvider);
-            
+
             const response = await client.chat.completions.create({
                 model: this.currentModel,
                 messages: [
@@ -235,7 +245,7 @@ class FreeAIProvider {
             });
 
             const content = response.choices?.[0]?.message?.content;
-            
+
             if (!content) {
                 throw new Error('Empty response from AI provider');
             }
@@ -249,21 +259,26 @@ class FreeAIProvider {
                 usage: response.usage,
                 latency: Date.now() - startTime
             };
-
         } catch (error) {
             this.metrics.failures++;
-            
+
             // Try fallback provider if available
             if (this.clients.size > 1) {
                 const fallback = this._getFallbackProvider();
                 if (fallback) {
-                    console.warn(`[FreeAIProvider] ${this.currentProvider} failed, trying ${fallback}...`);
+                    console.warn(
+                        `[FreeAIProvider] ${this.currentProvider} failed, trying ${fallback}...`
+                    );
                     const prevProvider = this.currentProvider;
                     this.currentProvider = fallback;
                     this.currentModel = this._getDefaultModel(fallback);
-                    
+
                     try {
-                        const result = await this.generateResponse(systemPrompt, userPrompt, maxTokens);
+                        const result = await this.generateResponse(
+                            systemPrompt,
+                            userPrompt,
+                            maxTokens
+                        );
                         return result;
                     } finally {
                         // Restore original provider
@@ -297,9 +312,10 @@ class FreeAIProvider {
             currentModel: this.currentModel,
             availableProviders: this.getAvailableProviders(),
             metrics: { ...this.metrics },
-            successRate: this.metrics.calls > 0 
-                ? ((this.metrics.successes / this.metrics.calls) * 100).toFixed(1) + '%'
-                : 'N/A'
+            successRate:
+                this.metrics.calls > 0
+                    ? ((this.metrics.successes / this.metrics.calls) * 100).toFixed(1) + '%'
+                    : 'N/A'
         };
     }
 
@@ -356,7 +372,7 @@ class FreeAIProvider {
  */
 async function setupFreeAI(options = {}) {
     const provider = new FreeAIProvider(options);
-    
+
     if (!provider.isAvailable()) {
         console.log(FreeAIProvider.getSetupInstructions());
         return null;
@@ -370,4 +386,3 @@ module.exports = {
     setupFreeAI,
     FREE_MODELS
 };
-

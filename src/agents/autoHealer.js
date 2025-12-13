@@ -10,7 +10,7 @@ class AutoHealer {
         this.config = config instanceof AgentConfig ? config : new AgentConfig();
         this.healingConfig = this.config.get('autoHealing');
         this.circuitBreakerConfig = this.config.get('circuitBreaker');
-        
+
         this.healthCheckInterval = null;
         this.cbResetAttempts = new Map();
     }
@@ -64,9 +64,11 @@ class AutoHealer {
 
         // Check memory leak trend
         if (health.memory.trend?.riskLevel === 'high') {
-            agentMonitor.recordAlert('memory_leak_detected', 
-                `Memory leak trend detected: ${health.memory.trend.slope}% growth`, 
-                'error');
+            agentMonitor.recordAlert(
+                'memory_leak_detected',
+                `Memory leak trend detected: ${health.memory.trend.slope}% growth`,
+                'error'
+            );
             if (callbacks.onMemoryLeak) {
                 await callbacks.onMemoryLeak(browserAgent);
             }
@@ -81,10 +83,15 @@ class AutoHealer {
         }
 
         // Check session limits
-        if (health.sessions.activeCount >= this.config.get('sessions.maxConcurrentSessions') * 0.95) {
-            agentMonitor.recordAlert('session_capacity_warning',
+        if (
+            health.sessions.activeCount >=
+            this.config.get('sessions.maxConcurrentSessions') * 0.95
+        ) {
+            agentMonitor.recordAlert(
+                'session_capacity_warning',
                 `Approaching session limit: ${health.sessions.activeCount}/${this.config.get('sessions.maxConcurrentSessions')}`,
-                'warning');
+                'warning'
+            );
         }
     }
 
@@ -99,11 +106,15 @@ class AutoHealer {
         // Try to transition to half-open
         if (attempts < cbConfig.halfOpenAttempts) {
             this.cbResetAttempts.set(key, attempts + 1);
-            
-            console.log(`[AutoHealer] Attempting circuit breaker reset (${attempts + 1}/${cbConfig.halfOpenAttempts})`);
-            agentMonitor.recordAlert('circuit_breaker_reset_attempt',
+
+            console.log(
+                `[AutoHealer] Attempting circuit breaker reset (${attempts + 1}/${cbConfig.halfOpenAttempts})`
+            );
+            agentMonitor.recordAlert(
+                'circuit_breaker_reset_attempt',
                 `Attempting to close circuit breaker (attempt ${attempts + 1})`,
-                'info');
+                'info'
+            );
 
             if (callbacks.onCircuitBreakerReset) {
                 await callbacks.onCircuitBreakerReset(browserAgent);
@@ -111,9 +122,11 @@ class AutoHealer {
         } else {
             // Give up and restart browser
             console.log('[AutoHealer] Circuit breaker stuck open, forcing restart...');
-            agentMonitor.recordAlert('circuit_breaker_restart',
+            agentMonitor.recordAlert(
+                'circuit_breaker_restart',
                 'Circuit breaker unable to recover, forcing browser restart',
-                'error');
+                'error'
+            );
 
             this.cbResetAttempts.delete(key);
 

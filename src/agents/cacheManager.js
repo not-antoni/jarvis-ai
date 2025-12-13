@@ -9,11 +9,11 @@ class CacheManager {
         this.responseCacheTTLMs = config.responseCacheTTLMs || 60 * 60 * 1000; // 1 hour
         this.domCacheTTLMs = config.domCacheTTLMs || 5 * 60 * 1000; // 5 min
         this.screenshotCacheTTLMs = config.screenshotCacheTTLMs || 10 * 60 * 1000; // 10 min
-        
+
         this.responseCache = new Map(); // url -> { data, timestamp, size }
         this.domCache = new Map(); // url -> { html, timestamp, size }
         this.screenshotCache = new Map(); // url+selector -> { buffer, timestamp, size }
-        
+
         this.stats = {
             responseHits: 0,
             responseMisses: 0,
@@ -54,7 +54,7 @@ class CacheManager {
      */
     setResponseCache(url, data) {
         const size = this.estimateSize(data);
-        
+
         // Evict if needed
         if (this.stats.totalSizeBytes + size > this.maxCacheSizeBytes) {
             this.evict();
@@ -91,7 +91,7 @@ class CacheManager {
      */
     setDOMCache(url, html) {
         const size = html.length * 2; // Rough estimate
-        
+
         if (this.stats.totalSizeBytes + size > this.maxCacheSizeBytes) {
             this.evict();
         }
@@ -127,7 +127,7 @@ class CacheManager {
      */
     setScreenshotCache(cacheKey, buffer) {
         const size = Buffer.byteLength(buffer);
-        
+
         if (this.stats.totalSizeBytes + size > this.maxCacheSizeBytes) {
             this.evict();
         }
@@ -158,14 +158,26 @@ class CacheManager {
      */
     evict() {
         const allEntries = [
-            ...Array.from(this.responseCache.entries()).map(([k, v]) => ({ 
-                key: k, map: this.responseCache, timestamp: v.timestamp, size: v.size, type: 'response' 
+            ...Array.from(this.responseCache.entries()).map(([k, v]) => ({
+                key: k,
+                map: this.responseCache,
+                timestamp: v.timestamp,
+                size: v.size,
+                type: 'response'
             })),
-            ...Array.from(this.domCache.entries()).map(([k, v]) => ({ 
-                key: k, map: this.domCache, timestamp: v.timestamp, size: v.size, type: 'dom' 
+            ...Array.from(this.domCache.entries()).map(([k, v]) => ({
+                key: k,
+                map: this.domCache,
+                timestamp: v.timestamp,
+                size: v.size,
+                type: 'dom'
             })),
-            ...Array.from(this.screenshotCache.entries()).map(([k, v]) => ({ 
-                key: k, map: this.screenshotCache, timestamp: v.timestamp, size: v.size, type: 'screenshot' 
+            ...Array.from(this.screenshotCache.entries()).map(([k, v]) => ({
+                key: k,
+                map: this.screenshotCache,
+                timestamp: v.timestamp,
+                size: v.size,
+                type: 'screenshot'
             }))
         ];
 
@@ -232,9 +244,13 @@ class CacheManager {
             screenshotEntries: this.screenshotCache.size,
             totalEntries: this.responseCache.size + this.domCache.size + this.screenshotCache.size,
             hitRate: {
-                response: this.stats.responseHits / (this.stats.responseHits + this.stats.responseMisses) || 0,
+                response:
+                    this.stats.responseHits /
+                        (this.stats.responseHits + this.stats.responseMisses) || 0,
                 dom: this.stats.domHits / (this.stats.domHits + this.stats.domMisses) || 0,
-                screenshot: this.stats.screenshotHits / (this.stats.screenshotHits + this.stats.screenshotMisses) || 0
+                screenshot:
+                    this.stats.screenshotHits /
+                        (this.stats.screenshotHits + this.stats.screenshotMisses) || 0
             }
         };
     }

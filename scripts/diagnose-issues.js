@@ -13,7 +13,7 @@ codex.registerJarvisTool(
     'scrape_wikipedia',
     'Scrape Wikipedia for information',
     { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    async (args) => ({ title: 'Test' }),
+    async args => ({ title: 'Test' }),
     { timeout: 5000, category: 'search' }
 );
 
@@ -21,7 +21,7 @@ codex.registerJarvisTool(
     'web_search',
     'Search the web for results',
     { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
-    async (args) => ({ results: [] }),
+    async args => ({ results: [] }),
     { timeout: 5000, category: 'search' }
 );
 
@@ -37,14 +37,14 @@ if (results.length > 0) {
     });
 } else {
     console.log('  NO RESULTS - This is the issue!');
-    
+
     // Debug: Check scoring directly
     console.log('\nDebug info:');
     const tools = codex.registry.getAllTools();
     console.log(`  Total tools registered: ${tools.length}`);
     tools.forEach(t => {
         console.log(`  - ${t.name}: description="${t.description}"`);
-        
+
         // Test scoring manually
         const context = {
             query: 'find information',

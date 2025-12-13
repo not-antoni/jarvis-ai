@@ -29,7 +29,7 @@ class SmartToolRegistry {
 
         const tool = new ToolDefinition(name, description, parameters, handler, options);
         this.tools.set(name, tool);
-        
+
         return tool;
     }
 
@@ -59,7 +59,7 @@ class SmartToolRegistry {
      */
     selectTools(query, context = {}, limit = 5) {
         const analyzedContext = this.contextAnalyzer.analyze(query, context);
-        
+
         // Score all tools
         const scored = this.getAllTools().map(tool => ({
             tool,
@@ -107,12 +107,9 @@ class SmartToolRegistry {
 
         try {
             const startTime = Date.now();
-            
+
             // Execute tool with timeout
-            const result = await this._executeWithTimeout(
-                tool.handler(args),
-                tool.options.timeout
-            );
+            const result = await this._executeWithTimeout(tool.handler(args), tool.options.timeout);
 
             const duration = Date.now() - startTime;
             tool.recordExecution(duration, true);
@@ -134,7 +131,6 @@ class SmartToolRegistry {
             this._recordExecution(name, args, response);
 
             return response;
-
         } catch (error) {
             const duration = Date.now() - startTime;
             tool.recordExecution(duration, false);
@@ -158,11 +154,11 @@ class SmartToolRegistry {
      */
     async executeSequence(toolCalls, context = {}) {
         const results = [];
-        
+
         for (const call of toolCalls) {
             const result = await this.executeTool(call.name, call.args, context);
             results.push(result);
-            
+
             // If a tool fails and failFast is enabled, stop
             if (!result.success && call.failFast) {
                 break;
@@ -176,9 +172,7 @@ class SmartToolRegistry {
      * Execute multiple tools in parallel
      */
     async executeParallel(toolCalls, context = {}) {
-        const promises = toolCalls.map(call => 
-            this.executeTool(call.name, call.args, context)
-        );
+        const promises = toolCalls.map(call => this.executeTool(call.name, call.args, context));
 
         return Promise.all(promises);
     }
@@ -245,8 +239,11 @@ class SmartToolRegistry {
     async _executeWithTimeout(promise, timeout) {
         return Promise.race([
             promise,
-            new Promise((_, reject) => 
-                setTimeout(() => reject(new Error(`Tool execution timeout (${timeout}ms)`)), timeout)
+            new Promise((_, reject) =>
+                setTimeout(
+                    () => reject(new Error(`Tool execution timeout (${timeout}ms)`)),
+                    timeout
+                )
             )
         ]);
     }
@@ -290,7 +287,7 @@ class ContextAnalyzer {
 
     _extractKeywords(query) {
         if (!query) return [];
-        
+
         // Simple keyword extraction - can be enhanced with NLP
         return query
             .toLowerCase()

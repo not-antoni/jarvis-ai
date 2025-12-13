@@ -40,7 +40,9 @@ class MetricsCollector {
 
         // Keep only last 1000 response times for performance
         this.maxResponseTimeSamples = 1000;
-        
+
+        this.collectionInterval = null;
+
         // Start periodic metrics collection
         this.startCollection();
     }
@@ -50,7 +52,7 @@ class MetricsCollector {
      */
     recordRequest(endpoint, duration, success = true, statusCode = 200) {
         this.metrics.requests.total++;
-        
+
         if (success && statusCode < 400) {
             this.metrics.requests.successful++;
         } else {
@@ -72,7 +74,7 @@ class MetricsCollector {
         endpointStats.total++;
         endpointStats.totalDuration += duration;
         endpointStats.averageDuration = endpointStats.totalDuration / endpointStats.total;
-        
+
         if (success && statusCode < 400) {
             endpointStats.successful++;
         } else {
@@ -88,7 +90,7 @@ class MetricsCollector {
      */
     recordResponseTime(duration) {
         this.metrics.performance.responseTimes.push(duration);
-        
+
         // Keep only last N samples
         if (this.metrics.performance.responseTimes.length > this.maxResponseTimeSamples) {
             this.metrics.performance.responseTimes.shift();
@@ -113,8 +115,7 @@ class MetricsCollector {
             return;
         }
 
-        this.metrics.performance.averageResponseTime = 
-            times.reduce((a, b) => a + b, 0) / count;
+        this.metrics.performance.averageResponseTime = times.reduce((a, b) => a + b, 0) / count;
         this.metrics.performance.p50 = times[Math.floor(count * 0.5)];
         this.metrics.performance.p95 = times[Math.floor(count * 0.95)];
         this.metrics.performance.p99 = times[Math.floor(count * 0.99)];
@@ -125,7 +126,7 @@ class MetricsCollector {
      */
     recordError(error, context = {}) {
         this.metrics.errors.total++;
-        
+
         const errorType = error.name || error.constructor?.name || 'UnknownError';
         const current = this.metrics.errors.byType.get(errorType) || 0;
         this.metrics.errors.byType.set(errorType, current + 1);
@@ -179,19 +180,26 @@ class MetricsCollector {
                 total: this.metrics.requests.total,
                 successful: this.metrics.requests.successful,
                 failed: this.metrics.requests.failed,
-                successRate: this.metrics.requests.total > 0
-                    ? (this.metrics.requests.successful / this.metrics.requests.total * 100).toFixed(2) + '%'
-                    : '0%',
+                successRate:
+                    this.metrics.requests.total > 0
+                        ? (
+                              (this.metrics.requests.successful / this.metrics.requests.total) *
+                              100
+                          ).toFixed(2) + '%'
+                        : '0%',
                 byEndpoint: Object.fromEntries(
-                    Array.from(this.metrics.requests.byEndpoint.entries()).map(([endpoint, stats]) => [
-                        endpoint,
-                        {
-                            ...stats,
-                            successRate: stats.total > 0
-                                ? (stats.successful / stats.total * 100).toFixed(2) + '%'
-                                : '0%'
-                        }
-                    ])
+                    Array.from(this.metrics.requests.byEndpoint.entries()).map(
+                        ([endpoint, stats]) => [
+                            endpoint,
+                            {
+                                ...stats,
+                                successRate:
+                                    stats.total > 0
+                                        ? ((stats.successful / stats.total) * 100).toFixed(2) + '%'
+                                        : '0%'
+                            }
+                        ]
+                    )
                 )
             },
             errors: {
@@ -210,8 +218,10 @@ class MetricsCollector {
                 cpu: process.cpuUsage()
             },
             ai: {
-                totalCalls: Array.from(this.metrics.ai.providerCalls.values())
-                    .reduce((sum, stats) => sum + stats.calls, 0),
+                totalCalls: Array.from(this.metrics.ai.providerCalls.values()).reduce(
+                    (sum, stats) => sum + stats.calls,
+                    0
+                ),
                 totalTokens: this.metrics.ai.totalTokens,
                 totalCost: this.metrics.ai.totalCost,
                 byProvider: Object.fromEntries(
@@ -221,9 +231,8 @@ class MetricsCollector {
                             calls: stats.calls,
                             tokens: stats.tokens,
                             cost: stats.cost,
-                            averageTokensPerCall: stats.calls > 0
-                                ? (stats.tokens / stats.calls).toFixed(2)
-                                : 0
+                            averageTokensPerCall:
+                                stats.calls > 0 ? (stats.tokens / stats.calls).toFixed(2) : 0
                         }
                     ])
                 )
@@ -282,7 +291,11 @@ class MetricsCollector {
      */
     startCollection() {
         // Collect system metrics every 60 seconds
-        setInterval(() => {
+        if (this.collectionInterval) {
+            return;
+        }
+
+        this.collectionInterval = setInterval(() => {
             const memUsage = process.memoryUsage();
             this.metrics.system.memoryUsage.push({
                 timestamp: Date.now(),
@@ -308,6 +321,10 @@ class MetricsCollector {
                 this.metrics.system.cpuUsage.shift();
             }
         }, 60000);
+
+        if (typeof this.collectionInterval.unref === 'function') {
+            this.collectionInterval.unref();
+        }
     }
 
     /**
@@ -351,4 +368,3 @@ class MetricsCollector {
 const metricsCollector = new MetricsCollector();
 
 module.exports = metricsCollector;
-

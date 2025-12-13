@@ -7,14 +7,18 @@ const config = require('../../config');
 const vaultClient = require('./vault-client');
 const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
 const localdb = require('../localdb');
-const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
+const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
 
 // LRU Cache for performance optimization
 const LruModule = require('lru-cache');
-const LRUCache = typeof LruModule === 'function' ? LruModule 
-    : typeof LruModule?.LRUCache === 'function' ? LruModule.LRUCache 
-    : typeof LruModule?.default === 'function' ? LruModule.default 
-    : null;
+const LRUCache =
+    typeof LruModule === 'function'
+        ? LruModule
+        : typeof LruModule?.LRUCache === 'function'
+          ? LruModule.LRUCache
+          : typeof LruModule?.default === 'function'
+            ? LruModule.default
+            : null;
 
 // Cache configuration
 const GUILD_CONFIG_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -27,17 +31,21 @@ class DatabaseManager {
         this.client = null;
         this.db = null;
         this.isConnected = false;
-        
+
         // LRU Caches for hot data
-        this.guildConfigCache = LRUCache ? new LRUCache({ 
-            max: GUILD_CONFIG_CACHE_MAX, 
-            ttl: GUILD_CONFIG_CACHE_TTL 
-        }) : null;
-        
-        this.conversationCache = LRUCache ? new LRUCache({ 
-            max: CONVERSATION_CACHE_MAX, 
-            ttl: CONVERSATION_CACHE_TTL 
-        }) : null;
+        this.guildConfigCache = LRUCache
+            ? new LRUCache({
+                  max: GUILD_CONFIG_CACHE_MAX,
+                  ttl: GUILD_CONFIG_CACHE_TTL
+              })
+            : null;
+
+        this.conversationCache = LRUCache
+            ? new LRUCache({
+                  max: CONVERSATION_CACHE_MAX,
+                  ttl: CONVERSATION_CACHE_TTL
+              })
+            : null;
     }
 
     getDefaultFeatureFlags() {
@@ -108,7 +116,7 @@ class DatabaseManager {
             statusMessages: this.db.collection(config.database.collections.statusMessages),
             commandMetrics: this.db.collection(config.database.collections.commandMetrics),
             reminders: this.db.collection(config.database.collections.reminders),
-            announcements: this.db.collection(config.database.collections.announcements),
+            announcements: this.db.collection(config.database.collections.announcements)
         };
 
         const indexPlans = [
@@ -117,7 +125,11 @@ class DatabaseManager {
                 collection: collections.conversations,
                 definitions: [
                     { key: { userId: 1, guildId: 1, createdAt: -1 } },
-                    { key: { createdAt: 1 }, expireAfterSeconds: ninetyDays, name: 'ttl_conversations_createdAt' }
+                    {
+                        key: { createdAt: 1 },
+                        expireAfterSeconds: ninetyDays,
+                        name: 'ttl_conversations_createdAt'
+                    }
                 ]
             },
             {
@@ -133,10 +145,7 @@ class DatabaseManager {
             {
                 label: 'reactionRoles',
                 collection: collections.reactionRoles,
-                definitions: [
-                    { key: { messageId: 1 }, unique: true },
-                    { key: { guildId: 1 } }
-                ]
+                definitions: [{ key: { messageId: 1 }, unique: true }, { key: { guildId: 1 } }]
             },
             {
                 label: 'autoModeration',
@@ -157,7 +166,11 @@ class DatabaseManager {
                 label: 'memberLogs',
                 collection: collections.memberLogs,
                 definitions: [
-                    { key: { guildId: 1 }, unique: true, partialFilterExpression: { isConfig: true } },
+                    {
+                        key: { guildId: 1 },
+                        unique: true,
+                        partialFilterExpression: { isConfig: true }
+                    },
                     {
                         key: { createdAt: 1 },
                         expireAfterSeconds: sixtyDays,
@@ -201,23 +214,27 @@ class DatabaseManager {
                 collection: collections.newsCache,
                 definitions: [
                     { key: { topic: 1 }, unique: true },
-                    { key: { createdAt: 1 }, expireAfterSeconds: 3 * 60 * 60, name: 'ttl_newsCache_createdAt' }
+                    {
+                        key: { createdAt: 1 },
+                        expireAfterSeconds: 3 * 60 * 60,
+                        name: 'ttl_newsCache_createdAt'
+                    }
                 ]
             },
             {
                 label: 'migrations',
                 collection: collections.migrations,
-                definitions: [
-                    { key: { id: 1 }, unique: true },
-                    { key: { appliedAt: -1 } }
-                ]
+                definitions: [{ key: { id: 1 }, unique: true }, { key: { appliedAt: -1 } }]
             },
             {
                 label: 'statusMessages',
                 collection: collections.statusMessages,
                 definitions: [
                     { key: { enabled: 1 }, name: 'statusMessages_enabled_idx' },
-                    { key: { priority: 1, createdAt: 1 }, name: 'statusMessages_priority_createdAt' }
+                    {
+                        key: { priority: 1, createdAt: 1 },
+                        name: 'statusMessages_priority_createdAt'
+                    }
                 ]
             },
             {
@@ -226,7 +243,11 @@ class DatabaseManager {
                 definitions: [
                     { key: { command: 1, subcommand: 1, context: 1 }, unique: true },
                     { key: { updatedAt: -1 }, name: 'commandMetrics_updatedAt_idx' },
-                    { key: { updatedAt: 1 }, expireAfterSeconds: thirtyDays, name: 'commandMetrics_ttl' }
+                    {
+                        key: { updatedAt: 1 },
+                        expireAfterSeconds: thirtyDays,
+                        name: 'commandMetrics_ttl'
+                    }
                 ]
             },
             {
@@ -275,11 +296,11 @@ class DatabaseManager {
 
     async getUserProfile(userId, userName) {
         if (!this.isConnected) return null;
-        
+
         let profile = await this.db
             .collection(config.database.collections.userProfiles)
             .findOne({ userId });
-            
+
         if (!profile) {
             profile = {
                 userId,
@@ -287,14 +308,12 @@ class DatabaseManager {
                 firstMet: new Date(),
                 interactions: 0,
                 preferences: {},
-                relationship: "new",
+                relationship: 'new',
                 lastSeen: new Date(),
                 personalityDrift: 0,
-                activityPatterns: [],
+                activityPatterns: []
             };
-            await this.db
-                .collection(config.database.collections.userProfiles)
-                .insertOne(profile);
+            await this.db.collection(config.database.collections.userProfiles).insertOne(profile);
         }
         return profile;
     }
@@ -317,7 +336,7 @@ class DatabaseManager {
             .toArray();
 
         const result = conversations.reverse();
-        
+
         // Cache standard limit queries
         if (this.conversationCache && limit === 20) {
             this.conversationCache.set(cacheKey, result);
@@ -368,9 +387,9 @@ class DatabaseManager {
             try {
                 const docs = localdb.readCollection(config.database.collections.statusMessages);
                 return docs
-                    .filter((d) => d && d.enabled !== false)
-                    .map((d) => ({ message: String(d.message || '').trim(), type: d.type }))
-                    .filter((e) => e.message);
+                    .filter(d => d && d.enabled !== false)
+                    .map(d => ({ message: String(d.message || '').trim(), type: d.type }))
+                    .filter(e => e.message);
             } catch (_) {
                 return [];
             }
@@ -384,16 +403,16 @@ class DatabaseManager {
             .toArray();
 
         return documents
-            .map((doc) => ({
+            .map(doc => ({
                 message: typeof doc.message === 'string' ? doc.message.trim() : '',
                 type: doc.type
             }))
-            .filter((entry) => Boolean(entry.message));
+            .filter(entry => Boolean(entry.message));
     }
 
     async saveConversation(userId, userName, userInput, jarvisResponse, guildId = null) {
         if (!this.isConnected || !this.db) return;
-        
+
         const now = new Date();
         const conversation = {
             userId,
@@ -402,12 +421,10 @@ class DatabaseManager {
             jarvisResponse,
             timestamp: now,
             createdAt: now,
-            guildId,
+            guildId
         };
-        
-        await this.db
-            .collection(config.database.collections.conversations)
-            .insertOne(conversation);
+
+        await this.db.collection(config.database.collections.conversations).insertOne(conversation);
 
         // Invalidate conversation cache for this user
         if (this.conversationCache) {
@@ -418,7 +435,7 @@ class DatabaseManager {
         const totalCount = await this.db
             .collection(config.database.collections.conversations)
             .countDocuments({ userId });
-            
+
         if (totalCount > 100) {
             const excessCount = totalCount - 100;
             const oldest = await this.db
@@ -427,27 +444,25 @@ class DatabaseManager {
                 .sort({ createdAt: 1, timestamp: 1 })
                 .limit(excessCount)
                 .toArray();
-                
+
             await this.db
                 .collection(config.database.collections.conversations)
-                .deleteMany({ _id: { $in: oldest.map((x) => x._id) } });
+                .deleteMany({ _id: { $in: oldest.map(x => x._id) } });
         }
 
         // Update user profile
-        await this.db
-            .collection(config.database.collections.userProfiles)
-            .updateOne(
-                { userId },
-                {
-                    $inc: { interactions: 1 },
-                    $set: { lastSeen: new Date(), name: userName },
-                }
-            );
+        await this.db.collection(config.database.collections.userProfiles).updateOne(
+            { userId },
+            {
+                $inc: { interactions: 1 },
+                $set: { lastSeen: new Date(), name: userName }
+            }
+        );
     }
 
     async resetUserData(userId) {
-        if (!this.isConnected || !this.db) throw new Error("Database not connected");
-        
+        if (!this.isConnected || !this.db) throw new Error('Database not connected');
+
         const convResult = await this.db
             .collection(config.database.collections.conversations)
             .deleteMany({ userId });
@@ -461,12 +476,12 @@ class DatabaseManager {
         } catch (error) {
             console.error('Failed to purge vault memories for user', userId, error);
         }
-        
+
         // Invalidate conversation cache
         if (this.conversationCache) {
             this.conversationCache.delete(`${userId}:20`);
         }
-        
+
         return {
             conv: convResult.deletedCount,
             prof: profileResult.deletedCount
@@ -474,45 +489,41 @@ class DatabaseManager {
     }
 
     async setUserPreference(userId, key, value) {
-        if (!this.isConnected || !this.db) throw new Error("Database not connected");
+        if (!this.isConnected || !this.db) throw new Error('Database not connected');
 
-        await this.db
-            .collection(config.database.collections.userProfiles)
-            .updateOne(
-                { userId },
-                {
-                    $set: {
-                        [`preferences.${key}`]: value,
-                        lastSeen: new Date()
-                    }
-                },
-                { upsert: true }
-            );
+        await this.db.collection(config.database.collections.userProfiles).updateOne(
+            { userId },
+            {
+                $set: {
+                    [`preferences.${key}`]: value,
+                    lastSeen: new Date()
+                }
+            },
+            { upsert: true }
+        );
     }
 
     async updateUserProfile(userId, updates = {}) {
         if (!this.isConnected || !this.db) throw new Error('Database not connected');
         if (!userId) throw new Error('Missing userId');
 
-        const sanitizedUpdates = (updates && typeof updates === 'object') ? { ...updates } : {};
+        const sanitizedUpdates = updates && typeof updates === 'object' ? { ...updates } : {};
         delete sanitizedUpdates.userId;
 
-        await this.db
-            .collection(config.database.collections.userProfiles)
-            .updateOne(
-                { userId },
-                {
-                    $set: {
-                        ...sanitizedUpdates,
-                        lastSeen: new Date()
-                    },
-                    $setOnInsert: {
-                        userId,
-                        firstMet: new Date()
-                    }
+        await this.db.collection(config.database.collections.userProfiles).updateOne(
+            { userId },
+            {
+                $set: {
+                    ...sanitizedUpdates,
+                    lastSeen: new Date()
                 },
-                { upsert: true }
-            );
+                $setOnInsert: {
+                    userId,
+                    firstMet: new Date()
+                }
+            },
+            { upsert: true }
+        );
     }
 
     async saveReminder(reminder) {
@@ -521,22 +532,20 @@ class DatabaseManager {
 
         const { createdAt, scheduledFor, ...rest } = reminder;
 
-        await this.db
-            .collection(config.database.collections.reminders)
-            .updateOne(
-                { id: reminder.id },
-                {
-                    $set: {
-                        ...rest,
-                        scheduledFor: Number(scheduledFor),
-                        updatedAt: new Date()
-                    },
-                    $setOnInsert: {
-                        createdAt: createdAt ? new Date(createdAt) : new Date()
-                    }
+        await this.db.collection(config.database.collections.reminders).updateOne(
+            { id: reminder.id },
+            {
+                $set: {
+                    ...rest,
+                    scheduledFor: Number(scheduledFor),
+                    updatedAt: new Date()
                 },
-                { upsert: true }
-            );
+                $setOnInsert: {
+                    createdAt: createdAt ? new Date(createdAt) : new Date()
+                }
+            },
+            { upsert: true }
+        );
     }
 
     async deleteReminder(reminderId) {
@@ -577,7 +586,7 @@ class DatabaseManager {
     }
 
     async clearDatabase() {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
         const convResult = await this.db
             .collection(config.database.collections.conversations)
@@ -628,9 +637,10 @@ class DatabaseManager {
             needsUpdate = true;
         }
 
-        const currentFeatures = (guildConfig.features && typeof guildConfig.features === 'object')
-            ? guildConfig.features
-            : {};
+        const currentFeatures =
+            guildConfig.features && typeof guildConfig.features === 'object'
+                ? guildConfig.features
+                : {};
 
         const normalizedFeatures = {};
         let featuresChanged = !guildConfig.features || typeof guildConfig.features !== 'object';
@@ -673,8 +683,12 @@ class DatabaseManager {
                     $set: {
                         ownerId: guildConfig.ownerId || null,
                         features: guildConfig.features,
-                        moderatorRoleIds: Array.isArray(guildConfig.moderatorRoleIds) ? guildConfig.moderatorRoleIds : [],
-                        moderatorUserIds: Array.isArray(guildConfig.moderatorUserIds) ? guildConfig.moderatorUserIds : [],
+                        moderatorRoleIds: Array.isArray(guildConfig.moderatorRoleIds)
+                            ? guildConfig.moderatorRoleIds
+                            : [],
+                        moderatorUserIds: Array.isArray(guildConfig.moderatorUserIds)
+                            ? guildConfig.moderatorUserIds
+                            : [],
                         updatedAt: guildConfig.updatedAt
                     },
                     $setOnInsert: {
@@ -701,7 +715,7 @@ class DatabaseManager {
     }
 
     async setGuildModeratorRoles(guildId, roleIds = [], ownerId = null) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
         const collection = this.db.collection(config.database.collections.guildConfigs);
         const now = new Date();
@@ -727,7 +741,7 @@ class DatabaseManager {
     }
 
     async updateGuildFeatures(guildId, features = {}) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
         const normalized = Object.entries(features || {}).reduce((acc, [key, value]) => {
             acc[key] = Boolean(value);
@@ -780,7 +794,7 @@ class DatabaseManager {
     }
 
     async saveReactionRoleMessage(reactionRole) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
         const collection = this.db.collection(config.database.collections.reactionRoles);
         const now = new Date();
@@ -796,19 +810,15 @@ class DatabaseManager {
             }
         };
 
-        await collection.updateOne(
-            { messageId: reactionRole.messageId },
-            updateDoc,
-            { upsert: true }
-        );
+        await collection.updateOne({ messageId: reactionRole.messageId }, updateDoc, {
+            upsert: true
+        });
     }
 
     async getReactionRole(messageId) {
         if (!this.isConnected) return null;
 
-        return this.db
-            .collection(config.database.collections.reactionRoles)
-            .findOne({ messageId });
+        return this.db.collection(config.database.collections.reactionRoles).findOne({ messageId });
     }
 
     async getReactionRolesForGuild(guildId) {
@@ -822,7 +832,7 @@ class DatabaseManager {
     }
 
     async deleteReactionRole(messageId) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
         await this.db
             .collection(config.database.collections.reactionRoles)
@@ -831,13 +841,11 @@ class DatabaseManager {
     async getAutoModConfig(guildId) {
         if (!this.isConnected) return null;
 
-        return this.db
-            .collection(config.database.collections.autoModeration)
-            .findOne({ guildId });
+        return this.db.collection(config.database.collections.autoModeration).findOne({ guildId });
     }
 
     async saveAutoModConfig(guildId, data) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
         const collection = this.db.collection(config.database.collections.autoModeration);
         const now = new Date();
@@ -870,11 +878,9 @@ class DatabaseManager {
     }
 
     async deleteAutoModConfig(guildId) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
-        await this.db
-            .collection(config.database.collections.autoModeration)
-            .deleteOne({ guildId });
+        await this.db.collection(config.database.collections.autoModeration).deleteOne({ guildId });
     }
 
     async reserveCounter(key) {
@@ -921,9 +927,7 @@ class DatabaseManager {
     async getTicketByChannel(channelId) {
         if (!this.isConnected) return null;
 
-        return this.db
-            .collection(config.database.collections.tickets)
-            .findOne({ channelId });
+        return this.db.collection(config.database.collections.tickets).findOne({ channelId });
     }
 
     async getTicketByNumber(guildId, ticketNumber) {
@@ -939,9 +943,7 @@ class DatabaseManager {
 
         const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
 
-        return this.db
-            .collection(config.database.collections.tickets)
-            .findOne({ _id: id });
+        return this.db.collection(config.database.collections.tickets).findOne({ _id: id });
     }
 
     async closeTicket(ticketId, updates = {}) {
@@ -973,21 +975,19 @@ class DatabaseManager {
 
         const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
 
-        await this.db
-            .collection(config.database.collections.ticketTranscripts)
-            .updateOne(
-                { ticketId: id },
-                {
-                    $set: {
-                        ticketId: id,
-                        messages: transcript.messages,
-                        exportedAt: new Date(),
-                        messageCount: transcript.messageCount,
-                        summary: transcript.summary || null
-                    }
-                },
-                { upsert: true }
-            );
+        await this.db.collection(config.database.collections.ticketTranscripts).updateOne(
+            { ticketId: id },
+            {
+                $set: {
+                    ticketId: id,
+                    messages: transcript.messages,
+                    exportedAt: new Date(),
+                    messageCount: transcript.messageCount,
+                    summary: transcript.summary || null
+                }
+            },
+            { upsert: true }
+        );
     }
 
     async getTicketTranscript(ticketId) {
@@ -1100,11 +1100,7 @@ class DatabaseManager {
 
         await this.db
             .collection(config.database.collections.newsCache)
-            .updateOne(
-                { topic: payload.topic },
-                { $set: payload },
-                { upsert: true }
-            );
+            .updateOne({ topic: payload.topic }, { $set: payload }, { upsert: true });
 
         return payload;
     }
@@ -1112,13 +1108,11 @@ class DatabaseManager {
     async getServerStatsConfig(guildId) {
         if (!this.isConnected) return null;
 
-        return this.db
-            .collection(config.database.collections.serverStats)
-            .findOne({ guildId });
+        return this.db.collection(config.database.collections.serverStats).findOne({ guildId });
     }
 
     async saveServerStatsConfig(guildId, data) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
         const collection = this.db.collection(config.database.collections.serverStats);
         const now = new Date();
@@ -1151,32 +1145,25 @@ class DatabaseManager {
     }
 
     async deleteServerStatsConfig(guildId) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
-        await this.db
-            .collection(config.database.collections.serverStats)
-            .deleteOne({ guildId });
+        await this.db.collection(config.database.collections.serverStats).deleteOne({ guildId });
     }
 
     async getAllServerStatsConfigs() {
         if (!this.isConnected) return [];
 
-        return this.db
-            .collection(config.database.collections.serverStats)
-            .find({})
-            .toArray();
+        return this.db.collection(config.database.collections.serverStats).find({}).toArray();
     }
 
     async getMemberLogConfig(guildId) {
         if (!this.isConnected) return null;
 
-        return this.db
-            .collection(config.database.collections.memberLogs)
-            .findOne({ guildId });
+        return this.db.collection(config.database.collections.memberLogs).findOne({ guildId });
     }
 
     async saveMemberLogConfig(guildId, data) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
         const collection = this.db.collection(config.database.collections.memberLogs);
         const now = new Date();
@@ -1207,11 +1194,9 @@ class DatabaseManager {
     }
 
     async deleteMemberLogConfig(guildId) {
-        if (!this.isConnected) throw new Error("Database not connected");
+        if (!this.isConnected) throw new Error('Database not connected');
 
-        await this.db
-            .collection(config.database.collections.memberLogs)
-            .deleteOne({ guildId });
+        await this.db.collection(config.database.collections.memberLogs).deleteOne({ guildId });
     }
 
     async recordCommandMetric({
@@ -1267,19 +1252,18 @@ class DatabaseManager {
 
         const sanitizedLimit = Math.max(1, Math.min(Number(limit) || 25, 200));
         const collection = this.db.collection(config.database.collections.commandMetrics);
-        const sort = sortBy === 'errors'
-            ? { errorRuns: -1, totalRuns: -1, updatedAt: -1 }
-            : { totalRuns: -1, updatedAt: -1 };
+        const sort =
+            sortBy === 'errors'
+                ? { errorRuns: -1, totalRuns: -1, updatedAt: -1 }
+                : { totalRuns: -1, updatedAt: -1 };
 
-        const cursor = collection
-            .find({}, { sort, limit: sanitizedLimit });
+        const cursor = collection.find({}, { sort, limit: sanitizedLimit });
 
         const records = await cursor.toArray();
-        return records.map((doc) => {
+        return records.map(doc => {
             const totalRuns = doc.totalRuns || 0;
-            const avgLatencyMs = totalRuns > 0
-                ? Math.round((doc.sumLatencyMs || 0) / totalRuns)
-                : null;
+            const avgLatencyMs =
+                totalRuns > 0 ? Math.round((doc.sumLatencyMs || 0) / totalRuns) : null;
 
             return {
                 command: doc.command,
@@ -1295,55 +1279,55 @@ class DatabaseManager {
     }
 
     // ==================== Command Sync State (for Render) ====================
-    
+
     /**
      * Get command sync state from MongoDB
      * Used on Render where local filesystem is ephemeral
      */
     async getCommandSyncState() {
         if (!this.isConnected) return null;
-        
+
         try {
             const doc = await this.db
                 .collection(config.database.collections.commandSyncState)
                 .findOne({ _id: 'global' });
-            
-            return doc ? {
-                globalHash: doc.globalHash,
-                lastRegisteredAt: doc.lastRegisteredAt,
-                guildClears: doc.guildClears || {}
-            } : null;
+
+            return doc
+                ? {
+                      globalHash: doc.globalHash,
+                      lastRegisteredAt: doc.lastRegisteredAt,
+                      guildClears: doc.guildClears || {}
+                  }
+                : null;
         } catch (error) {
             console.warn('Failed to get command sync state from MongoDB:', error.message);
             return null;
         }
     }
-    
+
     /**
      * Save command sync state to MongoDB
      * Used on Render where local filesystem is ephemeral
      */
     async saveCommandSyncState(state) {
         if (!this.isConnected) return false;
-        
+
         try {
-            await this.db
-                .collection(config.database.collections.commandSyncState)
-                .updateOne(
-                    { _id: 'global' },
-                    {
-                        $set: {
-                            globalHash: state.globalHash,
-                            lastRegisteredAt: state.lastRegisteredAt,
-                            guildClears: state.guildClears || {},
-                            updatedAt: new Date()
-                        },
-                        $setOnInsert: {
-                            createdAt: new Date()
-                        }
+            await this.db.collection(config.database.collections.commandSyncState).updateOne(
+                { _id: 'global' },
+                {
+                    $set: {
+                        globalHash: state.globalHash,
+                        lastRegisteredAt: state.lastRegisteredAt,
+                        guildClears: state.guildClears || {},
+                        updatedAt: new Date()
                     },
-                    { upsert: true }
-                );
+                    $setOnInsert: {
+                        createdAt: new Date()
+                    }
+                },
+                { upsert: true }
+            );
             return true;
         } catch (error) {
             console.warn('Failed to save command sync state to MongoDB:', error.message);

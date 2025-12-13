@@ -16,7 +16,7 @@ async function loadMigrationFiles() {
 
     return fs
         .readdirSync(migrationsDir)
-        .filter((file) => file.endsWith('.js'))
+        .filter(file => file.endsWith('.js'))
         .sort();
 }
 
@@ -25,11 +25,9 @@ async function run() {
     const db = database.db;
     const migrationsCollection = db.collection(migrationCollectionName);
 
-    const applied = await migrationsCollection
-        .find({}, { projection: { id: 1 } })
-        .toArray();
+    const applied = await migrationsCollection.find({}, { projection: { id: 1 } }).toArray();
 
-    const appliedSet = new Set(applied.map((doc) => doc.id));
+    const appliedSet = new Set(applied.map(doc => doc.id));
     const files = await loadMigrationFiles();
 
     if (!files.length) {
@@ -97,4 +95,3 @@ async function run() {
         process.exit(1);
     }
 })();
-

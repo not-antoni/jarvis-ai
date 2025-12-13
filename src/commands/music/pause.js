@@ -36,7 +36,9 @@ module.exports = {
         }
 
         if (state.voiceChannelId && state.voiceChannelId !== voiceChannel.id) {
-            await interaction.reply('⚠️ Join the same voice channel as me to control playback, sir.');
+            await interaction.reply(
+                '⚠️ Join the same voice channel as me to control playback, sir.'
+            );
             return;
         }
 

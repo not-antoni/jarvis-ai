@@ -30,11 +30,11 @@ function countLines(filePath) {
 
 function walkDir(dir, depth = 0) {
     const items = fs.readdirSync(dir);
-    
+
     for (const item of items) {
         const fullPath = path.join(dir, item);
         const stat = fs.statSync(fullPath);
-        
+
         if (stat.isDirectory()) {
             if (!EXCLUDE_DIRS.includes(item)) {
                 walkDir(fullPath, depth + 1);
@@ -49,7 +49,7 @@ function walkDir(dir, depth = 0) {
 }
 
 console.log('\n📊 Jarvis AI - Code Statistics\n');
-console.log('=' .repeat(50));
+console.log('='.repeat(50));
 
 walkDir(process.cwd());
 

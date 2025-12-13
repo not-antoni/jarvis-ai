@@ -3,13 +3,17 @@ const crypto = require('crypto');
 const { LRUCache } = require('lru-cache');
 
 const ERROR_LOG_CHANNEL_ID = process.env.ERROR_LOG_CHANNEL_ID || '1437020146689507449';
-const ERROR_LOG_DEDUPE_TTL_MS = process.env.ERROR_LOG_DEDUPE_TTL_MS ? Number(process.env.ERROR_LOG_DEDUPE_TTL_MS) : 30000;
-const ERROR_LOG_MAX_PER_MINUTE = process.env.ERROR_LOG_MAX_PER_MINUTE ? Number(process.env.ERROR_LOG_MAX_PER_MINUTE) : 20;
+const ERROR_LOG_DEDUPE_TTL_MS = process.env.ERROR_LOG_DEDUPE_TTL_MS
+    ? Number(process.env.ERROR_LOG_DEDUPE_TTL_MS)
+    : 30000;
+const ERROR_LOG_MAX_PER_MINUTE = process.env.ERROR_LOG_MAX_PER_MINUTE
+    ? Number(process.env.ERROR_LOG_MAX_PER_MINUTE)
+    : 20;
 
 const STATUS = {
     pending: { label: 'Pending', color: 0xfacc15 },
     solved: { label: 'Solved', color: 0x22c55e },
-    unsolved: { label: 'Unsolved', color: 0xef4444 },
+    unsolved: { label: 'Unsolved', color: 0xef4444 }
 };
 
 function truncate(text, max = 1000) {
@@ -36,7 +40,7 @@ class ErrorLogger {
         this.pendingQueue = [];
         this.recentFingerprints = new LRUCache({
             max: 500,
-            ttl: ERROR_LOG_DEDUPE_TTL_MS,
+            ttl: ERROR_LOG_DEDUPE_TTL_MS
         });
         this.windowStartMs = Date.now();
         this.windowCount = 0;
@@ -72,7 +76,11 @@ class ErrorLogger {
             .setLabel('Mark Unsolved')
             .setStyle(4);
 
-        const row = new ActionRowBuilder().addComponents(pendingButton, solvedButton, unsolvedButton);
+        const row = new ActionRowBuilder().addComponents(
+            pendingButton,
+            solvedButton,
+            unsolvedButton
+        );
         return [row];
     }
 
@@ -80,9 +88,8 @@ class ErrorLogger {
         const resolvedId = errorId || createErrorId();
 
         const location = context.location || 'unknown';
-        const errorText = error instanceof Error
-            ? `${error.name}: ${error.message}`
-            : String(error);
+        const errorText =
+            error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 
         const fingerprint = crypto
             .createHash('sha1')
@@ -126,12 +133,28 @@ class ErrorLogger {
             .setDescription(`**Status:** ${STATUS.pending.label}`)
             .addFields(
                 { name: 'Error ID', value: `\`${resolvedId}\``, inline: true },
-                { name: 'Location', value: truncate(context.location || 'unknown', 256), inline: true },
+                {
+                    name: 'Location',
+                    value: truncate(context.location || 'unknown', 256),
+                    inline: true
+                },
                 { name: 'User', value: truncate(context.user || 'unknown', 256), inline: true },
-                { name: 'Guild', value: truncate(context.guild || 'DM/unknown', 256), inline: true },
-                { name: 'Channel', value: truncate(context.channel || 'unknown', 256), inline: true },
-                { name: 'Command', value: truncate(context.command || 'unknown', 256), inline: true },
-                { name: 'Error', value: `\`\`\`${truncate(errorText, 900)}\`\`\`` },
+                {
+                    name: 'Guild',
+                    value: truncate(context.guild || 'DM/unknown', 256),
+                    inline: true
+                },
+                {
+                    name: 'Channel',
+                    value: truncate(context.channel || 'unknown', 256),
+                    inline: true
+                },
+                {
+                    name: 'Command',
+                    value: truncate(context.command || 'unknown', 256),
+                    inline: true
+                },
+                { name: 'Error', value: `\`\`\`${truncate(errorText, 900)}\`\`\`` }
             )
             .setFooter({ text: `errlog:${resolvedId}` })
             .setTimestamp();
@@ -141,7 +164,10 @@ class ErrorLogger {
         }
 
         if (context.extra) {
-            embed.addFields({ name: 'Context', value: `\`\`\`${safeStringify(context.extra, 900)}\`\`\`` });
+            embed.addFields({
+                name: 'Context',
+                value: `\`\`\`${safeStringify(context.extra, 900)}\`\`\``
+            });
         }
 
         const components = this.buildComponents(resolvedId);
@@ -151,7 +177,10 @@ class ErrorLogger {
     }
 
     parseButtonCustomId(customId) {
-        const match = typeof customId === 'string' ? customId.match(/^errlog:([^:]+):(pending|solved|unsolved)$/) : null;
+        const match =
+            typeof customId === 'string'
+                ? customId.match(/^errlog:([^:]+):(pending|solved|unsolved)$/)
+                : null;
         if (!match) return null;
         return { errorId: match[1], status: match[2] };
     }
@@ -177,7 +206,10 @@ class ErrorLogger {
 
         await interaction.update({ embeds: [newEmbed], components }).catch(async () => {
             if (!interaction.replied && !interaction.deferred) {
-                await interaction.reply({ content: 'Failed to update error status.', ephemeral: true });
+                await interaction.reply({
+                    content: 'Failed to update error status.',
+                    ephemeral: true
+                });
             }
         });
 

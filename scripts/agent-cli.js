@@ -24,18 +24,18 @@ const colors = {
     yellow: '\x1b[33m',
     red: '\x1b[31m',
     magenta: '\x1b[35m',
-    blue: '\x1b[34m',
+    blue: '\x1b[34m'
 };
 
 const log = {
-    title: (text) => console.log(`\n${colors.bright}${colors.cyan}[ ${text} ]${colors.reset}`),
-    success: (text) => console.log(`${colors.green}✓${colors.reset} ${text}`),
-    error: (text) => console.log(`${colors.red}✗${colors.reset} ${text}`),
-    info: (text) => console.log(`${colors.blue}i${colors.reset} ${text}`),
-    warn: (text) => console.log(`${colors.yellow}!${colors.reset} ${text}`),
+    title: text => console.log(`\n${colors.bright}${colors.cyan}[ ${text} ]${colors.reset}`),
+    success: text => console.log(`${colors.green}✓${colors.reset} ${text}`),
+    error: text => console.log(`${colors.red}✗${colors.reset} ${text}`),
+    info: text => console.log(`${colors.blue}i${colors.reset} ${text}`),
+    warn: text => console.log(`${colors.yellow}!${colors.reset} ${text}`),
     separator: () => console.log(`\n${colors.dim}${'─'.repeat(80)}${colors.reset}\n`),
-    agent: (text) => console.log(`${colors.magenta}Agent${colors.reset}: ${text}`),
-    user: (text) => console.log(`${colors.cyan}You${colors.reset}: ${text}`),
+    agent: text => console.log(`${colors.magenta}Agent${colors.reset}: ${text}`),
+    user: text => console.log(`${colors.cyan}You${colors.reset}: ${text}`)
 };
 
 // Tool registry
@@ -46,24 +46,32 @@ const registerDefaultTools = () => {
     codex.registerJarvisTool(
         'fetch_webpage',
         'Fetch and parse web pages for content',
-        { type: 'object', properties: { url: { type: 'string' }, timeout: { type: 'number', default: 5000 } }, required: ['url'] },
-        async (args) => {
+        {
+            type: 'object',
+            properties: { url: { type: 'string' }, timeout: { type: 'number', default: 5000 } },
+            required: ['url']
+        },
+        async args => {
             return new Promise((resolve, reject) => {
                 const protocol = args.url.startsWith('https') ? https : http;
                 const timeout = args.timeout || 5000;
-                
-                const request = protocol.get(args.url, { timeout }, (res) => {
-                    let data = '';
-                    res.on('data', chunk => data += chunk);
-                    res.on('end', () => resolve({ 
-                        url: args.url,
-                        status: res.statusCode,
-                        contentType: res.headers['content-type'],
-                        size: data.length,
-                        preview: data.slice(0, 500)
-                    }));
-                }).on('error', reject);
-                
+
+                const request = protocol
+                    .get(args.url, { timeout }, res => {
+                        let data = '';
+                        res.on('data', chunk => (data += chunk));
+                        res.on('end', () =>
+                            resolve({
+                                url: args.url,
+                                status: res.statusCode,
+                                contentType: res.headers['content-type'],
+                                size: data.length,
+                                preview: data.slice(0, 500)
+                            })
+                        );
+                    })
+                    .on('error', reject);
+
                 request.setTimeout(timeout, () => {
                     request.destroy();
                     reject(new Error(`Timeout fetching ${args.url}`));
@@ -78,8 +86,12 @@ const registerDefaultTools = () => {
     codex.registerJarvisTool(
         'web_search',
         'Search the web for information and results',
-        { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'number', default: 5 } }, required: ['query'] },
-        async (args) => {
+        {
+            type: 'object',
+            properties: { query: { type: 'string' }, limit: { type: 'number', default: 5 } },
+            required: ['query']
+        },
+        async args => {
             return { query: args.query, limit: args.limit, results: [], status: 'simulated' };
         },
         { timeout: 5000, category: 'search' }
@@ -90,8 +102,12 @@ const registerDefaultTools = () => {
     codex.registerJarvisTool(
         'get_images',
         'Find and retrieve images for a query',
-        { type: 'object', properties: { query: { type: 'string' }, count: { type: 'number', default: 10 } }, required: ['query'] },
-        async (args) => {
+        {
+            type: 'object',
+            properties: { query: { type: 'string' }, count: { type: 'number', default: 10 } },
+            required: ['query']
+        },
+        async args => {
             return { query: args.query, count: args.count, images: [], status: 'ready' };
         },
         { timeout: 8000, category: 'media', parallel: true }
@@ -102,9 +118,13 @@ const registerDefaultTools = () => {
     codex.registerJarvisTool(
         'analyze_text',
         'Analyze text for sentiment, keywords, and structure',
-        { type: 'object', properties: { text: { type: 'string' }, type: { type: 'string', default: 'summary' } }, required: ['text'] },
-        async (args) => {
-            return { 
+        {
+            type: 'object',
+            properties: { text: { type: 'string' }, type: { type: 'string', default: 'summary' } },
+            required: ['text']
+        },
+        async args => {
+            return {
                 text_length: args.text.length,
                 analysis_type: args.type,
                 results: { keywords: [], sentiment: 'neutral', entities: [] }
@@ -118,8 +138,12 @@ const registerDefaultTools = () => {
     codex.registerJarvisTool(
         'solve_math',
         'Solve mathematical expressions and equations',
-        { type: 'object', properties: { expression: { type: 'string' } }, required: ['expression'] },
-        async (args) => {
+        {
+            type: 'object',
+            properties: { expression: { type: 'string' } },
+            required: ['expression']
+        },
+        async args => {
             try {
                 const result = eval(args.expression);
                 return { expression: args.expression, result, status: 'solved' };
@@ -135,9 +159,17 @@ const registerDefaultTools = () => {
     codex.registerJarvisTool(
         'translate',
         'Translate text between languages',
-        { type: 'object', properties: { text: { type: 'string' }, language: { type: 'string' } }, required: ['text', 'language'] },
-        async (args) => {
-            return { text: args.text, target_language: args.language, translated: `[${args.language}] ${args.text}` };
+        {
+            type: 'object',
+            properties: { text: { type: 'string' }, language: { type: 'string' } },
+            required: ['text', 'language']
+        },
+        async args => {
+            return {
+                text: args.text,
+                target_language: args.language,
+                translated: `[${args.language}] ${args.text}`
+            };
         },
         { timeout: 3000, category: 'utility' }
     );
@@ -188,7 +220,9 @@ const commands = {
             return;
         }
         discovered.forEach((t, i) => {
-            console.log(`  ${i + 1}. ${colors.cyan}${t.name}${colors.reset} (relevance: ${t.relevanceScore})`);
+            console.log(
+                `  ${i + 1}. ${colors.cyan}${t.name}${colors.reset} (relevance: ${t.relevanceScore})`
+            );
         });
     },
 
@@ -420,7 +454,9 @@ async function handleCommand(input) {
             } else {
                 log.success(`Found ${discovered.length} relevant tool(s):`);
                 for (const tool of discovered) {
-                    console.log(`  - ${colors.cyan}${tool.name}${colors.reset} (relevance: ${tool.relevanceScore})`);
+                    console.log(
+                        `  - ${colors.cyan}${tool.name}${colors.reset} (relevance: ${tool.relevanceScore})`
+                    );
                 }
             }
         } catch (e) {
@@ -442,7 +478,7 @@ async function main() {
 
     rl.prompt();
 
-    rl.on('line', async (line) => {
+    rl.on('line', async line => {
         await handleCommand(line);
         rl.prompt();
     });

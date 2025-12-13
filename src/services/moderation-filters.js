@@ -27,8 +27,21 @@ const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const MOD_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const BASELINE_WORDS = [
-    'asshole', 'bastard', 'bitch', 'cunt', 'dick', 'douche', 'fag', 'fuck',
-    'motherfucker', 'nazi', 'nigga', 'nigger', 'prick', 'slut', 'whore'
+    'asshole',
+    'bastard',
+    'bitch',
+    'cunt',
+    'dick',
+    'douche',
+    'fag',
+    'fuck',
+    'motherfucker',
+    'nazi',
+    'nigga',
+    'nigger',
+    'prick',
+    'slut',
+    'whore'
 ];
 
 // Comprehensive confusables map: ASCII + FULL Cyrillic + Greek + Armenian + Leet + Unicode
@@ -68,31 +81,123 @@ const CONFUSABLE_MAP = {
 
 // Additional full Cyrillic to Latin reverse mapping for edge cases
 const CYRILLIC_TO_LATIN = {
-    'а': 'a', 'А': 'A', 'б': 'b', 'Б': 'B', 'в': 'v', 'В': 'V',
-    'г': 'r', 'Г': 'G', 'д': 'd', 'Д': 'D', 'е': 'e', 'Е': 'E',
-    'ё': 'e', 'Ё': 'E', 'ж': 'zh', 'Ж': 'ZH', 'з': 'z', 'З': 'Z',
-    'и': 'i', 'И': 'I', 'й': 'y', 'Й': 'Y', 'к': 'k', 'К': 'K',
-    'л': 'l', 'Л': 'L', 'м': 'm', 'М': 'M', 'н': 'n', 'Н': 'N',
-    'о': 'o', 'О': 'O', 'п': 'p', 'П': 'P', 'р': 'r', 'Р': 'R',
-    'с': 's', 'С': 'S', 'т': 't', 'Т': 'T', 'у': 'u', 'У': 'U',
-    'ф': 'f', 'Ф': 'F', 'х': 'h', 'Х': 'H', 'ц': 'ts', 'Ц': 'TS',
-    'ч': 'ch', 'Ч': 'CH', 'ш': 'sh', 'Ш': 'SH', 'щ': 'sch', 'Щ': 'SCH',
-    'ъ': '', 'Ъ': '', 'ы': 'y', 'Ы': 'Y', 'ь': '', 'Ь': '',
-    'э': 'e', 'Э': 'E', 'ю': 'yu', 'Ю': 'YU', 'я': 'ya', 'Я': 'YA',
+    а: 'a',
+    А: 'A',
+    б: 'b',
+    Б: 'B',
+    в: 'v',
+    В: 'V',
+    г: 'r',
+    Г: 'G',
+    д: 'd',
+    Д: 'D',
+    е: 'e',
+    Е: 'E',
+    ё: 'e',
+    Ё: 'E',
+    ж: 'zh',
+    Ж: 'ZH',
+    з: 'z',
+    З: 'Z',
+    и: 'i',
+    И: 'I',
+    й: 'y',
+    Й: 'Y',
+    к: 'k',
+    К: 'K',
+    л: 'l',
+    Л: 'L',
+    м: 'm',
+    М: 'M',
+    н: 'n',
+    Н: 'N',
+    о: 'o',
+    О: 'O',
+    п: 'p',
+    П: 'P',
+    р: 'r',
+    Р: 'R',
+    с: 's',
+    С: 'S',
+    т: 't',
+    Т: 'T',
+    у: 'u',
+    У: 'U',
+    ф: 'f',
+    Ф: 'F',
+    х: 'h',
+    Х: 'H',
+    ц: 'ts',
+    Ц: 'TS',
+    ч: 'ch',
+    Ч: 'CH',
+    ш: 'sh',
+    Ш: 'SH',
+    щ: 'sch',
+    Щ: 'SCH',
+    ъ: '',
+    Ъ: '',
+    ы: 'y',
+    Ы: 'Y',
+    ь: '',
+    Ь: '',
+    э: 'e',
+    Э: 'E',
+    ю: 'yu',
+    Ю: 'YU',
+    я: 'ya',
+    Я: 'YA',
     // Ukrainian
-    'і': 'i', 'І': 'I', 'ї': 'yi', 'Ї': 'YI', 'є': 'e', 'Є': 'E', 'ґ': 'g', 'Ґ': 'G',
+    і: 'i',
+    І: 'I',
+    ї: 'yi',
+    Ї: 'YI',
+    є: 'e',
+    Є: 'E',
+    ґ: 'g',
+    Ґ: 'G',
     // Serbian
-    'ј': 'j', 'Ј': 'J', 'ђ': 'dj', 'Ђ': 'DJ', 'љ': 'lj', 'Љ': 'LJ',
-    'њ': 'nj', 'Њ': 'NJ', 'ћ': 'c', 'Ћ': 'C', 'џ': 'dz', 'Џ': 'DZ',
+    ј: 'j',
+    Ј: 'J',
+    ђ: 'dj',
+    Ђ: 'DJ',
+    љ: 'lj',
+    Љ: 'LJ',
+    њ: 'nj',
+    Њ: 'NJ',
+    ћ: 'c',
+    Ћ: 'C',
+    џ: 'dz',
+    Џ: 'DZ',
     // Other Cyrillic lookalikes
-    'ѕ': 's', 'Ѕ': 'S', 'ӏ': 'l', 'Ӏ': 'I',
+    ѕ: 's',
+    Ѕ: 'S',
+    ӏ: 'l',
+    Ӏ: 'I',
     // Armenian lookalikes (commonly used for bypasses)
-    'ա': 'a', 'Ա': 'A', 'ո': 'n', 'Ո': 'N', 'օ': 'o', 'Օ': 'O',
-    'ս': 'u', 'Ս': 'U', 'զ': 'q', 'Զ': 'Q', 'հ': 'h', 'Հ': 'H',
+    ա: 'a',
+    Ա: 'A',
+    ո: 'n',
+    Ո: 'N',
+    օ: 'o',
+    Օ: 'O',
+    ս: 'u',
+    Ս: 'U',
+    զ: 'q',
+    Զ: 'Q',
+    հ: 'h',
+    Հ: 'H',
     // Small caps and special letters
-    'ᴄ': 'c', 'ɪ': 'i', 'ᴠ': 'v', 'ʂ': 's', 'ʐ': 'z',
+    ᴄ: 'c',
+    ɪ: 'i',
+    ᴠ: 'v',
+    ʂ: 's',
+    ʐ: 'z',
     // Letters with dots/marks below (bypasses)
-    'ạ': 'a', 'ẹ': 'e', 'ọ': 'o', 'ḷ': 'l'
+    ạ: 'a',
+    ẹ: 'e',
+    ọ: 'o',
+    ḷ: 'l'
 };
 
 /**
@@ -151,7 +256,7 @@ function sanitizeDoc(doc = {}) {
     return {
         guildId: doc.guildId,
         words: Array.isArray(doc.words) ? doc.words.map(normalize) : [],
-        regex: Array.isArray(doc.regex) ? doc.regex.map((p) => String(p)) : [],
+        regex: Array.isArray(doc.regex) ? doc.regex.map(p => String(p)) : [],
         autoRegexEnabled: doc.autoRegexEnabled !== false
     };
 }
@@ -234,7 +339,9 @@ function buildFlexibleRegex(word) {
 }
 
 function normalize(text) {
-    return String(text || '').trim().toLowerCase();
+    return String(text || '')
+        .trim()
+        .toLowerCase();
 }
 
 function formatList(items, label) {
@@ -279,21 +386,32 @@ async function refreshCache(guildId) {
         await saveGuildState(guildId, entry);
     }
 
-    const compiled = entry.regex.map((p) => {
-        try { return new RegExp(p, 'iu'); } catch { return null; }
-    }).filter(Boolean);
-    
+    const compiled = entry.regex
+        .map(p => {
+            try {
+                return new RegExp(p, 'iu');
+            } catch {
+                return null;
+            }
+        })
+        .filter(Boolean);
+
     // Only add wordRegex if autoRegex is disabled (otherwise words are already in regex)
     let wordRegex = [];
     if (!entry.autoRegexEnabled) {
         // Use Unicode word boundaries to match buildFlexibleRegex behavior
-        wordRegex = entry.words.map((w) => {
-            try {
-                return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(w)}(?![\\p{L}\\p{N}])`, 'iu');
-            } catch {
-                return null;
-            }
-        }).filter(Boolean);
+        wordRegex = entry.words
+            .map(w => {
+                try {
+                    return new RegExp(
+                        `(?<![\\p{L}\\p{N}])${escapeRegex(w)}(?![\\p{L}\\p{N}])`,
+                        'iu'
+                    );
+                } catch {
+                    return null;
+                }
+            })
+            .filter(Boolean);
     }
 
     const payload = {
@@ -324,7 +442,9 @@ async function handleMessage(message) {
     if (!message.content) return;
 
     // Check bot permissions before processing
-    const me = message.guild.members.me || await message.guild.members.fetch(message.client.user.id).catch(() => null);
+    const me =
+        message.guild.members.me ||
+        (await message.guild.members.fetch(message.client.user.id).catch(() => null));
     if (!me || !me.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
         return; // Bot doesn't have permission to delete messages
     }
@@ -335,29 +455,36 @@ async function handleMessage(message) {
     const content = message.content;
     // Also check normalized content (Cyrillic → Latin) to catch bypasses like "nіgga"
     const normalizedContent = normalizeCyrillic(content);
-    
+
     let matchedPattern = null;
     for (const re of filters.regex) {
         try {
             // Check BOTH original and normalized content
             const matchOriginal = re.test(content);
             const matchNormalized = content !== normalizedContent && re.test(normalizedContent);
-            
+
             if (matchOriginal || matchNormalized) {
                 matchedPattern = re.source;
                 const bypassAttempt = matchNormalized && !matchOriginal;
-                
+
                 if (!allowDelete(message.guild.id)) {
-                    console.warn(`[ModerationFilters] Rate limit reached for guild ${message.guild.id}, skipping deletion`);
+                    console.warn(
+                        `[ModerationFilters] Rate limit reached for guild ${message.guild.id}, skipping deletion`
+                    );
                     return;
                 }
-                const deleted = await message.delete().catch((err) => {
-                    console.error(`[ModerationFilters] Failed to delete message in guild ${message.guild.id}:`, err.message);
+                const deleted = await message.delete().catch(err => {
+                    console.error(
+                        `[ModerationFilters] Failed to delete message in guild ${message.guild.id}:`,
+                        err.message
+                    );
                     return null;
                 });
                 if (deleted) {
                     const bypassNote = bypassAttempt ? ' [CYRILLIC BYPASS DETECTED]' : '';
-                    console.log(`[ModerationFilters] Deleted message from ${message.author.tag} (${message.author.id}) in ${message.guild.name} (${message.guild.id}) - matched pattern: ${matchedPattern.substring(0, 100)}${bypassNote}`);
+                    console.log(
+                        `[ModerationFilters] Deleted message from ${message.author.tag} (${message.author.id}) in ${message.guild.name} (${message.guild.id}) - matched pattern: ${matchedPattern.substring(0, 100)}${bypassNote}`
+                    );
                     trackSpam(message, matchedPattern);
                 }
                 return;
@@ -389,15 +516,21 @@ function trackSpam(message, matchedPattern) {
 async function applyTimeout(message, violationCount = 1, matchedPattern = null) {
     const member = message.member;
     if (!member) return;
-    
+
     // Escalate timeout based on violation count
     const timeoutIndex = Math.min(violationCount - 1, TIMEOUT_ESCALATION.length - 1);
     const timeoutDuration = TIMEOUT_ESCALATION[timeoutIndex];
-    
+
     try {
-        await member.timeout(timeoutDuration, `Repeated blocked messages (violation #${violationCount})`);
+        await member.timeout(
+            timeoutDuration,
+            `Repeated blocked messages (violation #${violationCount})`
+        );
     } catch (err) {
-        console.warn(`[ModerationFilters] Failed to timeout user ${member.id} in guild ${message.guild.id}:`, err.message);
+        console.warn(
+            `[ModerationFilters] Failed to timeout user ${member.id} in guild ${message.guild.id}:`,
+            err.message
+        );
         // ignore permission failures
     }
     notifyStaff(message, member, violationCount, matchedPattern).catch(() => {});
@@ -409,15 +542,19 @@ async function getModerators(guild) {
         return cached.mods;
     }
 
-    let mods = guild.members.cache.filter((m) =>
-        m.permissions.has(PermissionsBitField.Flags.ManageGuild) || m.permissions.has(PermissionsBitField.Flags.Administrator)
+    let mods = guild.members.cache.filter(
+        m =>
+            m.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
+            m.permissions.has(PermissionsBitField.Flags.Administrator)
     );
 
     if (mods.size === 0) {
         try {
             const fetched = await guild.members.fetch({ withPresences: false, limit: 50 });
-            mods = fetched.filter((m) =>
-                m.permissions.has(PermissionsBitField.Flags.ManageGuild) || m.permissions.has(PermissionsBitField.Flags.Administrator)
+            mods = fetched.filter(
+                m =>
+                    m.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
+                    m.permissions.has(PermissionsBitField.Flags.Administrator)
             );
         } catch {
             /* ignore */
@@ -439,9 +576,15 @@ async function notifyStaff(message, member, violationCount = 1, matchedPattern =
 
     const timeoutIndex = Math.min(violationCount - 1, TIMEOUT_ESCALATION.length - 1);
     const timeoutDuration = TIMEOUT_ESCALATION[timeoutIndex];
-    const messagePreview = message.content ? (message.content.length > 200 ? message.content.substring(0, 200) + '...' : message.content) : '[No content]';
-    const patternInfo = matchedPattern ? `\nMatched pattern: \`${matchedPattern.substring(0, 100)}${matchedPattern.length > 100 ? '...' : ''}\`` : '';
-    
+    const messagePreview = message.content
+        ? message.content.length > 200
+            ? message.content.substring(0, 200) + '...'
+            : message.content
+        : '[No content]';
+    const patternInfo = matchedPattern
+        ? `\nMatched pattern: \`${matchedPattern.substring(0, 100)}${matchedPattern.length > 100 ? '...' : ''}\``
+        : '';
+
     const summary = `User ${member.user.tag} (${member.id}) timed out for ${Math.round(timeoutDuration / 1000)}s after ${violationCount} violation(s) of blocked messages in #${message.channel?.name || message.channelId}.\n\nMessage content: ${messagePreview}${patternInfo}`;
 
     try {
@@ -455,7 +598,9 @@ async function notifyStaff(message, member, violationCount = 1, matchedPattern =
     for (const modId of mods) {
         if (modId === member.id) continue;
         try {
-            const mod = guild.members.cache.get(modId) || await guild.members.fetch(modId).catch(() => null);
+            const mod =
+                guild.members.cache.get(modId) ||
+                (await guild.members.fetch(modId).catch(() => null));
             if (mod) await mod.send(summary).catch(() => {});
         } catch {
             /* ignore */
@@ -485,9 +630,9 @@ async function upsertWord(guildId, value) {
 async function removeWord(guildId, value) {
     const entry = await loadGuildState(guildId);
     const norm = normalize(value);
-    entry.words = entry.words.filter((w) => w !== norm);
+    entry.words = entry.words.filter(w => w !== norm);
     const flex = buildFlexibleRegex(norm);
-    entry.regex = entry.regex.filter((r) => r !== flex);
+    entry.regex = entry.regex.filter(r => r !== flex);
     await saveGuildState(guildId, entry);
     await refreshCache(guildId);
 }
@@ -503,7 +648,7 @@ async function addRegex(guildId, pattern) {
 
 async function removeRegex(guildId, pattern) {
     const entry = await loadGuildState(guildId);
-    entry.regex = entry.regex.filter((r) => r !== pattern);
+    entry.regex = entry.regex.filter(r => r !== pattern);
     await saveGuildState(guildId, entry);
     await refreshCache(guildId);
 }
@@ -534,13 +679,19 @@ async function handleCommand(interaction) {
             return interaction.reply({ content: 'Word limit reached (2k).', ephemeral: true });
         }
         await upsertWord(guildId, value);
-        return interaction.reply({ content: `Added blocked word: \`${normalize(value)}\``, ephemeral: true });
+        return interaction.reply({
+            content: `Added blocked word: \`${normalize(value)}\``,
+            ephemeral: true
+        });
     }
 
     if (sub === 'remove-word') {
         const value = interaction.options.getString('value', true);
         await removeWord(guildId, value);
-        return interaction.reply({ content: `Removed blocked word: \`${normalize(value)}\``, ephemeral: true });
+        return interaction.reply({
+            content: `Removed blocked word: \`${normalize(value)}\``,
+            ephemeral: true
+        });
     }
 
     if (sub === 'add-regex') {
@@ -551,13 +702,19 @@ async function handleCommand(interaction) {
             return interaction.reply({ content: `Invalid regex: ${err.message}`, ephemeral: true });
         }
         await addRegex(guildId, pattern);
-        return interaction.reply({ content: `Added blocked regex: \`${pattern}\``, ephemeral: true });
+        return interaction.reply({
+            content: `Added blocked regex: \`${pattern}\``,
+            ephemeral: true
+        });
     }
 
     if (sub === 'remove-regex') {
         const pattern = interaction.options.getString('pattern', true).trim();
         await removeRegex(guildId, pattern);
-        return interaction.reply({ content: `Removed blocked regex: \`${pattern}\``, ephemeral: true });
+        return interaction.reply({
+            content: `Removed blocked regex: \`${pattern}\``,
+            ephemeral: true
+        });
     }
 
     if (sub === 'list') {
@@ -566,8 +723,16 @@ async function handleCommand(interaction) {
             .setTitle('Current Filters')
             .setColor(0xff0000)
             .addFields(
-                { name: `Words/Phrases (${filters.words.length})`, value: formatList(filters.words, 'words'), inline: true },
-                { name: `Regex (${filters.regexPatterns.length})`, value: formatList(filters.regexPatterns, 'regex patterns'), inline: true }
+                {
+                    name: `Words/Phrases (${filters.words.length})`,
+                    value: formatList(filters.words, 'words'),
+                    inline: true
+                },
+                {
+                    name: `Regex (${filters.regexPatterns.length})`,
+                    value: formatList(filters.regexPatterns, 'regex patterns'),
+                    inline: true
+                }
             );
         return interaction.reply({ embeds: [embed], ephemeral: true });
     }
@@ -576,7 +741,10 @@ async function handleCommand(interaction) {
         const enabled = interaction.options.getBoolean('enabled', true);
         const backfill = interaction.options.getBoolean('backfill') || false;
         await setAutoRegex(guildId, enabled, backfill);
-        return interaction.reply({ content: `Auto-regex ${enabled ? 'enabled' : 'disabled'}.${enabled && backfill ? ' Backfilled.' : ''}`, ephemeral: true });
+        return interaction.reply({
+            content: `Auto-regex ${enabled ? 'enabled' : 'disabled'}.${enabled && backfill ? ' Backfilled.' : ''}`,
+            ephemeral: true
+        });
     }
 
     if (sub === 'import') {
@@ -587,7 +755,11 @@ async function handleCommand(interaction) {
         }
         const res = await fetch(attachment.url);
         const text = await res.text();
-        const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, MAX_IMPORT_LINES);
+        const lines = text
+            .split(/\r?\n/)
+            .map(l => l.trim())
+            .filter(Boolean)
+            .slice(0, MAX_IMPORT_LINES);
         let added = 0;
         if (mode === 'regex') {
             for (const line of lines) {
@@ -610,7 +782,10 @@ async function handleCommand(interaction) {
                 }
             }
         }
-        return interaction.reply({ content: `Imported ${added} ${mode === 'regex' ? 'regex' : 'word'} entries${lines.length === MAX_IMPORT_LINES ? ' (truncated to 500)' : ''}.`, ephemeral: true });
+        return interaction.reply({
+            content: `Imported ${added} ${mode === 'regex' ? 'regex' : 'word'} entries${lines.length === MAX_IMPORT_LINES ? ' (truncated to 500)' : ''}.`,
+            ephemeral: true
+        });
     }
 
     if (sub === 'baseline') {
@@ -621,7 +796,10 @@ async function handleCommand(interaction) {
                 if (entry.words.length >= MAX_WORDS_PER_GUILD) break;
                 await upsertWord(guildId, word);
             }
-            return interaction.reply({ content: 'Baseline loaded (up to 2k cap).', ephemeral: true });
+            return interaction.reply({
+                content: 'Baseline loaded (up to 2k cap).',
+                ephemeral: true
+            });
         }
         for (const word of BASELINE_WORDS) {
             await removeWord(guildId, word);
@@ -632,7 +810,10 @@ async function handleCommand(interaction) {
     if (sub === 'clear-all') {
         await saveGuildState(guildId, { words: [], regex: [], autoRegexEnabled: true });
         await refreshCache(guildId);
-        return interaction.reply({ content: 'Cleared all filters for this guild.', ephemeral: true });
+        return interaction.reply({
+            content: 'Cleared all filters for this guild.',
+            ephemeral: true
+        });
     }
 
     return interaction.reply({ content: 'Unknown subcommand.', ephemeral: true });
@@ -693,6 +874,9 @@ if (typeof setInterval !== 'undefined') {
 module.exports = {
     handleMessage,
     handleCommand,
-    isModerator: (member) => member && (member.permissions.has(PermissionsBitField.Flags.ManageGuild) || member.permissions.has(PermissionsBitField.Flags.Administrator)),
+    isModerator: member =>
+        member &&
+        (member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
+            member.permissions.has(PermissionsBitField.Flags.Administrator)),
     getFilters
 };

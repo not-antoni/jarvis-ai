@@ -1,6 +1,6 @@
 /**
  * Moderator Dashboard Routes
- * 
+ *
  * /moderator - Login page
  * /moderator/callback - OAuth callback
  * /moderator/dashboard - Main dashboard
@@ -20,7 +20,8 @@ router.use(cookieParser());
 function shouldUseSecureCookies(req) {
     if (req?.secure) return true;
     if (String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase() === 'https') return true;
-    if (process.env.DASHBOARD_DOMAIN && process.env.DASHBOARD_DOMAIN.startsWith('https://')) return true;
+    if (process.env.DASHBOARD_DOMAIN && process.env.DASHBOARD_DOMAIN.startsWith('https://'))
+        return true;
     return false;
 }
 
@@ -56,7 +57,10 @@ function userOwnsGuild(userId, guildId) {
 function parseDiscordIdList(input) {
     if (!input) return [];
     const raw = String(input);
-    const tokens = raw.split(/[\s,]+/).map(t => t.trim()).filter(Boolean);
+    const tokens = raw
+        .split(/[\s,]+/)
+        .map(t => t.trim())
+        .filter(Boolean);
     const ids = [];
     for (const token of tokens) {
         const match = token.match(/\d{15,20}/);
@@ -86,7 +90,7 @@ async function requireAuth(req, res, next) {
     if (!token) {
         return res.redirect('/moderator?error=not_authenticated');
     }
-    
+
     const session = auth.validateSession(token);
     if (!session) {
         res.clearCookie('moderator_session', { path: '/' });
@@ -129,9 +133,9 @@ router.get('/', (req, res) => {
         oauth_failed: 'Discord authentication failed. Please try again.',
         no_password: 'Please set up your password first.'
     };
-    
+
     const errorMsg = errorMessages[error] || '';
-    
+
     // Check if selfhost mode (password only)
     if (auth.SELFHOST_MODE) {
         res.send(getSelfhostLoginPage(errorMsg));
@@ -154,24 +158,24 @@ router.post('/login', async (req, res) => {
     if (!auth.SELFHOST_MODE) {
         return res.redirect('/moderator');
     }
-    
+
     const { userId, password } = req.body;
-    
+
     if (!userId || !password) {
         return res.redirect('/moderator?error=not_authenticated');
     }
-    
+
     // Verify password
     const isValid = await auth.verifyUserPassword(userId, password);
     if (!isValid) {
         return res.redirect('/moderator?error=not_authenticated');
     }
-    
+
     // Create session
     const discordData = await resolveDiscordUserData(userId);
     const token = auth.createSession(userId, discordData);
     res.cookie('moderator_session', token, getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 }));
-    
+
     res.redirect('/moderator/dashboard');
 });
 
@@ -179,39 +183,47 @@ router.post('/login', async (req, res) => {
 router.get('/callback', async (req, res) => {
     const { code, state } = req.query;
     const storedState = req.cookies?.oauth_state;
-    
+
     // Clear state cookie
     res.clearCookie('oauth_state', { path: '/' });
-    
+
     // Verify state
     if (!state || state !== storedState) {
         return res.redirect('/moderator?error=oauth_failed');
     }
-    
+
     try {
         // Exchange code for tokens
         const tokens = await auth.exchangeCode(code);
-        
+
         // Get user info
         const discordUser = await auth.getDiscordUser(tokens.access_token);
-        
+
         // Check if user has password set
         const hasPassword = await auth.hasPassword(discordUser.id);
         if (!hasPassword) {
             // Store temporary data and redirect to setup
             const setupToken = auth.generateSetupToken(discordUser.id);
-            res.cookie('setup_user', JSON.stringify({ 
-                id: discordUser.id, 
-                username: discordUser.username,
-                token: setupToken 
-            }), getCookieOptions(req, { maxAge: 1800000 }));
+            res.cookie(
+                'setup_user',
+                JSON.stringify({
+                    id: discordUser.id,
+                    username: discordUser.username,
+                    token: setupToken
+                }),
+                getCookieOptions(req, { maxAge: 1800000 })
+            );
             return res.redirect('/moderator/setup');
         }
-        
+
         // Create session
         const sessionToken = auth.createSession(discordUser.id, discordUser);
-        res.cookie('moderator_session', sessionToken, getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 }));
-        
+        res.cookie(
+            'moderator_session',
+            sessionToken,
+            getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 })
+        );
+
         res.redirect('/moderator/dashboard');
     } catch (error) {
         console.error('[Moderator] OAuth callback error:', error);
@@ -223,9 +235,9 @@ router.get('/callback', async (req, res) => {
 router.get('/setup', (req, res) => {
     const setupData = req.cookies?.setup_user;
     const { userId, token } = req.query;
-    
+
     let userData = null;
-    
+
     if (setupData) {
         try {
             userData = JSON.parse(setupData);
@@ -236,36 +248,40 @@ router.get('/setup', (req, res) => {
             userData = { id: userId, fromDM: true };
         }
     }
-    
+
     if (!userData) {
         return res.redirect('/moderator?error=oauth_failed');
     }
-    
+
     res.send(getSetupPage(userData));
 });
 
 // ============ PASSWORD SETUP (POST) ============
 router.post('/setup', async (req, res) => {
     const { userId, password, confirmPassword } = req.body;
-    
+
     if (!userId || !password || password !== confirmPassword) {
         return res.send(getSetupPage({ id: userId }, 'Passwords do not match.'));
     }
-    
+
     if (password.length < 8) {
         return res.send(getSetupPage({ id: userId }, 'Password must be at least 8 characters.'));
     }
-    
+
     // Set password
     await auth.setPassword(userId, password);
-    
+
     // Clear setup cookie
     res.clearCookie('setup_user', { path: '/' });
-    
+
     // Create session
     const sessionToken = auth.createSession(userId, { id: userId });
-    res.cookie('moderator_session', sessionToken, getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 }));
-    
+    res.cookie(
+        'moderator_session',
+        sessionToken,
+        getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 })
+    );
+
     res.redirect('/moderator/dashboard');
 });
 
@@ -316,7 +332,7 @@ router.post('/api/settings/:guildId', requireAuth, express.json(), async (req, r
         res.json({ success: false, error: 'ask Stark for a invite, sir.' });
         return;
     }
-    
+
     const result = moderation.updateSettings(guildId, settings);
     res.json(result);
 });
@@ -335,52 +351,62 @@ router.get('/guild/:guildId', requireAuth, async (req, res) => {
     res.send(getGuildPage(req.session, guild, status, req.query?.error));
 });
 
-router.post('/guild/:guildId/toggle', requireAuth, express.urlencoded({ extended: true }), async (req, res) => {
-    const { guildId } = req.params;
-    const enabled = String(req.body?.enabled || '').toLowerCase() === 'true';
+router.post(
+    '/guild/:guildId/toggle',
+    requireAuth,
+    express.urlencoded({ extended: true }),
+    async (req, res) => {
+        const { guildId } = req.params;
+        const enabled = String(req.body?.enabled || '').toLowerCase() === 'true';
 
-    if (!userOwnsGuild(req.session.userId, guildId)) {
-        return res.redirect('/moderator?error=unauthorized');
+        if (!userOwnsGuild(req.session.userId, guildId)) {
+            return res.redirect('/moderator?error=unauthorized');
+        }
+
+        if (enabled && !moderation.canEnableModeration(String(guildId))) {
+            return res.redirect(`/moderator/guild/${guildId}?error=not_whitelisted`);
+        }
+
+        if (enabled) {
+            moderation.enableModeration(String(guildId), req.session.userId);
+        } else {
+            moderation.disableModeration(String(guildId), req.session.userId);
+        }
+
+        res.redirect(`/moderator/guild/${guildId}`);
     }
+);
 
-    if (enabled && !moderation.canEnableModeration(String(guildId))) {
-        return res.redirect(`/moderator/guild/${guildId}?error=not_whitelisted`);
+router.post(
+    '/guild/:guildId/settings',
+    requireAuth,
+    express.urlencoded({ extended: true }),
+    async (req, res) => {
+        const { guildId } = req.params;
+
+        if (!userOwnsGuild(req.session.userId, guildId)) {
+            return res.redirect('/moderator?error=unauthorized');
+        }
+
+        if (!moderation.canEnableModeration(String(guildId))) {
+            return res.redirect(`/moderator/guild/${guildId}?error=not_whitelisted`);
+        }
+
+        const patch = {
+            minSeverity: req.body?.minSeverity,
+            useAI: req.body?.useAI === 'on',
+            useFallbackPatterns: req.body?.useFallbackPatterns === 'on',
+            autoDelete: req.body?.autoDelete === 'on',
+            autoMute: req.body?.autoMute === 'on',
+            autoBan: req.body?.autoBan === 'on',
+            pingRoles: parseDiscordIdList(req.body?.pingRoles),
+            pingUsers: parseDiscordIdList(req.body?.pingUsers)
+        };
+
+        moderation.updateSettings(String(guildId), patch);
+        res.redirect(`/moderator/guild/${guildId}`);
     }
-
-    if (enabled) {
-        moderation.enableModeration(String(guildId), req.session.userId);
-    } else {
-        moderation.disableModeration(String(guildId), req.session.userId);
-    }
-
-    res.redirect(`/moderator/guild/${guildId}`);
-});
-
-router.post('/guild/:guildId/settings', requireAuth, express.urlencoded({ extended: true }), async (req, res) => {
-    const { guildId } = req.params;
-
-    if (!userOwnsGuild(req.session.userId, guildId)) {
-        return res.redirect('/moderator?error=unauthorized');
-    }
-
-    if (!moderation.canEnableModeration(String(guildId))) {
-        return res.redirect(`/moderator/guild/${guildId}?error=not_whitelisted`);
-    }
-
-    const patch = {
-        minSeverity: req.body?.minSeverity,
-        useAI: req.body?.useAI === 'on',
-        useFallbackPatterns: req.body?.useFallbackPatterns === 'on',
-        autoDelete: req.body?.autoDelete === 'on',
-        autoMute: req.body?.autoMute === 'on',
-        autoBan: req.body?.autoBan === 'on',
-        pingRoles: parseDiscordIdList(req.body?.pingRoles),
-        pingUsers: parseDiscordIdList(req.body?.pingUsers)
-    };
-
-    moderation.updateSettings(String(guildId), patch);
-    res.redirect(`/moderator/guild/${guildId}`);
-});
+);
 
 // ============ LOGOUT ============
 router.get('/logout', (req, res) => {
@@ -517,7 +543,8 @@ function getOAuthLoginPage(oauthUrl, error = '') {
 }
 
 function getGuildPage(session, guild, status, errorCode = '') {
-    const userLabel = session.discordData?.global_name || session.discordData?.username || session.userId;
+    const userLabel =
+        session.discordData?.global_name || session.discordData?.username || session.userId;
     const userAvatar = getDiscordAvatarUrl(session.discordData);
     const guildName = guild?.name || 'Unknown Guild';
     const guildIcon = typeof guild?.iconURL === 'function' ? guild.iconURL({ size: 64 }) : null;
@@ -526,7 +553,7 @@ function getGuildPage(session, guild, status, errorCode = '') {
     const settings = status?.settings || {};
     const error = String(errorCode || '');
 
-    const errorBanner = (!canEnable && !isEnabled) ? 'ask Stark for a invite, sir.' : '';
+    const errorBanner = !canEnable && !isEnabled ? 'ask Stark for a invite, sir.' : '';
     const showNotWhitelisted = error === 'not_whitelisted';
 
     return `<!DOCTYPE html>
@@ -621,7 +648,7 @@ function getGuildPage(session, guild, status, errorCode = '') {
 
         ${showNotWhitelisted ? `<div class="error">ask Stark for a invite, sir.</div>` : ''}
         ${errorBanner ? `<div class="error">${errorBanner}</div>` : ''}
-        ${(error && error !== 'not_whitelisted') ? `<div class="error">${error}</div>` : ''}
+        ${error && error !== 'not_whitelisted' ? `<div class="error">${error}</div>` : ''}
 
         <div class="row">
             <div class="card">
@@ -630,47 +657,51 @@ function getGuildPage(session, guild, status, errorCode = '') {
 
                 <form method="POST" action="/moderator/guild/${guild?.id || ''}/toggle">
                     <input type="hidden" name="enabled" value="${isEnabled ? 'false' : 'true'}">
-                    <button type="submit" class="btn btn-primary" ${(!canEnable && !isEnabled) ? 'disabled' : ''}>
+                    <button type="submit" class="btn btn-primary" ${!canEnable && !isEnabled ? 'disabled' : ''}>
                         ${isEnabled ? 'Disable Moderation' : 'Enable Moderation'}
                     </button>
                 </form>
 
-                ${(!canEnable && !isEnabled) ? `<p class="muted" style="margin-top: 10px;">ask Stark for a invite, sir.</p>` : ''}
+                ${!canEnable && !isEnabled ? `<p class="muted" style="margin-top: 10px;">ask Stark for a invite, sir.</p>` : ''}
             </div>
 
             <div class="card">
                 <h2 style="margin-bottom: 12px;">Settings</h2>
                 ${!isEnabled ? `<p class="muted">Enable moderation to edit settings.</p>` : ''}
-                ${isEnabled ? `
+                ${
+                    isEnabled
+                        ? `
                 <form method="POST" action="/moderator/guild/${guild?.id || ''}/settings">
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Minimum Severity</label>
-                    <select class="select" name="minSeverity" ${(!canEnable) ? 'disabled' : ''}>
-                        ${['low','medium','high','critical'].map(v => `<option value="${v}" ${(settings.minSeverity || 'medium') === v ? 'selected' : ''}>${v}</option>`).join('')}
+                    <select class="select" name="minSeverity" ${!canEnable ? 'disabled' : ''}>
+                        ${['low', 'medium', 'high', 'critical'].map(v => `<option value="${v}" ${(settings.minSeverity || 'medium') === v ? 'selected' : ''}>${v}</option>`).join('')}
                     </select>
 
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Roles</label>
-                    <input type="text" name="pingRoles" placeholder="Role IDs or <@&role> mentions (comma/space separated)" value="${(settings.pingRoles || []).join(', ')}" ${(!canEnable) ? 'disabled' : ''}>
+                    <input type="text" name="pingRoles" placeholder="Role IDs or <@&role> mentions (comma/space separated)" value="${(settings.pingRoles || []).join(', ')}" ${!canEnable ? 'disabled' : ''}>
 
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Users</label>
-                    <input type="text" name="pingUsers" placeholder="User IDs or <@user> mentions (comma/space separated)" value="${(settings.pingUsers || []).join(', ')}" ${(!canEnable) ? 'disabled' : ''}>
+                    <input type="text" name="pingUsers" placeholder="User IDs or <@user> mentions (comma/space separated)" value="${(settings.pingUsers || []).join(', ')}" ${!canEnable ? 'disabled' : ''}>
 
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Detection Options</label>
                     <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 15px;">
-                        <label><input type="checkbox" name="useAI" ${(settings.useAI ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Use AI</label>
-                        <label><input type="checkbox" name="useFallbackPatterns" ${(settings.useFallbackPatterns ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Use fallback patterns</label>
+                        <label><input type="checkbox" name="useAI" ${settings.useAI ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Use AI</label>
+                        <label><input type="checkbox" name="useFallbackPatterns" ${settings.useFallbackPatterns ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Use fallback patterns</label>
                     </div>
 
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Actions</label>
                     <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 15px;">
-                        <label><input type="checkbox" name="autoDelete" ${(settings.autoDelete ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Auto delete</label>
-                        <label><input type="checkbox" name="autoMute" ${(settings.autoMute ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Auto mute</label>
-                        <label><input type="checkbox" name="autoBan" ${(settings.autoBan ? 'checked' : '')} ${(!canEnable) ? 'disabled' : ''}> Auto ban</label>
+                        <label><input type="checkbox" name="autoDelete" ${settings.autoDelete ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Auto delete</label>
+                        <label><input type="checkbox" name="autoMute" ${settings.autoMute ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Auto mute</label>
+                        <label><input type="checkbox" name="autoBan" ${settings.autoBan ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Auto ban</label>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" ${(!canEnable) ? 'disabled' : ''}>Save Settings</button>
-                    ${(!canEnable) ? `<p class="muted" style="margin-top: 10px;">ask Stark for a invite, sir.</p>` : ''}
+                    <button type="submit" class="btn btn-primary" ${!canEnable ? 'disabled' : ''}>Save Settings</button>
+                    ${!canEnable ? `<p class="muted" style="margin-top: 10px;">ask Stark for a invite, sir.</p>` : ''}
                 </form>
-                ` : ''}
+                `
+                        : ''
+                }
             </div>
         </div>
 
@@ -767,9 +798,10 @@ function getSetupPage(userData, error = '') {
 function getDashboardPage(session, guildStats) {
     const totalDetections = guildStats.reduce((sum, g) => sum + (g.stats?.total || 0), 0);
     const trackedMembers = guildStats.reduce((sum, g) => sum + (g.trackedMembersCount || 0), 0);
-    const userLabel = session.discordData?.global_name || session.discordData?.username || session.userId;
+    const userLabel =
+        session.discordData?.global_name || session.discordData?.username || session.userId;
     const userAvatar = getDiscordAvatarUrl(session.discordData);
-    
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -906,12 +938,17 @@ function getDashboardPage(session, guildStats) {
         <div class="card">
             <h2 style="margin-bottom: 20px;">🧰 Moderation Controls</h2>
             
-            ${guildStats.length === 0 ? `
+            ${
+                guildStats.length === 0
+                    ? `
                 <p style="color: #888; text-align: center; padding: 40px;">
                     No manageable guilds found.<br>
                     You can only manage guilds where you are the <strong>owner</strong> and Jarvis is present.
                 </p>
-            ` : guildStats.map(guild => `
+            `
+                    : guildStats
+                          .map(
+                              guild => `
                 <div class="guild-card">
                     <div class="guild-header">
                         <div>
@@ -954,18 +991,29 @@ function getDashboardPage(session, guildStats) {
                         </div>
                     </div>
                     
-                    ${Object.keys(guild.stats?.byCategory || {}).length > 0 ? `
+                    ${
+                        Object.keys(guild.stats?.byCategory || {}).length > 0
+                            ? `
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
                             <div class="setting-label" style="margin-bottom: 8px;">Detection Categories</div>
-                            ${Object.entries(guild.stats.byCategory).map(([cat, count]) => `
+                            ${Object.entries(guild.stats.byCategory)
+                                .map(
+                                    ([cat, count]) => `
                                 <span style="display: inline-block; background: rgba(233,69,96,0.2); color: #e94560; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin-right: 5px; margin-bottom: 5px;">
                                     ${cat}: ${count}
                                 </span>
-                            `).join('')}
+                            `
+                                )
+                                .join('')}
                         </div>
-                    ` : ''}
+                    `
+                            : ''
+                    }
                 </div>
-            `).join('')}
+            `
+                          )
+                          .join('')
+            }
         </div>
         
         <div style="text-align: center; color: #666; font-size: 12px; margin-top: 40px;">

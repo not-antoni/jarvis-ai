@@ -4,7 +4,13 @@
  */
 
 const EventEmitter = require('events');
-const { ToolHandler, ToolOutput, ToolInvocation, ToolKind, FunctionHandler } = require('./ToolHandler');
+const {
+    ToolHandler,
+    ToolOutput,
+    ToolInvocation,
+    ToolKind,
+    FunctionHandler
+} = require('./ToolHandler');
 
 /**
  * Tool Registry - Central hub for all tool management
@@ -23,11 +29,11 @@ class AgentToolRegistry extends EventEmitter {
             defaultTimeout: 30000,
             ...options
         };
-        
+
         // Caching
         this.cache = new Map();
         this.cacheTimestamps = new Map();
-        
+
         // History & telemetry
         this.history = [];
         this.telemetry = {
@@ -64,9 +70,9 @@ class AgentToolRegistry extends EventEmitter {
         });
 
         // Forward handler events
-        handler.on('execute:start', (data) => this.emit('tool:start', data));
-        handler.on('execute:complete', (data) => this.emit('tool:complete', data));
-        handler.on('execute:error', (data) => this.emit('tool:error', data));
+        handler.on('execute:start', data => this.emit('tool:start', data));
+        handler.on('execute:complete', data => this.emit('tool:complete', data));
+        handler.on('execute:error', data => this.emit('tool:error', data));
 
         return handler;
     }
@@ -75,13 +81,16 @@ class AgentToolRegistry extends EventEmitter {
      * Register a simple function as a tool
      */
     registerFunction(name, description, parameters, fn, options = {}) {
-        const handler = new FunctionHandler({
-            name,
-            description,
-            parameters,
-            ...options
-        }, fn);
-        
+        const handler = new FunctionHandler(
+            {
+                name,
+                description,
+                parameters,
+                ...options
+            },
+            fn
+        );
+
         return this.registerHandler(handler);
     }
 
@@ -126,7 +135,7 @@ class AgentToolRegistry extends EventEmitter {
     async dispatch(invocation) {
         const { toolName, callId } = invocation;
         const startTime = Date.now();
-        
+
         this.telemetry.totalCalls++;
         this.emit('dispatch:start', { invocation });
 
@@ -169,7 +178,7 @@ class AgentToolRegistry extends EventEmitter {
 
         // Record history
         this.recordHistory(invocation, output, duration);
-        
+
         this.emit('dispatch:complete', { invocation, output, duration });
         return output;
     }
@@ -184,7 +193,7 @@ class AgentToolRegistry extends EventEmitter {
             context,
             ...context
         });
-        
+
         return this.dispatch(invocation);
     }
 
@@ -208,10 +217,15 @@ class AgentToolRegistry extends EventEmitter {
             });
 
             const results = await Promise.allSettled(promises);
-            allResults.push(...results.map((r, i) => ({
-                toolName: batch[i].name,
-                result: r.status === 'fulfilled' ? r.value : ToolOutput.error(r.reason?.message || 'Unknown error')
-            })));
+            allResults.push(
+                ...results.map((r, i) => ({
+                    toolName: batch[i].name,
+                    result:
+                        r.status === 'fulfilled'
+                            ? r.value
+                            : ToolOutput.error(r.reason?.message || 'Unknown error')
+                }))
+            );
         }
 
         return allResults;
@@ -256,10 +270,15 @@ class AgentToolRegistry extends EventEmitter {
         // Check if any are mutating
         const hasMutating = toolCalls.some(call => {
             const handler = this.getHandler(call.name);
-            return handler && handler.isMutating(new ToolInvocation({
-                toolName: call.name,
-                arguments: call.args || {}
-            }));
+            return (
+                handler &&
+                handler.isMutating(
+                    new ToolInvocation({
+                        toolName: call.name,
+                        arguments: call.args || {}
+                    })
+                )
+            );
         });
 
         if (allParallel && !hasMutating && toolCalls.length > 1) {
@@ -316,16 +335,22 @@ class AgentToolRegistry extends EventEmitter {
         return {
             toolCount: this.handlers.size,
             totalExecutions: this.telemetry.totalCalls,
-            successRate: this.telemetry.totalCalls > 0 
-                ? ((this.telemetry.totalSuccesses / this.telemetry.totalCalls) * 100).toFixed(1) + '%' 
-                : 'N/A',
-            avgDuration: this.telemetry.totalCalls > 0 
-                ? Math.round(this.telemetry.totalDuration / this.telemetry.totalCalls) 
-                : 0,
+            successRate:
+                this.telemetry.totalCalls > 0
+                    ? ((this.telemetry.totalSuccesses / this.telemetry.totalCalls) * 100).toFixed(
+                          1
+                      ) + '%'
+                    : 'N/A',
+            avgDuration:
+                this.telemetry.totalCalls > 0
+                    ? Math.round(this.telemetry.totalDuration / this.telemetry.totalCalls)
+                    : 0,
             cacheHits: this.telemetry.cacheHits,
-            cacheHitRate: (this.telemetry.cacheHits + this.telemetry.cacheMisses) > 0
-                ? (this.telemetry.cacheHits / (this.telemetry.cacheHits + this.telemetry.cacheMisses))
-                : 0,
+            cacheHitRate:
+                this.telemetry.cacheHits + this.telemetry.cacheMisses > 0
+                    ? this.telemetry.cacheHits /
+                      (this.telemetry.cacheHits + this.telemetry.cacheMisses)
+                    : 0,
             tools: this.getAllHandlers().map(h => h.getStats())
         };
     }
@@ -369,7 +394,7 @@ class AgentToolRegistry extends EventEmitter {
     _isCacheValid(key) {
         if (!this.cache.has(key)) return false;
         const timestamp = this.cacheTimestamps.get(key);
-        return timestamp && (Date.now() - timestamp) < this.options.cacheTTL;
+        return timestamp && Date.now() - timestamp < this.options.cacheTTL;
     }
 
     _batchArray(array, size) {
@@ -438,4 +463,3 @@ class AgentToolRegistry extends EventEmitter {
 }
 
 module.exports = AgentToolRegistry;
-

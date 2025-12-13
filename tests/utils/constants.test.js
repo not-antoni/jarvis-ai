@@ -33,4 +33,3 @@ test('Constants: Error codes exist', () => {
     assert.ok(constants.ERROR_CODES.NOT_FOUND);
     assert.ok(constants.ERROR_CODES.INTERNAL_ERROR);
 });
-
