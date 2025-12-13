@@ -15,6 +15,7 @@ const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === 
 
 // Session storage (in-memory for simplicity, could be Redis in production)
 const sessions = new Map();
+const revokedSessions = new Map();
 const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 // Pending password setups (userId -> { token, expires })
@@ -280,6 +281,14 @@ function createSession(userId, discordData = null) {
  * Validate session
  */
 function validateSession(token) {
+    const revokedUntil = revokedSessions.get(token);
+    if (revokedUntil) {
+        if (Date.now() < revokedUntil) {
+            return null;
+        }
+        revokedSessions.delete(token);
+    }
+
     const cached = sessions.get(token);
     if (cached) {
         if (Date.now() > cached.expiresAt) {
@@ -315,6 +324,14 @@ function validateSession(token) {
  */
 function destroySession(token) {
     sessions.delete(token);
+
+    const payload = parseSignedSessionToken(token);
+    const exp = payload?.exp ? Number(payload.exp) : null;
+    if (Number.isFinite(exp) && exp > Date.now()) {
+        revokedSessions.set(token, exp);
+    } else {
+        revokedSessions.delete(token);
+    }
 }
 
 function resolveDiscordClientId() {
