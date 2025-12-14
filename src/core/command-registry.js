@@ -169,7 +169,7 @@ const commandDefinitions = [
         description:
             'Schedule announcements to post in a channel at a later time (optionally recurring).',
         category: 'Utilities',
-        usage: '/announcement create channel:<#> message:<text> in:<n> unit:<hours> [every:<n> every_unit:<days>]',
+        usage: '/announcement create channel:<#> in:<n> unit:<hours> [every:<n> every_unit:<days>] (message entered via modal)',
         feature: 'utilities',
         ephemeral: true
     },

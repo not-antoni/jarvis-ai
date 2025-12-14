@@ -11,6 +11,9 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
     parseEmoji,
     AutoModerationActionType,
     AutoModerationRuleEventType,
@@ -120,6 +123,7 @@ class DiscordHandlers {
         
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
+        this.pendingAnnouncementCreates = new Map();
         this.autoModRuleName = 'Jarvis Blacklist Filter';
         this.maxAutoModKeywordsPerRule = 1000;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
