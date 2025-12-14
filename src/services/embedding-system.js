@@ -1,8 +1,11 @@
 const OpenAI = require('openai');
-const fetch = require('node-fetch');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+
+const { getAIFetch } = require('./ai-proxy');
+
+const aiFetch = getAIFetch();
 
 const database = require('./database');
 const aiManager = require('./ai-providers');
@@ -31,7 +34,7 @@ class EmbeddingSystem {
         }
 
         if (!this.client) {
-            this.client = new OpenAI({ apiKey: this.openAiKey });
+            this.client = new OpenAI({ apiKey: this.openAiKey, fetch: aiFetch });
         }
 
         return this.client;
@@ -62,7 +65,7 @@ class EmbeddingSystem {
             throw new Error('Local embedding endpoint not configured.');
         }
 
-        const response = await fetch(this.localEndpoint, {
+        const response = await aiFetch(this.localEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text })

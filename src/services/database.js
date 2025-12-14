@@ -1337,6 +1337,53 @@ class DatabaseManager {
         }
     }
 
+    async getAiProxyConfig() {
+        if (!this.isConnected) return null;
+
+        try {
+            const doc = await this.db
+                .collection(config.database.collections.commandSyncState)
+                .findOne({ _id: 'ai_proxy' });
+
+            if (!doc) return null;
+
+            return {
+                enabled: typeof doc.enabled === 'boolean' ? doc.enabled : true,
+                urls: Array.isArray(doc.urls) ? doc.urls.map(String).filter(Boolean) : []
+            };
+        } catch (error) {
+            console.warn('Failed to get AI proxy config from MongoDB:', error.message);
+            return null;
+        }
+    }
+
+    async saveAiProxyConfig({ enabled = true, urls = [] } = {}) {
+        if (!this.isConnected) return false;
+
+        const normalizedUrls = Array.isArray(urls) ? urls.map(String).filter(Boolean) : [];
+
+        try {
+            await this.db.collection(config.database.collections.commandSyncState).updateOne(
+                { _id: 'ai_proxy' },
+                {
+                    $set: {
+                        enabled: Boolean(enabled),
+                        urls: normalizedUrls,
+                        updatedAt: new Date()
+                    },
+                    $setOnInsert: {
+                        createdAt: new Date()
+                    }
+                },
+                { upsert: true }
+            );
+            return true;
+        } catch (error) {
+            console.warn('Failed to save AI proxy config to MongoDB:', error.message);
+            return false;
+        }
+    }
+
     async disconnect() {
         if (this.isConnected) {
             await closeMain();

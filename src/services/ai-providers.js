@@ -140,6 +140,9 @@ const path = require('path');
 const OpenAI = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../../config');
+const { getAIFetch } = require('./ai-proxy');
+
+const aiFetch = getAIFetch();
 
 const fsp = fs.promises;
 
@@ -244,6 +247,7 @@ class AIProviderManager {
                 client: new OpenAI({
                     apiKey: key,
                     baseURL: 'https://openrouter.ai/api/v1',
+                    fetch: aiFetch,
                     defaultHeaders: {
                         'HTTP-Referer': process.env.APP_URL || 'https://localhost',
                         'X-Title': process.env.APP_NAME || 'Jarvis AI'
@@ -272,7 +276,8 @@ class AIProviderManager {
                 name: `Groq${index + 1}`,
                 client: new OpenAI({
                     apiKey: key,
-                    baseURL: 'https://api.groq.com/openai/v1'
+                    baseURL: 'https://api.groq.com/openai/v1',
+                    fetch: aiFetch
                 }),
                 model: 'moonshotai/kimi-k2-instruct',
                 type: 'openai-chat',
@@ -313,6 +318,7 @@ class AIProviderManager {
                 client: new OpenAI({
                     apiKey: key,
                     baseURL: 'https://ai-gateway.vercel.sh/v1',
+                    fetch: aiFetch,
                     defaultHeaders: {
                         'HTTP-Referer': process.env.APP_URL || 'https://localhost',
                         'X-Title': process.env.APP_NAME || 'Jarvis AI'
@@ -333,7 +339,7 @@ class AIProviderManager {
             this.providers.push({
                 // Keep the same name so your existing filters & health pages remain happy
                 name: 'GPT5Nano',
-                client: new OpenAI({ apiKey: key }), // https://api.openai.com/v1
+                client: new OpenAI({ apiKey: key, fetch: aiFetch }), // https://api.openai.com/v1
                 model: 'gpt-4o-mini', // ← actual model
                 type: 'openai-chat', // generic OpenAI-compatible flow
                 family: 'openai',
@@ -927,7 +933,7 @@ class AIProviderManager {
                         headers['Authorization'] = `Bearer ${provider.apiKey}`;
                     }
 
-                    const response = await fetch(ollamaEndpoint, {
+                    const response = await aiFetch(ollamaEndpoint, {
                         method: 'POST',
                         headers,
                         body: JSON.stringify(requestBody)
@@ -1187,7 +1193,7 @@ class AIProviderManager {
                 const contentType = image.contentType || '';
 
                 // Fetch and convert to base64
-                const response = await fetch(imageUrl);
+                const response = await aiFetch(imageUrl);
                 if (!response.ok) {
                     console.warn(`Failed to fetch image: ${imageUrl}`);
                     continue;
@@ -1289,7 +1295,7 @@ class AIProviderManager {
                         `[Ollama Vision] POST ${ollamaEndpoint} | model: ${provider.model} | images: ${base64Images.length} | img size: ${base64Images[0]?.length || 0} chars`
                     );
 
-                    const response = await fetch(ollamaEndpoint, {
+                    const response = await aiFetch(ollamaEndpoint, {
                         method: 'POST',
                         headers,
                         body: JSON.stringify(requestBody)
