@@ -1004,6 +1004,16 @@
             return;
         }
 
+        const guild = interaction.guild || await interaction.client.guilds.fetch(guildId).catch(() => null);
+        const memberPermissions = interaction.memberPermissions || interaction.member?.permissions;
+        const isOwner = Boolean(guild && guild.ownerId === userId);
+        const hasBan = Boolean(memberPermissions?.has(PermissionsBitField.Flags.BanMembers));
+        const hasTimeout = Boolean(memberPermissions?.has(PermissionsBitField.Flags.ModerateMembers));
+        if (!isOwner && !(hasBan && hasTimeout)) {
+            await interaction.editReply('Only the server owner or moderators with ban + timeout permissions may use announcements, sir.');
+            return;
+        }
+
         try {
             if (subcommand === 'create') {
                 const channel = interaction.options.getChannel('channel');
@@ -4602,7 +4612,59 @@
                     break;
                 }
                 case 'jarvis': {
-                    let prompt = interaction.options.getString('prompt');
+                    let prompt = interaction.options.getString('prompt') || '';
+
+                    try {
+                        const guild = interaction.guild || (interaction.guildId
+                            ? await interaction.client.guilds.fetch(interaction.guildId).catch(() => null)
+                            : null);
+
+                        if (guild) {
+                            const userIds = Array.from(prompt.matchAll(/<@!?(\d{17,20})>/g)).map(match => match[1]);
+                            for (const mentionedUserId of new Set(userIds)) {
+                                const member = guild.members.cache.get(mentionedUserId)
+                                    || await guild.members.fetch(mentionedUserId).catch(() => null);
+                                const displayName = member?.displayName
+                                    || member?.user?.globalName
+                                    || member?.user?.username
+                                    || 'user';
+                                prompt = prompt.replace(new RegExp(`<@!?${mentionedUserId}>`, 'g'), `@${displayName}`);
+                            }
+
+                            const roleIds = Array.from(prompt.matchAll(/<@&(\d{17,20})>/g)).map(match => match[1]);
+                            for (const mentionedRoleId of new Set(roleIds)) {
+                                const role = guild.roles.cache.get(mentionedRoleId)
+                                    || await guild.roles.fetch(mentionedRoleId).catch(() => null);
+                                const roleName = role?.name || 'role';
+                                prompt = prompt.replace(new RegExp(`<@&${mentionedRoleId}>`, 'g'), `@${roleName}`);
+                            }
+
+                            const channelIds = Array.from(prompt.matchAll(/<#(\d{17,20})>/g)).map(match => match[1]);
+                            for (const mentionedChannelId of new Set(channelIds)) {
+                                const channel = guild.channels.cache.get(mentionedChannelId)
+                                    || await guild.channels.fetch(mentionedChannelId).catch(() => null);
+                                const channelName = channel?.name || 'channel';
+                                prompt = prompt.replace(new RegExp(`<#${mentionedChannelId}>`, 'g'), `#${channelName}`);
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('Failed to resolve mention display names for /jarvis prompt:', error);
+                    }
+
+                    try {
+                        if (interaction.client?.user?.id) {
+                            prompt = prompt.replace(new RegExp(`<@!?${interaction.client.user.id}>`, 'g'), '').trim();
+                        }
+                    } catch (_) {}
+
+                    prompt = prompt
+                        .replace(/@everyone/g, '')
+                        .replace(/@here/g, '')
+                        .trim();
+
+                    if (!prompt) {
+                        prompt = 'jarvis';
+                    }
 
                     if (prompt.length > config.ai.maxSlashInputLength) {
                         const responses = [
@@ -4903,28 +4965,40 @@
                 const safe = this.sanitizePings(trimmed);
                 const msg = safe.length > 2000 ? safe.slice(0, 1997) + '...' : (safe.length ? safe : "Response circuits tangled, sir. Try again?");
                 try {
-                    const sendPromise = interaction.editReply(msg);
+                    const payload = { content: msg, allowedMentions: { parse: [] } };
+                    const sendPromise = interaction.editReply(payload);
                     await Promise.race([
                         sendPromise,
                         new Promise((_, reject) => setTimeout(() => reject(new Error('editReply timeout')), 5000))
                     ]);
                 } catch (e) {
                     try {
-                        await interaction.followUp(msg);
+                        await interaction.followUp({ content: msg, allowedMentions: { parse: [] } });
                     } catch (followUpError) {
                         console.error('[/jarvis] Response send failed:', e.message, followUpError.message);
                     }
                 }
             } else {
                 try {
-                    const sendPromise = interaction.editReply(response);
+                    const payload = response && typeof response === 'object'
+                        ? { ...response }
+                        : { content: String(response || '') };
+                    payload.allowedMentions = payload.allowedMentions || { parse: [] };
+                    payload.allowedMentions.parse = Array.isArray(payload.allowedMentions.parse) ? payload.allowedMentions.parse : [];
+
+                    const sendPromise = interaction.editReply(payload);
                     await Promise.race([
                         sendPromise,
                         new Promise((_, reject) => setTimeout(() => reject(new Error('editReply timeout')), 5000))
                     ]);
                 } catch (e) {
                     try {
-                        await interaction.followUp(response);
+                        const payload = response && typeof response === 'object'
+                            ? { ...response }
+                            : { content: String(response || '') };
+                        payload.allowedMentions = payload.allowedMentions || { parse: [] };
+                        payload.allowedMentions.parse = Array.isArray(payload.allowedMentions.parse) ? payload.allowedMentions.parse : [];
+                        await interaction.followUp(payload);
                     } catch (followUpError) {
                         console.error('[/jarvis] Embed send failed:', e.message, followUpError.message);
                     }

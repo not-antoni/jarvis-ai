@@ -180,7 +180,7 @@ async function deliverAnnouncement(doc) {
         await channel.send({
             content,
             allowedMentions: {
-                parse: [],
+                parse: ['users'],
                 roles: roleIds
             }
         });
