@@ -4,6 +4,9 @@
  */
 
 const OpenAI = require('openai');
+const { getAIFetch } = require('../services/ai-proxy');
+
+const aiFetch = getAIFetch();
 
 /**
  * Free tier AI models available
@@ -116,6 +119,7 @@ class FreeAIProvider {
                 new OpenAI({
                     apiKey: openRouterKeys[0],
                     baseURL: 'https://openrouter.ai/api/v1',
+                    fetch: aiFetch,
                     defaultHeaders: {
                         'HTTP-Referer': process.env.APP_URL || 'https://jarvis-ai.local',
                         'X-Title': 'Jarvis AI Agent'
@@ -138,7 +142,8 @@ class FreeAIProvider {
                 'groq',
                 new OpenAI({
                     apiKey: groqKeys[0],
-                    baseURL: 'https://api.groq.com/openai/v1'
+                    baseURL: 'https://api.groq.com/openai/v1',
+                    fetch: aiFetch
                 })
             );
             console.log(`[FreeAIProvider] Found ${groqKeys.length} Groq key(s)`);
