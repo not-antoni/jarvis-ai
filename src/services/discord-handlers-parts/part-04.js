@@ -993,6 +993,86 @@
         }
     }
 
+    async handleModalSubmit(interaction) {
+        if (!interaction?.isModalSubmit?.()) {
+            return;
+        }
+
+        const customId = String(interaction.customId || '');
+        if (!customId.startsWith('announcement:create:')) {
+            return;
+        }
+
+        try {
+            await interaction.deferReply({ ephemeral: true });
+        } catch (error) {
+            if (error?.code !== 40060) {
+                console.warn('Failed to defer modal reply:', error);
+                return;
+            }
+        }
+
+        const token = customId.slice('announcement:create:'.length);
+        const pending = this.pendingAnnouncementCreates.get(token);
+        if (!pending) {
+            await interaction.editReply('That announcement form expired, sir. Please run `/announcement create` again.');
+            return;
+        }
+
+        if (pending.createdByUserId !== interaction.user.id) {
+            await interaction.editReply('That announcement request is not yours to submit, sir.');
+            return;
+        }
+
+        this.pendingAnnouncementCreates.delete(token);
+
+        const announcementScheduler = require('./announcement-scheduler');
+        const guildId = pending.guildId;
+        const channelId = pending.channelId;
+
+        const message = String(interaction.fields.getTextInputValue('message') || '').trim();
+        if (!message) {
+            await interaction.editReply('Message is required, sir.');
+            return;
+        }
+
+        try {
+            const enabledInGuild = await announcementScheduler.countEnabledForGuild(guildId);
+            if (enabledInGuild >= 10) {
+                await interaction.editReply('This server already has the maximum of 10 active announcements, sir.');
+                return;
+            }
+
+            const enabledInChannel = await announcementScheduler.countEnabledForChannel(guildId, channelId);
+            if (enabledInChannel >= 2) {
+                await interaction.editReply('That channel already has the maximum of 2 active announcements, sir.');
+                return;
+            }
+
+            const doc = await announcementScheduler.createAnnouncement({
+                guildId,
+                channelId,
+                message,
+                roleIds: Array.isArray(pending.roleIds) ? pending.roleIds : [],
+                createdByUserId: pending.createdByUserId,
+                delayAmount: pending.delayAmount,
+                delayUnit: pending.delayUnit,
+                repeatEvery: pending.repeatEvery,
+                repeatUnit: pending.repeatUnit
+            });
+
+            const when = doc.nextRunAt ? `<t:${Math.floor(new Date(doc.nextRunAt).getTime() / 1000)}:F>` : 'Unknown';
+            const repeating = doc.repeatEvery && doc.repeatUnit
+                ? `Repeats every ${doc.repeatEvery} ${doc.repeatUnit}.`
+                : 'One-time announcement.';
+
+            await interaction.editReply(`✅ Announcement scheduled, sir.\n**ID:** \`${doc.id}\`\n**Channel:** <#${doc.channelId}>\n**Next:** ${when}\n${repeating}`);
+        } catch (error) {
+            console.error('[/announcement] Modal submit failed:', error);
+            await interaction.editReply('Announcement scheduling failed internally, sir.');
+        }
+    }
+
     async handleAnnouncementCommand(interaction) {
         const announcementScheduler = require('./announcement-scheduler');
         const guildId = interaction.guildId;
@@ -1000,7 +1080,11 @@
         const subcommand = interaction.options.getSubcommand();
 
         if (!guildId) {
-            await interaction.editReply('Announcements are only available in servers, sir.');
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.reply({ content: 'Announcements are only available in servers, sir.', ephemeral: true });
+            } else {
+                await interaction.editReply('Announcements are only available in servers, sir.');
+            }
             return;
         }
 
@@ -1010,18 +1094,42 @@
         const hasBan = Boolean(memberPermissions?.has(PermissionsBitField.Flags.BanMembers));
         const hasTimeout = Boolean(memberPermissions?.has(PermissionsBitField.Flags.ModerateMembers));
         if (!isOwner && !(hasBan && hasTimeout)) {
-            await interaction.editReply('Only the server owner or moderators with ban + timeout permissions may use announcements, sir.');
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.reply({
+                    content: 'Only the server owner or moderators with ban + timeout permissions may use announcements, sir.',
+                    ephemeral: true
+                });
+            } else {
+                await interaction.editReply('Only the server owner or moderators with ban + timeout permissions may use announcements, sir.');
+            }
             return;
         }
 
         try {
             if (subcommand === 'create') {
                 const channel = interaction.options.getChannel('channel');
-                const message = interaction.options.getString('message');
                 const delayAmount = interaction.options.getInteger('in');
                 const delayUnit = interaction.options.getString('unit');
                 const repeatEvery = interaction.options.getInteger('every');
                 const repeatUnit = interaction.options.getString('every_unit');
+
+                if (repeatEvery && !repeatUnit) {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.reply({ content: 'If you set `every`, you must also set `every_unit`, sir.', ephemeral: true });
+                    } else {
+                        await interaction.editReply('If you set `every`, you must also set `every_unit`, sir.');
+                    }
+                    return;
+                }
+
+                if (!repeatEvery && repeatUnit) {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.reply({ content: 'If you set `every_unit`, you must also set `every`, sir.', ephemeral: true });
+                    } else {
+                        await interaction.editReply('If you set `every_unit`, you must also set `every`, sir.');
+                    }
+                    return;
+                }
 
                 const roleIds = [
                     interaction.options.getRole('role1')?.id,
@@ -1029,41 +1137,54 @@
                     interaction.options.getRole('role3')?.id
                 ].filter(Boolean);
 
-                const enabledInGuild = await announcementScheduler.countEnabledForGuild(guildId);
-                if (enabledInGuild >= 10) {
-                    await interaction.editReply('This server already has the maximum of 10 active announcements, sir.');
-                    return;
-                }
-
-                const enabledInChannel = await announcementScheduler.countEnabledForChannel(guildId, channel.id);
-                if (enabledInChannel >= 2) {
-                    await interaction.editReply('That channel already has the maximum of 2 active announcements, sir.');
-                    return;
-                }
-
-                const doc = await announcementScheduler.createAnnouncement({
+                const token = `anncreate_${guildId}_${userId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+                this.pendingAnnouncementCreates.set(token, {
                     guildId,
                     channelId: channel.id,
-                    message,
                     roleIds,
                     createdByUserId: userId,
                     delayAmount,
                     delayUnit,
                     repeatEvery,
-                    repeatUnit
+                    repeatUnit,
+                    createdAt: Date.now()
                 });
+                setTimeout(() => {
+                    const pending = this.pendingAnnouncementCreates.get(token);
+                    if (!pending) return;
+                    if (Date.now() - Number(pending.createdAt || 0) > 10 * 60 * 1000) {
+                        this.pendingAnnouncementCreates.delete(token);
+                    }
+                }, 10 * 60 * 1000);
 
-                const when = doc.nextRunAt ? `<t:${Math.floor(new Date(doc.nextRunAt).getTime() / 1000)}:F>` : 'Unknown';
-                const repeating = doc.repeatEvery && doc.repeatUnit
-                    ? `Repeats every ${doc.repeatEvery} ${doc.repeatUnit}.`
-                    : 'One-time announcement.';
+                const modal = new ModalBuilder()
+                    .setCustomId(`announcement:create:${token}`)
+                    .setTitle('Create Announcement');
+                const messageInput = new TextInputBuilder()
+                    .setCustomId('message')
+                    .setLabel('Announcement message')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true)
+                    .setMaxLength(2000);
+                modal.addComponents(new ActionRowBuilder().addComponents(messageInput));
 
-                await interaction.editReply(`✅ Announcement scheduled, sir.\n**ID:** \`${doc.id}\`\n**Channel:** <#${doc.channelId}>\n**Next:** ${when}\n${repeating}`);
+                try {
+                    await interaction.showModal(modal);
+                } catch (error) {
+                    console.error('[/announcement] Failed to show modal:', error);
+                    try {
+                        if (!interaction.deferred && !interaction.replied) {
+                            await interaction.reply({ content: 'I could not display the announcement form, sir. Please try again.', ephemeral: true });
+                        } else {
+                            await interaction.editReply('I could not display the announcement form, sir. Please try again.');
+                        }
+                    } catch (_) {}
+                }
                 return;
             }
 
             if (subcommand === 'list') {
-                const jobs = await announcementScheduler.listAnnouncementsForUser({ userId, guildId });
+                const jobs = await announcementScheduler.listAnnouncementsForGuild({ guildId });
                 if (!jobs.length) {
                     await interaction.editReply('No scheduled announcements found, sir.');
                     return;
@@ -1073,17 +1194,18 @@
                     const next = job.nextRunAt ? `<t:${Math.floor(new Date(job.nextRunAt).getTime() / 1000)}:R>` : 'n/a';
                     const status = job.enabled ? '✅ enabled' : '⛔ disabled';
                     const repeat = job.repeatEvery && job.repeatUnit ? `every ${job.repeatEvery} ${job.repeatUnit}` : 'one-time';
-                    return `${idx + 1}. \`${job.id}\` ${status} in <#${job.channelId}> (${repeat}) next: ${next}`;
+                    const owner = job.createdByUserId ? ` by <@${job.createdByUserId}>` : '';
+                    return `${idx + 1}. \`${job.id}\` ${status} in <#${job.channelId}> (${repeat}) next: ${next}${owner}`;
                 });
 
-                await interaction.editReply(`📋 **Your Announcements**\n\n${lines.join('\n')}`);
+                await interaction.editReply(`📋 **Server Announcements**\n\n${lines.join('\n')}`);
                 return;
             }
 
             if (subcommand === 'disable' || subcommand === 'enable') {
                 const id = interaction.options.getString('id');
                 const enabled = subcommand === 'enable';
-                const result = await announcementScheduler.setAnnouncementEnabled({ id, userId, guildId, enabled });
+                const result = await announcementScheduler.setAnnouncementEnabledForGuild({ id, guildId, enabled });
                 if (!result.ok) {
                     await interaction.editReply(result.error || 'Unable to update announcement, sir.');
                     return;
@@ -1094,7 +1216,7 @@
 
             if (subcommand === 'delete') {
                 const id = interaction.options.getString('id');
-                const result = await announcementScheduler.deleteAnnouncement({ id, userId, guildId });
+                const result = await announcementScheduler.deleteAnnouncementForGuild({ id, guildId });
                 if (!result.ok) {
                     await interaction.editReply(result.error || 'Unable to delete announcement, sir.');
                     return;
@@ -1103,10 +1225,35 @@
                 return;
             }
 
+            if (subcommand === 'clear') {
+                const confirm = interaction.options.getBoolean('confirm');
+                if (!confirm) {
+                    await interaction.editReply('Set `confirm:true` to delete all announcements for this server, sir.');
+                    return;
+                }
+
+                const result = await announcementScheduler.clearAnnouncementsForGuild({ guildId });
+                if (!result.ok) {
+                    await interaction.editReply(result.error || 'Unable to clear announcements, sir.');
+                    return;
+                }
+
+                const removedDb = Number(result.removedDb) || 0;
+                const removedMem = Number(result.removedMem) || 0;
+                await interaction.editReply(`🧹 Cleared announcements, sir. Removed ${removedMem} in-memory and ${removedDb} database entries.`);
+                return;
+            }
+
             await interaction.editReply('Unknown announcement action, sir.');
         } catch (error) {
             console.error('[/announcement] Error:', error);
-            await interaction.editReply('Announcement scheduling failed internally, sir.');
+            try {
+                if (!interaction.deferred && !interaction.replied) {
+                    await interaction.reply({ content: 'Announcement scheduling failed internally, sir.', ephemeral: true });
+                } else {
+                    await interaction.editReply('Announcement scheduling failed internally, sir.');
+                }
+            } catch (_) {}
         }
     }
 
@@ -2423,6 +2570,19 @@
             if (this.isOnCooldown(userId, cooldownScope)) {
                 telemetryStatus = 'error';
                 telemetryMetadata.reason = 'rate_limited';
+                return;
+            }
+
+            let announcementSubcommand = null;
+            try {
+                announcementSubcommand = interaction.options?.getSubcommand(false) || null;
+            } catch (e) {
+                announcementSubcommand = null;
+            }
+
+            if (commandName === 'announcement' && announcementSubcommand === 'create') {
+                shouldSetCooldown = true;
+                await this.handleAnnouncementCommand(interaction);
                 return;
             }
 

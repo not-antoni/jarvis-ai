@@ -7,6 +7,7 @@ const DEFAULT_LOCK_MS = 60 * 1000;
 const DEFAULT_MEMORY_THRESHOLD_MS = 10 * 60 * 1000;
 
 const memoryJobs = new Map();
+const memoryJobTimeouts = new Map();
 
 let schedulerState = {
     started: false,
@@ -23,6 +24,67 @@ function ensureConnected() {
     return Boolean(
         schedulerState.database && schedulerState.database.isConnected && schedulerState.database.db
     );
+}
+
+function clearMemoryTimeout(id) {
+    const handle = memoryJobTimeouts.get(String(id));
+    if (handle) {
+        clearTimeout(handle);
+    }
+    memoryJobTimeouts.delete(String(id));
+}
+
+async function runMemoryAnnouncement(id) {
+    const job = memoryJobs.get(String(id));
+    if (!job || !job.enabled) {
+        clearMemoryTimeout(id);
+        return;
+    }
+
+    const nowDate = new Date();
+    const nextRunAt = job.nextRunAt ? new Date(job.nextRunAt) : null;
+    if (nextRunAt && nextRunAt.getTime() - nowDate.getTime() > 250) {
+        scheduleMemoryAnnouncement(job);
+        return;
+    }
+
+    const lockedUntil = job.lockedUntil ? new Date(job.lockedUntil) : null;
+    if (lockedUntil && lockedUntil > nowDate) {
+        scheduleMemoryAnnouncement(job);
+        return;
+    }
+
+    job.lockedUntil = new Date(nowDate.getTime() + DEFAULT_LOCK_MS);
+    job.updatedAt = nowDate;
+    memoryJobs.set(job.id, job);
+    clearMemoryTimeout(id);
+
+    const result = await deliverAnnouncement(job);
+    await completeMemoryAnnouncement(job, { now: nowDate, success: result.ok, error: result.error });
+
+    const refreshed = memoryJobs.get(String(id));
+    if (refreshed && refreshed.enabled) {
+        scheduleMemoryAnnouncement(refreshed);
+    } else {
+        clearMemoryTimeout(id);
+    }
+}
+
+function scheduleMemoryAnnouncement(job) {
+    if (!job || !job.id) return;
+    clearMemoryTimeout(job.id);
+    if (!job.enabled || !job.nextRunAt) return;
+
+    const nextRunMs = new Date(job.nextRunAt).getTime();
+    const lockedUntilMs = job.lockedUntil ? new Date(job.lockedUntil).getTime() : 0;
+    const targetMs = Math.max(nextRunMs, lockedUntilMs);
+    const delayMs = Math.max(0, targetMs - Date.now());
+    const handle = setTimeout(() => {
+        runMemoryAnnouncement(job.id).catch((error) => {
+            console.warn('[Announcements] Memory job failed:', error?.message || error);
+        });
+    }, delayMs);
+    memoryJobTimeouts.set(String(job.id), handle);
 }
 
 function getCollection() {
@@ -382,6 +444,7 @@ async function createAnnouncement(payload) {
 
     if (shouldUseMemory) {
         memoryJobs.set(doc.id, doc);
+        scheduleMemoryAnnouncement(doc);
         return doc;
     }
 
@@ -392,6 +455,24 @@ async function createAnnouncement(payload) {
 
     await collection.insertOne(doc);
     return doc;
+}
+
+async function listAnnouncementsForGuild({ guildId }) {
+    const gid = String(guildId);
+    const mem = Array.from(memoryJobs.values()).filter(job => job && job.guildId === gid);
+
+    const collection = getCollection();
+    const dbJobs = collection
+        ? await collection
+              .find({ guildId: gid })
+              .sort({ createdAt: -1 })
+              .limit(100)
+              .toArray()
+        : [];
+
+    const all = mem.concat(dbJobs);
+    all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return all.slice(0, 100);
 }
 
 async function listAnnouncementsForUser({ userId, guildId }) {
@@ -413,6 +494,49 @@ async function listAnnouncementsForUser({ userId, guildId }) {
     return all.slice(0, 50);
 }
 
+async function setAnnouncementEnabledForGuild({ id, guildId, enabled }) {
+    const gid = String(guildId);
+    const mem = memoryJobs.get(String(id));
+    if (mem && mem.guildId === gid) {
+        mem.enabled = Boolean(enabled);
+        mem.updatedAt = new Date();
+        mem.lockedUntil = null;
+        if (enabled && !mem.nextRunAt) {
+            mem.nextRunAt = new Date(Date.now() + 60 * 1000);
+        }
+        memoryJobs.set(mem.id, mem);
+        if (enabled) {
+            scheduleMemoryAnnouncement(mem);
+        } else {
+            clearMemoryTimeout(mem.id);
+        }
+        return { ok: true };
+    }
+
+    const collection = getCollection();
+    if (!collection) {
+        return { ok: false, error: 'Database not connected.' };
+    }
+
+    const doc = await collection.findOne({ id: String(id), guildId: gid });
+    if (!doc) {
+        return { ok: false, error: 'Announcement not found.' };
+    }
+
+    const patch = {
+        enabled: Boolean(enabled),
+        updatedAt: new Date(),
+        lockedUntil: null
+    };
+
+    if (enabled && !doc.nextRunAt) {
+        patch.nextRunAt = new Date(Date.now() + 60 * 1000);
+    }
+
+    await collection.updateOne({ id: doc.id }, { $set: patch });
+    return { ok: true };
+}
+
 async function setAnnouncementEnabled({ id, userId, guildId, enabled }) {
     const mem = memoryJobs.get(String(id));
     if (mem && mem.createdByUserId === String(userId) && mem.guildId === String(guildId)) {
@@ -423,6 +547,11 @@ async function setAnnouncementEnabled({ id, userId, guildId, enabled }) {
             mem.nextRunAt = new Date(Date.now() + 60 * 1000);
         }
         memoryJobs.set(mem.id, mem);
+        if (enabled) {
+            scheduleMemoryAnnouncement(mem);
+        } else {
+            clearMemoryTimeout(mem.id);
+        }
         return { ok: true };
     }
 
@@ -454,10 +583,33 @@ async function setAnnouncementEnabled({ id, userId, guildId, enabled }) {
     return { ok: true };
 }
 
+async function deleteAnnouncementForGuild({ id, guildId }) {
+    const gid = String(guildId);
+    const mem = memoryJobs.get(String(id));
+    if (mem && mem.guildId === gid) {
+        memoryJobs.delete(mem.id);
+        clearMemoryTimeout(mem.id);
+        return { ok: true };
+    }
+
+    const collection = getCollection();
+    if (!collection) {
+        return { ok: false, error: 'Database not connected.' };
+    }
+
+    const res = await collection.deleteOne({ id: String(id), guildId: gid });
+    if (!res.deletedCount) {
+        return { ok: false, error: 'Announcement not found.' };
+    }
+
+    return { ok: true };
+}
+
 async function deleteAnnouncement({ id, userId, guildId }) {
     const mem = memoryJobs.get(String(id));
     if (mem && mem.createdByUserId === String(userId) && mem.guildId === String(guildId)) {
         memoryJobs.delete(mem.id);
+        clearMemoryTimeout(mem.id);
         return { ok: true };
     }
 
@@ -476,6 +628,31 @@ async function deleteAnnouncement({ id, userId, guildId }) {
     }
 
     return { ok: true };
+}
+
+async function clearAnnouncementsForGuild({ guildId }) {
+    const gid = String(guildId);
+    let removedMem = 0;
+    for (const [id, job] of memoryJobs.entries()) {
+        if (job && job.guildId === gid) {
+            memoryJobs.delete(id);
+            clearMemoryTimeout(id);
+            removedMem += 1;
+        }
+    }
+
+    const collection = getCollection();
+    if (!collection) {
+        return { ok: true, removedMem, removedDb: 0, dbAvailable: false };
+    }
+
+    const res = await collection.deleteMany({ guildId: gid });
+    return {
+        ok: true,
+        removedMem,
+        removedDb: Number(res?.deletedCount) || 0,
+        dbAvailable: true
+    };
 }
 
 async function countEnabledForGuild(guildId) {
@@ -553,9 +730,13 @@ module.exports = {
     init,
     runOnce,
     createAnnouncement,
+    listAnnouncementsForGuild,
     listAnnouncementsForUser,
+    setAnnouncementEnabledForGuild,
     setAnnouncementEnabled,
+    deleteAnnouncementForGuild,
     deleteAnnouncement,
+    clearAnnouncementsForGuild,
     countEnabledForGuild,
     countEnabledForChannel,
     addInterval,

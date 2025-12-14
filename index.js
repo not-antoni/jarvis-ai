@@ -3304,9 +3304,6 @@ const allCommands = [
                         .setRequired(true)
                         .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
                 )
-                .addStringOption(opt =>
-                    opt.setName('message').setDescription('Message to send').setRequired(true)
-                )
                 .addIntegerOption(opt =>
                     opt
                         .setName('in')
@@ -3371,7 +3368,7 @@ const allCommands = [
                 )
         )
         .addSubcommand(sub =>
-            sub.setName('list').setDescription('List your scheduled announcements')
+            sub.setName('list').setDescription('List scheduled announcements for this server')
         )
         .addSubcommand(sub =>
             sub
@@ -3395,6 +3392,17 @@ const allCommands = [
                 .setDescription('Delete a scheduled announcement')
                 .addStringOption(opt =>
                     opt.setName('id').setDescription('Announcement ID').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('clear')
+                .setDescription('Delete all scheduled announcements for this server')
+                .addBooleanOption(opt =>
+                    opt
+                        .setName('confirm')
+                        .setDescription('Confirm deletion of all announcements')
+                        .setRequired(true)
                 )
         )
         .setContexts([InteractionContextType.Guild]),
@@ -4645,6 +4653,8 @@ client.on('interactionCreate', async interaction => {
         if (interaction.isChatInputCommand()) {
             dashboardRouter.trackCommand(interaction.commandName, interaction.user.id);
             await discordHandlers.handleSlashCommand(interaction);
+        } else if (interaction.isModalSubmit()) {
+            await discordHandlers.handleModalSubmit(interaction);
         } else if (interaction.isButton()) {
             await discordHandlers.handleComponentInteraction(interaction);
         }
