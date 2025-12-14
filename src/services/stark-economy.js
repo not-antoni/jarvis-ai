@@ -33,7 +33,12 @@ const ECONOMY_CONFIG = {
     // Multiplier event settings
     multiplierInterval: 3 * 60 * 60 * 1000, // Every 3 hours
     multiplierDuration: 7 * 60 * 60 * 1000, // Lasts 7 hours
-    multiplierBonus: 6 // 600% = 6x
+    multiplierBonus: 6, // 600% = 6x
+    slotsMultipliers: {
+        double: 2,
+        triple: 3,
+        jackpot: 10
+    }
 };
 
 // ============================================================================
@@ -1003,8 +1008,13 @@ async function gamble(userId, amount) {
 async function playSlots(userId, bet) {
     const user = await loadUser(userId);
 
-    if (bet < 10) return { success: false, error: 'Minimum bet is 10 Stark Bucks' };
-    if (bet > user.balance) return { success: false, error: 'Insufficient funds' };
+    const normalizedBet = Number(bet);
+    if (!Number.isFinite(normalizedBet) || normalizedBet <= 0) {
+        return { success: false, error: 'Invalid bet amount' };
+    }
+
+    if (normalizedBet < 10) return { success: false, error: 'Minimum bet is 10 Stark Bucks' };
+    if (normalizedBet > user.balance) return { success: false, error: 'Insufficient funds' };
 
     // Spin the slots
     const results = [
@@ -1017,12 +1027,17 @@ async function playSlots(userId, bet) {
     let multiplier = 0;
     let resultType = 'loss';
 
+    const slotsMultipliers =
+        ECONOMY_CONFIG && ECONOMY_CONFIG.slotsMultipliers
+            ? ECONOMY_CONFIG.slotsMultipliers
+            : { double: 2, triple: 3, jackpot: 10 };
+
     if (results[0] === results[1] && results[1] === results[2]) {
         if (results[0] === '💎') {
-            multiplier = ECONOMY_CONFIG.slotsMultipliers.jackpot;
+            multiplier = slotsMultipliers.jackpot;
             resultType = 'jackpot';
         } else {
-            multiplier = ECONOMY_CONFIG.slotsMultipliers.triple;
+            multiplier = slotsMultipliers.triple;
             resultType = 'triple';
         }
     } else if (
@@ -1030,15 +1045,20 @@ async function playSlots(userId, bet) {
         results[1] === results[2] ||
         results[0] === results[2]
     ) {
-        multiplier = ECONOMY_CONFIG.slotsMultipliers.double;
+        multiplier = slotsMultipliers.double;
         resultType = 'double';
     }
 
-    const winnings = bet * multiplier;
-    const change = winnings - bet;
+    if (!Number.isFinite(multiplier) || multiplier < 0) {
+        multiplier = 0;
+        resultType = 'loss';
+    }
+
+    const winnings = normalizedBet * multiplier;
+    const change = winnings - normalizedBet;
 
     user.balance += change;
-    user.totalGambled = (user.totalGambled || 0) + bet;
+    user.totalGambled = (user.totalGambled || 0) + normalizedBet;
     user.gamesPlayed = (user.gamesPlayed || 0) + 1;
     if (change > 0) {
         user.gamesWon = (user.gamesWon || 0) + 1;
@@ -1054,7 +1074,7 @@ async function playSlots(userId, bet) {
         results,
         resultType,
         multiplier,
-        bet,
+        bet: normalizedBet,
         winnings,
         change,
         newBalance: user.balance
