@@ -12,6 +12,8 @@
                     content: braveSearch.getExplicitQueryMessage
                         ? braveSearch.getExplicitQueryMessage()
                         : 'I must decline that request, sir. My safety filters forbid it.'
+                    ,
+                    allowedMentions: { parse: [] }
                 });
                 this.setCooldown(message.author.id, messageScope);
                 return;
@@ -37,6 +39,8 @@
                             content: braveSearch.getExplicitQueryMessage
                                 ? braveSearch.getExplicitQueryMessage()
                                 : 'I must decline that request, sir. My safety filters forbid it.'
+                            ,
+                            allowedMentions: { parse: [] }
                         });
                         this.setCooldown(message.author.id, messageScope);
                         return;
@@ -52,17 +56,18 @@
                         rawInvocation: rawBraveInvocation.invocation,
                         explicit: explicitDetected
                     });
-                    await message.reply(response);
+                    const safe = this.sanitizePings(typeof response === 'string' ? response : String(response || ''));
+                    await message.reply({ content: safe, allowedMentions: { parse: [] } });
                     this.setCooldown(message.author.id, messageScope);
                     return;
                 } catch (error) {
                     console.error("Brave search error:", error);
-                    await message.reply("Web search failed, sir. Technical difficulties.");
+                    await message.reply({ content: "Web search failed, sir. Technical difficulties.", allowedMentions: { parse: [] } });
                     this.setCooldown(message.author.id, messageScope);
                     return;
                 }
             } else {
-                await message.reply("Please provide a web search query after 'jarvis search', sir.");
+                await message.reply({ content: "Please provide a web search query after 'jarvis search', sir.", allowedMentions: { parse: [] } });
                 this.setCooldown(message.author.id, messageScope);
                 return;
             }
@@ -147,9 +152,10 @@
 
             if (utilityResponse) {
                 if (typeof utilityResponse === "string" && utilityResponse.trim()) {
-                    await message.reply(utilityResponse);
+                    const safe = this.sanitizePings(utilityResponse);
+                    await message.reply({ content: safe, allowedMentions: { parse: [] } });
                 } else {
-                    await message.reply("Utility functions misbehaving, sir. Try another?");
+                    await message.reply({ content: "Utility functions misbehaving, sir. Try another?", allowedMentions: { parse: [] } });
                 }
                 return;
             }
@@ -173,11 +179,12 @@
                     const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
                     
                     // Extract text from replied message for context (limit to leave room for user's message)
-                    if (repliedMessage?.content && repliedMessage.content.trim()) {
+                    const repliedText = (repliedMessage?.cleanContent || repliedMessage?.content || '').trim();
+                    if (repliedText) {
                         // Reserve space for user's message, cap replied context
                         const maxReplyContext = Math.min(300, Math.max(100, config.ai.maxInputLength - cleanContent.length - 50));
-                        const trimmedReply = repliedMessage.content.substring(0, maxReplyContext);
-                        repliedContext = `[Replied to ${repliedMessage.author?.username || 'user'}: "${trimmedReply}${repliedMessage.content.length > maxReplyContext ? '...' : ''}"]\n`;
+                        const trimmedReply = repliedText.substring(0, maxReplyContext);
+                        repliedContext = `[Replied to ${repliedMessage.author?.username || 'user'}: "${trimmedReply}${repliedText.length > maxReplyContext ? '...' : ''}"]\n`;
                     }
                     
                     // Extract images from replied message (only if current message has no images)
@@ -240,16 +247,17 @@
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
 
             if (typeof response === "string" && response.trim()) {
-                await message.reply(response);
+                const safe = this.sanitizePings(response);
+                await message.reply({ content: safe, allowedMentions: { parse: [] } });
             } else {
-                await message.reply("Response circuits tangled, sir. Clarify your request?");
+                await message.reply({ content: "Response circuits tangled, sir. Clarify your request?", allowedMentions: { parse: [] } });
             }
         } catch (error) {
             // Generate unique error code for debugging
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
             console.error(`[${errorId}] Error processing message:`, error);
             try {
-                await message.reply(`Technical difficulties, sir. (${errorId}) Please try again shortly.`);
+                await message.reply({ content: `Technical difficulties, sir. (${errorId}) Please try again shortly.`, allowedMentions: { parse: [] } });
             } catch (err) {
                 console.error(`[${errorId}] Failed to send error reply:`, err);
             }

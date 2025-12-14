@@ -266,7 +266,8 @@ function sanitizePings(input) {
     return input
         .replace(/@everyone/gi, '@\u200Beveryone') // Zero-width space
         .replace(/@here/gi, '@\u200Bhere')
-        .replace(/<@&(\d+)>/g, '@\u200Brole'); // Role mentions
+        .replace(/<@&(\d+)>/g, '@\u200Brole') // Role mentions
+        .replace(/<@!?(\d+)>/g, '@\u200Buser'); // User mentions
 }
 
 module.exports = {

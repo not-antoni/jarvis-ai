@@ -578,7 +578,8 @@
                 lines.push('\nSources:', ...sources.map((source) => `${source.label} (ID: ${source.id})`));
             }
 
-            await interaction.editReply(lines.join('\n'));
+            const safe = this.sanitizePings(lines.join('\n'));
+            await interaction.editReply({ content: safe, allowedMentions: { parse: [] } });
         } catch (error) {
             console.error('Knowledge answer generation failed:', error);
             await interaction.editReply('My knowledge synthesis failed, sir. Please try again later.');

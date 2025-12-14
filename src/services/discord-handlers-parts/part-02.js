@@ -613,7 +613,7 @@
                 : 'I must decline that request, sir. My safety filters forbid it.';
 
             try {
-                await message.reply({ content: blockMessage });
+                await message.reply({ content: blockMessage, allowedMentions: { parse: [] } });
             } catch (error) {
                 console.error('Failed to send Brave explicit guard reply:', error);
             }
@@ -796,6 +796,8 @@
                     content: braveSearch.getExplicitQueryMessage
                         ? braveSearch.getExplicitQueryMessage()
                         : 'I must decline that request, sir. My safety filters forbid it.'
+                    ,
+                    allowedMentions: { parse: [] }
                 });
             } catch (error) {
                 console.error('Failed to reply to explicit Brave request:', error);
