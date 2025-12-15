@@ -1369,6 +1369,11 @@
                     last_seen_data: initial
                 });
 
+                if (!doc) {
+                    await interaction.editReply('I could not save that monitor right now, sir. Please try again shortly.');
+                    return;
+                }
+
                 await interaction.editReply(
                     `✅ RSS monitor added, sir.\n**ID:** \`${doc.id}\`\n**Feed:** ${url}\n**Alerts:** <#${doc.channel_id}>`
                 );
@@ -1404,6 +1409,11 @@
                     last_seen_data: initial
                 });
 
+                if (!doc) {
+                    await interaction.editReply('I could not save that monitor right now, sir. Please try again shortly.');
+                    return;
+                }
+
                 await interaction.editReply(
                     `✅ Website monitor added, sir.\n**ID:** \`${doc.id}\`\n**URL:** ${url}\n**Initial:** ${initial}\n**Alerts:** <#${doc.channel_id}>`
                 );
@@ -1434,6 +1444,11 @@
                     source_id: channelId,
                     last_seen_data: initial
                 });
+
+                if (!doc) {
+                    await interaction.editReply('I could not save that monitor right now, sir. Please try again shortly.');
+                    return;
+                }
 
                 await interaction.editReply(
                     `✅ YouTube monitor added, sir.\n**ID:** \`${doc.id}\`\n**Channel ID:** ${channelId}\n**Alerts:** <#${doc.channel_id}>`
@@ -1467,6 +1482,11 @@
                     source_id: normalized,
                     last_seen_data: initial
                 });
+
+                if (!doc) {
+                    await interaction.editReply('I could not save that monitor right now, sir. Please try again shortly.');
+                    return;
+                }
 
                 await interaction.editReply(
                     `✅ Twitch monitor added, sir.\n**ID:** \`${doc.id}\`\n**Username:** ${normalized}\n**Initial:** ${initial}\n**Alerts:** <#${doc.channel_id}>`
