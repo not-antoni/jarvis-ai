@@ -815,12 +815,12 @@
             if (message.mentions?.members && message.mentions.members.size > 0) {
                 for (const [userId, member] of message.mentions.members) {
                     const displayName = member?.displayName || member?.user?.globalName || member?.user?.username || 'user';
-                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `@${displayName}`);
+                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `${displayName}`);
                 }
             } else if (message.mentions?.users && message.mentions.users.size > 0) {
                 for (const [userId, user] of message.mentions.users) {
                     const displayName = user?.globalName || user?.username || 'user';
-                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `@${displayName}`);
+                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `${displayName}`);
                 }
             }
 
