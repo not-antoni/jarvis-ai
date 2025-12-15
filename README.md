@@ -25,7 +25,7 @@
 ## Features
 
 ### AI Chat
-Multi-provider AI with OpenAI, Anthropic Claude, Google Gemini, Cohere, and local Ollama support. Context-aware conversations with switchable personas.
+Multi-provider AI with OpenAI, OpenRouter, Groq, Google Gemini, Vercel AI Gateway, and local Ollama support. Context-aware conversations with switchable personas.
 
 ### Economy System
 Full economy with MongoDB persistence:
@@ -119,6 +119,21 @@ DISCORD_CLIENT_SECRET=...
 
 ---
 
+## Legacy text commands (`.j`)
+
+Legacy text commands are enabled only when the Message Content intent is enabled:
+
+```env
+DISCORD_ENABLE_MESSAGE_CONTENT=true
+```
+
+Examples:
+
+- `.j help`
+- `.j ping`
+- `.j remind in 5 minutes check the oven`
+- `.j kick @user [reason]`
+
 ## Configuration
 
 See `config/index.js` for all configuration options.
@@ -127,6 +142,41 @@ Key files:
 - `.env` - Environment variables (secrets)
 - `config/index.js` - App configuration
 - `src/core/feature-flags.js` - Toggle features
+
+## AI proxy rotation (Cloudflare Workers)
+
+Jarvis can proxy AI HTTP requests through a pool of Cloudflare Workers endpoints (round-robin or random). This only applies to allowed AI hosts (e.g. `api.openai.com`, `openrouter.ai`, `api.groq.com`, `ai-gateway.vercel.sh`).
+
+### Enable via `.env`
+
+```env
+AI_PROXY_ENABLED=true
+AI_PROXY_URLS=https://your-worker-1.workers.dev/,https://your-worker-2.workers.dev/
+AI_PROXY_STRATEGY=round_robin
+AI_PROXY_TOKEN=your_shared_secret
+AI_PROXY_DEBUG=true
+AI_PROXY_FALLBACK_DIRECT=true
+```
+
+Important:
+
+- **`AI_PROXY_ENABLED=true` is not enough by itself**. You must also configure `AI_PROXY_URLS` (or have them stored in MongoDB via the provisioning script).
+
+### Provision Workers automatically
+
+Use the included script:
+
+```bash
+npm run provision:ai-proxies
+```
+
+It will deploy workers, print the URLs, and (by default) save them to MongoDB.
+
+### Test rotation
+
+```bash
+node scripts/test-ai-proxy-rotation.js
+```
 
 ## Dashboard
 

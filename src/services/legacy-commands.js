@@ -94,7 +94,7 @@ const HELP_PAGES = [
             },
             {
                 name: '⚙️ **Utility**',
-                value: '`.j help` - Show help (paginated)\n`.j next` / `.j prev` - Navigate pages\n`.j ping` - Check latency\n`.j remind in <time> <msg>` - Set reminder',
+                value: '`.j help` - Show help (paginated)\n`.j next` / `.j prev` - Navigate pages\n`.j ping` - Check latency\n`.j remind in <time> <msg>` - Set reminder\n`.j kick @user [reason]` - Kick a member',
                 inline: false
             }
         ]
@@ -923,6 +923,114 @@ const legacyCommands = {
         }
     },
 
+    kick: {
+        description: 'Kick a member from the server',
+        usage: '.j kick @user [reason]',
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember) {
+                await message.reply('Could not resolve your member permissions, sir.');
+                return true;
+            }
+
+            if (!authorMember.permissions?.has(PermissionFlagsBits.KickMembers)) {
+                await message.reply('🔒 You need **Kick Members** permission to do that, sir.');
+                return true;
+            }
+
+            const botMember =
+                message.guild.members.me ||
+                (await message.guild.members.fetchMe().catch(() => null));
+
+            if (!botMember) {
+                await message.reply('I could not verify my permissions in this server, sir.');
+                return true;
+            }
+
+            if (!botMember.permissions?.has(PermissionFlagsBits.KickMembers)) {
+                await message.reply('❌ I do not have **Kick Members** permission in this server.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            if (!mentionedUser) {
+                await message.reply('Usage: `.j kick @user [reason]`');
+                return true;
+            }
+
+            const targetMember =
+                message.mentions.members.first() ||
+                (await message.guild.members.fetch(mentionedUser.id).catch(() => null));
+
+            if (!targetMember) {
+                await message.reply('I could not find that member in this server, sir.');
+                return true;
+            }
+
+            if (targetMember.id === message.guild.ownerId) {
+                await message.reply('I cannot kick the server owner, sir.');
+                return true;
+            }
+
+            if (targetMember.id === message.author.id) {
+                await message.reply("Kicking yourself is… ambitious, sir. I'll decline.");
+                return true;
+            }
+
+            if (targetMember.id === botMember.id) {
+                await message.reply("I will not be kicking myself today, sir.");
+                return true;
+            }
+
+            const isOwner = message.guild.ownerId === message.author.id;
+            if (!isOwner) {
+                const authorHigher =
+                    authorMember.roles?.highest &&
+                    targetMember.roles?.highest &&
+                    authorMember.roles.highest.comparePositionTo(targetMember.roles.highest) > 0;
+
+                if (!authorHigher) {
+                    await message.reply(
+                        '🔒 You cannot kick that member due to role hierarchy, sir.'
+                    );
+                    return true;
+                }
+            }
+
+            if (!targetMember.kickable) {
+                await message.reply(
+                    '❌ I cannot kick that member (missing permissions or role hierarchy issue).'
+                );
+                return true;
+            }
+
+            const mentionIndex = args.findIndex(token => /^<@!?\d+>$/.test(token));
+            const reason =
+                mentionIndex >= 0
+                    ? args.slice(mentionIndex + 1).join(' ').trim()
+                    : args.slice(1).join(' ').trim();
+
+            try {
+                await targetMember.kick(
+                    reason || `Kicked by ${message.author.tag}`
+                );
+                await message.reply(
+                    `✅ Kicked **${targetMember.user?.tag || targetMember.user?.username || 'member'}**.`
+                );
+            } catch (error) {
+                console.error('[LegacyCommands] Kick failed:', error);
+                await message.reply('❌ Kick failed, sir.');
+            }
+
+            return true;
+        }
+    },
+
     // ============ MODERATION COMMANDS (Admin/Owner Only) ============
     enable: {
         description: 'Enable a feature (moderation)',
@@ -1317,6 +1425,11 @@ async function handleLegacyCommand(message, client) {
 
     // Parse command and args
     const withoutPrefix = content.slice(LEGACY_PREFIX.length).trim();
+    if (!withoutPrefix) {
+        await legacyCommands.help.execute(message, [], client);
+        return true;
+    }
+
     const parts = withoutPrefix.split(/\s+/);
     let commandName = (parts[0] || '').toLowerCase();
     const args = parts.slice(1);
@@ -1329,8 +1442,10 @@ async function handleLegacyCommand(message, client) {
     // Find and execute command
     const command = legacyCommands[commandName];
     if (!command) {
-        // Unknown command - could show help or ignore
-        return false;
+        await message
+            .reply('Unknown legacy command, sir. Use `.j help`.')
+            .catch(() => {});
+        return true;
     }
 
     // Check cooldown (skip for help/navigation commands)
