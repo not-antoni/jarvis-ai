@@ -174,6 +174,14 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
+        name: 'monitor',
+        description: 'Monitor websites, feeds, and channels.',
+        category: 'Utilities',
+        usage: '/monitor <rss|website|youtube|twitch|remove>',
+        feature: 'utilities',
+        ephemeral: true
+    },
+    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',

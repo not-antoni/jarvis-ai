@@ -1257,6 +1257,237 @@
         }
     }
 
+    async handleMonitorCommand(interaction) {
+        const monitorSubscriptions = require('./monitor-subscriptions');
+        const monitorUtils = require('./monitor-utils');
+
+        const guildId = interaction.guildId;
+        const userId = interaction.user.id;
+
+        if (!guildId) {
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.reply({
+                    content: 'Monitoring is only available in servers, sir.',
+                    ephemeral: true
+                });
+            } else {
+                await interaction.editReply('Monitoring is only available in servers, sir.');
+            }
+            return;
+        }
+
+        const guild = interaction.guild || await interaction.client.guilds.fetch(guildId).catch(() => null);
+        const memberPermissions = interaction.memberPermissions || interaction.member?.permissions;
+        const isOwner = Boolean(guild && guild.ownerId === userId);
+        const hasManageChannels = Boolean(memberPermissions?.has(PermissionsBitField.Flags.ManageChannels));
+        if (!isOwner && !hasManageChannels) {
+            const msg = "❌ You must be the Server Owner or have the 'Manage Channels' permission to use this command.";
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.reply({ content: msg, ephemeral: true });
+            } else {
+                await interaction.editReply(msg);
+            }
+            return;
+        }
+
+        const subcommand = interaction.options.getSubcommand();
+
+        const resolveAlertChannel = () => {
+            const provided = interaction.options.getChannel('channel');
+            if (provided) return provided;
+            return interaction.channel;
+        };
+
+        const ensureSendPermissions = async (channel) => {
+            const guildRef = guild || await interaction.client.guilds.fetch(guildId).catch(() => null);
+            const botMember = guildRef?.members?.me || await guildRef?.members?.fetchMe?.().catch(() => null);
+            const perms = channel?.permissionsFor?.(botMember || guildRef?.client?.user);
+            if (!perms?.has(PermissionsBitField.Flags.ViewChannel) || !perms?.has(PermissionsBitField.Flags.SendMessages)) {
+                return { ok: false, error: 'I require permission to view and speak in that channel, sir.' };
+            }
+
+            if (typeof channel.isThread === 'function' && channel.isThread()) {
+                if (!perms?.has(PermissionsBitField.Flags.SendMessagesInThreads)) {
+                    return { ok: false, error: 'I require permission to speak in that thread, sir.' };
+                }
+            }
+
+            return { ok: true };
+        };
+
+        try {
+            if (subcommand === 'remove') {
+                const sourceRaw = String(interaction.options.getString('source', true) || '').trim();
+                const source = sourceRaw;
+
+                const result = await monitorSubscriptions.remove_subscription({
+                    guild_id: guildId,
+                    source_id: source
+                });
+                const result2 = source.toLowerCase() !== source
+                    ? await monitorSubscriptions.remove_subscription({
+                          guild_id: guildId,
+                          source_id: source.toLowerCase()
+                      })
+                    : { ok: true, removed: 0 };
+
+                const removed = (Number(result?.removed) || 0) + (Number(result2?.removed) || 0);
+                await interaction.editReply(
+                    removed > 0
+                        ? `🗑️ Removed ${removed} monitor(s), sir.`
+                        : 'No monitors matched that source, sir.'
+                );
+                return;
+            }
+
+            if (subcommand === 'rss') {
+                const url = String(interaction.options.getString('url', true) || '').trim();
+                const channel = resolveAlertChannel();
+                if (!channel) {
+                    await interaction.editReply('Please provide an alert channel, sir.');
+                    return;
+                }
+
+                const permsCheck = await ensureSendPermissions(channel);
+                if (!permsCheck.ok) {
+                    await interaction.editReply(permsCheck.error);
+                    return;
+                }
+
+                const latest = await monitorUtils.fetchFeedLatest(url);
+                const initial = latest?.id ? String(latest.id) : null;
+                if (!initial) {
+                    await interaction.editReply('I could not find a valid latest item for that feed, sir.');
+                    return;
+                }
+
+                const doc = await monitorSubscriptions.add_subscription({
+                    guild_id: guildId,
+                    channel_id: channel.id,
+                    monitor_type: 'rss',
+                    source_id: url,
+                    last_seen_data: initial
+                });
+
+                await interaction.editReply(
+                    `✅ RSS monitor added, sir.\n**ID:** \`${doc.id}\`\n**Feed:** ${url}\n**Alerts:** <#${doc.channel_id}>`
+                );
+                return;
+            }
+
+            if (subcommand === 'website') {
+                const url = String(interaction.options.getString('url', true) || '').trim();
+                const channel = resolveAlertChannel();
+                if (!channel) {
+                    await interaction.editReply('Please provide an alert channel, sir.');
+                    return;
+                }
+
+                const permsCheck = await ensureSendPermissions(channel);
+                if (!permsCheck.ok) {
+                    await interaction.editReply(permsCheck.error);
+                    return;
+                }
+
+                const status = await monitorUtils.fetchWebsiteStatus(url);
+                const initial = status?.status != null ? String(status.status) : null;
+                if (!initial) {
+                    await interaction.editReply('I could not retrieve an HTTP status for that URL, sir.');
+                    return;
+                }
+
+                const doc = await monitorSubscriptions.add_subscription({
+                    guild_id: guildId,
+                    channel_id: channel.id,
+                    monitor_type: 'website',
+                    source_id: url,
+                    last_seen_data: initial
+                });
+
+                await interaction.editReply(
+                    `✅ Website monitor added, sir.\n**ID:** \`${doc.id}\`\n**URL:** ${url}\n**Initial:** ${initial}\n**Alerts:** <#${doc.channel_id}>`
+                );
+                return;
+            }
+
+            if (subcommand === 'youtube') {
+                const channelId = String(interaction.options.getString('channel_id', true) || '').trim();
+                const channel = interaction.options.getChannel('channel', true);
+
+                const permsCheck = await ensureSendPermissions(channel);
+                if (!permsCheck.ok) {
+                    await interaction.editReply(permsCheck.error);
+                    return;
+                }
+
+                const latest = await monitorUtils.fetchYoutubeLatest(channelId);
+                const initial = latest?.id ? String(latest.id) : null;
+                if (!initial) {
+                    await interaction.editReply('I could not find a latest video for that channel ID, sir.');
+                    return;
+                }
+
+                const doc = await monitorSubscriptions.add_subscription({
+                    guild_id: guildId,
+                    channel_id: channel.id,
+                    monitor_type: 'youtube',
+                    source_id: channelId,
+                    last_seen_data: initial
+                });
+
+                await interaction.editReply(
+                    `✅ YouTube monitor added, sir.\n**ID:** \`${doc.id}\`\n**Channel ID:** ${channelId}\n**Alerts:** <#${doc.channel_id}>`
+                );
+                return;
+            }
+
+            if (subcommand === 'twitch') {
+                const username = String(interaction.options.getString('username', true) || '').trim();
+                const normalized = username.toLowerCase();
+                const channel = interaction.options.getChannel('channel', true);
+
+                const permsCheck = await ensureSendPermissions(channel);
+                if (!permsCheck.ok) {
+                    await interaction.editReply(permsCheck.error);
+                    return;
+                }
+
+                const current = await monitorUtils.fetchTwitchUserAndStream(normalized);
+                if (!current?.user) {
+                    await interaction.editReply('I could not find that Twitch user, sir.');
+                    return;
+                }
+
+                const initial = current?.status ? String(current.status) : 'offline';
+
+                const doc = await monitorSubscriptions.add_subscription({
+                    guild_id: guildId,
+                    channel_id: channel.id,
+                    monitor_type: 'twitch',
+                    source_id: normalized,
+                    last_seen_data: initial
+                });
+
+                await interaction.editReply(
+                    `✅ Twitch monitor added, sir.\n**ID:** \`${doc.id}\`\n**Username:** ${normalized}\n**Initial:** ${initial}\n**Alerts:** <#${doc.channel_id}>`
+                );
+                return;
+            }
+
+            await interaction.editReply('Unknown monitor action, sir.');
+        } catch (error) {
+            console.error('[/monitor] Error:', error);
+            const msg = error?.isFriendly ? error.message : 'Monitoring command failed internally, sir.';
+            try {
+                if (!interaction.deferred && !interaction.replied) {
+                    await interaction.reply({ content: msg, ephemeral: true });
+                } else {
+                    await interaction.editReply(msg);
+                }
+            } catch (_) {}
+        }
+    }
+
     async handleReactionRemove(reaction, user) {
         if (!database.isConnected || !reaction || !user || user.bot) {
             return;
@@ -2796,6 +3027,11 @@
                 case 'announcement': {
                     telemetryMetadata.category = 'utilities';
                     await this.handleAnnouncementCommand(interaction);
+                    return;
+                }
+                case 'monitor': {
+                    telemetryMetadata.category = 'utilities';
+                    await this.handleMonitorCommand(interaction);
                     return;
                 }
                 case 'opt': {

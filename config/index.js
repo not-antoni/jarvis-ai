@@ -105,7 +105,8 @@ const rawConfig = {
             commandSyncState: 'commandSyncState',
             starkEconomy: 'starkEconomy',
             reminders: 'reminders',
-            announcements: 'announcements'
+            announcements: 'announcements',
+            subscriptions: 'subscriptions'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',

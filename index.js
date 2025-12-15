@@ -47,6 +47,7 @@ const ytDlpManager = require('./src/services/yt-dlp-manager');
 const starkEconomy = require('./src/services/stark-economy');
 const errorLogger = require('./src/services/error-logger');
 const announcementScheduler = require('./src/services/announcement-scheduler');
+const monitorScheduler = require('./src/services/monitor-scheduler');
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -3407,6 +3408,87 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
+        .setName('monitor')
+        .setDescription('Monitor websites, feeds, and channels.')
+        .addSubcommand(sub =>
+            sub
+                .setName('rss')
+                .setDescription('Monitor a general RSS or Atom feed for new items.')
+                .addStringOption(opt =>
+                    opt.setName('url').setDescription('RSS/Atom feed URL').setRequired(true)
+                )
+                .addChannelOption(opt =>
+                    opt
+                        .setName('channel')
+                        .setDescription('Channel for alerts (defaults to current channel)')
+                        .setRequired(false)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('website')
+                .setDescription('Monitor a URL for uptime (HTTP 200) and recovery.')
+                .addStringOption(opt =>
+                    opt.setName('url').setDescription('Website URL').setRequired(true)
+                )
+                .addChannelOption(opt =>
+                    opt
+                        .setName('channel')
+                        .setDescription('Channel for alerts (defaults to current channel)')
+                        .setRequired(false)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('youtube')
+                .setDescription('Monitor a YouTube channel for new videos.')
+                .addStringOption(opt =>
+                    opt
+                        .setName('channel_id')
+                        .setDescription('YouTube Channel ID (UC...)')
+                        .setRequired(true)
+                )
+                .addChannelOption(opt =>
+                    opt
+                        .setName('channel')
+                        .setDescription('Channel for alerts')
+                        .setRequired(true)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('twitch')
+                .setDescription('Monitor a Twitch streamer for when they go live.')
+                .addStringOption(opt =>
+                    opt
+                        .setName('username')
+                        .setDescription("Streamer's username")
+                        .setRequired(true)
+                )
+                .addChannelOption(opt =>
+                    opt
+                        .setName('channel')
+                        .setDescription('Channel for alerts')
+                        .setRequired(true)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('remove')
+                .setDescription('Stop monitoring a specific source.')
+                .addStringOption(opt =>
+                    opt
+                        .setName('source')
+                        .setDescription('The URL / channel ID / username to remove')
+                        .setRequired(true)
+                )
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
         .setName('timezone')
         .setDescription('Set your timezone for reminders and time displays')
         .addStringOption(opt =>
@@ -4591,6 +4673,12 @@ client.once(Events.ClientReady, async () => {
         announcementScheduler.init({ client, database });
     } catch (e) {
         console.warn('[Announcements] Failed to start scheduler:', e.message);
+    }
+
+    try {
+        monitorScheduler.init({ client });
+    } catch (e) {
+        console.warn('[Monitor] Failed to start scheduler:', e.message);
     }
 
     if (databaseConnected) {
