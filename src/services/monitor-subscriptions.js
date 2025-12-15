@@ -4,9 +4,11 @@ const config = require('../../config');
 const database = require('./database');
 const localdb = require('../localdb');
 
+const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
+
 const LOCAL_DB_MODE =
-    String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() ===
-    '1';
+    !IS_RENDER &&
+    String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
 
 const VALID_MONITOR_TYPES = new Set(['rss', 'website', 'youtube', 'twitch']);
 
@@ -34,6 +36,12 @@ function normalizeRequired(value, label) {
 
 function buildId(prefix) {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function databaseNotConnectedError() {
+    const error = new Error('Database not connected.');
+    error.isFriendly = true;
+    return error;
 }
 
 function getMongoCollection() {
@@ -84,7 +92,7 @@ async function add_subscription({
     }
 
     if (!LOCAL_DB_MODE) {
-        throw new Error('Database not connected.');
+        throw databaseNotConnectedError();
     }
 
     const docs = localdb.readCollection(config.database.collections.subscriptions);
@@ -137,7 +145,7 @@ async function remove_subscription({ guild_id, source_id, monitor_type } = {}) {
     }
 
     if (!LOCAL_DB_MODE) {
-        throw new Error('Database not connected.');
+        throw databaseNotConnectedError();
     }
 
     const docs = localdb.readCollection(config.database.collections.subscriptions);
@@ -164,7 +172,7 @@ async function remove_subscription_by_id({ id } = {}) {
     }
 
     if (!LOCAL_DB_MODE) {
-        throw new Error('Database not connected.');
+        throw databaseNotConnectedError();
     }
 
     const docs = localdb.readCollection(config.database.collections.subscriptions);
@@ -202,7 +210,7 @@ async function update_last_seen_data({ id, last_seen_data } = {}) {
     }
 
     if (!LOCAL_DB_MODE) {
-        throw new Error('Database not connected.');
+        throw databaseNotConnectedError();
     }
 
     const docs = localdb.readCollection(config.database.collections.subscriptions);

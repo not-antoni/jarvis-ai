@@ -7,6 +7,8 @@ const monitorUtils = require('./monitor-utils');
 
 const DEFAULT_TICK_MS = 7 * 60 * 1000;
 
+const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
+
 let schedulerState = {
     started: false,
     tickHandle: null,
@@ -336,6 +338,14 @@ async function tick() {
     schedulerState.running = true;
     try {
         await ensureDatabaseConnection();
+
+        if (IS_RENDER && !schedulerState.database?.isConnected) {
+            if (!schedulerState.warnedNotConnected) {
+                schedulerState.warnedNotConnected = true;
+                console.warn('[Monitor] Database not connected; skipping polling on Render');
+            }
+            return;
+        }
 
         const all = await subscriptions.get_all_subscriptions().catch(() => []);
         if (!Array.isArray(all) || !all.length) {
