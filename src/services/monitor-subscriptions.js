@@ -91,7 +91,11 @@ async function add_subscription({
             { upsert: true, returnDocument: 'after' }
         );
 
-        return result?.value || null;
+        if (result?.value) {
+            return result.value;
+        }
+
+        return await collection.findOne({ guild_id: gid, monitor_type: type, source_id: source });
     }
 
     if (!LOCAL_DB_MODE) {
