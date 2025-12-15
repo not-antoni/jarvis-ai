@@ -90,12 +90,12 @@
             if (memberMap && memberMap.size > 0) {
                 for (const [userId, member] of memberMap) {
                     const displayName = member?.displayName || member?.user?.globalName || member?.user?.username || 'user';
-                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `@${displayName}`);
+                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `${displayName}`);
                 }
             } else {
                 for (const [userId, user] of message.mentions.users) {
                     const displayName = user?.globalName || user?.username || 'user';
-                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `@${displayName}`);
+                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `${displayName}`);
                 }
             }
             // Replace role mentions with @rolename
@@ -177,6 +177,20 @@
             if (message.reference?.messageId) {
                 try {
                     const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+                    let repliedDisplayName = repliedMessage.author?.username || 'user';
+                    if (message.guild && repliedMessage.author?.id) {
+                        const repliedMember =
+                            repliedMessage.member ||
+                            (await message.guild.members.fetch(repliedMessage.author.id).catch(() => null));
+                        repliedDisplayName =
+                            repliedMember?.displayName ||
+                            repliedMessage.author?.globalName ||
+                            repliedMessage.author?.username ||
+                            'user';
+                    } else {
+                        repliedDisplayName =
+                            repliedMessage.author?.globalName || repliedMessage.author?.username || 'user';
+                    }
                     
                     // Extract text from replied message for context (limit to leave room for user's message)
                     const repliedText = (repliedMessage?.cleanContent || repliedMessage?.content || '').trim();
@@ -184,7 +198,7 @@
                         // Reserve space for user's message, cap replied context
                         const maxReplyContext = Math.min(300, Math.max(100, config.ai.maxInputLength - cleanContent.length - 50));
                         const trimmedReply = repliedText.substring(0, maxReplyContext);
-                        repliedContext = `[Replied to ${repliedMessage.author?.username || 'user'}: "${trimmedReply}${repliedText.length > maxReplyContext ? '...' : ''}"]\n`;
+                        repliedContext = `[Replied to ${repliedDisplayName}: "${trimmedReply}${repliedText.length > maxReplyContext ? '...' : ''}"]\n`;
                     }
                     
                     // Extract images from replied message (only if current message has no images)

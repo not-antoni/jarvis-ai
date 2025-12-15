@@ -7,6 +7,15 @@ function parseCsv(value) {
         .filter(Boolean);
 }
 
+function parseBooleanEnv(value, fallback = false) {
+    if (value == null) return Boolean(fallback);
+    const normalized = String(value).trim().toLowerCase();
+    if (!normalized) return Boolean(fallback);
+    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) return false;
+    return Boolean(fallback);
+}
+
 function normalizeProxyBase(value) {
     const url = new URL(value);
     url.hash = '';
@@ -68,14 +77,12 @@ class ProxyRotator {
 
 function buildConfigFromEnv() {
     const proxyUrls = parseCsv(process.env.AI_PROXY_URLS).map(normalizeProxyBase);
-    const enabled =
-        String(process.env.AI_PROXY_ENABLED || 'true').trim().toLowerCase() !== 'false';
+    const enabled = parseBooleanEnv(process.env.AI_PROXY_ENABLED, true);
 
     const strategy = String(process.env.AI_PROXY_STRATEGY || 'round_robin').trim();
-    const debug = String(process.env.AI_PROXY_DEBUG || '').trim().toLowerCase() === 'true';
+    const debug = parseBooleanEnv(process.env.AI_PROXY_DEBUG, false);
     const token = String(process.env.AI_PROXY_TOKEN || '').trim();
-    const fallbackDirect =
-        String(process.env.AI_PROXY_FALLBACK_DIRECT || 'true').trim().toLowerCase() !== 'false';
+    const fallbackDirect = parseBooleanEnv(process.env.AI_PROXY_FALLBACK_DIRECT, true);
 
     const allowedHosts = parseCsv(
         process.env.AI_PROXY_ALLOWED_HOSTS ||
@@ -113,6 +120,7 @@ function createProxyingFetch() {
     let rotator = new ProxyRotator(proxyUrls, config.strategy);
     let dbConfigPromise = null;
     let dbConfigLoaded = false;
+    let warnedNoUrls = false;
 
     async function maybeLoadDbConfig() {
         if (dbConfigLoaded) return;
@@ -141,8 +149,10 @@ function createProxyingFetch() {
                         config.proxyUrls = proxyUrls;
                         rotator = new ProxyRotator(proxyUrls, config.strategy);
                     }
-                } catch {
-                    // ignore
+                } catch (err) {
+                    if (config.debug) {
+                        console.warn('[AIProxy] Failed to load proxy config from DB:', err?.message || err);
+                    }
                 } finally {
                     dbConfigLoaded = true;
                 }
@@ -217,6 +227,16 @@ function createProxyingFetch() {
 
         if (config.enabled && proxyUrls.length === 0) {
             await maybeLoadDbConfig();
+        }
+
+        if (config.enabled && proxyUrls.length === 0) {
+            if (!warnedNoUrls) {
+                warnedNoUrls = true;
+                console.warn(
+                    '[AIProxy] AI proxying is enabled but no proxy URLs are configured. Set AI_PROXY_URLS (comma-separated) or provision proxies (see scripts/provision-ai-proxies.js).'
+                );
+            }
+            return baseFetch(input, init);
         }
 
         if (!config.enabled || proxyUrls.length === 0) {
