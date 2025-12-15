@@ -67,23 +67,26 @@ async function add_subscription({
 
     const collection = getMongoCollection();
     if (collection) {
+        const set = {
+            channel_id: cid,
+            ...(last_seen_data !== undefined ? { last_seen_data } : {}),
+            updatedAt: now
+        };
+
+        const setOnInsert = {
+            id: buildId('sub'),
+            guild_id: gid,
+            monitor_type: type,
+            source_id: source,
+            ...(last_seen_data === undefined ? { last_seen_data: null } : {}),
+            createdAt: now
+        };
+
         const result = await collection.findOneAndUpdate(
             { guild_id: gid, monitor_type: type, source_id: source },
             {
-                $setOnInsert: {
-                    id: buildId('sub'),
-                    guild_id: gid,
-                    channel_id: cid,
-                    monitor_type: type,
-                    source_id: source,
-                    last_seen_data: last_seen_data ?? null,
-                    createdAt: now
-                },
-                $set: {
-                    channel_id: cid,
-                    ...(last_seen_data !== undefined ? { last_seen_data } : {}),
-                    updatedAt: now
-                }
+                $setOnInsert: setOnInsert,
+                $set: set
             },
             { upsert: true, returnDocument: 'after' }
         );

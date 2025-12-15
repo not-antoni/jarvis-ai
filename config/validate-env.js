@@ -32,7 +32,8 @@ function parseBooleanEnv(key, fallback = false) {
 }
 
 const localDbMode =
-    parseBooleanEnv('LOCAL_DB_MODE', false) || parseBooleanEnv('ALLOW_START_WITHOUT_DB', false);
+    !Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL) &&
+    (parseBooleanEnv('LOCAL_DB_MODE', false) || parseBooleanEnv('ALLOW_START_WITHOUT_DB', false));
 
 const REQUIRED_VARS = localDbMode
     ? ['DISCORD_TOKEN', 'MASTER_KEY_BASE64']

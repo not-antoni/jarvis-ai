@@ -1,8 +1,10 @@
 const { MongoClient } = require('mongodb');
 const config = require('../../config');
+
+const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
 const LOCAL_DB_MODE =
-    String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() ===
-    '1';
+    !IS_RENDER &&
+    String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
 
 const {
     database: {
