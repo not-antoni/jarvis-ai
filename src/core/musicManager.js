@@ -23,6 +23,38 @@ class MusicManager {
         return this.queues.get(guildId) ?? null;
     }
 
+    getActiveGuildIds() {
+        return Array.from(this.queues.keys());
+    }
+
+    getQueueSnapshot(guildId) {
+        const state = this.getState(guildId);
+        if (!state) {
+            return {
+                guildId: String(guildId),
+                active: false,
+                current: null,
+                pendingVideoId: null,
+                queuedCount: 0,
+                voiceChannelId: null
+            };
+        }
+
+        return {
+            guildId: String(guildId),
+            active: Boolean(state.currentVideo) || Boolean(state.pendingVideoId) || state.queue.length > 0,
+            current: state.currentVideo
+                ? {
+                      title: state.currentVideo.title,
+                      url: state.currentVideo.url
+                  }
+                : null,
+            pendingVideoId: state.pendingVideoId || null,
+            queuedCount: Array.isArray(state.queue) ? state.queue.length : 0,
+            voiceChannelId: state.voiceChannelId || null
+        };
+    }
+
     async enqueue(guildId, voiceChannel, video, interaction) {
         if (!isGuildAllowed(guildId)) {
             return '⚠️ Music playback is not enabled for this server, sir.';

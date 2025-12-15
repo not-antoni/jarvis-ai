@@ -366,12 +366,12 @@ function setDiscordClient(client) {
 /**
  * Get Discord OAuth URL
  */
-function getOAuthUrl(state) {
+function getOAuthUrl(state, redirectPath = '/moderator/callback') {
     const clientId = resolveDiscordClientId();
     if (!clientId) {
         throw new Error('DISCORD_CLIENT_ID is not configured');
     }
-    const redirectUri = getRedirectUri();
+    const redirectUri = getRedirectUri(redirectPath);
 
     const params = new URLSearchParams({
         client_id: clientId,
@@ -387,25 +387,26 @@ function getOAuthUrl(state) {
 /**
  * Get redirect URI based on environment
  */
-function getRedirectUri() {
+function getRedirectUri(redirectPath = '/moderator/callback') {
+    const normalizedPath = String(redirectPath || '/moderator/callback');
     if (process.env.DASHBOARD_DOMAIN) {
-        return `${process.env.DASHBOARD_DOMAIN}/moderator/callback`;
+        return `${process.env.DASHBOARD_DOMAIN}${normalizedPath}`;
     }
 
     // Auto-detect Render URL
     if (process.env.RENDER_EXTERNAL_URL) {
-        return `${process.env.RENDER_EXTERNAL_URL}/moderator/callback`;
+        return `${process.env.RENDER_EXTERNAL_URL}${normalizedPath}`;
     }
 
     // Fallback to localhost
     const port = process.env.PORT || 3000;
-    return `http://localhost:${port}/moderator/callback`;
+    return `http://localhost:${port}${normalizedPath}`;
 }
 
 /**
  * Exchange OAuth code for tokens
  */
-async function exchangeCode(code) {
+async function exchangeCode(code, redirectPath = '/moderator/callback') {
     const fetch = require('node-fetch');
 
     const clientId = resolveDiscordClientId();
@@ -421,7 +422,7 @@ async function exchangeCode(code) {
         client_secret: process.env.DISCORD_CLIENT_SECRET,
         grant_type: 'authorization_code',
         code,
-        redirect_uri: getRedirectUri()
+        redirect_uri: getRedirectUri(redirectPath)
     });
 
     const response = await fetch('https://discord.com/api/oauth2/token', {
@@ -483,7 +484,7 @@ async function sendPasswordSetupDM(client, userId, guildId) {
         if (!user) return false;
 
         const token = generateSetupToken(userId);
-        const baseUrl = getRedirectUri().replace('/moderator/callback', '');
+        const baseUrl = getRedirectUri('/moderator/callback').replace('/moderator/callback', '');
         const setupUrl = `${baseUrl}/moderator/setup?userId=${userId}&token=${token}`;
 
         await user.send({

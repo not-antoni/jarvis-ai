@@ -3711,6 +3711,10 @@ app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 const moderatorRouter = require('./src/routes/moderator');
 app.use('/moderator', moderatorRouter);
 
+// Mount owner dashboard routes
+const jarvisOwnerRouter = require('./src/routes/jarvis');
+app.use('/jarvis', jarvisOwnerRouter);
+
 // Mount dashboard API routes
 const dashboardRouter = require('./routes/dashboard');
 
@@ -4595,6 +4599,7 @@ client.once(Events.ClientReady, async () => {
 
     // Store client globally for economy DMs
     global.discordClient = client;
+    global.discordHandlers = discordHandlers;
 
     try {
         const moderatorAuth = require('./src/services/moderator-auth');
