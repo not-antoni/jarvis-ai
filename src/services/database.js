@@ -118,7 +118,8 @@ class DatabaseManager {
             statusMessages: this.db.collection(config.database.collections.statusMessages),
             commandMetrics: this.db.collection(config.database.collections.commandMetrics),
             reminders: this.db.collection(config.database.collections.reminders),
-            announcements: this.db.collection(config.database.collections.announcements)
+            announcements: this.db.collection(config.database.collections.announcements),
+            subscriptions: this.db.collection(config.database.collections.subscriptions)
         };
 
         const indexPlans = [
@@ -270,6 +271,16 @@ class DatabaseManager {
                     { key: { guildId: 1, channelId: 1, enabled: 1 } },
                     { key: { createdByUserId: 1, guildId: 1 } },
                     { key: { lockedUntil: 1 } }
+                ]
+            },
+            {
+                label: 'subscriptions',
+                collection: collections.subscriptions,
+                definitions: [
+                    { key: { id: 1 }, unique: true },
+                    { key: { guild_id: 1, monitor_type: 1, source_id: 1 }, unique: true },
+                    { key: { guild_id: 1, channel_id: 1 } },
+                    { key: { monitor_type: 1 } }
                 ]
             }
         ];
