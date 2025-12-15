@@ -156,11 +156,45 @@ AI_PROXY_STRATEGY=round_robin
 AI_PROXY_TOKEN=your_shared_secret
 AI_PROXY_DEBUG=true
 AI_PROXY_FALLBACK_DIRECT=true
+AI_PROXY_AUTO_PROVISION=false
+AI_PROXY_SAVE_TO_DB=true
+AI_PROXY_WORKERS_COUNT=3
+AI_PROXY_WORKER_PREFIX=jarvis-ai-proxy
+AI_PROXY_SET_WORKER_TOKEN=true
 ```
 
 Important:
 
 - **`AI_PROXY_ENABLED=true` is not enough by itself**. You must also configure `AI_PROXY_URLS` (or have them stored in MongoDB via the provisioning script).
+
+### Auto-provision at runtime (optional)
+
+If you set Cloudflare credentials and want Jarvis to automatically deploy workers on demand:
+
+```env
+AI_PROXY_ENABLED=true
+AI_PROXY_URLS=
+AI_PROXY_AUTO_PROVISION=true
+CLOUDFLARE_ACCOUNT_ID=...
+CLOUDFLARE_API_TOKEN=...
+AI_PROXY_TOKEN=...
+```
+
+On the first eligible AI HTTP request, Jarvis will:
+
+- Deploy `AI_PROXY_WORKERS_COUNT` workers (default 3) under `AI_PROXY_WORKER_PREFIX`
+- Enable `workers.dev`
+- Save the resulting URLs to MongoDB (when `AI_PROXY_SAVE_TO_DB=true`)
+
+If you still see:
+
+`[AIProxy] AI proxying is enabled but no proxy URLs are configured...`
+
+then either:
+
+- Your Cloudflare env vars are missing/invalid
+- Auto-provision is disabled (`AI_PROXY_AUTO_PROVISION=false`)
+- Or MongoDB is unavailable and no `AI_PROXY_URLS` were provided
 
 ### Provision Workers automatically
 
