@@ -8,6 +8,7 @@ const cookieParser = require('cookie-parser');
 const router = express.Router();
 const auth = require('../services/moderator-auth');
 const config = require('../../config');
+const database = require('../services/database');
 const aiManager = require('../services/ai-providers');
 const { gatherHealthSnapshot } = require('../services/diagnostics');
 const moderation = require('../services/GUILDS_FEATURES/moderation');
@@ -27,6 +28,75 @@ router.use(express.json({ limit: '1mb' }));
 
 const jarvisAuditLog = [];
 const jarvisRateBuckets = new Map();
+const jarvisSnapshotBuckets = new Map();
+
+let jarvisSnapshotIndexesReady = false;
+
+function getSnapshotCollection() {
+    if (!database?.isConnected || !database?.db) {
+        return null;
+    }
+    if (typeof database.getCollection === 'function') {
+        return database.getCollection('jarvis_owner_snapshots');
+    }
+    if (typeof database.db.collection === 'function') {
+        return database.db.collection('jarvis_owner_snapshots');
+    }
+    return null;
+}
+
+async function ensureSnapshotIndexes(collection) {
+    if (jarvisSnapshotIndexesReady) return;
+    jarvisSnapshotIndexesReady = true;
+    await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => null);
+    await collection.createIndex({ updatedAt: -1 }).catch(() => null);
+}
+
+async function saveJarvisSnapshot(key, payload, opts = {}) {
+    const safeKey = String(key || '').trim();
+    if (!safeKey) return false;
+
+    const maxBytes = Math.max(1024, Number(opts.maxBytes || 512 * 1024));
+    const ttlMs = Math.max(60 * 1000, Number(opts.ttlMs || 6 * 60 * 60 * 1000));
+    const minWriteMs = Math.max(250, Number(opts.minWriteMs || 5000));
+
+    let json = '';
+    try {
+        json = JSON.stringify(payload);
+    } catch {
+        return false;
+    }
+    if (Buffer.byteLength(json, 'utf8') > maxBytes) {
+        return false;
+    }
+
+    const collection = getSnapshotCollection();
+    if (!collection) return false;
+    await ensureSnapshotIndexes(collection);
+
+    const now = Date.now();
+    const hash = crypto.createHash('sha256').update(json).digest('hex');
+
+    const bucket = jarvisSnapshotBuckets.get(safeKey);
+    if (bucket && now - bucket.lastWriteAt < minWriteMs && bucket.lastHash === hash) {
+        return false;
+    }
+
+    jarvisSnapshotBuckets.set(safeKey, { lastWriteAt: now, lastHash: hash });
+
+    const doc = {
+        _id: safeKey,
+        key: safeKey,
+        payload,
+        payloadHash: hash,
+        sizeBytes: Buffer.byteLength(json, 'utf8'),
+        updatedAt: new Date(now),
+        expiresAt: new Date(now + ttlMs)
+    };
+
+    await collection.replaceOne({ _id: safeKey }, doc, { upsert: true });
+    return true;
+}
 
 function getClientIp(req) {
     const xf = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
@@ -382,6 +452,65 @@ function getPanelPage(session) {
         }
       };
 
+      var CACHE_PREFIX = 'jarvis.owner.snapshot.';
+      var OFFLINE_BANNER = 'Offline. Showing cached data.';
+
+      function smartCleanCache() {
+        try {
+          if (typeof localStorage === 'undefined') return;
+          var now = Date.now();
+          var maxAge = 14 * 24 * 60 * 60 * 1000;
+          var keys = [];
+          for (var i = 0; i < localStorage.length; i++) {
+            var k = localStorage.key(i);
+            if (k && k.indexOf(CACHE_PREFIX) === 0) keys.push(k);
+          }
+          var keep = [];
+          for (var j = 0; j < keys.length; j++) {
+            var raw = localStorage.getItem(keys[j]);
+            var obj = null;
+            try { obj = raw ? JSON.parse(raw) : null; } catch { obj = null; }
+            var ts = obj && typeof obj.ts === 'number' ? obj.ts : 0;
+            if (!obj || !obj.data || !ts || now - ts > maxAge) {
+              localStorage.removeItem(keys[j]);
+            } else {
+              keep.push({ k: keys[j], ts: ts });
+            }
+          }
+          if (keep.length > 80) {
+            keep.sort(function (a, b) { return a.ts - b.ts; });
+            for (var x = 0; x < keep.length - 80; x++) localStorage.removeItem(keep[x].k);
+          }
+        } catch {
+        }
+      }
+
+      function readCache(key) {
+        try {
+          if (typeof localStorage === 'undefined') return null;
+          var safeKey = String(key || '').trim();
+          if (!safeKey) return null;
+          var raw = localStorage.getItem(CACHE_PREFIX + safeKey);
+          if (!raw) return null;
+          var obj = JSON.parse(raw);
+          if (!obj || !obj.data) return null;
+          return { ts: obj.ts || null, data: obj.data };
+        } catch {
+          return null;
+        }
+      }
+
+      function writeCache(key, data) {
+        try {
+          if (typeof localStorage === 'undefined') return;
+          var safeKey2 = String(key || '').trim();
+          if (!safeKey2) return;
+          localStorage.setItem(CACHE_PREFIX + safeKey2, JSON.stringify({ ts: Date.now(), data: data }));
+          smartCleanCache();
+        } catch {
+        }
+      }
+
       function setBadge(id, value) {
         var el = document.getElementById(id);
         if (el) el.textContent = String(value);
@@ -428,8 +557,27 @@ function getPanelPage(session) {
         }
       }
 
-      function updateLastUpdated() {
-        lastUpdatedEl.textContent = 'Updated ' + new Date().toLocaleTimeString();
+      function updateLastUpdated(prefix, ts) {
+        var d = ts ? new Date(ts) : new Date();
+        lastUpdatedEl.textContent = String(prefix || 'Updated ') + d.toLocaleTimeString();
+      }
+
+      function lastUpdatedPrefix(meta) {
+        if (!meta || !meta.source) return 'Updated ';
+        if (meta.source === 'local') return 'Cached ';
+        if (meta.source === 'server') return 'Snapshot ';
+        return 'Updated ';
+      }
+
+      function updateConnectionBanner() {
+        try {
+          if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            if (!bannerEl.textContent) setBanner('warn', OFFLINE_BANNER);
+          } else {
+            if (bannerEl.textContent === OFFLINE_BANNER) setBanner('', '');
+          }
+        } catch {
+        }
       }
 
       function pill(label, tone) {
@@ -666,6 +814,54 @@ function getPanelPage(session) {
         });
       }
 
+      function loadSection(cacheKey, url, paint) {
+        var key = String(cacheKey || '').trim();
+        var cached = key ? readCache(key) : null;
+        var usedCached = Boolean(cached && cached.data);
+
+        if (usedCached) {
+          try {
+            paint(cached.data, { source: 'local', ts: cached.ts || null });
+          } catch {
+          }
+        } else {
+          viewEl.appendChild(pill('Loading…', 'warn'));
+        }
+
+        return api(url)
+          .then(function (data) {
+            setBanner('', '');
+            if (key) writeCache(key, data);
+            paint(data, { source: 'live', ts: Date.now() });
+            updateConnectionBanner();
+            return data;
+          })
+          .catch(function (e) {
+            if (usedCached) {
+              var msg = (typeof navigator !== 'undefined' && navigator.onLine === false)
+                ? OFFLINE_BANNER
+                : ('Showing cached data • ' + String(e.message || 'failed'));
+              setBanner('warn', msg);
+              updateConnectionBanner();
+              return cached.data;
+            }
+
+            if (!key) throw e;
+
+            return api('/jarvis/api/cache/' + encodeURIComponent(key))
+              .then(function (snap) {
+                if (snap && snap.payload) {
+                  writeCache(key, snap.payload);
+                  paint(snap.payload, { source: 'server', ts: snap.updatedAt || null });
+                  setBanner('warn', 'Showing cached snapshot');
+                  updateConnectionBanner();
+                  return snap.payload;
+                }
+                throw e;
+              });
+          });
+      }
+
       function stopLogStream() {
         try {
           if (state.log.es) {
@@ -684,11 +880,10 @@ function getPanelPage(session) {
         clearControls();
         clearView();
 
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/overview').then(function (data) {
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           var o = data && data.overview ? data.overview : null;
           if (!o) {
             setBanner('bad', 'Malformed overview payload');
@@ -709,7 +904,9 @@ function getPanelPage(session) {
             { label: 'Logs', value: String(o.logs.files || 0), sub: 'Files' },
             { label: 'Errors', value: o.errorLogger && o.errorLogger.pendingQueue != null ? String(o.errorLogger.pendingQueue) : '—', sub: 'Pending error queue' }
           ]);
-        }).catch(function (e) {
+        }
+
+        return loadSection('overview', '/jarvis/api/overview', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -724,11 +921,10 @@ function getPanelPage(session) {
         clearControls();
         clearView();
 
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/providers').then(function (data) {
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
 
           renderKpis([
             { label: 'Active', value: String(data.active) + '/' + String(data.count), sub: 'Providers' },
@@ -833,7 +1029,9 @@ function getPanelPage(session) {
             ],
             { pageSize: 25 }
           );
-        }).catch(function (e) {
+        }
+
+        return loadSection('providers', '/jarvis/api/providers', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -848,11 +1046,10 @@ function getPanelPage(session) {
         clearControls();
         clearView();
 
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/agent/health').then(function (data) {
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
 
           if (!data || !data.ok) {
             setBanner('bad', 'Agent not initialized');
@@ -871,7 +1068,9 @@ function getPanelPage(session) {
           var pre = document.createElement('pre');
           pre.textContent = JSON.stringify({ recentAlerts: h.recentAlerts || [], memory: h.memory || {} }, null, 2);
           viewEl.appendChild(pre);
-        }).catch(function (e) {
+        }
+
+        return loadSection('agent.health', '/jarvis/api/agent/health', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -907,11 +1106,12 @@ function getPanelPage(session) {
         controlsEl.appendChild(next);
         controlsEl.appendChild(pageLab);
 
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/moderation?limit=50&page=' + encodeURIComponent(String(state.moderationPage))).then(function (data) {
+        var url = '/jarvis/api/moderation?limit=50&page=' + encodeURIComponent(String(state.moderationPage));
+        var cacheKey = 'moderation.page.' + String(state.moderationPage);
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           if (!data || !data.ready) {
             setBanner('bad', 'Discord client not ready');
             return;
@@ -949,7 +1149,9 @@ function getPanelPage(session) {
             ],
             { pageSize: 25 }
           );
-        }).catch(function (e) {
+        }
+
+        return loadSection(cacheKey, url, paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -985,11 +1187,12 @@ function getPanelPage(session) {
         controlsEl.appendChild(next);
         controlsEl.appendChild(pageLab);
 
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/filters?limit=25&page=' + encodeURIComponent(String(state.filtersPage))).then(function (data) {
+        var url = '/jarvis/api/filters?limit=25&page=' + encodeURIComponent(String(state.filtersPage));
+        var cacheKey = 'filters.page.' + String(state.filtersPage);
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           if (!data || !data.ready) {
             setBanner('bad', 'Discord client not ready');
             return;
@@ -1029,7 +1232,9 @@ function getPanelPage(session) {
             ],
             { pageSize: 25 }
           );
-        }).catch(function (e) {
+        }
+
+        return loadSection(cacheKey, url, paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1044,11 +1249,10 @@ function getPanelPage(session) {
         clearControls();
         clearView();
 
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/monitoring/subscriptions').then(function (data) {
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           renderKpis([
             { label: 'Total', value: String(data.count || 0), sub: 'Subscriptions' }
           ]);
@@ -1070,7 +1274,9 @@ function getPanelPage(session) {
             ],
             { pageSize: 25 }
           );
-        }).catch(function (e) {
+        }
+
+        return loadSection('monitoring.subscriptions', '/jarvis/api/monitoring/subscriptions', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1085,11 +1291,10 @@ function getPanelPage(session) {
         clearControls();
         clearView();
 
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/music').then(function (data) {
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           var wl = Array.isArray(data.whitelist) ? data.whitelist : [];
           var aq = Array.isArray(data.activeQueues) ? data.activeQueues : [];
           renderKpis([
@@ -1114,7 +1319,9 @@ function getPanelPage(session) {
             ],
             { pageSize: 25 }
           );
-        }).catch(function (e) {
+        }
+
+        return loadSection('music', '/jarvis/api/music', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1129,11 +1336,10 @@ function getPanelPage(session) {
         clearControls();
         clearView();
 
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/economy?leaderboard=true').then(function (data) {
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           var m = data.multiplier || {};
           renderKpis([
             { label: 'Multiplier', value: m && m.active ? String(m.multiplier) + 'x' : '1x', sub: m && m.active ? 'Active' : 'Inactive' },
@@ -1158,7 +1364,9 @@ function getPanelPage(session) {
               { pageSize: 10 }
             );
           }
-        }).catch(function (e) {
+        }
+
+        return loadSection('economy.leaderboard', '/jarvis/api/economy?leaderboard=true', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1172,11 +1380,11 @@ function getPanelPage(session) {
         setBanner('', '');
         clearControls();
         clearView();
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/soul').then(function (data) {
+
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           renderKpis([
             { label: 'Soul', value: data.soul && data.soul.enabled ? 'Enabled' : '—', sub: data.soul && data.soul.mode ? String(data.soul.mode) : '' },
             { label: 'Self-mod', value: data.selfMod && data.selfMod.enabled ? 'Enabled' : '—', sub: '' }
@@ -1184,7 +1392,9 @@ function getPanelPage(session) {
           var pre = document.createElement('pre');
           pre.textContent = JSON.stringify({ soul: data.soul || null, selfMod: data.selfMod || null }, null, 2);
           viewEl.appendChild(pre);
-        }).catch(function (e) {
+        }
+
+        return loadSection('soul', '/jarvis/api/soul', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1198,15 +1408,17 @@ function getPanelPage(session) {
         setBanner('', '');
         clearControls();
         clearView();
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/sync').then(function (data) {
+
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           var pre = document.createElement('pre');
           pre.textContent = JSON.stringify(data, null, 2);
           viewEl.appendChild(pre);
-        }).catch(function (e) {
+        }
+
+        return loadSection('sync', '/jarvis/api/sync', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1220,17 +1432,19 @@ function getPanelPage(session) {
         setBanner('', '');
         clearControls();
         clearView();
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/ytdlp').then(function (data) {
+
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           var s = data.status || {};
           renderKpis([
             { label: 'Ready', value: s.ready ? 'Yes' : 'No', sub: s.currentVersion ? 'v' + String(s.currentVersion) : '' },
             { label: 'Updating', value: s.updating ? 'Yes' : 'No', sub: s.latestVersion ? 'Latest: ' + String(s.latestVersion) : '' }
           ]);
-        }).catch(function (e) {
+        }
+
+        return loadSection('ytdlp', '/jarvis/api/ytdlp', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1244,11 +1458,11 @@ function getPanelPage(session) {
         setBanner('', '');
         clearControls();
         clearView();
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/commands/catalog').then(function (data) {
+
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           renderKpis([
             { label: 'Definitions', value: Array.isArray(data.definitions) ? String(data.definitions.length) : '—', sub: 'Loaded' },
             { label: 'Catalog', value: Array.isArray(data.catalog) ? String(data.catalog.length) : '—', sub: 'Help entries' }
@@ -1256,7 +1470,9 @@ function getPanelPage(session) {
           var pre = document.createElement('pre');
           pre.textContent = JSON.stringify({ catalog: data.catalog || [] }, null, 2);
           viewEl.appendChild(pre);
-        }).catch(function (e) {
+        }
+
+        return loadSection('commands.catalog', '/jarvis/api/commands/catalog', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1270,11 +1486,11 @@ function getPanelPage(session) {
         setBanner('', '');
         clearControls();
         clearView();
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/audit?limit=200').then(function (data) {
+
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           var rows = Array.isArray(data.events) ? data.events.slice().reverse() : [];
           renderTable(
             rows.map(function (e) {
@@ -1293,7 +1509,9 @@ function getPanelPage(session) {
             ],
             { pageSize: 25 }
           );
-        }).catch(function (e) {
+        }
+
+        return loadSection('audit', '/jarvis/api/audit?limit=200', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1307,15 +1525,17 @@ function getPanelPage(session) {
         setBanner('', '');
         clearControls();
         clearView();
-        viewEl.appendChild(pill('Loading…', 'warn'));
-        return api('/jarvis/api/config').then(function (data) {
+
+        function paint(data, meta) {
           clearView();
           showRaw(data);
-          updateLastUpdated();
+          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           var pre = document.createElement('pre');
           pre.textContent = JSON.stringify(data, null, 2);
           viewEl.appendChild(pre);
-        }).catch(function (e) {
+        }
+
+        return loadSection('config', '/jarvis/api/config', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1371,12 +1591,14 @@ function getPanelPage(session) {
             pre.textContent = state.log.buffer;
             return;
           }
-          var lines = String(state.log.buffer || '').split(/\r?\n/);
+          var lines = String(state.log.buffer || '').split('\\n');
           var out = [];
           for (var i = 0; i < lines.length; i++) {
-            if (lines[i].toLowerCase().indexOf(q) !== -1) out.push(lines[i]);
+            var line = lines[i];
+            if (line && line.charCodeAt(line.length - 1) === 13) line = line.slice(0, -1);
+            if (String(line).toLowerCase().indexOf(q) !== -1) out.push(String(line));
           }
-          pre.textContent = out.join('\n');
+          pre.textContent = out.join('\\n');
         }
 
         search.oninput = repaintLog;
@@ -1401,7 +1623,7 @@ function getPanelPage(session) {
         btnTail.onclick = function () {
           setBanner('', '');
           api('/jarvis/api/logs/tail?file=' + encodeURIComponent(select.value) + '&lines=400').then(function (tail) {
-            appendLogChunk(String(tail && tail.data ? tail.data : '') + '\n');
+            appendLogChunk(String(tail && tail.data ? tail.data : '') + '\\n');
             updateLastUpdated();
           }).catch(function (e) {
             setBanner('bad', e.message);
@@ -1422,11 +1644,11 @@ function getPanelPage(session) {
             try {
               var p = JSON.parse(ev.data);
               if (p && p.type === 'init') {
-                state.log.buffer = String(p.data || '') + '\n';
+                state.log.buffer = String(p.data || '') + '\\n';
               } else if (p && p.type === 'append') {
                 appendLogChunk(String(p.data || ''));
               } else if (p && p.type === 'rotated') {
-                appendLogChunk('\n--- log rotated ---\n');
+                appendLogChunk('\\n--- log rotated ---\\n');
               }
               if (!state.log.paused) repaintLog();
               updateLastUpdated();
@@ -1610,10 +1832,39 @@ router.get('/api/csrf', requireOwner, (req, res) => {
     res.json({ ok: true, csrfToken: req.session.csrfToken });
 });
 
+router.get('/api/cache/:key', requireOwner, async (req, res) => {
+    const rawKey = String(req.params?.key || '').trim();
+    if (!rawKey || rawKey.length > 120 || !/^[a-zA-Z0-9._-]+$/.test(rawKey)) {
+        return res.status(400).json({ ok: false, error: 'invalid_key' });
+    }
+    const collection = getSnapshotCollection();
+    if (!collection) {
+        return res.status(503).json({ ok: false, error: 'mongo_unavailable' });
+    }
+    try {
+        const doc = await collection.findOne({ _id: rawKey });
+        if (!doc) {
+            return res.status(404).json({ ok: false, error: 'not_found' });
+        }
+        return res.json({
+            ok: true,
+            key: doc.key,
+            updatedAt: doc.updatedAt ? new Date(doc.updatedAt).getTime() : null,
+            expiresAt: doc.expiresAt ? new Date(doc.expiresAt).getTime() : null,
+            sizeBytes: doc.sizeBytes || null,
+            payload: doc.payload || null
+        });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: e?.message || 'failed' });
+    }
+});
+
 router.get('/api/audit', requireOwner, (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 500);
     const events = jarvisAuditLog.slice(-limit);
-    res.json({ ok: true, count: events.length, events });
+    const payload = { ok: true, count: events.length, events };
+    res.json(payload);
+    saveJarvisSnapshot('audit', payload).catch(() => null);
 });
 
 router.get('/api/stats', requireOwner, (req, res) => {
@@ -1738,7 +1989,9 @@ router.get('/api/config', requireOwner, (req, res) => {
         server: { port: config.server?.port }
     };
 
-    res.json({ ok: true, config: snapshot });
+    const payload = { ok: true, config: snapshot };
+    res.json(payload);
+    saveJarvisSnapshot('config', payload).catch(() => null);
 });
 
 router.get('/api/overview', requireOwner, async (req, res) => {
@@ -1860,7 +2113,7 @@ router.get('/api/overview', requireOwner, async (req, res) => {
         logFiles = [];
     }
 
-    res.json({
+    const payload = {
         ok: true,
         overview: {
             system: {
@@ -1895,7 +2148,10 @@ router.get('/api/overview', requireOwner, async (req, res) => {
             },
             soul: { enabled: Boolean(selfhostFeatures?.jarvisSoul), mood: selfhostFeatures?.jarvisSoul?.mood || null }
         }
-    });
+    };
+
+    res.json(payload);
+    saveJarvisSnapshot('overview', payload).catch(() => null);
 });
 
 router.get('/api/providers', requireOwner, (req, res) => {
@@ -1924,7 +2180,7 @@ router.get('/api/providers', requireOwner, (req, res) => {
         health = null;
     }
 
-    res.json({
+    const payload = {
         ok: true,
         selectionMode,
         providerType,
@@ -1933,7 +2189,10 @@ router.get('/api/providers', requireOwner, (req, res) => {
         providers,
         count: providers.length,
         active: providers.filter(p => !p.isDisabled).length
-    });
+    };
+
+    res.json(payload);
+    saveJarvisSnapshot('providers', payload).catch(() => null);
 });
 
 router.post(
@@ -1986,7 +2245,10 @@ router.get('/api/agent/health', requireOwner, (req, res) => {
     try {
         const metrics = browserAgent.getMetrics();
         const health = agentMonitor.getHealthReport(browserAgent);
-        return res.json({ ok: true, metrics, health });
+        const payload = { ok: true, metrics, health };
+        res.json(payload);
+        saveJarvisSnapshot('agent.health', payload).catch(() => null);
+        return;
     } catch (e) {
         return res.status(500).json({ ok: false, error: e?.message || 'failed' });
     }
@@ -2019,7 +2281,9 @@ router.get('/api/moderation', requireOwner, (req, res) => {
         };
     });
 
-    res.json({ ok: true, ready: true, page, limit, total: ids.length, guilds: rows });
+    const payload = { ok: true, ready: true, page, limit, total: ids.length, guilds: rows };
+    res.json(payload);
+    saveJarvisSnapshot(`moderation.page.${page}`, payload).catch(() => null);
 });
 
 router.get('/api/filters', requireOwner, async (req, res) => {
@@ -2055,7 +2319,9 @@ router.get('/api/filters', requireOwner, async (req, res) => {
         guilds.push({ guildId, guildName: g?.name || null, filters });
     }
 
-    res.json({ ok: true, ready: true, page, limit, total: ids.length, guilds });
+    const payload = { ok: true, ready: true, page, limit, total: ids.length, guilds };
+    res.json(payload);
+    saveJarvisSnapshot(`filters.page.${page}`, payload).catch(() => null);
 });
 
 router.get('/api/monitoring/subscriptions', requireOwner, async (req, res) => {
@@ -2067,7 +2333,9 @@ router.get('/api/monitoring/subscriptions', requireOwner, async (req, res) => {
             acc[t] = (acc[t] || 0) + 1;
             return acc;
         }, {});
-        res.json({ ok: true, count: subs.length, byType, subscriptions: subs });
+        const payload = { ok: true, count: subs.length, byType, subscriptions: subs };
+        res.json(payload);
+        saveJarvisSnapshot('monitoring.subscriptions', payload).catch(() => null);
     } catch (e) {
         res.status(500).json({ ok: false, error: e?.message || 'failed' });
     }
@@ -2078,7 +2346,9 @@ router.get('/api/music', requireOwner, (req, res) => {
     const activeGuilds = typeof musicManager.getActiveGuildIds === 'function' ? musicManager.getActiveGuildIds() : [];
     const activeQueues = activeGuilds.map(gid => musicManager.getQueueSnapshot(gid));
 
-    res.json({ ok: true, whitelist, activeGuilds, activeQueues });
+    const payload = { ok: true, whitelist, activeGuilds, activeQueues };
+    res.json(payload);
+    saveJarvisSnapshot('music', payload).catch(() => null);
 });
 
 router.get('/api/economy', requireOwner, async (req, res) => {
@@ -2099,13 +2369,16 @@ router.get('/api/economy', requireOwner, async (req, res) => {
         }
     }
 
-    res.json({
+    const payload = {
         ok: true,
         config: starkEconomy.ECONOMY_CONFIG || null,
         shopItems: Array.isArray(starkEconomy.SHOP_ITEMS) ? starkEconomy.SHOP_ITEMS.length : null,
         multiplier,
         leaderboard
-    });
+    };
+
+    res.json(payload);
+    saveJarvisSnapshot('economy.leaderboard', payload).catch(() => null);
 });
 
 router.get('/api/soul', requireOwner, (req, res) => {
@@ -2122,18 +2395,23 @@ router.get('/api/soul', requireOwner, (req, res) => {
         selfMod = null;
     }
 
-    res.json({
+    const payload = {
         ok: true,
         sentience: config.sentience || null,
         soul,
         selfMod
-    });
+    };
+
+    res.json(payload);
+    saveJarvisSnapshot('soul', payload).catch(() => null);
 });
 
 router.get('/api/sync', requireOwner, (req, res) => {
     try {
         const status = typeof dataSync.getSyncStatus === 'function' ? dataSync.getSyncStatus() : null;
-        res.json({ ok: true, status });
+        const payload = { ok: true, status };
+        res.json(payload);
+        saveJarvisSnapshot('sync', payload).catch(() => null);
     } catch (e) {
         res.status(500).json({ ok: false, error: e?.message || 'failed' });
     }
@@ -2141,7 +2419,9 @@ router.get('/api/sync', requireOwner, (req, res) => {
 
 router.get('/api/ytdlp', requireOwner, (req, res) => {
     try {
-        res.json({ ok: true, status: ytDlpManager?.getStatus?.() || null });
+        const payload = { ok: true, status: ytDlpManager?.getStatus?.() || null };
+        res.json(payload);
+        saveJarvisSnapshot('ytdlp', payload).catch(() => null);
     } catch (e) {
         res.status(500).json({ ok: false, error: e?.message || 'failed' });
     }
@@ -2153,12 +2433,15 @@ router.get('/api/commands/catalog', requireOwner, (req, res) => {
             typeof commandRegistry.buildHelpCatalog === 'function'
                 ? commandRegistry.buildHelpCatalog()
                 : [];
-        res.json({
+        const payload = {
             ok: true,
             catalog,
             definitions: commandRegistry.commandDefinitions || [],
             ephemeral: Array.from(commandRegistry.SLASH_EPHEMERAL_COMMANDS || [])
-        });
+        };
+
+        res.json(payload);
+        saveJarvisSnapshot('commands.catalog', payload).catch(() => null);
     } catch (e) {
         res.status(500).json({ ok: false, error: e?.message || 'failed' });
     }
