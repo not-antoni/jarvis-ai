@@ -9,6 +9,9 @@ const ERROR_LOG_DEDUPE_TTL_MS = process.env.ERROR_LOG_DEDUPE_TTL_MS
 const ERROR_LOG_MAX_PER_MINUTE = process.env.ERROR_LOG_MAX_PER_MINUTE
     ? Number(process.env.ERROR_LOG_MAX_PER_MINUTE)
     : 20;
+const ERROR_LOG_PENDING_MAX = process.env.ERROR_LOG_PENDING_MAX
+    ? Number(process.env.ERROR_LOG_PENDING_MAX)
+    : 500;
 
 const STATUS = {
     pending: { label: 'Pending', color: 0xfacc15 },
@@ -116,12 +119,18 @@ class ErrorLogger {
 
         if (!this.client) {
             this.pendingQueue.push({ error, context, errorId: resolvedId });
+            while (this.pendingQueue.length > ERROR_LOG_PENDING_MAX) {
+                this.pendingQueue.shift();
+            }
             return resolvedId;
         }
 
         const channel = await this.client.channels.fetch(ERROR_LOG_CHANNEL_ID).catch(() => null);
         if (!channel || !channel.isTextBased()) {
             this.pendingQueue.push({ error, context, errorId: resolvedId });
+            while (this.pendingQueue.length > ERROR_LOG_PENDING_MAX) {
+                this.pendingQueue.shift();
+            }
             return resolvedId;
         }
 

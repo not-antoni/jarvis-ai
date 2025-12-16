@@ -21,6 +21,75 @@ const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
 // Pending password setups (userId -> { token, expires })
 const pendingSetups = new Map();
 
+const AUTH_PRUNE_INTERVAL_MS = Math.max(
+    60 * 1000,
+    Number(process.env.MODERATOR_AUTH_PRUNE_INTERVAL_MS || '') || 5 * 60 * 1000
+);
+const SESSION_CACHE_MAX = Math.max(
+    500,
+    Number(process.env.MODERATOR_SESSION_CACHE_MAX || '') || 5000
+);
+const PENDING_SETUP_MAX = Math.max(
+    100,
+    Number(process.env.MODERATOR_PENDING_SETUP_MAX || '') || 1000
+);
+
+let lastAuthPruneAt = 0;
+
+function pruneAuthMaps(force = false) {
+    const now = Date.now();
+    if (!force && now - lastAuthPruneAt < AUTH_PRUNE_INTERVAL_MS) {
+        return;
+    }
+    lastAuthPruneAt = now;
+
+    for (const [token, session] of sessions.entries()) {
+        const expiresAt = Number(session?.expiresAt || 0);
+        if (!expiresAt || !Number.isFinite(expiresAt) || now > expiresAt) {
+            sessions.delete(token);
+        }
+    }
+
+    for (const [token, revokedUntil] of revokedSessions.entries()) {
+        const until = Number(revokedUntil || 0);
+        if (!until || !Number.isFinite(until) || now >= until) {
+            revokedSessions.delete(token);
+        }
+    }
+
+    for (const [userId, setup] of pendingSetups.entries()) {
+        const expires = Number(setup?.expires || 0);
+        if (!expires || !Number.isFinite(expires) || now > expires) {
+            pendingSetups.delete(userId);
+        }
+    }
+
+    if (sessions.size > SESSION_CACHE_MAX) {
+        const overflow = sessions.size - SESSION_CACHE_MAX;
+        let i = 0;
+        for (const key of sessions.keys()) {
+            sessions.delete(key);
+            i += 1;
+            if (i >= overflow) break;
+        }
+    }
+
+    if (pendingSetups.size > PENDING_SETUP_MAX) {
+        const overflow = pendingSetups.size - PENDING_SETUP_MAX;
+        let i = 0;
+        for (const key of pendingSetups.keys()) {
+            pendingSetups.delete(key);
+            i += 1;
+            if (i >= overflow) break;
+        }
+    }
+}
+
+const authPruneTimer = setInterval(() => pruneAuthMaps(true), AUTH_PRUNE_INTERVAL_MS);
+if (typeof authPruneTimer.unref === 'function') {
+    authPruneTimer.unref();
+}
+
 // Database
 let database = null;
 const COLLECTION_NAME = 'moderatorAuth';
@@ -157,6 +226,7 @@ function parseSignedSessionToken(token) {
  * Generate setup token for DM password setup
  */
 function generateSetupToken(userId) {
+    pruneAuthMaps();
     const token = crypto.randomBytes(16).toString('hex');
     pendingSetups.set(userId, {
         token,
@@ -169,6 +239,7 @@ function generateSetupToken(userId) {
  * Verify setup token
  */
 function verifySetupToken(userId, token) {
+    pruneAuthMaps();
     const setup = pendingSetups.get(userId);
     if (!setup) return false;
     if (Date.now() > setup.expires) {
@@ -264,6 +335,7 @@ async function verifyUserPassword(userId, password) {
  * Create session for user
  */
 function createSession(userId, discordData = null) {
+    pruneAuthMaps();
     const now = Date.now();
     const sessionPayload = {
         v: 1,
@@ -287,6 +359,7 @@ function createSession(userId, discordData = null) {
  * Validate session
  */
 function validateSession(token) {
+    pruneAuthMaps();
     const revokedUntil = revokedSessions.get(token);
     if (revokedUntil) {
         if (Date.now() < revokedUntil) {
@@ -329,6 +402,7 @@ function validateSession(token) {
  * Destroy session
  */
 function destroySession(token) {
+    pruneAuthMaps();
     sessions.delete(token);
 
     const payload = parseSignedSessionToken(token);

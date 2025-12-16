@@ -28,6 +28,9 @@ class CostRateLimiter {
         };
 
         this.cleanupInterval = setInterval(() => this.cleanup(), 60 * 1000); // Every 60s
+        if (typeof this.cleanupInterval.unref === 'function') {
+            this.cleanupInterval.unref();
+        }
     }
 
     /**

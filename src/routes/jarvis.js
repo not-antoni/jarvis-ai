@@ -30,6 +30,74 @@ const jarvisAuditLog = [];
 const jarvisRateBuckets = new Map();
 const jarvisSnapshotBuckets = new Map();
 
+let jarvisRateBucketsLastPruneAt = 0;
+const JARVIS_RATE_BUCKET_PRUNE_INTERVAL_MS = 5 * 60 * 1000;
+const JARVIS_RATE_BUCKET_MAX = Math.max(
+    1000,
+    Number(process.env.JARVIS_RATE_BUCKET_MAX || '') || 5000
+);
+
+let jarvisSnapshotBucketsLastPruneAt = 0;
+const JARVIS_SNAPSHOT_BUCKET_PRUNE_INTERVAL_MS = 10 * 60 * 1000;
+const JARVIS_SNAPSHOT_BUCKET_TTL_MS = Math.max(
+    60 * 60 * 1000,
+    Number(process.env.JARVIS_SNAPSHOT_BUCKET_TTL_MS || '') || 24 * 60 * 60 * 1000
+);
+const JARVIS_SNAPSHOT_BUCKET_MAX = Math.max(
+    1000,
+    Number(process.env.JARVIS_SNAPSHOT_BUCKET_MAX || '') || 5000
+);
+
+function pruneJarvisRateBuckets(now) {
+    if (now - jarvisRateBucketsLastPruneAt < JARVIS_RATE_BUCKET_PRUNE_INTERVAL_MS) {
+        return;
+    }
+    jarvisRateBucketsLastPruneAt = now;
+
+    for (const [key, bucket] of jarvisRateBuckets.entries()) {
+        const bucketResetAt = Number(bucket?.resetAt || 0);
+        if (!bucketResetAt || !Number.isFinite(bucketResetAt) || now >= bucketResetAt) {
+            jarvisRateBuckets.delete(key);
+        }
+    }
+
+    if (jarvisRateBuckets.size > JARVIS_RATE_BUCKET_MAX) {
+        const entries = Array.from(jarvisRateBuckets.entries());
+        entries.sort(
+            (a, b) => Number(a?.[1]?.lastSeenAt || 0) - Number(b?.[1]?.lastSeenAt || 0)
+        );
+        const overflow = jarvisRateBuckets.size - JARVIS_RATE_BUCKET_MAX;
+        for (let i = 0; i < overflow; i += 1) {
+            jarvisRateBuckets.delete(entries[i][0]);
+        }
+    }
+}
+
+function pruneJarvisSnapshotBuckets(now) {
+    if (now - jarvisSnapshotBucketsLastPruneAt < JARVIS_SNAPSHOT_BUCKET_PRUNE_INTERVAL_MS) {
+        return;
+    }
+    jarvisSnapshotBucketsLastPruneAt = now;
+
+    for (const [key, bucket] of jarvisSnapshotBuckets.entries()) {
+        const lastWriteAt = Number(bucket?.lastWriteAt || 0);
+        if (!lastWriteAt || !Number.isFinite(lastWriteAt) || now - lastWriteAt > JARVIS_SNAPSHOT_BUCKET_TTL_MS) {
+            jarvisSnapshotBuckets.delete(key);
+        }
+    }
+
+    if (jarvisSnapshotBuckets.size > JARVIS_SNAPSHOT_BUCKET_MAX) {
+        const entries = Array.from(jarvisSnapshotBuckets.entries());
+        entries.sort(
+            (a, b) => Number(a?.[1]?.lastWriteAt || 0) - Number(b?.[1]?.lastWriteAt || 0)
+        );
+        const overflow = jarvisSnapshotBuckets.size - JARVIS_SNAPSHOT_BUCKET_MAX;
+        for (let i = 0; i < overflow; i += 1) {
+            jarvisSnapshotBuckets.delete(entries[i][0]);
+        }
+    }
+}
+
 let jarvisSnapshotIndexesReady = false;
 
 function getSnapshotCollection() {
@@ -75,6 +143,7 @@ async function saveJarvisSnapshot(key, payload, opts = {}) {
     await ensureSnapshotIndexes(collection);
 
     const now = Date.now();
+    pruneJarvisSnapshotBuckets(now);
     const hash = crypto.createHash('sha256').update(json).digest('hex');
 
     const bucket = jarvisSnapshotBuckets.get(safeKey);
@@ -121,12 +190,20 @@ function rateLimit({ keyPrefix, max, windowMs }) {
         const ip = getClientIp(req);
         const key = `${String(keyPrefix || 'rl')}:${ip}`;
         const now = Date.now();
+        pruneJarvisRateBuckets(now);
         const bucket = jarvisRateBuckets.get(key);
         if (!bucket || now >= bucket.resetAt) {
-            jarvisRateBuckets.set(key, { count: 1, resetAt: now + Number(windowMs || 60000) });
+            const resolvedWindow = Number(windowMs || 60000);
+            jarvisRateBuckets.set(key, {
+                count: 1,
+                resetAt: now + resolvedWindow,
+                windowMs: resolvedWindow,
+                lastSeenAt: now
+            });
             return next();
         }
         bucket.count += 1;
+        bucket.lastSeenAt = now;
         if (bucket.count > Number(max || 60)) {
             return res.status(429).json({ ok: false, error: 'rate_limited' });
         }

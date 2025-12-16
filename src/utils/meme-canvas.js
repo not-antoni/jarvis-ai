@@ -1,10 +1,24 @@
 const { createCanvas, loadImage } = require('canvas');
+const { LRUCache } = require('lru-cache');
 
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
 const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
 
-const emojiImageCache = new Map();
-const unicodeAssetCache = new Map();
+const EMOJI_IMAGE_CACHE_MAX = Math.max(
+    200,
+    Number(process.env.EMOJI_IMAGE_CACHE_MAX || '') || 500
+);
+const EMOJI_IMAGE_CACHE_TTL_MS = Math.max(
+    60 * 1000,
+    Number(process.env.EMOJI_IMAGE_CACHE_TTL_MS || '') || 24 * 60 * 60 * 1000
+);
+const UNICODE_ASSET_CACHE_MAX = Math.max(
+    500,
+    Number(process.env.UNICODE_ASSET_CACHE_MAX || '') || 5000
+);
+
+const emojiImageCache = new LRUCache({ max: EMOJI_IMAGE_CACHE_MAX, ttl: EMOJI_IMAGE_CACHE_TTL_MS });
+const unicodeAssetCache = new LRUCache({ max: UNICODE_ASSET_CACHE_MAX });
 let emojiImageLoader = null;
 
 function unicodeEmojiToCodePoints(emoji) {

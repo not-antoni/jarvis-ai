@@ -701,6 +701,7 @@ class AIProviderManager {
     _isRetryable(error) {
         const status = error?.status || error?.response?.status;
         const message = String(error?.message || '').toLowerCase();
+        if (error?.transient) return true;
         if (status && [408, 409, 429, 500, 502, 503, 504].includes(status)) return true;
         if (
             message.includes('empty') ||
@@ -716,12 +717,35 @@ class AIProviderManager {
     }
 
     async _retry(fn, { retries = 0, baseDelay = 0, jitter = false, providerName = '' } = {}) {
-        // With retries=0, we just call once and surface the error immediately.
-        try {
-            return await fn(0);
-        } catch (err) {
-            throw err;
+        const attempts = Math.max(0, Number(retries) || 0) + 1;
+        const delayBase = Math.max(0, Number(baseDelay) || 0);
+        const useJitter = Boolean(jitter);
+
+        let lastError = null;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+            try {
+                return await fn(attempt);
+            } catch (err) {
+                lastError = err;
+                const canRetry = attempt < attempts - 1 && this._isRetryable(err);
+                if (!canRetry) {
+                    throw err;
+                }
+
+                let waitMs = delayBase ? delayBase * Math.pow(2, attempt) : 0;
+                if (useJitter && waitMs > 0) {
+                    waitMs = Math.round(waitMs * (0.5 + Math.random()));
+                }
+                if (waitMs > 0) {
+                    console.warn(
+                        `[AIProviderManager] Retry ${attempt + 1}/${attempts - 1} for ${providerName || 'provider'} in ${waitMs}ms: ${err?.message || err}`
+                    );
+                    await this._sleep(waitMs);
+                }
+            }
         }
+
+        throw lastError;
     }
 
     async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai?.maxTokens || 1024) {
@@ -999,11 +1023,11 @@ class AIProviderManager {
             };
 
             try {
-                // Retry policy disabled (retries = 0) — call once per provider
+                const retryAttempts = Math.max(0, Number(config.ai?.retryAttempts || 0));
                 const resp = await this._retry(callOnce, {
-                    retries: 0,
-                    baseDelay: 0,
-                    jitter: false,
+                    retries: retryAttempts,
+                    baseDelay: retryAttempts > 0 ? 500 : 0,
+                    jitter: retryAttempts > 0,
                     providerName: provider.name
                 });
 
