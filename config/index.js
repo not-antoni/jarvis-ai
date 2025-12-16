@@ -165,7 +165,7 @@ const rawConfig = {
 
     // Admin Configuration
     admin: {
-        userId: '809010595545874432' // Hardcoded admin ID
+        userId: (process.env.ADMIN_USER_ID || '809010595545874432').trim() // Hardcoded admin ID
     },
 
     // Command Restrictions

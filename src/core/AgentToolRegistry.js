@@ -4,6 +4,15 @@
  */
 
 const EventEmitter = require('events');
+const LruModule = require('lru-cache');
+const LRUCache =
+    typeof LruModule === 'function'
+        ? LruModule
+        : typeof LruModule?.LRUCache === 'function'
+          ? LruModule.LRUCache
+          : typeof LruModule?.default === 'function'
+            ? LruModule.default
+            : null;
 const {
     ToolHandler,
     ToolOutput,
@@ -23,6 +32,7 @@ class AgentToolRegistry extends EventEmitter {
         this.options = {
             maxHistorySize: 1000,
             enableCaching: true,
+            cacheMaxEntries: 500,
             cacheTTL: 60000, // 1 minute
             enableTelemetry: true,
             maxParallelCalls: 10,
@@ -31,8 +41,13 @@ class AgentToolRegistry extends EventEmitter {
         };
 
         // Caching
-        this.cache = new Map();
-        this.cacheTimestamps = new Map();
+        this.cache = LRUCache
+            ? new LRUCache({
+                  max: Number(this.options.cacheMaxEntries) || 500,
+                  ttl: this.options.cacheTTL
+              })
+            : new Map();
+        this.cacheTimestamps = LRUCache ? null : new Map();
 
         // History & telemetry
         this.history = [];
@@ -150,11 +165,13 @@ class AgentToolRegistry extends EventEmitter {
 
         // Check cache
         const cacheKey = this._getCacheKey(toolName, invocation.arguments);
-        if (this.options.enableCaching && this._isCacheValid(cacheKey)) {
-            this.telemetry.cacheHits++;
-            const cached = this.cache.get(cacheKey);
-            this.emit('dispatch:cache-hit', { invocation, cached });
-            return cached;
+        if (this.options.enableCaching) {
+            const cached = this._getCachedValue(cacheKey);
+            if (cached) {
+                this.telemetry.cacheHits++;
+                this.emit('dispatch:cache-hit', { invocation, cached });
+                return cached;
+            }
         }
         this.telemetry.cacheMisses++;
 
@@ -173,7 +190,23 @@ class AgentToolRegistry extends EventEmitter {
         // Cache successful results
         if (this.options.enableCaching && output.success) {
             this.cache.set(cacheKey, output);
-            this.cacheTimestamps.set(cacheKey, Date.now());
+            if (this.cacheTimestamps) {
+                this.cacheTimestamps.set(cacheKey, Date.now());
+                const maxEntries = Number(this.options.cacheMaxEntries) || 500;
+                while (this.cache.size > maxEntries) {
+                    let oldestKey = null;
+                    let oldestAt = Number.POSITIVE_INFINITY;
+                    for (const [key, timestamp] of this.cacheTimestamps.entries()) {
+                        if (timestamp < oldestAt) {
+                            oldestAt = timestamp;
+                            oldestKey = key;
+                        }
+                    }
+                    if (!oldestKey) break;
+                    this.cache.delete(oldestKey);
+                    this.cacheTimestamps.delete(oldestKey);
+                }
+            }
         }
 
         // Record history
@@ -367,13 +400,24 @@ class AgentToolRegistry extends EventEmitter {
      */
     clearCache() {
         this.cache.clear();
-        this.cacheTimestamps.clear();
+        if (this.cacheTimestamps) {
+            this.cacheTimestamps.clear();
+        }
     }
 
     /**
      * Prune expired cache entries
      */
     pruneCache() {
+        if (typeof this.cache?.purgeStale === 'function') {
+            this.cache.purgeStale();
+            return;
+        }
+
+        if (!this.cacheTimestamps) {
+            return;
+        }
+
         const now = Date.now();
         const ttl = this.options.cacheTTL;
 
@@ -391,10 +435,24 @@ class AgentToolRegistry extends EventEmitter {
         return `${name}:${JSON.stringify(args)}`;
     }
 
-    _isCacheValid(key) {
-        if (!this.cache.has(key)) return false;
+    _getCachedValue(key) {
+        if (!this.cache) return null;
+        const cached = this.cache.get(key);
+        if (cached == null) return null;
+        if (!this.cacheTimestamps) return cached;
+
         const timestamp = this.cacheTimestamps.get(key);
-        return timestamp && Date.now() - timestamp < this.options.cacheTTL;
+        if (timestamp && Date.now() - timestamp < this.options.cacheTTL) {
+            return cached;
+        }
+
+        this.cache.delete(key);
+        this.cacheTimestamps.delete(key);
+        return null;
+    }
+
+    _isCacheValid(key) {
+        return Boolean(this._getCachedValue(key));
     }
 
     _batchArray(array, size) {

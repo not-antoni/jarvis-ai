@@ -3104,7 +3104,9 @@
                     const channel = interaction.channel;
 
                     // Check cooldown (tiered: 1 min for FM1, 2 min for FM2, 4 min for FM3)
-                    if (!this.rapBattleCooldowns) this.rapBattleCooldowns = new Map();
+                    if (!this.rapBattleCooldowns) {
+                        this.rapBattleCooldowns = new LRUCache({ max: DISCORD_RAP_BATTLE_COOLDOWNS_MAX, ttl: DISCORD_RAP_BATTLE_COOLDOWNS_TTL_MS });
+                    }
                     const cooldownUntil = this.rapBattleCooldowns.get(userId);
                     if (cooldownUntil && Date.now() < cooldownUntil) {
                         const remaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
@@ -3119,6 +3121,10 @@
                         ];
                         response = cooldownMessages[Math.floor(Math.random() * cooldownMessages.length)];
                         break;
+                    }
+
+                    if (cooldownUntil) {
+                        this.rapBattleCooldowns.delete(userId);
                     }
 
                     // Check if user already has an active battle
@@ -4238,7 +4244,9 @@
                     telemetryMetadata.category = 'fun';
                     const reason = interaction.options.getString('reason') || 'AFK';
                     // Store AFK status (you can expand this with a proper storage system)
-                    if (!this.afkUsers) this.afkUsers = new Map();
+                    if (!this.afkUsers) {
+                        this.afkUsers = new LRUCache({ max: DISCORD_AFK_USERS_MAX, ttl: DISCORD_AFK_USERS_TTL_MS });
+                    }
                     this.afkUsers.set(interaction.user.id, { reason, since: Date.now() });
                     response = `💤 **${interaction.user.username}** is now AFK: ${reason}`;
                     break;

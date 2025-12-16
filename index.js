@@ -1611,6 +1611,11 @@ async function refreshPresenceMessages(forceFallback = false) {
 }
 
 function extractBearerToken(req) {
+    const healthTokenHeader = req.headers?.['x-health-token'];
+    if (typeof healthTokenHeader === 'string' && healthTokenHeader.trim()) {
+        return healthTokenHeader.trim();
+    }
+
     const authHeader = req.headers?.authorization;
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
         return authHeader.slice(7).trim();
@@ -3718,6 +3723,83 @@ app.use('/jarvis', jarvisOwnerRouter);
 // Mount dashboard API routes
 const dashboardRouter = require('./routes/dashboard');
 
+const dashboardLoginBuckets = new Map();
+let dashboardLoginBucketsLastPruneAt = 0;
+const DASHBOARD_LOGIN_BUCKET_PRUNE_INTERVAL_MS = 5 * 60 * 1000;
+const DASHBOARD_LOGIN_BUCKET_MAX = Math.max(
+    1000,
+    Number(process.env.DASHBOARD_LOGIN_BUCKET_MAX || '') || 5000
+);
+
+function pruneDashboardLoginBuckets(now, windowMs) {
+    if (now - dashboardLoginBucketsLastPruneAt < DASHBOARD_LOGIN_BUCKET_PRUNE_INTERVAL_MS) {
+        return;
+    }
+    dashboardLoginBucketsLastPruneAt = now;
+
+    for (const [key, bucket] of dashboardLoginBuckets.entries()) {
+        const bucketWindowMs = Number(bucket?.windowMs || windowMs || 0);
+        const bucketResetAt = Number(bucket?.resetAt || 0);
+        const expiresAt = bucketResetAt + (Number.isFinite(bucketWindowMs) ? bucketWindowMs : 0);
+        if (!bucketResetAt || !Number.isFinite(expiresAt) || now >= expiresAt) {
+            dashboardLoginBuckets.delete(key);
+        }
+    }
+
+    if (dashboardLoginBuckets.size > DASHBOARD_LOGIN_BUCKET_MAX) {
+        const entries = Array.from(dashboardLoginBuckets.entries());
+        entries.sort(
+            (a, b) => Number(a?.[1]?.lastSeenAt || 0) - Number(b?.[1]?.lastSeenAt || 0)
+        );
+        const overflow = dashboardLoginBuckets.size - DASHBOARD_LOGIN_BUCKET_MAX;
+        for (let i = 0; i < overflow; i += 1) {
+            dashboardLoginBuckets.delete(entries[i][0]);
+        }
+    }
+}
+
+function isProductionLike() {
+    if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+        return true;
+    }
+
+    return Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
+}
+
+function getClientIp(req) {
+    const xf = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+    return xf || req.ip || req.connection?.remoteAddress || 'unknown';
+}
+
+function dashboardLoginRateLimit(req, res, next) {
+    const ip = getClientIp(req);
+    const key = `dashboard:login:${ip}`;
+    const now = Date.now();
+    const windowMs = 5 * 60 * 1000;
+    const max = 10;
+
+    pruneDashboardLoginBuckets(now, windowMs);
+
+    const bucket = dashboardLoginBuckets.get(key);
+    if (!bucket || now >= bucket.resetAt) {
+        dashboardLoginBuckets.set(key, {
+            count: 1,
+            resetAt: now + windowMs,
+            windowMs,
+            lastSeenAt: now
+        });
+        return next();
+    }
+
+    bucket.count += 1;
+    bucket.lastSeenAt = now;
+    if (bucket.count > max) {
+        return res.status(429).json({ ok: false, error: 'rate_limited' });
+    }
+
+    return next();
+}
+
 function getDashboardPassword() {
     const candidates = [process.env.DASHBOARD_PASSWORD, process.env.PASSWORD];
     for (const raw of candidates) {
@@ -3743,7 +3825,9 @@ function timingSafeEqualHex(a, b) {
 
 function isDashboardAuthed(req) {
     const password = getDashboardPassword();
-    if (!password) return true;
+    if (!password) {
+        return !isProductionLike();
+    }
     const expected = makeDashboardCookieValue(password);
     const provided = req.cookies?.jarvis_dashboard_auth;
     return timingSafeEqualHex(String(provided || ''), expected);
@@ -3792,6 +3876,35 @@ dashboardAccessRouter.get('/login', (req, res) => {
     if (isDashboardAuthed(req)) {
         return res.redirect('/dashboard');
     }
+
+    const password = getDashboardPassword();
+    if (!password && isProductionLike()) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.status(200).send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jarvis Dashboard</title>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background: #0b0f17; color: #e6edf3; display: flex; min-height: 100vh; align-items: center; justify-content: center; }
+    .card { width: min(560px, 92vw); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 20px; box-shadow: 0 12px 40px rgba(0,0,0,0.35); }
+    h1 { margin: 0 0 10px; font-size: 20px; }
+    p { margin: 0 0 12px; opacity: 0.9; font-size: 13px; line-height: 1.45; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .error { margin-top: 10px; color: #ff7b72; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Jarvis Dashboard</h1>
+    <p class="error">Dashboard access is disabled because no password is configured.</p>
+    <p>Set <code>DASHBOARD_PASSWORD</code> (or <code>PASSWORD</code>) and restart the server.</p>
+  </div>
+</body>
+</html>`);
+    }
+
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(200).send(`<!doctype html>
 <html lang="en">
@@ -3853,9 +3966,14 @@ dashboardAccessRouter.get('/login', (req, res) => {
 </html>`);
 });
 
-dashboardAccessRouter.post('/login', (req, res) => {
+dashboardAccessRouter.post('/login', dashboardLoginRateLimit, (req, res) => {
     const password = getDashboardPassword();
     if (!password) {
+        if (isProductionLike()) {
+            clearDashboardAuthCookie(res);
+            return res.status(503).json({ ok: false, error: 'password_not_configured' });
+        }
+
         setDashboardAuthCookie(req, res);
         return res.json({ ok: true });
     }
@@ -3890,6 +4008,15 @@ app.use('/dashboard', dashboardAccessRouter);
 // Mount diagnostics router (will be initialized with discordHandlers after client ready)
 let diagnosticsRouter = null;
 app.use('/diagnostics', (req, res, next) => {
+    if (HEALTH_TOKEN) {
+        const providedToken = extractBearerToken(req);
+        if (providedToken !== HEALTH_TOKEN) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+    } else if (isProductionLike()) {
+        return res.status(403).json({ error: 'Diagnostics disabled (set HEALTH_TOKEN)' });
+    }
+
     if (!diagnosticsRouter) {
         return res.status(503).json({ error: 'Diagnostics not yet initialized' });
     }

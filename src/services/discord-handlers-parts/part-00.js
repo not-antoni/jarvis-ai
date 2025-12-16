@@ -22,6 +22,7 @@ const {
 } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('../../config');
+const { LRUCache } = require('lru-cache');
 const braveSearch = require('./brave-search');
 const { createCanvas, loadImage, registerFont } = require('canvas');
 const sharp = require('sharp');
@@ -66,10 +67,42 @@ function isCommandEnabled(commandName) {
     return isFeatureGloballyEnabled(featureKey);
 }
 
-
 const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
 const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
+
+const DISCORD_EMOJI_ASSET_CACHE_MAX = Math.max(
+    200,
+    Number(process.env.DISCORD_EMOJI_ASSET_CACHE_MAX || '') || 500
+);
+const DISCORD_EMOJI_ASSET_CACHE_TTL_MS = Math.max(
+    60 * 1000,
+    Number(process.env.DISCORD_EMOJI_ASSET_CACHE_TTL_MS || '') || 24 * 60 * 60 * 1000
+);
+const DISCORD_MEMBER_LOG_CACHE_MAX = Math.max(
+    200,
+    Number(process.env.DISCORD_MEMBER_LOG_CACHE_MAX || '') || 5000
+);
+const DISCORD_MEMBER_LOG_CACHE_TTL_MS = Math.max(
+    60 * 1000,
+    Number(process.env.DISCORD_MEMBER_LOG_CACHE_TTL_MS || '') || 30 * 60 * 1000
+);
+const DISCORD_AFK_USERS_MAX = Math.max(
+    500,
+    Number(process.env.DISCORD_AFK_USERS_MAX || '') || 5000
+);
+const DISCORD_AFK_USERS_TTL_MS = Math.max(
+    10 * 60 * 1000,
+    Number(process.env.DISCORD_AFK_USERS_TTL_MS || '') || 24 * 60 * 60 * 1000
+);
+const DISCORD_RAP_BATTLE_COOLDOWNS_MAX = Math.max(
+    500,
+    Number(process.env.DISCORD_RAP_BATTLE_COOLDOWNS_MAX || '') || 5000
+);
+const DISCORD_RAP_BATTLE_COOLDOWNS_TTL_MS = Math.max(
+    60 * 1000,
+    Number(process.env.DISCORD_RAP_BATTLE_COOLDOWNS_TTL_MS || '') || 10 * 60 * 1000
+);
 
 function ensureDiscordEmojiSize(url, size = DEFAULT_CUSTOM_EMOJI_SIZE) {
     if (!url || typeof url !== 'string') return url;
@@ -136,7 +169,7 @@ class DiscordHandlers {
             channels: 'Channel Count',
             roles: 'Role Count'
         };
-        this.memberLogCache = new Map();
+        this.memberLogCache = new LRUCache({ max: DISCORD_MEMBER_LOG_CACHE_MAX, ttl: DISCORD_MEMBER_LOG_CACHE_TTL_MS });
         this.maxMemberLogVariations = 20;
         this.maxMemberLogMessageLength = 400;
         this.defaultJoinMessages = [
@@ -155,7 +188,7 @@ class DiscordHandlers {
         this.rapBattles = new Map(); // userId -> { channelId, startTime, timeoutId, collector, lastBotMessage }
         this.rapBattleBlockedUsers = new Map(); // userId -> unblockTimestamp (users blocked from chat after battle ends)
         this.rapBattleComebacksPath = path.join(__dirname, '../../rapping_comebacks');
-        this.emojiAssetCache = new Map();
+        this.emojiAssetCache = new LRUCache({ max: DISCORD_EMOJI_ASSET_CACHE_MAX, ttl: DISCORD_EMOJI_ASSET_CACHE_TTL_MS });
         this.clipEmojiRenderSize = 22;
         this.clipEmojiSpacing = 4;
         this.clipLineHeight = 24;
@@ -235,6 +268,9 @@ class DiscordHandlers {
             'Document a mini DIY project and share progress before midnight.',
             'Run a five-minute stretch break and ping the squad to join.'
         ];
+
+        this.afkUsers = new LRUCache({ max: DISCORD_AFK_USERS_MAX, ttl: DISCORD_AFK_USERS_TTL_MS });
+        this.rapBattleCooldowns = new LRUCache({ max: DISCORD_RAP_BATTLE_COOLDOWNS_MAX, ttl: DISCORD_RAP_BATTLE_COOLDOWNS_TTL_MS });
 
         this.maxInputBytes = 3 * 1024 * 1024; // 3MB cap for heavy media processing
     }
@@ -441,6 +477,19 @@ class DiscordHandlers {
         if (this.cooldowns) {
             this.cooldowns.prune();
         }
+
+        if (this.emojiAssetCache && typeof this.emojiAssetCache.purgeStale === 'function') {
+            this.emojiAssetCache.purgeStale();
+        }
+        if (this.memberLogCache && typeof this.memberLogCache.purgeStale === 'function') {
+            this.memberLogCache.purgeStale();
+        }
+        if (this.afkUsers && typeof this.afkUsers.purgeStale === 'function') {
+            this.afkUsers.purgeStale();
+        }
+        if (this.rapBattleCooldowns && typeof this.rapBattleCooldowns.purgeStale === 'function') {
+            this.rapBattleCooldowns.purgeStale();
+        }
     }
 
     isOnCooldown(userId, scope = 'global', cooldownMs = null) {
@@ -570,8 +619,11 @@ class DiscordHandlers {
             return null;
         }
 
-        if (!refresh && this.memberLogCache.has(guildId)) {
-            return this.cloneMemberLogRecord(this.memberLogCache.get(guildId));
+        if (!refresh) {
+            const cached = this.memberLogCache.get(guildId);
+            if (cached) {
+                return this.cloneMemberLogRecord(cached);
+            }
         }
 
         try {

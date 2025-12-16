@@ -4,6 +4,15 @@
  */
 
 const ToolDefinition = require('./SmartToolDefinition');
+const LruModule = require('lru-cache');
+const LRUCache =
+    typeof LruModule === 'function'
+        ? LruModule
+        : typeof LruModule?.LRUCache === 'function'
+          ? LruModule.LRUCache
+          : typeof LruModule?.default === 'function'
+            ? LruModule.default
+            : null;
 
 class SmartToolRegistry {
     constructor(options = {}) {
@@ -13,9 +22,17 @@ class SmartToolRegistry {
             maxHistorySize: 1000,
             autoLearn: true,
             enableCaching: true,
+            cacheMaxEntries: 500,
+            cacheTTL: 60000,
             ...options
         };
-        this.cache = new Map();
+        this.cache = LRUCache
+            ? new LRUCache({
+                  max: Number(this.options.cacheMaxEntries) || 500,
+                  ttl: this.options.cacheTTL
+              })
+            : new Map();
+        this.cacheTimestamps = LRUCache ? null : new Map();
         this.contextAnalyzer = new ContextAnalyzer();
     }
 
@@ -101,13 +118,16 @@ class SmartToolRegistry {
 
         // Check cache if enabled
         const cacheKey = this._getCacheKey(name, args);
-        if (this.options.enableCaching && this.cache.has(cacheKey)) {
-            return this.cache.get(cacheKey);
+        if (this.options.enableCaching) {
+            const cached = this._getCachedValue(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
         }
 
-        try {
-            const startTime = Date.now();
+        const startTime = Date.now();
 
+        try {
             // Execute tool with timeout
             const result = await this._executeWithTimeout(tool.handler(args), tool.options.timeout);
 
@@ -125,6 +145,23 @@ class SmartToolRegistry {
             // Cache result if enabled
             if (this.options.enableCaching) {
                 this.cache.set(cacheKey, response);
+                if (this.cacheTimestamps) {
+                    this.cacheTimestamps.set(cacheKey, Date.now());
+                    const maxEntries = Number(this.options.cacheMaxEntries) || 500;
+                    while (this.cache.size > maxEntries) {
+                        let oldestKey = null;
+                        let oldestAt = Number.POSITIVE_INFINITY;
+                        for (const [key, timestamp] of this.cacheTimestamps.entries()) {
+                            if (timestamp < oldestAt) {
+                                oldestAt = timestamp;
+                                oldestKey = key;
+                            }
+                        }
+                        if (!oldestKey) break;
+                        this.cache.delete(oldestKey);
+                        this.cacheTimestamps.delete(oldestKey);
+                    }
+                }
             }
 
             // Record in history
@@ -218,6 +255,9 @@ class SmartToolRegistry {
      */
     clearCache() {
         this.cache.clear();
+        if (this.cacheTimestamps) {
+            this.cacheTimestamps.clear();
+        }
     }
 
     /**
@@ -250,6 +290,22 @@ class SmartToolRegistry {
 
     _getCacheKey(name, args) {
         return `${name}:${JSON.stringify(args)}`;
+    }
+
+    _getCachedValue(key) {
+        if (!this.cache) return null;
+        const cached = this.cache.get(key);
+        if (cached == null) return null;
+        if (!this.cacheTimestamps) return cached;
+
+        const timestamp = this.cacheTimestamps.get(key);
+        if (timestamp && Date.now() - timestamp < this.options.cacheTTL) {
+            return cached;
+        }
+
+        this.cache.delete(key);
+        this.cacheTimestamps.delete(key);
+        return null;
     }
 
     _recordExecution(name, args, result) {

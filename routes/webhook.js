@@ -31,14 +31,94 @@ const signatureCache = new LRUCache({ max: 5000, ttl: MAX_TIMESTAMP_SKEW_MS });
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const MAX_WEBHOOK_RETRY_ATTEMPTS = 3;
 const WEBHOOK_MIN_INTERVAL_MS = 750;
+const WEBHOOK_QUEUE_MAX = Math.max(
+    1,
+    Number(process.env.WEBHOOK_QUEUE_MAX || '') || 500
+);
+const WEBHOOK_FETCH_TIMEOUT_MS = Math.max(
+    1000,
+    Number(process.env.WEBHOOK_FETCH_TIMEOUT_MS || '') || 10000
+);
+const WEBHOOK_MAX_RETRY_DELAY_MS = Math.max(
+    WEBHOOK_MIN_INTERVAL_MS,
+    Number(process.env.WEBHOOK_MAX_RETRY_DELAY_MS || '') || 15000
+);
+const WEBHOOK_TASK_TIMEOUT_MS = Math.max(
+    WEBHOOK_FETCH_TIMEOUT_MS,
+    Number(process.env.WEBHOOK_TASK_TIMEOUT_MS || '') || 70000
+);
 const WEBHOOK_FAILURE_LOG_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const WEBHOOK_FAILURE_LOG_MAX = Math.max(
+    1,
+    Number(process.env.WEBHOOK_FAILURE_LOG_MAX || '') || 2000
+);
 const webhookFailureLog = [];
+
+const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
+
+function isProductionLike() {
+    if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+        return true;
+    }
+
+    return Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
+}
+
+function extractBearerToken(req) {
+    const healthTokenHeader = req.headers?.['x-health-token'];
+    if (typeof healthTokenHeader === 'string' && healthTokenHeader.trim()) {
+        return healthTokenHeader.trim();
+    }
+
+    const authHeader = req.headers?.authorization;
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+        return authHeader.slice(7).trim();
+    }
+    if (typeof req.query?.token === 'string') {
+        return req.query.token;
+    }
+    return null;
+}
 
 const rawBodyParser = express.raw({ type: 'application/json', limit: '1mb' });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-let webhookSendPromise = Promise.resolve();
+function withTimeout(promise, timeoutMs, errorMessage) {
+    if (!timeoutMs || timeoutMs <= 0) {
+        return promise;
+    }
+
+    let timeoutHandle;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+            reject(new Error(errorMessage || 'Operation timed out'));
+        }, timeoutMs);
+    });
+
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+    });
+}
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+    const AbortCtrl = global.AbortController;
+    if (typeof AbortCtrl === 'function') {
+        const controller = new AbortCtrl();
+        const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+            clearTimeout(timeoutHandle);
+        }
+    }
+
+    return withTimeout(fetch(url, options), timeoutMs, 'Webhook fetch timed out');
+}
+
 let lastWebhookSendAt = 0;
+const webhookQueue = [];
+let webhookWorkerRunning = false;
+let webhookDroppedCount = 0;
 
 router.get('/', (_req, res) => {
     res.json({ status: 'ok' });
@@ -102,10 +182,12 @@ router.post('/', rawBodyParser, async (req, res) => {
     if (!eventInfo) {
         console.warn('⚠️ Discord webhook payload missing event metadata; type:', payload?.type);
         if (FORWARD_WEBHOOK) {
-            await forwardEventPayload(payload, {
+            forwardEventPayload(payload, {
                 type: `Raw Payload (type ${payload?.type ?? 'unknown'})`,
                 payload: null,
                 raw: payload
+            }).catch(error => {
+                console.error('⚠️ Failed to enqueue Discord webhook forward:', error);
             });
         }
         return res.json({ type: 5 });
@@ -144,34 +226,79 @@ function verifyDiscordRequest(signature, timestamp, rawBody) {
 async function forwardEventPayload(payload, eventInfo) {
     const enrichedEvent = await maybeAttachGuildOwner(eventInfo);
     const body = buildDiscordWebhookBody(payload, enrichedEvent);
-    await enqueueWebhookSend(() => sendWebhookWithRetry(body));
+    return enqueueWebhookSend(() => sendWebhookWithRetry(body));
 }
 
 function enqueueWebhookSend(task) {
-    webhookSendPromise = webhookSendPromise.then(async () => {
-        const now = Date.now();
-        const elapsed = now - lastWebhookSendAt;
-        if (elapsed < WEBHOOK_MIN_INTERVAL_MS) {
-            await wait(WEBHOOK_MIN_INTERVAL_MS - elapsed);
+    return new Promise((resolve, reject) => {
+        const entry = {
+            task,
+            resolve,
+            reject,
+            enqueuedAt: Date.now()
+        };
+
+        while (webhookQueue.length >= WEBHOOK_QUEUE_MAX) {
+            const dropped = webhookQueue.shift();
+            webhookDroppedCount += 1;
+            try {
+                dropped?.reject?.(new Error('Webhook queue overflow'));
+            } catch {
+                /* swallow */
+            }
         }
 
-        try {
-            await task();
-        } finally {
-            lastWebhookSendAt = Date.now();
-        }
+        webhookQueue.push(entry);
+        drainWebhookQueue().catch(err => {
+            console.error('⚠️ Webhook queue worker crashed:', err);
+        });
     });
+}
 
-    return webhookSendPromise;
+async function drainWebhookQueue() {
+    if (webhookWorkerRunning) return;
+    webhookWorkerRunning = true;
+
+    try {
+        while (webhookQueue.length) {
+            const entry = webhookQueue.shift();
+            if (!entry) continue;
+
+            const now = Date.now();
+            const elapsed = now - lastWebhookSendAt;
+            if (elapsed < WEBHOOK_MIN_INTERVAL_MS) {
+                await wait(WEBHOOK_MIN_INTERVAL_MS - elapsed);
+            }
+
+            try {
+                await withTimeout(
+                    Promise.resolve().then(() => entry.task()),
+                    WEBHOOK_TASK_TIMEOUT_MS,
+                    'Webhook task timed out'
+                );
+                entry.resolve(true);
+            } catch (err) {
+                entry.reject(err);
+            } finally {
+                lastWebhookSendAt = Date.now();
+            }
+        }
+    } finally {
+        webhookWorkerRunning = false;
+    }
 }
 
 async function sendWebhookWithRetry(body, attempt = 1) {
     try {
-        const response = await fetch(FORWARD_WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+        const response = await fetchWithTimeout(
+            FORWARD_WEBHOOK,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            },
+            WEBHOOK_FETCH_TIMEOUT_MS
+        );
 
         if (response.ok) {
             console.log('📨 Forwarded webhook payload to Discord server webhook.');
@@ -184,7 +311,10 @@ async function sendWebhookWithRetry(body, attempt = 1) {
             const retryAfterRaw = response.headers.get('retry-after');
             const retryAfterSeconds = retryAfterRaw ? Number(retryAfterRaw) : null;
             const retryDelay = Number.isFinite(retryAfterSeconds)
-                ? Math.max(retryAfterSeconds * 1000, WEBHOOK_MIN_INTERVAL_MS)
+                ? Math.min(
+                      WEBHOOK_MAX_RETRY_DELAY_MS,
+                      Math.max(retryAfterSeconds * 1000, WEBHOOK_MIN_INTERVAL_MS)
+                  )
                 : Math.min(4000, attempt * 1500);
 
             console.warn(
@@ -224,12 +354,30 @@ function logWebhookFailure(entry) {
     while (webhookFailureLog.length && new Date(webhookFailureLog[0].ts).getTime() < cutoff) {
         webhookFailureLog.shift();
     }
+
+    while (webhookFailureLog.length > WEBHOOK_FAILURE_LOG_MAX) {
+        webhookFailureLog.shift();
+    }
 }
 
-router.get('/failures', (_req, res) => {
+router.get('/failures', (req, res) => {
+    if (HEALTH_TOKEN) {
+        const providedToken = extractBearerToken(req);
+        if (providedToken !== HEALTH_TOKEN) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+    } else if (isProductionLike()) {
+        return res.status(403).json({ error: 'Endpoint disabled (set HEALTH_TOKEN)' });
+    }
+
     res.json({
         count: webhookFailureLog.length,
         ttlMs: WEBHOOK_FAILURE_LOG_TTL_MS,
+        queue: {
+            size: webhookQueue.length,
+            max: WEBHOOK_QUEUE_MAX,
+            dropped: webhookDroppedCount
+        },
         failures: webhookFailureLog.slice(-50)
     });
 });
