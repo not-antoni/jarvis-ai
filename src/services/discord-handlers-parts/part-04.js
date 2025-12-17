@@ -1494,6 +1494,235 @@
                 return;
             }
 
+            if (subcommand === 'cloudflare') {
+                const { EmbedBuilder } = require('discord.js');
+                const channel = resolveAlertChannel();
+                if (!channel) {
+                    await interaction.editReply('Please provide an alert channel, sir.');
+                    return;
+                }
+
+                const permsCheck = await ensureSendPermissions(channel);
+                if (!permsCheck.ok) {
+                    await interaction.editReply(permsCheck.error);
+                    return;
+                }
+
+                const status = await monitorUtils.fetchCloudflareStatus();
+                
+                if (!status.success) {
+                    await interaction.editReply(`❌ Failed to fetch Cloudflare status: ${status.error}`);
+                    return;
+                }
+
+                const doc = await monitorSubscriptions.add_subscription({
+                    guild_id: guildId,
+                    channel_id: channel.id,
+                    monitor_type: 'cloudflare',
+                    source_id: 'cloudflare'
+                });
+
+                if (!doc) {
+                    await interaction.editReply('I could not save that monitor right now, sir. Please try again shortly.');
+                    return;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('☁️ Cloudflare Status')
+                    .setColor(status.overall.status === 'none' ? 0x2ecc71 : status.overall.status === 'minor' ? 0xf1c40f : 0xe74c3c)
+                    .setDescription(`${status.overall.emoji} **${status.overall.description}**`)
+                    .setTimestamp()
+                    .setFooter({ text: 'cloudflarestatus.com' });
+
+                // Components summary
+                const compSummary = [];
+                compSummary.push(`✅ **${status.components.operational}/${status.components.total}** operational`);
+                if (status.components.degraded.length > 0) {
+                    compSummary.push(`⚠️ Degraded: ${status.components.degraded.join(', ')}`);
+                }
+                if (status.components.partialOutage.length > 0) {
+                    compSummary.push(`🟠 Partial: ${status.components.partialOutage.join(', ')}`);
+                }
+                if (status.components.majorOutage.length > 0) {
+                    compSummary.push(`🔴 Major: ${status.components.majorOutage.join(', ')}`);
+                }
+                embed.addFields({ name: 'Components', value: compSummary.join('\n') || 'All operational', inline: false });
+
+                // Active incidents
+                if (status.incidents.length > 0) {
+                    const incidentList = status.incidents.slice(0, 3).map(i => {
+                        const impact = i.impact === 'critical' ? '🚨' : i.impact === 'major' ? '🔴' : i.impact === 'minor' ? '⚠️' : '📋';
+                        return `${impact} **${i.name}**\n> Status: ${i.status} | [Details](${i.shortlink})`;
+                    }).join('\n\n');
+                    embed.addFields({ name: '🚧 Active Incidents', value: incidentList, inline: false });
+                } else {
+                    embed.addFields({ name: '🚧 Incidents', value: 'No active incidents', inline: false });
+                }
+
+                await interaction.editReply({
+                    content: `✅ Cloudflare monitor added, sir.\n**ID:** \`${doc.id}\`\n**Alerts:** <#${doc.channel_id}>`,
+                    embeds: [embed]
+                });
+                return;
+            }
+
+            if (subcommand === 'statuspage') {
+                const { EmbedBuilder } = require('discord.js');
+                const rawUrl = String(interaction.options.getString('url', true) || '').trim();
+                const url = rawUrl.replace(/\/$/, '');
+                const channel = resolveAlertChannel();
+                if (!channel) {
+                    await interaction.editReply('Please provide an alert channel, sir.');
+                    return;
+                }
+
+                const permsCheck = await ensureSendPermissions(channel);
+                if (!permsCheck.ok) {
+                    await interaction.editReply(permsCheck.error);
+                    return;
+                }
+
+                const status = await monitorUtils.fetchStatusPageStatus(url);
+                
+                if (!status.success) {
+                    await interaction.editReply(`❌ Failed to fetch status page: ${status.error}\n\nMake sure the URL is a Statuspage.io compatible page (e.g., https://status.example.com)`);
+                    return;
+                }
+
+                const doc = await monitorSubscriptions.add_subscription({
+                    guild_id: guildId,
+                    channel_id: channel.id,
+                    monitor_type: 'statuspage',
+                    source_id: url
+                });
+
+                if (!doc) {
+                    await interaction.editReply('I could not save that monitor right now, sir. Please try again shortly.');
+                    return;
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`📊 ${status.pageName}`)
+                    .setColor(status.overall.status === 'none' ? 0x2ecc71 : status.overall.status === 'minor' ? 0xf1c40f : 0xe74c3c)
+                    .setDescription(`${status.overall.emoji} **${status.overall.description}**`)
+                    .setURL(url)
+                    .setTimestamp();
+
+                // Components (max 10)
+                if (status.components.length > 0) {
+                    const compList = status.components.slice(0, 10).map(c => `${c.emoji} ${c.name}`).join('\n');
+                    embed.addFields({ name: 'Components', value: compList, inline: false });
+                }
+
+                // Incidents
+                if (status.incidents.length > 0) {
+                    const incList = status.incidents.slice(0, 3).map(i => `• **${i.name}** (${i.status})`).join('\n');
+                    embed.addFields({ name: 'Recent Incidents', value: incList, inline: false });
+                }
+
+                await interaction.editReply({
+                    content: `✅ Status page monitor added, sir.\n**ID:** \`${doc.id}\`\n**URL:** ${url}\n**Alerts:** <#${doc.channel_id}>`,
+                    embeds: [embed]
+                });
+                return;
+            }
+
+            if (subcommand === 'status') {
+                const monitorScheduler = require('./monitor-scheduler');
+                const schedulerStatus =
+                    monitorScheduler && typeof monitorScheduler.getStatus === 'function'
+                        ? monitorScheduler.getStatus()
+                        : null;
+
+                const subs = await monitorSubscriptions.get_subscriptions_for_guild(guildId);
+                const counts = {};
+                const list = Array.isArray(subs) ? subs : [];
+                for (const sub of list) {
+                    const t = sub && sub.monitor_type ? String(sub.monitor_type) : 'unknown';
+                    counts[t] = (counts[t] || 0) + 1;
+                }
+
+                const tickMs = Number(schedulerStatus?.tickMs) || 0;
+                const tickLabel = tickMs ? `${Math.round((tickMs / 60000) * 10) / 10}m` : 'n/a';
+                const lastConnectAt = Number(schedulerStatus?.lastConnectAttemptAt) || 0;
+                const lastConnect = lastConnectAt ? `<t:${Math.floor(lastConnectAt / 1000)}:R>` : 'never';
+
+                const schedulerLines = [
+                    `Started: ${schedulerStatus?.started ? '✅' : '⛔'}`,
+                    `Running: ${schedulerStatus?.running ? '🟢' : '⚪'}`,
+                    `Tick: ${tickLabel}`,
+                    `DB connected: ${schedulerStatus?.dbConnected ? '✅' : '⛔'}`,
+                    `Last DB connect attempt: ${lastConnect}`
+                ];
+                if (schedulerStatus?.warnedNotConnected) {
+                    schedulerLines.push('⚠️ DB warning active');
+                }
+
+                const typeEmojis = {
+                    rss: '📰',
+                    website: '🌐',
+                    youtube: '🎬',
+                    twitch: '🎮',
+                    cloudflare: '☁️',
+                    statuspage: '📊'
+                };
+                const order = ['rss', 'website', 'youtube', 'twitch', 'cloudflare', 'statuspage'];
+                const monitorLines = order.map(type => {
+                    const emoji = typeEmojis[type] || '📋';
+                    const n = Number(counts[type]) || 0;
+                    return `${emoji} ${type}: **${n}**`;
+                });
+                const total = list.length;
+
+                const { EmbedBuilder } = require('discord.js');
+                const embed = new EmbedBuilder()
+                    .setTitle('📡 Monitor Status')
+                    .setColor(0x3498db)
+                    .setTimestamp();
+
+                embed.addFields(
+                    { name: 'Scheduler', value: schedulerLines.join('\n').slice(0, 1024), inline: false },
+                    {
+                        name: `Monitors in this server (${total})`,
+                        value: monitorLines.join('\n').slice(0, 1024),
+                        inline: false
+                    }
+                );
+
+                await interaction.editReply({ embeds: [embed] });
+                return;
+            }
+
+            if (subcommand === 'list') {
+                const subs = await monitorSubscriptions.get_subscriptions_for_guild(guildId);
+                
+                if (!subs || subs.length === 0) {
+                    await interaction.editReply('No monitors configured for this server, sir.');
+                    return;
+                }
+
+                const { EmbedBuilder } = require('discord.js');
+                const embed = new EmbedBuilder()
+                    .setTitle('📡 Active Monitors')
+                    .setColor(0x3498db)
+                    .setTimestamp();
+
+                const typeEmojis = { rss: '📰', website: '🌐', youtube: '🎬', twitch: '🎮', cloudflare: '☁️', statuspage: '📊' };
+                const monitorList = subs.slice(0, 15).map(s => {
+                    const emoji = typeEmojis[s.monitor_type] || '📋';
+                    const source = s.source_id.length > 40 ? s.source_id.substring(0, 37) + '...' : s.source_id;
+                    return `${emoji} **${s.monitor_type}**: \`${source}\`\n> Channel: <#${s.channel_id}> | ID: \`${s.id}\``;
+                }).join('\n\n');
+
+                embed.setDescription(monitorList || 'No monitors found');
+                if (subs.length > 15) {
+                    embed.setFooter({ text: `Showing 15 of ${subs.length} monitors` });
+                }
+
+                await interaction.editReply({ embeds: [embed] });
+                return;
+            }
+
             await interaction.editReply('Unknown monitor action, sir.');
         } catch (error) {
             console.error('[/monitor] Error:', error);

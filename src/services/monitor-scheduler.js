@@ -87,7 +87,8 @@ function buildYoutubeEmbed({ title, link, source }) {
 
 function buildWebsiteEmbed({ url, previousStatus, currentStatus }) {
     const previous = String(previousStatus);
-    const current = String(currentStatus);
+    const payload = currentStatus && typeof currentStatus === 'object' ? currentStatus : null;
+    const current = payload?.status != null ? String(payload.status) : String(currentStatus);
 
     const wentUp = current === '200' && previous !== '200';
     const wentDown = previous === '200' && current !== '200';
@@ -100,15 +101,38 @@ function buildWebsiteEmbed({ url, previousStatus, currentStatus }) {
 
     const color = wentUp ? 0x2ecc71 : wentDown ? 0xe74c3c : 0xf1c40f;
 
-    return new EmbedBuilder()
+    const currentValueParts = [current];
+    if (payload?.statusText) {
+        currentValueParts.push(String(payload.statusText));
+    }
+    if (Number.isFinite(payload?.responseTime)) {
+        currentValueParts.push(`(${Number(payload.responseTime)}ms)`);
+    }
+
+    const embed = new EmbedBuilder()
         .setTitle(title)
         .setColor(color)
         .setURL(url)
         .addFields(
             { name: 'Previous', value: previous, inline: true },
-            { name: 'Current', value: current, inline: true }
+            { name: 'Current', value: currentValueParts.join(' '), inline: true }
         )
         .setTimestamp();
+
+    if (payload?.error) {
+        embed.addFields({ name: 'Error', value: String(payload.error).slice(0, 1024), inline: false });
+    }
+
+    const server = payload?.headers?.server ? String(payload.headers.server) : null;
+    const contentType = payload?.headers?.contentType ? String(payload.headers.contentType) : null;
+    if (server) {
+        embed.addFields({ name: 'Server', value: server.slice(0, 1024), inline: true });
+    }
+    if (contentType) {
+        embed.addFields({ name: 'Content-Type', value: contentType.slice(0, 1024), inline: true });
+    }
+
+    return embed;
 }
 
 function buildTwitchEmbed({ username, user, stream }) {
@@ -151,6 +175,198 @@ function buildTwitchEmbed({ username, user, stream }) {
             .replace('{height}', '720')
             .concat(`?t=${Date.now()}`);
         embed.setImage(imageUrl);
+    }
+
+    return embed;
+}
+
+function getIndicatorColor(indicator) {
+    const normalized = String(indicator || '').toLowerCase();
+    if (normalized === 'none' || normalized === 'operational') {
+        return 0x2ecc71;
+    }
+    if (normalized === 'minor' || normalized === 'degraded_performance') {
+        return 0xf1c40f;
+    }
+    return 0xe74c3c;
+}
+
+function buildCloudflareSnapshot(status) {
+    if (!status || !status.success) {
+        return null;
+    }
+
+    const overall = status.overall?.status ? String(status.overall.status) : 'unknown';
+    const components = Array.isArray(status.componentsList)
+        ? status.componentsList
+              .map(c => ({
+                  id: c?.id ? String(c.id) : c?.name ? String(c.name) : '',
+                  status: c?.status ? String(c.status) : 'unknown'
+              }))
+              .filter(c => c.id)
+        : [];
+    components.sort((a, b) => a.id.localeCompare(b.id));
+
+    const incidents = Array.isArray(status.incidents)
+        ? status.incidents
+              .map(i => ({
+                  id: i?.id ? String(i.id) : i?.name ? String(i.name) : '',
+                  status: i?.status ? String(i.status) : 'unknown',
+                  impact: i?.impact ? String(i.impact) : 'unknown',
+                  updatedAt: i?.updatedAt ? String(i.updatedAt) : ''
+              }))
+              .filter(i => i.id)
+        : [];
+    incidents.sort((a, b) => a.id.localeCompare(b.id));
+
+    return JSON.stringify({ overall, components, incidents });
+}
+
+function buildStatusPageSnapshot(status) {
+    if (!status || !status.success) {
+        return null;
+    }
+
+    const overall = status.overall?.status ? String(status.overall.status) : 'unknown';
+    const components = Array.isArray(status.components)
+        ? status.components
+              .map(c => ({
+                  id: c?.id ? String(c.id) : c?.name ? String(c.name) : '',
+                  status: c?.status ? String(c.status) : 'unknown'
+              }))
+              .filter(c => c.id)
+        : [];
+    components.sort((a, b) => a.id.localeCompare(b.id));
+
+    const incidents = Array.isArray(status.incidents)
+        ? status.incidents
+              .map(i => ({
+                  id: i?.id ? String(i.id) : i?.name ? String(i.name) : '',
+                  status: i?.status ? String(i.status) : 'unknown',
+                  impact: i?.impact ? String(i.impact) : 'unknown',
+                  updatedAt: i?.updatedAt ? String(i.updatedAt) : ''
+              }))
+              .filter(i => i.id)
+        : [];
+    incidents.sort((a, b) => a.id.localeCompare(b.id));
+
+    return JSON.stringify({ overall, components, incidents });
+}
+
+function buildCloudflareEmbed(status) {
+    const overallIndicator = status?.overall?.status || 'unknown';
+    const overallDescription = status?.overall?.description || 'Unknown';
+    const overallEmoji = status?.overall?.emoji || monitorUtils.getStatusEmoji(overallIndicator);
+
+    const embed = new EmbedBuilder()
+        .setTitle('☁️ Cloudflare Status Update')
+        .setColor(getIndicatorColor(overallIndicator))
+        .setDescription(`${overallEmoji} **${overallDescription}**`)
+        .setTimestamp()
+        .setFooter({ text: 'cloudflarestatus.com' });
+
+    const compSummary = [];
+    const total = Number(status?.components?.total);
+    const operational = Number(status?.components?.operational);
+    if (Number.isFinite(total) && Number.isFinite(operational)) {
+        compSummary.push(`✅ **${operational}/${total}** operational`);
+    }
+    if (Array.isArray(status?.components?.degraded) && status.components.degraded.length > 0) {
+        compSummary.push(`⚠️ Degraded: ${status.components.degraded.join(', ')}`);
+    }
+    if (Array.isArray(status?.components?.partialOutage) && status.components.partialOutage.length > 0) {
+        compSummary.push(`🟠 Partial: ${status.components.partialOutage.join(', ')}`);
+    }
+    if (Array.isArray(status?.components?.majorOutage) && status.components.majorOutage.length > 0) {
+        compSummary.push(`🔴 Major: ${status.components.majorOutage.join(', ')}`);
+    }
+
+    const compValue = compSummary.join('\n');
+    embed.addFields({
+        name: 'Components',
+        value: (compValue ? compValue : 'All operational').slice(0, 1024),
+        inline: false
+    });
+
+    const incidents = Array.isArray(status?.incidents) ? status.incidents : [];
+    if (incidents.length > 0) {
+        const incidentList = incidents
+            .slice(0, 3)
+            .map(i => {
+                const impact =
+                    i.impact === 'critical'
+                        ? '🚨'
+                        : i.impact === 'major'
+                          ? '🔴'
+                          : i.impact === 'minor'
+                            ? '⚠️'
+                            : '📋';
+                const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
+                return `${impact} **${i.name}**\n> Status: ${i.status}${details}`;
+            })
+            .join('\n\n');
+        embed.addFields({
+            name: '🚧 Active Incidents',
+            value: (incidentList || 'No incident details').slice(0, 1024),
+            inline: false
+        });
+    } else {
+        embed.addFields({ name: '🚧 Incidents', value: 'No active incidents', inline: false });
+    }
+
+    return embed;
+}
+
+function buildStatusPageEmbed({ url, status }) {
+    const overallIndicator = status?.overall?.status || 'unknown';
+    const overallDescription = status?.overall?.description || 'Unknown';
+    const overallEmoji = status?.overall?.emoji || monitorUtils.getStatusEmoji(overallIndicator);
+
+    const embed = new EmbedBuilder()
+        .setTitle(`📊 ${status?.pageName || 'Status Page'} Update`)
+        .setColor(getIndicatorColor(overallIndicator))
+        .setDescription(`${overallEmoji} **${overallDescription}**`)
+        .setTimestamp();
+
+    if (url) {
+        embed.setURL(url);
+    }
+
+    const components = Array.isArray(status?.components) ? status.components : [];
+    if (components.length > 0) {
+        const compList = components
+            .slice(0, 10)
+            .map(c => `${c.emoji || monitorUtils.getStatusEmoji(c.status)} ${c.name}`)
+            .join('\n');
+        embed.addFields({
+            name: 'Components',
+            value: (compList || 'No components').slice(0, 1024),
+            inline: false
+        });
+    }
+
+    const incidents = Array.isArray(status?.incidents) ? status.incidents : [];
+    if (incidents.length > 0) {
+        const incList = incidents
+            .slice(0, 3)
+            .map(i => {
+                const impact =
+                    i.impact === 'critical'
+                        ? '🚨'
+                        : i.impact === 'major'
+                          ? '🔴'
+                          : i.impact === 'minor'
+                            ? '⚠️'
+                            : '📋';
+                const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
+                return `${impact} **${i.name}**\n> Status: ${i.status}${details}`;
+            })
+            .join('\n\n');
+        embed.addFields({
+            name: 'Recent Incidents',
+            value: (incList || 'No incident details').slice(0, 1024),
+            inline: false
+        });
     }
 
     return embed;
@@ -272,7 +488,7 @@ async function processSubscription(sub) {
             const embed = buildWebsiteEmbed({
                 url: String(sub.source_id),
                 previousStatus,
-                currentStatus
+                currentStatus: status
             });
 
             const sent = await safeSend(channel, { embeds: [embed] });
@@ -323,6 +539,78 @@ async function processSubscription(sub) {
                 () => null
             );
         }
+        return;
+    }
+
+    if (type === 'cloudflare') {
+        const status = await monitorUtils.fetchCloudflareStatus().catch(() => null);
+        if (!status?.success) {
+            return;
+        }
+
+        const currentSnapshot = buildCloudflareSnapshot(status);
+        if (!currentSnapshot) {
+            return;
+        }
+        const previousSnapshot = sub.last_seen_data != null ? String(sub.last_seen_data) : null;
+
+        if (!previousSnapshot) {
+            await subscriptions
+                .update_last_seen_data({ id: String(sub.id), last_seen_data: currentSnapshot })
+                .catch(() => null);
+            return;
+        }
+
+        if (currentSnapshot !== previousSnapshot) {
+            const embed = buildCloudflareEmbed(status);
+            const sent = await safeSend(channel, { embeds: [embed] });
+            if (!sent.ok) {
+                console.warn('[Monitor] Failed to send Cloudflare notification:', sent.error?.message || sent.error);
+                await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+                return;
+            }
+
+            await subscriptions
+                .update_last_seen_data({ id: String(sub.id), last_seen_data: currentSnapshot })
+                .catch(() => null);
+        }
+        return;
+    }
+
+    if (type === 'statuspage') {
+        const baseUrl = String(sub.source_id);
+        const status = await monitorUtils.fetchStatusPageStatus(baseUrl).catch(() => null);
+        if (!status?.success) {
+            return;
+        }
+
+        const currentSnapshot = buildStatusPageSnapshot(status);
+        if (!currentSnapshot) {
+            return;
+        }
+        const previousSnapshot = sub.last_seen_data != null ? String(sub.last_seen_data) : null;
+
+        if (!previousSnapshot) {
+            await subscriptions
+                .update_last_seen_data({ id: String(sub.id), last_seen_data: currentSnapshot })
+                .catch(() => null);
+            return;
+        }
+
+        if (currentSnapshot !== previousSnapshot) {
+            const embed = buildStatusPageEmbed({ url: baseUrl, status });
+            const sent = await safeSend(channel, { embeds: [embed] });
+            if (!sent.ok) {
+                console.warn('[Monitor] Failed to send status page notification:', sent.error?.message || sent.error);
+                await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+                return;
+            }
+
+            await subscriptions
+                .update_last_seen_data({ id: String(sub.id), last_seen_data: currentSnapshot })
+                .catch(() => null);
+        }
+        return;
     }
 }
 
@@ -387,7 +675,22 @@ async function runOnce() {
     return tick();
 }
 
+function getStatus() {
+    return {
+        started: Boolean(schedulerState.started),
+        running: Boolean(schedulerState.running),
+        tickMs: Number(schedulerState.tickMs) || DEFAULT_TICK_MS,
+        hasClient: Boolean(schedulerState.client),
+        tickHandleActive: Boolean(schedulerState.tickHandle),
+        warnedNotConnected: Boolean(schedulerState.warnedNotConnected),
+        lastConnectAttemptAt: Number(schedulerState.lastConnectAttemptAt) || 0,
+        dbConnected: Boolean(schedulerState.database && schedulerState.database.isConnected),
+        isRender: Boolean(IS_RENDER)
+    };
+}
+
 module.exports = {
     init,
-    runOnce
+    runOnce,
+    getStatus
 };
