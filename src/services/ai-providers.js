@@ -211,35 +211,16 @@ class AIProviderManager {
 
     setupProviders() {
         // ---------- OpenRouter providers ----------
-        const openRouterKeys = [
-            process.env.OPENROUTER_API_KEY,
-            process.env.OPENROUTER_API_KEY2,
-            process.env.OPENROUTER_API_KEY3,
-            process.env.OPENROUTER_API_KEY4,
-            process.env.OPENROUTER_API_KEY5,
-            process.env.OPENROUTER_API_KEY6,
-            process.env.OPENROUTER_API_KEY7,
-            process.env.OPENROUTER_API_KEY8,
-            process.env.OPENROUTER_API_KEY9,
-            process.env.OPENROUTER_API_KEY10,
-            process.env.OPENROUTER_API_KEY11,
-            process.env.OPENROUTER_API_KEY12,
-            process.env.OPENROUTER_API_KEY13,
-            process.env.OPENROUTER_API_KEY14,
-            process.env.OPENROUTER_API_KEY15,
-            process.env.OPENROUTER_API_KEY16,
-            process.env.OPENROUTER_API_KEY17,
-            process.env.OPENROUTER_API_KEY18,
-            process.env.OPENROUTER_API_KEY19,
-            process.env.OPENROUTER_API_KEY20,
-            process.env.OPENROUTER_API_KEY21,
-            process.env.OPENROUTER_API_KEY22,
-            process.env.OPENROUTER_API_KEY23,
-            process.env.OPENROUTER_API_KEY24,
-            process.env.OPENROUTER_API_KEY25,
-            process.env.OPENROUTER_API_KEY26,
-            process.env.OPENROUTER_API_KEY27
-        ].filter(Boolean);
+        // Auto-discover all OPENROUTER_API_KEY, OPENROUTER_API_KEY2, etc.
+        const openRouterKeys = Object.keys(process.env)
+            .filter(key => /^OPENROUTER_API_KEY\d*$/.test(key))
+            .sort((a, b) => {
+                const numA = parseInt(a.replace('OPENROUTER_API_KEY', '') || '1', 10);
+                const numB = parseInt(b.replace('OPENROUTER_API_KEY', '') || '1', 10);
+                return numA - numB;
+            })
+            .map(key => process.env[key])
+            .filter(Boolean);
 
         openRouterKeys.forEach((key, index) => {
             this.providers.push({
@@ -348,18 +329,16 @@ class AIProviderManager {
         }
 
         // ---------- Ollama providers (native API with vision support) ----------
-        const ollamaKeys = [
-            process.env.OLLAMA_API_KEY,
-            process.env.OLLAMA_API_KEY2,
-            process.env.OLLAMA_API_KEY3,
-            process.env.OLLAMA_API_KEY4,
-            process.env.OLLAMA_API_KEY5,
-            process.env.OLLAMA_API_KEY6,
-            process.env.OLLAMA_API_KEY7,
-            process.env.OLLAMA_API_KEY8,
-            process.env.OLLAMA_API_KEY9,
-            process.env.OLLAMA_API_KEY10
-        ].filter(Boolean);
+        // Auto-discover all OLLAMA_API_KEY, OLLAMA_API_KEY2, OLLAMA_API_KEY3, etc.
+        const ollamaKeys = Object.keys(process.env)
+            .filter(key => /^OLLAMA_API_KEY\d*$/.test(key))
+            .sort((a, b) => {
+                const numA = parseInt(a.replace('OLLAMA_API_KEY', '') || '1', 10);
+                const numB = parseInt(b.replace('OLLAMA_API_KEY', '') || '1', 10);
+                return numA - numB;
+            })
+            .map(key => process.env[key])
+            .filter(Boolean);
 
         const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
         const ollamaModel = process.env.OLLAMA_MODEL || 'qwen3-vl:235b-instruct-cloud';
