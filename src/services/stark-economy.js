@@ -1421,7 +1421,9 @@ async function playMinigame(userId, gameType) {
     const game = MINIGAME_REWARDS[gameType];
     if (!game) return { success: false, error: 'Unknown game type' };
 
-    const cooldown = checkCooldown(userId, gameType, game.cooldown);
+    // Apply Arc Reactor cooldown reduction
+    const arcPerks = await getArcReactorPerks(userId);
+    const cooldown = checkCooldown(userId, gameType, game.cooldown * arcPerks.cooldownMultiplier);
     if (cooldown.onCooldown) {
         return { success: false, cooldown: cooldown.remaining };
     }
@@ -1439,8 +1441,13 @@ async function playMinigame(userId, gameType) {
         }
     }
 
-    // Apply multiplier bonus if event active (only to positive rewards)
+    // Apply Arc Reactor earnings bonus
     let reward = outcome.reward;
+    if (reward > 0) {
+        reward = Math.floor(reward * arcPerks.earningsMultiplier);
+    }
+
+    // Apply multiplier bonus if event active (only to positive rewards)
     if (reward > 0 && isMultiplierActive()) {
         reward = Math.floor(reward * ECONOMY_CONFIG.multiplierBonus);
     }
@@ -1452,13 +1459,23 @@ async function playMinigame(userId, gameType) {
     } else if (reward < 0) {
         user.totalLost = (user.totalLost || 0) + Math.abs(reward);
     }
+
+    // Track material collection for tinker system
+    if (outcome.reward > 0) {
+        user.materials = user.materials || {};
+        const materialName = outcome.name;
+        user.materials[materialName] = (user.materials[materialName] || 0) + 1;
+    }
+
     await saveUser(userId, user);
 
     return {
         success: true,
+        item: outcome.name,
         outcome: outcome.name,
         reward: reward,
-        newBalance: user.balance
+        newBalance: user.balance,
+        message: outcome.name
     };
 }
 
@@ -1691,6 +1708,113 @@ function startMultiplierScheduler() {
 }
 
 // ============================================================================
+// TINKER / CRAFTING SYSTEM
+// ============================================================================
+
+/**
+ * Get user's collected materials
+ */
+async function getMaterials(userId) {
+    const user = await loadUser(userId);
+    return user.materials || {};
+}
+
+/**
+ * Check if user has required materials for a recipe
+ */
+async function hasRequiredMaterials(userId, ingredients) {
+    const materials = await getMaterials(userId);
+    for (const [material, required] of Object.entries(ingredients)) {
+        if ((materials[material] || 0) < required) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Craft an item from materials
+ */
+async function craftItem(userId, recipeId, recipe) {
+    const user = await loadUser(userId);
+    user.materials = user.materials || {};
+
+    // Check if user has all required materials
+    for (const [material, required] of Object.entries(recipe.ingredients)) {
+        if ((user.materials[material] || 0) < required) {
+            return {
+                success: false,
+                error: `Missing ${required - (user.materials[material] || 0)}x ${material}`
+            };
+        }
+    }
+
+    // Consume materials
+    for (const [material, required] of Object.entries(recipe.ingredients)) {
+        user.materials[material] -= required;
+        if (user.materials[material] <= 0) {
+            delete user.materials[material];
+        }
+    }
+
+    // Add crafted item to inventory
+    user.inventory = user.inventory || [];
+    user.inventory.push({
+        id: recipeId,
+        name: recipe.name,
+        description: recipe.description,
+        value: recipe.value,
+        rarity: recipe.rarity,
+        craftedAt: Date.now()
+    });
+
+    // Track crafting stats
+    user.totalCrafted = (user.totalCrafted || 0) + 1;
+
+    await saveUser(userId, user);
+
+    return {
+        success: true,
+        item: recipe.name,
+        value: recipe.value,
+        rarity: recipe.rarity
+    };
+}
+
+/**
+ * Sell a crafted item for coins
+ */
+async function sellItem(userId, itemIndex) {
+    const user = await loadUser(userId);
+    user.inventory = user.inventory || [];
+
+    if (itemIndex < 0 || itemIndex >= user.inventory.length) {
+        return { success: false, error: 'Invalid item index' };
+    }
+
+    const item = user.inventory[itemIndex];
+    
+    // Can't sell special items like arc_reactor
+    if (item.id === 'arc_reactor' || item.oneTime) {
+        return { success: false, error: 'This item cannot be sold' };
+    }
+
+    const sellValue = Math.floor((item.value || 100) * 0.7); // 70% of value
+    user.inventory.splice(itemIndex, 1);
+    user.balance += sellValue;
+    user.totalEarned = (user.totalEarned || 0) + sellValue;
+
+    await saveUser(userId, user);
+
+    return {
+        success: true,
+        item: item.name,
+        value: sellValue,
+        newBalance: user.balance
+    };
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -1721,6 +1845,12 @@ module.exports = {
     // Arc Reactor
     hasArcReactor,
     getArcReactorPerks,
+
+    // Tinker / Crafting
+    getMaterials,
+    hasRequiredMaterials,
+    craftItem,
+    sellItem,
 
     // Stats
     getLeaderboard,

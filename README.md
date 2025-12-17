@@ -182,20 +182,33 @@ See [SELFHOST.md](SELFHOST.md) for complete documentation.
 
 ---
 
-## Legacy text commands (`.j`)
+## Legacy Text Commands (`*j`)
 
-Legacy text commands are enabled only when the Message Content intent is enabled:
+Legacy text commands use the `*j` prefix and are enabled when Message Content intent is active:
 
 ```env
 DISCORD_ENABLE_MESSAGE_CONTENT=true
 ```
 
-Examples:
+### Command Categories (6 pages)
 
-- `.j help`
-- `.j ping`
-- `.j remind in 5 minutes check the oven`
-- `.j kick @user [reason]`
+| Page | Category | Commands |
+|------|----------|----------|
+| 1 | Fun | `*j roast` `*j soul` `*j 8ball` `*j dadjoke` `*j pickupline` `*j rate` `*j roll` |
+| 2 | Social | `*j ship` `*j hug` `*j slap` `*j fight` `*j howgay` `*j howbased` `*j vibecheck` |
+| 3 | Economy | `*j balance` `*j daily` `*j work` `*j gamble` `*j slots` `*j coinflip` `*j leaderboard` |
+| 4 | Minigames | `*j hunt` `*j fish` `*j dig` `*j beg` `*j tinker` `*j recipes` `*j contract` |
+| 5 | Shop | `*j shop` `*j buy` `*j inventory` `*j reactor` (Arc Reactor perks) |
+| 6 | Utility | `*j help` `*j ping` `*j remind` `*j kick` `*j enable moderation` |
+
+### Arc Reactor (💠)
+
+The legendary 10,000 coin item grants real perks:
+- **+15%** earnings on ALL activities
+- **-25%** cooldown on ALL commands  
+- **+5%** gambling win rate
+- **+500** daily reward bonus
+- **+1%** daily interest on balance
 
 ## Configuration
 
@@ -351,11 +364,23 @@ Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ---
 
-## Acknowledgments
+## API Key Auto-Discovery
 
-- [discord.js](https://discord.js.org/) - Discord API
-- [ppbot](https://github.com/schlopp/ppbot) - Economy inspiration
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube downloads
+Jarvis automatically discovers all API keys matching these patterns:
+
+```env
+# These are auto-discovered (add as many as you want)
+OPENROUTER_API_KEY=...
+OPENROUTER_API_KEY2=...
+OPENROUTER_API_KEY3=...
+# ... OPENROUTER_API_KEY99, etc.
+
+OLLAMA_API_KEY=...
+OLLAMA_API_KEY2=...
+# ... any number
+```
+
+No code changes needed - just add keys to `.env` and restart.
 
 ---
 

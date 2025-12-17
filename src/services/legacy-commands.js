@@ -1603,17 +1603,23 @@ const legacyCommands = {
             const recipeName = args.join('_').toLowerCase();
             
             if (!recipeName) {
-                // Show available recipes
-                const recipes = starkTinker.getAllRecipes().slice(0, 15);
+                // Show available recipes and user's materials
+                const materials = await starkEconomy.getMaterials(message.author.id);
+                const materialCount = Object.keys(materials).length;
+                const recipes = starkTinker.getAllRecipes().slice(0, 10);
                 const recipeList = recipes.map(r => 
-                    `**${r.name}** (${r.rarity}) - ${Object.entries(r.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}`
+                    `**${r.name}** (${r.rarity})\n> ${Object.entries(r.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}`
                 ).join('\n');
                 
                 const embed = new EmbedBuilder()
                     .setTitle('🔧 Stark Industries Tinker Lab')
-                    .setDescription(`Combine materials from hunting, fishing, and digging to craft MCU items!\n\n**Sample Recipes:**\n${recipeList}\n\n*Use \`*j tinker <recipe_id>\` to craft*\n*Use \`*j recipes\` to see all ${starkTinker.getAllRecipes().length} recipes*`)
+                    .setDescription(`Combine materials from minigames to craft MCU items!\n\n**Sample Recipes:**\n${recipeList}`)
                     .setColor(0xe74c3c)
-                    .setFooter({ text: 'Collect materials with *j hunt, *j fish, *j dig' });
+                    .addFields(
+                        { name: '📦 Your Materials', value: materialCount > 0 ? `${materialCount} types collected` : 'None yet - use `*j hunt/fish/dig`', inline: true },
+                        { name: '📖 Total Recipes', value: `${starkTinker.getAllRecipes().length}`, inline: true }
+                    )
+                    .setFooter({ text: 'Use *j tinker <recipe_id> to craft • *j materials to view yours' });
                 
                 await message.reply({ embeds: [embed] });
                 return true;
@@ -1621,12 +1627,96 @@ const legacyCommands = {
             
             const recipe = starkTinker.getRecipe(recipeName);
             if (!recipe) {
-                await message.reply(`❌ Unknown recipe: \`${recipeName}\`. Use \`*j tinker\` to see available recipes.`);
+                await message.reply(`❌ Unknown recipe: \`${recipeName}\`. Use \`*j recipes\` to see all recipes.`);
                 return true;
             }
             
-            // TODO: Check if user has materials and craft
-            await message.reply(`🔧 **${recipe.name}**\n${recipe.description}\n\n**Ingredients:** ${Object.entries(recipe.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}\n**Value:** ${recipe.value} Stark Bucks\n**Rarity:** ${recipe.rarity}\n\n*Crafting system coming soon!*`);
+            // Attempt to craft
+            const result = await starkEconomy.craftItem(message.author.id, recipeName, recipe);
+            
+            if (!result.success) {
+                const materials = await starkEconomy.getMaterials(message.author.id);
+                const missing = Object.entries(recipe.ingredients)
+                    .filter(([mat, req]) => (materials[mat] || 0) < req)
+                    .map(([mat, req]) => `${req - (materials[mat] || 0)}x ${mat}`)
+                    .join(', ');
+                
+                await message.reply(`❌ **Cannot craft ${recipe.name}**\n\nMissing: ${missing}\n\nCollect materials with \`*j hunt\`, \`*j fish\`, \`*j dig\``);
+                return true;
+            }
+            
+            const rarityColors = { common: 0x95a5a6, uncommon: 0x2ecc71, rare: 0x3498db, epic: 0x9b59b6, legendary: 0xf1c40f };
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🔧 Item Crafted!')
+                .setDescription(`You crafted **${result.item}**!\n\n${recipe.description}`)
+                .setColor(rarityColors[result.rarity] || 0x95a5a6)
+                .addFields(
+                    { name: 'Rarity', value: result.rarity.toUpperCase(), inline: true },
+                    { name: 'Value', value: `${result.value} 💵`, inline: true }
+                )
+                .setFooter({ text: 'Sell with *j sell <item_number> • View with *j inventory' });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Materials command
+    materials: {
+        description: 'View your collected materials',
+        usage: '*j materials',
+        aliases: ['mats'],
+        execute: async (message, args) => {
+            const materials = await starkEconomy.getMaterials(message.author.id);
+            const entries = Object.entries(materials);
+            
+            if (entries.length === 0) {
+                await message.reply('📦 You have no materials yet!\n\nCollect them with `*j hunt`, `*j fish`, `*j dig`, `*j beg`');
+                return true;
+            }
+            
+            // Sort by quantity
+            entries.sort((a, b) => b[1] - a[1]);
+            const materialList = entries.slice(0, 25).map(([name, qty]) => `${name}: **${qty}**`).join('\n');
+            
+            const embed = new EmbedBuilder()
+                .setTitle(`📦 ${message.author.username}'s Materials`)
+                .setDescription(materialList + (entries.length > 25 ? `\n\n*...and ${entries.length - 25} more*` : ''))
+                .setColor(0x3498db)
+                .setFooter({ text: `${entries.length} material types • Use *j tinker to craft` });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Sell command
+    sell: {
+        description: 'Sell a crafted item for coins',
+        usage: '*j sell <item_number>',
+        execute: async (message, args) => {
+            const itemIndex = parseInt(args[0]) - 1; // 1-indexed for user
+            
+            if (isNaN(itemIndex) || itemIndex < 0) {
+                await message.reply('Usage: `*j sell <item_number>`\n\nView your items with `*j inventory` first.');
+                return true;
+            }
+            
+            const result = await starkEconomy.sellItem(message.author.id, itemIndex);
+            
+            if (!result.success) {
+                await message.reply(`❌ ${result.error}`);
+                return true;
+            }
+            
+            const embed = new EmbedBuilder()
+                .setTitle('💰 Item Sold!')
+                .setDescription(`You sold **${result.item}** for **${result.value}** Stark Bucks!`)
+                .setColor(0x2ecc71)
+                .addFields({ name: '💰 New Balance', value: `${result.newBalance}`, inline: true });
+            
+            await message.reply({ embeds: [embed] });
             return true;
         }
     },
