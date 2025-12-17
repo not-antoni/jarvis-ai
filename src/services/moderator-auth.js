@@ -463,8 +463,15 @@ function getOAuthUrl(state, redirectPath = '/moderator/callback') {
  */
 function getRedirectUri(redirectPath = '/moderator/callback') {
     const normalizedPath = String(redirectPath || '/moderator/callback');
+    
+    // Priority: DASHBOARD_DOMAIN > PUBLIC_BASE_URL > RENDER_EXTERNAL_URL > localhost
     if (process.env.DASHBOARD_DOMAIN) {
-        return `${process.env.DASHBOARD_DOMAIN}${normalizedPath}`;
+        return `${process.env.DASHBOARD_DOMAIN.replace(/\/$/, '')}${normalizedPath}`;
+    }
+
+    // Selfhost: use PUBLIC_BASE_URL
+    if (process.env.PUBLIC_BASE_URL) {
+        return `${process.env.PUBLIC_BASE_URL.replace(/\/$/, '')}${normalizedPath}`;
     }
 
     // Auto-detect Render URL
@@ -472,7 +479,7 @@ function getRedirectUri(redirectPath = '/moderator/callback') {
         return `${process.env.RENDER_EXTERNAL_URL}${normalizedPath}`;
     }
 
-    // Fallback to localhost
+    // Fallback to localhost (dev only)
     const port = process.env.PORT || 3000;
     return `http://localhost:${port}${normalizedPath}`;
 }
