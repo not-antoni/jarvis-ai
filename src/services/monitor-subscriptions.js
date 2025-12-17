@@ -10,13 +10,13 @@ const LOCAL_DB_MODE =
     !IS_RENDER &&
     String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
 
-const VALID_MONITOR_TYPES = new Set(['rss', 'website', 'youtube', 'twitch']);
+const VALID_MONITOR_TYPES = new Set(['rss', 'website', 'youtube', 'twitch', 'cloudflare', 'statuspage']);
 
 function assertMonitorType(monitorType) {
     const normalized = String(monitorType || '').trim().toLowerCase();
     if (!VALID_MONITOR_TYPES.has(normalized)) {
         const error = new Error(
-            "Invalid monitor_type. Must be one of 'rss', 'website', 'youtube', or 'twitch'."
+            "Invalid monitor_type. Must be one of 'rss', 'website', 'youtube', 'twitch', 'cloudflare', or 'statuspage'."
         );
         error.isFriendly = true;
         throw error;
@@ -202,6 +202,22 @@ async function get_all_subscriptions() {
     return localdb.readCollection(config.database.collections.subscriptions);
 }
 
+async function get_subscriptions_for_guild(guild_id) {
+    const gid = normalizeRequired(guild_id, 'guild_id');
+
+    const collection = getMongoCollection();
+    if (collection) {
+        return collection.find({ guild_id: gid }).sort({ createdAt: 1 }).toArray();
+    }
+
+    if (!LOCAL_DB_MODE) {
+        return [];
+    }
+
+    const docs = localdb.readCollection(config.database.collections.subscriptions);
+    return docs.filter(d => d && d.guild_id === gid);
+}
+
 async function update_last_seen_data({ id, last_seen_data } = {}) {
     const sid = normalizeRequired(id, 'id');
 
@@ -240,6 +256,7 @@ module.exports = {
     add_subscription,
     remove_subscription,
     remove_subscription_by_id,
+    get_subscriptions_for_guild,
     get_all_subscriptions,
     update_last_seen_data,
     VALID_MONITOR_TYPES

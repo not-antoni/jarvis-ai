@@ -3487,6 +3487,42 @@ const allCommands = [
         )
         .addSubcommand(sub =>
             sub
+                .setName('cloudflare')
+                .setDescription('Monitor Cloudflare status (components + incidents).')
+                .addChannelOption(opt =>
+                    opt
+                        .setName('channel')
+                        .setDescription('Channel for alerts (defaults to current channel)')
+                        .setRequired(false)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('statuspage')
+                .setDescription('Monitor a Statuspage.io status page for updates.')
+                .addStringOption(opt =>
+                    opt
+                        .setName('url')
+                        .setDescription('Status page base URL (e.g. https://status.openai.com)')
+                        .setRequired(true)
+                )
+                .addChannelOption(opt =>
+                    opt
+                        .setName('channel')
+                        .setDescription('Channel for alerts (defaults to current channel)')
+                        .setRequired(false)
+                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('list').setDescription('List active monitors for this server.')
+        )
+        .addSubcommand(sub =>
+            sub.setName('status').setDescription('Show monitor scheduler status and active monitor counts.')
+        )
+        .addSubcommand(sub =>
+            sub
                 .setName('remove')
                 .setDescription('Stop monitoring a specific source.')
                 .addStringOption(opt =>

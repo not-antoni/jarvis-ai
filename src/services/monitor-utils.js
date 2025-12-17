@@ -158,19 +158,222 @@ async function fetchFeedLatest(url) {
 
 async function fetchWebsiteStatus(url) {
     const target = normalizeUrl(url);
-    const res = await fetch(target, {
-        method: 'GET',
-        redirect: 'follow',
-        timeout: 20000,
-        headers: {
-            'User-Agent': 'JarvisMonitor/1.0 (+https://github.com/not-antoni/jarvis-ai)'
-        }
-    });
+    const startTime = Date.now();
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        
+        const res = await fetch(target, {
+            method: 'GET',
+            redirect: 'follow',
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'JarvisMonitor/1.0 (+https://github.com/not-antoni/jarvis-ai)'
+            }
+        });
+        
+        clearTimeout(timeoutId);
+        const responseTime = Date.now() - startTime;
 
-    return {
-        status: res.status,
-        ok: res.ok
+        return {
+            status: res.status,
+            ok: res.ok,
+            responseTime,
+            statusText: res.statusText || getStatusText(res.status),
+            headers: {
+                server: res.headers.get('server'),
+                contentType: res.headers.get('content-type')
+            }
+        };
+    } catch (error) {
+        const responseTime = Date.now() - startTime;
+        
+        if (error.name === 'AbortError') {
+            return { status: 0, ok: false, responseTime, statusText: 'Timeout', error: 'Request timed out after 20s' };
+        }
+        
+        if (error.code === 'ENOTFOUND') {
+            return { status: 0, ok: false, responseTime, statusText: 'DNS Failed', error: 'Domain not found' };
+        }
+        
+        if (error.code === 'ECONNREFUSED') {
+            return { status: 0, ok: false, responseTime, statusText: 'Connection Refused', error: 'Server refused connection' };
+        }
+        
+        if (error.code === 'CERT_HAS_EXPIRED' || error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
+            return { status: 0, ok: false, responseTime, statusText: 'SSL Error', error: 'Certificate issue' };
+        }
+        
+        return { status: 0, ok: false, responseTime, statusText: 'Error', error: error.message || 'Unknown error' };
+    }
+}
+
+function getStatusText(code) {
+    const codes = {
+        200: 'OK', 201: 'Created', 204: 'No Content',
+        301: 'Moved Permanently', 302: 'Found', 304: 'Not Modified',
+        400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden', 404: 'Not Found',
+        500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout'
     };
+    return codes[code] || 'Unknown';
+}
+
+// ============================================================================
+// CLOUDFLARE STATUS PAGE MONITORING
+// ============================================================================
+
+const CLOUDFLARE_STATUS_URL = 'https://www.cloudflarestatus.com/api/v2/summary.json';
+const CLOUDFLARE_COMPONENTS_URL = 'https://www.cloudflarestatus.com/api/v2/components.json';
+const CLOUDFLARE_INCIDENTS_URL = 'https://www.cloudflarestatus.com/api/v2/incidents/unresolved.json';
+
+async function fetchCloudflareStatus() {
+    try {
+        const [summaryRes, incidentsRes] = await Promise.all([
+            fetch(CLOUDFLARE_STATUS_URL, {
+                timeout: 15000,
+                headers: { 'User-Agent': 'JarvisMonitor/1.0' }
+            }),
+            fetch(CLOUDFLARE_INCIDENTS_URL, {
+                timeout: 15000,
+                headers: { 'User-Agent': 'JarvisMonitor/1.0' }
+            })
+        ]);
+
+        const summary = await summaryRes.json().catch(() => null);
+        const incidents = await incidentsRes.json().catch(() => null);
+
+        if (!summary?.status) {
+            return { success: false, error: 'Could not parse Cloudflare status' };
+        }
+
+        // Parse overall status
+        const overallStatus = summary.status?.indicator || 'unknown';
+        const overallDescription = summary.status?.description || 'Unknown';
+
+        // Parse components
+        const components = (summary.components || []).map(c => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            description: c.description,
+            updatedAt: c.updated_at
+        }));
+
+        // Group components by status
+        const operational = components.filter(c => c.status === 'operational');
+        const degraded = components.filter(c => c.status === 'degraded_performance');
+        const partial = components.filter(c => c.status === 'partial_outage');
+        const major = components.filter(c => c.status === 'major_outage');
+
+        // Parse active incidents
+        const activeIncidents = (incidents?.incidents || []).map(i => ({
+            id: i.id,
+            name: i.name,
+            status: i.status,
+            impact: i.impact,
+            createdAt: i.created_at,
+            updatedAt: i.updated_at,
+            shortlink: i.shortlink,
+            updates: (i.incident_updates || []).slice(0, 3).map(u => ({
+                status: u.status,
+                body: u.body?.substring(0, 200),
+                createdAt: u.created_at
+            }))
+        }));
+
+        return {
+            success: true,
+            overall: {
+                status: overallStatus,
+                description: overallDescription,
+                emoji: getStatusEmoji(overallStatus)
+            },
+            components: {
+                total: components.length,
+                operational: operational.length,
+                degraded: degraded.map(c => c.name),
+                partialOutage: partial.map(c => c.name),
+                majorOutage: major.map(c => c.name)
+            },
+            componentsList: components,
+            incidents: activeIncidents,
+            fetchedAt: new Date().toISOString()
+        };
+    } catch (error) {
+        return { success: false, error: error.message || 'Failed to fetch Cloudflare status' };
+    }
+}
+
+function getStatusEmoji(status) {
+    const emojis = {
+        'none': '✅',
+        'operational': '✅',
+        'minor': '⚠️',
+        'major': '🔴',
+        'critical': '🚨',
+        'degraded_performance': '⚠️',
+        'partial_outage': '🟠',
+        'major_outage': '🔴'
+    };
+    return emojis[status] || '❓';
+}
+
+// ============================================================================
+// GENERIC STATUS PAGE MONITORING (Statuspage.io format)
+// ============================================================================
+
+async function fetchStatusPageStatus(baseUrl) {
+    try {
+        // Statuspage.io compatible API
+        const apiUrl = baseUrl.replace(/\/$/, '') + '/api/v2/summary.json';
+        
+        const res = await fetch(apiUrl, {
+            timeout: 15000,
+            headers: { 'User-Agent': 'JarvisMonitor/1.0' }
+        });
+
+        if (!res.ok) {
+            return { success: false, error: `HTTP ${res.status}` };
+        }
+
+        const data = await res.json().catch(() => null);
+        if (!data?.status) {
+            return { success: false, error: 'Invalid status page format' };
+        }
+
+        const components = (data.components || []).map(c => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            emoji: getStatusEmoji(c.status),
+            updatedAt: c.updated_at
+        }));
+
+        const incidents = (data.incidents || []).slice(0, 5).map(i => ({
+            id: i.id,
+            name: i.name,
+            status: i.status,
+            impact: i.impact,
+            updatedAt: i.updated_at,
+            shortlink: i.shortlink
+        }));
+
+        return {
+            success: true,
+            pageName: data.page?.name || 'Status Page',
+            overall: {
+                status: data.status?.indicator || 'unknown',
+                description: data.status?.description || 'Unknown',
+                emoji: getStatusEmoji(data.status?.indicator)
+            },
+            components,
+            incidents,
+            fetchedAt: new Date().toISOString()
+        };
+    } catch (error) {
+        return { success: false, error: error.message || 'Failed to fetch status page' };
+    }
 }
 
 function buildYoutubeFeedUrl(channelId) {
@@ -298,5 +501,8 @@ module.exports = {
     fetchWebsiteStatus,
     buildYoutubeFeedUrl,
     fetchYoutubeLatest,
-    fetchTwitchUserAndStream
+    fetchTwitchUserAndStream,
+    fetchCloudflareStatus,
+    fetchStatusPageStatus,
+    getStatusEmoji
 };
