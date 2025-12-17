@@ -242,15 +242,16 @@ class AIProviderManager {
         });
 
         // ---------- Groq providers (OpenAI-compatible) ----------
-        const groqKeys = [
-            process.env.GROQ_API_KEY,
-            process.env.GROQ_API_KEY2,
-            process.env.GROQ_API_KEY3,
-            process.env.GROQ_API_KEY4,
-            process.env.GROQ_API_KEY5,
-            process.env.GROQ_API_KEY6,
-            process.env.GROQ_API_KEY7
-        ].filter(Boolean);
+        // Auto-discover all GROQ_API_KEY, GROQ_API_KEY2, etc.
+        const groqKeys = Object.keys(process.env)
+            .filter(key => /^GROQ_API_KEY\d*$/.test(key))
+            .sort((a, b) => {
+                const numA = parseInt(a.replace('GROQ_API_KEY', '') || '1', 10);
+                const numB = parseInt(b.replace('GROQ_API_KEY', '') || '1', 10);
+                return numA - numB;
+            })
+            .map(key => process.env[key])
+            .filter(Boolean);
 
         groqKeys.forEach((key, index) => {
             this.providers.push({
@@ -268,12 +269,16 @@ class AIProviderManager {
         });
 
         // ---------- Google AI (native SDK) ----------
-        const googleKeys = [
-            process.env.GOOGLE_AI_API_KEY,
-            process.env.GOOGLE_AI_API_KEY2,
-            process.env.GOOGLE_AI_API_KEY3,
-            process.env.GOOGLE_AI_API_KEY4
-        ].filter(Boolean);
+        // Auto-discover all GOOGLE_AI_API_KEY, GOOGLE_AI_API_KEY2, etc.
+        const googleKeys = Object.keys(process.env)
+            .filter(key => /^GOOGLE_AI_API_KEY\d*$/.test(key))
+            .sort((a, b) => {
+                const numA = parseInt(a.replace('GOOGLE_AI_API_KEY', '') || '1', 10);
+                const numB = parseInt(b.replace('GOOGLE_AI_API_KEY', '') || '1', 10);
+                return numA - numB;
+            })
+            .map(key => process.env[key])
+            .filter(Boolean);
 
         googleKeys.forEach((key, index) => {
             this.providers.push({
@@ -287,11 +292,16 @@ class AIProviderManager {
         });
 
         // ---------- DeepSeek via Vercel AI Gateway (OpenAI-compatible) ----------
-        // Mirrors the Python snippet, but in Node.js using OpenAI SDK with baseURL set to the Gateway.
-        const deepseekGatewayKeys = [
-            process.env.AI_GATEWAY_API_KEY,
-            process.env.AI_GATEWAY_API_KEY2
-        ].filter(Boolean);
+        // Auto-discover all AI_GATEWAY_API_KEY, AI_GATEWAY_API_KEY2, etc.
+        const deepseekGatewayKeys = Object.keys(process.env)
+            .filter(key => /^AI_GATEWAY_API_KEY\d*$/.test(key))
+            .sort((a, b) => {
+                const numA = parseInt(a.replace('AI_GATEWAY_API_KEY', '') || '1', 10);
+                const numB = parseInt(b.replace('AI_GATEWAY_API_KEY', '') || '1', 10);
+                return numA - numB;
+            })
+            .map(key => process.env[key])
+            .filter(Boolean);
 
         deepseekGatewayKeys.forEach((key, index) => {
             this.providers.push({
