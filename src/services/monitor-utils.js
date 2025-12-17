@@ -314,7 +314,8 @@ function getStatusEmoji(status) {
         'critical': '🚨',
         'degraded_performance': '⚠️',
         'partial_outage': '🟠',
-        'major_outage': '🔴'
+        'major_outage': '🔴',
+        'under_maintenance': '🛠️'
     };
     return emojis[status] || '❓';
 }
@@ -355,8 +356,14 @@ async function fetchStatusPageStatus(baseUrl) {
             name: i.name,
             status: i.status,
             impact: i.impact,
+            createdAt: i.created_at,
             updatedAt: i.updated_at,
-            shortlink: i.shortlink
+            shortlink: i.shortlink,
+            updates: (i.incident_updates || []).slice(0, 3).map(u => ({
+                status: u.status,
+                body: u.body?.substring(0, 300),
+                createdAt: u.created_at
+            }))
         }));
 
         return {

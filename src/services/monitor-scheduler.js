@@ -191,6 +191,53 @@ function getIndicatorColor(indicator) {
     return 0xe74c3c;
 }
 
+function truncateFieldValue(value, max = 1024) {
+    const str = value == null ? '' : String(value);
+    if (str.length <= max) {
+        return str;
+    }
+    return str.slice(0, Math.max(0, max - 1)).concat('…');
+}
+
+function cleanText(text) {
+    const str = text == null ? '' : String(text);
+    return str.replace(/\s+/g, ' ').trim();
+}
+
+function formatRelativeTime(iso) {
+    if (!iso) {
+        return null;
+    }
+    const ms = new Date(String(iso)).getTime();
+    if (!Number.isFinite(ms)) {
+        return null;
+    }
+    return `<t:${Math.floor(ms / 1000)}:R>`;
+}
+
+function formatNameList(names, { maxItems = 18, maxLength = 700 } = {}) {
+    const list = Array.isArray(names) ? names.map(n => String(n)).filter(Boolean) : [];
+    const kept = [];
+    let len = 0;
+    for (const name of list) {
+        if (kept.length >= maxItems) {
+            break;
+        }
+        const chunk = (kept.length ? ', ' : '') + name;
+        if (len + chunk.length > maxLength) {
+            break;
+        }
+        kept.push(name);
+        len += chunk.length;
+    }
+    const remaining = list.length - kept.length;
+    let joined = kept.join(', ');
+    if (remaining > 0) {
+        joined = joined ? `${joined} … (+${remaining} more)` : `(+${remaining} more)`;
+    }
+    return joined || '—';
+}
+
 function buildCloudflareSnapshot(status) {
     if (!status || !status.success) {
         return null;
@@ -266,25 +313,30 @@ function buildCloudflareEmbed(status) {
         .setFooter({ text: 'cloudflarestatus.com' });
 
     const compSummary = [];
-    const total = Number(status?.components?.total);
-    const operational = Number(status?.components?.operational);
-    if (Number.isFinite(total) && Number.isFinite(operational)) {
+    const total = Number(status?.components?.total) || 0;
+    const operational = Number(status?.components?.operational) || 0;
+    if (total > 0) {
         compSummary.push(`✅ **${operational}/${total}** operational`);
-    }
-    if (Array.isArray(status?.components?.degraded) && status.components.degraded.length > 0) {
-        compSummary.push(`⚠️ Degraded: ${status.components.degraded.join(', ')}`);
-    }
-    if (Array.isArray(status?.components?.partialOutage) && status.components.partialOutage.length > 0) {
-        compSummary.push(`🟠 Partial: ${status.components.partialOutage.join(', ')}`);
-    }
-    if (Array.isArray(status?.components?.majorOutage) && status.components.majorOutage.length > 0) {
-        compSummary.push(`🔴 Major: ${status.components.majorOutage.join(', ')}`);
+    } else {
+        compSummary.push('✅ All operational');
     }
 
-    const compValue = compSummary.join('\n');
+    const degraded = Array.isArray(status?.components?.degraded) ? status.components.degraded : [];
+    const partial = Array.isArray(status?.components?.partialOutage) ? status.components.partialOutage : [];
+    const major = Array.isArray(status?.components?.majorOutage) ? status.components.majorOutage : [];
+    if (degraded.length > 0) {
+        compSummary.push(`⚠️ Degraded (${degraded.length}): ${formatNameList(degraded)}`);
+    }
+    if (partial.length > 0) {
+        compSummary.push(`🟠 Partial (${partial.length}): ${formatNameList(partial)}`);
+    }
+    if (major.length > 0) {
+        compSummary.push(`🔴 Major (${major.length}): ${formatNameList(major)}`);
+    }
+
     embed.addFields({
         name: 'Components',
-        value: (compValue ? compValue : 'All operational').slice(0, 1024),
+        value: truncateFieldValue(compSummary.join('\n') || 'All operational'),
         inline: false
     });
 
@@ -302,12 +354,16 @@ function buildCloudflareEmbed(status) {
                             ? '⚠️'
                             : '📋';
                 const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
-                return `${impact} **${i.name}**\n> Status: ${i.status}${details}`;
+                const when = formatRelativeTime(i.updatedAt || i.createdAt);
+                const updates = Array.isArray(i.updates) ? i.updates : [];
+                const updateText = updates.length > 0 ? cleanText(updates[0].body) : '';
+                const updateSnippet = updateText ? `\n> ${updateText}` : '';
+                return `${impact} **${i.name}**\n> Status: ${i.status}${when ? ` (${when})` : ''}${details}${updateSnippet}`;
             })
             .join('\n\n');
         embed.addFields({
-            name: '🚧 Active Incidents',
-            value: (incidentList || 'No incident details').slice(0, 1024),
+            name: '🚧 Incidents',
+            value: truncateFieldValue(incidentList || 'No incident details'),
             inline: false
         });
     } else {
@@ -333,16 +389,34 @@ function buildStatusPageEmbed({ url, status }) {
     }
 
     const components = Array.isArray(status?.components) ? status.components : [];
-    if (components.length > 0) {
-        const compList = components
-            .slice(0, 10)
-            .map(c => `${c.emoji || monitorUtils.getStatusEmoji(c.status)} ${c.name}`)
-            .join('\n');
-        embed.addFields({
-            name: 'Components',
-            value: (compList || 'No components').slice(0, 1024),
-            inline: false
-        });
+    const totalComponents = components.length;
+    const impactedComponents = components.filter(
+        c => c && c.status && String(c.status).toLowerCase() !== 'operational'
+    );
+
+    if (totalComponents > 0) {
+        if (impactedComponents.length === 0) {
+            embed.addFields({
+                name: 'Components',
+                value: truncateFieldValue(`✅ All operational (${totalComponents})`),
+                inline: false
+            });
+        } else {
+            const compLines = impactedComponents
+                .slice(0, 10)
+                .map(c => {
+                    const statusLabel = c.status ? String(c.status).replace(/_/g, ' ') : 'unknown';
+                    const emoji = c.emoji || monitorUtils.getStatusEmoji(c.status);
+                    return `${emoji} ${c.name} (${statusLabel})`;
+                })
+                .join('\n');
+            const header = `⚠️ Impacted: **${impactedComponents.length}/${totalComponents}**\n`;
+            embed.addFields({
+                name: 'Components',
+                value: truncateFieldValue(header + compLines),
+                inline: false
+            });
+        }
     }
 
     const incidents = Array.isArray(status?.incidents) ? status.incidents : [];
@@ -359,14 +433,20 @@ function buildStatusPageEmbed({ url, status }) {
                             ? '⚠️'
                             : '📋';
                 const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
-                return `${impact} **${i.name}**\n> Status: ${i.status}${details}`;
+                const when = formatRelativeTime(i.updatedAt || i.createdAt);
+                const updates = Array.isArray(i.updates) ? i.updates : [];
+                const updateText = updates.length > 0 ? cleanText(updates[0].body) : '';
+                const updateSnippet = updateText ? `\n> ${updateText}` : '';
+                return `${impact} **${i.name}**\n> Status: ${i.status}${when ? ` (${when})` : ''}${details}${updateSnippet}`;
             })
             .join('\n\n');
         embed.addFields({
-            name: 'Recent Incidents',
-            value: (incList || 'No incident details').slice(0, 1024),
+            name: '🚧 Incidents',
+            value: truncateFieldValue(incList || 'No incident details'),
             inline: false
         });
+    } else {
+        embed.addFields({ name: '🚧 Incidents', value: 'No recent incidents', inline: false });
     }
 
     return embed;
