@@ -249,7 +249,7 @@ class AIProviderManager {
                     baseURL: 'https://openrouter.ai/api/v1',
                     fetch: aiFetch,
                     defaultHeaders: {
-                        'HTTP-Referer': process.env.APP_URL || 'https://localhost',
+                        'HTTP-Referer': process.env.APP_URL || process.env.PUBLIC_BASE_URL || 'https://localhost',
                         'X-Title': process.env.APP_NAME || 'Jarvis AI'
                     }
                 }),
@@ -320,7 +320,7 @@ class AIProviderManager {
                     baseURL: 'https://ai-gateway.vercel.sh/v1',
                     fetch: aiFetch,
                     defaultHeaders: {
-                        'HTTP-Referer': process.env.APP_URL || 'https://localhost',
+                        'HTTP-Referer': process.env.APP_URL || process.env.PUBLIC_BASE_URL || 'https://localhost',
                         'X-Title': process.env.APP_NAME || 'Jarvis AI'
                     }
                 }),

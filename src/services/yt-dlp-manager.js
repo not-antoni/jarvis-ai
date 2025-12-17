@@ -20,6 +20,11 @@ const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // Check every 6 hours
 // GitHub token for authenticated requests (higher rate limits: 5000/hour vs 60/hour)
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
 
+// Video limits to prevent VPS from dying on massive videos
+const MAX_DURATION_SECONDS = parseInt(process.env.YTDLP_MAX_DURATION || '900', 10); // 15 minutes default
+const MAX_FILESIZE_MB = parseInt(process.env.YTDLP_MAX_FILESIZE_MB || '50', 10); // 50 MB default
+const FFMPEG_PATH = process.env.FFMPEG_PATH || null; // Set to suppress warnings
+
 class YtDlpManager {
     constructor() {
         this.binDir = path.join(__dirname, '../../bin');
@@ -387,11 +392,46 @@ class YtDlpManager {
     }
 
     /**
+     * Check if video exceeds limits (duration/size)
+     * Returns { allowed: boolean, reason?: string }
+     */
+    async checkVideoLimits(videoUrl) {
+        try {
+            const info = await this.getVideoInfo(videoUrl);
+            const durationSec = Math.floor((info.duration || 0) / 1000);
+            
+            if (durationSec > MAX_DURATION_SECONDS) {
+                const minutes = Math.floor(durationSec / 60);
+                const maxMinutes = Math.floor(MAX_DURATION_SECONDS / 60);
+                return {
+                    allowed: false,
+                    reason: `Sir, are you listening to music or National Geographic documentaries?? This video is ${minutes} minutes long! Max allowed: ${maxMinutes} minutes.`,
+                    duration: durationSec,
+                    title: info.title
+                };
+            }
+            
+            return { allowed: true, info };
+        } catch (error) {
+            // If we can't check, allow it (fail open for edge cases)
+            return { allowed: true, error: error.message };
+        }
+    }
+
+    /**
      * Get audio stream URL for a video
      */
-    async getAudioUrl(videoUrl) {
+    async getAudioUrl(videoUrl, skipLimitCheck = false) {
         if (!this.ready) {
             throw new Error('yt-dlp not initialized');
+        }
+
+        // Check limits first unless explicitly skipped
+        if (!skipLimitCheck) {
+            const limitCheck = await this.checkVideoLimits(videoUrl);
+            if (!limitCheck.allowed) {
+                throw new Error(limitCheck.reason);
+            }
         }
 
         return new Promise((resolve, reject) => {
@@ -401,8 +441,15 @@ class YtDlpManager {
                 '-g', // Get URL only
                 '--no-warnings',
                 '--no-playlist',
-                videoUrl
+                `--max-filesize`, `${MAX_FILESIZE_MB}M`
             ];
+            
+            // Add ffmpeg path if configured (suppresses warnings)
+            if (FFMPEG_PATH) {
+                args.push('--ffmpeg-location', FFMPEG_PATH);
+            }
+            
+            args.push(videoUrl);
 
             const proc = spawn(this.executablePath, args, {
                 timeout: 30000

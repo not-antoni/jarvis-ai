@@ -106,6 +106,69 @@ DISCORD_CLIENT_SECRET=...
 
 ---
 
+## Self-Hosting (VPS)
+
+For running Jarvis on your own VPS instead of Render.
+
+### Quick Start
+
+```bash
+# Run the interactive setup wizard
+node scripts/selfhost-setup.js
+
+# Or verify your current configuration
+node scripts/selfhost-setup.js --verify
+```
+
+### Selfhost Environment Variables
+
+```env
+# Enable selfhost mode
+DEPLOY_TARGET=selfhost
+SELFHOST_MODE=true
+PUBLIC_BASE_URL=http://YOUR_VPS_IP:3000
+
+# yt-dlp / ffmpeg (prevents VPS overload)
+FFMPEG_PATH=/usr/bin/ffmpeg
+YTDLP_MAX_DURATION=900      # Max 15 minutes (music, not documentaries)
+YTDLP_MAX_FILESIZE_MB=50    # Max 50MB per video
+```
+
+### Production Setup (PM2)
+
+```bash
+# Install PM2
+sudo npm install -g pm2
+
+# Start with auto-restart
+pm2 start index.js --name "jarvis" --max-memory-restart 500M
+
+# Auto-start on boot
+pm2 startup && pm2 save
+
+# View logs
+pm2 logs jarvis
+```
+
+### OAuth Redirect URLs
+
+After getting your VPS IP, add these to [Discord Developer Portal](https://discord.com/developers/applications):
+
+```
+http://YOUR_VPS_IP:3000/auth/discord/callback
+http://YOUR_VPS_IP:3000/moderator/callback
+```
+
+### System Requirements
+
+- **Node.js 18+** (recommended)
+- **ffmpeg** - `sudo apt install ffmpeg`
+- **PM2** - `sudo npm install -g pm2`
+
+See [SELFHOST.md](SELFHOST.md) for complete documentation.
+
+---
+
 ## Commands
 
 | Category | Commands |

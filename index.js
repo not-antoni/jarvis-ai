@@ -48,6 +48,10 @@ const starkEconomy = require('./src/services/stark-economy');
 const errorLogger = require('./src/services/error-logger');
 const announcementScheduler = require('./src/services/announcement-scheduler');
 const monitorScheduler = require('./src/services/monitor-scheduler');
+const { printSelfhostStatus } = require('./scripts/selfhost-check');
+
+// Run selfhost check early
+printSelfhostStatus();
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
