@@ -1,6 +1,6 @@
 /**
  * Legacy text-based commands for Jarvis AI
- * Prefix: .j
+ * Prefix: *j
  *
  * These commands work when Message Content Intent is enabled
  * They mirror slash command functionality for users who prefer text commands
@@ -9,10 +9,11 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const selfhostFeatures = require('./selfhost-features');
 const starkEconomy = require('./stark-economy');
+const starkTinker = require('./stark-tinker');
 const funFeatures = require('./fun-features');
 const moderation = require('./GUILDS_FEATURES/moderation');
 
-const LEGACY_PREFIX = '.j';
+const LEGACY_PREFIX = '*j';
 
 // ============ COOLDOWN SYSTEM ============
 const cooldowns = new Map();
@@ -36,65 +37,97 @@ const helpPages = new Map(); // userId -> currentPage
 
 const HELP_PAGES = [
     {
-        title: '📜 Legacy Commands - Page 1/4',
+        title: '📜 Legacy Commands - Page 1/6',
         subtitle: 'Fun Commands',
         fields: [
             {
                 name: '🎮 **Fun**',
-                value: '`.j roast @user` - Roast someone\n`.j soul` - View Jarvis soul\n`.j 8ball <question>` - Magic 8-ball\n`.j aatrox` - GYAATROX',
+                value: '`*j roast @user` - Roast someone\n`*j soul` - View Jarvis soul\n`*j 8ball <question>` - Magic 8-ball\n`*j aatrox` - GYAATROX',
                 inline: false
             },
             {
                 name: '😂 **More Fun**',
-                value: '`.j dadjoke` - Get a dad joke\n`.j pickupline` - Get a pickup line\n`.j rate <thing>` - Rate something\n`.j roll [dice]` - Roll dice (e.g., 2d6)',
+                value: '`*j dadjoke` - Get a dad joke\n`*j pickupline` - Get a pickup line\n`*j rate <thing>` - Rate something\n`*j roll [dice]` - Roll dice (e.g., 2d6)',
                 inline: false
             }
         ]
     },
     {
-        title: '📜 Legacy Commands - Page 2/4',
+        title: '📜 Legacy Commands - Page 2/6',
         subtitle: 'Social Commands',
         fields: [
             {
                 name: '💕 **Social**',
-                value: '`.j ship @user1 @user2` - Ship compatibility\n`.j hug @user` - Hug someone\n`.j slap @user` - Slap someone\n`.j fight @user` - Fight someone',
+                value: '`*j ship @user1 @user2` - Ship compatibility\n`*j hug @user` - Hug someone\n`*j slap @user` - Slap someone\n`*j fight @user` - Fight someone',
                 inline: false
             },
             {
                 name: '📊 **Meters**',
-                value: '`.j howgay [@user]` - How gay meter\n`.j howbased [@user]` - How based meter\n`.j vibecheck [@user]` - Vibe check',
+                value: '`*j howgay [@user]` - How gay meter\n`*j howbased [@user]` - How based meter\n`*j vibecheck [@user]` - Vibe check',
                 inline: false
             }
         ]
     },
     {
-        title: '📜 Legacy Commands - Page 3/4',
+        title: '📜 Legacy Commands - Page 3/6',
         subtitle: 'Economy Commands',
         fields: [
             {
                 name: '💰 **Economy**',
-                value: '`.j balance` - Check balance\n`.j daily` - Claim daily reward\n`.j work` - Work for money\n`.j leaderboard` - View top richest',
+                value: '`*j balance` - Check balance\n`*j daily` - Claim daily reward\n`*j work` - Work for money\n`*j leaderboard` - View top richest',
                 inline: false
             },
             {
                 name: '🎰 **Gambling**',
-                value: '`.j gamble <amt>` - Double or nothing\n`.j slots <bet>` - Slot machine\n`.j coinflip <bet> <h/t>` - Coin flip',
+                value: '`*j gamble <amt>` - Double or nothing\n`*j slots <bet>` - Slot machine\n`*j coinflip <bet> <h/t>` - Coin flip',
                 inline: false
             }
         ]
     },
     {
-        title: '📜 Legacy Commands - Page 4/4',
-        subtitle: 'Utility & Shop',
+        title: '📜 Legacy Commands - Page 4/6',
+        subtitle: 'Minigames & Tinker',
         fields: [
             {
-                name: '🛒 **Shop**',
-                value: '`.j shop` - View shop\n`.j buy <item>` - Buy an item\n`.j inventory` - View your items',
+                name: '🏹 **Minigames**',
+                value: '`*j hunt` - Hunt animals\n`*j fish` - Go fishing\n`*j dig` - Dig for treasure\n`*j beg` - Beg from Marvel characters',
                 inline: false
             },
             {
+                name: '🔧 **Tinker Lab**',
+                value: '`*j tinker [recipe]` - Craft MCU items\n`*j recipes [rarity]` - View all recipes\n`*j contract` - Stark Industries contracts',
+                inline: false
+            }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 5/6',
+        subtitle: 'Shop & Arc Reactor',
+        fields: [
+            {
+                name: '🛒 **Shop**',
+                value: '`*j shop` - View shop\n`*j buy <item>` - Buy an item\n`*j inventory` - View your items',
+                inline: false
+            },
+            {
+                name: '💠 **Arc Reactor**',
+                value: '`*j reactor` - Check Arc Reactor status\n`*j buy arc_reactor` - Buy for 10,000💵\n*Perks: +15% earnings, -25% cooldowns, +5% luck*',
+                inline: false
+            }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 6/6',
+        subtitle: 'Utility & Moderation',
+        fields: [
+            {
                 name: '⚙️ **Utility**',
-                value: '`.j help` - Show help (paginated)\n`.j next` / `.j prev` - Navigate pages\n`.j ping` - Check latency\n`.j remind in <time> <msg>` - Set reminder\n`.j kick @user [reason]` - Kick a member',
+                value: '`*j help` - Show help (paginated)\n`*j next` / `*j prev` - Navigate pages\n`*j ping` - Check latency\n`*j remind in <time> <msg>` - Set reminder',
+                inline: false
+            },
+            {
+                name: '🛡️ **Moderation**',
+                value: '`*j kick @user [reason]` - Kick a member\n`*j enable moderation` - Enable AI moderation\n`*j moderation status` - View mod settings',
                 inline: false
             }
         ]
@@ -155,7 +188,7 @@ const legacyCommands = {
     // Help command (paginated)
     help: {
         description: 'Show available legacy commands',
-        usage: '.j help',
+        usage: '*j help',
         execute: async (message, args) => {
             const pageNum = parseInt(args[0]) || 1;
             const pageIndex = Math.max(0, Math.min(pageNum - 1, HELP_PAGES.length - 1));
@@ -169,7 +202,7 @@ const legacyCommands = {
                 )
                 .setColor(0x3498db)
                 .setFooter({
-                    text: `Use .j next / .j prev to navigate • Page ${pageIndex + 1}/${HELP_PAGES.length}`
+                    text: `Use *j next / *j prev to navigate • Page ${pageIndex + 1}/${HELP_PAGES.length}`
                 });
 
             page.fields.forEach(f => embed.addFields(f));
@@ -182,7 +215,7 @@ const legacyCommands = {
     // Next page
     next: {
         description: 'Next help page',
-        usage: '.j next',
+        usage: '*j next',
         execute: async (message, args) => {
             const current = helpPages.get(message.author.id) || 0;
             const next = Math.min(current + 1, HELP_PAGES.length - 1);
@@ -194,7 +227,7 @@ const legacyCommands = {
                 .setDescription(`**${page.subtitle}**`)
                 .setColor(0x3498db)
                 .setFooter({
-                    text: `Use .j next / .j prev to navigate • Page ${next + 1}/${HELP_PAGES.length}`
+                    text: `Use *j next / *j prev to navigate • Page ${next + 1}/${HELP_PAGES.length}`
                 });
 
             page.fields.forEach(f => embed.addFields(f));
@@ -206,7 +239,7 @@ const legacyCommands = {
     // Previous page
     prev: {
         description: 'Previous help page',
-        usage: '.j prev',
+        usage: '*j prev',
         aliases: ['previous', 'back'],
         execute: async (message, args) => {
             const current = helpPages.get(message.author.id) || 0;
@@ -219,7 +252,7 @@ const legacyCommands = {
                 .setDescription(`**${page.subtitle}**`)
                 .setColor(0x3498db)
                 .setFooter({
-                    text: `Use .j next / .j prev to navigate • Page ${prev + 1}/${HELP_PAGES.length}`
+                    text: `Use *j next / *j prev to navigate • Page ${prev + 1}/${HELP_PAGES.length}`
                 });
 
             page.fields.forEach(f => embed.addFields(f));
@@ -231,7 +264,7 @@ const legacyCommands = {
     // Ping command
     ping: {
         description: 'Check bot latency',
-        usage: '.j ping',
+        usage: '*j ping',
         execute: async (message, args, client) => {
             const latency = Date.now() - message.createdTimestamp;
             const apiLatency = Math.round(client.ws.ping);
@@ -243,7 +276,7 @@ const legacyCommands = {
     // Aatrox
     aatrox: {
         description: 'GYAATROX',
-        usage: '.j aatrox',
+        usage: '*j aatrox',
         execute: async (message, args) => {
             await message.reply(
                 'https://tenor.com/view/aatrox-gyattrox-gyaatrox-lol-league-of-legends-gif-16706958126825166451'
@@ -255,7 +288,7 @@ const legacyCommands = {
     // Soul status
     soul: {
         description: 'View Jarvis artificial soul',
-        usage: '.j soul',
+        usage: '*j soul',
         execute: async (message, args) => {
             const soulStatus = selfhostFeatures.jarvisSoul.getStatus();
 
@@ -297,12 +330,12 @@ const legacyCommands = {
     // Roast command
     roast: {
         description: 'Roast someone with British class',
-        usage: '.j roast @user',
+        usage: '*j roast @user',
         execute: async (message, args) => {
             const target = message.mentions.users.first();
             if (!target) {
                 await message.reply(
-                    'Please mention someone to roast, sir. Usage: `.j roast @user`'
+                    'Please mention someone to roast, sir. Usage: `*j roast @user`'
                 );
                 return true;
             }
@@ -335,7 +368,7 @@ const legacyCommands = {
     // Balance check
     balance: {
         description: 'Check Stark Bucks balance',
-        usage: '.j balance',
+        usage: '*j balance',
         aliases: ['bal', 'money', 'wallet'],
         execute: async (message, args) => {
             const stats = await starkEconomy.getUserStats(message.author.id);
@@ -359,7 +392,7 @@ const legacyCommands = {
     // Daily reward
     daily: {
         description: 'Claim daily Stark Bucks',
-        usage: '.j daily',
+        usage: '*j daily',
         execute: async (message, args) => {
             const result = await starkEconomy.claimDaily(
                 message.author.id,
@@ -409,7 +442,7 @@ const legacyCommands = {
     // Work for money
     work: {
         description: 'Work at Stark Industries',
-        usage: '.j work',
+        usage: '*j work',
         aliases: ['job'],
         execute: async (message, args) => {
             const result = await starkEconomy.work(message.author.id, message.author.username);
@@ -435,13 +468,13 @@ const legacyCommands = {
     // Gamble
     gamble: {
         description: 'Gamble your Stark Bucks (double or nothing)',
-        usage: '.j gamble <amount>',
+        usage: '*j gamble <amount>',
         aliases: ['bet'],
         execute: async (message, args) => {
             const amount = parseInt(args[0]);
 
             if (!amount || amount < 1) {
-                await message.reply('Usage: `.j gamble <amount>`');
+                await message.reply('Usage: `*j gamble <amount>`');
                 return true;
             }
 
@@ -472,7 +505,7 @@ const legacyCommands = {
     // Slots
     slots: {
         description: 'Play the slot machine',
-        usage: '.j slots <bet>',
+        usage: '*j slots <bet>',
         aliases: ['slot'],
         execute: async (message, args) => {
             const bet = parseInt(args[0]) || 10;
@@ -510,14 +543,14 @@ const legacyCommands = {
     // Coinflip
     coinflip: {
         description: 'Flip a coin',
-        usage: '.j coinflip <bet> <heads/tails>',
+        usage: '*j coinflip <bet> <heads/tails>',
         aliases: ['cf', 'flip'],
         execute: async (message, args) => {
             const bet = parseInt(args[0]);
             const choice = (args[1] || '').toLowerCase();
 
             if (!bet || !['heads', 'tails', 'h', 't'].includes(choice)) {
-                await message.reply('Usage: `.j coinflip <bet> <heads/tails>`');
+                await message.reply('Usage: `*j coinflip <bet> <heads/tails>`');
                 return true;
             }
 
@@ -547,7 +580,7 @@ const legacyCommands = {
     // Shop
     shop: {
         description: 'View the Stark Shop',
-        usage: '.j shop',
+        usage: '*j shop',
         aliases: ['store'],
         execute: async (message, args) => {
             const items = starkEconomy.getShopItems();
@@ -560,7 +593,7 @@ const legacyCommands = {
                 .setTitle('🛒 Stark Industries Shop')
                 .setDescription(itemList)
                 .setColor(0x9b59b6)
-                .setFooter({ text: 'Use .j buy <item_id> to purchase' });
+                .setFooter({ text: 'Use *j buy <item_id> to purchase' });
 
             await message.reply({ embeds: [embed] });
             return true;
@@ -570,13 +603,13 @@ const legacyCommands = {
     // Buy item
     buy: {
         description: 'Buy an item from the shop',
-        usage: '.j buy <item_id>',
+        usage: '*j buy <item_id>',
         aliases: ['purchase'],
         execute: async (message, args) => {
             const itemId = args[0]?.toLowerCase();
 
             if (!itemId) {
-                await message.reply('Usage: `.j buy <item_id>` (e.g., `.j buy lucky_charm`)');
+                await message.reply('Usage: `*j buy <item_id>` (e.g., `*j buy lucky_charm`)');
                 return true;
             }
 
@@ -602,7 +635,7 @@ const legacyCommands = {
     // Leaderboard
     leaderboard: {
         description: 'View richest users',
-        usage: '.j leaderboard',
+        usage: '*j leaderboard',
         aliases: ['lb', 'top', 'rich'],
         execute: async (message, args, client) => {
             const lb = await starkEconomy.getLeaderboard(10, client);
@@ -634,7 +667,7 @@ const legacyCommands = {
     // Reminder
     remind: {
         description: 'Set a reminder',
-        usage: '.j remind in <time> <message>',
+        usage: '*j remind in <time> <message>',
         aliases: ['reminder', 'schedule'],
         execute: async (message, args) => {
             const fullArgs = args.join(' ');
@@ -644,7 +677,7 @@ const legacyCommands = {
 
             if (!timeMatch) {
                 await message.reply(
-                    'Usage: `.j remind in <time> <message>`\nExample: `.j remind in 5 minutes check the oven`'
+                    'Usage: `*j remind in <time> <message>`\nExample: `*j remind in 5 minutes check the oven`'
                 );
                 return true;
             }
@@ -681,12 +714,12 @@ const legacyCommands = {
     // ============ NEW FUN COMMANDS ============
     '8ball': {
         description: 'Ask the magic 8-ball',
-        usage: '.j 8ball <question>',
+        usage: '*j 8ball <question>',
         aliases: ['eightball'],
         execute: async (message, args) => {
             const question = args.join(' ');
             if (!question) {
-                await message.reply('Ask me a question, sir. Usage: `.j 8ball <question>`');
+                await message.reply('Ask me a question, sir. Usage: `*j 8ball <question>`');
                 return true;
             }
             const answer = funFeatures.get8BallResponse();
@@ -704,7 +737,7 @@ const legacyCommands = {
 
     dadjoke: {
         description: 'Get a dad joke',
-        usage: '.j dadjoke',
+        usage: '*j dadjoke',
         aliases: ['dad'],
         execute: async (message, args) => {
             const joke = funFeatures.getDadJoke();
@@ -715,7 +748,7 @@ const legacyCommands = {
 
     pickupline: {
         description: 'Get a pickup line',
-        usage: '.j pickupline',
+        usage: '*j pickupline',
         aliases: ['pickup'],
         execute: async (message, args) => {
             const line = funFeatures.getPickupLine();
@@ -726,7 +759,7 @@ const legacyCommands = {
 
     rate: {
         description: 'Rate something',
-        usage: '.j rate <thing>',
+        usage: '*j rate <thing>',
         execute: async (message, args) => {
             const thing = args.join(' ') || 'that';
             const rating = funFeatures.randomInt(0, 10);
@@ -738,7 +771,7 @@ const legacyCommands = {
 
     roll: {
         description: 'Roll dice',
-        usage: '.j roll [dice]',
+        usage: '*j roll [dice]',
         aliases: ['dice'],
         execute: async (message, args) => {
             const notation = args[0] || '1d6';
@@ -764,11 +797,11 @@ const legacyCommands = {
 
     ship: {
         description: 'Ship two people',
-        usage: '.j ship @user1 @user2',
+        usage: '*j ship @user1 @user2',
         execute: async (message, args) => {
             const users = message.mentions.users;
             if (users.size < 1) {
-                await message.reply('Mention at least one person! Usage: `.j ship @user1 @user2`');
+                await message.reply('Mention at least one person! Usage: `*j ship @user1 @user2`');
                 return true;
             }
 
@@ -809,7 +842,7 @@ const legacyCommands = {
 
     hug: {
         description: 'Hug someone',
-        usage: '.j hug @user',
+        usage: '*j hug @user',
         execute: async (message, args) => {
             const target = message.mentions.users.first();
             if (!target) {
@@ -828,7 +861,7 @@ const legacyCommands = {
 
     slap: {
         description: 'Slap someone',
-        usage: '.j slap @user',
+        usage: '*j slap @user',
         execute: async (message, args) => {
             const target = message.mentions.users.first();
             if (!target) {
@@ -847,7 +880,7 @@ const legacyCommands = {
 
     fight: {
         description: 'Fight someone',
-        usage: '.j fight @user',
+        usage: '*j fight @user',
         execute: async (message, args) => {
             const target = message.mentions.users.first();
             if (!target) {
@@ -880,7 +913,7 @@ const legacyCommands = {
 
     howgay: {
         description: 'How gay meter',
-        usage: '.j howgay [@user]',
+        usage: '*j howgay [@user]',
         execute: async (message, args) => {
             const target = message.mentions.users.first() || message.author;
             const percentage = funFeatures.randomInt(0, 100);
@@ -894,7 +927,7 @@ const legacyCommands = {
 
     howbased: {
         description: 'How based meter',
-        usage: '.j howbased [@user]',
+        usage: '*j howbased [@user]',
         execute: async (message, args) => {
             const target = message.mentions.users.first() || message.author;
             const percentage = funFeatures.randomInt(0, 100);
@@ -908,7 +941,7 @@ const legacyCommands = {
 
     vibecheck: {
         description: 'Vibe check someone',
-        usage: '.j vibecheck [@user]',
+        usage: '*j vibecheck [@user]',
         aliases: ['vibe'],
         execute: async (message, args) => {
             const target = message.mentions.users.first() || message.author;
@@ -925,7 +958,7 @@ const legacyCommands = {
 
     kick: {
         description: 'Kick a member from the server',
-        usage: '.j kick @user [reason]',
+        usage: '*j kick @user [reason]',
         execute: async (message, args) => {
             if (!message.guild) {
                 await message.reply('This command only works in servers, sir.');
@@ -959,7 +992,7 @@ const legacyCommands = {
 
             const mentionedUser = message.mentions.users.first();
             if (!mentionedUser) {
-                await message.reply('Usage: `.j kick @user [reason]`');
+                await message.reply('Usage: `*j kick @user [reason]`');
                 return true;
             }
 
@@ -1034,7 +1067,7 @@ const legacyCommands = {
     // ============ MODERATION COMMANDS (Admin/Owner Only) ============
     enable: {
         description: 'Enable a feature (moderation)',
-        usage: '.j enable moderation',
+        usage: '*j enable moderation',
         execute: async (message, args) => {
             // Only works in guilds
             if (!message.guild) {
@@ -1057,7 +1090,7 @@ const legacyCommands = {
 
             if (feature !== 'moderation') {
                 await message.reply(
-                    '**Usage:** `.j enable moderation`\n\nAvailable features: `moderation`'
+                    '**Usage:** `*j enable moderation`\n\nAvailable features: `moderation`'
                 );
                 return true;
             }
@@ -1091,7 +1124,7 @@ const legacyCommands = {
                         },
                         {
                             name: '⚙️ Configure',
-                            value: 'Use `.j moderation settings` to customize (coming soon)',
+                            value: 'Use `*j moderation settings` to customize (coming soon)',
                             inline: false
                         }
                     )
@@ -1109,7 +1142,7 @@ const legacyCommands = {
 
     disable: {
         description: 'Disable a feature (moderation)',
-        usage: '.j disable moderation',
+        usage: '*j disable moderation',
         execute: async (message, args) => {
             // Only works in guilds
             if (!message.guild) {
@@ -1132,7 +1165,7 @@ const legacyCommands = {
 
             if (feature !== 'moderation') {
                 await message.reply(
-                    '**Usage:** `.j disable moderation`\n\nAvailable features: `moderation`'
+                    '**Usage:** `*j disable moderation`\n\nAvailable features: `moderation`'
                 );
                 return true;
             }
@@ -1164,7 +1197,7 @@ const legacyCommands = {
 
     moderation: {
         description: 'View moderation status and settings',
-        usage: '.j moderation [status|settings]',
+        usage: '*j moderation [status|settings]',
         aliases: ['mod'],
         execute: async (message, args) => {
             // Only works in guilds
@@ -1213,7 +1246,7 @@ const legacyCommands = {
             } else if (subcommand === 'settings') {
                 if (!status.isEnabled) {
                     await message.reply(
-                        'Moderation is not enabled. Use `.j enable moderation` first.'
+                        'Moderation is not enabled. Use `*j enable moderation` first.'
                     );
                     return true;
                 }
@@ -1251,15 +1284,15 @@ const legacyCommands = {
                             inline: true
                         }
                     )
-                    .setFooter({ text: 'Use .j moderation pingrole/pinguser to configure' });
+                    .setFooter({ text: 'Use *j moderation pingrole/pinguser to configure' });
 
                 await message.reply({ embeds: [embed] });
             } else if (subcommand === 'pingrole') {
-                // .j moderation pingrole @role
+                // *j moderation pingrole @role
                 const role = message.mentions.roles.first();
                 if (!role) {
                     await message.reply(
-                        '**Usage:** `.j moderation pingrole @role`\nMention a role to add/remove from ping list.'
+                        '**Usage:** `*j moderation pingrole @role`\nMention a role to add/remove from ping list.'
                     );
                     return true;
                 }
@@ -1279,11 +1312,11 @@ const legacyCommands = {
                     await message.reply(`✅ Added <@&${role.id}> to moderation ping list.`);
                 }
             } else if (subcommand === 'pinguser') {
-                // .j moderation pinguser @user
+                // *j moderation pinguser @user
                 const user = message.mentions.users.first();
                 if (!user) {
                     await message.reply(
-                        '**Usage:** `.j moderation pinguser @user`\nMention a user to add/remove from ping list.'
+                        '**Usage:** `*j moderation pinguser @user`\nMention a user to add/remove from ping list.'
                     );
                     return true;
                 }
@@ -1303,11 +1336,11 @@ const legacyCommands = {
                     await message.reply(`✅ Added <@${user.id}> to moderation ping list.`);
                 }
             } else if (subcommand === 'logchannel') {
-                // .j moderation logchannel #channel
+                // *j moderation logchannel #channel
                 const channel = message.mentions.channels.first();
                 if (!channel) {
                     await message.reply(
-                        '**Usage:** `.j moderation logchannel #channel`\nMention a channel for moderation logs. Use `.j moderation logchannel clear` to DM owner instead.'
+                        '**Usage:** `*j moderation logchannel #channel`\nMention a channel for moderation logs. Use `*j moderation logchannel clear` to DM owner instead.'
                     );
                     return true;
                 }
@@ -1321,7 +1354,7 @@ const legacyCommands = {
                 moderation.updateSettings(message.guild.id, { logChannel: null });
                 await message.reply('✅ Moderation logs will be sent to the server owner via DM.');
             } else if (subcommand === 'whitelist') {
-                // .j moderation whitelist @role/@user
+                // *j moderation whitelist @role/@user
                 const role = message.mentions.roles.first();
                 const user = message.mentions.users.first();
 
@@ -1336,7 +1369,7 @@ const legacyCommands = {
                             ? s.whitelistUsers.map(u => `<@${u}>`).join(', ')
                             : 'None';
                     await message.reply(
-                        `**Whitelist (bypasses moderation):**\n**Roles:** ${wlRoles}\n**Users:** ${wlUsers}\n\nUse \`.j moderation whitelist @role\` or \`.j moderation whitelist @user\` to add/remove.`
+                        `**Whitelist (bypasses moderation):**\n**Roles:** ${wlRoles}\n**Users:** ${wlUsers}\n\nUse \`*j moderation whitelist @role\` or \`*j moderation whitelist @user\` to add/remove.`
                     );
                     return true;
                 }
@@ -1390,10 +1423,317 @@ const legacyCommands = {
                 await message.reply({ embeds: [embed] });
             } else {
                 await message.reply(
-                    '**Usage:**\n`.j moderation status` - View status\n`.j moderation settings` - View settings\n`.j moderation stats` - View statistics\n`.j moderation pingrole @role` - Add/remove ping role\n`.j moderation pinguser @user` - Add/remove ping user\n`.j moderation whitelist` - View/manage whitelist\n`.j moderation logchannel #channel` - Set log channel'
+                    '**Usage:**\n`*j moderation status` - View status\n`*j moderation settings` - View settings\n`*j moderation stats` - View statistics\n`*j moderation pingrole @role` - Add/remove ping role\n`*j moderation pinguser @user` - Add/remove ping user\n`*j moderation whitelist` - View/manage whitelist\n`*j moderation logchannel #channel` - Set log channel'
                 );
             }
 
+            return true;
+        }
+    },
+
+    // ============ NEW ECONOMY COMMANDS ============
+    
+    // Hunt command
+    hunt: {
+        description: 'Hunt for animals in the wild',
+        usage: '*j hunt',
+        execute: async (message, args) => {
+            const result = await starkEconomy.hunt(message.author.id, message.author.username);
+            
+            if (!result.success) {
+                const seconds = Math.ceil(result.cooldown / 1000);
+                await message.reply(`🏹 You're still tracking your last prey! Wait ${seconds}s.`);
+                return true;
+            }
+            
+            const huntMessages = [
+                `You ventured into the wilderness and found a ${result.item}!`,
+                `After hours of tracking, you caught a ${result.item}!`,
+                `The hunt was successful! You bagged a ${result.item}!`,
+                `You spotted and captured a ${result.item} in the forest!`,
+                `A wild ${result.item} appeared! You caught it!`
+            ];
+            
+            const msg = huntMessages[Math.floor(Math.random() * huntMessages.length)];
+            const embed = new EmbedBuilder()
+                .setTitle('🏹 Hunt Complete!')
+                .setDescription(`${msg}\n\n**Reward:** ${result.reward} Stark Bucks`)
+                .setColor(result.reward > 50 ? 0x2ecc71 : 0x95a5a6)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Fish command
+    fish: {
+        description: 'Go fishing for sea creatures',
+        usage: '*j fish',
+        execute: async (message, args) => {
+            const result = await starkEconomy.fish(message.author.id, message.author.username);
+            
+            if (!result.success) {
+                const seconds = Math.ceil(result.cooldown / 1000);
+                await message.reply(`🎣 Your line is still in the water! Wait ${seconds}s.`);
+                return true;
+            }
+            
+            const fishMessages = [
+                `You reeled in a ${result.item}!`,
+                `After patient waiting, you caught a ${result.item}!`,
+                `Something's biting! It's a ${result.item}!`,
+                `The ocean blessed you with a ${result.item}!`,
+                `Splash! You pulled out a ${result.item}!`
+            ];
+            
+            const msg = fishMessages[Math.floor(Math.random() * fishMessages.length)];
+            const embed = new EmbedBuilder()
+                .setTitle('🎣 Fishing Complete!')
+                .setDescription(`${msg}\n\n**Reward:** ${result.reward} Stark Bucks`)
+                .setColor(result.reward > 50 ? 0x3498db : 0x95a5a6)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Dig command
+    dig: {
+        description: 'Dig for treasure and artifacts',
+        usage: '*j dig',
+        execute: async (message, args) => {
+            const result = await starkEconomy.dig(message.author.id, message.author.username);
+            
+            if (!result.success) {
+                const seconds = Math.ceil(result.cooldown / 1000);
+                await message.reply(`⛏️ Your shovel is still stuck! Wait ${seconds}s.`);
+                return true;
+            }
+            
+            const digMessages = [
+                `You dug up a ${result.item}!`,
+                `After some digging, you found a ${result.item}!`,
+                `The earth revealed a ${result.item}!`,
+                `You struck ${result.item}!`,
+                `Buried treasure! You found a ${result.item}!`
+            ];
+            
+            const msg = digMessages[Math.floor(Math.random() * digMessages.length)];
+            const embed = new EmbedBuilder()
+                .setTitle('⛏️ Dig Complete!')
+                .setDescription(`${msg}\n\n**Reward:** ${result.reward} Stark Bucks`)
+                .setColor(result.reward > 100 ? 0xf1c40f : 0x95a5a6)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Beg command
+    beg: {
+        description: 'Beg for money from Marvel characters',
+        usage: '*j beg',
+        execute: async (message, args) => {
+            const result = await starkEconomy.beg(message.author.id, message.author.username);
+            
+            if (!result.success) {
+                const seconds = Math.ceil(result.cooldown / 1000);
+                await message.reply(`🙏 Have some dignity! Wait ${seconds}s before begging again.`);
+                return true;
+            }
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🙏 Begging Results')
+                .setDescription(`${result.message} **${result.reward}** Stark Bucks!`)
+                .setColor(result.reward > 0 ? 0x2ecc71 : 0xe74c3c)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Inventory command
+    inventory: {
+        description: 'View your inventory',
+        usage: '*j inventory',
+        aliases: ['inv', 'items'],
+        execute: async (message, args) => {
+            const inventory = await starkEconomy.getInventory(message.author.id);
+            const hasReactor = await starkEconomy.hasArcReactor(message.author.id);
+            
+            if (!inventory.length) {
+                await message.reply('Your inventory is empty, sir. Visit the shop with `*j shop`.');
+                return true;
+            }
+            
+            const itemList = inventory.map(item => {
+                const uses = item.uses ? ` (${item.uses} uses)` : '';
+                return `• ${item.name}${uses}`;
+            }).join('\n');
+            
+            const embed = new EmbedBuilder()
+                .setTitle(`🎒 ${message.author.username}'s Inventory`)
+                .setDescription(itemList)
+                .setColor(hasReactor ? 0x00d4ff : 0x9b59b6)
+                .setFooter({ text: hasReactor ? '💠 Arc Reactor Owner - All perks active!' : 'Use *j buy <item> to get more items' });
+            
+            if (hasReactor) {
+                embed.addFields({
+                    name: '💠 Arc Reactor Perks',
+                    value: '• +15% earnings\n• -25% cooldowns\n• +5% gambling luck\n• +500 daily bonus\n• +1% daily interest',
+                    inline: false
+                });
+            }
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Tinker command (craft items)
+    tinker: {
+        description: 'Craft MCU items from materials',
+        usage: '*j tinker [recipe]',
+        aliases: ['craft'],
+        execute: async (message, args) => {
+            const recipeName = args.join('_').toLowerCase();
+            
+            if (!recipeName) {
+                // Show available recipes
+                const recipes = starkTinker.getAllRecipes().slice(0, 15);
+                const recipeList = recipes.map(r => 
+                    `**${r.name}** (${r.rarity}) - ${Object.entries(r.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}`
+                ).join('\n');
+                
+                const embed = new EmbedBuilder()
+                    .setTitle('🔧 Stark Industries Tinker Lab')
+                    .setDescription(`Combine materials from hunting, fishing, and digging to craft MCU items!\n\n**Sample Recipes:**\n${recipeList}\n\n*Use \`*j tinker <recipe_id>\` to craft*\n*Use \`*j recipes\` to see all ${starkTinker.getAllRecipes().length} recipes*`)
+                    .setColor(0xe74c3c)
+                    .setFooter({ text: 'Collect materials with *j hunt, *j fish, *j dig' });
+                
+                await message.reply({ embeds: [embed] });
+                return true;
+            }
+            
+            const recipe = starkTinker.getRecipe(recipeName);
+            if (!recipe) {
+                await message.reply(`❌ Unknown recipe: \`${recipeName}\`. Use \`*j tinker\` to see available recipes.`);
+                return true;
+            }
+            
+            // TODO: Check if user has materials and craft
+            await message.reply(`🔧 **${recipe.name}**\n${recipe.description}\n\n**Ingredients:** ${Object.entries(recipe.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}\n**Value:** ${recipe.value} Stark Bucks\n**Rarity:** ${recipe.rarity}\n\n*Crafting system coming soon!*`);
+            return true;
+        }
+    },
+
+    // Recipes command
+    recipes: {
+        description: 'View all tinker recipes',
+        usage: '*j recipes [rarity]',
+        execute: async (message, args) => {
+            const rarity = args[0]?.toLowerCase() || 'all';
+            let recipes;
+            
+            if (['common', 'uncommon', 'rare', 'epic', 'legendary'].includes(rarity)) {
+                recipes = starkTinker.getRecipesByRarity(rarity);
+            } else {
+                recipes = starkTinker.getAllRecipes();
+            }
+            
+            const recipeList = recipes.slice(0, 20).map(r => 
+                `**${r.name}** - ${r.rarity} - ${r.value}💵`
+            ).join('\n');
+            
+            const embed = new EmbedBuilder()
+                .setTitle(`📜 Tinker Recipes (${recipes.length} total)`)
+                .setDescription(recipeList + (recipes.length > 20 ? `\n\n*...and ${recipes.length - 20} more*` : ''))
+                .setColor(0x9b59b6)
+                .setFooter({ text: 'Filter: *j recipes common/uncommon/rare/epic/legendary' });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Contract command (high-paying jobs)
+    contract: {
+        description: 'Take on a Stark Industries contract',
+        usage: '*j contract',
+        aliases: ['job', 'mission'],
+        execute: async (message, args) => {
+            const contract = starkTinker.getRandomContract();
+            const reward = Math.floor(contract.reward.min + Math.random() * (contract.reward.max - contract.reward.min));
+            
+            // Apply Arc Reactor bonus
+            const arcPerks = await starkEconomy.getArcReactorPerks(message.author.id);
+            const finalReward = Math.floor(reward * arcPerks.earningsMultiplier);
+            
+            await starkEconomy.modifyBalance(message.author.id, finalReward, 'contract');
+            
+            const difficultyColors = { easy: 0x2ecc71, medium: 0xf1c40f, hard: 0xe74c3c };
+            const difficultyEmoji = { easy: '🟢', medium: '🟡', hard: '🔴' };
+            
+            const embed = new EmbedBuilder()
+                .setTitle('📋 Contract Complete!')
+                .setDescription(`**${contract.name}**\n\nYou earned **${finalReward}** Stark Bucks!${arcPerks.hasReactor ? ' *(+15% Arc Reactor bonus)*' : ''}`)
+                .setColor(difficultyColors[contract.difficulty])
+                .addFields(
+                    { name: 'Difficulty', value: `${difficultyEmoji[contract.difficulty]} ${contract.difficulty.toUpperCase()}`, inline: true }
+                )
+                .setFooter({ text: 'Stark Industries appreciates your service' });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Reactor command (show Arc Reactor status)
+    reactor: {
+        description: 'Check your Arc Reactor status',
+        usage: '*j reactor',
+        aliases: ['arcreactor', 'arc'],
+        execute: async (message, args) => {
+            const hasReactor = await starkEconomy.hasArcReactor(message.author.id);
+            const stats = await starkEconomy.getUserStats(message.author.id);
+            
+            if (!hasReactor) {
+                const embed = new EmbedBuilder()
+                    .setTitle('💠 Arc Reactor')
+                    .setDescription(`You don't own an Arc Reactor yet!\n\n**Price:** 10,000 Stark Bucks\n**Your Balance:** ${stats.balance}\n\nBuy it with \`*j buy arc_reactor\``)
+                    .setColor(0x95a5a6)
+                    .addFields({
+                        name: '🔋 Perks You\'re Missing',
+                        value: '• +15% on ALL earnings\n• -25% cooldown on ALL commands\n• +5% gambling win rate\n• +500 daily reward bonus\n• +1% daily interest on balance\n• 💠 Leaderboard badge',
+                        inline: false
+                    })
+                    .setFooter({ text: 'The ultimate Stark Industries collector item' });
+                
+                await message.reply({ embeds: [embed] });
+                return true;
+            }
+            
+            const interest = Math.floor(stats.balance * 0.01);
+            
+            const embed = new EmbedBuilder()
+                .setTitle('💠 Arc Reactor - ACTIVE')
+                .setDescription(`*"Proof that Tony Stark has a heart"*\n\nYour Arc Reactor is powering all systems!`)
+                .setColor(0x00d4ff)
+                .addFields(
+                    { name: '⚡ Power Surge', value: '+15% earnings on everything', inline: true },
+                    { name: '⏱️ Efficiency', value: '-25% cooldowns', inline: true },
+                    { name: '🎰 Stark Luck', value: '+5% gambling odds', inline: true },
+                    { name: '🎁 Daily Bonus', value: '+500 coins', inline: true },
+                    { name: '💰 Daily Interest', value: `+${interest} coins (1% of ${stats.balance})`, inline: true },
+                    { name: '💠 Status', value: 'Leaderboard badge active', inline: true }
+                )
+                .setFooter({ text: 'Arc Reactor technology by Stark Industries' });
+            
+            await message.reply({ embeds: [embed] });
             return true;
         }
     }
@@ -1418,7 +1758,7 @@ for (const [cmd, data] of Object.entries(legacyCommands)) {
 async function handleLegacyCommand(message, client) {
     const content = message.content.trim();
 
-    // Check for .j prefix
+    // Check for *j prefix
     if (!content.toLowerCase().startsWith(LEGACY_PREFIX)) {
         return false;
     }
@@ -1443,7 +1783,7 @@ async function handleLegacyCommand(message, client) {
     const command = legacyCommands[commandName];
     if (!command) {
         await message
-            .reply('Unknown legacy command, sir. Use `.j help`.')
+            .reply('Unknown legacy command, sir. Use `*j help`.')
             .catch(() => {});
         return true;
     }

@@ -23,8 +23,8 @@ const ECONOMY_CONFIG = {
     dailyReward: 150,
     dailyStreakBonus: 25,
     maxDailyStreak: 30,
-    workReward: { min: 30, max: 80 },
-    workCooldown: 60 * 1000, // 1 minute
+    workReward: { min: 40, max: 100 },
+    workCooldown: 45 * 1000, // 45 seconds (was 1 min)
     dailyCooldown: 24 * 60 * 60 * 1000, // 24 hours
     robChance: 0.4,
     robCooldown: 60 * 1000, // 1 minute
@@ -38,6 +38,15 @@ const ECONOMY_CONFIG = {
         double: 2,
         triple: 3,
         jackpot: 10
+    },
+    // Arc Reactor perks
+    arcReactorPerks: {
+        earningsBonus: 0.15,      // +15% on all earnings
+        cooldownReduction: 0.25,  // -25% cooldowns
+        gamblingBonus: 0.05,      // +5% gambling win rate
+        dailyInterestRate: 0.01,  // +1% daily interest
+        dailyBonusFlat: 500,      // +500 daily reward
+        minigameCooldown: 30 * 1000 // 30 sec cooldown with reactor (vs 45)
     }
 };
 
@@ -767,6 +776,33 @@ async function getActiveEffects(userId) {
 }
 
 /**
+ * Check if user has Arc Reactor
+ */
+async function hasArcReactor(userId) {
+    const user = await loadUser(userId);
+    return (user.inventory || []).some(item => item.id === 'arc_reactor');
+}
+
+/**
+ * Get Arc Reactor perks for user
+ * Returns multipliers/bonuses if user has Arc Reactor, otherwise defaults
+ */
+async function getArcReactorPerks(userId) {
+    const hasReactor = await hasArcReactor(userId);
+    const perks = ECONOMY_CONFIG.arcReactorPerks;
+    
+    return {
+        hasReactor,
+        earningsMultiplier: hasReactor ? (1 + perks.earningsBonus) : 1,
+        cooldownMultiplier: hasReactor ? (1 - perks.cooldownReduction) : 1,
+        gamblingBonus: hasReactor ? perks.gamblingBonus : 0,
+        dailyBonus: hasReactor ? perks.dailyBonusFlat : 0,
+        interestRate: hasReactor ? perks.dailyInterestRate : 0,
+        minigameCooldown: hasReactor ? perks.minigameCooldown : ECONOMY_CONFIG.workCooldown
+    };
+}
+
+/**
  * Apply item effect
  */
 async function applyItemEffect(userId, item) {
@@ -793,6 +829,7 @@ async function applyItemEffect(userId, item) {
  */
 async function claimDaily(userId, username) {
     const user = await loadUser(userId, username);
+    const arcPerks = await getArcReactorPerks(userId);
     const now = Date.now();
     const timeSinceLastDaily = now - (user.lastDaily || 0);
 
@@ -834,6 +871,20 @@ async function claimDaily(userId, username) {
         ensureNumber(user.dailyStreak, 0) * ensureNumber(ECONOMY_CONFIG.dailyStreakBonus, 0);
     reward = ensureNumber(reward + streakBonus, reward);
 
+    // Arc Reactor daily bonus (+500 flat)
+    let reactorBonus = 0;
+    if (arcPerks.hasReactor) {
+        reactorBonus = arcPerks.dailyBonus;
+        reward += reactorBonus;
+    }
+
+    // Arc Reactor interest (1% of balance)
+    let interestEarned = 0;
+    if (arcPerks.hasReactor && arcPerks.interestRate > 0) {
+        interestEarned = Math.floor(user.balance * arcPerks.interestRate);
+        reward += interestEarned;
+    }
+
     // Check for double daily item
     const hasDoubleDaily = (user.inventory || []).find(i => i.id === 'double_daily' && i.uses > 0);
     if (hasDoubleDaily) {
@@ -866,10 +917,11 @@ async function claimDaily(userId, username) {
  */
 async function work(userId, username) {
     const user = await loadUser(userId, username);
+    const arcPerks = await getArcReactorPerks(userId);
 
     // Check for work cooldown reduction
     const effects = await getActiveEffects(userId);
-    let cooldownMultiplier = 1;
+    let cooldownMultiplier = arcPerks.cooldownMultiplier; // Arc Reactor reduces cooldowns
     effects.forEach(e => {
         if (e.effect?.workCooldownReduction) {
             cooldownMultiplier *= 1 - e.effect.workCooldownReduction;
@@ -889,6 +941,9 @@ async function work(userId, username) {
         ECONOMY_CONFIG.workReward.min +
             Math.random() * (ECONOMY_CONFIG.workReward.max - ECONOMY_CONFIG.workReward.min)
     );
+
+    // Apply Arc Reactor earnings bonus
+    reward = Math.floor(reward * arcPerks.earningsMultiplier);
 
     // Apply multiplier bonus if event active
     if (isMultiplierActive()) {
@@ -967,6 +1022,7 @@ async function work(userId, username) {
  */
 async function gamble(userId, amount) {
     const user = await loadUser(userId);
+    const arcPerks = await getArcReactorPerks(userId);
 
     if (amount < 1) return { success: false, error: 'Minimum bet is 1 Stark Buck' };
     if (amount > user.balance) return { success: false, error: 'Insufficient funds' };
@@ -979,6 +1035,9 @@ async function gamble(userId, amount) {
             winRate += e.effect.gamblingBonus;
         }
     });
+
+    // Arc Reactor gambling bonus (+5%)
+    winRate += arcPerks.gamblingBonus;
 
     const won = Math.random() < winRate;
     const change = won ? amount : -amount;
@@ -1658,6 +1717,10 @@ module.exports = {
     buyItem,
     getInventory,
     getActiveEffects,
+
+    // Arc Reactor
+    hasArcReactor,
+    getArcReactorPerks,
 
     // Stats
     getLeaderboard,
