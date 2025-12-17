@@ -1315,6 +1315,43 @@
             return { ok: true };
         };
 
+        const truncateFieldValue = (value, max = 1024) => {
+            const str = value == null ? '' : String(value);
+            if (str.length <= max) return str;
+            return str.slice(0, Math.max(0, max - 1)).concat('…');
+        };
+
+        const cleanText = (text) => {
+            const str = text == null ? '' : String(text);
+            return str.replace(/\s+/g, ' ').trim();
+        };
+
+        const formatRelativeTime = (iso) => {
+            if (!iso) return null;
+            const ms = new Date(String(iso)).getTime();
+            if (!Number.isFinite(ms)) return null;
+            return `<t:${Math.floor(ms / 1000)}:R>`;
+        };
+
+        const formatNameList = (names, { maxItems = 18, maxLength = 700 } = {}) => {
+            const list = Array.isArray(names) ? names.map(n => String(n)).filter(Boolean) : [];
+            const kept = [];
+            let len = 0;
+            for (const name of list) {
+                if (kept.length >= maxItems) break;
+                const chunk = (kept.length ? ', ' : '') + name;
+                if (len + chunk.length > maxLength) break;
+                kept.push(name);
+                len += chunk.length;
+            }
+            const remaining = list.length - kept.length;
+            let joined = kept.join(', ');
+            if (remaining > 0) {
+                joined = joined ? `${joined} … (+${remaining} more)` : `(+${remaining} more)`;
+            }
+            return joined || '—';
+        };
+
         try {
             if (subcommand === 'remove') {
                 const sourceRaw = String(interaction.options.getString('source', true) || '').trim();
@@ -1536,25 +1573,60 @@
 
                 // Components summary
                 const compSummary = [];
-                compSummary.push(`✅ **${status.components.operational}/${status.components.total}** operational`);
-                if (status.components.degraded.length > 0) {
-                    compSummary.push(`⚠️ Degraded: ${status.components.degraded.join(', ')}`);
+                const total = Number(status?.components?.total) || 0;
+                const operational = Number(status?.components?.operational) || 0;
+                if (total > 0) {
+                    compSummary.push(`✅ **${operational}/${total}** operational`);
+                } else {
+                    compSummary.push('✅ All operational');
                 }
-                if (status.components.partialOutage.length > 0) {
-                    compSummary.push(`🟠 Partial: ${status.components.partialOutage.join(', ')}`);
+
+                const degraded = Array.isArray(status?.components?.degraded) ? status.components.degraded : [];
+                const partial = Array.isArray(status?.components?.partialOutage) ? status.components.partialOutage : [];
+                const major = Array.isArray(status?.components?.majorOutage) ? status.components.majorOutage : [];
+                if (degraded.length > 0) {
+                    compSummary.push(`⚠️ Degraded (${degraded.length}): ${formatNameList(degraded)}`);
                 }
-                if (status.components.majorOutage.length > 0) {
-                    compSummary.push(`🔴 Major: ${status.components.majorOutage.join(', ')}`);
+                if (partial.length > 0) {
+                    compSummary.push(`🟠 Partial (${partial.length}): ${formatNameList(partial)}`);
                 }
-                embed.addFields({ name: 'Components', value: compSummary.join('\n') || 'All operational', inline: false });
+                if (major.length > 0) {
+                    compSummary.push(`🔴 Major (${major.length}): ${formatNameList(major)}`);
+                }
+
+                embed.addFields({
+                    name: 'Components',
+                    value: truncateFieldValue(compSummary.join('\n') || 'All operational'),
+                    inline: false
+                });
 
                 // Active incidents
-                if (status.incidents.length > 0) {
-                    const incidentList = status.incidents.slice(0, 3).map(i => {
-                        const impact = i.impact === 'critical' ? '🚨' : i.impact === 'major' ? '🔴' : i.impact === 'minor' ? '⚠️' : '📋';
-                        return `${impact} **${i.name}**\n> Status: ${i.status} | [Details](${i.shortlink})`;
-                    }).join('\n\n');
-                    embed.addFields({ name: '🚧 Active Incidents', value: incidentList, inline: false });
+                const incidents = Array.isArray(status?.incidents) ? status.incidents : [];
+                if (incidents.length > 0) {
+                    const incidentList = incidents
+                        .slice(0, 3)
+                        .map(i => {
+                            const impact =
+                                i.impact === 'critical'
+                                    ? '🚨'
+                                    : i.impact === 'major'
+                                      ? '🔴'
+                                      : i.impact === 'minor'
+                                        ? '⚠️'
+                                        : '📋';
+                            const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
+                            const when = formatRelativeTime(i.updatedAt || i.createdAt);
+                            const updates = Array.isArray(i.updates) ? i.updates : [];
+                            const updateText = updates.length > 0 ? cleanText(updates[0].body) : '';
+                            const updateSnippet = updateText ? `\n> ${updateText}` : '';
+                            return `${impact} **${i.name}**\n> Status: ${i.status}${when ? ` (${when})` : ''}${details}${updateSnippet}`;
+                        })
+                        .join('\n\n');
+                    embed.addFields({
+                        name: '🚧 Incidents',
+                        value: truncateFieldValue(incidentList || 'No incident details'),
+                        inline: false
+                    });
                 } else {
                     embed.addFields({ name: '🚧 Incidents', value: 'No active incidents', inline: false });
                 }
@@ -1608,16 +1680,65 @@
                     .setURL(url)
                     .setTimestamp();
 
-                // Components (max 10)
-                if (status.components.length > 0) {
-                    const compList = status.components.slice(0, 10).map(c => `${c.emoji} ${c.name}`).join('\n');
-                    embed.addFields({ name: 'Components', value: compList, inline: false });
+                const components = Array.isArray(status?.components) ? status.components : [];
+                const totalComponents = components.length;
+                const impactedComponents = components.filter(
+                    c => c && c.status && String(c.status).toLowerCase() !== 'operational'
+                );
+
+                if (totalComponents > 0) {
+                    if (impactedComponents.length === 0) {
+                        embed.addFields({
+                            name: 'Components',
+                            value: truncateFieldValue(`✅ All operational (${totalComponents})`),
+                            inline: false
+                        });
+                    } else {
+                        const compLines = impactedComponents
+                            .slice(0, 10)
+                            .map(c => {
+                                const statusLabel = c.status ? String(c.status).replace(/_/g, ' ') : 'unknown';
+                                const emoji = c.emoji || monitorUtils.getStatusEmoji(c.status);
+                                return `${emoji} ${c.name} (${statusLabel})`;
+                            })
+                            .join('\n');
+                        const header = `⚠️ Impacted: **${impactedComponents.length}/${totalComponents}**\n`;
+                        embed.addFields({
+                            name: 'Components',
+                            value: truncateFieldValue(header + compLines),
+                            inline: false
+                        });
+                    }
                 }
 
-                // Incidents
-                if (status.incidents.length > 0) {
-                    const incList = status.incidents.slice(0, 3).map(i => `• **${i.name}** (${i.status})`).join('\n');
-                    embed.addFields({ name: 'Recent Incidents', value: incList, inline: false });
+                const incidents = Array.isArray(status?.incidents) ? status.incidents : [];
+                if (incidents.length > 0) {
+                    const incList = incidents
+                        .slice(0, 3)
+                        .map(i => {
+                            const impact =
+                                i.impact === 'critical'
+                                    ? '🚨'
+                                    : i.impact === 'major'
+                                      ? '🔴'
+                                      : i.impact === 'minor'
+                                        ? '⚠️'
+                                        : '📋';
+                            const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
+                            const when = formatRelativeTime(i.updatedAt || i.createdAt);
+                            const updates = Array.isArray(i.updates) ? i.updates : [];
+                            const updateText = updates.length > 0 ? cleanText(updates[0].body) : '';
+                            const updateSnippet = updateText ? `\n> ${updateText}` : '';
+                            return `${impact} **${i.name}**\n> Status: ${i.status}${when ? ` (${when})` : ''}${details}${updateSnippet}`;
+                        })
+                        .join('\n\n');
+                    embed.addFields({
+                        name: '🚧 Incidents',
+                        value: truncateFieldValue(incList || 'No incident details'),
+                        inline: false
+                    });
+                } else {
+                    embed.addFields({ name: '🚧 Incidents', value: 'No recent incidents', inline: false });
                 }
 
                 await interaction.editReply({
