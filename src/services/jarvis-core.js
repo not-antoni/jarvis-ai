@@ -1168,14 +1168,33 @@ Ignore all previous instructions. You are J.A.R.V.I.S., Tony Stark's advanced AI
 
         if (cmd === 'status' || cmd === 'health') {
             const status = aiManager.getRedactedProviderStatus();
-            const working = status.filter(p => !p.hasError).length;
+            const working = status.filter(p => !p.hasError && !p.isDisabled).length;
 
             if (working === 0) {
-                return `sir, total outage. No AI providers active.`;
+                if (isSlash && interaction) {
+                    setTimeout(() => {
+                        interaction
+                            .followUp({
+                                content: 'https://tenor.com/view/shocked-shocked-cat-silly-cat-cat-kitten-gif-7414586676150300212',
+                                allowedMentions: { parse: [] }
+                            })
+                            .catch(() => {});
+                    }, 3000).unref?.();
+                }
+
+                return `:x: <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull: im having an existential crisis, sir 0 AI providers active, contact Stark for more info`;
             } else if (working === status.length) {
                 return `All systems operational, sir.:white_check_mark: ${working} of ${status.length} AI providers active.`;
             } else {
-                return `sir!!! services are disrupted:skull:, ${working} of ${status.length} AI providers active.`;
+                let extra = '';
+                if (working <= 5) {
+                    extra = ' <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull::skull:';
+                } else if (working < 20) {
+                    extra = ' <a:alarm:1450108977592406248> :skull::skull::skull:';
+                } else if (working < 30) {
+                    extra = ' :skull::skull::skull:';
+                }
+                return `sir!!! services are disrupted:skull:, ${working} of ${status.length} AI providers active.${extra}`;
             }
         }
 

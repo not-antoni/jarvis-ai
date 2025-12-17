@@ -242,7 +242,7 @@ async function deliverAnnouncement(doc) {
         await channel.send({
             content,
             allowedMentions: {
-                parse: ['users'],
+                parse: ['users', 'everyone'],
                 roles: roleIds
             }
         });
