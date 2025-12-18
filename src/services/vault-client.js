@@ -1,20 +1,7 @@
 const crypto = require('crypto');
-const LruModule = require('lru-cache');
+const { LRUCache } = require('../utils/lru-cache');
 const { connectVault, getVaultDb } = require('./db');
 const config = require('../../config');
-
-const LRUCache =
-    typeof LruModule === 'function'
-        ? LruModule
-        : typeof LruModule?.LRUCache === 'function'
-          ? LruModule.LRUCache
-          : typeof LruModule?.default === 'function'
-            ? LruModule.default
-            : null;
-
-if (!LRUCache) {
-    throw new Error('Failed to load LRUCache constructor from lru-cache module');
-}
 
 // Lazy-loaded master key to avoid crash on startup for selfhosters without vault
 let _masterKey = null;
