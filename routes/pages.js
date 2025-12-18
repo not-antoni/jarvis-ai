@@ -800,4 +800,9 @@ router.get('/dashboard', (req, res, next) => {
     res.redirect('/moderator/login');
 });
 
+// Shop alias -> store
+router.get('/shop', (req, res) => {
+    res.redirect('/store');
+});
+
 module.exports = router;
