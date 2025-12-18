@@ -7,15 +7,49 @@
  * - Manage DNS records for the domain
  * - SSL certificate management
  * - Works for both Render and Selfhost deployments
+ * - Caches config to avoid unnecessary API calls on restart
  */
 
 'use strict';
+
+const fs = require('fs');
+const path = require('path');
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
 const CLOUDFLARE_API_BASE = 'https://api.cloudflare.com/client/v4';
+const CONFIG_CACHE_FILE = path.join(process.cwd(), 'data', 'cloudflare-config.json');
+
+/**
+ * Load cached Cloudflare configuration
+ */
+function loadCachedConfig() {
+    try {
+        if (fs.existsSync(CONFIG_CACHE_FILE)) {
+            return JSON.parse(fs.readFileSync(CONFIG_CACHE_FILE, 'utf8'));
+        }
+    } catch {
+        // Ignore errors
+    }
+    return null;
+}
+
+/**
+ * Save Cloudflare configuration to cache
+ */
+function saveCachedConfig(config) {
+    try {
+        const dir = path.dirname(CONFIG_CACHE_FILE);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(CONFIG_CACHE_FILE, JSON.stringify(config, null, 2));
+    } catch (err) {
+        console.warn('[CloudflareDomain] Failed to save config cache:', err.message);
+    }
+}
 
 function getConfig() {
     return {
@@ -411,12 +445,30 @@ function detectTarget() {
 /**
  * Auto-detect deployment mode and configure domain
  * Supports: render, selfhost, hybrid (auto-detect)
+ * Caches config to skip unnecessary API calls on restart
  */
 async function autoConfigure(options = {}) {
     const config = getConfig();
+    const forceReconfigure = options.force === true;
     
     if (!config.zoneId && !config.domain) {
         return { success: false, error: 'No domain configuration found' };
+    }
+    
+    // Detect target first
+    const detected = detectTarget();
+    if (!detected) {
+        return { 
+            success: false, 
+            error: 'Could not detect target. Set PUBLIC_BASE_URL, RENDER_EXTERNAL_URL, or ensure internet access.' 
+        };
+    }
+    
+    // Check cached config - skip if already configured with same target
+    const cached = loadCachedConfig();
+    if (!forceReconfigure && cached && cached.target === detected.target && cached.domain === config.domain) {
+        console.log(`[CloudflareDomain] Already configured: ${cached.domain} → ${cached.target} (cached)`);
+        return { success: true, cached: true, ...cached };
     }
     
     // If no zone ID but have domain, try to find zone
@@ -428,48 +480,51 @@ async function autoConfigure(options = {}) {
     }
     
     try {
-        // Handle hybrid mode - auto-detect environment
-        if (config.deployTarget === 'hybrid' || config.deployTarget === 'auto') {
-            const detected = detectTarget();
-            if (!detected) {
-                return { 
-                    success: false, 
-                    error: 'Hybrid mode: Could not detect target. Set PUBLIC_BASE_URL or RENDER_EXTERNAL_URL.' 
-                };
-            }
-            
-            console.log(`[CloudflareDomain] Hybrid mode detected: ${detected.mode} → ${detected.target}`);
-            
-            if (detected.mode === 'render') {
-                return await configureForRender(options.subdomain);
-            } else {
-                return await configureForSelfhost(detected.target, options.subdomain);
-            }
+        console.log(`[CloudflareDomain] Configuring: ${config.domain} → ${detected.target} (${detected.mode})`);
+        
+        let result;
+        if (detected.mode === 'render') {
+            result = await configureForRender(options.subdomain);
+        } else {
+            result = await configureForSelfhost(detected.target, options.subdomain);
         }
         
-        // Explicit render mode
-        if (config.deployTarget === 'render') {
-            return await configureForRender(options.subdomain);
+        // Cache successful configuration
+        if (result.success) {
+            saveCachedConfig({
+                domain: config.domain,
+                target: detected.target,
+                mode: detected.mode,
+                configuredAt: new Date().toISOString()
+            });
         }
         
-        // Explicit selfhost mode
-        if (config.deployTarget === 'selfhost') {
-            // Use detectTarget which handles self-reference checks
-            const detected = detectTarget();
-            if (detected && detected.target) {
-                console.log(`[CloudflareDomain] Selfhost target: ${detected.target}`);
-                return await configureForSelfhost(detected.target, options.subdomain);
-            }
-            return { 
-                success: false, 
-                error: 'Selfhost: Could not detect target IP. Ensure server has internet access.' 
-            };
-        }
-        
-        return { success: false, error: `Unknown deploy target: ${config.deployTarget}` };
+        return result;
     } catch (error) {
         return { success: false, error: error.message };
     }
+}
+
+/**
+ * Force reconfigure (bypass cache)
+ */
+async function forceReconfigure(options = {}) {
+    return autoConfigure({ ...options, force: true });
+}
+
+/**
+ * Clear cached configuration
+ */
+function clearConfigCache() {
+    try {
+        if (fs.existsSync(CONFIG_CACHE_FILE)) {
+            fs.unlinkSync(CONFIG_CACHE_FILE);
+            return true;
+        }
+    } catch {
+        // Ignore
+    }
+    return false;
 }
 
 // ============================================================================
@@ -606,6 +661,12 @@ module.exports = {
     configureForRender,
     configureForSelfhost,
     autoConfigure,
+    forceReconfigure,
+    
+    // Cache management
+    loadCachedConfig,
+    saveCachedConfig,
+    clearConfigCache,
     
     // Detection helpers
     isRunningOnRender,
