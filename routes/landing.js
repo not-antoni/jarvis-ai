@@ -12,9 +12,9 @@ const LANDING_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis AI - Your Intelligent Discord Assistant</title>
-    <meta name="description" content="Jarvis AI is a powerful Discord bot with AI chat, moderation, economy, music, and more. Add Jarvis to your server today!">
-    <meta property="og:title" content="Jarvis AI - Discord Bot">
+    <title>Jarvis - Your Intelligent Discord Assistant</title>
+    <meta name="description" content="Jarvis is a powerful Discord bot with AI chat, moderation, economy, music, and more. Add Jarvis to your server today!">
+    <meta property="og:title" content="Jarvis - Discord Bot">
     <meta property="og:description" content="Your intelligent Discord assistant with AI chat, moderation, economy, and more.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://jorvis.org">
@@ -378,14 +378,13 @@ const LANDING_PAGE = `
     <div class="bg-animation"></div>
     
     <nav>
-        <a href="/" class="logo">⚡ Jarvis AI</a>
+        <a href="/" class="logo">⚡ Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
             <li><a href="/store">Store</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
             <li><a href="/sbx">SBX</a></li>
-            <li><a href="/docs">Docs</a></li>
-            <li><a href="/status">Status</a></li>
+                        <li><a href="/status">Status</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
             <a href="/auth/login" class="login-btn" id="loginBtn">
@@ -396,7 +395,7 @@ const LANDING_PAGE = `
     
     <section class="hero">
         <div class="hero-icon">🤖</div>
-        <h1>Meet Jarvis AI</h1>
+        <h1>Meet Jarvis</h1>
         <p>Your intelligent Discord assistant powered by cutting-edge AI. Chat naturally, moderate effortlessly, and supercharge your server with advanced features.</p>
         <div class="cta-buttons">
             <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">
@@ -487,11 +486,10 @@ const LANDING_PAGE = `
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
             <a href="${DISCORD_INVITE}" target="_blank">Discord Server</a>
             <a href="/changelog">Changelog</a>
-            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
-            <a href="/tos">Terms of Service</a>
+                        <a href="/tos">Terms of Service</a>
             <a href="/policy">Privacy Policy</a>
         </div>
-        <p class="footer-copy">© 2025 Jarvis AI. Made with ❤️ for Discord communities.</p>
+        <p class="footer-copy">© 2025 Jarvis. Made with ❤️ for Discord communities.</p>
     </footer>
     
     <script>

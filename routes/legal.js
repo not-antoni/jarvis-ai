@@ -9,7 +9,7 @@ const PRIVACY_POLICY = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy - Jarvis AI</title>
+    <title>Privacy Policy | Jarvis</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -124,7 +124,7 @@ const TERMS_OF_SERVICE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms of Service - Jarvis AI</title>
+    <title>Terms of Service | Jarvis</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -185,7 +185,7 @@ const TERMS_OF_SERVICE = `
         <h1>📜 Terms of Service</h1>
         
         <h2>1. Acceptance of Terms</h2>
-        <p>By using Jarvis AI ("Jarvis," "we," "our," or "the bot"), you agree to these Terms of Service. If you disagree, do not use Jarvis.</p>
+        <p>By using Jarvis ("we," "our," or "the bot"), you agree to these Terms of Service. If you disagree, do not use Jarvis.</p>
         
         <h2>2. Description of Service</h2>
         <p>Jarvis is a Discord assistant that provides AI-powered chat, moderation tools, server statistics, and direct message (DM) interaction. Some responses are generated through external AI services (such as OpenRouter).</p>
