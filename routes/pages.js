@@ -124,7 +124,7 @@ const SHARED_STYLES = `
 
 const NAV_HTML = `
     <nav>
-        <a href="/" class="logo">⚡ Jarvis AI</a>
+        <a href="/" class="logo">⚡ Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
@@ -144,7 +144,7 @@ const COMMANDS_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Commands - Jarvis AI</title>
+    <title>Commands | Jarvis</title>
     <style>${SHARED_STYLES}
         .command-item {
             background: rgba(255,255,255,0.03);
@@ -190,7 +190,7 @@ const COMMANDS_PAGE = `
             <div class="command-item" data-category="ai">
                 <span class="command-name">*j &lt;message&gt;</span>
                 <span class="category-tag">AI</span>
-                <p class="command-desc">Chat with Jarvis AI - just mention or use prefix</p>
+                <p class="command-desc">Chat with Jarvis - just mention or use prefix</p>
             </div>
             <div class="command-item" data-category="ai">
                 <span class="command-name">*j imagine &lt;prompt&gt;</span>
@@ -344,7 +344,7 @@ const LEADERBOARD_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leaderboard - Jarvis AI</title>
+    <title>Leaderboard | Jarvis</title>
     <style>${SHARED_STYLES}
         .tabs {
             display: flex;
@@ -459,7 +459,7 @@ const SBX_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SBX Exchange - Jarvis AI</title>
+    <title>SBX Exchange | Jarvis</title>
     <style>${SHARED_STYLES}
         .price-display {
             text-align: center;
@@ -506,7 +506,7 @@ const SBX_PAGE = `
     ${NAV_HTML}
     <div class="container">
         <h1>☕ Starkbucks Exchange</h1>
-        <p style="color: #888; margin-bottom: 2rem;">Trade SBX - the virtual currency of Jarvis AI</p>
+        <p style="color: #888; margin-bottom: 2rem;">Trade SBX - the virtual currency of Jarvis</p>
         
         <div class="price-display">
             <div class="price-label">Current SBX Price</div>
@@ -575,7 +575,7 @@ const DOCS_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentation - Jarvis AI</title>
+    <title>Documentation | Jarvis</title>
     <style>${SHARED_STYLES}
         .doc-section { margin-bottom: 3rem; }
         pre {
@@ -591,65 +591,74 @@ const DOCS_PAGE = `
 <body>
     ${NAV_HTML}
     <div class="container">
-        <h1>📖 Documentation</h1>
-        <p style="color: #888; margin-bottom: 2rem;">Self-hosting guide and API documentation</p>
+        <h1>📖 User Guide</h1>
+        <p style="color: #888; margin-bottom: 2rem;">Learn how to use Jarvis in your Discord server</p>
         
         <div class="doc-section">
-            <h2>🚀 Quick Start</h2>
+            <h2>🚀 Getting Started</h2>
             <div class="card">
-                <p>Clone and install:</p>
-                <pre>git clone https://github.com/not-antoni/jarvis-ai.git
-cd jarvis-ai
-npm install</pre>
+                <p>Jarvis uses two command styles:</p>
+                <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: #aaa;">
+                    <li><strong>Slash Commands</strong> - Type <code>/</code> and select from the menu</li>
+                    <li><strong>Text Commands</strong> - Use the <code>*j</code> prefix</li>
+                </ul>
+                <p style="margin-top: 1rem;">Example: <code>*j help</code> or <code>/help</code></p>
             </div>
         </div>
         
         <div class="doc-section">
-            <h2>⚙️ Configuration</h2>
+            <h2>💬 AI Chat</h2>
             <div class="card">
-                <p>Run the setup wizard:</p>
-                <pre>node scripts/selfhost-setup.js</pre>
-                <p style="margin-top: 1rem;">This will guide you through:</p>
+                <p>Talk to Jarvis naturally:</p>
                 <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: #aaa;">
-                    <li>Discord bot token setup</li>
-                    <li>MongoDB configuration (local or Atlas)</li>
-                    <li>AI provider API keys</li>
-                    <li>Domain and SSL setup</li>
+                    <li><strong>@Jarvis</strong> - Mention the bot in any channel</li>
+                    <li><strong>*j &lt;message&gt;</strong> - Use the text prefix</li>
+                    <li><strong>DMs</strong> - Send a direct message to Jarvis</li>
+                </ul>
+                <p style="margin-top: 1rem;">Jarvis remembers context from your conversations. Use <code>*j reset</code> to clear your history.</p>
+            </div>
+        </div>
+        
+        <div class="doc-section">
+            <h2>💰 Economy System</h2>
+            <div class="card">
+                <p>Earn and spend coins:</p>
+                <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: #aaa;">
+                    <li><code>/daily</code> - Claim daily rewards (streak bonuses!)</li>
+                    <li><code>/work</code> - Work at Stark Industries</li>
+                    <li><code>/hunt</code> <code>/fish</code> <code>/dig</code> - Minigames</li>
+                    <li><code>/gamble</code> <code>/slots</code> <code>/coinflip</code> - Try your luck</li>
+                    <li><code>/shop</code> - Buy items and boosters</li>
+                    <li><code>/leaderboard</code> - See top earners</li>
                 </ul>
             </div>
         </div>
         
         <div class="doc-section">
-            <h2>🔧 Environment Variables</h2>
+            <h2>☕ Starkbucks (SBX)</h2>
             <div class="card">
-                <p><strong>Required:</strong></p>
-                <pre>DISCORD_TOKEN=your_bot_token
-MONGO_URI_MAIN=mongodb://localhost:27017/jarvis
-MONGO_URI_VAULT=mongodb://localhost:27017/jarvis_vault
-MASTER_KEY_BASE64=base64_encoded_32_byte_key</pre>
-                
-                <p style="margin-top: 1rem;"><strong>Optional AI Providers:</strong></p>
-                <pre>OPENROUTER_API_KEY=your_key
-GROQ_API_KEY=your_key
-GOOGLE_AI_API_KEY=your_key</pre>
-                
-                <p style="margin-top: 1rem;"><strong>Domain Setup:</strong></p>
-                <pre>JARVIS_DOMAIN=jorvis.org
-CLOUDFLARE_API_TOKEN=your_token
-CLOUDFLARE_ZONE_ID=your_zone_id
-DEPLOY_TARGET=selfhost</pre>
+                <p>Trade SBX - Jarvis's virtual currency:</p>
+                <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: #aaa;">
+                    <li><code>/sbx buy &lt;amount&gt;</code> - Buy SBX with coins</li>
+                    <li><code>/sbx sell &lt;amount&gt;</code> - Sell SBX for coins</li>
+                    <li><code>/sbx invest &lt;amount&gt;</code> - Lock SBX for bonus returns</li>
+                    <li><code>/sbx portfolio</code> - View your holdings</li>
+                </ul>
+                <p style="margin-top: 1rem;">SBX price fluctuates - buy low, sell high!</p>
             </div>
         </div>
         
         <div class="doc-section">
-            <h2>🏃 Running</h2>
+            <h2>🛡️ Moderation</h2>
             <div class="card">
-                <p>Development:</p>
-                <pre>npm start</pre>
-                
-                <p style="margin-top: 1rem;">Production with PM2:</p>
-                <pre>pm2 start index.js --name jarvis --max-memory-restart 500M
-pm2 startup && pm2 save</pre>
+                <p>Server owners can enable moderation features:</p>
+                <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: #aaa;">
+                    <li>AI-powered content filtering</li>
+                    <li>Auto-moderation with custom blacklists</li>
+                    <li>Member join/leave logging</li>
+                    <li>Server statistics channels</li>
+                </ul>
+                <p style="margin-top: 1rem;">Access the <a href="/moderator" style="color: #00d4ff;">Moderator Dashboard</a> to configure.</p>
             </div>
         </div>
         
@@ -657,7 +666,6 @@ pm2 startup && pm2 save</pre>
             <h2>🔗 Links</h2>
             <div class="card">
                 <p>
-                    <a href="https://github.com/not-antoni/jarvis-ai" style="color: #00d4ff;">GitHub Repository</a><br>
                     <a href="${DISCORD_INVITE}" style="color: #00d4ff;">Support Discord</a><br>
                     <a href="/tos" style="color: #00d4ff;">Terms of Service</a><br>
                     <a href="/policy" style="color: #00d4ff;">Privacy Policy</a>
@@ -679,7 +687,7 @@ const CHANGELOG_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Changelog - Jarvis AI</title>
+    <title>Changelog | Jarvis</title>
     <style>${SHARED_STYLES}
         .version {
             background: rgba(255,255,255,0.03);

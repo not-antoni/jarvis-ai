@@ -4179,7 +4179,7 @@ app.get('/status', async (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Status | Jarvis AI</title>
+    <title>Status | Jarvis</title>
     <meta name="theme-color" content="#00d4ff">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -4350,13 +4350,12 @@ app.get('/status', async (req, res) => {
 </head>
 <body>
     <nav>
-        <a href="/" class="logo">⚡ Jarvis AI</a>
+        <a href="/" class="logo">⚡ Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
             <li><a href="/store">Store</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
             <li><a href="/sbx">SBX</a></li>
-            <li><a href="/docs">Docs</a></li>
             <li><a href="/status" style="color: #00d4ff;">Status</a></li>
         </ul>
     </nav>
@@ -4434,8 +4433,7 @@ app.get('/status', async (req, res) => {
     <footer>
         <a href="/tos">Terms of Service</a>
         <a href="/policy">Privacy Policy</a>
-        <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
-        <p style="margin-top: 1rem;">© 2025 Jarvis AI</p>
+                <p style="margin-top: 1rem;">© 2025 Jarvis</p>
     </footer>
     
     <script>
@@ -5123,7 +5121,7 @@ app.use((req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Page Not Found | Jarvis AI</title>
+    <title>404 - Page Not Found | Jarvis</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
