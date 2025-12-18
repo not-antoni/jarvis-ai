@@ -2983,9 +2983,22 @@
             if (isOptedOut) {
                 embed.addFields({ name: 'Status', value: 'All stored memories have been purged per your preference, sir.' });
             } else if (lines.length) {
+                // Discord embed field value limit is 1024 chars
+                let memoryValue = lines.join('\n\n');
+                if (memoryValue.length > 1020) {
+                    // Truncate and show fewer entries
+                    const truncatedLines = [];
+                    let totalLength = 0;
+                    for (const line of lines) {
+                        if (totalLength + line.length + 2 > 1000) break;
+                        truncatedLines.push(line);
+                        totalLength += line.length + 2;
+                    }
+                    memoryValue = truncatedLines.length ? truncatedLines.join('\n\n') + '\n\n*...more entries truncated*' : 'Memory entries too long to display.';
+                }
                 embed.addFields({
-                    name: `Recent Memories ${usedSecureMemories ? '(secure vault — 20 long-term + 10 short-term)' : ''}`,
-                    value: lines.join('\n\n')
+                    name: `Recent Memories ${usedSecureMemories ? '(secure vault)' : ''}`,
+                    value: memoryValue || 'No entries to display.'
                 });
             } else {
                 embed.addFields({ name: 'Recent Memories', value: 'No stored entries yet, sir.' });
