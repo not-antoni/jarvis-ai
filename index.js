@@ -5110,6 +5110,23 @@ async function startBot() {
 
         await refreshPresenceMessages(true);
 
+        // Auto-configure Cloudflare domain (if credentials provided)
+        try {
+            const cloudflareDomain = require('./src/services/cloudflare-domain');
+            const cfConfig = cloudflareDomain.getConfig();
+            if (cfConfig.zoneId || cfConfig.domain) {
+                console.log('[Cloudflare] Checking domain configuration...');
+                const result = await cloudflareDomain.autoConfigure();
+                if (result.success) {
+                    console.log(`[Cloudflare] ✅ Domain configured: ${result.domain} → ${result.target}`);
+                } else if (result.error) {
+                    console.log(`[Cloudflare] ⚠️ ${result.error}`);
+                }
+            }
+        } catch (cfErr) {
+            console.log(`[Cloudflare] Domain auto-config skipped: ${cfErr.message}`);
+        }
+
         // Start Discord bot unless disabled for local testing
         const disableDiscord = String(process.env.DISABLE_DISCORD || '').toLowerCase() === '1';
         if (!disableDiscord) {
