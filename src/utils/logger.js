@@ -164,6 +164,14 @@ class Logger {
 
         return childLogger;
     }
+
+    /**
+     * Flush pending file writes - call before shutdown
+     */
+    async flush() {
+        if (!this.enableFileLogging) return;
+        await this._fileWriteQueue;
+    }
 }
 
 // Create singleton instance

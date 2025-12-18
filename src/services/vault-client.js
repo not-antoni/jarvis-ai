@@ -16,9 +16,23 @@ if (!LRUCache) {
     throw new Error('Failed to load LRUCache constructor from lru-cache module');
 }
 
-const MASTER_KEY = Buffer.from(config.security.masterKeyBase64, 'base64');
-if (MASTER_KEY.length !== 32) {
-    throw new Error('MASTER_KEY_BASE64 must decode to a 32-byte key');
+// Lazy-loaded master key to avoid crash on startup for selfhosters without vault
+let _masterKey = null;
+function getMasterKey() {
+    if (_masterKey) return _masterKey;
+    
+    const keyBase64 = config.security.masterKeyBase64;
+    if (!keyBase64) {
+        throw new Error('MASTER_KEY_BASE64 is required for vault operations');
+    }
+    
+    _masterKey = Buffer.from(keyBase64, 'base64');
+    if (_masterKey.length !== 32) {
+        _masterKey = null;
+        throw new Error('MASTER_KEY_BASE64 must decode to a 32-byte key');
+    }
+    
+    return _masterKey;
 }
 
 const CACHE_TTL_MS = config.security.vaultCacheTtlMs;
@@ -207,7 +221,7 @@ async function getOrCreateUserKey(userId) {
 
         if (!record) {
             const userKey = crypto.randomBytes(32);
-            const payload = encryptWithKey(MASTER_KEY, userKey);
+            const payload = encryptWithKey(getMasterKey(), userKey);
 
             await localDbOps.saveUserKey(userId, {
                 encryptedKey: payload.ciphertext,
@@ -220,7 +234,7 @@ async function getOrCreateUserKey(userId) {
             return userKey;
         }
 
-        const decryptedKey = decryptWithKey(MASTER_KEY, {
+        const decryptedKey = decryptWithKey(getMasterKey(), {
             ciphertext: record.encryptedKey,
             iv: record.iv,
             authTag: record.authTag
@@ -237,7 +251,7 @@ async function getOrCreateUserKey(userId) {
     if (!record) {
         const now = new Date();
         const userKey = crypto.randomBytes(32);
-        const payload = encryptWithKey(MASTER_KEY, userKey);
+        const payload = encryptWithKey(getMasterKey(), userKey);
 
         record = {
             userId,
@@ -254,7 +268,7 @@ async function getOrCreateUserKey(userId) {
         return userKey;
     }
 
-    const decryptedKey = decryptWithKey(MASTER_KEY, {
+    const decryptedKey = decryptWithKey(getMasterKey(), {
         ciphertext: record.encryptedKey,
         iv: record.iv,
         authTag: record.authTag
@@ -275,7 +289,7 @@ async function registerUserKey(userId) {
 
     const now = new Date();
     const userKey = crypto.randomBytes(32);
-    const payload = encryptWithKey(MASTER_KEY, userKey);
+    const payload = encryptWithKey(getMasterKey(), userKey);
 
     await userKeys.insertOne({
         userId,

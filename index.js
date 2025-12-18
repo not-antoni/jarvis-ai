@@ -5086,8 +5086,8 @@ process.on('uncaughtException', err => {
     }
 });
 
-process.on('SIGTERM', async () => {
-    console.log('Jarvis is powering down...');
+async function gracefulShutdown(signal) {
+    console.log(`Jarvis received ${signal}, shutting down gracefully...`);
     try {
         serverStatsRefreshJob.stop();
         try { announcementScheduler.stop(); } catch (_) {}
@@ -5095,28 +5095,17 @@ process.on('SIGTERM', async () => {
         try { starkEconomy.stopMultiplierScheduler(); } catch (_) {}
         try { tempSweepJob.stop(); } catch (_) {}
         await database.disconnect();
+        // Flush logger before exit to ensure all logs are written
+        try { await require('./src/utils/logger').flush(); } catch (_) {}
         client.destroy();
     } catch (error) {
         console.error('Error during shutdown:', error);
     }
     process.exit(0);
-});
+}
 
-process.on('SIGINT', async () => {
-    console.log('Jarvis received SIGINT, shutting down gracefully...');
-    try {
-        serverStatsRefreshJob.stop();
-        try { announcementScheduler.stop(); } catch (_) {}
-        try { monitorScheduler.stop(); } catch (_) {}
-        try { starkEconomy.stopMultiplierScheduler(); } catch (_) {}
-        try { tempSweepJob.stop(); } catch (_) {}
-        await database.disconnect();
-        client.destroy();
-    } catch (error) {
-        console.error('Error during shutdown:', error);
-    }
-    process.exit(0);
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // ------------------------ 404 Error Page ------------------------
 app.use((req, res) => {

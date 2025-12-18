@@ -7,10 +7,14 @@
  */
 
 const crypto = require('crypto');
+const { LRUCache } = require('lru-cache');
 const logger = require('../utils/logger');
 
-// Session cache (for faster validation, but tokens are self-contained)
-const sessionCache = new Map();
+// Session cache using LRU for proper eviction (tokens are self-contained, cache is optimization)
+const sessionCache = new LRUCache({
+    max: 10000,
+    ttl: parseInt(process.env.SESSION_DURATION_DAYS || '30', 10) * 24 * 60 * 60 * 1000
+});
 const SESSION_DURATION_MS = parseInt(process.env.SESSION_DURATION_DAYS || '30', 10) * 24 * 60 * 60 * 1000;
 const CACHE_MAX_SIZE = 10000;
 
@@ -278,12 +282,7 @@ function createSession(user, accessToken, refreshToken, expiresIn = null) {
         expiresAt: payload.exp
     };
     
-    // Evict expired sessions first, then oldest if still over limit
-    evictExpiredSessions();
-    if (sessionCache.size >= CACHE_MAX_SIZE) {
-        const firstKey = sessionCache.keys().next().value;
-        sessionCache.delete(firstKey);
-    }
+    // LRU cache handles eviction automatically
     sessionCache.set(token, session);
     
     logger.info('Created session for user', { userId: user.id, username: user.username });

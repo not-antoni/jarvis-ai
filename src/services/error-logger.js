@@ -67,7 +67,7 @@ class ErrorLogger {
         const pendingButton = new ButtonBuilder()
             .setCustomId(`errlog:${errorId}:pending`)
             .setLabel('Mark Pending')
-            .setStyle(STATUS.pending ? 1 : 1);
+            .setStyle(statusKey === 'pending' ? 2 : 1);
 
         const solvedButton = new ButtonBuilder()
             .setCustomId(`errlog:${errorId}:solved`)
