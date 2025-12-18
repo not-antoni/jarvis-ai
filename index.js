@@ -3764,6 +3764,10 @@ app.use('/jarvis', jarvisOwnerRouter);
 const starkbucksRouter = require('./routes/starkbucks');
 app.use('/', starkbucksRouter);
 
+// Mount legal pages (Privacy Policy, Terms of Service)
+const legalRouter = require('./routes/legal');
+app.use('/', legalRouter);
+
 // Mount dashboard API routes
 const dashboardRouter = require('./routes/dashboard');
 
