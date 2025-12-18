@@ -7,8 +7,16 @@ const partFiles = fs
     .filter(name => name.endsWith('.js'))
     .sort();
 
-if (partFiles.length !== 7) {
-    throw new Error(`Expected 7 discord handler parts, found ${partFiles.length}`);
+// Validate handler parts exist (minimum 1, warn if count changes unexpectedly)
+const EXPECTED_PARTS_COUNT = 7;
+if (partFiles.length === 0) {
+    throw new Error('No discord handler parts found in discord-handlers-parts/');
+}
+if (partFiles.length !== EXPECTED_PARTS_COUNT) {
+    console.warn(
+        `[DiscordHandlers] Part count changed: expected ${EXPECTED_PARTS_COUNT}, found ${partFiles.length}. ` +
+        'Update EXPECTED_PARTS_COUNT if this is intentional.'
+    );
 }
 
 const combinedCode = partFiles

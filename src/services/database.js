@@ -7,22 +7,12 @@ const config = require('../../config');
 const vaultClient = require('./vault-client');
 const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
 const localdb = require('../localdb');
+const { LRUCache } = require('../utils/lru-cache');
 
 const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
 const LOCAL_DB_MODE =
     !IS_RENDER &&
     String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
-
-// LRU Cache for performance optimization
-const LruModule = require('lru-cache');
-const LRUCache =
-    typeof LruModule === 'function'
-        ? LruModule
-        : typeof LruModule?.LRUCache === 'function'
-          ? LruModule.LRUCache
-          : typeof LruModule?.default === 'function'
-            ? LruModule.default
-            : null;
 
 // Cache configuration
 const GUILD_CONFIG_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
