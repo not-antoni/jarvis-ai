@@ -306,6 +306,18 @@ router.get('/api/crypto/prices', async (req, res) => {
     }
 });
 
+// Get market state (cycle, sentiment, events)
+router.get('/api/crypto/market', async (req, res) => {
+    try {
+        const crypto = require('../src/services/stark-crypto');
+        crypto.startPriceUpdates();
+        const market = crypto.getMarketState();
+        res.json({ success: true, market });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Get specific coin price
 router.get('/api/crypto/price/:symbol', async (req, res) => {
     try {
