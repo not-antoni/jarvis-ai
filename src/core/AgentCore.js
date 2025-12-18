@@ -254,45 +254,57 @@ class AgentCore extends EventEmitter {
     }
 
     /**
-     * Extract tool calls from AI response
+     * Extract tool calls from AI response with strict validation
      */
     _extractToolCalls(content) {
         const toolCalls = [];
+        const registeredTools = new Set(this.registry.getAllSpecs().map(s => s.name));
 
-        // Match tool call blocks
+        // Match tool call blocks - only accept the structured format
         const toolPattern = /```tool\n?([\s\S]*?)\n?```/g;
         let match;
 
         while ((match = toolPattern.exec(content)) !== null) {
             try {
                 const call = JSON.parse(match[1].trim());
-                if (call.name) {
-                    toolCalls.push({
-                        name: call.name,
-                        arguments: call.arguments || call.args || {}
-                    });
+                
+                // Strict validation: require name and verify tool exists
+                if (!call.name || typeof call.name !== 'string') {
+                    console.warn('[AgentCore] Tool call missing valid name');
+                    continue;
                 }
+                
+                // Validate tool exists in registry
+                if (!registeredTools.has(call.name)) {
+                    console.warn(`[AgentCore] Unknown tool requested: ${call.name}`);
+                    continue;
+                }
+                
+                // Validate arguments is an object
+                const args = call.arguments || call.args || {};
+                if (typeof args !== 'object' || Array.isArray(args)) {
+                    console.warn(`[AgentCore] Invalid arguments for tool ${call.name}`);
+                    continue;
+                }
+                
+                // Avoid duplicates (same tool + same args)
+                const isDuplicate = toolCalls.some(
+                    tc => tc.name === call.name && JSON.stringify(tc.arguments) === JSON.stringify(args)
+                );
+                if (isDuplicate) {
+                    continue;
+                }
+                
+                toolCalls.push({
+                    name: call.name,
+                    arguments: args
+                });
             } catch (e) {
                 console.warn('[AgentCore] Failed to parse tool call:', e.message);
             }
         }
 
-        // Also try JSON format without code blocks
-        const jsonPattern = /\{"name":\s*"([^"]+)",\s*"arguments":\s*(\{[^}]+\})\}/g;
-        while ((match = jsonPattern.exec(content)) !== null) {
-            try {
-                const call = {
-                    name: match[1],
-                    arguments: JSON.parse(match[2])
-                };
-                // Avoid duplicates
-                if (!toolCalls.find(tc => tc.name === call.name)) {
-                    toolCalls.push(call);
-                }
-            } catch (e) {
-                // Ignore parse errors
-            }
-        }
+        // NOTE: Removed loose JSON pattern matching for security - only accept structured ```tool blocks
 
         return toolCalls;
     }

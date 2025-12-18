@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
 const TEMP_DIR = path.join(__dirname, '..', '..', 'data', 'temp');
@@ -17,9 +18,8 @@ function guessExtFromName(name) {
 }
 
 function randomId() {
-    const a = Math.floor(10000 + Math.random() * 90000); // 5 digits
-    const b = Math.floor(1000 + Math.random() * 9000); // 4 digits
-    return `${a}${b}`; // looks like 9-digit numeric id
+    // Use cryptographically secure random bytes to prevent brute-force URL guessing
+    return crypto.randomBytes(16).toString('hex'); // 32-char hex string
 }
 
 function getPublicBaseUrl() {
