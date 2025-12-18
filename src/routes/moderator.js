@@ -133,54 +133,25 @@ router.get('/', (req, res) => {
         not_authenticated: 'Please log in to access the dashboard.',
         session_expired: 'Your session has expired. Please log in again.',
         unauthorized: 'You are not authorized to access this dashboard.',
-        oauth_failed: 'Discord authentication failed. Please try again.',
-        no_password: 'Please set up your password first.'
+        oauth_failed: 'Discord authentication failed. Please try again.'
     };
 
     const errorMsg = errorMessages[error] || '';
 
-    // Check if selfhost mode (password only)
-    if (auth.SELFHOST_MODE) {
-        res.send(getSelfhostLoginPage(errorMsg));
-    } else {
-        // Generate state for OAuth
-        const state = require('crypto').randomBytes(16).toString('hex');
-        res.cookie('oauth_state', state, getCookieOptions(req, { maxAge: 600000 }));
-        try {
-            const oauthUrl = auth.getOAuthUrl(state);
-            res.send(getOAuthLoginPage(oauthUrl, errorMsg));
-        } catch (e) {
-            const message = errorMsg || `Discord OAuth is not configured: ${e.message}`;
-            res.send(getOAuthLoginPage('', message));
-        }
+    // Generate state for OAuth
+    const state = require('crypto').randomBytes(16).toString('hex');
+    res.cookie('oauth_state', state, getCookieOptions(req, { maxAge: 600000 }));
+    try {
+        const oauthUrl = auth.getOAuthUrl(state);
+        res.send(getOAuthLoginPage(oauthUrl, errorMsg));
+    } catch (e) {
+        const message = errorMsg || `Discord OAuth is not configured: ${e.message}`;
+        res.send(getOAuthLoginPage('', message));
     }
 });
 
-// ============ SELFHOST LOGIN (POST) ============
-router.post('/login', async (req, res) => {
-    if (!auth.SELFHOST_MODE) {
-        return res.redirect('/moderator');
-    }
-
-    const { userId, password } = req.body;
-
-    if (!userId || !password) {
-        return res.redirect('/moderator?error=not_authenticated');
-    }
-
-    // Verify password
-    const isValid = await auth.verifyUserPassword(userId, password);
-    if (!isValid) {
-        return res.redirect('/moderator?error=not_authenticated');
-    }
-
-    // Create session
-    const discordData = await resolveDiscordUserData(userId);
-    const token = auth.createSession(userId, discordData);
-    res.cookie('moderator_session', token, getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 }));
-
-    res.redirect('/moderator/dashboard');
-});
+// Alias for login page
+router.get('/login', (req, res) => res.redirect('/moderator'));
 
 // ============ OAUTH CALLBACK ============
 router.get('/callback', async (req, res) => {
@@ -202,24 +173,7 @@ router.get('/callback', async (req, res) => {
         // Get user info
         const discordUser = await auth.getDiscordUser(tokens.access_token);
 
-        // Check if user has password set
-        const hasPassword = await auth.hasPassword(discordUser.id);
-        if (!hasPassword) {
-            // Store temporary data and redirect to setup
-            const setupToken = auth.generateSetupToken(discordUser.id);
-            res.cookie(
-                'setup_user',
-                JSON.stringify({
-                    id: discordUser.id,
-                    username: discordUser.username,
-                    token: setupToken
-                }),
-                getCookieOptions(req, { maxAge: 1800000 })
-            );
-            return res.redirect('/moderator/setup');
-        }
-
-        // Create session
+        // Create session directly (OAuth only - no password required)
         const sessionToken = auth.createSession(discordUser.id, discordUser);
         res.cookie(
             'moderator_session',
@@ -234,59 +188,7 @@ router.get('/callback', async (req, res) => {
     }
 });
 
-// ============ PASSWORD SETUP PAGE ============
-router.get('/setup', (req, res) => {
-    const setupData = req.cookies?.setup_user;
-    const { userId, token } = req.query;
-
-    let userData = null;
-
-    if (setupData) {
-        try {
-            userData = JSON.parse(setupData);
-        } catch {}
-    } else if (userId && token) {
-        // From DM link
-        if (auth.verifySetupToken(userId, token)) {
-            userData = { id: userId, fromDM: true };
-        }
-    }
-
-    if (!userData) {
-        return res.redirect('/moderator?error=oauth_failed');
-    }
-
-    res.send(getSetupPage(userData));
-});
-
-// ============ PASSWORD SETUP (POST) ============
-router.post('/setup', async (req, res) => {
-    const { userId, password, confirmPassword } = req.body;
-
-    if (!userId || !password || password !== confirmPassword) {
-        return res.send(getSetupPage({ id: userId }, 'Passwords do not match.'));
-    }
-
-    if (password.length < 8) {
-        return res.send(getSetupPage({ id: userId }, 'Password must be at least 8 characters.'));
-    }
-
-    // Set password
-    await auth.setPassword(userId, password);
-
-    // Clear setup cookie
-    res.clearCookie('setup_user', { path: '/' });
-
-    // Create session
-    const sessionToken = auth.createSession(userId, { id: userId });
-    res.cookie(
-        'moderator_session',
-        sessionToken,
-        getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 })
-    );
-
-    res.redirect('/moderator/dashboard');
-});
+// Password setup routes removed - OAuth only
 
 // ============ DASHBOARD ============
 router.get('/dashboard', requireAuth, async (req, res) => {
