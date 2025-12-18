@@ -58,11 +58,11 @@ router.get('/auth/callback', async (req, res) => {
             tokenData.refresh_token
         );
         
-        // Set session cookie
+        // Set session cookie (30 days)
         res.cookie('jarvis_session', session.token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+            maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
         
         // Redirect to home with success

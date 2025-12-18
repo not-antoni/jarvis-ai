@@ -9,7 +9,7 @@ const crypto = require('crypto');
 
 // Session storage
 const userSessions = new Map();
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Discord OAuth config
 const DISCORD_API = 'https://discord.com/api/v10';
