@@ -180,6 +180,26 @@ router.get('/api/sbx/market', async (req, res) => {
 });
 
 /**
+ * GET /api/sbx/ticker
+ * Get current price ticker (simplified)
+ */
+router.get('/api/sbx/ticker', async (req, res) => {
+    try {
+        const sbx = getSBX();
+        const market = await sbx.getMarketData();
+        res.json({
+            price: market.price,
+            change24h: market.change24h,
+            volume24h: market.volume24h,
+            high24h: market.high24h,
+            low24h: market.low24h
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to get ticker', price: 1.0, change24h: 0 });
+    }
+});
+
+/**
  * GET /api/sbx/wallet/:userId
  * Get user's SBX wallet
  */
