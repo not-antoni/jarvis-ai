@@ -290,4 +290,101 @@ router.get('/api/leaderboard/:type', async (req, res) => {
     }
 });
 
+// ============================================================================
+// STARK CRYPTO (SX) API
+// ============================================================================
+
+// Get all crypto prices
+router.get('/api/crypto/prices', async (req, res) => {
+    try {
+        const crypto = require('../src/services/stark-crypto');
+        crypto.startPriceUpdates(); // Ensure updates are running
+        const prices = crypto.getAllPrices();
+        res.json({ success: true, prices });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get specific coin price
+router.get('/api/crypto/price/:symbol', async (req, res) => {
+    try {
+        const crypto = require('../src/services/stark-crypto');
+        const coin = crypto.getCoinPrice(req.params.symbol);
+        if (!coin) {
+            return res.status(404).json({ error: 'Coin not found' });
+        }
+        res.json({ success: true, coin });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get user's crypto portfolio
+router.get('/api/user/crypto', requireAuth, async (req, res) => {
+    try {
+        const crypto = require('../src/services/stark-crypto');
+        const userId = req.userSession.userId;
+        const portfolio = await crypto.getPortfolio(userId);
+        const prices = crypto.getAllPrices();
+        res.json({ success: true, portfolio, prices });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Buy crypto
+router.post('/api/user/crypto/buy', requireAuth, async (req, res) => {
+    try {
+        const crypto = require('../src/services/stark-crypto');
+        const userId = req.userSession.userId;
+        const { symbol, amount } = req.body;
+        
+        if (!symbol || !amount || amount <= 0) {
+            return res.status(400).json({ error: 'Invalid symbol or amount' });
+        }
+        
+        const result = await crypto.buyCrypto(userId, symbol, Number(amount));
+        if (!result.success) {
+            return res.status(400).json({ error: result.error });
+        }
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// Sell crypto
+router.post('/api/user/crypto/sell', requireAuth, async (req, res) => {
+    try {
+        const crypto = require('../src/services/stark-crypto');
+        const userId = req.userSession.userId;
+        const { symbol, amount } = req.body;
+        
+        if (!symbol || !amount || amount <= 0) {
+            return res.status(400).json({ error: 'Invalid symbol or amount' });
+        }
+        
+        const result = await crypto.sellCrypto(userId, symbol, Number(amount));
+        if (!result.success) {
+            return res.status(400).json({ error: result.error });
+        }
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// Crypto leaderboard
+router.get('/api/crypto/leaderboard', async (req, res) => {
+    try {
+        const crypto = require('../src/services/stark-crypto');
+        const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+        const leaderboard = await crypto.getLeaderboard(limit);
+        res.json({ success: true, leaderboard });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

@@ -787,6 +787,263 @@ const SBX_PAGE = `
 `;
 
 // ============================================================================
+// CRYPTO PAGE
+// ============================================================================
+
+const CRYPTO_PAGE = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stark Crypto | Jarvis</title>
+    <style>\${SHARED_STYLES}
+        .crypto-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .coin-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.3s;
+        }
+        .coin-card:hover {
+            border-color: #00d4ff;
+            transform: translateY(-2px);
+        }
+        .coin-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .coin-emoji { font-size: 2rem; }
+        .coin-symbol { font-weight: 700; color: #00d4ff; }
+        .coin-name { color: #888; font-size: 0.85rem; }
+        .coin-price { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; }
+        .coin-change { font-size: 0.9rem; }
+        .coin-change.up { color: #00ff88; }
+        .coin-change.down { color: #ff4444; }
+        .portfolio-summary {
+            background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(138,43,226,0.1));
+            border-radius: 16px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .portfolio-value { font-size: 3rem; font-weight: 800; color: #00d4ff; }
+        .trade-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .trade-modal.active { display: flex; }
+        .trade-box {
+            background: #1a1a3e;
+            border-radius: 16px;
+            padding: 2rem;
+            width: 90%;
+            max-width: 400px;
+        }
+        .trade-input {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        .login-prompt {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+    \${NAV_HTML}
+    <div class="container">
+        <h1>📈 Stark Crypto Exchange</h1>
+        <p style="color: #888; margin-bottom: 2rem;">Trade virtual cryptocurrencies with Stark Bucks</p>
+        
+        <div id="loginPrompt" class="login-prompt">
+            <h2 style="margin-bottom: 1rem;">🔐 Login to Trade</h2>
+            <p style="color: #888; margin-bottom: 1.5rem;">Connect your Discord account to buy and sell crypto</p>
+            <a href="/auth/login" class="btn btn-primary">Login with Discord</a>
+        </div>
+        
+        <div id="portfolioSection" style="display: none;">
+            <div class="portfolio-summary">
+                <div style="color: #888; margin-bottom: 0.5rem;">Your Portfolio Value</div>
+                <div class="portfolio-value" id="portfolioValue">0.00 SB</div>
+                <div style="color: #888; margin-top: 0.5rem;">
+                    Balance: <span id="userBalance">0</span> SB
+                </div>
+            </div>
+        </div>
+        
+        <h2 style="margin-bottom: 1rem;">Available Coins</h2>
+        <div class="crypto-grid" id="cryptoGrid">
+            <div style="text-align: center; padding: 2rem; color: #888;">Loading prices...</div>
+        </div>
+    </div>
+    
+    <div class="trade-modal" id="tradeModal">
+        <div class="trade-box">
+            <h3 id="tradeTitle" style="margin-bottom: 1rem;">Trade</h3>
+            <p id="tradeCoinInfo" style="color: #888; margin-bottom: 1rem;"></p>
+            <input type="number" class="trade-input" id="tradeAmount" placeholder="Amount" min="1">
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-primary" style="flex: 1;" onclick="executeTrade('buy')">Buy</button>
+                <button class="btn btn-primary" style="flex: 1;" onclick="executeTrade('sell')">Sell</button>
+            </div>
+            <button class="btn" style="width: 100%; margin-top: 0.5rem; background: rgba(255,255,255,0.1);" onclick="closeTradeModal()">Cancel</button>
+            <div id="tradeMessage" style="margin-top: 1rem; text-align: center;"></div>
+        </div>
+    </div>
+    
+    <script>
+        let currentUser = null;
+        let selectedCoin = null;
+        let prices = {};
+        
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/user');
+                const data = await res.json();
+                if (data.authenticated && data.user) {
+                    currentUser = data.user;
+                    document.getElementById('loginPrompt').style.display = 'none';
+                    document.getElementById('portfolioSection').style.display = 'block';
+                    loadPortfolio();
+                }
+            } catch (e) {}
+        }
+        
+        async function loadPortfolio() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch('/api/user/crypto');
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('portfolioValue').textContent = 
+                        (data.portfolio.totalValue || 0).toLocaleString() + ' SB';
+                }
+                const balRes = await fetch('/api/user/balance');
+                const balData = await balRes.json();
+                if (balData.success) {
+                    document.getElementById('userBalance').textContent = 
+                        (balData.balance || 0).toLocaleString();
+                }
+            } catch (e) {}
+        }
+        
+        async function loadPrices() {
+            try {
+                const res = await fetch('/api/crypto/prices');
+                const data = await res.json();
+                if (data.success) {
+                    prices = data.prices;
+                    renderCoins();
+                }
+            } catch (e) {
+                document.getElementById('cryptoGrid').innerHTML = 
+                    '<div style="text-align: center; padding: 2rem; color: #ff4444;">Failed to load prices</div>';
+            }
+        }
+        
+        function renderCoins() {
+            const grid = document.getElementById('cryptoGrid');
+            grid.innerHTML = Object.entries(prices).map(([symbol, coin]) => {
+                const changeClass = coin.change24h >= 0 ? 'up' : 'down';
+                const arrow = coin.change24h >= 0 ? '↑' : '↓';
+                return \`
+                    <div class="coin-card" onclick="openTradeModal('\${symbol}')">
+                        <div class="coin-header">
+                            <span class="coin-emoji">\${coin.emoji}</span>
+                            <div>
+                                <div class="coin-symbol">\${symbol}</div>
+                                <div class="coin-name">\${coin.name}</div>
+                            </div>
+                        </div>
+                        <div class="coin-price">\${coin.price.toLocaleString()} SB</div>
+                        <div class="coin-change \${changeClass}">\${arrow} \${Math.abs(coin.change24h).toFixed(2)}%</div>
+                        <div style="color: #666; font-size: 0.8rem; margin-top: 0.5rem;">\${coin.description}</div>
+                    </div>
+                \`;
+            }).join('');
+        }
+        
+        function openTradeModal(symbol) {
+            if (!currentUser) {
+                alert('Please login to trade');
+                return;
+            }
+            selectedCoin = symbol;
+            const coin = prices[symbol];
+            document.getElementById('tradeTitle').textContent = coin.emoji + ' Trade ' + symbol;
+            document.getElementById('tradeCoinInfo').textContent = 
+                coin.name + ' - Current Price: ' + coin.price.toLocaleString() + ' SB';
+            document.getElementById('tradeAmount').value = '';
+            document.getElementById('tradeMessage').textContent = '';
+            document.getElementById('tradeModal').classList.add('active');
+        }
+        
+        function closeTradeModal() {
+            document.getElementById('tradeModal').classList.remove('active');
+            selectedCoin = null;
+        }
+        
+        async function executeTrade(action) {
+            const amount = parseInt(document.getElementById('tradeAmount').value);
+            if (!amount || amount < 1) {
+                document.getElementById('tradeMessage').textContent = 'Enter a valid amount';
+                return;
+            }
+            try {
+                const res = await fetch('/api/user/crypto/' + action, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: selectedCoin, amount })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('tradeMessage').innerHTML = 
+                        '<span style="color: #00ff88;">✓ ' + (action === 'buy' ? 'Bought' : 'Sold') + ' ' + amount + ' ' + selectedCoin + '</span>';
+                    loadPortfolio();
+                    loadPrices();
+                    setTimeout(closeTradeModal, 1500);
+                } else {
+                    document.getElementById('tradeMessage').innerHTML = 
+                        '<span style="color: #ff4444;">' + (data.error || 'Trade failed') + '</span>';
+                }
+            } catch (e) {
+                document.getElementById('tradeMessage').innerHTML = 
+                    '<span style="color: #ff4444;">Error: ' + e.message + '</span>';
+            }
+        }
+        
+        checkAuth();
+        loadPrices();
+        setInterval(loadPrices, 30000); // Refresh every 30s
+    </script>
+</body>
+</html>
+`;
+
+// ============================================================================
 // DOCS PAGE
 // ============================================================================
 
@@ -1017,6 +1274,10 @@ router.get('/docs', (req, res) => {
 
 router.get('/changelog', (req, res) => {
     res.type('html').send(CHANGELOG_PAGE);
+});
+
+router.get('/crypto', (req, res) => {
+    res.type('html').send(CRYPTO_PAGE);
 });
 
 // Dashboard redirect to moderator login

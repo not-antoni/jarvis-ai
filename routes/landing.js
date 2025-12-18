@@ -378,13 +378,14 @@ const LANDING_PAGE = `
     <div class="bg-animation"></div>
     
     <nav>
-        <a href="/" class="logo">⚡ Jarvis</a>
+        <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
             <li><a href="/store">Store</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
             <li><a href="/sbx">SBX</a></li>
-                        <li><a href="/status">Status</a></li>
+            <li><a href="/crypto">Crypto</a></li>
+            <li><a href="/status">Status</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
             <a href="/auth/login" class="login-btn" id="loginBtn">
