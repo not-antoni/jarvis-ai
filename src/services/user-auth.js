@@ -273,13 +273,13 @@ function isOAuthConfigured() {
 }
 
 /**
- * Prune expired sessions
+ * Prune expired sessions from cache
  */
 function pruneSessions() {
     const now = Date.now();
-    for (const [token, session] of userSessions.entries()) {
+    for (const [token, session] of sessionCache.entries()) {
         if (now > session.expiresAt) {
-            userSessions.delete(token);
+            sessionCache.delete(token);
         }
     }
 }
