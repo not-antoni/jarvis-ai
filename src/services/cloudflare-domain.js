@@ -23,6 +23,8 @@ const { execSync, spawnSync } = require('child_process');
 const CLOUDFLARE_API_BASE = 'https://api.cloudflare.com/client/v4';
 const CONFIG_CACHE_FILE = path.join(process.cwd(), 'data', 'cloudflare-config.json');
 const NGINX_CONFIG_FILE = '/etc/nginx/sites-available/jarvis';
+const SSL_CERT_DIR = '/etc/ssl/cloudflare';
+const SSL_CACHE_FILE = path.join(process.cwd(), 'data', 'ssl-config.json');
 
 // ============================================================================
 // NGINX AUTO-SETUP
@@ -105,16 +107,172 @@ function isNginxConfigured(domain) {
 }
 
 /**
- * Auto-setup Nginx reverse proxy
+ * Check if SSL certificates exist for domain
  */
-async function autoSetupNginx(domain) {
+function sslCertsExist(domain) {
+    const certPath = `${SSL_CERT_DIR}/${domain}.pem`;
+    const keyPath = `${SSL_CERT_DIR}/${domain}.key`;
+    try {
+        return fs.existsSync(certPath) && fs.existsSync(keyPath);
+    } catch {
+        // Check with sudo
+        try {
+            execSync(`sudo test -f ${certPath} && sudo test -f ${keyPath}`, { encoding: 'utf8' });
+            return true;
+        } catch {
+            return false;
+        }
+    }
+}
+
+/**
+ * Load SSL config cache
+ */
+function loadSslCache() {
+    try {
+        if (fs.existsSync(SSL_CACHE_FILE)) {
+            return JSON.parse(fs.readFileSync(SSL_CACHE_FILE, 'utf8'));
+        }
+    } catch {
+        // Ignore
+    }
+    return null;
+}
+
+/**
+ * Save SSL config cache
+ */
+function saveSslCache(config) {
+    try {
+        const dir = path.dirname(SSL_CACHE_FILE);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(SSL_CACHE_FILE, JSON.stringify(config, null, 2));
+    } catch {
+        // Ignore
+    }
+}
+
+/**
+ * Create Cloudflare Origin Certificate via API
+ */
+async function createOriginCertificate(domain) {
+    const config = getConfig();
+    
+    if (!config.zoneId) {
+        return { success: false, error: 'CLOUDFLARE_ZONE_ID required for SSL' };
+    }
+    
+    try {
+        const response = await cfFetch('/certificates', {
+            method: 'POST',
+            body: JSON.stringify({
+                hostnames: [domain, `*.${domain}`],
+                requested_validity: 5475, // 15 years
+                request_type: 'origin-rsa',
+                csr: null
+            })
+        });
+        
+        return {
+            success: true,
+            certificate: response.result.certificate,
+            privateKey: response.result.private_key,
+            expiresOn: response.result.expires_on
+        };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * Save SSL certificates to disk
+ */
+async function saveSslCertificates(domain, certificate, privateKey) {
+    if (!canSudo()) {
+        return { success: false, error: 'Cannot run sudo to save certificates' };
+    }
+    
+    try {
+        // Create SSL directory
+        execSync(`sudo mkdir -p ${SSL_CERT_DIR}`, { encoding: 'utf8' });
+        
+        // Write certificate
+        const certTmp = '/tmp/jarvis-ssl-cert.pem';
+        const keyTmp = '/tmp/jarvis-ssl-key.pem';
+        
+        fs.writeFileSync(certTmp, certificate);
+        fs.writeFileSync(keyTmp, privateKey);
+        
+        execSync(`sudo cp ${certTmp} ${SSL_CERT_DIR}/${domain}.pem`, { encoding: 'utf8' });
+        execSync(`sudo cp ${keyTmp} ${SSL_CERT_DIR}/${domain}.key`, { encoding: 'utf8' });
+        execSync(`sudo chmod 600 ${SSL_CERT_DIR}/${domain}.key`, { encoding: 'utf8' });
+        execSync(`sudo chmod 644 ${SSL_CERT_DIR}/${domain}.pem`, { encoding: 'utf8' });
+        
+        // Cleanup temp files
+        fs.unlinkSync(certTmp);
+        fs.unlinkSync(keyTmp);
+        
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * Auto-setup SSL with Cloudflare Origin Certificate
+ */
+async function autoSetupSsl(domain) {
     if (!domain) {
         return { success: false, error: 'No domain provided' };
     }
     
-    // Check if already configured
-    if (isNginxConfigured(domain)) {
-        return { success: true, cached: true, message: 'Nginx already configured' };
+    // Check if certs already exist
+    if (sslCertsExist(domain)) {
+        return { success: true, cached: true, message: 'SSL certificates already exist' };
+    }
+    
+    // Check cache
+    const cached = loadSslCache();
+    if (cached && cached.domain === domain && cached.certificate && cached.privateKey) {
+        // Try to save cached certs
+        const saveResult = await saveSslCertificates(domain, cached.certificate, cached.privateKey);
+        if (saveResult.success) {
+            return { success: true, fromCache: true };
+        }
+    }
+    
+    // Create new certificate via Cloudflare API
+    const certResult = await createOriginCertificate(domain);
+    if (!certResult.success) {
+        return certResult;
+    }
+    
+    // Save certificates
+    const saveResult = await saveSslCertificates(domain, certResult.certificate, certResult.privateKey);
+    if (!saveResult.success) {
+        return saveResult;
+    }
+    
+    // Cache the certificates
+    saveSslCache({
+        domain,
+        certificate: certResult.certificate,
+        privateKey: certResult.privateKey,
+        expiresOn: certResult.expiresOn,
+        createdAt: new Date().toISOString()
+    });
+    
+    return { success: true, domain, expiresOn: certResult.expiresOn };
+}
+
+/**
+ * Auto-setup Nginx reverse proxy (with optional SSL)
+ */
+async function autoSetupNginx(domain, enableSsl = true) {
+    if (!domain) {
+        return { success: false, error: 'No domain provided' };
     }
     
     // Check if we can run sudo commands
@@ -124,6 +282,29 @@ async function autoSetupNginx(domain) {
             error: 'Cannot run sudo. Run manually: sudo apt install nginx && setup config',
             manual: true
         };
+    }
+    
+    // Check if SSL should be enabled
+    let useSSL = false;
+    if (enableSsl) {
+        const sslResult = await autoSetupSsl(domain);
+        if (sslResult.success) {
+            useSSL = true;
+            if (!sslResult.cached && !sslResult.fromCache) {
+                console.log(`[SSL] ✅ Created Origin Certificate for ${domain}`);
+            }
+        } else {
+            console.log(`[SSL] ⚠️ ${sslResult.error} - falling back to HTTP`);
+        }
+    }
+    
+    // Check if already configured with correct SSL state
+    const currentConfig = isNginxConfigured(domain);
+    const hasSSLConfig = currentConfig && fs.existsSync(NGINX_CONFIG_FILE) && 
+        fs.readFileSync(NGINX_CONFIG_FILE, 'utf8').includes('ssl_certificate');
+    
+    if (currentConfig && hasSSLConfig === useSSL) {
+        return { success: true, cached: true, ssl: useSSL, message: 'Nginx already configured' };
     }
     
     try {
@@ -138,7 +319,7 @@ async function autoSetupNginx(domain) {
         }
         
         // Generate and write config
-        const config = generateNginxConfig(domain);
+        const config = generateNginxConfig(domain, useSSL);
         const tempFile = '/tmp/jarvis-nginx.conf';
         fs.writeFileSync(tempFile, config);
         
@@ -151,8 +332,9 @@ async function autoSetupNginx(domain) {
         execSync('sudo systemctl restart nginx', { encoding: 'utf8' });
         execSync('sudo systemctl enable nginx', { encoding: 'utf8' });
         
-        console.log(`[Nginx] ✅ Configured: ${domain} → localhost:3000`);
-        return { success: true, domain };
+        const protocol = useSSL ? 'HTTPS' : 'HTTP';
+        console.log(`[Nginx] ✅ Configured (${protocol}): ${domain} → localhost:3000`);
+        return { success: true, domain, ssl: useSSL };
         
     } catch (err) {
         return { success: false, error: err.message };
@@ -813,6 +995,12 @@ module.exports = {
     autoSetupNginx,
     isNginxConfigured,
     generateNginxConfig,
+    
+    // SSL auto-setup
+    autoSetupSsl,
+    sslCertsExist,
+    createOriginCertificate,
+    saveSslCertificates,
     
     // SSL
     getSSLSettings,
