@@ -756,9 +756,22 @@ async function modifyBalance(userId, amount, reason = 'unknown') {
 }
 
 /**
- * Check and set cooldown
+ * Check if user is bot owner (bypasses cooldowns)
+ */
+function isBotOwner(userId) {
+    const ownerId = process.env.BOT_OWNER_ID || '';
+    return ownerId && userId === ownerId;
+}
+
+/**
+ * Check and set cooldown (bot owner bypasses all cooldowns)
  */
 function checkCooldown(userId, action, cooldownMs) {
+    // Bot owner bypasses all cooldowns
+    if (isBotOwner(userId)) {
+        return { onCooldown: false, remaining: 0, ownerBypass: true };
+    }
+    
     const key = `${userId}:${action}`;
     const lastAction = cooldowns.get(key) || 0;
     const now = Date.now();
@@ -938,7 +951,8 @@ async function claimDaily(userId, username) {
     const now = Date.now();
     const timeSinceLastDaily = now - (user.lastDaily || 0);
 
-    if (timeSinceLastDaily < ECONOMY_CONFIG.dailyCooldown) {
+    // Bot owner bypasses daily cooldown
+    if (!isBotOwner(userId) && timeSinceLastDaily < ECONOMY_CONFIG.dailyCooldown) {
         const remaining = ECONOMY_CONFIG.dailyCooldown - timeSinceLastDaily;
         return {
             success: false,
@@ -1945,6 +1959,7 @@ module.exports = {
     getBalance,
     modifyBalance,
     loadUser,
+    isBotOwner,
 
     // Games
     claimDaily,

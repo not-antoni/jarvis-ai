@@ -23,8 +23,14 @@ const LEGACY_PREFIX = '*j';
 // ============ COOLDOWN SYSTEM ============
 const cooldowns = new Map();
 const COOLDOWN_MS = 3000; // 3 second cooldown for most commands
+const BOT_OWNER_ID = process.env.BOT_OWNER_ID || '';
 
 function checkCooldown(userId, commandName) {
+    // Bot owner bypasses all cooldowns
+    if (BOT_OWNER_ID && userId === BOT_OWNER_ID) {
+        return 0;
+    }
+    
     const key = `${userId}:${commandName}`;
     const now = Date.now();
     const cooldownEnd = cooldowns.get(key) || 0;
