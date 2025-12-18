@@ -257,7 +257,9 @@ async function fetchCloudflareStatus() {
             name: c.name,
             status: c.status,
             description: c.description,
-            updatedAt: c.updated_at
+            updatedAt: c.updated_at,
+            group_id: c.group_id,
+            group: c.group
         }));
 
         // Group components by status
