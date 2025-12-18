@@ -337,7 +337,55 @@ async function configureForSelfhost(target, subdomain = null) {
 // ============================================================================
 
 /**
+ * Detect if running on Render (checks for Render-specific env vars)
+ */
+function isRunningOnRender() {
+    return !!(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID);
+}
+
+/**
+ * Detect the best target for DNS configuration
+ */
+function detectTarget() {
+    const config = getConfig();
+    
+    // If on Render, use Render's external URL
+    if (isRunningOnRender() && config.renderExternalUrl) {
+        return {
+            mode: 'render',
+            target: new URL(config.renderExternalUrl).hostname
+        };
+    }
+    
+    // If PUBLIC_BASE_URL is set, use that
+    if (config.publicBaseUrl) {
+        const url = new URL(config.publicBaseUrl);
+        return {
+            mode: 'selfhost',
+            target: url.hostname
+        };
+    }
+    
+    // Try to detect public IP
+    try {
+        const { execSync } = require('child_process');
+        const ip = execSync('curl -s --max-time 3 ifconfig.me', { encoding: 'utf8' }).trim();
+        if (ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+            return {
+                mode: 'selfhost',
+                target: ip
+            };
+        }
+    } catch {
+        // Ignore
+    }
+    
+    return null;
+}
+
+/**
  * Auto-detect deployment mode and configure domain
+ * Supports: render, selfhost, hybrid (auto-detect)
  */
 async function autoConfigure(options = {}) {
     const config = getConfig();
@@ -351,14 +399,36 @@ async function autoConfigure(options = {}) {
         const zone = await findZoneByDomain(config.domain);
         if (zone) {
             console.log(`[CloudflareDomain] Found zone for ${config.domain}: ${zone.id}`);
-            // Note: This doesn't persist, would need to be saved
         }
     }
     
     try {
+        // Handle hybrid mode - auto-detect environment
+        if (config.deployTarget === 'hybrid' || config.deployTarget === 'auto') {
+            const detected = detectTarget();
+            if (!detected) {
+                return { 
+                    success: false, 
+                    error: 'Hybrid mode: Could not detect target. Set PUBLIC_BASE_URL or RENDER_EXTERNAL_URL.' 
+                };
+            }
+            
+            console.log(`[CloudflareDomain] Hybrid mode detected: ${detected.mode} → ${detected.target}`);
+            
+            if (detected.mode === 'render') {
+                return await configureForRender(options.subdomain);
+            } else {
+                return await configureForSelfhost(detected.target, options.subdomain);
+            }
+        }
+        
+        // Explicit render mode
         if (config.deployTarget === 'render') {
             return await configureForRender(options.subdomain);
-        } else if (config.deployTarget === 'selfhost') {
+        }
+        
+        // Explicit selfhost mode
+        if (config.deployTarget === 'selfhost') {
             const target = options.target || config.publicBaseUrl;
             if (!target) {
                 return { 
@@ -366,14 +436,13 @@ async function autoConfigure(options = {}) {
                     error: 'Selfhost requires PUBLIC_BASE_URL or target option' 
                 };
             }
-            // Extract hostname from URL if needed
             const hostname = target.startsWith('http') 
                 ? new URL(target).hostname 
                 : target;
             return await configureForSelfhost(hostname, options.subdomain);
-        } else {
-            return { success: false, error: `Unknown deploy target: ${config.deployTarget}` };
         }
+        
+        return { success: false, error: `Unknown deploy target: ${config.deployTarget}` };
     } catch (error) {
         return { success: false, error: error.message };
     }
@@ -513,6 +582,10 @@ module.exports = {
     configureForRender,
     configureForSelfhost,
     autoConfigure,
+    
+    // Detection helpers
+    isRunningOnRender,
+    detectTarget,
     
     // SSL
     getSSLSettings,
