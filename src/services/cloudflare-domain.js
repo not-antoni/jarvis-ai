@@ -454,17 +454,16 @@ async function autoConfigure(options = {}) {
         
         // Explicit selfhost mode
         if (config.deployTarget === 'selfhost') {
-            const target = options.target || config.publicBaseUrl;
-            if (!target) {
-                return { 
-                    success: false, 
-                    error: 'Selfhost requires PUBLIC_BASE_URL or target option' 
-                };
+            // Use detectTarget which handles self-reference checks
+            const detected = detectTarget();
+            if (detected && detected.target) {
+                console.log(`[CloudflareDomain] Selfhost target: ${detected.target}`);
+                return await configureForSelfhost(detected.target, options.subdomain);
             }
-            const hostname = target.startsWith('http') 
-                ? new URL(target).hostname 
-                : target;
-            return await configureForSelfhost(hostname, options.subdomain);
+            return { 
+                success: false, 
+                error: 'Selfhost: Could not detect target IP. Ensure server has internet access.' 
+            };
         }
         
         return { success: false, error: `Unknown deploy target: ${config.deployTarget}` };
