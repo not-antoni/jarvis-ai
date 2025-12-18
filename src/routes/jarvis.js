@@ -2446,8 +2446,8 @@ router.get('/api/monitoring/subscriptions', requireOwner, async (req, res) => {
 
 router.get('/api/music', requireOwner, (req, res) => {
     const whitelist = musicGuildWhitelist.getWhitelistedGuilds();
-    const activeGuilds = typeof musicManager.getActiveGuildIds === 'function' ? musicManager.getActiveGuildIds() : [];
-    const activeQueues = activeGuilds.map(gid => musicManager.getQueueSnapshot(gid));
+    const activeGuilds = typeof musicManager.get().getActiveGuildIds === 'function' ? musicManager.get().getActiveGuildIds() : [];
+    const activeQueues = activeGuilds.map(gid => musicManager.get().getQueueSnapshot(gid));
 
     const payload = { ok: true, whitelist, activeGuilds, activeQueues };
     res.json(payload);

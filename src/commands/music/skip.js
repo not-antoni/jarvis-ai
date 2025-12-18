@@ -28,7 +28,7 @@ module.exports = {
             return;
         }
 
-        const state = musicManager.getState(interaction.guild.id);
+        const state = musicManager.get().getState(interaction.guild.id);
 
         if (!state || (!state.currentVideo && !state.pendingVideoId)) {
             await interaction.reply('⚠️ Nothing is playing right now, sir.');
@@ -45,7 +45,7 @@ module.exports = {
         state.textChannel = interaction.channel ?? state.textChannel;
 
         await interaction.deferReply();
-        const message = await musicManager.skip(interaction.guild.id);
+        const message = await musicManager.get().skip(interaction.guild.id);
         await interaction.editReply(message);
     }
 };

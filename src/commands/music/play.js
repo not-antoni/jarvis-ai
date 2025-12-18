@@ -59,7 +59,7 @@ module.exports = {
         }
 
         try {
-            const message = await musicManager.enqueue(
+            const message = await musicManager.get().enqueue(
                 interaction.guild.id,
                 voiceChannel,
                 video,
