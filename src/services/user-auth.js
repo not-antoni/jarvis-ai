@@ -11,7 +11,7 @@ const logger = require('../utils/logger');
 
 // Session cache (for faster validation, but tokens are self-contained)
 const sessionCache = new Map();
-const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const SESSION_DURATION_MS = parseInt(process.env.SESSION_DURATION_DAYS || '30', 10) * 24 * 60 * 60 * 1000;
 const CACHE_MAX_SIZE = 10000;
 
 // Token version store for session revocation (userId -> version)
@@ -33,9 +33,9 @@ let _signingKey = null;
 function getSigningKey() {
     if (_signingKey) return _signingKey;
     
-    const raw = process.env.USER_SESSION_SECRET || process.env.MASTER_KEY_BASE64 || process.env.DISCORD_TOKEN || '';
+    const raw = process.env.USER_SESSION_SECRET || process.env.MASTER_KEY_BASE64;
     if (!raw) {
-        throw new Error('USER_SESSION_SECRET, MASTER_KEY_BASE64, or DISCORD_TOKEN must be set for session signing');
+        throw new Error('USER_SESSION_SECRET or MASTER_KEY_BASE64 must be set for session signing (do not use DISCORD_TOKEN)');
     }
     _signingKey = crypto.createHash('sha256').update(raw).digest();
     return _signingKey;
@@ -139,19 +139,25 @@ function getOAuthUrl(returnUrl = '/') {
 async function exchangeCode(code) {
     const redirectUri = `${PUBLIC_BASE_URL}/auth/callback`;
     
-    const response = await fetch(`${DISCORD_API}/oauth2/token`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-            client_id: DISCORD_CLIENT_ID,
-            client_secret: DISCORD_CLIENT_SECRET,
-            grant_type: 'authorization_code',
-            code,
-            redirect_uri: redirectUri
-        })
-    });
+    let response;
+    try {
+        response = await fetch(`${DISCORD_API}/oauth2/token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                client_id: DISCORD_CLIENT_ID,
+                client_secret: DISCORD_CLIENT_SECRET,
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: redirectUri
+            })
+        });
+    } catch (error) {
+        logger.error('OAuth token exchange network error', { error: error.message });
+        throw new Error(`OAuth token exchange failed: ${error.message}`);
+    }
     
     if (!response.ok) {
         const error = await response.text();
@@ -338,8 +344,10 @@ function getSession(token) {
         expiresAt
     };
     
-    // Cache for future lookups
-    sessionCache.set(token, session);
+    // Cache for future lookups (with size check)
+    if (sessionCache.size < CACHE_MAX_SIZE) {
+        sessionCache.set(token, session);
+    }
     return session;
 }
 
@@ -362,18 +370,24 @@ async function refreshAccessToken(refreshToken) {
         throw new Error('No refresh token provided');
     }
     
-    const response = await fetch(`${DISCORD_API}/oauth2/token`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-            client_id: DISCORD_CLIENT_ID,
-            client_secret: DISCORD_CLIENT_SECRET,
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken
-        })
-    });
+    let response;
+    try {
+        response = await fetch(`${DISCORD_API}/oauth2/token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                client_id: DISCORD_CLIENT_ID,
+                client_secret: DISCORD_CLIENT_SECRET,
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken
+            })
+        });
+    } catch (error) {
+        logger.error('Failed to refresh access token - network error', { error: error.message });
+        throw new Error(`Failed to refresh access token: ${error.message}`);
+    }
     
     if (!response.ok) {
         const error = await response.text().catch(() => 'Unknown error');
@@ -444,13 +458,20 @@ function getSessionFromRequest(req) {
  * Get user's avatar URL
  */
 function getAvatarUrl(user) {
+    if (!user || !user.userId) {
+        return 'https://cdn.discordapp.com/embed/avatars/0.png';
+    }
     if (user.avatar) {
         const ext = user.avatar.startsWith('a_') ? 'gif' : 'png';
         return `https://cdn.discordapp.com/avatars/${user.userId}/${user.avatar}.${ext}`;
     }
-    // Default avatar
-    const defaultIndex = (BigInt(user.userId) >> 22n) % 6n;
-    return `https://cdn.discordapp.com/embed/avatars/${defaultIndex}.png`;
+    // Default avatar based on user ID
+    try {
+        const defaultIndex = (BigInt(user.userId) >> 22n) % 6n;
+        return `https://cdn.discordapp.com/embed/avatars/${defaultIndex}.png`;
+    } catch {
+        return 'https://cdn.discordapp.com/embed/avatars/0.png';
+    }
 }
 
 /**
