@@ -28,7 +28,7 @@ module.exports = {
             return;
         }
 
-        const state = musicManager.getState(interaction.guild.id);
+        const state = musicManager.get().getState(interaction.guild.id);
 
         if (!state) {
             await interaction.reply('⚠️ Nothing is playing right now, sir.');

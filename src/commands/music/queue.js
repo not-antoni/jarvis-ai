@@ -21,7 +21,7 @@ module.exports = {
         }
 
         await interaction.deferReply();
-        const queue = musicManager.showQueue(interaction.guild.id);
+        const queue = musicManager.get().showQueue(interaction.guild.id);
         await interaction.editReply(queue);
     }
 };
