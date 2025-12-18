@@ -1028,8 +1028,21 @@ if (verifyMode) {
 } else {
     // Interactive setup mode
     const setup = new SelfhostSetup();
-    setup.run().catch(err => {
-        console.error('Setup failed:', err);
-        process.exit(1);
+    setup.run()
+        .then(() => {
+            process.exit(0);
+        })
+        .catch(err => {
+            console.error('\n' + colors.red + 'Setup failed:' + colors.reset, err.message || err);
+            console.error(colors.dim + 'Stack trace:' + colors.reset, err.stack || 'N/A');
+            if (setup.rl) {
+                setup.rl.close();
+            }
+            process.exit(1);
+        });
+    
+    // Handle unexpected readline close
+    setup.rl.on('close', () => {
+        console.error('\n' + colors.yellow + 'Setup interrupted.' + colors.reset);
     });
 }
