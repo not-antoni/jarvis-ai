@@ -478,6 +478,11 @@ class DiscordHandlers {
     }
 
     isOnCooldown(userId, scope = 'global', cooldownMs = null) {
+        // Bot owner bypasses ALL cooldowns
+        const ownerId = process.env.BOT_OWNER_ID || '';
+        if (ownerId && userId === ownerId) {
+            return false;
+        }
         if (!this.cooldowns) {
             return false;
         }
