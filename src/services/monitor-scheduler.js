@@ -191,6 +191,26 @@ function getIndicatorColor(indicator) {
     return 0xe74c3c;
 }
 
+// Cloudflare "Cloudflare Sites and Services" group ID - these are the important core services
+const CLOUDFLARE_CORE_SERVICES_GROUP_ID = '1km35smx8p41';
+
+// Filter to only include important Cloudflare components (core services, not locations)
+function filterImportantCloudflareComponents(componentsList) {
+    if (!Array.isArray(componentsList)) return [];
+    
+    return componentsList.filter(c => {
+        // Include components that belong to the core services group
+        if (c.group_id === CLOUDFLARE_CORE_SERVICES_GROUP_ID) {
+            return true;
+        }
+        // Also include the main group headers (group: true) but not region groups
+        if (c.group === true && c.id === CLOUDFLARE_CORE_SERVICES_GROUP_ID) {
+            return true;
+        }
+        return false;
+    });
+}
+
 function truncateFieldValue(value, max = 1024) {
     const str = value == null ? '' : String(value);
     if (str.length <= max) {
@@ -244,14 +264,16 @@ function buildCloudflareSnapshot(status) {
     }
 
     const overall = status.overall?.status ? String(status.overall.status) : 'unknown';
-    const components = Array.isArray(status.componentsList)
-        ? status.componentsList
-              .map(c => ({
-                  id: c?.id ? String(c.id) : c?.name ? String(c.name) : '',
-                  status: c?.status ? String(c.status) : 'unknown'
-              }))
-              .filter(c => c.id)
-        : [];
+    
+    // Only track important components (core services, not locations)
+    const importantComponents = filterImportantCloudflareComponents(status.componentsList);
+    const components = importantComponents
+        .map(c => ({
+            id: c?.id ? String(c.id) : c?.name ? String(c.name) : '',
+            name: c?.name ? String(c.name) : '',
+            status: c?.status ? String(c.status) : 'unknown'
+        }))
+        .filter(c => c.id);
     components.sort((a, b) => a.id.localeCompare(b.id));
 
     const incidents = Array.isArray(status.incidents)
@@ -300,48 +322,71 @@ function buildStatusPageSnapshot(status) {
     return JSON.stringify({ overall, components, incidents });
 }
 
-function buildCloudflareEmbed(status) {
+function buildCloudflareEmbed(status, { isResolved = false, affectedServices = [] } = {}) {
     const overallIndicator = status?.overall?.status || 'unknown';
     const overallDescription = status?.overall?.description || 'Unknown';
     const overallEmoji = status?.overall?.emoji || monitorUtils.getStatusEmoji(overallIndicator);
 
+    // Different title and color for resolved vs issue
+    const title = isResolved ? '✅ Cloudflare Services Restored' : '☁️ Cloudflare Status Update';
+    const color = isResolved ? 0x2ecc71 : getIndicatorColor(overallIndicator);
+
     const embed = new EmbedBuilder()
-        .setTitle('☁️ Cloudflare Status Update')
-        .setColor(getIndicatorColor(overallIndicator))
+        .setTitle(title)
+        .setColor(color)
         .setDescription(`${overallEmoji} **${overallDescription}**`)
         .setTimestamp()
         .setFooter({ text: 'cloudflarestatus.com' });
 
-    const compSummary = [];
-    const total = Number(status?.components?.total) || 0;
-    const operational = Number(status?.components?.operational) || 0;
-    if (total > 0) {
-        compSummary.push(`✅ **${operational}/${total}** operational`);
+    // Filter to only show important services (core services, not locations)
+    const importantComponents = filterImportantCloudflareComponents(status.componentsList || []);
+    const impactedServices = importantComponents.filter(
+        c => c.status && c.status !== 'operational'
+    );
+    
+    if (isResolved && affectedServices.length > 0) {
+        // Show which services were restored
+        embed.addFields({
+            name: '🔧 Services Restored',
+            value: truncateFieldValue(affectedServices.join(', ') || 'All services'),
+            inline: false
+        });
+    } else if (impactedServices.length > 0) {
+        // Group by status type
+        const degraded = impactedServices.filter(c => c.status === 'degraded_performance').map(c => c.name);
+        const partial = impactedServices.filter(c => c.status === 'partial_outage').map(c => c.name);
+        const major = impactedServices.filter(c => c.status === 'major_outage').map(c => c.name);
+        const maintenance = impactedServices.filter(c => c.status === 'under_maintenance').map(c => c.name);
+
+        const compSummary = [];
+        if (major.length > 0) {
+            compSummary.push(`🔴 **Major Outage:** ${formatNameList(major)}`);
+        }
+        if (partial.length > 0) {
+            compSummary.push(`🟠 **Partial Outage:** ${formatNameList(partial)}`);
+        }
+        if (degraded.length > 0) {
+            compSummary.push(`⚠️ **Degraded:** ${formatNameList(degraded)}`);
+        }
+        if (maintenance.length > 0) {
+            compSummary.push(`🛠️ **Maintenance:** ${formatNameList(maintenance)}`);
+        }
+
+        embed.addFields({
+            name: '⚠️ Affected Services',
+            value: truncateFieldValue(compSummary.join('\n') || 'Some services affected'),
+            inline: false
+        });
     } else {
-        compSummary.push('✅ All operational');
+        embed.addFields({
+            name: 'Services',
+            value: '✅ All core services operational',
+            inline: false
+        });
     }
-
-    const degraded = Array.isArray(status?.components?.degraded) ? status.components.degraded : [];
-    const partial = Array.isArray(status?.components?.partialOutage) ? status.components.partialOutage : [];
-    const major = Array.isArray(status?.components?.majorOutage) ? status.components.majorOutage : [];
-    if (degraded.length > 0) {
-        compSummary.push(`⚠️ Degraded (${degraded.length}): ${formatNameList(degraded)}`);
-    }
-    if (partial.length > 0) {
-        compSummary.push(`🟠 Partial (${partial.length}): ${formatNameList(partial)}`);
-    }
-    if (major.length > 0) {
-        compSummary.push(`🔴 Major (${major.length}): ${formatNameList(major)}`);
-    }
-
-    embed.addFields({
-        name: 'Components',
-        value: truncateFieldValue(compSummary.join('\n') || 'All operational'),
-        inline: false
-    });
 
     const incidents = Array.isArray(status?.incidents) ? status.incidents : [];
-    if (incidents.length > 0) {
+    if (incidents.length > 0 && !isResolved) {
         const incidentList = incidents
             .slice(0, 3)
             .map(i => {
@@ -366,8 +411,6 @@ function buildCloudflareEmbed(status) {
             value: truncateFieldValue(incidentList || 'No incident details'),
             inline: false
         });
-    } else {
-        embed.addFields({ name: '🚧 Incidents', value: 'No active incidents', inline: false });
     }
 
     return embed;
@@ -642,7 +685,56 @@ async function processSubscription(sub) {
         }
 
         if (currentSnapshot !== previousSnapshot) {
-            const embed = buildCloudflareEmbed(status);
+            // Parse snapshots to detect resolved vs new issues
+            let previousData = null;
+            let currentData = null;
+            try {
+                previousData = JSON.parse(previousSnapshot);
+                currentData = JSON.parse(currentSnapshot);
+            } catch {
+                previousData = null;
+                currentData = null;
+            }
+
+            // Determine if this is a resolution or new/ongoing issue
+            let isResolved = false;
+            let affectedServices = [];
+
+            if (previousData && currentData) {
+                const prevImpacted = (previousData.components || []).filter(
+                    c => c.status && c.status !== 'operational'
+                );
+                const currImpacted = (currentData.components || []).filter(
+                    c => c.status && c.status !== 'operational'
+                );
+                const prevIncidents = previousData.incidents || [];
+                const currIncidents = currentData.incidents || [];
+
+                // Check if previous had issues but current is all clear
+                const hadIssues = prevImpacted.length > 0 || prevIncidents.length > 0;
+                const nowClear = currImpacted.length === 0 && currIncidents.length === 0;
+
+                if (hadIssues && nowClear) {
+                    isResolved = true;
+                    affectedServices = prevImpacted.map(c => c.name).filter(Boolean);
+                }
+
+                // Only notify if there are actual important changes:
+                // 1. Issues resolved (hadIssues && nowClear)
+                // 2. New issues appeared (currImpacted.length > 0 || currIncidents.length > 0)
+                // 3. Incident updates
+                const hasCurrentIssues = currImpacted.length > 0 || currIncidents.length > 0;
+                
+                if (!isResolved && !hasCurrentIssues) {
+                    // No important change to announce - just update the snapshot silently
+                    await subscriptions
+                        .update_last_seen_data({ id: String(sub.id), last_seen_data: currentSnapshot })
+                        .catch(() => null);
+                    return;
+                }
+            }
+
+            const embed = buildCloudflareEmbed(status, { isResolved, affectedServices });
             const sent = await safeSend(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send Cloudflare notification:', sent.error?.message || sent.error);
