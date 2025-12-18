@@ -60,6 +60,7 @@ const legacyCommands = require('./legacy-commands');
 const starkEconomy = require('./stark-economy');
 const { AchievementsSystem, ACHIEVEMENTS } = require('./achievements');
 const guildModeration = require('./GUILDS_FEATURES/moderation');
+const antiScam = require('./GUILDS_FEATURES/anti-scam');
 const achievements = new AchievementsSystem();
 
 function isCommandEnabled(commandName) {
@@ -802,6 +803,13 @@ class DiscordHandlers {
             await guildModeration.handleMemberJoin(member, client);
         } catch (error) {
             console.error('[GuildModeration] Error in handleMemberJoin:', error);
+        }
+
+        // Run anti-scam checks for new members
+        try {
+            await antiScam.handleMemberJoin(member);
+        } catch (error) {
+            console.error('[AntiScam] Error in handleMemberJoin:', error);
         }
     }
 

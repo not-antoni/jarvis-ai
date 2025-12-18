@@ -490,11 +490,14 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
                 required: ['url']
             },
             async args => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
                 try {
                     const response = await fetch(args.url, {
                         headers: args.headers || {},
-                        timeout: 10000
+                        signal: controller.signal
                     });
+                    clearTimeout(timeoutId);
                     const text = await response.text();
                     return {
                         status: response.status,
@@ -502,7 +505,9 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
                         body: text.slice(0, 5000) // Limit response size
                     };
                 } catch (e) {
-                    return ToolOutput.error(`HTTP request failed: ${e.message}`);
+                    clearTimeout(timeoutId);
+                    const message = e.name === 'AbortError' ? 'Request timed out after 10s' : e.message;
+                    return ToolOutput.error(`HTTP request failed: ${message}`);
                 }
             },
             { category: 'web', parallel: true, timeout: 15000 }
