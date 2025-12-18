@@ -3768,6 +3768,10 @@ app.use('/', starkbucksRouter);
 const legalRouter = require('./routes/legal');
 app.use('/', legalRouter);
 
+// Mount landing page (must be last to not override other routes)
+const landingRouter = require('./routes/landing');
+app.use('/', landingRouter);
+
 // Mount dashboard API routes
 const dashboardRouter = require('./routes/dashboard');
 
