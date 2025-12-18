@@ -3768,6 +3768,14 @@ app.use('/', starkbucksRouter);
 const legalRouter = require('./routes/legal');
 app.use('/', legalRouter);
 
+// Mount user authentication routes
+const userAuthRouter = require('./routes/user-auth');
+app.use('/', userAuthRouter);
+
+// Mount user API routes
+const userApiRouter = require('./routes/user-api');
+app.use('/', userApiRouter);
+
 // Mount landing page (must be last to not override other routes)
 const landingRouter = require('./routes/landing');
 app.use('/', landingRouter);

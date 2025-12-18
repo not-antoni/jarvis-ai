@@ -93,6 +93,58 @@ const LANDING_PAGE = `
             color: #00d4ff;
         }
         
+        /* User Menu */
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #00d4ff;
+        }
+        
+        .user-name {
+            color: #fff;
+            font-weight: 500;
+        }
+        
+        .login-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1.2rem;
+            background: #5865F2;
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .login-btn:hover {
+            background: #4752c4;
+            transform: translateY(-1px);
+        }
+        
+        .logout-btn {
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.1);
+            color: #888;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+        }
+        
         /* Hero Section */
         .hero {
             text-align: center;
@@ -330,9 +382,14 @@ const LANDING_PAGE = `
         <ul class="nav-links">
             <li><a href="#features">Features</a></li>
             <li><a href="#commands">Commands</a></li>
+            <li><a href="/status">Status</a></li>
             <li><a href="/tos">Terms</a></li>
-            <li><a href="/policy">Privacy</a></li>
         </ul>
+        <div class="user-menu" id="userMenu">
+            <a href="/auth/login" class="login-btn" id="loginBtn">
+                🔐 Login with Discord
+            </a>
+        </div>
     </nav>
     
     <section class="hero">
@@ -433,6 +490,40 @@ const LANDING_PAGE = `
         </div>
         <p class="footer-copy">© 2025 Jarvis AI. Made with ❤️ for Discord communities.</p>
     </footer>
+    
+    <script>
+        // Check user authentication on page load
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/user');
+                const data = await res.json();
+                
+                const userMenu = document.getElementById('userMenu');
+                
+                if (data.authenticated && data.user) {
+                    userMenu.innerHTML = \`
+                        <img src="\${data.user.avatar}" class="user-avatar" alt="Avatar">
+                        <span class="user-name">\${data.user.globalName || data.user.username}</span>
+                        <a href="/auth/logout" class="logout-btn">Logout</a>
+                    \`;
+                }
+            } catch (e) {
+                console.log('Auth check failed:', e);
+            }
+        }
+        
+        // Check for login success/error in URL
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('login') === 'success') {
+            history.replaceState({}, '', '/');
+        }
+        if (params.get('error')) {
+            console.error('Auth error:', params.get('error'));
+            history.replaceState({}, '', '/');
+        }
+        
+        checkAuth();
+    </script>
 </body>
 </html>
 `;
