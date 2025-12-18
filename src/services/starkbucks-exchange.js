@@ -54,10 +54,10 @@ const SBX_CONFIG = {
     
     // Price fluctuation settings
     basePrice: 1.00,           // Base price in "USD"
-    minPrice: 0.01,            // Minimum price
-    maxPrice: 1000.00,         // Maximum price
-    volatility: 0.05,          // 5% max price change per tick
-    tickInterval: 60 * 1000,   // Price updates every minute
+    minPrice: 0.10,            // Minimum price
+    maxPrice: 100.00,          // Maximum price
+    volatility: 0.08,          // 8% max price change per tick
+    tickInterval: 30 * 1000,   // Price updates every 30 seconds
     
     // Transaction settings
     ownerFeePercent: 0.10,     // 10% fee goes to bot owner
@@ -279,7 +279,7 @@ const priceHistory = [];
 let activeEvent = null;
 let dailyVolume = 0;
 const activeUsers = new Set();
-let lastPriceTick = Date.now();
+let lastPriceTick = 0; // Start at 0 to allow immediate first update
 
 // Pending transactions cache
 const pendingTransactions = new Map();
