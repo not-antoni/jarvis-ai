@@ -61,7 +61,7 @@ router.get('/api/user/sbx', requireAuth, async (req, res) => {
     }
 });
 
-// Execute SBX buy
+// Execute SBX buy (convert Stark Bucks to SBX)
 router.post('/api/user/sbx/buy', requireAuth, async (req, res) => {
     try {
         const sbx = require('../src/services/starkbucks-exchange');
@@ -72,14 +72,17 @@ router.post('/api/user/sbx/buy', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Invalid amount' });
         }
         
-        const result = await sbx.buySbx(userId, amount);
-        res.json({ success: true, ...result });
+        const result = await sbx.convertToSBX(userId, amount);
+        if (!result.success) {
+            return res.status(400).json({ error: result.error || 'Conversion failed' });
+        }
+        res.json({ success: true, sbxReceived: result.sbxReceived, ...result });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
 });
 
-// Execute SBX sell
+// Execute SBX sell (convert SBX to Stark Bucks)
 router.post('/api/user/sbx/sell', requireAuth, async (req, res) => {
     try {
         const sbx = require('../src/services/starkbucks-exchange');
@@ -90,8 +93,11 @@ router.post('/api/user/sbx/sell', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Invalid amount' });
         }
         
-        const result = await sbx.sellSbx(userId, amount);
-        res.json({ success: true, ...result });
+        const result = await sbx.convertToStarkBucks(userId, amount);
+        if (!result.success) {
+            return res.status(400).json({ error: result.error || 'Conversion failed' });
+        }
+        res.json({ success: true, starkBucksReceived: result.starkBucksReceived, ...result });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
@@ -108,7 +114,10 @@ router.post('/api/user/sbx/invest', requireAuth, async (req, res) => {
             return res.status(400).json({ error: 'Invalid amount' });
         }
         
-        const result = await sbx.createInvestment(userId, amount);
+        const result = await sbx.investSBX(userId, amount);
+        if (!result.success) {
+            return res.status(400).json({ error: result.error || 'Investment failed' });
+        }
         res.json({ success: true, ...result });
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -215,7 +224,10 @@ router.post('/api/user/sbx/claim', requireAuth, async (req, res) => {
         const userId = req.userSession.userId;
         
         const result = await sbx.claimInvestmentEarnings(userId);
-        res.json({ success: true, ...result });
+        if (!result.success) {
+            return res.status(400).json({ error: result.error || 'Claim failed' });
+        }
+        res.json({ success: true, earnings: result.earnings, ...result });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
