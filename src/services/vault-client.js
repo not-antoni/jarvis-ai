@@ -401,7 +401,7 @@ async function enforceMemoryLimitsLocal(userId) {
         // Get all memories for user
         const allMemories = await localDbOps.getMemories(userId, 1000);
 
-        // Clean expired short-term memories
+        // Clean expired short-term memories and filter valid ones
         const now = Date.now();
         const validMemories = allMemories.filter(m => {
             if (m.isShortTerm && m.shortTermExpiresAt && m.shortTermExpiresAt < now) {
@@ -410,10 +410,18 @@ async function enforceMemoryLimitsLocal(userId) {
             return true;
         });
 
-        // If over limit, keep only the newest TOTAL_MEMORY_LIMIT
+        // If over limit, keep only the newest TOTAL_MEMORY_LIMIT and delete the rest
         if (validMemories.length > TOTAL_MEMORY_LIMIT) {
-            // Memories are already sorted by createdAt desc, so we keep the first 30
-            // The localdb will handle this on next save
+            // Memories are already sorted by createdAt desc, so keep first TOTAL_MEMORY_LIMIT
+            const memoriesToKeep = validMemories.slice(0, TOTAL_MEMORY_LIMIT);
+            
+            // Clear all and re-save only the ones to keep
+            await localDbOps.clearMemories(userId);
+            for (const mem of memoriesToKeep.reverse()) {
+                // Re-save in chronological order (oldest first)
+                const { userId: uid, ...memData } = mem;
+                await localDbOps.saveMemory(uid, memData);
+            }
         }
     } catch (error) {
         console.error('[VaultClient] Failed to enforce local memory limits:', error);

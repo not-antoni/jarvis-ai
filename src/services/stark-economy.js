@@ -1568,18 +1568,9 @@ async function playMinigame(userId, gameType) {
         return { success: false, cooldown: cooldown.remaining };
     }
 
-    // Pick random outcome based on chances
-    const roll = Math.random();
-    let cumulative = 0;
-    let outcome = game.outcomes[game.outcomes.length - 1]; // Default to last
-
-    for (const o of game.outcomes) {
-        cumulative += o.chance;
-        if (roll < cumulative) {
-            outcome = o;
-            break;
-        }
-    }
+    // Pick random outcome uniformly from all outcomes
+    // (all outcomes have equal chance regardless of 'chance' field value)
+    const outcome = game.outcomes[Math.floor(Math.random() * game.outcomes.length)];
 
     // Apply Arc Reactor earnings bonus
     let reward = outcome.reward;
