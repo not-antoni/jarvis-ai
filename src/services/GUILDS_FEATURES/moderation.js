@@ -18,8 +18,8 @@ const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const config = require('../../../config');
-const database = require('../../database');
-const localdb = require('../../../localdb');
+const database = require('../database');
+const localdb = require('../../localdb');
 const { safeSend } = require('../../utils/discord-safe-send');
 
 // Check if we're in selfhost/local mode
