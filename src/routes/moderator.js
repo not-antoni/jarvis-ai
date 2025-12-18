@@ -178,7 +178,7 @@ router.get('/callback', async (req, res) => {
         res.cookie(
             'moderator_session',
             sessionToken,
-            getCookieOptions(req, { maxAge: 12 * 60 * 60 * 1000 })
+            getCookieOptions(req, { maxAge: 30 * 24 * 60 * 60 * 1000 }) // 30 days
         );
 
         res.redirect('/moderator/dashboard');

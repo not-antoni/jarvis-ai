@@ -16,7 +16,7 @@ const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === 
 // Session storage (in-memory for simplicity, could be Redis in production)
 const sessions = new Map();
 const revokedSessions = new Map();
-const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Pending password setups (userId -> { token, expires })
 const pendingSetups = new Map();
