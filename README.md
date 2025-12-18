@@ -288,6 +288,52 @@ It will deploy workers, print the URLs, and (by default) save them to MongoDB.
 node scripts/test-ai-proxy-rotation.js
 ```
 
+## Website
+
+Jarvis includes a full website at your configured domain (or IP:PORT):
+
+| Page | URL | Description |
+|------|-----|-------------|
+| **Home** | `/` | Landing page with Discord invite |
+| **Status** | `/status` | Live bot status, uptime, health |
+| **Commands** | `/commands` | Searchable command list |
+| **Leaderboard** | `/leaderboard` | Public economy rankings |
+| **Store** | `/store` | SBX item shop |
+| **SBX Exchange** | `/sbx` | Starkbucks info & trading |
+| **Docs** | `/docs` | Self-hosting guide |
+| **Changelog** | `/changelog` | Version history |
+| **Terms** | `/tos` | Terms of Service |
+| **Privacy** | `/policy` | Privacy Policy |
+
+### Discord OAuth (optional)
+
+Enable user login on the website:
+
+```env
+DISCORD_CLIENT_ID=your_client_id
+DISCORD_CLIENT_SECRET=your_client_secret
+PUBLIC_BASE_URL=https://your-domain.com
+```
+
+Add redirect URI to Discord Developer Portal:
+```
+https://your-domain.com/auth/callback
+```
+
+### Custom Domain (Cloudflare)
+
+Jarvis can auto-configure SSL via Cloudflare Origin Certificates:
+
+```env
+CLOUDFLARE_API_TOKEN=your_token
+CLOUDFLARE_ZONE_ID=your_zone_id
+PUBLIC_DOMAIN=yourdomain.com
+```
+
+**Note:** If you lose Cloudflare/domain access, the site remains accessible at your VPS IP:PORT (e.g., `http://123.45.67.89:3000`).
+
+---
+
 ## Dashboard
 
 The bot serves a built-in dashboard UI:

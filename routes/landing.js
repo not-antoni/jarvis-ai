@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 
 const DISCORD_INVITE = 'https://discord.com/invite/ksXzuBtmK5';
-const BOT_INVITE = 'https://discord.com/oauth2/authorize?client_id=1202058628903043123&permissions=8&scope=bot%20applications.commands';
+const BOT_INVITE = 'https://discord.com/oauth2/authorize?client_id=1402324275762954371&permissions=8&scope=bot%20applications.commands';
 
 const LANDING_PAGE = `
 <!DOCTYPE html>
