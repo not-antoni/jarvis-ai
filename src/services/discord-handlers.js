@@ -7,8 +7,8 @@ const partFiles = fs
     .filter(name => name.endsWith('.js'))
     .sort();
 
-if (partFiles.length !== 5) {
-    throw new Error(`Expected 5 discord handler parts, found ${partFiles.length}`);
+if (partFiles.length !== 7) {
+    throw new Error(`Expected 7 discord handler parts, found ${partFiles.length}`);
 }
 
 const combinedCode = partFiles
