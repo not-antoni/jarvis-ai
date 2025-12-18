@@ -5070,6 +5070,69 @@ process.on('SIGINT', async () => {
     process.exit(0);
 });
 
+// ------------------------ 404 Error Page ------------------------
+app.use((req, res) => {
+    res.status(404).send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found | Jarvis AI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0d0d2b 100%);
+            color: #e4e4e4;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+        .error-icon { font-size: 6rem; margin-bottom: 1rem; }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, #ff4444, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        p { color: #888; font-size: 1.2rem; margin-bottom: 2rem; }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            background: linear-gradient(90deg, #00d4ff, #8a2be2);
+            color: white;
+            border-radius: 50px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(0, 212, 255, 0.4);
+        }
+        .path { color: #666; font-size: 0.9rem; margin-top: 2rem; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="error-icon">🤖</div>
+    <h1>404</h1>
+    <p>There's nothing here.</p>
+    <a href="/" class="btn">🏠 Go Home</a>
+    <p class="path">${req.path}</p>
+</body>
+</html>
+    `);
+});
+
 // ------------------------ Boot ------------------------
 async function startBot() {
     try {
