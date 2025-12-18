@@ -3722,7 +3722,7 @@ app.use(cookieParser());
 // Serve ephemeral temp files at short root paths like /123456789.png
 app.get('/:id.:ext', (req, res, next) => {
     const { id, ext } = req.params;
-    if (!/^[0-9]{9}$/.test(id || '')) return next();
+    if (!/^[a-f0-9]{32}$/.test(id || '')) return next();
     if (!/^[a-z0-9]{1,8}$/i.test(ext || '')) return next();
     const filePath = require('path').join(tempFiles.TEMP_DIR, `${id}.${ext}`);
     const fs = require('fs');

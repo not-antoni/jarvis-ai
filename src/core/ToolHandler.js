@@ -347,7 +347,37 @@ class FunctionHandler extends ToolHandler {
 }
 
 /**
+ * Shell metacharacters that could allow command injection
+ */
+const SHELL_METACHARACTERS = /[;&|`$(){}[\]<>\\!#*?"'\n\r]/;
+
+/**
+ * Parse a command string into executable and arguments safely
+ * Only supports simple space-separated commands without shell features
+ */
+function parseCommandToArgv(commandString) {
+    const trimmed = (commandString || '').trim();
+    
+    // Reject commands with shell metacharacters
+    if (SHELL_METACHARACTERS.test(trimmed)) {
+        return { error: 'Command contains shell metacharacters which are not allowed for security' };
+    }
+    
+    // Split on whitespace
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) {
+        return { error: 'Empty command' };
+    }
+    
+    return {
+        executable: parts[0],
+        args: parts.slice(1)
+    };
+}
+
+/**
  * Shell command handler
+ * Uses spawn with shell: false to prevent command injection
  */
 class ShellHandler extends ToolHandler {
     constructor(spec, options = {}) {
@@ -375,30 +405,62 @@ class ShellHandler extends ToolHandler {
             'whoami'
         ];
         const command = invocation.arguments.command || '';
+        
+        // Commands with metacharacters are always considered mutating (dangerous)
+        if (SHELL_METACHARACTERS.test(command)) {
+            return true;
+        }
+        
         const firstWord = command.split(/\s+/)[0];
         return !safeCommands.includes(firstWord);
     }
 
     async handle(invocation) {
-        const { exec } = require('child_process');
-        const { promisify } = require('util');
-        const execAsync = promisify(exec);
+        const { spawnSync } = require('child_process');
 
         const { command, cwd, timeout } = invocation.arguments;
 
+        // Parse command into safe argv format
+        const parsed = parseCommandToArgv(command);
+        if (parsed.error) {
+            return ToolOutput.error(parsed.error, {
+                metadata: { reason: 'invalid_command_format' }
+            });
+        }
+
         try {
-            const { stdout, stderr } = await execAsync(command, {
+            // Use spawnSync with shell: false to prevent command injection
+            const result = spawnSync(parsed.executable, parsed.args, {
                 cwd: cwd || process.cwd(),
-                timeout: timeout || this.spec.timeout,
-                maxBuffer: 1024 * 1024 * 10 // 10MB
+                timeout: timeout || this.spec.timeout || 30000,
+                maxBuffer: 1024 * 1024 * 10, // 10MB
+                encoding: 'utf8',
+                shell: false,
+                stdio: ['pipe', 'pipe', 'pipe']
             });
 
+            if (result.error) {
+                return ToolOutput.error(`Command failed: ${result.error.message}`, {
+                    metadata: { code: result.error.code }
+                });
+            }
+
+            const stdout = result.stdout || '';
+            const stderr = result.stderr || '';
+            const exitCode = result.status ?? 0;
+
+            if (exitCode !== 0) {
+                return ToolOutput.error(`Command exited with code ${exitCode}: ${stderr || stdout}`, {
+                    metadata: { stderr, exitCode }
+                });
+            }
+
             return ToolOutput.success(stdout || stderr || 'Command completed successfully', {
-                metadata: { stderr: stderr || null }
+                metadata: { stderr: stderr || null, exitCode }
             });
         } catch (error) {
             return ToolOutput.error(`Command failed: ${error.message}`, {
-                metadata: { stderr: error.stderr, code: error.code }
+                metadata: { code: error.code }
             });
         }
     }

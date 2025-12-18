@@ -15,7 +15,7 @@
  * This is designed for SELFHOST ONLY - when you control the environment
  */
 
-const { spawn, execSync } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const EventEmitter = require('events');
@@ -188,6 +188,37 @@ class AgentMemory {
 }
 
 // ============================================================================
+// SECURITY UTILITIES
+// ============================================================================
+
+// Shell metacharacters that could allow command injection
+const SHELL_METACHARACTERS = /[;&|`$(){}[\]<>\\!#*?"'\n\r]/;
+
+/**
+ * Parse a command string into executable and arguments safely
+ * Only supports simple space-separated commands without shell features
+ */
+function parseCommandToArgv(commandString) {
+    const trimmed = commandString.trim();
+    
+    // Reject commands with shell metacharacters
+    if (SHELL_METACHARACTERS.test(trimmed)) {
+        return { error: 'Command contains shell metacharacters which are not allowed' };
+    }
+    
+    // Split on whitespace
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) {
+        return { error: 'Empty command' };
+    }
+    
+    return {
+        executable: parts[0],
+        args: parts.slice(1)
+    };
+}
+
+// ============================================================================
 // TOOL SYSTEM - What the agent can do
 // ============================================================================
 
@@ -202,6 +233,11 @@ class AgentTools {
      */
     isCommandSafe(command) {
         const cmd = command.toLowerCase().trim();
+
+        // First, reject any command with shell metacharacters
+        if (SHELL_METACHARACTERS.test(command)) {
+            return false;
+        }
 
         // Check against dangerous patterns
         for (const dangerous of AGENT_CONFIG.requireApprovalFor) {
@@ -223,9 +259,22 @@ class AgentTools {
 
     /**
      * Execute a shell command (with safety checks)
+     * Uses spawnSync with shell: false to prevent command injection
      */
     async executeCommand(command, options = {}) {
         const { requireApproval = true, timeout = 30000 } = options;
+
+        // Parse command into safe argv format
+        const parsed = parseCommandToArgv(command);
+        if (parsed.error) {
+            return {
+                status: 'error',
+                command,
+                output: parsed.error,
+                exitCode: 1,
+                reason: 'Invalid command format'
+            };
+        }
 
         const isSafe = this.isCommandSafe(command);
 
@@ -241,25 +290,36 @@ class AgentTools {
 
         return new Promise(resolve => {
             const startTime = Date.now();
+            const { spawnSync } = require('child_process');
 
             try {
-                const result = execSync(command, {
+                // Use spawnSync with shell: false to prevent command injection
+                const result = spawnSync(parsed.executable, parsed.args, {
                     encoding: 'utf8',
                     timeout,
                     maxBuffer: 1024 * 1024, // 1MB
-                    shell: true
+                    shell: false,
+                    stdio: ['pipe', 'pipe', 'pipe']
                 });
+
+                const output = (result.stdout || '') + (result.stderr || '');
+                const exitCode = result.status ?? (result.error ? 1 : 0);
 
                 const execution = {
                     command,
-                    output: result.substring(0, 2000), // Limit output size
-                    exitCode: 0,
+                    output: output.substring(0, 2000), // Limit output size
+                    exitCode,
                     duration: Date.now() - startTime,
                     timestamp: Date.now()
                 };
 
                 this.executionHistory.push(execution);
-                resolve({ status: 'success', ...execution });
+                
+                if (result.error) {
+                    resolve({ status: 'error', ...execution, output: result.error.message });
+                } else {
+                    resolve({ status: exitCode === 0 ? 'success' : 'error', ...execution });
+                }
             } catch (error) {
                 const execution = {
                     command,
@@ -852,5 +912,35 @@ module.exports = {
     ReasoningEngine,
     SelfImprovement,
     getSentientAgent,
-    AGENT_CONFIG
+    AGENT_CONFIG,
+    IS_ENABLED: true
 };
+
+// ============================================================================
+// HARD GATE: Override exports if not in selfhost mode
+// ============================================================================
+const DEPLOY_TARGET = (process.env.DEPLOY_TARGET || '').toLowerCase();
+const IS_SELFHOST = DEPLOY_TARGET === 'selfhost' || process.env.LOCAL_DB_MODE === 'true';
+
+if (!IS_SELFHOST) {
+    // Override all exports with disabled stubs for non-selfhost environments
+    module.exports = {
+        SentientAgent: class DisabledSentientAgent {
+            constructor() {
+                throw new Error(
+                    'SentientAgent is only available in selfhost mode. ' +
+                    'Set DEPLOY_TARGET=selfhost to enable.'
+                );
+            }
+        },
+        AgentMemory: null,
+        AgentTools: null,
+        ReasoningEngine: null,
+        SelfImprovement: null,
+        getSentientAgent: () => {
+            throw new Error('SentientAgent is only available in selfhost mode.');
+        },
+        AGENT_CONFIG: null,
+        IS_ENABLED: false
+    };
+}

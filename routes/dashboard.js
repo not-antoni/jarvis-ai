@@ -13,8 +13,19 @@ const fs = require('fs');
 // Determine storage mode
 const IS_SELFHOST = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
 const METRICS_FILE_PATH = path.join(__dirname, '..', 'data', 'dashboard-metrics.json');
+const SETTINGS_FILE_PATH = path.join(__dirname, '..', 'data', 'dashboard-settings.json');
 const METRICS_COLLECTION = 'dashboard_metrics';
+const SETTINGS_COLLECTION = 'dashboard_settings';
 const TOKEN_CLEAR_THRESHOLD = 10_000_000; // 10 million tokens
+
+// Dashboard settings store
+const dashboardSettings = {
+    defaultProvider: 'auto',
+    maxTokens: 500,
+    temperature: 1,
+    debugMode: false,
+    notificationsEnabled: true
+};
 
 // Runtime metrics store (persists across requests)
 const metrics = {
@@ -131,6 +142,60 @@ function scheduleSave() {
     }, SAVE_DEBOUNCE_MS);
 }
 
+// Settings persistence
+async function loadSettings() {
+    if (IS_SELFHOST) {
+        try {
+            if (fs.existsSync(SETTINGS_FILE_PATH)) {
+                const data = JSON.parse(fs.readFileSync(SETTINGS_FILE_PATH, 'utf8'));
+                Object.assign(dashboardSettings, data);
+            }
+        } catch (e) {
+            // Settings file doesn't exist or is invalid, use defaults
+        }
+    } else {
+        try {
+            const db = await getDatabase();
+            if (db && db.db) {
+                const doc = await db.db.collection(SETTINGS_COLLECTION).findOne({ _id: 'settings' });
+                if (doc) {
+                    const { _id, ...settings } = doc;
+                    Object.assign(dashboardSettings, settings);
+                }
+            }
+        } catch (e) {
+            // MongoDB not available, use defaults
+        }
+    }
+}
+
+async function saveSettings() {
+    const payload = { ...dashboardSettings, savedAt: new Date().toISOString() };
+
+    if (IS_SELFHOST) {
+        try {
+            const dir = path.dirname(SETTINGS_FILE_PATH);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(payload, null, 2));
+        } catch (e) {
+            throw new Error(`Failed to save settings: ${e.message}`);
+        }
+    } else {
+        try {
+            const db = await getDatabase();
+            if (db && db.db) {
+                await db.db
+                    .collection(SETTINGS_COLLECTION)
+                    .updateOne({ _id: 'settings' }, { $set: payload }, { upsert: true });
+            }
+        } catch (e) {
+            throw new Error(`Failed to save settings: ${e.message}`);
+        }
+    }
+}
+
 function clearMetrics(reason) {
     console.log(`Clearing dashboard metrics: ${reason}`);
     metrics.requestCount = 0;
@@ -169,8 +234,8 @@ function checkMonthlyReset() {
     }
 }
 
-// Load metrics on startup and check for monthly reset
-loadMetrics().then(() => {
+// Load metrics and settings on startup, check for monthly reset
+Promise.all([loadMetrics(), loadSettings()]).then(() => {
     checkMonthlyReset();
 });
 
@@ -576,9 +641,19 @@ router.get('/local-ai/status', async (req, res) => {
 router.post('/settings', async (req, res) => {
     try {
         const settings = req.body;
-        // TODO: Persist settings to config file or database
-        console.log('[Dashboard] Settings updated:', Object.keys(settings));
-        res.json({ success: true, message: 'Settings saved' });
+        
+        // Validate and update settings
+        const allowedKeys = ['defaultProvider', 'maxTokens', 'temperature', 'debugMode', 'notificationsEnabled'];
+        for (const key of allowedKeys) {
+            if (settings[key] !== undefined) {
+                dashboardSettings[key] = settings[key];
+            }
+        }
+        
+        // Persist settings
+        await saveSettings();
+        
+        res.json({ success: true, message: 'Settings saved', settings: dashboardSettings });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -594,9 +669,8 @@ router.get('/settings', async (req, res) => {
         res.json({
             port: config.server?.port || 3000,
             selfhostMode: config.deployment?.selfhostMode || false,
-            defaultProvider: config.ai?.provider || 'auto',
-            maxTokens: config.ai?.maxTokens || 500,
-            temperature: config.ai?.temperature || 1
+            // Include persisted settings
+            ...dashboardSettings
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
