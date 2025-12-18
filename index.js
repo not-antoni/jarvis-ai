@@ -4784,6 +4784,14 @@ client.once(Events.ClientReady, async () => {
         console.warn('[ErrorLogger] Failed to attach client:', e.message);
     }
 
+    // Initialize musicManager with client
+    try {
+        const { musicManager } = require('./src/core/musicManager');
+        musicManager.init(client);
+    } catch (e) {
+        console.warn('[MusicManager] Failed to initialize:', e.message);
+    }
+
     const userFeatures = (() => {
         try {
             const service = require('./src/services/user-features');

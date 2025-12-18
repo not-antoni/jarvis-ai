@@ -16,8 +16,9 @@ const { safeSend } = require('../utils/discord-safe-send');
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 class MusicManager {
-    constructor() {
+    constructor(client) {
         this.queues = new Map(); // guildId -> state
+        this.client = client;
     }
 
     getState(guildId) {
@@ -393,6 +394,22 @@ class MusicManager {
     }
 }
 
+let instance = null;
+
 module.exports = {
-    musicManager: new MusicManager()
+    MusicManager,
+    musicManager: {
+        init(client) {
+            if (!instance) {
+                instance = new MusicManager(client);
+            }
+            return instance;
+        },
+        get() {
+            if (!instance) {
+                throw new Error('MusicManager not initialized. Call musicManager.init(client) first.');
+            }
+            return instance;
+        }
+    }
 };
