@@ -589,9 +589,11 @@ async function notifyStaff(message, member, violationCount = 1, matchedPattern =
 
     try {
         const owner = await guild.fetchOwner();
-        await owner.send(summary).catch(() => {});
-    } catch {
-        // ignore owner DM failure
+        await owner.send(summary).catch(e => {
+            console.debug('[ModerationFilters] Could not DM owner:', e.message);
+        });
+    } catch (e) {
+        console.debug('[ModerationFilters] Could not fetch owner for DM:', e.message);
     }
 
     const mods = await getModerators(guild);

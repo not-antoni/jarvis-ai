@@ -136,6 +136,8 @@ const SHOP_ITEMS = {
 const SLOT_SYMBOLS = ['💎', '7️⃣', '🍒', '🍋', '⭐', '🔔'];
 
 // Hunt/Fish/Dig rewards
+// NOTE: The 'chance' field in outcomes is vestigial - selection uses uniform random distribution.
+// All outcomes have equal probability regardless of the chance value.
 const MINIGAME_REWARDS = {
     hunt: {
         cooldown: 60 * 1000, // 1 minute

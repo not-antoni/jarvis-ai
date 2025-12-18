@@ -324,6 +324,14 @@ class LoopDetectionService {
     }
 
     /**
+     * Clear all conversation histories (call on bot restart or memory pressure)
+     */
+    clearAll() {
+        conversationHistory.clear();
+        loopResultsCache.clear();
+    }
+
+    /**
      * Get a recovery prompt to help break out of a loop
      */
     getRecoveryPrompt(loopType) {
