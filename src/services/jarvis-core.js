@@ -15,7 +15,7 @@ const { buildHelpCatalog } = require('../core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('../core/feature-flags');
 const { getSentiencePrompt, jarvisSoul } = require('./selfhost-features');
 
-const punycode = require('node:punycode');
+const { toASCII, toUnicode } = require('url');
 
 const MAX_DECODE_DISPLAY_CHARS = 1800;
 const BINARY_PREVIEW_BYTES = 32;
@@ -668,8 +668,8 @@ const codecStrategies = [
             }
             return { confidence: 0.8 };
         },
-        decode: input => Buffer.from(punycode.toUnicode(input), 'utf8'),
-        encode: (_, text = '') => punycode.toASCII(text)
+        decode: input => Buffer.from(toUnicode(input), 'utf8'),
+        encode: (_, text = '') => toASCII(text)
     },
     {
         key: 'morse',

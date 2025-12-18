@@ -95,14 +95,6 @@ const DISCORD_AFK_USERS_TTL_MS = Math.max(
     10 * 60 * 1000,
     Number(process.env.DISCORD_AFK_USERS_TTL_MS || '') || 24 * 60 * 60 * 1000
 );
-const DISCORD_RAP_BATTLE_COOLDOWNS_MAX = Math.max(
-    500,
-    Number(process.env.DISCORD_RAP_BATTLE_COOLDOWNS_MAX || '') || 5000
-);
-const DISCORD_RAP_BATTLE_COOLDOWNS_TTL_MS = Math.max(
-    60 * 1000,
-    Number(process.env.DISCORD_RAP_BATTLE_COOLDOWNS_TTL_MS || '') || 10 * 60 * 1000
-);
 
 function ensureDiscordEmojiSize(url, size = DEFAULT_CUSTOM_EMOJI_SIZE) {
     if (!url || typeof url !== 'string') return url;
@@ -184,10 +176,6 @@ class DiscordHandlers {
             '⚠️ {mention} has left the server. Recalibrating member count to {membercount}.',
             '😔 {mention} disconnected from {server}. Until we meet again.'
         ];
-        // Rap battle state manager
-        this.rapBattles = new Map(); // userId -> { channelId, startTime, timeoutId, collector, lastBotMessage }
-        this.rapBattleBlockedUsers = new Map(); // userId -> unblockTimestamp (users blocked from chat after battle ends)
-        this.rapBattleComebacksPath = path.join(__dirname, '../../rapping_comebacks');
         this.emojiAssetCache = new LRUCache({ max: DISCORD_EMOJI_ASSET_CACHE_MAX, ttl: DISCORD_EMOJI_ASSET_CACHE_TTL_MS });
         this.clipEmojiRenderSize = 22;
         this.clipEmojiSpacing = 4;
@@ -270,7 +258,7 @@ class DiscordHandlers {
         ];
 
         this.afkUsers = new LRUCache({ max: DISCORD_AFK_USERS_MAX, ttl: DISCORD_AFK_USERS_TTL_MS });
-        this.rapBattleCooldowns = new LRUCache({ max: DISCORD_RAP_BATTLE_COOLDOWNS_MAX, ttl: DISCORD_RAP_BATTLE_COOLDOWNS_TTL_MS });
+        
 
         this.maxInputBytes = 3 * 1024 * 1024; // 3MB cap for heavy media processing
     }
@@ -486,9 +474,6 @@ class DiscordHandlers {
         }
         if (this.afkUsers && typeof this.afkUsers.purgeStale === 'function') {
             this.afkUsers.purgeStale();
-        }
-        if (this.rapBattleCooldowns && typeof this.rapBattleCooldowns.purgeStale === 'function') {
-            this.rapBattleCooldowns.purgeStale();
         }
     }
 

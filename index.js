@@ -4887,9 +4887,6 @@ client.once(Events.ClientReady, async () => {
 
     if (databaseConnected) {
         await maybeExportMongoOnStartup();
-    }
-
-    if (databaseConnected) {
         await refreshPresenceMessages();
         // Load command sync state from MongoDB on Render (before registering commands)
         await loadCommandSyncStateFromMongo();
@@ -5050,6 +5047,10 @@ process.on('SIGTERM', async () => {
     console.log('Jarvis is powering down...');
     try {
         serverStatsRefreshJob.stop();
+        try { announcementScheduler.stop(); } catch (_) {}
+        try { monitorScheduler.stop(); } catch (_) {}
+        try { starkEconomy.stopMultiplierScheduler(); } catch (_) {}
+        try { tempSweepJob.stop(); } catch (_) {}
         await database.disconnect();
         client.destroy();
     } catch (error) {
@@ -5062,6 +5063,10 @@ process.on('SIGINT', async () => {
     console.log('Jarvis received SIGINT, shutting down gracefully...');
     try {
         serverStatsRefreshJob.stop();
+        try { announcementScheduler.stop(); } catch (_) {}
+        try { monitorScheduler.stop(); } catch (_) {}
+        try { starkEconomy.stopMultiplierScheduler(); } catch (_) {}
+        try { tempSweepJob.stop(); } catch (_) {}
         await database.disconnect();
         client.destroy();
     } catch (error) {
@@ -5127,7 +5132,7 @@ app.use((req, res) => {
     <h1>404</h1>
     <p>There's nothing here.</p>
     <a href="/" class="btn">🏠 Go Home</a>
-    <p class="path">${req.path}</p>
+    <p class="path">${req.path.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}</p>
 </body>
 </html>
     `);
