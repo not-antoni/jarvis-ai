@@ -380,10 +380,12 @@ const LANDING_PAGE = `
     <nav>
         <a href="/" class="logo">⚡ Jarvis AI</a>
         <ul class="nav-links">
-            <li><a href="#features">Features</a></li>
-            <li><a href="#commands">Commands</a></li>
+            <li><a href="/commands">Commands</a></li>
+            <li><a href="/store">Store</a></li>
+            <li><a href="/leaderboard">Leaderboard</a></li>
+            <li><a href="/sbx">SBX</a></li>
+            <li><a href="/docs">Docs</a></li>
             <li><a href="/status">Status</a></li>
-            <li><a href="/tos">Terms</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
             <a href="/auth/login" class="login-btn" id="loginBtn">
@@ -484,9 +486,10 @@ const LANDING_PAGE = `
         <div class="footer-links">
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
             <a href="${DISCORD_INVITE}" target="_blank">Discord Server</a>
+            <a href="/changelog">Changelog</a>
+            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
             <a href="/tos">Terms of Service</a>
             <a href="/policy">Privacy Policy</a>
-            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
         </div>
         <p class="footer-copy">© 2025 Jarvis AI. Made with ❤️ for Discord communities.</p>
     </footer>

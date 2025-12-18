@@ -4179,228 +4179,268 @@ app.get('/status', async (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis++ - AI Assistant</title>
+    <title>Status | Jarvis AI</title>
+    <meta name="theme-color" content="#00d4ff">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #000;
-            color: #00ff00;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.4;
-            overflow-x: auto;
-            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0d0d2b 100%);
+            color: #e4e4e4;
+            min-height: 100vh;
         }
-        
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 5%;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00d4ff, #8a2be2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        .nav-links a {
+            color: #b0b0b0;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .nav-links a:hover { color: #00d4ff; }
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 2rem;
         }
-        
-        .ascii-art {
-            white-space: pre;
+        .header {
             text-align: center;
-            margin: 20px 0;
-            color: #00ffff;
-            text-shadow: 0 0 10px #00ffff;
+            margin-bottom: 3rem;
         }
-        
+        .header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #fff, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1.5rem;
+            background: rgba(46, 204, 113, 0.2);
+            border: 1px solid #2ecc71;
+            border-radius: 50px;
+            color: #2ecc71;
+            font-weight: 600;
+        }
+        .status-badge.warning {
+            background: rgba(241, 196, 15, 0.2);
+            border-color: #f1c40f;
+            color: #f1c40f;
+        }
         .status-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin: 20px 0;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
         }
-        
-        .status-card {
-            background: rgba(0, 255, 0, 0.1);
-            border: 1px solid #00ff00;
-            border-radius: 5px;
-            padding: 15px;
-            font-family: 'Courier New', monospace;
+        .card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
         }
-        
-        .status-card h3 {
-            color: #00ffff;
-            margin-bottom: 10px;
-            text-align: center;
+        .card h3 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        
-        .provider-list {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        
+        .provider-list { max-height: 250px; overflow-y: auto; }
         .provider-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 2px 0;
-            border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
-        
-        .provider-name {
-            color: #ffffff;
+        .provider-item:last-child { border-bottom: none; }
+        .provider-name { color: #fff; font-weight: 500; }
+        .provider-meta { font-size: 0.8rem; color: #888; margin-top: 0.25rem; }
+        .provider-status { font-weight: 600; font-size: 0.85rem; }
+        .online { color: #2ecc71; }
+        .offline { color: #e74c3c; }
+        .warning { color: #f1c40f; }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
-        
-        .provider-meta {
-            font-size: 12px;
-            color: #66ff66;
+        .stat-row:last-child { border-bottom: none; }
+        .stat-label { color: #888; }
+        .stat-value { color: #fff; font-weight: 500; }
+        .env-list { font-size: 0.9rem; line-height: 1.8; }
+        .env-tag {
+            display: inline-block;
+            background: rgba(0,212,255,0.1);
+            color: #00d4ff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin: 0.2rem;
         }
-        
-        .provider-status {
-            font-weight: bold;
+        .btn-row {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 2rem 0;
         }
-        
-        .online { color: #00ff00; }
-        .offline { color: #ff0000; }
-        .warning { color: #ffff00; }
-        
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        
-        .glitch {
-            animation: glitch 3s infinite;
-        }
-        
-        @keyframes glitch {
-            0% { transform: translate(0); }
-            20% { transform: translate(-2px, 2px); }
-            40% { transform: translate(-2px, -2px); }
-            60% { transform: translate(2px, 2px); }
-            80% { transform: translate(2px, -2px); }
-            100% { transform: translate(0); }
-        }
-        
-        .footer {
-            text-align: center;
-            margin-top: 30px;
-            color: #666;
-            font-size: 12px;
-        }
-        
-        .refresh-btn {
-            background: #00ff00;
-            color: #000;
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
             border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
             cursor: pointer;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            margin: 20px auto;
-            display: block;
+            font-size: 1rem;
+            transition: all 0.3s;
         }
-        
-        .refresh-btn:hover {
-            background: #00ffff;
-            color: #000;
+        .btn-primary {
+            background: linear-gradient(90deg, #00d4ff, #8a2be2);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        footer a { color: #888; text-decoration: none; margin: 0 1rem; }
+        footer a:hover { color: #00d4ff; }
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .status-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
+    <nav>
+        <a href="/" class="logo">⚡ Jarvis AI</a>
+        <ul class="nav-links">
+            <li><a href="/commands">Commands</a></li>
+            <li><a href="/store">Store</a></li>
+            <li><a href="/leaderboard">Leaderboard</a></li>
+            <li><a href="/sbx">SBX</a></li>
+            <li><a href="/docs">Docs</a></li>
+            <li><a href="/status" style="color: #00d4ff;">Status</a></li>
+        </ul>
+    </nav>
+    
     <div class="container">
-        <div class="ascii-art glitch">
-         ██╗  █████╗ ██████╗ ██╗   ██╗██╗███████╗
-         ██╗██╔══██╗██╔══██╗██║   ██║██║██╔════╝
-         ██║███████║██████╔╝██║   ██║██║███████╗
-         ██║██╔══██║██╔══██╗╚██╗ ██╔╝██║╚════██║
-    ██████╔╝██║  ██║██║  ██║ ╚████╔╝ ██║███████║
-    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝
-        </div>
-        
-        <div class="ascii-art pulse">
-    ╔══════════════════════════════════════════════════════════════╗
-    ║                    SYSTEM STATUS: ONLINE                    ║
-    ║                  Always at your service, sir.               ║
-    ╚══════════════════════════════════════════════════════════════╝
+        <div class="header">
+            <h1>🤖 System Status</h1>
+            <div class="status-badge">
+                <span style="font-size: 1.2rem;">●</span> All Systems Operational
+            </div>
         </div>
         
         <div class="status-grid">
-            <div class="status-card">
-                <h3>🤖 AI PROVIDERS</h3>
+            <div class="card">
+                <h3>🧠 AI Providers</h3>
                 <div class="provider-list">
                     ${providerList}
                 </div>
-                <div style="margin-top: 10px; text-align: center;">
-                    <strong>${workingProviders}/${providerStatus.length} Active</strong>
+                <div style="margin-top: 1rem; text-align: center; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <strong style="color: #2ecc71;">${workingProviders}/${providerStatus.length}</strong>
+                    <span style="color: #888;"> providers active</span>
                 </div>
             </div>
 
-            <div class="status-card">
-                <h3>🧪 ENVIRONMENT</h3>
-                <div style="white-space: pre;">
-${envSummaryLines}
+            <div class="card">
+                <h3>💾 System Info</h3>
+                <div class="stat-row">
+                    <span class="stat-label">Database</span>
+                    <span class="stat-value">${databaseStatus.connected ? '✅ Connected' : '❌ Disconnected'}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">DB Ping</span>
+                    <span class="stat-value">${databaseStatus.ping}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Uptime</span>
+                    <span class="stat-value">${uptimeText}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Memory</span>
+                    <span class="stat-value">${memoryText}</span>
                 </div>
             </div>
             
-            <div class="status-card">
-                <h3>💾 SYSTEM INFO</h3>
-                <div style="white-space: pre;">
-Database:
-${dbLines}
-Uptime: ${uptimeText}
-Memory: ${memoryText}
+            <div class="card">
+                <h3>🧪 Environment</h3>
+                <div class="stat-row">
+                    <span class="stat-label">Required</span>
+                    <span class="stat-value">${envRequiredCount}/${envRequiredTotal}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Optional</span>
+                    <span class="stat-value">${optionalConfigured}/${optionalTotal}</span>
+                </div>
+                ${missingRequired.length ? `<div style="margin-top: 0.5rem; color: #e74c3c; font-size: 0.85rem;">Missing: ${missingRequired.join(', ')}</div>` : ''}
+                <div style="margin-top: 1rem;">
+                    ${optionalEnabled.map(name => `<span class="env-tag">${name}</span>`).join('')}
                 </div>
             </div>
         </div>
         
-        <div class="ascii-art">
-    ╔══════════════════════════════════════════════════════════════╗
-    ║  🔗 Health Check: /health                                   ║
-    ║  🎯 Discord Bot: Active                                     ║
-    ╚══════════════════════════════════════════════════════════════╝
-        </div>
-        
-        <button class="refresh-btn" onclick="location.reload()">
-            🔄 REFRESH STATUS
-        </button>
-        <button class="refresh-btn" onclick="location.href='/dashboard'">
-            📊 OPEN DASHBOARD
-        </button>
-        
-        <div class="footer">
-            <div class="ascii-art">
-    ═══════════════════════════════════════════════════════════════
-    Powered by Advanced AI • Neural Networks • Quantum Processing
-    ═══════════════════════════════════════════════════════════════
-            </div>
+        <div class="btn-row">
+            <button class="btn btn-primary" onclick="location.reload()">
+                🔄 Refresh Status
+            </button>
+            <a href="/moderator" class="btn btn-secondary">
+                🛡️ Moderator Dashboard
+            </a>
+            <a href="/" class="btn btn-secondary">
+                🏠 Home
+            </a>
         </div>
     </div>
     
+    <footer>
+        <a href="/tos">Terms of Service</a>
+        <a href="/policy">Privacy Policy</a>
+        <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
+        <p style="margin-top: 1rem;">© 2025 Jarvis AI</p>
+    </footer>
+    
     <script>
-        // Auto-refresh every 30 seconds
-        setTimeout(() => {
-            location.reload();
-        }, 30000);
-        
-        // Add some terminal-like effects
-        document.addEventListener('DOMContentLoaded', function() {
-            const cards = document.querySelectorAll('.status-card');
-            cards.forEach((card, index) => {
-                setTimeout(() => {
-                    card.style.opacity = '0';
-                    card.style.transform = 'translateY(20px)';
-                    card.style.transition = 'all 0.5s ease';
-                    setTimeout(() => {
-                        card.style.opacity = '1';
-                        card.style.transform = 'translateY(0)';
-                    }, 100);
-                }, index * 200);
-            });
-        });
+        // Auto-refresh every 60 seconds
+        setTimeout(() => location.reload(), 60000);
     </script>
 </body>
 </html>
