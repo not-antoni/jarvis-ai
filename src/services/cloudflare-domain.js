@@ -377,20 +377,21 @@ function detectTarget() {
     // If on Render, use Render's external URL
     if (isRunningOnRender() && config.renderExternalUrl) {
         const hostname = extractHostname(config.renderExternalUrl);
-        if (hostname) {
+        if (hostname && hostname !== config.domain) {
             return { mode: 'render', target: hostname };
         }
     }
     
-    // If PUBLIC_BASE_URL is set, use that
+    // If PUBLIC_BASE_URL is set, use that - but NOT if it's the same as our domain
     if (config.publicBaseUrl) {
         const hostname = extractHostname(config.publicBaseUrl);
-        if (hostname) {
+        // Skip if hostname matches domain (would cause self-reference CNAME error)
+        if (hostname && hostname !== config.domain && !hostname.endsWith(`.${config.domain}`)) {
             return { mode: 'selfhost', target: hostname };
         }
     }
     
-    // Try to detect public IP
+    // Try to detect public IP (most reliable for selfhost)
     try {
         const { execSync } = require('child_process');
         const ip = execSync('curl -s --max-time 3 ifconfig.me', { encoding: 'utf8' }).trim();
