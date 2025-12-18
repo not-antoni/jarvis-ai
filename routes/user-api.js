@@ -185,12 +185,49 @@ router.get('/api/user/purchases', requireAuth, async (req, res) => {
     }
 });
 
+// Get user balance (combined SB + SBX)
+router.get('/api/user/balance', requireAuth, async (req, res) => {
+    try {
+        const starkEconomy = require('../src/services/stark-economy');
+        const sbx = require('../src/services/starkbucks-exchange');
+        const userId = req.userSession.userId;
+        
+        const [balance, wallet] = await Promise.all([
+            starkEconomy.getBalance(userId),
+            sbx.getWallet(userId).catch(() => ({ balance: 0, invested: 0 }))
+        ]);
+        
+        res.json({
+            success: true,
+            balance: balance || 0,
+            sbx: wallet?.balance || 0,
+            invested: wallet?.invested || 0
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Claim SBX investment earnings
+router.post('/api/user/sbx/claim', requireAuth, async (req, res) => {
+    try {
+        const sbx = require('../src/services/starkbucks-exchange');
+        const userId = req.userSession.userId;
+        
+        const result = await sbx.claimInvestmentEarnings(userId);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
 // Get leaderboard
 router.get('/api/leaderboard/:type', async (req, res) => {
     try {
         const starkEconomy = require('../src/services/stark-economy');
         const { type } = req.params;
         const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+        const resolve = req.query.resolve === 'true';
         
         let leaderboard;
         switch (type) {
@@ -203,6 +240,24 @@ router.get('/api/leaderboard/:type', async (req, res) => {
                 break;
             default:
                 return res.status(400).json({ error: 'Invalid leaderboard type' });
+        }
+        
+        // Resolve Discord user data if requested
+        if (resolve && leaderboard?.length && global.discordClient) {
+            const client = global.discordClient;
+            for (const entry of leaderboard) {
+                if (!entry.userId) continue;
+                try {
+                    const user = await client.users.fetch(entry.userId).catch(() => null);
+                    if (user) {
+                        entry.username = user.username;
+                        entry.displayName = user.globalName || user.username;
+                        entry.avatar = user.displayAvatarURL({ size: 64 });
+                    }
+                } catch {
+                    // Keep original data
+                }
+            }
         }
         
         res.json({ success: true, leaderboard });
