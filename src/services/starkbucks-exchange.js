@@ -1030,6 +1030,31 @@ async function withdrawInvestment(userId, amount) {
 }
 
 // ============================================================================
+// LEADERBOARD
+// ============================================================================
+
+/**
+ * Get SBX holdings leaderboard
+ */
+async function getLeaderboard(limit = 10) {
+    try {
+        const col = await getCollection('sbx_wallets');
+        const wallets = await col.find({ balance: { $gt: 0 } })
+            .sort({ balance: -1 })
+            .limit(limit)
+            .toArray();
+        
+        return wallets.map(w => ({
+            userId: w.userId,
+            balance: w.balance || 0
+        }));
+    } catch (error) {
+        console.error('[Starkbucks] Leaderboard error:', error);
+        return [];
+    }
+}
+
+// ============================================================================
 // INITIALIZATION
 // ============================================================================
 
@@ -1093,6 +1118,9 @@ module.exports = {
     investSBX,
     claimInvestmentEarnings,
     withdrawInvestment,
+    
+    // Leaderboard
+    getLeaderboard,
     
     // Lifecycle
     startPriceUpdates,
