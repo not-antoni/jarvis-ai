@@ -116,8 +116,12 @@ function getSnapshotCollection() {
 async function ensureSnapshotIndexes(collection) {
     if (jarvisSnapshotIndexesReady) return;
     jarvisSnapshotIndexesReady = true;
-    await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => null);
-    await collection.createIndex({ updatedAt: -1 }).catch(() => null);
+    await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(err => {
+        console.warn('[Jarvis] Failed to create TTL index:', err?.message || err);
+    });
+    await collection.createIndex({ updatedAt: -1 }).catch(err => {
+        console.warn('[Jarvis] Failed to create updatedAt index:', err?.message || err);
+    });
 }
 
 async function saveJarvisSnapshot(key, payload, opts = {}) {
@@ -262,7 +266,10 @@ async function resolveDiscordUserData(userId) {
     const client = getDiscordClient();
     if (!client?.users?.fetch) return { id: String(userId) };
 
-    const user = await client.users.fetch(String(userId)).catch(() => null);
+    const user = await client.users.fetch(String(userId)).catch(err => {
+        console.warn('[Jarvis] Failed to fetch user:', userId, err?.message || err);
+        return null;
+    });
     if (!user) return { id: String(userId) };
 
     return {
@@ -1941,7 +1948,9 @@ router.get('/api/audit', requireOwner, (req, res) => {
     const events = jarvisAuditLog.slice(-limit);
     const payload = { ok: true, count: events.length, events };
     res.json(payload);
-    saveJarvisSnapshot('audit', payload).catch(() => null);
+    saveJarvisSnapshot('audit', payload).catch(err => {
+        console.warn('[Jarvis] Failed to save audit snapshot:', err?.message || err);
+    });
 });
 
 router.get('/api/stats', requireOwner, (req, res) => {
@@ -2029,7 +2038,10 @@ router.get('/api/commands', requireOwner, async (req, res) => {
     let registered = [];
     if (client && typeof client.isReady === 'function' && client.isReady()) {
         try {
-            const commands = await client.application?.commands?.fetch().catch(() => null);
+            const commands = await client.application?.commands?.fetch().catch(err => {
+                console.warn('[Jarvis] Failed to fetch commands:', err?.message || err);
+                return null;
+            });
             if (commands && typeof commands.values === 'function') {
                 registered = Array.from(commands.values()).map(cmd => ({
                     id: cmd.id,
@@ -2068,7 +2080,9 @@ router.get('/api/config', requireOwner, (req, res) => {
 
     const payload = { ok: true, config: snapshot };
     res.json(payload);
-    saveJarvisSnapshot('config', payload).catch(() => null);
+    saveJarvisSnapshot('config', payload).catch(err => {
+        console.warn('[Jarvis] Failed to save config snapshot:', err?.message || err);
+    });
 });
 
 router.get('/api/overview', requireOwner, async (req, res) => {
@@ -2228,7 +2242,9 @@ router.get('/api/overview', requireOwner, async (req, res) => {
     };
 
     res.json(payload);
-    saveJarvisSnapshot('overview', payload).catch(() => null);
+    saveJarvisSnapshot('overview', payload).catch(err => {
+        console.warn('[Jarvis] Failed to save overview snapshot:', err?.message || err);
+    });
 });
 
 router.get('/api/providers', requireOwner, (req, res) => {
@@ -2269,7 +2285,9 @@ router.get('/api/providers', requireOwner, (req, res) => {
     };
 
     res.json(payload);
-    saveJarvisSnapshot('providers', payload).catch(() => null);
+    saveJarvisSnapshot('providers', payload).catch(err => {
+        console.warn('[Jarvis] Failed to save providers snapshot:', err?.message || err);
+    });
 });
 
 router.post(
@@ -2324,7 +2342,9 @@ router.get('/api/agent/health', requireOwner, (req, res) => {
         const health = agentMonitor.getHealthReport(browserAgent);
         const payload = { ok: true, metrics, health };
         res.json(payload);
-        saveJarvisSnapshot('agent.health', payload).catch(() => null);
+        saveJarvisSnapshot('agent.health', payload).catch(err => {
+            console.warn('[Jarvis] Failed to save agent health snapshot:', err?.message || err);
+        });
         return;
     } catch (e) {
         return res.status(500).json({ ok: false, error: e?.message || 'failed' });
@@ -2360,7 +2380,9 @@ router.get('/api/moderation', requireOwner, (req, res) => {
 
     const payload = { ok: true, ready: true, page, limit, total: ids.length, guilds: rows };
     res.json(payload);
-    saveJarvisSnapshot(`moderation.page.${page}`, payload).catch(() => null);
+    saveJarvisSnapshot(`moderation.page.${page}`, payload).catch(err => {
+        console.warn(`[Jarvis] Failed to save moderation page ${page} snapshot:`, err?.message || err);
+    });
 });
 
 router.get('/api/filters', requireOwner, async (req, res) => {
@@ -2398,7 +2420,9 @@ router.get('/api/filters', requireOwner, async (req, res) => {
 
     const payload = { ok: true, ready: true, page, limit, total: ids.length, guilds };
     res.json(payload);
-    saveJarvisSnapshot(`filters.page.${page}`, payload).catch(() => null);
+    saveJarvisSnapshot(`filters.page.${page}`, payload).catch(err => {
+        console.warn(`[Jarvis] Failed to save filters page ${page} snapshot:`, err?.message || err);
+    });
 });
 
 router.get('/api/monitoring/subscriptions', requireOwner, async (req, res) => {
@@ -2412,7 +2436,9 @@ router.get('/api/monitoring/subscriptions', requireOwner, async (req, res) => {
         }, {});
         const payload = { ok: true, count: subs.length, byType, subscriptions: subs };
         res.json(payload);
-        saveJarvisSnapshot('monitoring.subscriptions', payload).catch(() => null);
+        saveJarvisSnapshot('monitoring.subscriptions', payload).catch(err => {
+            console.warn('[Jarvis] Failed to save monitoring subscriptions snapshot:', err?.message || err);
+        });
     } catch (e) {
         res.status(500).json({ ok: false, error: e?.message || 'failed' });
     }
@@ -2425,7 +2451,9 @@ router.get('/api/music', requireOwner, (req, res) => {
 
     const payload = { ok: true, whitelist, activeGuilds, activeQueues };
     res.json(payload);
-    saveJarvisSnapshot('music', payload).catch(() => null);
+    saveJarvisSnapshot('music', payload).catch(err => {
+        console.warn('[Jarvis] Failed to save music snapshot:', err?.message || err);
+    });
 });
 
 router.get('/api/economy', requireOwner, async (req, res) => {
@@ -2455,7 +2483,9 @@ router.get('/api/economy', requireOwner, async (req, res) => {
     };
 
     res.json(payload);
-    saveJarvisSnapshot('economy.leaderboard', payload).catch(() => null);
+    saveJarvisSnapshot('economy.leaderboard', payload).catch(err => {
+        console.warn('[Jarvis] Failed to save economy leaderboard snapshot:', err?.message || err);
+    });
 });
 
 router.get('/api/soul', requireOwner, (req, res) => {
@@ -2480,7 +2510,9 @@ router.get('/api/soul', requireOwner, (req, res) => {
     };
 
     res.json(payload);
-    saveJarvisSnapshot('soul', payload).catch(() => null);
+    saveJarvisSnapshot('soul', payload).catch(err => {
+        console.warn('[Jarvis] Failed to save soul snapshot:', err?.message || err);
+    });
 });
 
 router.get('/api/sync', requireOwner, (req, res) => {
@@ -2488,7 +2520,9 @@ router.get('/api/sync', requireOwner, (req, res) => {
         const status = typeof dataSync.getSyncStatus === 'function' ? dataSync.getSyncStatus() : null;
         const payload = { ok: true, status };
         res.json(payload);
-        saveJarvisSnapshot('sync', payload).catch(() => null);
+        saveJarvisSnapshot('sync', payload).catch(err => {
+            console.warn('[Jarvis] Failed to save sync snapshot:', err?.message || err);
+        });
     } catch (e) {
         res.status(500).json({ ok: false, error: e?.message || 'failed' });
     }

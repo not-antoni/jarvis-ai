@@ -73,7 +73,10 @@ async function resolveDiscordUserData(userId) {
     const client = getDiscordClient();
     if (!client?.users?.fetch) return { id: String(userId) };
 
-    const user = await client.users.fetch(String(userId)).catch(() => null);
+    const user = await client.users.fetch(String(userId)).catch(err => {
+        console.warn('[Moderator] Failed to fetch user:', userId, err?.message || err);
+        return null;
+    });
     if (!user) return { id: String(userId) };
 
     return {

@@ -1,7 +1,69 @@
 'use strict';
 
-const fetch = require('node-fetch');
+const config = require('../../config');
+const { fetch } = require('undici');
+const fetchNode = require('node-fetch');
 const cheerio = require('cheerio');
+
+// Simple rate limiter for external API calls
+class RateLimiter {
+    constructor(maxRequests = 60, windowMs = 60000) {
+        this.maxRequests = maxRequests;
+        this.windowMs = windowMs;
+        this.requests = new Map();
+    }
+
+    canMakeRequest(key = 'default') {
+        const now = Date.now();
+        const windowStart = now - this.windowMs;
+        
+        if (!this.requests.has(key)) {
+            this.requests.set(key, []);
+        }
+        
+        const timestamps = this.requests.get(key);
+        // Remove old requests outside the window
+        const validRequests = timestamps.filter(t => t > windowStart);
+        this.requests.set(key, validRequests);
+        
+        return validRequests.length < this.maxRequests;
+    }
+
+    recordRequest(key = 'default') {
+        if (!this.requests.has(key)) {
+            this.requests.set(key, []);
+        }
+        this.requests.get(key).push(Date.now());
+    }
+
+    getWaitTime(key = 'default') {
+        const now = Date.now();
+        const windowStart = now - this.windowMs;
+        
+        if (!this.requests.has(key)) {
+            return 0;
+        }
+        
+        const timestamps = this.requests.get(key).filter(t => t > windowStart);
+        if (timestamps.length < this.maxRequests) {
+            return 0;
+        }
+        
+        // Return time until oldest request falls out of window
+        const oldest = timestamps[0];
+        return Math.max(0, oldest + this.windowMs - now);
+    }
+}
+
+// Create rate limiters for different services
+const rateLimiters = {
+    cloudflare: new RateLimiter(60, 60000), // 60 requests per minute
+    statuspage: new RateLimiter(60, 60000), // 60 requests per minute
+    youtube: new RateLimiter(100, 60000), // 100 requests per minute
+    twitch: new RateLimiter(30, 60000), // 30 requests per minute
+    rss: new RateLimiter(30, 60000), // 30 requests per minute
+    website: new RateLimiter(60, 60000) // 60 requests per minute
+};
 
 let twitchTokenState = {
     accessToken: null,
@@ -228,7 +290,18 @@ const CLOUDFLARE_COMPONENTS_URL = 'https://www.cloudflarestatus.com/api/v2/compo
 const CLOUDFLARE_INCIDENTS_URL = 'https://www.cloudflarestatus.com/api/v2/incidents/unresolved.json';
 
 async function fetchCloudflareStatus() {
+    // Check rate limit
+    if (!rateLimiters.cloudflare.canMakeRequest()) {
+        const waitTime = rateLimiters.cloudflare.getWaitTime();
+        return { 
+            success: false, 
+            error: `Rate limit exceeded. Please wait ${Math.ceil(waitTime / 1000)} seconds.` 
+        };
+    }
+
     try {
+        rateLimiters.cloudflare.recordRequest();
+        
         const [summaryRes, incidentsRes] = await Promise.all([
             fetch(CLOUDFLARE_STATUS_URL, {
                 timeout: 15000,
@@ -327,7 +400,18 @@ function getStatusEmoji(status) {
 // ============================================================================
 
 async function fetchStatusPageStatus(baseUrl) {
+    // Check rate limit
+    if (!rateLimiters.statuspage.canMakeRequest()) {
+        const waitTime = rateLimiters.statuspage.getWaitTime();
+        return { 
+            success: false, 
+            error: `Rate limit exceeded. Please wait ${Math.ceil(waitTime / 1000)} seconds.` 
+        };
+    }
+
     try {
+        rateLimiters.statuspage.recordRequest();
+        
         // Statuspage.io compatible API
         const apiUrl = baseUrl.replace(/\/$/, '') + '/api/v2/summary.json';
         
@@ -396,11 +480,29 @@ function buildYoutubeFeedUrl(channelId) {
 }
 
 async function fetchYoutubeLatest(channelId) {
+    // Check rate limit
+    if (!rateLimiters.youtube.canMakeRequest()) {
+        const waitTime = rateLimiters.youtube.getWaitTime();
+        return { 
+            success: false, 
+            error: `Rate limit exceeded. Please wait ${Math.ceil(waitTime / 1000)} seconds.` 
+        };
+    }
+
+    rateLimiters.youtube.recordRequest();
     const feedUrl = buildYoutubeFeedUrl(channelId);
     return fetchFeedLatest(feedUrl);
 }
 
 async function fetchTwitchAppToken() {
+    // Check rate limit
+    if (!rateLimiters.twitch.canMakeRequest()) {
+        const waitTime = rateLimiters.twitch.getWaitTime();
+        throw new Error(`Rate limit exceeded. Please wait ${Math.ceil(waitTime / 1000)} seconds.`);
+    }
+
+    rateLimiters.twitch.recordRequest();
+
     const clientId = String(process.env.TWITCH_CLIENT_ID || '').trim();
     const clientSecret = String(process.env.TWITCH_CLIENT_SECRET || '').trim();
     if (!clientId || !clientSecret) {

@@ -17,14 +17,14 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const config = require('../../../config');
+const database = require('../../database');
+const localdb = require('../../localdb');
+const { safeSend } = require('../../utils/discord-safe-send');
 
 // Check if we're in selfhost/local mode
 const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
 const SELFHOST_MODE = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
-
-// Database imports (lazy loaded)
-let database = null;
-let localDb = null;
 
 // Collection name for moderation config
 const COLLECTION_NAME = 'guildModeration';
@@ -984,7 +984,7 @@ async function sendAlert(message, result, contentType, client, context, riskData
 
     // Send in current channel
     try {
-        await message.channel.send({ content: alertMessage, embeds: [embed] });
+        await safeSend(message.channel, { content: alertMessage, embeds: [embed] }, client);
     } catch (error) {
         console.error('[Moderation] Failed to send alert:', error.message);
     }
@@ -993,8 +993,10 @@ async function sendAlert(message, result, contentType, client, context, riskData
     if (settings.logChannel && settings.logChannel !== message.channel.id) {
         try {
             const channel = await client.channels.fetch(settings.logChannel);
-            if (channel) await channel.send({ content: pingString, embeds: [embed] });
-        } catch {}
+            if (channel) await safeSend(channel, { content: pingString, embeds: [embed] }, client);
+        } catch (error) {
+            console.error('[Moderation] Failed to send to log channel:', error.message);
+        }
     }
 }
 

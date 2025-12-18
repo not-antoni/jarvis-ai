@@ -12,6 +12,10 @@ const starkEconomy = require('./stark-economy');
 const starkTinker = require('./stark-tinker');
 const funFeatures = require('./fun-features');
 const moderation = require('./GUILDS_FEATURES/moderation');
+const config = require('../../config');
+const database = require('./database');
+const localdb = require('../localdb');
+const { safeSend } = require('../utils/discord-safe-send');
 
 const LEGACY_PREFIX = '*j';
 
@@ -696,7 +700,7 @@ const legacyCommands = {
             setTimeout(async () => {
                 try {
                     const channel = await message.client.channels.fetch(channelId);
-                    await channel.send(`⏰ <@${userId}> Reminder: ${reminderText}`);
+                    await safeSend(channel, { content: `⏰ <@${userId}> Reminder: ${reminderText}` }, message.client);
                 } catch (e) {
                     console.error('Failed to send reminder:', e);
                 }

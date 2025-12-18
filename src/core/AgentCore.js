@@ -439,10 +439,8 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
                 required: ['expression']
             },
             async args => {
-                // Safe math eval (basic operations only)
-                const sanitized = args.expression.replace(/[^0-9+\-*/().%\s]/g, '');
                 try {
-                    const result = Function(`"use strict"; return (${sanitized})`)();
+                    const result = this._safeMathEval(args.expression);
                     return { expression: args.expression, result };
                 } catch (e) {
                     return ToolOutput.error(`Invalid expression: ${e.message}`);
@@ -497,6 +495,134 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
             },
             { category: 'web', parallel: true, timeout: 15000 }
         );
+    }
+
+    /**
+     * Safe math expression evaluator - no Function() or eval()
+     */
+    _safeMathEval(expression) {
+        // Remove all whitespace
+        const expr = expression.replace(/\s/g, '');
+        
+        // Only allow numbers, operators, and parentheses
+        if (!/^[0-9+\-*/().%]+$/.test(expr)) {
+            throw new Error('Invalid characters in expression');
+        }
+        
+        // Check for balanced parentheses
+        let parenCount = 0;
+        for (const char of expr) {
+            if (char === '(') parenCount++;
+            if (char === ')') parenCount--;
+            if (parenCount < 0) throw new Error('Unbalanced parentheses');
+        }
+        if (parenCount !== 0) throw new Error('Unbalanced parentheses');
+        
+        // Tokenize and evaluate using shunting-yard algorithm
+        const tokens = this._tokenizeMath(expr);
+        const rpn = this._toRPN(tokens);
+        return this._evaluateRPN(rpn);
+    }
+
+    /**
+     * Tokenize math expression
+     */
+    _tokenizeMath(expr) {
+        const tokens = [];
+        let i = 0;
+        
+        while (i < expr.length) {
+            const char = expr[i];
+            
+            if (char >= '0' && char <= '9' || char === '.') {
+                // Parse number
+                let num = '';
+                while (i < expr.length && (expr[i] >= '0' && expr[i] <= '9' || expr[i] === '.')) {
+                    num += expr[i++];
+                }
+                tokens.push({ type: 'number', value: parseFloat(num) });
+            } else if ('+-*/%'.includes(char)) {
+                tokens.push({ type: 'operator', value: char });
+                i++;
+            } else if (char === '(' || char === ')') {
+                tokens.push({ type: 'paren', value: char });
+                i++;
+            } else {
+                throw new Error(`Invalid character: ${char}`);
+            }
+        }
+        
+        return tokens;
+    }
+
+    /**
+     * Convert tokens to Reverse Polish Notation (RPN)
+     */
+    _toRPN(tokens) {
+        const output = [];
+        const operators = [];
+        const precedence = { '+': 1, '-': 1, '*': 2, '/': 2, '%': 2 };
+        
+        for (const token of tokens) {
+            if (token.type === 'number') {
+                output.push(token);
+            } else if (token.type === 'operator') {
+                while (operators.length > 0 && 
+                       operators[operators.length - 1].type === 'operator' &&
+                       precedence[operators[operators.length - 1].value] >= precedence[token.value]) {
+                    output.push(operators.pop());
+                }
+                operators.push(token);
+            } else if (token.value === '(') {
+                operators.push(token);
+            } else if (token.value === ')') {
+                while (operators.length > 0 && operators[operators.length - 1].value !== '(') {
+                    output.push(operators.pop());
+                }
+                if (operators.length === 0) throw new Error('Mismatched parentheses');
+                operators.pop(); // Remove '('
+            }
+        }
+        
+        while (operators.length > 0) {
+            const op = operators.pop();
+            if (op.type === 'paren') throw new Error('Mismatched parentheses');
+            output.push(op);
+        }
+        
+        return output;
+    }
+
+    /**
+     * Evaluate RPN expression
+     */
+    _evaluateRPN(rpn) {
+        const stack = [];
+        
+        for (const token of rpn) {
+            if (token.type === 'number') {
+                stack.push(token.value);
+            } else if (token.type === 'operator') {
+                if (stack.length < 2) throw new Error('Invalid expression');
+                const b = stack.pop();
+                const a = stack.pop();
+                
+                switch (token.value) {
+                    case '+': stack.push(a + b); break;
+                    case '-': stack.push(a - b); break;
+                    case '*': stack.push(a * b); break;
+                    case '/': 
+                        if (b === 0) throw new Error('Division by zero');
+                        stack.push(a / b); 
+                        break;
+                    case '%': stack.push(a % b); break;
+                    default: throw new Error(`Unknown operator: ${token.value}`);
+                }
+            }
+        }
+        
+        if (stack.length !== 1) throw new Error('Invalid expression');
+        return stack[0];
     }
 }
 

@@ -1,6 +1,9 @@
 'use strict';
 
 const config = require('../../config');
+const database = require('./database');
+const localdb = require('../localdb');
+const { safeSend } = require('../utils/discord-safe-send');
 
 const DEFAULT_TICK_MS = 15 * 1000;
 const DEFAULT_LOCK_MS = 60 * 1000;
@@ -239,14 +242,14 @@ async function deliverAnnouncement(doc) {
     const content = [roleMentions, doc.message].filter(Boolean).join(' ');
 
     try {
-        await channel.send({
+        const result = await safeSend(channel, {
             content,
             allowedMentions: {
                 parse: ['users', 'everyone'],
                 roles: roleIds
             }
-        });
-        return { ok: true };
+        }, schedulerState.client);
+        return result;
     } catch (error) {
         return { ok: false, error };
     }

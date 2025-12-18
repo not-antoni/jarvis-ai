@@ -4,6 +4,7 @@
  */
 
 const { LRUCache } = require('lru-cache');
+const { safeSend, safeDM } = require('../utils/discord-safe-send');
 
 // Conversation threading - tracks multi-turn sessions
 const conversationSessions = new LRUCache({
@@ -592,10 +593,10 @@ class UserFeaturesService {
             if (!channel || typeof channel.send !== 'function') {
                 return false;
             }
-            await channel.send({
+            await safeSend(channel, {
                 content: `<@${reminder.userId}> ⏰ Reminder: ${reminder.message}`,
                 allowedMentions: { users: [reminder.userId] }
-            });
+            }, this.discordClient);
             return true;
         };
 
@@ -612,7 +613,7 @@ class UserFeaturesService {
                 return await trySendToChannel().catch(() => false);
             }
 
-            await dmChannel.send({
+            await safeDM(user, {
                 content: `Hey <@${reminder.userId}>, here's your reminder:`,
                 embeds: [reminderEmbed]
             });
