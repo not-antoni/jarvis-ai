@@ -161,6 +161,33 @@ class SelfhostSetup {
         return null;
     }
 
+    /**
+     * Check if local MongoDB is running on localhost:27017
+     */
+    async checkLocalMongo() {
+        return new Promise(resolve => {
+            const socket = new net.Socket();
+            socket.setTimeout(2000);
+            
+            socket.on('connect', () => {
+                socket.destroy();
+                resolve(true);
+            });
+            
+            socket.on('timeout', () => {
+                socket.destroy();
+                resolve(false);
+            });
+            
+            socket.on('error', () => {
+                socket.destroy();
+                resolve(false);
+            });
+            
+            socket.connect(27017, 'localhost');
+        });
+    }
+
     async run() {
         console.clear();
         log.header('Jarvis AI - Selfhost Setup Wizard');
@@ -249,17 +276,39 @@ class SelfhostSetup {
             log.success('MongoDB URIs already configured');
         } else {
             log.info('MongoDB is required for full functionality.');
-            log.info('You can use MongoDB Atlas (free tier) or local MongoDB.');
+            log.info('Options: 1) Local MongoDB, 2) MongoDB Atlas, 3) No database (limited)');
             
-            const useLocalDb = await this.promptYesNo('Use LOCAL_DB_MODE (no MongoDB, limited features)?', false);
-            if (useLocalDb) {
-                this.envVars.LOCAL_DB_MODE = '1';
-                this.envVars.ALLOW_START_WITHOUT_DB = '1';
+            // Check if local MongoDB is running
+            const localMongoRunning = await this.checkLocalMongo();
+            
+            if (localMongoRunning) {
+                log.success('Local MongoDB detected on localhost:27017');
+                const useLocalMongo = await this.promptYesNo('Use local MongoDB?', true);
+                if (useLocalMongo) {
+                    this.envVars.MONGO_URI_MAIN = 'mongodb://localhost:27017/jarvis';
+                    this.envVars.MONGO_URI_VAULT = 'mongodb://localhost:27017/jarvis_vault';
+                    log.success('Configured local MongoDB URIs');
+                } else {
+                    const mongoMain = await this.prompt('MongoDB Main URI', '');
+                    const mongoVault = await this.prompt('MongoDB Vault URI', mongoMain);
+                    if (mongoMain) this.envVars.MONGO_URI_MAIN = mongoMain;
+                    if (mongoVault) this.envVars.MONGO_URI_VAULT = mongoVault;
+                }
             } else {
-                const mongoMain = await this.prompt('MongoDB Main URI', this.existingEnv.MONGO_URI_MAIN || '');
-                const mongoVault = await this.prompt('MongoDB Vault URI', this.existingEnv.MONGO_URI_VAULT || mongoMain);
-                if (mongoMain) this.envVars.MONGO_URI_MAIN = mongoMain;
-                if (mongoVault) this.envVars.MONGO_URI_VAULT = mongoVault;
+                log.warn('Local MongoDB not detected on localhost:27017');
+                log.info('Install MongoDB: sudo apt install mongodb-org && sudo systemctl start mongod');
+                
+                const useLocalDb = await this.promptYesNo('Continue without MongoDB (LOCAL_DB_MODE)?', false);
+                if (useLocalDb) {
+                    this.envVars.LOCAL_DB_MODE = '1';
+                    this.envVars.ALLOW_START_WITHOUT_DB = '1';
+                    log.warn('Using LOCAL_DB_MODE - some features like Starkbucks will be disabled');
+                } else {
+                    const mongoMain = await this.prompt('MongoDB Main URI (Atlas or custom)', '');
+                    const mongoVault = await this.prompt('MongoDB Vault URI', mongoMain);
+                    if (mongoMain) this.envVars.MONGO_URI_MAIN = mongoMain;
+                    if (mongoVault) this.envVars.MONGO_URI_VAULT = mongoVault;
+                }
             }
         }
 

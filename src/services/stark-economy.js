@@ -14,6 +14,19 @@
 const database = require('./database');
 const config = require('../../config');
 
+// Lazy-load starkbucks to avoid circular dependency
+let _starkbucks = null;
+function getStarkbucks() {
+    if (!_starkbucks) {
+        try {
+            _starkbucks = require('./starkbucks-exchange');
+        } catch (e) {
+            _starkbucks = null;
+        }
+    }
+    return _starkbucks;
+}
+
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
@@ -803,6 +816,97 @@ async function getArcReactorPerks(userId) {
 }
 
 /**
+ * Award SBX bonus alongside Stark Bucks earnings
+ * Small SBX bonus (1% of Stark Bucks earned, scaled by SBX price)
+ */
+async function awardSbxBonus(userId, starkBucksEarned, reason = 'activity') {
+    const sbx = getStarkbucks();
+    if (!sbx) return { sbxAwarded: 0 };
+    
+    try {
+        // Get current SBX price to calculate bonus
+        const market = await sbx.getMarketData();
+        const price = market?.price || 1;
+        
+        // Award 1% of Stark Bucks as SBX value (divided by price)
+        // Minimum 0.01 SBX for any activity
+        const sbxBonus = Math.max(0.01, (starkBucksEarned * 0.01) / price);
+        const roundedBonus = Math.floor(sbxBonus * 100) / 100;
+        
+        if (roundedBonus > 0) {
+            await sbx.updateWallet(userId, roundedBonus, `Bonus: ${reason}`);
+            return { sbxAwarded: roundedBonus };
+        }
+    } catch (e) {
+        // SBX system not available, continue without bonus
+    }
+    return { sbxAwarded: 0 };
+}
+
+/**
+ * Get combined perks from Arc Reactor AND SBX purchases
+ * This is the main function to check user perks across all systems
+ */
+async function getCombinedPerks(userId) {
+    // Get Arc Reactor perks
+    const arcPerks = await getArcReactorPerks(userId);
+    
+    // Get SBX purchase effects
+    let sbxEffects = {};
+    const sbx = getStarkbucks();
+    if (sbx) {
+        try {
+            sbxEffects = await sbx.getUserEffects(userId);
+        } catch (e) {
+            sbxEffects = {};
+        }
+    }
+    
+    // Combine perks - SBX effects stack with Arc Reactor
+    return {
+        // Arc Reactor base
+        hasReactor: arcPerks.hasReactor,
+        
+        // Earnings multiplier (Arc: 1.15x, SBX income_boost: 1.25x)
+        earningsMultiplier: arcPerks.earningsMultiplier * (sbxEffects.incomeMultiplier || 1),
+        
+        // Cooldown reduction (Arc: 0.75x, SBX cooldown_reduction: 0.70x)
+        cooldownMultiplier: arcPerks.cooldownMultiplier * (1 - (sbxEffects.cooldownReduction || 0)),
+        
+        // Gambling bonus (Arc: +5%, SBX luck_boost: +10%)
+        gamblingBonus: arcPerks.gamblingBonus + (sbxEffects.luckBoost || 0),
+        
+        // Daily multiplier (SBX daily_multiplier: 1.5x)
+        dailyMultiplier: sbxEffects.dailyMultiplier || 1,
+        
+        // Flat daily bonus (Arc: 500)
+        dailyBonus: arcPerks.dailyBonus,
+        
+        // Interest rate (Arc: 1%)
+        interestRate: arcPerks.interestRate,
+        
+        // Minigame cooldown
+        minigameCooldown: Math.floor(arcPerks.minigameCooldown * (1 - (sbxEffects.cooldownReduction || 0))),
+        
+        // SBX-specific effects
+        sbxMultiplier: sbxEffects.sbxMultiplier || 1,
+        xpMultiplier: sbxEffects.xpMultiplier || 1,
+        
+        // AI-related perks (for use in AI handlers)
+        memoryMultiplier: sbxEffects.memoryMultiplier || 1,
+        priorityQueue: sbxEffects.priorityQueue || false,
+        personalities: sbxEffects.personalities || [],
+        tokenMultiplier: sbxEffects.tokenMultiplier || 1,
+        betaAccess: sbxEffects.betaAccess || false,
+        customCommands: sbxEffects.customCommands || 0,
+        vipSupport: sbxEffects.vipSupport || false,
+        
+        // Raw SBX effects for reference
+        _sbxEffects: sbxEffects
+    };
+}
+
+/**
  * Apply item effect
  */
 async function applyItemEffect(userId, item) {
@@ -826,10 +930,11 @@ async function applyItemEffect(userId, item) {
 
 /**
  * Daily reward with streak system
+ * Now uses combined perks from Arc Reactor AND SBX purchases
  */
 async function claimDaily(userId, username) {
     const user = await loadUser(userId, username);
-    const arcPerks = await getArcReactorPerks(userId);
+    const perks = await getCombinedPerks(userId);
     const now = Date.now();
     const timeSinceLastDaily = now - (user.lastDaily || 0);
 
@@ -873,16 +978,21 @@ async function claimDaily(userId, username) {
 
     // Arc Reactor daily bonus (+500 flat)
     let reactorBonus = 0;
-    if (arcPerks.hasReactor) {
-        reactorBonus = arcPerks.dailyBonus;
+    if (perks.hasReactor) {
+        reactorBonus = perks.dailyBonus;
         reward += reactorBonus;
     }
 
     // Arc Reactor interest (1% of balance)
     let interestEarned = 0;
-    if (arcPerks.hasReactor && arcPerks.interestRate > 0) {
-        interestEarned = Math.floor(user.balance * arcPerks.interestRate);
+    if (perks.hasReactor && perks.interestRate > 0) {
+        interestEarned = Math.floor(user.balance * perks.interestRate);
         reward += interestEarned;
+    }
+
+    // SBX daily multiplier (from purchased daily_multiplier item)
+    if (perks.dailyMultiplier > 1) {
+        reward = Math.floor(reward * perks.dailyMultiplier);
     }
 
     // Check for double daily item
@@ -902,13 +1012,17 @@ async function claimDaily(userId, username) {
 
     await saveUser(userId, user);
 
+    // Award SBX bonus (1% of earnings)
+    const sbxBonus = await awardSbxBonus(userId, reward, 'daily');
+
     return {
         success: true,
         reward,
         streak: user.dailyStreak,
         streakBonus,
         doubled: !!hasDoubleDaily,
-        newBalance: user.balance
+        newBalance: user.balance,
+        sbxAwarded: sbxBonus.sbxAwarded
     };
 }
 
@@ -1009,11 +1123,15 @@ async function work(userId, username) {
     user.totalEarned = (user.totalEarned || 0) + reward;
     await saveUser(userId, user);
 
+    // Award SBX bonus (1% of earnings)
+    const sbxBonus = await awardSbxBonus(userId, reward, 'work');
+
     return {
         success: true,
         reward,
         job,
-        newBalance: user.balance
+        newBalance: user.balance,
+        sbxAwarded: sbxBonus.sbxAwarded
     };
 }
 
@@ -1842,9 +1960,10 @@ module.exports = {
     getInventory,
     getActiveEffects,
 
-    // Arc Reactor
+    // Arc Reactor & SBX Perks
     hasArcReactor,
     getArcReactorPerks,
+    getCombinedPerks,
 
     // Tinker / Crafting
     getMaterials,
