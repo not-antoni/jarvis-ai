@@ -31,7 +31,9 @@ let _signingKey = null;
  * @throws {Error} If no secret is configured
  */
 function getSigningKey() {
-    if (_signingKey) return _signingKey;
+    if (_signingKey) {
+        return _signingKey;
+    }
     
     const raw = process.env.USER_SESSION_SECRET || process.env.MASTER_KEY_BASE64;
     if (!raw) {
@@ -54,9 +56,13 @@ function createSignedToken(payload) {
  * Parse and verify signed token (timing-safe)
  */
 function parseSignedToken(token) {
-    if (!token || typeof token !== 'string') return null;
+    if (!token || typeof token !== 'string') {
+        return null;
+    }
     const parts = token.split('.');
-    if (parts.length !== 2) return null;
+    if (parts.length !== 2) {
+        return null;
+    }
     
     const [data, signature] = parts;
     
@@ -94,10 +100,14 @@ function generateState(returnUrl = '/') {
  * @returns {Object|null} Parsed state with returnUrl, or null if invalid
  */
 function validateState(state) {
-    if (!state) return null;
+    if (!state) {
+        return null;
+    }
     
     const payload = parseSignedToken(state);
-    if (!payload || !payload.t) return null;
+    if (!payload || !payload.t) {
+        return null;
+    }
     
     // State tokens expire after 10 minutes
     const STATE_TTL = 10 * 60 * 1000;
@@ -299,7 +309,9 @@ function evictExpiredSessions() {
  * Get session by token (validates signed token, survives restarts)
  */
 function getSession(token) {
-    if (!token) return null;
+    if (!token) {
+        return null;
+    }
     
     // Check cache first
     const cached = sessionCache.get(token);
@@ -318,10 +330,14 @@ function getSession(token) {
     
     // Parse and validate signed token (works even after restart)
     const payload = parseSignedToken(token);
-    if (!payload || !payload.userId || !payload.exp) return null;
+    if (!payload || !payload.userId || !payload.exp) {
+        return null;
+    }
     
     const expiresAt = Number(payload.exp);
-    if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) return null;
+    if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) {
+        return null;
+    }
     
     // Check token version for revocation
     const tokenVersion = payload.tv || 0;
@@ -441,7 +457,9 @@ function getSessionFromRequest(req) {
     const cookieToken = req.cookies?.jarvis_session;
     if (cookieToken) {
         const session = getSession(cookieToken);
-        if (session) return session;
+        if (session) {
+            return session;
+        }
     }
     
     // Try Authorization header
