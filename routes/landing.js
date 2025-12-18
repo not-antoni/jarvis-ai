@@ -442,4 +442,9 @@ router.get('/', (req, res) => {
     res.type('html').send(LANDING_PAGE);
 });
 
+// /home alias for landing page
+router.get('/home', (req, res) => {
+    res.type('html').send(LANDING_PAGE);
+});
+
 module.exports = router;

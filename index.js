@@ -4075,8 +4075,8 @@ app.use('/diagnostics', (req, res, next) => {
     diagnosticsRouter(req, res, next);
 });
 
-// Main endpoint - ASCII Animation Page
-app.get('/', async (req, res) => {
+// Status endpoint - ASCII Animation Page (moved from / to /status)
+app.get('/status', async (req, res) => {
     // Fast-path only for Render's explicit health probe UA
     if (isRenderHealthUserAgent(req)) {
         return res.status(200).send('OK');
@@ -4148,7 +4148,7 @@ app.get('/', async (req, res) => {
             `Optional: ${optionalConfigured}/${optionalTotal}`,
             `Enabled: ${optionalEnabled.length}`,
             ...optionalEnabled.map(name => `- ${name}`)
-        ].join('\\n');
+        ].join('\n');
 
         const dbLines = [
             `Connected: ${databaseStatus.connected ? '✅ Yes' : '❌ No'}`,
