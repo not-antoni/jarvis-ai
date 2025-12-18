@@ -3780,6 +3780,11 @@ app.use('/', userApiRouter);
 const pagesRouter = require('./routes/pages');
 app.use('/', pagesRouter);
 
+// Serve jarvis.gif from root
+app.get('/jarvis.gif', (req, res) => {
+    res.sendFile(path.join(__dirname, 'jarvis.gif'));
+});
+
 // Mount landing page (must be last to not override other routes)
 const landingRouter = require('./routes/landing');
 app.use('/', landingRouter);

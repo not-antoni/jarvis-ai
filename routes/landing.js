@@ -154,9 +154,10 @@ const LANDING_PAGE = `
         }
         
         .hero-icon {
-            font-size: 5rem;
+            width: 120px;
+            height: 120px;
             margin-bottom: 1.5rem;
-            animation: pulse 2s ease-in-out infinite;
+            border-radius: 20px;
         }
         
         @keyframes pulse {
@@ -395,7 +396,7 @@ const LANDING_PAGE = `
     </nav>
     
     <section class="hero">
-        <div class="hero-icon">🤖</div>
+        <img src="/jarvis.gif" alt="Jarvis" class="hero-icon">
         <h1>Meet Jarvis</h1>
         <p>Your intelligent Discord assistant powered by cutting-edge AI. Chat naturally, moderate effortlessly, and supercharge your server with advanced features.</p>
         <div class="cta-buttons">
