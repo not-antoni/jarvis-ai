@@ -53,13 +53,27 @@ function canSudo() {
 }
 
 /**
- * Generate Nginx config for domain
+ * Generate Nginx config for domain (with optional SSL)
  */
-function generateNginxConfig(domain) {
-    return `server {
+function generateNginxConfig(domain, ssl = false) {
+    const redirectBlock = ssl ? `
+server {
     listen 80;
     server_name ${domain} www.${domain};
+    return 301 https://$host$request_uri;
+}
+` : '';
 
+    return `${redirectBlock}server {
+    listen ${ssl ? '443 ssl http2' : '80'};
+    server_name ${domain} www.${domain};
+${ssl ? `
+    ssl_certificate /etc/ssl/cloudflare/${domain}.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/${domain}.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers off;
+` : ''}
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
