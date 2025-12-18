@@ -5110,21 +5110,43 @@ async function startBot() {
 
         await refreshPresenceMessages(true);
 
-        // Auto-configure Cloudflare domain (if credentials provided)
+        // Auto-configure domain (Nginx + Cloudflare)
         try {
             const cloudflareDomain = require('./src/services/cloudflare-domain');
             const cfConfig = cloudflareDomain.getConfig();
+            
+            // Auto-setup Nginx reverse proxy (selfhost only)
+            if (cfConfig.domain && cfConfig.deployTarget !== 'render') {
+                const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain);
+                if (nginxResult.success) {
+                    if (nginxResult.cached) {
+                        console.log(`[Nginx] Already configured for ${cfConfig.domain}`);
+                    } else {
+                        console.log(`[Nginx] ✅ Configured: ${cfConfig.domain} → localhost:3000`);
+                    }
+                } else if (nginxResult.manual) {
+                    console.log(`[Nginx] ⚠️ Manual setup required (no sudo access)`);
+                } else if (nginxResult.error) {
+                    console.log(`[Nginx] ⚠️ ${nginxResult.error}`);
+                }
+            }
+            
+            // Auto-configure Cloudflare DNS
             if (cfConfig.zoneId || cfConfig.domain) {
                 console.log('[Cloudflare] Checking domain configuration...');
                 const result = await cloudflareDomain.autoConfigure();
                 if (result.success) {
-                    console.log(`[Cloudflare] ✅ Domain configured: ${result.domain} → ${result.target}`);
+                    if (result.cached) {
+                        console.log(`[Cloudflare] Already configured: ${result.domain} → ${result.target}`);
+                    } else {
+                        console.log(`[Cloudflare] ✅ Domain configured: ${result.domain} → ${result.target}`);
+                    }
                 } else if (result.error) {
                     console.log(`[Cloudflare] ⚠️ ${result.error}`);
                 }
             }
         } catch (cfErr) {
-            console.log(`[Cloudflare] Domain auto-config skipped: ${cfErr.message}`);
+            console.log(`[Domain] Auto-config skipped: ${cfErr.message}`);
         }
 
         // Start Discord bot unless disabled for local testing

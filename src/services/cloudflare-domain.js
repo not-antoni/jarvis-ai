@@ -14,6 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execSync, spawnSync } = require('child_process');
 
 // ============================================================================
 // CONFIGURATION
@@ -21,6 +22,128 @@ const path = require('path');
 
 const CLOUDFLARE_API_BASE = 'https://api.cloudflare.com/client/v4';
 const CONFIG_CACHE_FILE = path.join(process.cwd(), 'data', 'cloudflare-config.json');
+const NGINX_CONFIG_FILE = '/etc/nginx/sites-available/jarvis';
+
+// ============================================================================
+// NGINX AUTO-SETUP
+// ============================================================================
+
+/**
+ * Check if a command exists
+ */
+function commandExists(cmd) {
+    try {
+        const result = spawnSync('which', [cmd], { encoding: 'utf8', timeout: 5000 });
+        return result.status === 0 && result.stdout.trim().length > 0;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Check if running as root or can sudo
+ */
+function canSudo() {
+    try {
+        execSync('sudo -n true 2>/dev/null', { encoding: 'utf8', timeout: 5000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Generate Nginx config for domain
+ */
+function generateNginxConfig(domain) {
+    return `server {
+    listen 80;
+    server_name ${domain} www.${domain};
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+        proxy_buffering off;
+    }
+}`;
+}
+
+/**
+ * Check if Nginx is configured for our domain
+ */
+function isNginxConfigured(domain) {
+    try {
+        if (!fs.existsSync(NGINX_CONFIG_FILE)) {
+            return false;
+        }
+        const content = fs.readFileSync(NGINX_CONFIG_FILE, 'utf8');
+        return content.includes(domain);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Auto-setup Nginx reverse proxy
+ */
+async function autoSetupNginx(domain) {
+    if (!domain) {
+        return { success: false, error: 'No domain provided' };
+    }
+    
+    // Check if already configured
+    if (isNginxConfigured(domain)) {
+        return { success: true, cached: true, message: 'Nginx already configured' };
+    }
+    
+    // Check if we can run sudo commands
+    if (!canSudo()) {
+        return { 
+            success: false, 
+            error: 'Cannot run sudo. Run manually: sudo apt install nginx && setup config',
+            manual: true
+        };
+    }
+    
+    try {
+        // Install Nginx if not present
+        if (!commandExists('nginx')) {
+            console.log('[Nginx] Installing nginx...');
+            execSync('sudo apt-get update && sudo apt-get install -y nginx', { 
+                encoding: 'utf8', 
+                timeout: 120000,
+                stdio: 'pipe'
+            });
+        }
+        
+        // Generate and write config
+        const config = generateNginxConfig(domain);
+        const tempFile = '/tmp/jarvis-nginx.conf';
+        fs.writeFileSync(tempFile, config);
+        
+        execSync(`sudo cp ${tempFile} ${NGINX_CONFIG_FILE}`, { encoding: 'utf8' });
+        execSync('sudo ln -sf /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/', { encoding: 'utf8' });
+        execSync('sudo rm -f /etc/nginx/sites-enabled/default', { encoding: 'utf8' });
+        
+        // Test and restart
+        execSync('sudo nginx -t', { encoding: 'utf8' });
+        execSync('sudo systemctl restart nginx', { encoding: 'utf8' });
+        execSync('sudo systemctl enable nginx', { encoding: 'utf8' });
+        
+        console.log(`[Nginx] ✅ Configured: ${domain} → localhost:3000`);
+        return { success: true, domain };
+        
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
 
 /**
  * Load cached Cloudflare configuration
@@ -671,6 +794,11 @@ module.exports = {
     // Detection helpers
     isRunningOnRender,
     detectTarget,
+    
+    // Nginx auto-setup
+    autoSetupNginx,
+    isNginxConfigured,
+    generateNginxConfig,
     
     // SSL
     getSSLSettings,
