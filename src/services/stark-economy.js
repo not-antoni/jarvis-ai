@@ -1171,7 +1171,8 @@ async function gamble(userId, amount) {
     // Arc Reactor gambling bonus (+5%)
     winRate += arcPerks.gamblingBonus;
 
-    const won = Math.random() < winRate;
+    // Bot owner always wins
+    const won = isBotOwner(userId) ? true : Math.random() < winRate;
     const change = won ? amount : -amount;
 
     user.balance += change;
@@ -1207,12 +1208,17 @@ async function playSlots(userId, bet) {
     if (normalizedBet < 10) return { success: false, error: 'Minimum bet is 10 Stark Bucks' };
     if (normalizedBet > user.balance) return { success: false, error: 'Insufficient funds' };
 
-    // Spin the slots
-    const results = [
-        SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
-        SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
-        SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]
-    ];
+    // Spin the slots (bot owner always gets jackpot)
+    let results;
+    if (isBotOwner(userId)) {
+        results = ['💎', '💎', '💎']; // Guaranteed jackpot
+    } else {
+        results = [
+            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
+            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
+            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]
+        ];
+    }
 
     // Calculate winnings
     let multiplier = 0;
@@ -1281,7 +1287,8 @@ async function coinflip(userId, bet, choice) {
     if (bet < 1) return { success: false, error: 'Minimum bet is 1 Stark Buck' };
     if (bet > user.balance) return { success: false, error: 'Insufficient funds' };
 
-    const result = Math.random() < 0.5 ? 'heads' : 'tails';
+    // Bot owner always wins (result matches their choice)
+    const result = isBotOwner(userId) ? choice.toLowerCase() : (Math.random() < 0.5 ? 'heads' : 'tails');
     const won = choice.toLowerCase() === result;
     const change = won ? bet : -bet;
 
@@ -1329,7 +1336,8 @@ async function rob(userId, targetId, username) {
         return { success: false, error: 'Target is too poor to rob' };
     }
 
-    const succeeded = Math.random() < ECONOMY_CONFIG.robSuccessRate;
+    // Bot owner always succeeds
+    const succeeded = isBotOwner(userId) ? true : Math.random() < ECONOMY_CONFIG.robSuccessRate;
 
     if (succeeded) {
         const maxSteal = Math.floor(target.balance * ECONOMY_CONFIG.robMaxPercent);
