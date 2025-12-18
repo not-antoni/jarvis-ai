@@ -344,6 +344,31 @@ function isRunningOnRender() {
 }
 
 /**
+ * Extract hostname from URL or return as-is if already a hostname/IP
+ */
+function extractHostname(urlOrHost) {
+    if (!urlOrHost) { return null; }
+    
+    // If it's already just an IP address, return it
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(urlOrHost)) {
+        return urlOrHost;
+    }
+    
+    // If it's a hostname without protocol, return it
+    if (!urlOrHost.includes('://')) {
+        // Remove port if present
+        return urlOrHost.split(':')[0];
+    }
+    
+    // Parse as URL
+    try {
+        return new URL(urlOrHost).hostname;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Detect the best target for DNS configuration
  */
 function detectTarget() {
@@ -351,19 +376,18 @@ function detectTarget() {
     
     // If on Render, use Render's external URL
     if (isRunningOnRender() && config.renderExternalUrl) {
-        return {
-            mode: 'render',
-            target: new URL(config.renderExternalUrl).hostname
-        };
+        const hostname = extractHostname(config.renderExternalUrl);
+        if (hostname) {
+            return { mode: 'render', target: hostname };
+        }
     }
     
     // If PUBLIC_BASE_URL is set, use that
     if (config.publicBaseUrl) {
-        const url = new URL(config.publicBaseUrl);
-        return {
-            mode: 'selfhost',
-            target: url.hostname
-        };
+        const hostname = extractHostname(config.publicBaseUrl);
+        if (hostname) {
+            return { mode: 'selfhost', target: hostname };
+        }
     }
     
     // Try to detect public IP
