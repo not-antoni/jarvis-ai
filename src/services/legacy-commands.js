@@ -2141,6 +2141,237 @@ const legacyCommands = {
                 return true;
             }
         }
+    },
+
+    // ============ STARK CRYPTO (SX) COMMANDS ============
+    
+    crypto: {
+        description: 'Stark Crypto trading commands',
+        usage: '*j crypto [prices|buy|sell|portfolio|market]',
+        aliases: ['sx', 'coin', 'coins'],
+        execute: async (message, args) => {
+            const starkCrypto = require('./stark-crypto');
+            starkCrypto.startPriceUpdates();
+            
+            const subcommand = (args[0] || 'prices').toLowerCase();
+            const userId = message.author.id;
+            
+            try {
+                switch (subcommand) {
+                    case 'prices':
+                    case 'list':
+                    case 'all': {
+                        const prices = starkCrypto.getAllPrices();
+                        const market = starkCrypto.getMarketState();
+                        
+                        const cycleEmoji = market.cycle === 'bull' ? '📈' : market.cycle === 'bear' ? '📉' : '➡️';
+                        const cycleColor = market.cycle === 'bull' ? 0x00ff88 : market.cycle === 'bear' ? 0xff4444 : 0xffaa00;
+                        
+                        const embed = new EmbedBuilder()
+                            .setTitle('📊 Stark Crypto Exchange')
+                            .setColor(cycleColor)
+                            .setDescription(`${cycleEmoji} **${market.cycle.toUpperCase()} MARKET** | Sentiment: ${(market.sentiment * 100).toFixed(0)}%${market.activeEvent ? `\n🎯 **Event:** ${market.activeEvent.name}` : ''}`);
+                        
+                        const coinList = Object.entries(prices).map(([symbol, coin]) => {
+                            const arrow = coin.change24h >= 0 ? '▲' : '▼';
+                            const change = Math.abs(coin.change24h).toFixed(1);
+                            return `${coin.emoji} **${symbol}** ${coin.price.toLocaleString()} SB ${arrow}${change}%`;
+                        }).join('\n');
+                        
+                        embed.addFields({ name: 'Current Prices', value: coinList, inline: false });
+                        embed.setFooter({ text: 'Use *j crypto buy <coin> <amount> to trade • 2.5% fee' });
+                        
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    case 'market':
+                    case 'status': {
+                        const market = starkCrypto.getMarketState();
+                        const cycleEmoji = market.cycle === 'bull' ? '📈' : market.cycle === 'bear' ? '📉' : '➡️';
+                        const cycleColor = market.cycle === 'bull' ? 0x00ff88 : market.cycle === 'bear' ? 0xff4444 : 0xffaa00;
+                        
+                        const embed = new EmbedBuilder()
+                            .setTitle('🌍 Market Status')
+                            .setColor(cycleColor)
+                            .addFields(
+                                { name: 'Market Cycle', value: `${cycleEmoji} ${market.cycle.toUpperCase()}`, inline: true },
+                                { name: 'Sentiment', value: `${(market.sentiment * 100).toFixed(0)}%`, inline: true },
+                                { name: '24h Volume', value: `${market.volume24h.toLocaleString()} SB`, inline: true }
+                            );
+                        
+                        if (market.activeEvent) {
+                            const timeLeft = Math.ceil(market.activeEvent.endsIn / 60000);
+                            embed.addFields({ 
+                                name: '🎯 Active Event', 
+                                value: `**${market.activeEvent.name}**\nEnds in ${timeLeft} minutes`, 
+                                inline: false 
+                            });
+                        }
+                        
+                        embed.setFooter({ text: 'Market cycles change every hour • Events can crash or pump prices!' });
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    case 'portfolio':
+                    case 'wallet':
+                    case 'holdings': {
+                        const portfolio = await starkCrypto.getPortfolio(userId);
+                        const prices = starkCrypto.getAllPrices();
+                        const balance = await starkEconomy.getBalance(userId);
+                        
+                        const embed = new EmbedBuilder()
+                            .setTitle('💼 Your Crypto Portfolio')
+                            .setColor(0x00d4ff)
+                            .addFields(
+                                { name: '💰 Portfolio Value', value: `${portfolio.totalValue.toLocaleString()} SB`, inline: true },
+                                { name: '📊 Total Invested', value: `${portfolio.totalInvested.toLocaleString()} SB`, inline: true },
+                                { name: '🔄 Total Trades', value: `${portfolio.trades}`, inline: true }
+                            );
+                        
+                        const holdings = Object.entries(portfolio.holdings || {}).filter(([s, a]) => a > 0);
+                        if (holdings.length > 0) {
+                            const holdingsList = holdings.map(([symbol, amount]) => {
+                                const coin = prices[symbol] || {};
+                                const value = (coin.price || 0) * amount;
+                                return `${coin.emoji || '💰'} **${symbol}**: ${amount} (${value.toLocaleString()} SB)`;
+                            }).join('\n');
+                            embed.addFields({ name: '📦 Holdings', value: holdingsList, inline: false });
+                        } else {
+                            embed.addFields({ name: '📦 Holdings', value: 'No crypto yet! Use `*j crypto buy <coin> <amount>`', inline: false });
+                        }
+                        
+                        embed.addFields({ name: '💵 Available Balance', value: `${balance.toLocaleString()} Stark Bucks`, inline: false });
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    case 'buy': {
+                        const symbol = (args[1] || '').toUpperCase();
+                        const amount = parseFloat(args[2]);
+                        
+                        if (!symbol || !amount || amount <= 0) {
+                            await message.reply('Usage: `*j crypto buy <COIN> <amount>`\nExample: `*j crypto buy IRON 10`');
+                            return true;
+                        }
+                        
+                        const result = await starkCrypto.buyCrypto(userId, symbol, amount);
+                        
+                        if (result.success) {
+                            const embed = new EmbedBuilder()
+                                .setTitle('✅ Purchase Successful!')
+                                .setColor(0x00ff88)
+                                .setDescription(`Bought **${amount} ${symbol}**`)
+                                .addFields(
+                                    { name: 'Price', value: `${result.price.toLocaleString()} SB each`, inline: true },
+                                    { name: 'Total Cost', value: `${result.totalCost.toLocaleString()} SB`, inline: true },
+                                    { name: 'Fee (2.5%)', value: `${result.fee.toLocaleString()} SB`, inline: true }
+                                )
+                                .setFooter({ text: result.marketImpact });
+                            await message.reply({ embeds: [embed] });
+                        } else {
+                            await message.reply(`❌ ${result.error}`);
+                        }
+                        return true;
+                    }
+                    
+                    case 'sell': {
+                        const symbol = (args[1] || '').toUpperCase();
+                        const amount = parseFloat(args[2]);
+                        
+                        if (!symbol || !amount || amount <= 0) {
+                            await message.reply('Usage: `*j crypto sell <COIN> <amount>`\nExample: `*j crypto sell IRON 10`');
+                            return true;
+                        }
+                        
+                        const result = await starkCrypto.sellCrypto(userId, symbol, amount);
+                        
+                        if (result.success) {
+                            const embed = new EmbedBuilder()
+                                .setTitle('✅ Sale Successful!')
+                                .setColor(0xff4444)
+                                .setDescription(`Sold **${amount} ${symbol}**`)
+                                .addFields(
+                                    { name: 'Price', value: `${result.price.toLocaleString()} SB each`, inline: true },
+                                    { name: 'Gross Value', value: `${result.totalValue.toLocaleString()} SB`, inline: true },
+                                    { name: 'Fee (2.5%)', value: `${result.fee.toLocaleString()} SB`, inline: true },
+                                    { name: 'You Received', value: `${result.netProceeds.toLocaleString()} SB`, inline: true }
+                                )
+                                .setFooter({ text: result.marketImpact });
+                            await message.reply({ embeds: [embed] });
+                        } else {
+                            await message.reply(`❌ ${result.error}`);
+                        }
+                        return true;
+                    }
+                    
+                    case 'price':
+                    case 'info': {
+                        const symbol = (args[1] || '').toUpperCase();
+                        if (!symbol) {
+                            await message.reply('Usage: `*j crypto price <COIN>`\nExample: `*j crypto price IRON`');
+                            return true;
+                        }
+                        
+                        const coin = starkCrypto.getCoinPrice(symbol);
+                        if (!coin) {
+                            await message.reply(`❌ Unknown coin: ${symbol}`);
+                            return true;
+                        }
+                        
+                        const changeEmoji = coin.change24h >= 0 ? '📈' : '📉';
+                        const changeColor = coin.change24h >= 0 ? 0x00ff88 : 0xff4444;
+                        
+                        const embed = new EmbedBuilder()
+                            .setTitle(`${coin.emoji} ${coin.name} (${symbol})`)
+                            .setColor(changeColor)
+                            .setDescription(coin.description)
+                            .addFields(
+                                { name: '💵 Price', value: `${coin.price.toLocaleString()} SB`, inline: true },
+                                { name: `${changeEmoji} 24h Change`, value: `${coin.change24h >= 0 ? '+' : ''}${coin.change24h.toFixed(2)}%`, inline: true },
+                                { name: '📊 Tier', value: coin.tier.toUpperCase(), inline: true },
+                                { name: '⬆️ 24h High', value: `${coin.high24h.toLocaleString()} SB`, inline: true },
+                                { name: '⬇️ 24h Low', value: `${coin.low24h.toLocaleString()} SB`, inline: true },
+                                { name: '📈 Trend', value: coin.trend === 'up' ? '🟢 Bullish' : coin.trend === 'down' ? '🔴 Bearish' : '🟡 Neutral', inline: true }
+                            )
+                            .setFooter({ text: `Volatility: ${(coin.volatility * 100).toFixed(0)}% • Correlation: ${coin.correlation}` });
+                        
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    case 'help':
+                    default: {
+                        const embed = new EmbedBuilder()
+                            .setTitle('📈 Stark Crypto Help')
+                            .setColor(0x00d4ff)
+                            .setDescription('Trade virtual cryptocurrencies with Stark Bucks!')
+                            .addFields(
+                                { name: '📊 Prices', value: '`*j crypto prices` - View all coins', inline: true },
+                                { name: '🌍 Market', value: '`*j crypto market` - Market status', inline: true },
+                                { name: '💼 Portfolio', value: '`*j crypto portfolio` - Your holdings', inline: true },
+                                { name: '💰 Buy', value: '`*j crypto buy <COIN> <amt>`', inline: true },
+                                { name: '💸 Sell', value: '`*j crypto sell <COIN> <amt>`', inline: true },
+                                { name: '🔍 Info', value: '`*j crypto price <COIN>`', inline: true }
+                            )
+                            .addFields({
+                                name: '🪙 Available Coins',
+                                value: 'IRON, ARC, JARV, STARK, PEPPER, SHIELD, HULK, THOR, WIDOW, VIBRA',
+                                inline: false
+                            })
+                            .setFooter({ text: '2.5% fee on all trades • Prices change every 30 seconds' });
+                        
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                }
+            } catch (error) {
+                console.error('[Crypto Command Error]', error);
+                await message.reply('❌ Something went wrong with the crypto command.');
+                return true;
+            }
+        }
     }
 };
 

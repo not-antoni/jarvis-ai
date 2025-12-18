@@ -787,7 +787,7 @@ const SBX_PAGE = `
 `;
 
 // ============================================================================
-// CRYPTO PAGE
+// CRYPTO PAGE - Full featured with charts and market state
 // ============================================================================
 
 const CRYPTO_PAGE = `
@@ -796,121 +796,390 @@ const CRYPTO_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stark Crypto | Jarvis</title>
-    <style>\${SHARED_STYLES}
-        .crypto-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
+    <title>Stark Crypto Exchange | Jarvis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: #e4e4e4;
+            min-height: 100vh;
         }
-        .coin-card {
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 5%;
+            background: rgba(0,0,0,0.5);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00d4ff, #8a2be2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+        .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+        .nav-links a { color: #888; text-decoration: none; transition: color 0.3s; }
+        .nav-links a:hover { color: #00d4ff; }
+        
+        /* Market Status Banner */
+        .market-banner {
+            background: linear-gradient(90deg, rgba(0,212,255,0.1), rgba(138,43,226,0.1));
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .market-cycle {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .cycle-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .cycle-bull { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+        .cycle-bear { background: #ff4444; box-shadow: 0 0 10px #ff4444; }
+        .cycle-sideways { background: #ffaa00; box-shadow: 0 0 10px #ffaa00; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .market-event {
+            background: rgba(255,170,0,0.2);
+            border: 1px solid #ffaa00;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            animation: glow 1.5s infinite;
+        }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 5px rgba(255,170,0,0.5); } 50% { box-shadow: 0 0 20px rgba(255,170,0,0.8); } }
+        
+        /* Portfolio Section */
+        .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
             background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 12px;
             padding: 1.25rem;
+            text-align: center;
+        }
+        .stat-label { color: #666; font-size: 0.8rem; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-value.up { color: #00ff88; }
+        .stat-value.down { color: #ff4444; }
+        .stat-value.primary { color: #00d4ff; }
+        
+        /* Crypto Grid */
+        .crypto-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .coin-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 1.25rem;
             transition: all 0.3s;
+            cursor: pointer;
         }
         .coin-card:hover {
             border-color: #00d4ff;
-            transform: translateY(-2px);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0,212,255,0.1);
         }
         .coin-header {
             display: flex;
-            align-items: center;
-            gap: 0.75rem;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        .coin-info { display: flex; align-items: center; gap: 0.75rem; }
+        .coin-emoji { font-size: 2.5rem; }
+        .coin-symbol { font-weight: 700; font-size: 1.1rem; color: #fff; }
+        .coin-name { color: #666; font-size: 0.8rem; }
+        .coin-tier {
+            font-size: 0.65rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 10px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .tier-large { background: rgba(0,212,255,0.2); color: #00d4ff; }
+        .tier-mid { background: rgba(138,43,226,0.2); color: #a855f7; }
+        .tier-small { background: rgba(255,170,0,0.2); color: #ffaa00; }
+        .tier-meme { background: rgba(0,255,136,0.2); color: #00ff88; }
+        .tier-stable { background: rgba(100,100,100,0.2); color: #888; }
+        .tier-rare { background: rgba(255,215,0,0.2); color: #ffd700; }
+        
+        .coin-price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
             margin-bottom: 0.75rem;
         }
-        .coin-emoji { font-size: 2rem; }
-        .coin-symbol { font-weight: 700; color: #00d4ff; }
-        .coin-name { color: #888; font-size: 0.85rem; }
-        .coin-price { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; }
-        .coin-change { font-size: 0.9rem; }
-        .coin-change.up { color: #00ff88; }
-        .coin-change.down { color: #ff4444; }
-        .portfolio-summary {
-            background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(138,43,226,0.1));
-            border-radius: 16px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            text-align: center;
+        .coin-price { font-size: 1.75rem; font-weight: 800; }
+        .coin-change {
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
         }
-        .portfolio-value { font-size: 3rem; font-weight: 800; color: #00d4ff; }
+        .coin-change.up { background: rgba(0,255,136,0.15); color: #00ff88; }
+        .coin-change.down { background: rgba(255,68,68,0.15); color: #ff4444; }
+        
+        .coin-chart { height: 60px; margin: 0.75rem 0; }
+        
+        .coin-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #666;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 0.75rem;
+        }
+        
+        /* Trade Modal */
         .trade-modal {
             display: none;
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.9);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
         .trade-modal.active { display: flex; }
         .trade-box {
-            background: #1a1a3e;
-            border-radius: 16px;
+            background: #12121a;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
             padding: 2rem;
-            width: 90%;
-            max-width: 400px;
+            width: 95%;
+            max-width: 450px;
         }
+        .trade-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .trade-emoji { font-size: 3rem; }
+        .trade-chart { height: 150px; margin-bottom: 1.5rem; }
+        .trade-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .trade-stat {
+            background: rgba(255,255,255,0.03);
+            padding: 0.75rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .trade-stat-label { font-size: 0.7rem; color: #666; }
+        .trade-stat-value { font-weight: 700; }
         .trade-input {
             width: 100%;
-            padding: 0.75rem;
-            background: rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 8px;
+            padding: 1rem;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
             color: #fff;
-            font-size: 1rem;
-            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            margin-bottom: 0.75rem;
+            text-align: center;
         }
+        .trade-input:focus { outline: none; border-color: #00d4ff; }
+        .trade-cost {
+            text-align: center;
+            color: #888;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        .trade-buttons { display: flex; gap: 0.75rem; }
+        .btn {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-buy { background: linear-gradient(135deg, #00ff88, #00cc6a); color: #000; }
+        .btn-sell { background: linear-gradient(135deg, #ff4444, #cc3333); color: #fff; }
+        .btn-cancel { background: rgba(255,255,255,0.1); color: #888; }
+        .btn:hover { transform: scale(1.02); }
+        .trade-message { text-align: center; margin-top: 1rem; min-height: 1.5rem; }
+        
+        /* Login Prompt */
         .login-prompt {
             text-align: center;
-            padding: 2rem;
-            background: rgba(255,255,255,0.03);
-            border-radius: 12px;
+            padding: 3rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
             margin-bottom: 2rem;
+        }
+        .btn-login {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #5865F2, #4752c4);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        
+        /* Holdings */
+        .holdings-section { margin-bottom: 2rem; }
+        .holdings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 0.75rem;
+        }
+        .holding-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+        }
+        .holding-amount { font-size: 1.25rem; font-weight: 700; }
+        .holding-value { color: #666; font-size: 0.8rem; }
+        
+        @media (max-width: 768px) {
+            .market-banner { flex-direction: column; text-align: center; }
+            .crypto-grid { grid-template-columns: 1fr; }
+            .nav-links { display: none; }
         }
     </style>
 </head>
 <body>
-    \${NAV_HTML}
+    <nav>
+        <a href="/" class="logo">Jarvis</a>
+        <ul class="nav-links">
+            <li><a href="/commands">Commands</a></li>
+            <li><a href="/store">Store</a></li>
+            <li><a href="/sbx">SBX</a></li>
+            <li><a href="/crypto" style="color: #00d4ff;">Crypto</a></li>
+        </ul>
+    </nav>
+    
     <div class="container">
-        <h1>📈 Stark Crypto Exchange</h1>
-        <p style="color: #888; margin-bottom: 2rem;">Trade virtual cryptocurrencies with Stark Bucks</p>
+        <h1 style="margin-bottom: 0.5rem;">📈 Stark Crypto Exchange</h1>
+        <p style="color: #666; margin-bottom: 1.5rem;">Trade virtual cryptocurrencies • 2.5% fee per trade</p>
         
-        <div id="loginPrompt" class="login-prompt">
-            <h2 style="margin-bottom: 1rem;">🔐 Login to Trade</h2>
-            <p style="color: #888; margin-bottom: 1.5rem;">Connect your Discord account to buy and sell crypto</p>
-            <a href="/auth/login" class="btn btn-primary">Login with Discord</a>
-        </div>
-        
-        <div id="portfolioSection" style="display: none;">
-            <div class="portfolio-summary">
-                <div style="color: #888; margin-bottom: 0.5rem;">Your Portfolio Value</div>
-                <div class="portfolio-value" id="portfolioValue">0.00 SB</div>
-                <div style="color: #888; margin-top: 0.5rem;">
-                    Balance: <span id="userBalance">0</span> SB
+        <!-- Market Status Banner -->
+        <div class="market-banner">
+            <div class="market-cycle">
+                <div class="cycle-indicator" id="cycleIndicator"></div>
+                <div>
+                    <div style="font-weight: 600;" id="marketCycle">Loading...</div>
+                    <div style="font-size: 0.8rem; color: #666;">Sentiment: <span id="marketSentiment">0%</span></div>
                 </div>
+            </div>
+            <div id="marketEvent" style="display: none;"></div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.8rem; color: #666;">24h Volume</div>
+                <div style="font-weight: 600;" id="totalVolume">0 SB</div>
             </div>
         </div>
         
+        <!-- Login Prompt -->
+        <div id="loginPrompt" class="login-prompt">
+            <h2 style="margin-bottom: 1rem;">🔐 Login to Trade</h2>
+            <p style="color: #666; margin-bottom: 1.5rem;">Connect your Discord account to buy and sell crypto</p>
+            <a href="/auth/login" class="btn-login">Login with Discord</a>
+        </div>
+        
+        <!-- Portfolio Section -->
+        <div id="portfolioSection" style="display: none;">
+            <div class="portfolio-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Portfolio Value</div>
+                    <div class="stat-value primary" id="portfolioValue">0 SB</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Available Balance</div>
+                    <div class="stat-value" id="userBalance">0 SB</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Invested</div>
+                    <div class="stat-value" id="totalInvested">0 SB</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Trades</div>
+                    <div class="stat-value" id="totalTrades">0</div>
+                </div>
+            </div>
+            
+            <div class="holdings-section" id="holdingsSection" style="display: none;">
+                <h3 style="margin-bottom: 1rem;">Your Holdings</h3>
+                <div class="holdings-grid" id="holdingsGrid"></div>
+            </div>
+        </div>
+        
+        <!-- Crypto Grid -->
         <h2 style="margin-bottom: 1rem;">Available Coins</h2>
         <div class="crypto-grid" id="cryptoGrid">
-            <div style="text-align: center; padding: 2rem; color: #888;">Loading prices...</div>
+            <div style="text-align: center; padding: 3rem; color: #666;">Loading market data...</div>
         </div>
     </div>
     
+    <!-- Trade Modal -->
     <div class="trade-modal" id="tradeModal">
         <div class="trade-box">
-            <h3 id="tradeTitle" style="margin-bottom: 1rem;">Trade</h3>
-            <p id="tradeCoinInfo" style="color: #888; margin-bottom: 1rem;"></p>
-            <input type="number" class="trade-input" id="tradeAmount" placeholder="Amount" min="1">
-            <div style="display: flex; gap: 0.5rem;">
-                <button class="btn btn-primary" style="flex: 1;" onclick="executeTrade('buy')">Buy</button>
-                <button class="btn btn-primary" style="flex: 1;" onclick="executeTrade('sell')">Sell</button>
+            <div class="trade-header">
+                <span class="trade-emoji" id="tradeEmoji">🦾</span>
+                <div>
+                    <div style="font-size: 1.5rem; font-weight: 700;" id="tradeSymbol">IRON</div>
+                    <div style="color: #666;" id="tradeName">Iron Man Coin</div>
+                </div>
             </div>
-            <button class="btn" style="width: 100%; margin-top: 0.5rem; background: rgba(255,255,255,0.1);" onclick="closeTradeModal()">Cancel</button>
-            <div id="tradeMessage" style="margin-top: 1rem; text-align: center;"></div>
+            <canvas id="tradeChart" class="trade-chart"></canvas>
+            <div class="trade-stats">
+                <div class="trade-stat">
+                    <div class="trade-stat-label">Current Price</div>
+                    <div class="trade-stat-value" id="tradePrice">0 SB</div>
+                </div>
+                <div class="trade-stat">
+                    <div class="trade-stat-label">24h High</div>
+                    <div class="trade-stat-value up" id="tradeHigh">0 SB</div>
+                </div>
+                <div class="trade-stat">
+                    <div class="trade-stat-label">24h Low</div>
+                    <div class="trade-stat-value down" id="tradeLow">0 SB</div>
+                </div>
+            </div>
+            <input type="number" class="trade-input" id="tradeAmount" placeholder="Amount" min="0.01" step="0.01">
+            <div class="trade-cost" id="tradeCost">Total: 0 SB (+ 0 SB fee)</div>
+            <div class="trade-buttons">
+                <button class="btn btn-buy" onclick="executeTrade('buy')">Buy</button>
+                <button class="btn btn-sell" onclick="executeTrade('sell')">Sell</button>
+            </div>
+            <button class="btn btn-cancel" style="width: 100%; margin-top: 0.75rem;" onclick="closeTradeModal()">Cancel</button>
+            <div class="trade-message" id="tradeMessage"></div>
         </div>
     </div>
     
@@ -918,6 +1187,9 @@ const CRYPTO_PAGE = `
         let currentUser = null;
         let selectedCoin = null;
         let prices = {};
+        let portfolio = null;
+        let tradeChart = null;
+        const miniCharts = {};
         
         async function checkAuth() {
             try {
@@ -935,17 +1207,71 @@ const CRYPTO_PAGE = `
         async function loadPortfolio() {
             if (!currentUser) return;
             try {
-                const res = await fetch('/api/user/crypto');
+                const [cryptoRes, balRes] = await Promise.all([
+                    fetch('/api/user/crypto'),
+                    fetch('/api/user/balance')
+                ]);
+                const cryptoData = await cryptoRes.json();
+                const balData = await balRes.json();
+                
+                if (cryptoData.success) {
+                    portfolio = cryptoData.portfolio;
+                    document.getElementById('portfolioValue').textContent = (portfolio.totalValue || 0).toLocaleString() + ' SB';
+                    document.getElementById('totalInvested').textContent = (portfolio.totalInvested || 0).toLocaleString() + ' SB';
+                    document.getElementById('totalTrades').textContent = portfolio.trades || 0;
+                    renderHoldings();
+                }
+                if (balData.success) {
+                    document.getElementById('userBalance').textContent = (balData.balance || 0).toLocaleString() + ' SB';
+                }
+            } catch (e) { console.error('Portfolio error:', e); }
+        }
+        
+        function renderHoldings() {
+            if (!portfolio?.holdings) return;
+            const holdings = Object.entries(portfolio.holdings).filter(([s, a]) => a > 0);
+            if (holdings.length === 0) {
+                document.getElementById('holdingsSection').style.display = 'none';
+                return;
+            }
+            document.getElementById('holdingsSection').style.display = 'block';
+            const grid = document.getElementById('holdingsGrid');
+            grid.innerHTML = holdings.map(([symbol, amount]) => {
+                const coin = prices[symbol] || {};
+                const value = (coin.price || 0) * amount;
+                return \`
+                    <div class="holding-card" onclick="openTradeModal('\${symbol}')">
+                        <div>\${coin.emoji || '💰'} \${symbol}</div>
+                        <div class="holding-amount">\${amount.toLocaleString()}</div>
+                        <div class="holding-value">\${value.toLocaleString()} SB</div>
+                    </div>
+                \`;
+            }).join('');
+        }
+        
+        async function loadMarketState() {
+            try {
+                const res = await fetch('/api/crypto/market');
                 const data = await res.json();
                 if (data.success) {
-                    document.getElementById('portfolioValue').textContent = 
-                        (data.portfolio.totalValue || 0).toLocaleString() + ' SB';
-                }
-                const balRes = await fetch('/api/user/balance');
-                const balData = await balRes.json();
-                if (balData.success) {
-                    document.getElementById('userBalance').textContent = 
-                        (balData.balance || 0).toLocaleString();
+                    const market = data.market;
+                    const indicator = document.getElementById('cycleIndicator');
+                    indicator.className = 'cycle-indicator cycle-' + market.cycle;
+                    document.getElementById('marketCycle').textContent = 
+                        market.cycle.charAt(0).toUpperCase() + market.cycle.slice(1) + ' Market';
+                    document.getElementById('marketSentiment').textContent = 
+                        (market.sentiment * 100).toFixed(0) + '%';
+                    document.getElementById('totalVolume').textContent = 
+                        market.volume24h.toLocaleString() + ' SB';
+                    
+                    const eventEl = document.getElementById('marketEvent');
+                    if (market.activeEvent) {
+                        eventEl.className = 'market-event';
+                        eventEl.textContent = market.activeEvent.name;
+                        eventEl.style.display = 'block';
+                    } else {
+                        eventEl.style.display = 'none';
+                    }
                 }
             } catch (e) {}
         }
@@ -957,10 +1283,11 @@ const CRYPTO_PAGE = `
                 if (data.success) {
                     prices = data.prices;
                     renderCoins();
+                    if (portfolio) renderHoldings();
                 }
             } catch (e) {
                 document.getElementById('cryptoGrid').innerHTML = 
-                    '<div style="text-align: center; padding: 2rem; color: #ff4444;">Failed to load prices</div>';
+                    '<div style="text-align: center; padding: 3rem; color: #ff4444;">Failed to load prices</div>';
             }
         }
         
@@ -968,22 +1295,84 @@ const CRYPTO_PAGE = `
             const grid = document.getElementById('cryptoGrid');
             grid.innerHTML = Object.entries(prices).map(([symbol, coin]) => {
                 const changeClass = coin.change24h >= 0 ? 'up' : 'down';
-                const arrow = coin.change24h >= 0 ? '↑' : '↓';
+                const arrow = coin.change24h >= 0 ? '▲' : '▼';
+                const tierClass = 'tier-' + (coin.tier || 'mid');
                 return \`
                     <div class="coin-card" onclick="openTradeModal('\${symbol}')">
                         <div class="coin-header">
-                            <span class="coin-emoji">\${coin.emoji}</span>
-                            <div>
-                                <div class="coin-symbol">\${symbol}</div>
-                                <div class="coin-name">\${coin.name}</div>
+                            <div class="coin-info">
+                                <span class="coin-emoji">\${coin.emoji}</span>
+                                <div>
+                                    <div class="coin-symbol">\${symbol}</div>
+                                    <div class="coin-name">\${coin.name}</div>
+                                </div>
                             </div>
+                            <span class="coin-tier \${tierClass}">\${coin.tier || 'mid'}</span>
                         </div>
-                        <div class="coin-price">\${coin.price.toLocaleString()} SB</div>
-                        <div class="coin-change \${changeClass}">\${arrow} \${Math.abs(coin.change24h).toFixed(2)}%</div>
-                        <div style="color: #666; font-size: 0.8rem; margin-top: 0.5rem;">\${coin.description}</div>
+                        <div class="coin-price-row">
+                            <span class="coin-price">\${coin.price.toLocaleString()} SB</span>
+                            <span class="coin-change \${changeClass}">\${arrow} \${Math.abs(coin.change24h).toFixed(2)}%</span>
+                        </div>
+                        <canvas id="chart-\${symbol}" class="coin-chart"></canvas>
+                        <div class="coin-stats">
+                            <span>H: \${(coin.high24h || coin.price).toLocaleString()}</span>
+                            <span>L: \${(coin.low24h || coin.price).toLocaleString()}</span>
+                            <span>\${coin.trend === 'up' ? '📈' : coin.trend === 'down' ? '📉' : '➡️'}</span>
+                        </div>
                     </div>
                 \`;
             }).join('');
+            
+            // Draw mini charts
+            setTimeout(() => {
+                Object.entries(prices).forEach(([symbol, coin]) => {
+                    drawMiniChart(symbol, coin);
+                });
+            }, 100);
+        }
+        
+        function drawMiniChart(symbol, coin) {
+            const canvas = document.getElementById('chart-' + symbol);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            if (miniCharts[symbol]) miniCharts[symbol].destroy();
+            
+            // Generate sample data (in production this would come from history)
+            const basePrice = coin.basePrice || coin.price;
+            const data = [];
+            let price = basePrice;
+            for (let i = 0; i < 20; i++) {
+                price = price * (1 + (Math.random() - 0.5) * coin.volatility * 0.5);
+                data.push(price);
+            }
+            data.push(coin.price);
+            
+            const isUp = coin.change24h >= 0;
+            miniCharts[symbol] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map((_, i) => i),
+                    datasets: [{
+                        data: data,
+                        borderColor: isUp ? '#00ff88' : '#ff4444',
+                        borderWidth: 2,
+                        fill: true,
+                        backgroundColor: isUp ? 'rgba(0,255,136,0.1)' : 'rgba(255,68,68,0.1)',
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false }
+                    }
+                }
+            });
         }
         
         function openTradeModal(symbol) {
@@ -993,13 +1382,78 @@ const CRYPTO_PAGE = `
             }
             selectedCoin = symbol;
             const coin = prices[symbol];
-            document.getElementById('tradeTitle').textContent = coin.emoji + ' Trade ' + symbol;
-            document.getElementById('tradeCoinInfo').textContent = 
-                coin.name + ' - Current Price: ' + coin.price.toLocaleString() + ' SB';
+            
+            document.getElementById('tradeEmoji').textContent = coin.emoji;
+            document.getElementById('tradeSymbol').textContent = symbol;
+            document.getElementById('tradeName').textContent = coin.name;
+            document.getElementById('tradePrice').textContent = coin.price.toLocaleString() + ' SB';
+            document.getElementById('tradeHigh').textContent = (coin.high24h || coin.price).toLocaleString() + ' SB';
+            document.getElementById('tradeLow').textContent = (coin.low24h || coin.price).toLocaleString() + ' SB';
             document.getElementById('tradeAmount').value = '';
+            document.getElementById('tradeCost').textContent = 'Total: 0 SB (+ 0 SB fee)';
             document.getElementById('tradeMessage').textContent = '';
             document.getElementById('tradeModal').classList.add('active');
+            
+            // Draw trade chart
+            drawTradeChart(coin);
         }
+        
+        function drawTradeChart(coin) {
+            const canvas = document.getElementById('tradeChart');
+            const ctx = canvas.getContext('2d');
+            
+            if (tradeChart) tradeChart.destroy();
+            
+            const basePrice = coin.basePrice || coin.price;
+            const data = [];
+            let price = basePrice;
+            for (let i = 0; i < 30; i++) {
+                price = price * (1 + (Math.random() - 0.5) * coin.volatility * 0.3);
+                data.push(price);
+            }
+            data.push(coin.price);
+            
+            const isUp = coin.change24h >= 0;
+            tradeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map((_, i) => i),
+                    datasets: [{
+                        data: data,
+                        borderColor: isUp ? '#00ff88' : '#ff4444',
+                        borderWidth: 2,
+                        fill: true,
+                        backgroundColor: isUp ? 'rgba(0,255,136,0.15)' : 'rgba(255,68,68,0.15)',
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            display: true,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#666', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+        
+        document.getElementById('tradeAmount').addEventListener('input', function() {
+            const amount = parseFloat(this.value) || 0;
+            const coin = prices[selectedCoin];
+            if (coin) {
+                const total = Math.ceil(coin.price * amount);
+                const fee = Math.ceil(total * 0.025);
+                document.getElementById('tradeCost').textContent = 
+                    'Total: ' + total.toLocaleString() + ' SB (+ ' + fee.toLocaleString() + ' SB fee)';
+            }
+        });
         
         function closeTradeModal() {
             document.getElementById('tradeModal').classList.remove('active');
@@ -1007,11 +1461,15 @@ const CRYPTO_PAGE = `
         }
         
         async function executeTrade(action) {
-            const amount = parseInt(document.getElementById('tradeAmount').value);
-            if (!amount || amount < 1) {
-                document.getElementById('tradeMessage').textContent = 'Enter a valid amount';
+            const amount = parseFloat(document.getElementById('tradeAmount').value);
+            if (!amount || amount < 0.01) {
+                document.getElementById('tradeMessage').innerHTML = '<span style="color: #ff4444;">Enter a valid amount (min 0.01)</span>';
                 return;
             }
+            
+            const msg = document.getElementById('tradeMessage');
+            msg.innerHTML = '<span style="color: #888;">Processing...</span>';
+            
             try {
                 const res = await fetch('/api/user/crypto/' + action, {
                     method: 'POST',
@@ -1019,25 +1477,28 @@ const CRYPTO_PAGE = `
                     body: JSON.stringify({ symbol: selectedCoin, amount })
                 });
                 const data = await res.json();
+                
                 if (data.success) {
-                    document.getElementById('tradeMessage').innerHTML = 
-                        '<span style="color: #00ff88;">✓ ' + (action === 'buy' ? 'Bought' : 'Sold') + ' ' + amount + ' ' + selectedCoin + '</span>';
+                    const verb = action === 'buy' ? 'Bought' : 'Sold';
+                    msg.innerHTML = '<span style="color: #00ff88;">✓ ' + verb + ' ' + amount + ' ' + selectedCoin + '</span>';
                     loadPortfolio();
                     loadPrices();
                     setTimeout(closeTradeModal, 1500);
                 } else {
-                    document.getElementById('tradeMessage').innerHTML = 
-                        '<span style="color: #ff4444;">' + (data.error || 'Trade failed') + '</span>';
+                    msg.innerHTML = '<span style="color: #ff4444;">' + (data.error || 'Trade failed') + '</span>';
                 }
             } catch (e) {
-                document.getElementById('tradeMessage').innerHTML = 
-                    '<span style="color: #ff4444;">Error: ' + e.message + '</span>';
+                msg.innerHTML = '<span style="color: #ff4444;">Network error</span>';
             }
         }
         
+        // Initialize
         checkAuth();
         loadPrices();
-        setInterval(loadPrices, 30000); // Refresh every 30s
+        loadMarketState();
+        setInterval(loadPrices, 30000);
+        setInterval(loadMarketState, 15000);
+        setInterval(() => { if (currentUser) loadPortfolio(); }, 60000);
     </script>
 </body>
 </html>
