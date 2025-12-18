@@ -135,6 +135,32 @@ class SelfhostSetup {
         return crypto.randomBytes(32).toString('base64');
     }
 
+    /**
+     * Generate shell command to create Nginx config file
+     */
+    generateNginxConfigCommand(domain) {
+        const nginxConfig = `server {
+    listen 80;
+    server_name ${domain} www.${domain};
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \\$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \\$host;
+        proxy_set_header X-Real-IP \\$remote_addr;
+        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\$scheme;
+        proxy_read_timeout 86400;
+        proxy_buffering off;
+    }
+}`;
+        // Escape for shell and write via tee
+        const escaped = nginxConfig.replace(/'/g, "'\\''");
+        return `echo '${escaped}' | sudo tee /etc/nginx/sites-available/jarvis > /dev/null`;
+    }
+
     detectPublicIP() {
         try {
             // Try multiple methods
@@ -452,7 +478,7 @@ class SelfhostSetup {
         }
 
         // Configure firewall
-        const configureFirewall = await this.promptYesNo('Configure UFW firewall (allow SSH + port 3000)?', true);
+        const configureFirewall = await this.promptYesNo('Configure UFW firewall (allow SSH + HTTP/HTTPS)?', true);
         if (configureFirewall) {
             setupTasks.push({
                 name: 'Allow SSH through firewall',
@@ -460,8 +486,13 @@ class SelfhostSetup {
                 check: () => true
             });
             setupTasks.push({
-                name: 'Allow port 3000 through firewall',
-                cmd: 'sudo ufw allow 3000',
+                name: 'Allow HTTP through firewall',
+                cmd: 'sudo ufw allow 80',
+                check: () => true
+            });
+            setupTasks.push({
+                name: 'Allow HTTPS through firewall',
+                cmd: 'sudo ufw allow 443',
                 check: () => true
             });
             setupTasks.push({
@@ -469,6 +500,37 @@ class SelfhostSetup {
                 cmd: 'echo "y" | sudo ufw enable',
                 check: () => true
             });
+        }
+
+        // Setup Nginx reverse proxy (hide :3000 port)
+        const domain = this.envVars.JARVIS_DOMAIN || this.existingEnv.JARVIS_DOMAIN || '';
+        if (domain) {
+            const setupNginx = await this.promptYesNo(`Setup Nginx reverse proxy for ${domain}?`, true);
+            if (setupNginx) {
+                setupTasks.push({
+                    name: 'Install Nginx',
+                    cmd: 'sudo apt-get update && sudo apt-get install -y nginx',
+                    check: () => this.commandExists('nginx')
+                });
+                setupTasks.push({
+                    name: 'Create Nginx config for Jarvis',
+                    cmd: this.generateNginxConfigCommand(domain),
+                    check: () => true
+                });
+                setupTasks.push({
+                    name: 'Enable Jarvis site',
+                    cmd: 'sudo ln -sf /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/ && sudo rm -f /etc/nginx/sites-enabled/default',
+                    check: () => true
+                });
+                setupTasks.push({
+                    name: 'Restart Nginx',
+                    cmd: 'sudo nginx -t && sudo systemctl restart nginx && sudo systemctl enable nginx',
+                    check: () => true
+                });
+                log.info('Nginx will proxy jorvis.org → localhost:3000');
+            }
+        } else {
+            log.warn('No JARVIS_DOMAIN set - skipping Nginx setup. Set it to auto-configure reverse proxy.');
         }
 
         // Run npm install if node_modules missing
