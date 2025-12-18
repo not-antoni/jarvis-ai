@@ -3,19 +3,59 @@
 /**
  * User Authentication Service for Website
  * Discord OAuth for users to execute commands from the web
+ * Uses signed JWT-like tokens that survive server restarts
  */
 
 const crypto = require('crypto');
 
-// Session storage
-const userSessions = new Map();
+// Session cache (for faster validation, but tokens are self-contained)
+const sessionCache = new Map();
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const CACHE_MAX_SIZE = 10000;
 
 // Discord OAuth config
 const DISCORD_API = 'https://discord.com/api/v10';
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
+
+/**
+ * Get signing key for session tokens
+ */
+function getSigningKey() {
+    const raw = process.env.USER_SESSION_SECRET || process.env.MASTER_KEY_BASE64 || process.env.DISCORD_TOKEN || '';
+    if (!raw) return crypto.randomBytes(32);
+    return crypto.createHash('sha256').update(raw).digest();
+}
+
+/**
+ * Create signed session token
+ */
+function createSignedToken(payload) {
+    const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = crypto.createHmac('sha256', getSigningKey()).update(data).digest('base64url');
+    return `${data}.${signature}`;
+}
+
+/**
+ * Parse and verify signed token
+ */
+function parseSignedToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    
+    const [data, signature] = parts;
+    const expectedSig = crypto.createHmac('sha256', getSigningKey()).update(data).digest('base64url');
+    
+    if (signature !== expectedSig) return null;
+    
+    try {
+        return JSON.parse(Buffer.from(data, 'base64url').toString());
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Get OAuth authorization URL
@@ -101,19 +141,26 @@ async function getDiscordGuilds(accessToken) {
 }
 
 /**
- * Generate session token
- */
-function generateSessionToken() {
-    return crypto.randomBytes(32).toString('hex');
-}
-
-/**
- * Create user session
+ * Create user session (returns signed token that survives restarts)
  */
 function createSession(user, accessToken, refreshToken) {
-    const sessionToken = generateSessionToken();
+    const now = Date.now();
+    const payload = {
+        v: 1,
+        userId: user.id,
+        username: user.username,
+        discriminator: user.discriminator || '0',
+        avatar: user.avatar,
+        globalName: user.global_name,
+        iat: now,
+        exp: now + SESSION_DURATION_MS
+    };
+    
+    const token = createSignedToken(payload);
+    
+    // Cache for faster lookups
     const session = {
-        token: sessionToken,
+        token,
         userId: user.id,
         username: user.username,
         discriminator: user.discriminator || '0',
@@ -121,28 +168,59 @@ function createSession(user, accessToken, refreshToken) {
         globalName: user.global_name,
         accessToken,
         refreshToken,
-        createdAt: Date.now(),
-        expiresAt: Date.now() + SESSION_DURATION_MS
+        createdAt: now,
+        expiresAt: payload.exp
     };
     
-    userSessions.set(sessionToken, session);
+    // Limit cache size
+    if (sessionCache.size >= CACHE_MAX_SIZE) {
+        const firstKey = sessionCache.keys().next().value;
+        sessionCache.delete(firstKey);
+    }
+    sessionCache.set(token, session);
+    
     return session;
 }
 
 /**
- * Get session by token
+ * Get session by token (validates signed token, survives restarts)
  */
 function getSession(token) {
     if (!token) return null;
     
-    const session = userSessions.get(token);
-    if (!session) return null;
-    
-    if (Date.now() > session.expiresAt) {
-        userSessions.delete(token);
-        return null;
+    // Check cache first
+    const cached = sessionCache.get(token);
+    if (cached) {
+        if (Date.now() > cached.expiresAt) {
+            sessionCache.delete(token);
+            return null;
+        }
+        return cached;
     }
     
+    // Parse and validate signed token (works even after restart)
+    const payload = parseSignedToken(token);
+    if (!payload || !payload.userId || !payload.exp) return null;
+    
+    const expiresAt = Number(payload.exp);
+    if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) return null;
+    
+    // Reconstruct session from token
+    const session = {
+        token,
+        userId: payload.userId,
+        username: payload.username,
+        discriminator: payload.discriminator || '0',
+        avatar: payload.avatar,
+        globalName: payload.globalName,
+        accessToken: null, // Not stored in token for security
+        refreshToken: null,
+        createdAt: payload.iat || Date.now(),
+        expiresAt
+    };
+    
+    // Cache for future lookups
+    sessionCache.set(token, session);
     return session;
 }
 
@@ -150,7 +228,7 @@ function getSession(token) {
  * Delete session
  */
 function deleteSession(token) {
-    userSessions.delete(token);
+    sessionCache.delete(token);
 }
 
 /**
