@@ -847,6 +847,25 @@ async function runOnce() {
     return tick();
 }
 
+function stop() {
+    if (!schedulerState.started) {
+        return;
+    }
+    
+    if (schedulerState.tickHandle) {
+        clearInterval(schedulerState.tickHandle);
+        schedulerState.tickHandle = null;
+    }
+    
+    schedulerState.started = false;
+    schedulerState.running = false;
+    console.log('[Monitor] Scheduler stopped');
+}
+
+function isRunning() {
+    return schedulerState.started;
+}
+
 function getStatus() {
     return {
         started: Boolean(schedulerState.started),

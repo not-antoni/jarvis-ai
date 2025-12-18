@@ -11,6 +11,7 @@ const {
 const { getAudioStream, cancelStream } = require('../utils/playDl');
 const { extractVideoId } = require('../utils/youtube');
 const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
+const { safeSend } = require('../utils/discord-safe-send');
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -150,7 +151,7 @@ class MusicManager {
             }
 
             if (announce === 'channel' && state.textChannel) {
-                state.textChannel.send(message).catch(() => {});
+                safeSend(state.textChannel, { content: message }, this.client).catch(() => {});
             }
         } catch (error) {
             console.error('Music playback error:', error);
@@ -162,7 +163,7 @@ class MusicManager {
             }
 
             if (state.textChannel) {
-                state.textChannel.send(failureMessage).catch(() => {});
+                safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => {});
             }
 
             this.cleanup(guildId);
@@ -334,7 +335,7 @@ class MusicManager {
             console.error('Audio player error:', error);
             const state = this.queues.get(guildId);
             if (state?.textChannel) {
-                state.textChannel.send('⚠️ Playback error.').catch(() => {});
+                safeSend(state.textChannel, { content: '⚠️ Playback error.' }, this.client).catch(() => {});
             }
             this.cleanup(guildId);
         });
