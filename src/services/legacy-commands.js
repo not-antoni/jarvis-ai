@@ -10,6 +10,7 @@ const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const selfhostFeatures = require('./selfhost-features');
 const starkEconomy = require('./stark-economy');
 const starkTinker = require('./stark-tinker');
+const starkbucks = require('./starkbucks-exchange');
 const funFeatures = require('./fun-features');
 const moderation = require('./GUILDS_FEATURES/moderation');
 const config = require('../../config');
@@ -1829,6 +1830,310 @@ const legacyCommands = {
             
             await message.reply({ embeds: [embed] });
             return true;
+        }
+    },
+
+    // ============ STARKBUCKS (SBX) COMMANDS ============
+    
+    sbx: {
+        description: 'Starkbucks exchange commands',
+        usage: '*j sbx [wallet|convert|store|invest|pay|market]',
+        aliases: ['starkbucks'],
+        execute: async (message, args) => {
+            const subcommand = (args[0] || 'wallet').toLowerCase();
+            const userId = message.author.id;
+            const username = message.author.username;
+            
+            try {
+                switch (subcommand) {
+                    case 'wallet':
+                    case 'bal':
+                    case 'balance': {
+                        const wallet = await starkbucks.getWallet(userId);
+                        const market = await starkbucks.getMarketData();
+                        const usdValue = (wallet.balance * market.price).toFixed(2);
+                        
+                        const embed = new EmbedBuilder()
+                            .setTitle('💳 SBX Wallet')
+                            .setDescription(`**${username}**'s Starkbucks wallet`)
+                            .setColor(0xf39c12)
+                            .addFields(
+                                { name: '💰 Balance', value: `${wallet.balance.toFixed(2)} SBX`, inline: true },
+                                { name: '💵 USD Value', value: `$${usdValue}`, inline: true },
+                                { name: '📈 SBX Price', value: `$${market.price.toFixed(2)}`, inline: true },
+                                { name: '📊 Total Earned', value: `${wallet.totalEarned.toFixed(2)} SBX`, inline: true },
+                                { name: '🛒 Total Spent', value: `${wallet.totalSpent.toFixed(2)} SBX`, inline: true }
+                            )
+                            .setFooter({ text: 'Use *j sbx help for more commands' });
+                        
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    case 'market':
+                    case 'price':
+                    case 'ticker': {
+                        const market = await starkbucks.getMarketData();
+                        const changeEmoji = market.change24h >= 0 ? '📈' : '📉';
+                        const changeColor = market.change24h >= 0 ? 0x2ecc71 : 0xe74c3c;
+                        
+                        const embed = new EmbedBuilder()
+                            .setTitle('📊 SBX Market')
+                            .setColor(changeColor)
+                            .addFields(
+                                { name: '💵 Price', value: `$${market.price.toFixed(2)}`, inline: true },
+                                { name: `${changeEmoji} 24h Change`, value: `${market.change24h >= 0 ? '+' : ''}${market.change24h.toFixed(2)}%`, inline: true },
+                                { name: '📊 Volume', value: `${market.volume24h.toLocaleString()} SBX`, inline: true },
+                                { name: '⬆️ 24h High', value: `$${market.high24h.toFixed(2)}`, inline: true },
+                                { name: '⬇️ 24h Low', value: `$${market.low24h.toFixed(2)}`, inline: true },
+                                { name: '👥 Active Users', value: `${market.activeUsers}`, inline: true }
+                            );
+                        
+                        if (market.event) {
+                            embed.addFields({ name: '🎯 Active Event', value: market.event.name, inline: false });
+                        }
+                        
+                        embed.setFooter({ text: 'Price updates every minute • Virtual currency only' });
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    case 'convert': {
+                        const amount = parseInt(args[1]);
+                        const direction = (args[2] || 'tosbx').toLowerCase();
+                        
+                        if (!amount || amount <= 0) {
+                            await message.reply('Usage: `*j sbx convert <amount> [tosbx|tostark]`\nExample: `*j sbx convert 1000 tosbx`');
+                            return true;
+                        }
+                        
+                        let result;
+                        if (direction === 'tostark' || direction === 'tostarkbucks') {
+                            result = await starkbucks.convertToStarkBucks(userId, amount);
+                            if (result.success) {
+                                const embed = new EmbedBuilder()
+                                    .setTitle('💱 Conversion Complete')
+                                    .setColor(0x2ecc71)
+                                    .setDescription(`Converted **${result.sbxSpent} SBX** → **${result.starkBucksReceived} Stark Bucks**`)
+                                    .addFields(
+                                        { name: 'Rate', value: `1 SBX = ${result.rate.toFixed(2)} Stark Bucks`, inline: true },
+                                        { name: 'Fee', value: `${result.fee} Stark Bucks`, inline: true }
+                                    );
+                                await message.reply({ embeds: [embed] });
+                            } else {
+                                await message.reply(`❌ ${result.error}`);
+                            }
+                        } else {
+                            result = await starkbucks.convertToSBX(userId, amount);
+                            if (result.success) {
+                                const embed = new EmbedBuilder()
+                                    .setTitle('💱 Conversion Complete')
+                                    .setColor(0x2ecc71)
+                                    .setDescription(`Converted **${result.starkBucksSpent} Stark Bucks** → **${result.sbxReceived.toFixed(2)} SBX**`)
+                                    .addFields(
+                                        { name: 'Rate', value: `${result.rate.toFixed(2)} Stark Bucks = 1 SBX`, inline: true },
+                                        { name: 'SBX Price', value: `$${result.price.toFixed(2)}`, inline: true }
+                                    );
+                                await message.reply({ embeds: [embed] });
+                            } else {
+                                await message.reply(`❌ ${result.error}`);
+                            }
+                        }
+                        return true;
+                    }
+                    
+                    case 'store':
+                    case 'shop': {
+                        const category = args[1] || null;
+                        const items = starkbucks.getStoreItems(category);
+                        const domain = process.env.JARVIS_DOMAIN || 'your-domain.com';
+                        
+                        const embed = new EmbedBuilder()
+                            .setTitle('🛒 SBX Store')
+                            .setColor(0xf39c12)
+                            .setDescription(`Buy features and cosmetics with SBX!\n🌐 **[Visit Online Store](https://${domain}/store)**`)
+                            .setFooter({ text: 'Use *j sbx buy <item_id> to purchase' });
+                        
+                        const grouped = {};
+                        for (const item of items.slice(0, 12)) {
+                            if (!grouped[item.category]) grouped[item.category] = [];
+                            grouped[item.category].push(`• **${item.name}** - ${item.price} SBX`);
+                        }
+                        
+                        for (const [cat, itemList] of Object.entries(grouped)) {
+                            embed.addFields({ name: cat.charAt(0).toUpperCase() + cat.slice(1), value: itemList.join('\n'), inline: true });
+                        }
+                        
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    case 'buy': {
+                        const itemId = args[1];
+                        if (!itemId) {
+                            await message.reply('Usage: `*j sbx buy <item_id>`\nUse `*j sbx store` to see available items.');
+                            return true;
+                        }
+                        
+                        const result = await starkbucks.purchaseItem(userId, itemId);
+                        if (result.success) {
+                            const embed = new EmbedBuilder()
+                                .setTitle('🎉 Purchase Successful!')
+                                .setColor(0x2ecc71)
+                                .setDescription(`You bought **${result.item.name}**!`)
+                                .addFields(
+                                    { name: 'Price', value: `${result.item.price} SBX`, inline: true },
+                                    { name: 'New Balance', value: `${result.newBalance.toFixed(2)} SBX`, inline: true }
+                                );
+                            await message.reply({ embeds: [embed] });
+                        } else {
+                            await message.reply(`❌ ${result.error}`);
+                        }
+                        return true;
+                    }
+                    
+                    case 'invest': {
+                        const action = (args[1] || 'status').toLowerCase();
+                        const amount = parseFloat(args[2]);
+                        
+                        if (action === 'stake' && amount > 0) {
+                            const result = await starkbucks.investSBX(userId, amount);
+                            if (result.success) {
+                                const embed = new EmbedBuilder()
+                                    .setTitle('📈 Investment Made')
+                                    .setColor(0x2ecc71)
+                                    .setDescription(`Staked **${result.invested} SBX**`)
+                                    .addFields(
+                                        { name: 'Total Staked', value: `${result.totalPrincipal.toFixed(2)} SBX`, inline: true },
+                                        { name: 'Daily Return', value: `${(result.dailyRate * 100).toFixed(1)}%`, inline: true }
+                                    );
+                                await message.reply({ embeds: [embed] });
+                            } else {
+                                await message.reply(`❌ ${result.error}`);
+                            }
+                        } else if (action === 'claim') {
+                            const result = await starkbucks.claimInvestmentEarnings(userId);
+                            if (result.success) {
+                                const embed = new EmbedBuilder()
+                                    .setTitle('💰 Earnings Claimed!')
+                                    .setColor(0x2ecc71)
+                                    .addFields(
+                                        { name: 'Claimed', value: `${result.earnings.toFixed(2)} SBX`, inline: true },
+                                        { name: 'Days', value: `${result.daysClaimed}`, inline: true },
+                                        { name: 'Total Earned', value: `${result.totalEarned.toFixed(2)} SBX`, inline: true }
+                                    );
+                                await message.reply({ embeds: [embed] });
+                            } else {
+                                await message.reply(`❌ ${result.error}`);
+                            }
+                        } else if (action === 'withdraw' && amount > 0) {
+                            const result = await starkbucks.withdrawInvestment(userId, amount);
+                            if (result.success) {
+                                const embed = new EmbedBuilder()
+                                    .setTitle('💸 Withdrawal Complete')
+                                    .setColor(0xf39c12)
+                                    .addFields(
+                                        { name: 'Withdrawn', value: `${result.withdrawn.toFixed(2)} SBX`, inline: true },
+                                        { name: 'Fee (2%)', value: `${result.fee.toFixed(2)} SBX`, inline: true },
+                                        { name: 'Received', value: `${result.received.toFixed(2)} SBX`, inline: true }
+                                    );
+                                await message.reply({ embeds: [embed] });
+                            } else {
+                                await message.reply(`❌ ${result.error}`);
+                            }
+                        } else {
+                            await message.reply('**SBX Investment**\n• `*j sbx invest stake <amount>` - Stake SBX (0.5% daily)\n• `*j sbx invest claim` - Claim earnings\n• `*j sbx invest withdraw <amount>` - Withdraw (2% fee)');
+                        }
+                        return true;
+                    }
+                    
+                    case 'pay':
+                    case 'send': {
+                        const target = message.mentions.users.first();
+                        const amount = parseFloat(args[2] || args[1]);
+                        
+                        if (!target || !amount || amount <= 0) {
+                            await message.reply('Usage: `*j sbx pay @user <amount>`');
+                            return true;
+                        }
+                        
+                        if (target.id === userId) {
+                            await message.reply('❌ You cannot send SBX to yourself!');
+                            return true;
+                        }
+                        
+                        const result = await starkbucks.transfer(userId, target.id, amount, `From ${username}`);
+                        if (result.success) {
+                            const embed = new EmbedBuilder()
+                                .setTitle('💸 Transfer Complete')
+                                .setColor(0x2ecc71)
+                                .setDescription(`Sent **${amount} SBX** to ${target}`)
+                                .addFields(
+                                    { name: 'Amount', value: `${amount} SBX`, inline: true },
+                                    { name: 'Fee (10%)', value: `${result.fee.toFixed(2)} SBX`, inline: true },
+                                    { name: 'They Received', value: `${result.netAmount.toFixed(2)} SBX`, inline: true }
+                                );
+                            await message.reply({ embeds: [embed] });
+                        } else {
+                            await message.reply(`❌ ${result.error}`);
+                        }
+                        return true;
+                    }
+                    
+                    case 'request':
+                    case 'invoice': {
+                        const amount = parseFloat(args[1]);
+                        const memo = args.slice(2).join(' ') || '';
+                        
+                        if (!amount || amount <= 0) {
+                            await message.reply('Usage: `*j sbx request <amount> [memo]`');
+                            return true;
+                        }
+                        
+                        const result = await starkbucks.createPaymentRequest(userId, amount, memo);
+                        const embed = new EmbedBuilder()
+                            .setTitle('📝 Payment Request Created')
+                            .setColor(0xf39c12)
+                            .setDescription(`Share this link to receive payment:`)
+                            .addFields(
+                                { name: '🔗 Payment URL', value: result.url, inline: false },
+                                { name: 'Amount', value: `${amount} SBX`, inline: true },
+                                { name: 'Expires', value: `<t:${Math.floor(new Date(result.expiresAt).getTime() / 1000)}:R>`, inline: true }
+                            );
+                        
+                        if (memo) embed.addFields({ name: 'Memo', value: memo, inline: false });
+                        
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    case 'help':
+                    default: {
+                        const embed = new EmbedBuilder()
+                            .setTitle('⭐ Starkbucks (SBX) Help')
+                            .setColor(0xf39c12)
+                            .setDescription('Virtual currency exchange with real-time price fluctuation!')
+                            .addFields(
+                                { name: '💳 Wallet', value: '`*j sbx wallet` - View balance', inline: true },
+                                { name: '📊 Market', value: '`*j sbx market` - View price', inline: true },
+                                { name: '💱 Convert', value: '`*j sbx convert <amt>` - Stark↔SBX', inline: true },
+                                { name: '🛒 Store', value: '`*j sbx store` - Browse items', inline: true },
+                                { name: '🛍️ Buy', value: '`*j sbx buy <id>` - Purchase', inline: true },
+                                { name: '📈 Invest', value: '`*j sbx invest` - Stake SBX', inline: true },
+                                { name: '💸 Pay', value: '`*j sbx pay @user <amt>`', inline: true },
+                                { name: '📝 Request', value: '`*j sbx request <amt>`', inline: true }
+                            )
+                            .setFooter({ text: '10% fee on all transactions • Virtual currency only' });
+                        
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                }
+            } catch (error) {
+                console.error('[SBX Command Error]', error);
+                await message.reply('❌ Something went wrong with the SBX command.');
+                return true;
+            }
         }
     }
 };

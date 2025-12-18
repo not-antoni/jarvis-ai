@@ -3760,6 +3760,10 @@ app.use('/moderator', moderatorRouter);
 const jarvisOwnerRouter = require('./src/routes/jarvis');
 app.use('/jarvis', jarvisOwnerRouter);
 
+// Mount Starkbucks routes (SBX exchange, store, transactions)
+const starkbucksRouter = require('./routes/starkbucks');
+app.use('/', starkbucksRouter);
+
 // Mount dashboard API routes
 const dashboardRouter = require('./routes/dashboard');
 
