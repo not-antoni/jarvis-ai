@@ -359,6 +359,8 @@ const LEADERBOARD_PAGE = `
             color: #888;
             cursor: pointer;
             transition: all 0.3s;
+            border: none;
+            font-size: 1rem;
         }
         .tab:hover { background: rgba(255,255,255,0.1); }
         .tab.active {
@@ -370,13 +372,19 @@ const LEADERBOARD_PAGE = `
         .rank-2 { color: #c0c0c0; }
         .rank-3 { color: #cd7f32; }
         .loading { text-align: center; color: #888; padding: 2rem; }
-        .user-row { display: flex; align-items: center; gap: 1rem; }
+        .user-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
         .user-avatar {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             background: rgba(255,255,255,0.1);
+            object-fit: cover;
         }
+        .user-name { font-weight: 500; }
     </style>
 </head>
 <body>
@@ -385,37 +393,46 @@ const LEADERBOARD_PAGE = `
         <h1>🏆 Leaderboard</h1>
         
         <div class="tabs">
-            <button class="tab active" onclick="loadLeaderboard('balance')">💰 Stark Bucks</button>
-            <button class="tab" onclick="loadLeaderboard('sbx')">☕ SBX Holdings</button>
+            <button class="tab active" id="tabBalance" onclick="loadLeaderboard('balance', this)">💰 Stark Bucks</button>
+            <button class="tab" id="tabSbx" onclick="loadLeaderboard('sbx', this)">☕ SBX Holdings</button>
         </div>
         
         <div class="card">
             <table>
                 <thead>
                     <tr>
-                        <th>Rank</th>
+                        <th style="width: 80px;">Rank</th>
                         <th>User</th>
-                        <th>Amount</th>
+                        <th style="text-align: right;">Amount</th>
                     </tr>
                 </thead>
                 <tbody id="leaderboardBody">
-                    <tr><td colspan="3" class="loading">Loading...</td></tr>
+                    <tr><td colspan="3" class="loading">Select a category above</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
     
     <script>
-        async function loadLeaderboard(type) {
+        let currentType = 'balance';
+        
+        function getDefaultAvatar(userId) {
+            const index = (parseInt(userId) || 0) % 5;
+            return 'https://cdn.discordapp.com/embed/avatars/' + index + '.png';
+        }
+        
+        async function loadLeaderboard(type, btn) {
+            currentType = type;
+            
             // Update tabs
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            if (btn) btn.classList.add('active');
             
             const tbody = document.getElementById('leaderboardBody');
             tbody.innerHTML = '<tr><td colspan="3" class="loading">Loading...</td></tr>';
             
             try {
-                const res = await fetch('/api/leaderboard/' + type + '?limit=25');
+                const res = await fetch('/api/leaderboard/' + type + '?limit=25&resolve=true');
                 const data = await res.json();
                 
                 if (!data.success || !data.leaderboard?.length) {
@@ -428,22 +445,33 @@ const LEADERBOARD_PAGE = `
                     const rankClass = rank <= 3 ? 'rank-' + rank : '';
                     const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
                     const amount = type === 'sbx' 
-                        ? entry.balance?.toFixed(2) + ' SBX'
+                        ? (entry.balance || 0).toFixed(2) + ' SBX'
                         : (entry.balance || 0).toLocaleString() + ' SB';
+                    const avatar = entry.avatar || getDefaultAvatar(entry.userId);
+                    const name = entry.displayName || entry.username || 'User ' + (entry.userId || '').slice(-4);
                     return \`
                         <tr>
                             <td class="rank \${rankClass}">\${medal}</td>
-                            <td>\${entry.username || entry.userId || 'Unknown'}</td>
-                            <td class="amount">\${amount}</td>
+                            <td>
+                                <div class="user-cell">
+                                    <img src="\${avatar}" class="user-avatar" alt="" onerror="this.src=getDefaultAvatar('\${entry.userId}')">
+                                    <span class="user-name">\${name}</span>
+                                </div>
+                            </td>
+                            <td class="amount" style="text-align: right;">\${amount}</td>
                         </tr>
                     \`;
                 }).join('');
             } catch (e) {
+                console.error('Leaderboard error:', e);
                 tbody.innerHTML = '<tr><td colspan="3" class="loading">Error loading data</td></tr>';
             }
         }
         
-        loadLeaderboard('balance');
+        // Load balance leaderboard by default
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLeaderboard('balance', document.getElementById('tabBalance'));
+        });
     </script>
 </body>
 </html>
@@ -494,12 +522,41 @@ const SBX_PAGE = `
         }
         .stat-value { font-size: 2rem; color: #00d4ff; font-weight: 700; }
         .stat-label { color: #888; font-size: 0.9rem; margin-top: 0.5rem; }
-        .action-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
+        .trade-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
         }
+        .trade-input {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        .trade-input:focus { outline: none; border-color: #00d4ff; }
+        .trade-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem; }
+        .wallet-info {
+            background: rgba(0,212,255,0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .login-prompt {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+        .message { padding: 1rem; border-radius: 8px; margin-top: 1rem; display: none; }
+        .message.success { background: rgba(46,204,113,0.2); color: #2ecc71; display: block; }
+        .message.error { background: rgba(231,76,60,0.2); color: #e74c3c; display: block; }
     </style>
 </head>
 <body>
@@ -516,49 +573,213 @@ const SBX_PAGE = `
         
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-value" id="marketCap">--</div>
-                <div class="stat-label">Market Activity</div>
+                <div class="stat-value" id="yourSbx">--</div>
+                <div class="stat-label">Your SBX</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="volume">--</div>
-                <div class="stat-label">24h Volume</div>
+                <div class="stat-value" id="yourBalance">--</div>
+                <div class="stat-label">Your Stark Bucks</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="holders">--</div>
-                <div class="stat-label">Total Wallets</div>
+                <div class="stat-value" id="invested">--</div>
+                <div class="stat-label">Invested SBX</div>
+            </div>
+        </div>
+        
+        <!-- Login prompt (shown when not logged in) -->
+        <div id="loginPrompt" class="login-prompt">
+            <h2 style="margin-bottom: 1rem;">🔐 Login to Trade</h2>
+            <p style="color: #888; margin-bottom: 1.5rem;">Connect your Discord account to buy, sell, and invest SBX</p>
+            <a href="/auth/login" class="btn btn-primary">Login with Discord</a>
+        </div>
+        
+        <!-- Trading UI (shown when logged in) -->
+        <div id="tradingUI" style="display: none;">
+            <div class="trade-row">
+                <div class="trade-card">
+                    <h3 style="margin-bottom: 1rem;">💰 Buy SBX</h3>
+                    <input type="number" class="trade-input" id="buyAmount" placeholder="Amount of Stark Bucks to spend" min="1">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="buySbx()">Buy SBX</button>
+                    <div id="buyMessage" class="message"></div>
+                </div>
+                <div class="trade-card">
+                    <h3 style="margin-bottom: 1rem;">💵 Sell SBX</h3>
+                    <input type="number" class="trade-input" id="sellAmount" placeholder="Amount of SBX to sell" min="0.01" step="0.01">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="sellSbx()">Sell SBX</button>
+                    <div id="sellMessage" class="message"></div>
+                </div>
+            </div>
+            
+            <div class="trade-card" style="margin-bottom: 2rem;">
+                <h3 style="margin-bottom: 1rem;">📈 Invest SBX</h3>
+                <p style="color: #888; margin-bottom: 1rem;">Earn 0.5% daily returns on invested SBX</p>
+                <input type="number" class="trade-input" id="investAmount" placeholder="Amount of SBX to invest" min="1" step="0.01">
+                <button class="btn btn-primary" onclick="investSbx()">Invest</button>
+                <button class="btn btn-primary" onclick="claimEarnings()" style="margin-left: 0.5rem;">Claim Earnings</button>
+                <div id="investMessage" class="message"></div>
             </div>
         </div>
         
         <div class="card">
-            <h2>How to Trade</h2>
+            <h2>How It Works</h2>
             <p style="color: #aaa; line-height: 1.8;">
-                1. Use <code>!sbx wallet</code> to check your balance<br>
-                2. Use <code>!sbx buy &lt;amount&gt;</code> to buy SBX with Stark Bucks<br>
-                3. Use <code>!sbx sell &lt;amount&gt;</code> to sell SBX for Stark Bucks<br>
-                4. Use <code>!sbx invest &lt;amount&gt;</code> to earn daily returns<br>
-                5. Visit the <a href="/store" style="color: #00d4ff;">SBX Store</a> to spend your SBX on upgrades!
+                • <strong>Buy SBX</strong> - Exchange your Stark Bucks for SBX<br>
+                • <strong>Sell SBX</strong> - Convert SBX back to Stark Bucks<br>
+                • <strong>Invest</strong> - Lock your SBX to earn 0.5% daily returns<br>
+                • <strong>Store</strong> - Spend SBX on exclusive items and upgrades
             </p>
         </div>
         
-        <div class="action-buttons">
-            <a href="${DISCORD_INVITE}" class="btn btn-primary" target="_blank">💬 Join Discord to Trade</a>
+        <div style="text-align: center; margin-top: 2rem;">
             <a href="/store" class="btn btn-primary">🛒 Visit Store</a>
+            <a href="/leaderboard" class="btn btn-primary" style="margin-left: 1rem;">🏆 Leaderboard</a>
         </div>
     </div>
     
     <script>
-        async function loadSbxData() {
+        let currentUser = null;
+        
+        async function checkAuth() {
             try {
-                // This would need an API endpoint
-                document.getElementById('currentPrice').textContent = '1.00 SB';
-                document.getElementById('priceChange').innerHTML = '<span class="price-up">↑ +0.00%</span>';
-                document.getElementById('marketCap').textContent = 'Active';
-                document.getElementById('volume').textContent = '--';
-                document.getElementById('holders').textContent = '--';
+                const res = await fetch('/api/user');
+                const data = await res.json();
+                if (data.authenticated && data.user) {
+                    currentUser = data.user;
+                    document.getElementById('loginPrompt').style.display = 'none';
+                    document.getElementById('tradingUI').style.display = 'block';
+                    loadUserBalance();
+                }
             } catch (e) {
-                console.error('Failed to load SBX data:', e);
+                console.log('Not logged in');
             }
         }
+        
+        async function loadUserBalance() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch('/api/user/balance');
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('yourBalance').textContent = (data.balance || 0).toLocaleString() + ' SB';
+                    document.getElementById('yourSbx').textContent = (data.sbx || 0).toFixed(2);
+                    document.getElementById('invested').textContent = (data.invested || 0).toFixed(2);
+                }
+            } catch (e) {
+                console.error('Failed to load balance:', e);
+            }
+        }
+        
+        async function loadSbxData() {
+            try {
+                const res = await fetch('/api/sbx/ticker');
+                const data = await res.json();
+                if (data.price) {
+                    document.getElementById('currentPrice').textContent = data.price.toFixed(2) + ' SB';
+                    const changeClass = data.change24h >= 0 ? 'price-up' : 'price-down';
+                    const arrow = data.change24h >= 0 ? '↑' : '↓';
+                    document.getElementById('priceChange').innerHTML = '<span class="' + changeClass + '">' + arrow + ' ' + Math.abs(data.change24h || 0).toFixed(2) + '%</span>';
+                }
+            } catch (e) {
+                document.getElementById('currentPrice').textContent = '1.00 SB';
+                document.getElementById('priceChange').innerHTML = '<span class="price-up">↑ 0.00%</span>';
+            }
+        }
+        
+        function showMessage(elementId, message, isError) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.className = 'message ' + (isError ? 'error' : 'success');
+            setTimeout(() => { el.className = 'message'; }, 5000);
+        }
+        
+        async function buySbx() {
+            const amount = parseFloat(document.getElementById('buyAmount').value);
+            if (!amount || amount < 1) {
+                showMessage('buyMessage', 'Enter a valid amount', true);
+                return;
+            }
+            try {
+                const res = await fetch('/api/user/sbx/buy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showMessage('buyMessage', 'Bought ' + data.sbxReceived.toFixed(2) + ' SBX!', false);
+                    loadUserBalance();
+                } else {
+                    showMessage('buyMessage', data.error || 'Purchase failed', true);
+                }
+            } catch (e) {
+                showMessage('buyMessage', 'Error: ' + e.message, true);
+            }
+        }
+        
+        async function sellSbx() {
+            const amount = parseFloat(document.getElementById('sellAmount').value);
+            if (!amount || amount < 0.01) {
+                showMessage('sellMessage', 'Enter a valid amount', true);
+                return;
+            }
+            try {
+                const res = await fetch('/api/user/sbx/sell', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showMessage('sellMessage', 'Sold for ' + data.starkBucksReceived.toLocaleString() + ' SB!', false);
+                    loadUserBalance();
+                } else {
+                    showMessage('sellMessage', data.error || 'Sale failed', true);
+                }
+            } catch (e) {
+                showMessage('sellMessage', 'Error: ' + e.message, true);
+            }
+        }
+        
+        async function investSbx() {
+            const amount = parseFloat(document.getElementById('investAmount').value);
+            if (!amount || amount < 1) {
+                showMessage('investMessage', 'Enter a valid amount', true);
+                return;
+            }
+            try {
+                const res = await fetch('/api/user/sbx/invest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showMessage('investMessage', 'Invested ' + amount.toFixed(2) + ' SBX!', false);
+                    loadUserBalance();
+                } else {
+                    showMessage('investMessage', data.error || 'Investment failed', true);
+                }
+            } catch (e) {
+                showMessage('investMessage', 'Error: ' + e.message, true);
+            }
+        }
+        
+        async function claimEarnings() {
+            try {
+                const res = await fetch('/api/user/sbx/claim', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showMessage('investMessage', 'Claimed ' + (data.earnings || 0).toFixed(2) + ' SBX!', false);
+                    loadUserBalance();
+                } else {
+                    showMessage('investMessage', data.error || 'Nothing to claim', true);
+                }
+            } catch (e) {
+                showMessage('investMessage', 'Error: ' + e.message, true);
+            }
+        }
+        
+        checkAuth();
         loadSbxData();
     </script>
 </body>

@@ -754,9 +754,45 @@ function renderStorePage(items, market, category = null) {
     </footer>
     
     <script>
-        function buyItem(itemId) {
-            alert('Use the Discord bot command: !sbx buy ' + itemId);
+        let currentUser = null;
+        
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/user');
+                const data = await res.json();
+                if (data.authenticated && data.user) {
+                    currentUser = data.user;
+                }
+            } catch (e) {}
         }
+        
+        async function buyItem(itemId) {
+            if (!currentUser) {
+                if (confirm('You need to login to purchase items. Login now?')) {
+                    window.location.href = '/auth/login?redirect=/store';
+                }
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/store/purchase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemId })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('Purchase successful! ' + (data.message || ''));
+                    location.reload();
+                } else {
+                    alert('Purchase failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+        
+        checkAuth();
     </script>
 </body>
 </html>
@@ -822,8 +858,8 @@ function renderExchangePage(market) {
                 <p style="font-size: 14px; margin-bottom: 10px;">
                     Current Rate: <strong>100 Stark Bucks = ${(100 / market.price).toFixed(2)} SBX</strong>
                 </p>
-                <a href="#" class="btn btn-primary" onclick="alert('Use Discord: !sbx convert 1000')">
-                    Convert Now
+                <a href="/sbx" class="btn btn-primary">
+                    Trade Now
                 </a>
             </div>
             
@@ -833,7 +869,7 @@ function renderExchangePage(market) {
                 <p style="font-size: 14px; margin-bottom: 10px;">
                     Earn passive income on your SBX holdings
                 </p>
-                <a href="#" class="btn btn-primary" onclick="alert('Use Discord: !sbx invest 100')">
+                <a href="/sbx" class="btn btn-primary">
                     Start Investing
                 </a>
             </div>
