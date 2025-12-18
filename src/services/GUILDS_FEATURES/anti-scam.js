@@ -126,7 +126,6 @@ function formatWarningMessage(analysis, member) {
 
 /**
  * Send warning to configured notification channels/users
- * PLACEHOLDER: Requires MESSAGE_CONTENT intent and proper setup
  * @param {Guild} guild - Discord.js Guild object
  * @param {string} message - Warning message to send
  */
@@ -134,13 +133,38 @@ async function sendWarningToAdmins(guild, message) {
     const config = guildFeatures.getGuildConfig(guild.id);
     if (!config) return;
 
-    // TODO: Implement when MESSAGE_CONTENT intent is available
-    // This will:
-    // 1. Send to configured notification channels
-    // 2. DM configured admin users
-    // 3. Log to audit channel if configured
+    const settings = config.settings || {};
+    const notifyChannelId = settings.notifyChannelId;
+    const notifyUsers = config.notifyUsers || [];
 
-    console.log(`[AntiScam] Would send warning to guild ${guild.id}:`, message);
+    // Send to configured notification channel
+    if (notifyChannelId) {
+        try {
+            const channel = await guild.channels.fetch(notifyChannelId);
+            if (channel && channel.isTextBased()) {
+                await channel.send(message);
+            }
+        } catch (error) {
+            console.error(`[AntiScam] Failed to send to channel ${notifyChannelId}:`, error.message);
+        }
+    }
+
+    // DM configured admin users
+    for (const userId of notifyUsers) {
+        try {
+            const member = await guild.members.fetch(userId);
+            if (member) {
+                await member.send(`**[${guild.name}]** New member alert:\n\n${message}`);
+            }
+        } catch (error) {
+            // User may have DMs disabled, silently continue
+        }
+    }
+
+    // Log for debugging if no notifications configured
+    if (!notifyChannelId && notifyUsers.length === 0) {
+        console.log(`[AntiScam] Warning for guild ${guild.id} (no notification channel configured):`, message);
+    }
 }
 
 /**
@@ -173,15 +197,12 @@ module.exports = {
     formatWarningMessage,
     sendWarningToAdmins,
     handleMemberJoin,
-    // Feature availability check
-    isAvailable: () => {
-        // TODO: Return true when MESSAGE_CONTENT intent and API keys are available
-        return false;
-    },
-    // Required setup info
+    // Feature availability check - account age detection works without MESSAGE_CONTENT
+    isAvailable: () => true,
+    // Required setup info for full functionality
     requirements: {
-        intents: ['MESSAGE_CONTENT'],
-        apiKeys: ['SCAM_DETECTION_API_KEY'],
-        permissions: ['MANAGE_GUILD', 'VIEW_AUDIT_LOG']
+        intents: [], // Basic account age detection works without special intents
+        apiKeys: [], // External API keys optional for enhanced detection
+        permissions: ['MANAGE_GUILD']
     }
 };

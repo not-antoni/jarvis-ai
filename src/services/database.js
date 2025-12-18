@@ -879,7 +879,7 @@ class DatabaseManager {
             { upsert: true, returnDocument: 'after' }
         );
 
-        return result?.value || update;
+        return result || update;
     }
 
     async deleteAutoModConfig(guildId) {
@@ -899,7 +899,7 @@ class DatabaseManager {
                 { upsert: true, returnDocument: 'after' }
             );
 
-        const value = result?.value?.value ?? 1;
+        const value = result?.value ?? 1;
         return value;
     }
 
@@ -972,7 +972,7 @@ class DatabaseManager {
                 { returnDocument: 'after' }
             );
 
-        return result?.value || null;
+        return result || null;
     }
 
     async saveTicketTranscript(ticketId, transcript) {
@@ -1146,7 +1146,7 @@ class DatabaseManager {
             { upsert: true, returnDocument: 'after' }
         );
 
-        return result?.value || update;
+        return result || update;
     }
 
     async deleteServerStatsConfig(guildId) {
@@ -1195,7 +1195,7 @@ class DatabaseManager {
             { upsert: true, returnDocument: 'after' }
         );
 
-        return result?.value || update;
+        return result || update;
     }
 
     async deleteMemberLogConfig(guildId) {
