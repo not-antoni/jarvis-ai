@@ -797,7 +797,6 @@ const CRYPTO_PAGE = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stark Crypto Exchange | Jarvis</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -945,7 +944,19 @@ const CRYPTO_PAGE = `
         .coin-change.up { background: rgba(0,255,136,0.15); color: #00ff88; }
         .coin-change.down { background: rgba(255,68,68,0.15); color: #ff4444; }
         
-        .coin-chart { height: 60px; margin: 0.75rem 0; }
+        .coin-sparkline {
+            height: 30px;
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            margin: 0.5rem 0;
+        }
+        .spark-bar {
+            flex: 1;
+            background: currentColor;
+            border-radius: 2px 2px 0 0;
+            opacity: 0.6;
+        }
         
         .coin-stats {
             display: flex;
@@ -982,7 +993,6 @@ const CRYPTO_PAGE = `
             margin-bottom: 1.5rem;
         }
         .trade-emoji { font-size: 3rem; }
-        .trade-chart { height: 150px; margin-bottom: 1.5rem; }
         .trade-stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -1157,7 +1167,6 @@ const CRYPTO_PAGE = `
                     <div style="color: #666;" id="tradeName">Iron Man Coin</div>
                 </div>
             </div>
-            <canvas id="tradeChart" class="trade-chart"></canvas>
             <div class="trade-stats">
                 <div class="trade-stat">
                     <div class="trade-stat-label">Current Price</div>
@@ -1188,8 +1197,6 @@ const CRYPTO_PAGE = `
         let selectedCoin = null;
         let prices = {};
         let portfolio = null;
-        let tradeChart = null;
-        const miniCharts = {};
         
         async function checkAuth() {
             try {
@@ -1297,6 +1304,15 @@ const CRYPTO_PAGE = `
                 const changeClass = coin.change24h >= 0 ? 'up' : 'down';
                 const arrow = coin.change24h >= 0 ? '▲' : '▼';
                 const tierClass = 'tier-' + (coin.tier || 'mid');
+                const sparkColor = coin.change24h >= 0 ? '#00ff88' : '#ff4444';
+                
+                // Generate simple sparkline bars
+                const bars = [];
+                for (let i = 0; i < 12; i++) {
+                    const h = 20 + Math.random() * 60;
+                    bars.push('<div class="spark-bar" style="height:' + h + '%;"></div>');
+                }
+                
                 return \`
                     <div class="coin-card" onclick="openTradeModal('\${symbol}')">
                         <div class="coin-header">
@@ -1313,7 +1329,7 @@ const CRYPTO_PAGE = `
                             <span class="coin-price">\${coin.price.toLocaleString()} SB</span>
                             <span class="coin-change \${changeClass}">\${arrow} \${Math.abs(coin.change24h).toFixed(2)}%</span>
                         </div>
-                        <canvas id="chart-\${symbol}" class="coin-chart"></canvas>
+                        <div class="coin-sparkline" style="color: \${sparkColor}">\${bars.join('')}</div>
                         <div class="coin-stats">
                             <span>H: \${(coin.high24h || coin.price).toLocaleString()}</span>
                             <span>L: \${(coin.low24h || coin.price).toLocaleString()}</span>
@@ -1322,57 +1338,6 @@ const CRYPTO_PAGE = `
                     </div>
                 \`;
             }).join('');
-            
-            // Draw mini charts
-            setTimeout(() => {
-                Object.entries(prices).forEach(([symbol, coin]) => {
-                    drawMiniChart(symbol, coin);
-                });
-            }, 100);
-        }
-        
-        function drawMiniChart(symbol, coin) {
-            const canvas = document.getElementById('chart-' + symbol);
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            
-            if (miniCharts[symbol]) miniCharts[symbol].destroy();
-            
-            // Generate sample data (in production this would come from history)
-            const basePrice = coin.basePrice || coin.price;
-            const data = [];
-            let price = basePrice;
-            for (let i = 0; i < 20; i++) {
-                price = price * (1 + (Math.random() - 0.5) * coin.volatility * 0.5);
-                data.push(price);
-            }
-            data.push(coin.price);
-            
-            const isUp = coin.change24h >= 0;
-            miniCharts[symbol] = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.map((_, i) => i),
-                    datasets: [{
-                        data: data,
-                        borderColor: isUp ? '#00ff88' : '#ff4444',
-                        borderWidth: 2,
-                        fill: true,
-                        backgroundColor: isUp ? 'rgba(0,255,136,0.1)' : 'rgba(255,68,68,0.1)',
-                        tension: 0.4,
-                        pointRadius: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { display: false },
-                        y: { display: false }
-                    }
-                }
-            });
         }
         
         function openTradeModal(symbol) {
@@ -1393,55 +1358,6 @@ const CRYPTO_PAGE = `
             document.getElementById('tradeCost').textContent = 'Total: 0 SB (+ 0 SB fee)';
             document.getElementById('tradeMessage').textContent = '';
             document.getElementById('tradeModal').classList.add('active');
-            
-            // Draw trade chart
-            drawTradeChart(coin);
-        }
-        
-        function drawTradeChart(coin) {
-            const canvas = document.getElementById('tradeChart');
-            const ctx = canvas.getContext('2d');
-            
-            if (tradeChart) tradeChart.destroy();
-            
-            const basePrice = coin.basePrice || coin.price;
-            const data = [];
-            let price = basePrice;
-            for (let i = 0; i < 30; i++) {
-                price = price * (1 + (Math.random() - 0.5) * coin.volatility * 0.3);
-                data.push(price);
-            }
-            data.push(coin.price);
-            
-            const isUp = coin.change24h >= 0;
-            tradeChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.map((_, i) => i),
-                    datasets: [{
-                        data: data,
-                        borderColor: isUp ? '#00ff88' : '#ff4444',
-                        borderWidth: 2,
-                        fill: true,
-                        backgroundColor: isUp ? 'rgba(0,255,136,0.15)' : 'rgba(255,68,68,0.15)',
-                        tension: 0.4,
-                        pointRadius: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { display: false },
-                        y: {
-                            display: true,
-                            grid: { color: 'rgba(255,255,255,0.05)' },
-                            ticks: { color: '#666', font: { size: 10 } }
-                        }
-                    }
-                }
-            });
         }
         
         document.getElementById('tradeAmount').addEventListener('input', function() {
