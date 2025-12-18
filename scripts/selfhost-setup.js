@@ -74,43 +74,9 @@ class SelfhostSetup {
     }
 
     async promptSecret(question) {
-        const stdin = process.stdin;
-        const stdout = process.stdout;
-        
-        // Check if we're in a TTY (interactive terminal)
-        if (!stdin.isTTY) {
-            // Fallback to regular prompt for non-TTY (piped input, scripts, etc.)
-            return this.prompt(question);
-        }
-        
-        return new Promise(resolve => {
-            stdout.write(`${question}: `);
-            stdin.setRawMode(true);
-            stdin.resume();
-            stdin.setEncoding('utf8');
-            
-            let password = '';
-            const onData = char => {
-                if (char === '\n' || char === '\r' || char === '\u0004') {
-                    stdin.setRawMode(false);
-                    stdin.pause();
-                    stdin.removeListener('data', onData);
-                    stdout.write('\n');
-                    resolve(password);
-                } else if (char === '\u0003') {
-                    process.exit();
-                } else if (char === '\u007F' || char === '\b') {
-                    if (password.length > 0) {
-                        password = password.slice(0, -1);
-                        stdout.write('\b \b');
-                    }
-                } else {
-                    password += char;
-                    stdout.write('*');
-                }
-            };
-            stdin.on('data', onData);
-        });
+        // Simplified: just use regular prompt to avoid stdin issues
+        // The value won't be hidden but it's more reliable
+        return this.prompt(question, '');
     }
 
     loadExistingEnv() {
@@ -280,16 +246,23 @@ class SelfhostSetup {
         if (discordToken) this.envVars.DISCORD_TOKEN = discordToken;
 
         // Discord OAuth (for moderator dashboard)
-        const setupOAuth = await this.promptYesNo('Set up Discord OAuth (for moderator dashboard)?', true);
-        if (setupOAuth) {
-            log.info(`\nIn Discord Developer Portal, add this redirect URL:`);
-            log.info(`${colors.bright}${baseUrl}/auth/discord/callback${colors.reset}\n`);
-            
-            const clientId = await this.prompt('Discord Client ID', this.existingEnv.DISCORD_CLIENT_ID || '');
-            const clientSecret = await this.promptSecret('Discord Client Secret');
-            
-            if (clientId) this.envVars.DISCORD_CLIENT_ID = clientId;
-            if (clientSecret) this.envVars.DISCORD_CLIENT_SECRET = clientSecret;
+        const hasOAuth = this.existingEnv.DISCORD_CLIENT_ID && this.existingEnv.DISCORD_CLIENT_SECRET;
+        if (hasOAuth) {
+            log.success('Discord OAuth already configured');
+            this.envVars.DISCORD_CLIENT_ID = this.existingEnv.DISCORD_CLIENT_ID;
+            this.envVars.DISCORD_CLIENT_SECRET = this.existingEnv.DISCORD_CLIENT_SECRET;
+        } else {
+            const setupOAuth = await this.promptYesNo('Set up Discord OAuth (for moderator dashboard)?', false);
+            if (setupOAuth) {
+                log.info(`\nIn Discord Developer Portal, add this redirect URL:`);
+                log.info(`${colors.bright}${baseUrl}/auth/discord/callback${colors.reset}\n`);
+                
+                const clientId = await this.prompt('Discord Client ID', '');
+                const clientSecret = await this.prompt('Discord Client Secret', '');
+                
+                if (clientId) this.envVars.DISCORD_CLIENT_ID = clientId;
+                if (clientSecret) this.envVars.DISCORD_CLIENT_SECRET = clientSecret;
+            }
         }
 
         // Step 4: Database Configuration
@@ -358,19 +331,30 @@ class SelfhostSetup {
         this.envVars.SELFHOST_MODE = 'true';
         log.success('Enabled selfhost mode');
 
-        // Optional: AI Providers
+        // Optional: AI Providers - skip if any are already configured
         log.step('Step 7: AI Provider Configuration (Optional)');
         
-        const configureAI = await this.promptYesNo('Configure AI providers now?', false);
-        if (configureAI) {
-            const openrouterKey = await this.promptSecret('OpenRouter API Key (leave empty to skip)');
-            if (openrouterKey) this.envVars.OPENROUTER_API_KEY = openrouterKey;
-            
-            const groqKey = await this.promptSecret('Groq API Key (leave empty to skip)');
-            if (groqKey) this.envVars.GROQ_API_KEY = groqKey;
-            
-            const googleKey = await this.promptSecret('Google AI API Key (leave empty to skip)');
-            if (googleKey) this.envVars.GOOGLE_AI_API_KEY = googleKey;
+        const hasAnyAI = this.existingEnv.OPENROUTER_API_KEY || this.existingEnv.GROQ_API_KEY || 
+                         this.existingEnv.GOOGLE_AI_API_KEY || this.existingEnv.OPENAI_API_KEY;
+        if (hasAnyAI) {
+            log.success('AI providers already configured');
+            // Preserve existing AI keys
+            if (this.existingEnv.OPENROUTER_API_KEY) this.envVars.OPENROUTER_API_KEY = this.existingEnv.OPENROUTER_API_KEY;
+            if (this.existingEnv.GROQ_API_KEY) this.envVars.GROQ_API_KEY = this.existingEnv.GROQ_API_KEY;
+            if (this.existingEnv.GOOGLE_AI_API_KEY) this.envVars.GOOGLE_AI_API_KEY = this.existingEnv.GOOGLE_AI_API_KEY;
+            if (this.existingEnv.OPENAI_API_KEY) this.envVars.OPENAI_API_KEY = this.existingEnv.OPENAI_API_KEY;
+        } else {
+            const configureAI = await this.promptYesNo('Configure AI providers now?', false);
+            if (configureAI) {
+                const openrouterKey = await this.prompt('OpenRouter API Key (leave empty to skip)', '');
+                if (openrouterKey) this.envVars.OPENROUTER_API_KEY = openrouterKey;
+                
+                const groqKey = await this.prompt('Groq API Key (leave empty to skip)', '');
+                if (groqKey) this.envVars.GROQ_API_KEY = groqKey;
+                
+                const googleKey = await this.prompt('Google AI API Key (leave empty to skip)', '');
+                if (googleKey) this.envVars.GOOGLE_AI_API_KEY = googleKey;
+            }
         }
 
         // Step 8: System Setup (VPS only)
