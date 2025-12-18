@@ -495,13 +495,9 @@ function buildStatusPageEmbed({ url, status }) {
     return embed;
 }
 
-async function safeSend(channel, payload) {
-    try {
-        await channel.send(payload);
-        return { ok: true };
-    } catch (error) {
-        return { ok: false, error };
-    }
+async function safeSendMessage(channel, payload) {
+    const { safeSend } = require('../utils/discord-safe-send');
+    return await safeSend(channel, payload, schedulerState.client);
 }
 
 async function processSubscription(sub) {
@@ -540,7 +536,7 @@ async function processSubscription(sub) {
                 source: String(sub.source_id)
             });
 
-            const sent = await safeSend(channel, { embeds: [embed] });
+            const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send RSS notification:', sent.error?.message || sent.error);
                 await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
@@ -577,7 +573,7 @@ async function processSubscription(sub) {
                 source: `YouTube ${sub.source_id}`
             });
 
-            const sent = await safeSend(channel, { embeds: [embed] });
+            const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send YouTube notification:', sent.error?.message || sent.error);
                 await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
@@ -614,7 +610,7 @@ async function processSubscription(sub) {
                 currentStatus: status
             });
 
-            const sent = await safeSend(channel, { embeds: [embed] });
+            const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send website notification:', sent.error?.message || sent.error);
                 await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
@@ -650,7 +646,7 @@ async function processSubscription(sub) {
                     stream: result?.stream
                 });
 
-                const sent = await safeSend(channel, { embeds: [embed] });
+                const sent = await safeSendMessage(channel, { embeds: [embed] });
                 if (!sent.ok) {
                     console.warn('[Monitor] Failed to send Twitch notification:', sent.error?.message || sent.error);
                     await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
@@ -735,7 +731,7 @@ async function processSubscription(sub) {
             }
 
             const embed = buildCloudflareEmbed(status, { isResolved, affectedServices });
-            const sent = await safeSend(channel, { embeds: [embed] });
+            const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send Cloudflare notification:', sent.error?.message || sent.error);
                 await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
@@ -771,7 +767,7 @@ async function processSubscription(sub) {
 
         if (currentSnapshot !== previousSnapshot) {
             const embed = buildStatusPageEmbed({ url: baseUrl, status });
-            const sent = await safeSend(channel, { embeds: [embed] });
+            const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send status page notification:', sent.error?.message || sent.error);
                 await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
