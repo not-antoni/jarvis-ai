@@ -194,23 +194,35 @@ router.get('/api/user/purchases', requireAuth, async (req, res) => {
     }
 });
 
-// Get user balance (combined SB + SBX)
+// Get user balance (combined SB + SBX + investments)
 router.get('/api/user/balance', requireAuth, async (req, res) => {
     try {
         const starkEconomy = require('../src/services/stark-economy');
         const sbx = require('../src/services/starkbucks-exchange');
+        const database = require('../src/services/database');
         const userId = req.userSession.userId;
         
         const [balance, wallet] = await Promise.all([
             starkEconomy.getBalance(userId),
-            sbx.getWallet(userId).catch(() => ({ balance: 0, invested: 0 }))
+            sbx.getWallet(userId).catch(() => ({ balance: 0 }))
         ]);
+        
+        // Get investment data from separate collection
+        let invested = 0;
+        try {
+            if (database.isConnected && database.db) {
+                const investment = await database.db.collection('sbx_investments').findOne({ userId });
+                invested = investment?.principal || 0;
+            }
+        } catch (e) {
+            console.error('Failed to fetch investment:', e);
+        }
         
         res.json({
             success: true,
             balance: balance || 0,
             sbx: wallet?.balance || 0,
-            invested: wallet?.invested || 0
+            invested
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
