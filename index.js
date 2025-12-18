@@ -3776,6 +3776,10 @@ app.use('/', userAuthRouter);
 const userApiRouter = require('./routes/user-api');
 app.use('/', userApiRouter);
 
+// Mount additional pages (commands, leaderboard, docs, changelog, sbx)
+const pagesRouter = require('./routes/pages');
+app.use('/', pagesRouter);
+
 // Mount landing page (must be last to not override other routes)
 const landingRouter = require('./routes/landing');
 app.use('/', landingRouter);
