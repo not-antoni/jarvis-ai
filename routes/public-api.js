@@ -229,25 +229,25 @@ router.post('/chat/completions', async (req, res) => {
         const systemMessage = messages.find(m => m.role === 'system');
         const userMessages = messages.filter(m => m.role !== 'system');
         
-        let prompt = '';
-        if (systemMessage) {
-            prompt = `System: ${systemMessage.content}\n\n`;
-        }
-        
+        // Build user prompt from conversation
+        let userPrompt = '';
         for (const msg of userMessages) {
-            const role = msg.role === 'assistant' ? 'Assistant' : 'User';
-            prompt += `${role}: ${msg.content}\n`;
+            if (msg.role === 'assistant') {
+                userPrompt += `Assistant: ${msg.content}\n`;
+            } else {
+                userPrompt += `${msg.content}\n`;
+            }
         }
 
-        // Call AI provider
-        const response = await aiManager.chat({
-            prompt: prompt.trim(),
-            systemPrompt: systemMessage?.content,
-            temperature: temperature || 0.7,
-            maxTokens: max_tokens || 1000,
-            userId: req.apiUser.userId,
-            source: 'api'
-        });
+        // Get system prompt (use default if not provided)
+        const systemPrompt = systemMessage?.content || 'You are Jarvis, a helpful AI assistant.';
+
+        // Call AI provider using generateResponse
+        const response = await aiManager.generateResponse(
+            systemPrompt,
+            userPrompt.trim(),
+            max_tokens || 1000
+        );
 
         if (!response || response.error) {
             apiKeys.recordError(req.apiUser.keyId);
