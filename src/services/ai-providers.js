@@ -1,4 +1,6 @@
 'use strict';
+
+const sharp = require('sharp');
 /** BEGIN: sanitizeModelOutput helper (injected) **/
 /**
  * Sanitize model-generated text by removing stray conversation/markup tokens
@@ -1213,8 +1215,7 @@ class AIProviderManager {
                 }
 
                 const arrayBuffer = await response.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-                const base64 = buffer.toString('base64');
+                let buffer = Buffer.from(arrayBuffer);
 
                 // Check content type from response or URL extension
                 let mimeType = response.headers.get('content-type') || contentType;
@@ -1235,6 +1236,19 @@ class AIProviderManager {
                     continue;
                 }
 
+                // For GIFs, extract the first frame and convert to PNG
+                if (mimeType.includes('gif')) {
+                    try {
+                        buffer = await sharp(buffer, { pages: 1 })
+                            .png()
+                            .toBuffer();
+                        console.log('[Image] Extracted first frame from GIF');
+                    } catch (gifErr) {
+                        console.warn(`Failed to extract GIF frame: ${gifErr.message}`);
+                    }
+                }
+
+                const base64 = buffer.toString('base64');
                 base64Images.push(base64);
             } catch (err) {
                 console.warn(`Error processing image: ${err.message}`);
