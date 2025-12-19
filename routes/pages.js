@@ -1514,7 +1514,7 @@ const DOCS_PAGE = `
     </style>
 </head>
 <body>
-    \${NAV_HTML}
+    ${NAV_HTML}
     <div class="container">
         <h1>📖 Documentation</h1>
         <p style="color: #888; margin-bottom: 2rem;">User guide and API reference for Jarvis</p>
@@ -2093,7 +2093,7 @@ const STATUS_PAGE = `
     </style>
 </head>
 <body>
-    \${NAV_HTML}
+    ${NAV_HTML}
     <div class="container">
         <h1>📊 System Status</h1>
         <p style="color: #888; margin-bottom: 2rem;">Real-time status of Jarvis services</p>
