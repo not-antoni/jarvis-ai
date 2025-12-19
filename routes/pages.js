@@ -1526,6 +1526,10 @@ const DOCS_PAGE = `
 
         <!-- API Documentation Tab -->
         <div id="api" class="tab-content active">
+            <div style="background: rgba(255, 68, 68, 0.15); border: 2px solid #ff4444; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+                <h3 style="color: #ff4444; margin-bottom: 0.5rem;">⚠️ API Temporarily Disabled</h3>
+                <p style="color: #ff6666; margin: 0;">The public API has been disabled for an unspecified amount of time. Please use the Discord bot instead.</p>
+            </div>
             <div class="doc-section">
                 <h2>🔑 Authentication</h2>
                 <div class="card">
