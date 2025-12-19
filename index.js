@@ -2,6 +2,9 @@
  * Jarvis Discord Bot - Main Entry Point
  * Refactored for better organization and maintainability
  */
+
+/* eslint-disable no-console */
+
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
@@ -13,7 +16,7 @@ const {
     InteractionContextType,
     ChannelType,
     Partials,
-    PermissionsBitField,
+    PermissionsBitField: _PermissionsBitField,
     ActivityType,
     Events
 } = require('discord.js');
@@ -89,7 +92,7 @@ function writeJsonAtomic(filePath, value) {
 
 // Load command sync state - local file for selfhost, MongoDB for Render
 let commandSyncState = safeReadJson(COMMAND_SYNC_STATE_PATH, null);
-let commandSyncFromMongo = false; // Track if we loaded from MongoDB
+let _commandSyncFromMongo = false; // Track if we loaded from MongoDB
 
 // On Render (not selfhost), we'll load from MongoDB after DB connects
 async function loadCommandSyncStateFromMongo() {
@@ -100,7 +103,7 @@ async function loadCommandSyncStateFromMongo() {
         const mongoState = await database.getCommandSyncState();
         if (mongoState) {
             commandSyncState = mongoState;
-            commandSyncFromMongo = true;
+            _commandSyncFromMongo = true;
             console.log('[CommandSync] Loaded state from MongoDB (Render mode)');
         }
     } catch (error) {
@@ -163,7 +166,7 @@ const client = new Client({
 });
 let rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
 const PRESENCE_ROTATION_INTERVAL_MS = 20 * 60 * 1000; // 20 minutes
-let rotatingStatusIndex = rotatingStatusMessages.length
+let _rotatingStatusIndex = rotatingStatusMessages.length
     ? Math.floor(Math.random() * rotatingStatusMessages.length)
     : 0;
 
@@ -2820,7 +2823,7 @@ app.get('/status', async (req, res) => {
             ...optionalEnabled.map(name => `- ${name}`)
         ].join('\n');
 
-        const dbLines = [
+        const _dbLines = [
             `Connected: ${databaseStatus.connected ? '✅ Yes' : '❌ No'}`,
             `Ping: ${databaseStatus.ping}`,
             databaseStatus.error ? `Last error: ${databaseStatus.error}` : null
