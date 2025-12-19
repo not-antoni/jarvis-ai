@@ -13,7 +13,8 @@
 
 const express = require('express');
 const router = express.Router();
-const path = require('path');
+// const path = require('path'); // unused
+const userAuth = require('../src/services/user-auth');
 
 // ============================================================================
 // MIDDLEWARE
@@ -22,9 +23,19 @@ const path = require('path');
 // Parse JSON bodies
 router.use(express.json());
 
-// CORS for API routes
+// CORS for API routes - restrict to same origin for authenticated endpoints
+const ALLOWED_ORIGINS = [
+    process.env.PUBLIC_BASE_URL,
+    'http://localhost:3000',
+    'http://localhost:5173'
+].filter(Boolean);
+
 router.use('/api', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const { origin } = req.headers;
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') {
@@ -32,6 +43,37 @@ router.use('/api', (req, res, next) => {
     }
     next();
 });
+
+/**
+ * Authentication middleware for SBX API routes
+ * Requires valid session - uses userId from session, not from request body
+ */
+function requireSbxAuth(req, res, next) {
+    const session = userAuth.getSessionFromRequest(req);
+    if (!session) {
+        return res.status(401).json({ error: 'Authentication required. Please login.' });
+    }
+    req.sbxUserId = session.userId;
+    req.userSession = session;
+    next();
+}
+
+/**
+ * Validate amount parameter
+ */
+function validateAmount(amount) {
+    const num = Number(amount);
+    if (typeof amount === 'undefined' || amount === null || amount === '') {
+        return { valid: false, error: 'Amount is required' };
+    }
+    if (isNaN(num) || !isFinite(num)) {
+        return { valid: false, error: 'Amount must be a valid number' };
+    }
+    if (num <= 0) {
+        return { valid: false, error: 'Amount must be positive' };
+    }
+    return { valid: true, value: num };
+}
 
 // ============================================================================
 // LAZY LOAD STARKBUCKS SERVICE
@@ -84,16 +126,11 @@ router.get('/transaction/:id', async (req, res) => {
  * POST /transaction/:id/pay
  * Complete a payment (API)
  */
-router.post('/transaction/:id/pay', async (req, res) => {
+router.post('/transaction/:id/pay', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { userId, discordToken } = req.body;
-        
-        if (!userId) {
-            return res.status(400).json({ error: 'User ID required' });
-        }
-        
-        // TODO: Verify Discord token if provided
+        // Use authenticated userId from session, not from body
+        const userId = req.sbxUserId;
         
         const result = await sbx.completePayment(req.params.id, userId);
         res.json(result);
@@ -222,16 +259,23 @@ router.get('/api/sbx/wallet/:userId', async (req, res) => {
  * POST /api/sbx/transfer
  * Transfer SBX between users
  */
-router.post('/api/sbx/transfer', async (req, res) => {
+router.post('/api/sbx/transfer', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { from, to, amount, memo } = req.body;
+        // Use authenticated userId as sender - cannot transfer from other wallets
+        const from = req.sbxUserId;
+        const { to, amount, memo } = req.body;
         
-        if (!from || !to || !amount) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        if (!to) {
+            return res.status(400).json({ error: 'Recipient ID required' });
         }
         
-        const result = await sbx.transfer(from, to, Number(amount), memo);
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
+        }
+        
+        const result = await sbx.transfer(from, to, amountCheck.value, memo);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Transfer failed' });
@@ -242,18 +286,21 @@ router.post('/api/sbx/transfer', async (req, res) => {
  * POST /api/sbx/payment-request
  * Create a new payment request
  */
-router.post('/api/sbx/payment-request', async (req, res) => {
+router.post('/api/sbx/payment-request', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { requesterId, amount, memo, recipientId } = req.body;
+        // Use authenticated userId as requester
+        const requesterId = req.sbxUserId;
+        const { amount, memo, recipientId } = req.body;
         
-        if (!requesterId || !amount) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
         }
         
         const result = await sbx.createPaymentRequest(
             requesterId, 
-            Number(amount), 
+            amountCheck.value, 
             memo, 
             recipientId
         );
@@ -267,16 +314,18 @@ router.post('/api/sbx/payment-request', async (req, res) => {
  * POST /api/sbx/convert/to-sbx
  * Convert Stark Bucks to SBX
  */
-router.post('/api/sbx/convert/to-sbx', async (req, res) => {
+router.post('/api/sbx/convert/to-sbx', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { userId, amount } = req.body;
+        const userId = req.sbxUserId;
+        const { amount } = req.body;
         
-        if (!userId || !amount) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
         }
         
-        const result = await sbx.convertToSBX(userId, Number(amount));
+        const result = await sbx.convertToSBX(userId, amountCheck.value);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Conversion failed' });
@@ -287,16 +336,18 @@ router.post('/api/sbx/convert/to-sbx', async (req, res) => {
  * POST /api/sbx/convert/to-starkbucks
  * Convert SBX to Stark Bucks
  */
-router.post('/api/sbx/convert/to-starkbucks', async (req, res) => {
+router.post('/api/sbx/convert/to-starkbucks', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { userId, amount } = req.body;
+        const userId = req.sbxUserId;
+        const { amount } = req.body;
         
-        if (!userId || !amount) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
         }
         
-        const result = await sbx.convertToStarkBucks(userId, Number(amount));
+        const result = await sbx.convertToStarkBucks(userId, amountCheck.value);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Conversion failed' });
@@ -321,13 +372,14 @@ router.get('/api/sbx/store/items', async (req, res) => {
  * POST /api/sbx/store/purchase
  * Purchase an item from the store
  */
-router.post('/api/sbx/store/purchase', async (req, res) => {
+router.post('/api/sbx/store/purchase', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { userId, itemId } = req.body;
+        const userId = req.sbxUserId;
+        const { itemId } = req.body;
         
-        if (!userId || !itemId) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        if (!itemId) {
+            return res.status(400).json({ error: 'Item ID required' });
         }
         
         const result = await sbx.purchaseItem(userId, itemId);
@@ -355,16 +407,18 @@ router.get('/api/sbx/store/purchases/:userId', async (req, res) => {
  * POST /api/sbx/invest
  * Invest SBX
  */
-router.post('/api/sbx/invest', async (req, res) => {
+router.post('/api/sbx/invest', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { userId, amount } = req.body;
+        const userId = req.sbxUserId;
+        const { amount } = req.body;
         
-        if (!userId || !amount) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
         }
         
-        const result = await sbx.investSBX(userId, Number(amount));
+        const result = await sbx.investSBX(userId, amountCheck.value);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Investment failed' });
@@ -375,14 +429,10 @@ router.post('/api/sbx/invest', async (req, res) => {
  * POST /api/sbx/invest/claim
  * Claim investment earnings
  */
-router.post('/api/sbx/invest/claim', async (req, res) => {
+router.post('/api/sbx/invest/claim', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { userId } = req.body;
-        
-        if (!userId) {
-            return res.status(400).json({ error: 'User ID required' });
-        }
+        const userId = req.sbxUserId;
         
         const result = await sbx.claimInvestmentEarnings(userId);
         res.json(result);
@@ -395,16 +445,18 @@ router.post('/api/sbx/invest/claim', async (req, res) => {
  * POST /api/sbx/invest/withdraw
  * Withdraw investment
  */
-router.post('/api/sbx/invest/withdraw', async (req, res) => {
+router.post('/api/sbx/invest/withdraw', requireSbxAuth, async (req, res) => {
     try {
         const sbx = getSBX();
-        const { userId, amount } = req.body;
+        const userId = req.sbxUserId;
+        const { amount } = req.body;
         
-        if (!userId || !amount) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
         }
         
-        const result = await sbx.withdrawInvestment(userId, Number(amount));
+        const result = await sbx.withdrawInvestment(userId, amountCheck.value);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Withdrawal failed' });

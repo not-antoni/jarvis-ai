@@ -8,6 +8,26 @@
 const express = require('express');
 const router = express.Router();
 const userAuth = require('../src/services/user-auth');
+const starkEconomy = require('../src/services/stark-economy');
+const sbx = require('../src/services/starkbucks-exchange');
+const database = require('../src/services/database');
+
+/**
+ * Validate amount parameter
+ */
+function validateAmount(amount) {
+    const num = Number(amount);
+    if (typeof amount === 'undefined' || amount === null || amount === '') {
+        return { valid: false, error: 'Amount is required' };
+    }
+    if (isNaN(num) || !isFinite(num)) {
+        return { valid: false, error: 'Amount must be a valid number' };
+    }
+    if (num <= 0) {
+        return { valid: false, error: 'Amount must be positive' };
+    }
+    return { valid: true, value: num };
+}
 
 // Middleware to require authentication
 function requireAuth(req, res, next) {
@@ -22,7 +42,6 @@ function requireAuth(req, res, next) {
 // Get user's economy data
 router.get('/api/user/economy', requireAuth, async (req, res) => {
     try {
-        const starkEconomy = require('../src/services/stark-economy');
         const userId = req.userSession.userId;
         
         const [balance, stats] = await Promise.all([
@@ -43,7 +62,6 @@ router.get('/api/user/economy', requireAuth, async (req, res) => {
 // Get user's SBX wallet
 router.get('/api/user/sbx', requireAuth, async (req, res) => {
     try {
-        const sbx = require('../src/services/starkbucks-exchange');
         const userId = req.userSession.userId;
         
         const [wallet, price] = await Promise.all([
@@ -64,15 +82,15 @@ router.get('/api/user/sbx', requireAuth, async (req, res) => {
 // Execute SBX buy (convert Stark Bucks to SBX)
 router.post('/api/user/sbx/buy', requireAuth, async (req, res) => {
     try {
-        const sbx = require('../src/services/starkbucks-exchange');
         const userId = req.userSession.userId;
         const { amount } = req.body;
         
-        if (!amount || amount <= 0) {
-            return res.status(400).json({ error: 'Invalid amount' });
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
         }
         
-        const result = await sbx.convertToSBX(userId, amount);
+        const result = await sbx.convertToSBX(userId, amountCheck.value);
         if (!result.success) {
             return res.status(400).json({ error: result.error || 'Conversion failed' });
         }
@@ -85,15 +103,15 @@ router.post('/api/user/sbx/buy', requireAuth, async (req, res) => {
 // Execute SBX sell (convert SBX to Stark Bucks)
 router.post('/api/user/sbx/sell', requireAuth, async (req, res) => {
     try {
-        const sbx = require('../src/services/starkbucks-exchange');
         const userId = req.userSession.userId;
         const { amount } = req.body;
         
-        if (!amount || amount <= 0) {
-            return res.status(400).json({ error: 'Invalid amount' });
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
         }
         
-        const result = await sbx.convertToStarkBucks(userId, amount);
+        const result = await sbx.convertToStarkBucks(userId, amountCheck.value);
         if (!result.success) {
             return res.status(400).json({ error: result.error || 'Conversion failed' });
         }
@@ -106,15 +124,15 @@ router.post('/api/user/sbx/sell', requireAuth, async (req, res) => {
 // Execute SBX invest
 router.post('/api/user/sbx/invest', requireAuth, async (req, res) => {
     try {
-        const sbx = require('../src/services/starkbucks-exchange');
         const userId = req.userSession.userId;
         const { amount } = req.body;
         
-        if (!amount || amount <= 0) {
-            return res.status(400).json({ error: 'Invalid amount' });
+        const amountCheck = validateAmount(amount);
+        if (!amountCheck.valid) {
+            return res.status(400).json({ error: amountCheck.error });
         }
         
-        const result = await sbx.investSBX(userId, amount);
+        const result = await sbx.investSBX(userId, amountCheck.value);
         if (!result.success) {
             return res.status(400).json({ error: result.error || 'Investment failed' });
         }
@@ -127,9 +145,7 @@ router.post('/api/user/sbx/invest', requireAuth, async (req, res) => {
 // Claim daily reward
 router.post('/api/user/daily', requireAuth, async (req, res) => {
     try {
-        const starkEconomy = require('../src/services/stark-economy');
-        const userId = req.userSession.userId;
-        const username = req.userSession.username;
+        const { userId, username } = req.userSession;
         
         const result = await starkEconomy.claimDaily(userId, username);
         res.json({ success: true, ...result });
@@ -141,9 +157,7 @@ router.post('/api/user/daily', requireAuth, async (req, res) => {
 // Execute work command
 router.post('/api/user/work', requireAuth, async (req, res) => {
     try {
-        const starkEconomy = require('../src/services/stark-economy');
-        const userId = req.userSession.userId;
-        const username = req.userSession.username;
+        const { userId, username } = req.userSession;
         
         const result = await starkEconomy.work(userId, username);
         res.json({ success: true, ...result });
@@ -155,7 +169,6 @@ router.post('/api/user/work', requireAuth, async (req, res) => {
 // Get store items
 router.get('/api/store/items', async (req, res) => {
     try {
-        const sbx = require('../src/services/starkbucks-exchange');
         const items = sbx.getStoreItems();
         res.json({ success: true, items });
     } catch (error) {
@@ -166,8 +179,7 @@ router.get('/api/store/items', async (req, res) => {
 // Purchase store item
 router.post('/api/store/purchase', requireAuth, async (req, res) => {
     try {
-        const sbx = require('../src/services/starkbucks-exchange');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         const { itemId } = req.body;
         
         if (!itemId) {
@@ -184,8 +196,7 @@ router.post('/api/store/purchase', requireAuth, async (req, res) => {
 // Get user's purchases
 router.get('/api/user/purchases', requireAuth, async (req, res) => {
     try {
-        const sbx = require('../src/services/starkbucks-exchange');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         
         const purchases = await sbx.getUserPurchases(userId);
         res.json({ success: true, purchases });
@@ -197,10 +208,7 @@ router.get('/api/user/purchases', requireAuth, async (req, res) => {
 // Get user balance (combined SB + SBX + investments)
 router.get('/api/user/balance', requireAuth, async (req, res) => {
     try {
-        const starkEconomy = require('../src/services/stark-economy');
-        const sbx = require('../src/services/starkbucks-exchange');
-        const database = require('../src/services/database');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         
         const [balance, wallet] = await Promise.all([
             starkEconomy.getBalance(userId),

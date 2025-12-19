@@ -136,10 +136,6 @@
             return;
         }
 
-        if (cleanContent.length > config.ai.maxInputLength) {
-            cleanContent = cleanContent.substring(0, config.ai.maxInputLength) + "...";
-        }
-
         try {
             const utilityResponse = await this.jarvis.handleUtilityCommand(
                 cleanContent,
