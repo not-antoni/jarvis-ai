@@ -23,7 +23,7 @@ router.get('/auth/login', (req, res) => {
         maxAge: 5 * 60 * 1000 // 5 minutes
     });
     
-    const url = userAuth.getOAuthUrl(state);
+    const { url } = userAuth.getOAuthUrl(state);
     res.redirect(url);
 });
 

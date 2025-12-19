@@ -1533,6 +1533,406 @@ const DOCS_PAGE = `
 `;
 
 // ============================================================================
+// STATUS PAGE - System status with Cloudflare updates
+// ============================================================================
+
+const STATUS_PAGE = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status | Jarvis</title>
+    <style>${SHARED_STYLES}
+        .status-header {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(0,212,255,0.05);
+            border-radius: 16px;
+            margin-bottom: 2rem;
+        }
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .status-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .status-dot.operational { background: #00ff88; box-shadow: 0 0 10px rgba(0,255,136,0.5); }
+        .status-dot.degraded { background: #ffaa00; box-shadow: 0 0 10px rgba(255,170,0,0.5); }
+        .status-dot.down { background: #ff4444; box-shadow: 0 0 10px rgba(255,68,68,0.5); }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .services-grid {
+            display: grid;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .service-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .service-item:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(0,212,255,0.3);
+        }
+        .service-name { font-weight: 500; }
+        .service-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .service-status .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .service-status.operational .dot { background: #00ff88; }
+        .service-status.operational { color: #00ff88; }
+        .service-status.degraded .dot { background: #ffaa00; }
+        .service-status.degraded { color: #ffaa00; }
+        .service-status.down .dot { background: #ff4444; }
+        .service-status.down { color: #ff4444; }
+        .updates-section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .updates-section h2 {
+            margin-top: 0;
+            border: none;
+            padding: 0;
+            margin-bottom: 1rem;
+        }
+        .update-item {
+            padding: 1rem;
+            border-left: 3px solid #00d4ff;
+            background: rgba(0,212,255,0.05);
+            margin-bottom: 1rem;
+            border-radius: 0 8px 8px 0;
+        }
+        .update-item.maintenance {
+            border-left-color: #ffaa00;
+            background: rgba(255,170,0,0.05);
+        }
+        .update-item.incident {
+            border-left-color: #ff4444;
+            background: rgba(255,68,68,0.05);
+        }
+        .update-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .update-badge {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            background: rgba(0,212,255,0.2);
+            color: #00d4ff;
+        }
+        .update-badge.in-progress { background: rgba(255,170,0,0.2); color: #ffaa00; }
+        .update-badge.scheduled { background: rgba(138,43,226,0.2); color: #8a2be2; }
+        .update-time { font-size: 0.85rem; color: #666; margin-bottom: 0.5rem; }
+        .update-desc { color: #aaa; line-height: 1.6; }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .metric-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        .metric-value { font-size: 2rem; color: #00d4ff; font-weight: 700; }
+        .metric-label { color: #888; font-size: 0.9rem; margin-top: 0.25rem; }
+        .last-updated { text-align: center; color: #666; font-size: 0.9rem; margin-top: 2rem; }
+        .refresh-btn {
+            background: rgba(0,212,255,0.1);
+            border: 1px solid rgba(0,212,255,0.3);
+            color: #00d4ff;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 1rem;
+            transition: all 0.3s;
+        }
+        .refresh-btn:hover { background: rgba(0,212,255,0.2); }
+        .cloudflare-section {
+            background: linear-gradient(135deg, rgba(245,130,32,0.1) 0%, rgba(245,130,32,0.02) 100%);
+            border: 1px solid rgba(245,130,32,0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .cloudflare-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .cloudflare-logo { height: 24px; }
+        .no-updates { color: #666; text-align: center; padding: 2rem; }
+    </style>
+</head>
+<body>
+    ${NAV_HTML}
+    <div class="container">
+        <h1>📊 System Status</h1>
+        <p style="color: #888; margin-bottom: 2rem;">Real-time status of Jarvis services</p>
+        
+        <div class="status-header">
+            <div class="status-indicator" id="overallStatus">
+                <span class="status-dot operational"></span>
+                <span>All Systems Operational</span>
+            </div>
+        </div>
+        
+        <div class="metrics-grid" id="metricsGrid">
+            <div class="metric-card">
+                <div class="metric-value" id="uptime">--</div>
+                <div class="metric-label">Uptime</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="latency">--</div>
+                <div class="metric-label">API Latency</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="guilds">--</div>
+                <div class="metric-label">Servers</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="providers">--</div>
+                <div class="metric-label">AI Providers</div>
+            </div>
+        </div>
+        
+        <h2>🔧 Services</h2>
+        <div class="services-grid" id="servicesGrid">
+            <div class="service-item">
+                <span class="service-name">Discord Bot</span>
+                <span class="service-status operational" id="svcDiscord"><span class="dot"></span> Operational</span>
+            </div>
+            <div class="service-item">
+                <span class="service-name">AI Providers</span>
+                <span class="service-status operational" id="svcAI"><span class="dot"></span> Operational</span>
+            </div>
+            <div class="service-item">
+                <span class="service-name">Database</span>
+                <span class="service-status operational" id="svcDB"><span class="dot"></span> Operational</span>
+            </div>
+            <div class="service-item">
+                <span class="service-name">Website</span>
+                <span class="service-status operational" id="svcWeb"><span class="dot"></span> Operational</span>
+            </div>
+            <div class="service-item">
+                <span class="service-name">SBX Exchange</span>
+                <span class="service-status operational" id="svcSBX"><span class="dot"></span> Operational</span>
+            </div>
+        </div>
+        
+        <!-- Cloudflare Status Section -->
+        <div class="cloudflare-section">
+            <div class="cloudflare-header">
+                <svg class="cloudflare-logo" viewBox="0 0 65 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18.5 12c0 3.59-2.91 6.5-6.5 6.5S5.5 15.59 5.5 12 8.41 5.5 12 5.5s6.5 2.91 6.5 6.5z" fill="#F58220"/>
+                    <path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm0 22c-5.52 0-10-4.48-10-10S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10z" fill="#F58220"/>
+                </svg>
+                <h2 style="margin: 0; border: 0; padding: 0;">Cloudflare Status</h2>
+            </div>
+            <div id="cloudflareUpdates">
+                <div class="no-updates">Loading Cloudflare status...</div>
+            </div>
+        </div>
+        
+        <!-- Recent Updates -->
+        <div class="updates-section">
+            <h2>📢 Recent Updates</h2>
+            <div id="recentUpdates">
+                <div class="no-updates">Loading updates...</div>
+            </div>
+        </div>
+        
+        <div class="last-updated">
+            Last updated: <span id="lastUpdate">--</span>
+            <button class="refresh-btn" onclick="refreshStatus()">↻ Refresh</button>
+        </div>
+    </div>
+    
+    <script>
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/dashboard/health');
+                if (res.ok) {
+                    const data = await res.json();
+                    updateMetrics(data);
+                    updateServices(data);
+                }
+            } catch (e) {
+                console.error('Failed to fetch status:', e);
+            }
+        }
+        
+        function updateMetrics(data) {
+            document.getElementById('uptime').textContent = data.uptime || '--';
+            document.getElementById('latency').textContent = (data.latency || '--') + 'ms';
+            document.getElementById('guilds').textContent = data.discord?.guilds || '--';
+            document.getElementById('providers').textContent = (data.activeProviders || 0) + '/' + (data.providers || 0);
+        }
+        
+        function updateServices(data) {
+            // Update Discord status
+            updateServiceStatus('svcDiscord', data.discord?.guilds > 0);
+            // Update AI status
+            updateServiceStatus('svcAI', data.activeProviders > 0);
+            // Update overall status
+            const allOk = data.discord?.guilds > 0 && data.activeProviders > 0;
+            const overall = document.getElementById('overallStatus');
+            if (allOk) {
+                overall.innerHTML = '<span class="status-dot operational"></span><span>All Systems Operational</span>';
+            } else {
+                overall.innerHTML = '<span class="status-dot degraded"></span><span>Some Systems Degraded</span>';
+            }
+        }
+        
+        function updateServiceStatus(id, isOk) {
+            const el = document.getElementById(id);
+            if (isOk) {
+                el.className = 'service-status operational';
+                el.innerHTML = '<span class="dot"></span> Operational';
+            } else {
+                el.className = 'service-status degraded';
+                el.innerHTML = '<span class="dot"></span> Degraded';
+            }
+        }
+        
+        async function fetchCloudflareStatus() {
+            const container = document.getElementById('cloudflareUpdates');
+            try {
+                // Fetch from Cloudflare status API
+                const res = await fetch('https://www.cloudflarestatus.com/api/v2/summary.json');
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    let html = '';
+                    
+                    // Show overall status
+                    const status = data.status?.indicator || 'none';
+                    const statusDesc = data.status?.description || 'All Systems Operational';
+                    
+                    html += '<div class="update-item' + (status !== 'none' ? ' maintenance' : '') + '">';
+                    html += '<div class="update-title">';
+                    html += '<span class="update-badge' + (status !== 'none' ? ' in-progress' : '') + '">' + statusDesc + '</span>';
+                    html += '</div>';
+                    html += '</div>';
+                    
+                    // Show incidents
+                    if (data.incidents && data.incidents.length > 0) {
+                        data.incidents.slice(0, 3).forEach(incident => {
+                            html += '<div class="update-item incident">';
+                            html += '<div class="update-title">' + escapeHtml(incident.name) + '</div>';
+                            html += '<div class="update-time">' + new Date(incident.updated_at).toLocaleString() + '</div>';
+                            if (incident.incident_updates && incident.incident_updates[0]) {
+                                html += '<div class="update-desc">' + escapeHtml(incident.incident_updates[0].body) + '</div>';
+                            }
+                            html += '</div>';
+                        });
+                    }
+                    
+                    // Show scheduled maintenances
+                    if (data.scheduled_maintenances && data.scheduled_maintenances.length > 0) {
+                        data.scheduled_maintenances.slice(0, 3).forEach(maint => {
+                            html += '<div class="update-item maintenance">';
+                            html += '<div class="update-title">';
+                            html += '<span class="update-badge scheduled">Scheduled</span> ';
+                            html += escapeHtml(maint.name);
+                            html += '</div>';
+                            html += '<div class="update-time">' + new Date(maint.scheduled_for).toLocaleString() + '</div>';
+                            if (maint.incident_updates && maint.incident_updates[0]) {
+                                html += '<div class="update-desc">' + escapeHtml(maint.incident_updates[0].body) + '</div>';
+                            }
+                            html += '</div>';
+                        });
+                    }
+                    
+                    if (!html) {
+                        html = '<div class="no-updates">No current incidents or maintenance</div>';
+                    }
+                    
+                    container.innerHTML = html;
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="no-updates">Unable to fetch Cloudflare status</div>';
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function fetchRecentUpdates() {
+            const container = document.getElementById('recentUpdates');
+            // Simulated updates - in production, fetch from your own API
+            const updates = [
+                { type: 'info', title: 'System Online', time: new Date().toISOString(), desc: 'All Jarvis services are running normally.' }
+            ];
+            
+            let html = '';
+            updates.forEach(update => {
+                html += '<div class="update-item">';
+                html += '<div class="update-title">' + escapeHtml(update.title) + '</div>';
+                html += '<div class="update-time">' + new Date(update.time).toLocaleString() + '</div>';
+                html += '<div class="update-desc">' + escapeHtml(update.desc) + '</div>';
+                html += '</div>';
+            });
+            
+            container.innerHTML = html || '<div class="no-updates">No recent updates</div>';
+        }
+        
+        function refreshStatus() {
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            fetchStatus();
+            fetchCloudflareStatus();
+            fetchRecentUpdates();
+        }
+        
+        // Initial load
+        refreshStatus();
+        
+        // Auto-refresh every 60 seconds
+        setInterval(refreshStatus, 60000);
+    </script>
+</body>
+</html>
+`;
+
+// ============================================================================
 // CHANGELOG PAGE
 // ============================================================================
 
@@ -1655,6 +2055,10 @@ router.get('/changelog', (req, res) => {
 
 router.get('/crypto', (req, res) => {
     res.type('html').send(CRYPTO_PAGE);
+});
+
+router.get('/status', (req, res) => {
+    res.type('html').send(STATUS_PAGE);
 });
 
 // Dashboard redirect to moderator login
