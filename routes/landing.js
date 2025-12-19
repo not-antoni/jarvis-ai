@@ -12,10 +12,11 @@ const LANDING_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis - AI Discord Bot</title>
-    <meta name="description" content="Jarvis is an AI-powered Discord bot with natural conversation, moderation, economy, and music.">
-    <meta property="og:title" content="Jarvis - AI Discord Bot">
-    <meta property="og:description" content="AI-powered Discord assistant with natural conversation, moderation, and more.">
+    <title>Jarvis</title>
+    <meta name="description" content="At your service, sir.">
+    <meta property="og:title" content="Jarvis">
+    <meta property="og:description" content="At your service, sir.">
+    <link rel="icon" type="image/webp" href="/jarvis.webp">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://jorvis.org">
     <meta name="theme-color" content="#00d4ff">

@@ -2404,6 +2404,11 @@ app.get('/jarvis.gif', (req, res) => {
     res.sendFile(path.join(__dirname, 'jarvis.gif'));
 });
 
+// Serve favicon
+app.get('/jarvis.webp', (req, res) => {
+    res.sendFile(path.join(__dirname, 'jarvis.webp'));
+});
+
 // Serve screenshots for landing page
 app.get('/screenshot-1.png', (req, res) => {
     res.sendFile(path.join(__dirname, 'screenshot-1.png'));
