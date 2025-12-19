@@ -9,6 +9,9 @@ const express = require('express');
 const router = express.Router();
 const userAuth = require('../src/services/user-auth');
 
+// Detect if we're on HTTPS (for cookie secure flag)
+const isHttps = (userAuth.PUBLIC_BASE_URL || '').startsWith('https');
+
 // OAuth login - redirect to Discord
 router.get('/auth/login', (req, res) => {
     if (!userAuth.isOAuthConfigured()) {
@@ -19,7 +22,8 @@ router.get('/auth/login', (req, res) => {
     const state = require('crypto').randomBytes(16).toString('hex');
     res.cookie('oauth_state', state, { 
         httpOnly: true, 
-        secure: process.env.NODE_ENV === 'production',
+        secure: isHttps,
+        sameSite: 'lax',
         maxAge: 5 * 60 * 1000 // 5 minutes
     });
     
@@ -61,7 +65,8 @@ router.get('/auth/callback', async (req, res) => {
         // Set session cookie (30 days)
         res.cookie('jarvis_session', session.token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: isHttps,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
         
