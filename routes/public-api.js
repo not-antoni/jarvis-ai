@@ -187,8 +187,19 @@ router.get('/models', async (req, res) => {
 /**
  * POST /api/v1/chat/completions
  * OpenAI-compatible chat completions endpoint
+ * DISABLED: Too abusable - use the Discord bot instead
  */
 router.post('/chat/completions', async (req, res) => {
+    // API temporarily disabled
+    return res.status(999).json({
+        error: {
+            message: 'api disabled, sir, use the discord bot',
+            type: 'api_disabled',
+            code: 999
+        }
+    });
+
+    /* DISABLED - Original implementation below
     try {
         const { messages, model, temperature, max_tokens, stream } = req.body;
 
@@ -297,6 +308,7 @@ router.post('/chat/completions', async (req, res) => {
             }
         });
     }
+    END DISABLED */
 });
 
 /**
