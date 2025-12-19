@@ -231,6 +231,47 @@
                 }
             }
 
+            // If still no images, check the previous message in the channel (for GIFs/images sent right before the ping)
+            if (imageAttachments.length === 0 && message.channel) {
+                try {
+                    const previousMessages = await message.channel.messages.fetch({ limit: 2, before: message.id });
+                    const prevMsg = previousMessages.first();
+                    if (prevMsg && prevMsg.author?.id === message.author?.id) {
+                        // Only check if same author sent the previous message (within last few seconds context)
+                        const timeDiff = message.createdTimestamp - prevMsg.createdTimestamp;
+                        if (timeDiff < 30000) { // Within 30 seconds
+                            if (prevMsg.attachments?.size > 0) {
+                                const prevImages = Array.from(prevMsg.attachments.values())
+                                    .filter(att => {
+                                        const contentType = att.contentType || '';
+                                        const ext = (att.name || '').split('.').pop()?.toLowerCase();
+                                        const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                                        return contentType.startsWith('image/') || imageExts.includes(ext);
+                                    })
+                                    .map(att => ({ url: att.url, contentType: att.contentType, fromPrevious: true }));
+                                imageAttachments = [...imageAttachments, ...prevImages];
+                                if (prevImages.length > 0) {
+                                    console.log(`[Vision] Found ${prevImages.length} image(s) in previous message`);
+                                }
+                            }
+                            // Also check embeds in previous message
+                            if (prevMsg.embeds?.length > 0) {
+                                for (const embed of prevMsg.embeds) {
+                                    if (embed.image?.url) {
+                                        imageAttachments.push({ url: embed.image.url, contentType: 'image/unknown', fromPrevious: true });
+                                    }
+                                    if (embed.thumbnail?.url && !imageAttachments.some(a => a.url === embed.thumbnail.url)) {
+                                        imageAttachments.push({ url: embed.thumbnail.url, contentType: 'image/unknown', fromPrevious: true });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[Vision] Failed to fetch previous message:', err.message);
+                }
+            }
+
             // Combine replied context with user's message, respecting max length
             let fullContent = repliedContext ? repliedContext + cleanContent : cleanContent;
             if (fullContent.length > config.ai.maxInputLength) {
