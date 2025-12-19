@@ -2815,7 +2815,7 @@ app.get('/status', async (req, res) => {
                 .join('') ||
             '<div class="provider-item"><span class="provider-name">No providers configured</span></div>';
 
-        const envSummaryLines = [
+        const _envSummaryLines = [
             `Required: ${envRequiredCount}/${envRequiredTotal}`,
             missingRequired.length ? `Missing: ${missingRequired.join(', ')}` : 'Missing: None',
             `Optional: ${optionalConfigured}/${optionalTotal}`,
