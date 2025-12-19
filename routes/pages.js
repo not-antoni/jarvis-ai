@@ -127,9 +127,13 @@ const NAV_HTML = `
         <a href="/" class="logo">⚡ Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
+            <li><a href="/store">Store</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
-            <li><a href="/sbx">SBX Exchange</a></li>
+            <li><a href="/sbx">SBX</a></li>
+            <li><a href="/crypto">Crypto</a></li>
             <li><a href="/status">Status</a></li>
+            <li><a href="/docs">Docs</a></li>
+            <li><a href="/me">My Portal</a></li>
         </ul>
     </nav>
 `;
