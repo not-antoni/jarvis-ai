@@ -2383,6 +2383,15 @@ app.use('/', userAuthRouter);
 const userApiRouter = require('./routes/user-api');
 app.use('/', userApiRouter);
 
+// Mount user portal (/me) routes
+const userPortalRouter = require('./routes/user-portal');
+userPortalRouter.init(database);
+app.use('/me', userPortalRouter);
+
+// Mount public API v1 routes
+const publicApiRouter = require('./routes/public-api');
+app.use('/api/v1', publicApiRouter);
+
 // Mount additional pages (commands, leaderboard, docs, changelog, sbx)
 const pagesRouter = require('./routes/pages');
 app.use('/', pagesRouter);
@@ -3496,6 +3505,20 @@ client.once(Events.ClientReady, async () => {
         dashboardRouter.addLog('info', 'System', 'Cloudflare status notifier initialized');
     } catch (e) {
         console.warn('[CloudflareStatus] Failed to initialize:', e.message);
+    }
+
+    // Initialize public API with AI manager and database
+    try {
+        const aiManager = require('./src/services/ai-providers');
+        publicApiRouter.init({
+            aiManager,
+            database,
+            discordClient: client,
+            ownerId: process.env.OWNER_ID || process.env.DISCORD_OWNER_ID
+        });
+        dashboardRouter.addLog('info', 'System', 'Public API v1 initialized');
+    } catch (e) {
+        console.warn('[PublicAPI] Failed to initialize:', e.message);
     }
 
     // Initialize yt-dlp for YouTube fallback (auto-updates from GitHub)
