@@ -2552,6 +2552,43 @@ function dashboardAuthMiddleware(req, res, next) {
     return res.status(401).json({ ok: false, error: 'unauthorized' });
 }
 
+// Public health endpoint (no auth required) for /status page
+app.get('/api/public/health', async (req, res) => {
+    try {
+        const uptime = Date.now() - (dashboardRouter.getBotStartTime?.() || Date.now());
+        const hours = Math.floor(uptime / 3600000);
+        const minutes = Math.floor((uptime % 3600000) / 60000);
+
+        let discordStats = { guilds: 0, users: 0, channels: 0 };
+        if (global.discordClient && global.discordClient.isReady()) {
+            discordStats = {
+                guilds: global.discordClient.guilds.cache.size,
+                users: global.discordClient.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0),
+                channels: global.discordClient.channels.cache.size
+            };
+        }
+
+        let aiStats = { totalRequests: 0, providers: 0, activeProviders: 0 };
+        try {
+            const aiManager = require('./src/services/ai-providers');
+            aiStats = aiManager.getStats();
+        } catch (e) {
+            // Use defaults
+        }
+
+        res.json({
+            status: 'healthy',
+            uptime: `${hours}h ${minutes}m`,
+            aiCalls: aiStats.totalRequests || 0,
+            discord: discordStats,
+            providers: aiStats.providers || 0,
+            activeProviders: aiStats.activeProviders || 0
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.use('/api/dashboard', dashboardAuthMiddleware, dashboardRouter);
 
 const dashboardDistPath = path.join(__dirname, 'dashboard', 'dist');
