@@ -1812,7 +1812,7 @@ print(response.choices[0].message.content)</pre>
                 <h2>🔗 Links</h2>
                 <div class="card">
                     <p>
-                        <a href="\${DISCORD_INVITE}" style="color: #00d4ff;">Support Discord</a><br>
+                        <a href="${DISCORD_INVITE}" style="color: #00d4ff;">Support Discord</a><br>
                         <a href="/tos" style="color: #00d4ff;">Terms of Service</a><br>
                         <a href="/policy" style="color: #00d4ff;">Privacy Policy</a>
                     </p>
