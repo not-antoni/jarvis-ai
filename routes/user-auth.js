@@ -18,8 +18,10 @@ router.get('/auth/login', (req, res) => {
         return res.status(503).json({ error: 'OAuth not configured' });
     }
     
-    // Generate state for CSRF protection
-    const state = require('crypto').randomBytes(16).toString('hex');
+    // Get OAuth URL with generated state
+    const { url, state } = userAuth.getOAuthUrl('/');
+    
+    // Save state to cookie for CSRF verification
     res.cookie('oauth_state', state, { 
         httpOnly: true, 
         secure: isHttps,
@@ -28,7 +30,6 @@ router.get('/auth/login', (req, res) => {
         maxAge: 5 * 60 * 1000 // 5 minutes
     });
     
-    const { url } = userAuth.getOAuthUrl(state);
     res.redirect(url);
 });
 
