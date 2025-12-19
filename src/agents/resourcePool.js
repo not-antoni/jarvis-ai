@@ -22,7 +22,7 @@ class ResourcePool {
             averageWaitTimeMs: 0
         };
 
-        this.cleanupInterval = setInterval(() => this.cleanup(), 60000); // Every 60s
+        this.cleanupInterval = setInterval(() => this.cleanup(), 60000).unref(); // Every 60s, unref to not keep process alive
     }
 
     /**

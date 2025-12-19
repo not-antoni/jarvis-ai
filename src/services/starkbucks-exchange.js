@@ -355,33 +355,54 @@ async function getWallet(userId) {
 }
 
 /**
- * Update user's SBX wallet balance
+ * Update user's SBX wallet balance atomically
+ * Uses $inc for atomic updates to prevent race conditions
  */
 async function updateWallet(userId, amount, reason = 'unknown') {
-    const wallet = await getWallet(userId);
+    // Ensure wallet exists first
+    await getWallet(userId);
     
-    const oldBalance = wallet.balance;
-    const newBalance = Math.max(0, oldBalance + amount);
+    // Invalidate cache before update
+    walletCache.delete(`wallet:${userId}`);
     
+    const col = await getCollection('sbx_wallets');
+    
+    // Use atomic $inc operation
     const update = {
-        $set: { 
-            balance: newBalance,
-            updatedAt: new Date()
-        }
+        $inc: { balance: amount },
+        $set: { updatedAt: new Date() }
     };
     
     if (amount > 0) {
-        update.$inc = { totalEarned: amount };
+        update.$inc.totalEarned = amount;
     } else {
-        update.$inc = { totalSpent: Math.abs(amount) };
+        update.$inc.totalSpent = Math.abs(amount);
     }
     
-    await dbUpdateOne('sbx_wallets', { userId }, update);
+    // Atomic update with balance floor check
+    // For withdrawals, ensure balance doesn't go negative
+    const query = amount < 0
+        ? { userId, balance: { $gte: Math.abs(amount) } }
+        : { userId };
     
-    // Invalidate cache
-    walletCache.delete(`wallet:${userId}`);
+    const result = await col.findOneAndUpdate(
+        query,
+        update,
+        { returnDocument: 'after' }
+    );
     
-    return { oldBalance, newBalance, change: amount, reason };
+    if (!result) {
+        // If withdrawal failed due to insufficient balance
+        if (amount < 0) {
+            return { success: false, error: 'Insufficient balance', oldBalance: 0, newBalance: 0, change: 0, reason };
+        }
+        throw new Error('Wallet update failed');
+    }
+    
+    const newBalance = result.balance || 0;
+    const oldBalance = newBalance - amount;
+    
+    return { success: true, oldBalance, newBalance, change: amount, reason };
 }
 
 /**
@@ -1080,6 +1101,13 @@ function stopPriceUpdates() {
     }
 }
 
+/**
+ * Get current SBX price
+ */
+function getCurrentPrice() {
+    return currentPrice;
+}
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -1104,6 +1132,7 @@ module.exports = {
     // Exchange
     updatePrice,
     getMarketData,
+    getCurrentPrice,
     convertToSBX,
     convertToStarkBucks,
     

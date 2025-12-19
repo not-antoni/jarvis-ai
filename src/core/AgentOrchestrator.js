@@ -525,9 +525,9 @@ class AgentOrchestrator extends EventEmitter {
             timestamp: Date.now()
         });
 
-        // Keep history bounded
-        if (this.executionHistory.length > 1000) {
-            this.executionHistory = this.executionHistory.slice(-1000);
+        // Keep history bounded using shift() to avoid creating new arrays
+        while (this.executionHistory.length > 1000) {
+            this.executionHistory.shift();
         }
     }
 
