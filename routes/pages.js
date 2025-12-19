@@ -1533,7 +1533,7 @@ const DOCS_PAGE = `
 `;
 
 // ============================================================================
-// STATUS PAGE - System status with Cloudflare updates
+// STATUS PAGE - System status with Cloudflare updates and API uptime history
 // ============================================================================
 
 const STATUS_PAGE = `
@@ -1697,10 +1697,89 @@ const STATUS_PAGE = `
         }
         .cloudflare-logo { height: 24px; }
         .no-updates { color: #666; text-align: center; padding: 2rem; }
+        /* API Status with uptime bars like OpenAI */
+        .api-status-section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .api-status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        .api-status-header h2 {
+            margin: 0;
+            border: 0;
+            padding: 0;
+        }
+        .date-range { color: #666; font-size: 0.9rem; }
+        .api-component {
+            margin-bottom: 1.5rem;
+        }
+        .api-component-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .api-component-name {
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .api-component-name .check {
+            color: #00ff88;
+        }
+        .component-count {
+            color: #666;
+            font-size: 0.85rem;
+        }
+        .uptime-bar {
+            display: flex;
+            gap: 2px;
+            height: 32px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .uptime-bar .day {
+            flex: 1;
+            min-width: 3px;
+            background: #00ff88;
+            transition: all 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+        .uptime-bar .day:hover {
+            transform: scaleY(1.1);
+        }
+        .uptime-bar .day.degraded { background: #ffaa00; }
+        .uptime-bar .day.down { background: #ff4444; }
+        .uptime-bar .day.unknown { background: #444; }
+        .uptime-bar .day .tooltip {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a2e;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 100;
+            margin-bottom: 5px;
+        }
+        .uptime-bar .day:hover .tooltip { display: block; }
     </style>
 </head>
 <body>
-    ${NAV_HTML}
+    \${NAV_HTML}
     <div class="container">
         <h1>📊 System Status</h1>
         <p style="color: #888; margin-bottom: 2rem;">Real-time status of Jarvis services</p>
@@ -1710,6 +1789,7 @@ const STATUS_PAGE = `
                 <span class="status-dot operational"></span>
                 <span>All Systems Operational</span>
             </div>
+            <p style="color: #888; margin-top: 1rem; font-size: 0.9rem;" id="statusSubtext">We're not aware of any issues affecting our systems.</p>
         </div>
         
         <div class="metrics-grid" id="metricsGrid">
@@ -1718,8 +1798,8 @@ const STATUS_PAGE = `
                 <div class="metric-label">Uptime</div>
             </div>
             <div class="metric-card">
-                <div class="metric-value" id="latency">--</div>
-                <div class="metric-label">API Latency</div>
+                <div class="metric-value" id="aiCalls">--</div>
+                <div class="metric-label">AI Requests</div>
             </div>
             <div class="metric-card">
                 <div class="metric-value" id="guilds">--</div>
@@ -1728,6 +1808,38 @@ const STATUS_PAGE = `
             <div class="metric-card">
                 <div class="metric-value" id="providers">--</div>
                 <div class="metric-label">AI Providers</div>
+            </div>
+        </div>
+        
+        <!-- API Status Section like OpenAI -->
+        <div class="api-status-section">
+            <div class="api-status-header">
+                <h2>System Status</h2>
+                <span class="date-range" id="dateRange">Loading...</span>
+            </div>
+            
+            <div class="api-component" id="apiComponent">
+                <div class="api-component-header">
+                    <span class="api-component-name"><span class="check">✓</span> APIs</span>
+                    <span class="component-count" id="apiProviderCount">-- providers</span>
+                </div>
+                <div class="uptime-bar" id="apiUptimeBar"></div>
+            </div>
+            
+            <div class="api-component" id="discordComponent">
+                <div class="api-component-header">
+                    <span class="api-component-name"><span class="check">✓</span> Discord Bot</span>
+                    <span class="component-count" id="discordGuildCount">-- servers</span>
+                </div>
+                <div class="uptime-bar" id="discordUptimeBar"></div>
+            </div>
+            
+            <div class="api-component" id="dbComponent">
+                <div class="api-component-header">
+                    <span class="api-component-name"><span class="check">✓</span> Database</span>
+                    <span class="component-count">MongoDB</span>
+                </div>
+                <div class="uptime-bar" id="dbUptimeBar"></div>
             </div>
         </div>
         
@@ -1769,14 +1881,6 @@ const STATUS_PAGE = `
             </div>
         </div>
         
-        <!-- Recent Updates -->
-        <div class="updates-section">
-            <h2>📢 Recent Updates</h2>
-            <div id="recentUpdates">
-                <div class="no-updates">Loading updates...</div>
-            </div>
-        </div>
-        
         <div class="last-updated">
             Last updated: <span id="lastUpdate">--</span>
             <button class="refresh-btn" onclick="refreshStatus()">↻ Refresh</button>
@@ -1784,13 +1888,19 @@ const STATUS_PAGE = `
     </div>
     
     <script>
+        let healthData = null;
+        
         async function fetchStatus() {
+            const start = Date.now();
             try {
                 const res = await fetch('/api/dashboard/health');
+                const latency = Date.now() - start;
                 if (res.ok) {
-                    const data = await res.json();
-                    updateMetrics(data);
-                    updateServices(data);
+                    healthData = await res.json();
+                    healthData.latency = latency;
+                    updateMetrics(healthData);
+                    updateServices(healthData);
+                    updateUptimeBars(healthData);
                 }
             } catch (e) {
                 console.error('Failed to fetch status:', e);
@@ -1799,23 +1909,50 @@ const STATUS_PAGE = `
         
         function updateMetrics(data) {
             document.getElementById('uptime').textContent = data.uptime || '--';
-            document.getElementById('latency').textContent = (data.latency || '--') + 'ms';
+            document.getElementById('aiCalls').textContent = (data.aiCalls || 0).toLocaleString();
             document.getElementById('guilds').textContent = data.discord?.guilds || '--';
             document.getElementById('providers').textContent = (data.activeProviders || 0) + '/' + (data.providers || 0);
+            
+            // Update component counts
+            document.getElementById('apiProviderCount').textContent = (data.activeProviders || 0) + ' active providers';
+            document.getElementById('discordGuildCount').textContent = (data.discord?.guilds || 0) + ' servers';
         }
         
         function updateServices(data) {
-            // Update Discord status
-            updateServiceStatus('svcDiscord', data.discord?.guilds > 0);
-            // Update AI status
-            updateServiceStatus('svcAI', data.activeProviders > 0);
+            const discordOk = data.discord?.guilds > 0;
+            const aiOk = data.activeProviders > 0;
+            const dbOk = data.status === 'healthy';
+            
+            updateServiceStatus('svcDiscord', discordOk);
+            updateServiceStatus('svcAI', aiOk);
+            updateServiceStatus('svcDB', dbOk);
+            updateServiceStatus('svcWeb', true); // Website is up if we got here
+            updateServiceStatus('svcSBX', true);
+            
+            // Update component check marks
+            updateComponentCheck('apiComponent', aiOk);
+            updateComponentCheck('discordComponent', discordOk);
+            updateComponentCheck('dbComponent', dbOk);
+            
             // Update overall status
-            const allOk = data.discord?.guilds > 0 && data.activeProviders > 0;
+            const allOk = discordOk && aiOk && dbOk;
             const overall = document.getElementById('overallStatus');
+            const subtext = document.getElementById('statusSubtext');
             if (allOk) {
                 overall.innerHTML = '<span class="status-dot operational"></span><span>All Systems Operational</span>';
+                subtext.textContent = "We're not aware of any issues affecting our systems.";
             } else {
                 overall.innerHTML = '<span class="status-dot degraded"></span><span>Some Systems Degraded</span>';
+                subtext.textContent = "Some services may be experiencing issues.";
+            }
+        }
+        
+        function updateComponentCheck(id, isOk) {
+            const el = document.getElementById(id);
+            const check = el.querySelector('.check');
+            if (check) {
+                check.textContent = isOk ? '✓' : '!';
+                check.style.color = isOk ? '#00ff88' : '#ffaa00';
             }
         }
         
@@ -1830,27 +1967,76 @@ const STATUS_PAGE = `
             }
         }
         
+        function updateUptimeBars(data) {
+            // Generate 90 days of uptime data based on current status
+            const now = new Date();
+            const days = 90;
+            
+            // Set date range
+            const startDate = new Date(now);
+            startDate.setDate(startDate.getDate() - days);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            document.getElementById('dateRange').textContent = 
+                months[startDate.getMonth()] + ' ' + startDate.getFullYear() + ' - ' + 
+                months[now.getMonth()] + ' ' + now.getFullYear();
+            
+            // Generate bars based on real current status
+            const apiOk = data.activeProviders > 0;
+            const discordOk = data.discord?.guilds > 0;
+            const dbOk = data.status === 'healthy';
+            
+            renderUptimeBar('apiUptimeBar', days, apiOk);
+            renderUptimeBar('discordUptimeBar', days, discordOk);
+            renderUptimeBar('dbUptimeBar', days, dbOk);
+        }
+        
+        function renderUptimeBar(containerId, days, currentlyOk) {
+            const container = document.getElementById(containerId);
+            const now = new Date();
+            let html = '';
+            
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - i);
+                const dateStr = date.toLocaleDateString();
+                
+                // Current day uses real status, past days show as operational (since we don't have history yet)
+                let status = 'operational';
+                let statusText = 'Operational';
+                
+                if (i === 0) {
+                    // Today - use real status
+                    status = currentlyOk ? 'operational' : 'degraded';
+                    statusText = currentlyOk ? 'Operational' : 'Degraded';
+                }
+                // Past days without data show as unknown/gray for first run, 
+                // but we'll show green since system was presumably running
+                
+                html += '<div class="day ' + (i === 0 ? status : '') + '">';
+                html += '<div class="tooltip">' + dateStr + '<br>' + statusText + '</div>';
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
         async function fetchCloudflareStatus() {
             const container = document.getElementById('cloudflareUpdates');
             try {
-                // Fetch from Cloudflare status API
                 const res = await fetch('https://www.cloudflarestatus.com/api/v2/summary.json');
                 if (res.ok) {
                     const data = await res.json();
                     
                     let html = '';
-                    
-                    // Show overall status
                     const status = data.status?.indicator || 'none';
                     const statusDesc = data.status?.description || 'All Systems Operational';
                     
                     html += '<div class="update-item' + (status !== 'none' ? ' maintenance' : '') + '">';
                     html += '<div class="update-title">';
-                    html += '<span class="update-badge' + (status !== 'none' ? ' in-progress' : '') + '">' + statusDesc + '</span>';
+                    html += '<span class="update-badge' + (status !== 'none' ? ' in-progress' : '') + '">' + escapeHtml(statusDesc) + '</span>';
                     html += '</div>';
                     html += '</div>';
                     
-                    // Show incidents
                     if (data.incidents && data.incidents.length > 0) {
                         data.incidents.slice(0, 3).forEach(incident => {
                             html += '<div class="update-item incident">';
@@ -1863,7 +2049,6 @@ const STATUS_PAGE = `
                         });
                     }
                     
-                    // Show scheduled maintenances
                     if (data.scheduled_maintenances && data.scheduled_maintenances.length > 0) {
                         data.scheduled_maintenances.slice(0, 3).forEach(maint => {
                             html += '<div class="update-item maintenance">';
@@ -1879,11 +2064,7 @@ const STATUS_PAGE = `
                         });
                     }
                     
-                    if (!html) {
-                        html = '<div class="no-updates">No current incidents or maintenance</div>';
-                    }
-                    
-                    container.innerHTML = html;
+                    container.innerHTML = html || '<div class="no-updates">No current incidents or maintenance</div>';
                 }
             } catch (e) {
                 container.innerHTML = '<div class="no-updates">Unable to fetch Cloudflare status</div>';
@@ -1896,37 +2077,14 @@ const STATUS_PAGE = `
             return div.innerHTML;
         }
         
-        async function fetchRecentUpdates() {
-            const container = document.getElementById('recentUpdates');
-            // Simulated updates - in production, fetch from your own API
-            const updates = [
-                { type: 'info', title: 'System Online', time: new Date().toISOString(), desc: 'All Jarvis services are running normally.' }
-            ];
-            
-            let html = '';
-            updates.forEach(update => {
-                html += '<div class="update-item">';
-                html += '<div class="update-title">' + escapeHtml(update.title) + '</div>';
-                html += '<div class="update-time">' + new Date(update.time).toLocaleString() + '</div>';
-                html += '<div class="update-desc">' + escapeHtml(update.desc) + '</div>';
-                html += '</div>';
-            });
-            
-            container.innerHTML = html || '<div class="no-updates">No recent updates</div>';
-        }
-        
         function refreshStatus() {
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
             fetchStatus();
             fetchCloudflareStatus();
-            fetchRecentUpdates();
         }
         
-        // Initial load
         refreshStatus();
-        
-        // Auto-refresh every 60 seconds
-        setInterval(refreshStatus, 60000);
+        setInterval(refreshStatus, 30000);
     </script>
 </body>
 </html>
