@@ -2722,4 +2722,92 @@ router.post('/logout', (req, res) => {
     res.redirect('/jarvis');
 });
 
+// ============================================================================
+// API ADMIN PANEL ENDPOINTS
+// ============================================================================
+
+let apiKeysService = null;
+try {
+    apiKeysService = require('../services/api-keys');
+} catch (e) {
+    // API keys service not available
+}
+
+router.get('/api/admin/api-usage', requireOwner, async (req, res) => {
+    if (!apiKeysService) {
+        return res.json({ ok: false, error: 'API keys service not available' });
+    }
+
+    try {
+        const days = Math.min(Number(req.query.days || 7), 30);
+        const stats = await apiKeysService.getUsageStats({ days, limit: 100 });
+        
+        res.json({
+            ok: true,
+            ...stats
+        });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e?.message || 'failed' });
+    }
+});
+
+router.get('/api/admin/api-keys', requireOwner, async (req, res) => {
+    if (!apiKeysService) {
+        return res.json({ ok: false, error: 'API keys service not available' });
+    }
+
+    try {
+        const keys = await apiKeysService.getAllKeys();
+        res.json({
+            ok: true,
+            totalUsers: keys.length,
+            totalKeys: keys.reduce((sum, u) => sum + u.keyCount, 0),
+            users: keys
+        });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e?.message || 'failed' });
+    }
+});
+
+router.post('/api/admin/api-keys/:userId/:keyId/disable', requireOwner, async (req, res) => {
+    if (!apiKeysService) {
+        return res.json({ ok: false, error: 'API keys service not available' });
+    }
+
+    try {
+        const success = await apiKeysService.disableKey(req.params.userId, req.params.keyId);
+        logAudit('api_key_disabled', { userId: req.params.userId, keyId: req.params.keyId });
+        res.json({ ok: success });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e?.message || 'failed' });
+    }
+});
+
+router.post('/api/admin/api-keys/:userId/:keyId/enable', requireOwner, async (req, res) => {
+    if (!apiKeysService) {
+        return res.json({ ok: false, error: 'API keys service not available' });
+    }
+
+    try {
+        const success = await apiKeysService.enableKey(req.params.userId, req.params.keyId);
+        logAudit('api_key_enabled', { userId: req.params.userId, keyId: req.params.keyId });
+        res.json({ ok: success });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e?.message || 'failed' });
+    }
+});
+
+router.get('/api/admin/ip-lookup/:ip', requireOwner, async (req, res) => {
+    if (!apiKeysService) {
+        return res.json({ ok: false, error: 'API keys service not available' });
+    }
+
+    try {
+        const ipInfo = await apiKeysService.getIpInfo(req.params.ip);
+        res.json({ ok: true, ip: req.params.ip, ...ipInfo });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e?.message || 'failed' });
+    }
+});
+
 module.exports = router;
