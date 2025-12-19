@@ -24,6 +24,7 @@ router.get('/auth/login', (req, res) => {
         httpOnly: true, 
         secure: isHttps,
         sameSite: 'lax',
+        path: '/',
         maxAge: 5 * 60 * 1000 // 5 minutes
     });
     
@@ -34,26 +35,39 @@ router.get('/auth/login', (req, res) => {
 // OAuth callback
 router.get('/auth/callback', async (req, res) => {
     try {
-        const { code, state } = req.query;
+        const { code, state, error: oauthError, error_description } = req.query;
+        
+        // Check for OAuth error from Discord
+        if (oauthError) {
+            console.error('[UserAuth] OAuth error from Discord:', oauthError, error_description);
+            return res.redirect(`/?error=${oauthError}`);
+        }
         
         if (!code) {
+            console.error('[UserAuth] No code in callback');
             return res.redirect('/?error=no_code');
         }
         
-        // Verify state (CSRF protection)
+        // Verify state (CSRF protection) - only if both exist
         const savedState = req.cookies?.oauth_state;
+        console.log('[UserAuth] State check - received:', state?.slice(0, 8), 'saved:', savedState?.slice(0, 8));
+        
         if (state && savedState && state !== savedState) {
+            console.error('[UserAuth] State mismatch');
             return res.redirect('/?error=invalid_state');
         }
         
         // Clear state cookie
-        res.clearCookie('oauth_state');
+        res.clearCookie('oauth_state', { path: '/' });
         
         // Exchange code for token
+        console.log('[UserAuth] Exchanging code for token...');
         const tokenData = await userAuth.exchangeCode(code);
         
         // Get user info
+        console.log('[UserAuth] Getting Discord user...');
         const discordUser = await userAuth.getDiscordUser(tokenData.access_token);
+        console.log('[UserAuth] Got user:', discordUser.username);
         
         // Create session
         const session = userAuth.createSession(
@@ -67,14 +81,17 @@ router.get('/auth/callback', async (req, res) => {
             httpOnly: true,
             secure: isHttps,
             sameSite: 'lax',
+            path: '/',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
+        
+        console.log('[UserAuth] Login successful for:', discordUser.username);
         
         // Redirect to home with success
         res.redirect('/?login=success');
         
     } catch (error) {
-        console.error('[UserAuth] Callback error:', error);
+        console.error('[UserAuth] Callback error:', error.message, error.stack);
         res.redirect('/?error=auth_failed');
     }
 });
