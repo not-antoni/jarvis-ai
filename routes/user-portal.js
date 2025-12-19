@@ -110,6 +110,35 @@ const PORTAL_STYLES = `
         color: #e4e4e4;
         min-height: 100vh;
     }
+    .site-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0,0,0,0.3);
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .site-nav .logo {
+        font-size: 1.5rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #00d4ff, #8a2be2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-decoration: none;
+    }
+    .site-nav .nav-links {
+        display: flex;
+        gap: 1.5rem;
+        list-style: none;
+    }
+    .site-nav .nav-links a {
+        color: #b0b0b0;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.3s;
+    }
+    .site-nav .nav-links a:hover { color: #00d4ff; }
+    .site-nav .nav-links a.active { color: #00d4ff; }
     .portal-container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
     .portal-header {
         display: flex;
@@ -271,6 +300,19 @@ const PORTAL_PAGE = `
     <style>${PORTAL_STYLES}</style>
 </head>
 <body>
+    <nav class="site-nav">
+        <a href="/" class="logo">⚡ Jarvis</a>
+        <ul class="nav-links">
+            <li><a href="/commands">Commands</a></li>
+            <li><a href="/store">Store</a></li>
+            <li><a href="/leaderboard">Leaderboard</a></li>
+            <li><a href="/sbx">SBX</a></li>
+            <li><a href="/crypto">Crypto</a></li>
+            <li><a href="/status">Status</a></li>
+            <li><a href="/docs">Docs</a></li>
+            <li><a href="/me" class="active">My Portal</a></li>
+        </ul>
+    </nav>
     <div class="portal-container">
         <div class="portal-header">
             <div class="user-info">

@@ -387,6 +387,8 @@ const LANDING_PAGE = `
             <li><a href="/sbx">SBX</a></li>
             <li><a href="/crypto">Crypto</a></li>
             <li><a href="/status">Status</a></li>
+            <li><a href="/docs">Docs</a></li>
+            <li><a href="/me">My Portal</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
             <a href="/auth/login" class="login-btn" id="loginBtn">
