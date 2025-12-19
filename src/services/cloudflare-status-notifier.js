@@ -2,7 +2,7 @@
 
 /**
  * Cloudflare Status Notifier
- * Checks Cloudflare status and sends updates to Discord channels
+ * Checks Cloudflare status and sends updates ONLY to guilds with /monitor cloudflare subscription
  */
 
 const { EmbedBuilder } = require('discord.js');
@@ -11,6 +11,7 @@ const CLOUDFLARE_STATUS_URL = 'https://www.cloudflarestatus.com/api/v2/summary.j
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // Check every 5 minutes
 
 let discordClient = null;
+let subscriptionsService = null;
 let lastStatus = null;
 const lastIncidentIds = new Set();
 const lastMaintenanceIds = new Set();
@@ -21,11 +22,21 @@ let checkInterval = null;
  */
 function init(client) {
     discordClient = client;
-    console.log('[CloudflareStatus] Notifier initialized');
     
-    // Start checking immediately and then on interval
-    checkCloudflareStatus();
-    checkInterval = setInterval(checkCloudflareStatus, CHECK_INTERVAL_MS);
+    // Load subscriptions service
+    try {
+        subscriptionsService = require('./monitor-subscriptions');
+    } catch (e) {
+        console.warn('[CloudflareStatus] Could not load subscriptions service:', e.message);
+    }
+    
+    console.log('[CloudflareStatus] Notifier initialized (subscription-based)');
+    
+    // Start checking after a delay to allow subscriptions to load
+    setTimeout(() => {
+        checkCloudflareStatus();
+        checkInterval = setInterval(checkCloudflareStatus, CHECK_INTERVAL_MS);
+    }, 10000); // Wait 10 seconds before first check
 }
 
 /**
@@ -39,27 +50,21 @@ function stop() {
 }
 
 /**
- * Get notification channel for a guild
+ * Get Cloudflare subscriptions from the database
  */
-async function getNotificationChannel(guild) {
-    // Try to find a channel named 'status', 'bot-status', 'notifications', or 'general'
-    const channelNames = ['status', 'bot-status', 'jarvis-status', 'notifications', 'bot-logs', 'general'];
-    
-    for (const name of channelNames) {
-        const channel = guild.channels.cache.find(
-            ch => ch.name.toLowerCase().includes(name) && ch.isTextBased() && ch.permissionsFor(guild.members.me)?.has('SendMessages')
-        );
-        if (channel) {
-            return channel;
-        }
+async function getCloudflareSubscriptions() {
+    if (!subscriptionsService || typeof subscriptionsService.get_all_subscriptions !== 'function') {
+        return [];
     }
     
-    // Fallback to system channel
-    if (guild.systemChannel && guild.systemChannel.permissionsFor(guild.members.me)?.has('SendMessages')) {
-        return guild.systemChannel;
+    try {
+        const allSubs = await subscriptionsService.get_all_subscriptions();
+        // Filter only cloudflare subscriptions
+        return (allSubs || []).filter(sub => sub.monitor_type === 'cloudflare');
+    } catch (e) {
+        console.error('[CloudflareStatus] Failed to get subscriptions:', e.message);
+        return [];
     }
-    
-    return null;
 }
 
 /**
@@ -148,28 +153,40 @@ function buildMaintenanceEmbed(maintenance, isNew = true) {
 }
 
 /**
- * Send notification to all configured guilds
+ * Send notification ONLY to guilds with Cloudflare subscription
  */
-async function sendToAllGuilds(embed) {
-    if (!discordClient || !discordClient.isReady()) return;
+async function sendToSubscribedChannels(embed) {
+    if (!discordClient || !discordClient.isReady()) {
+        return;
+    }
     
-    const guilds = discordClient.guilds.cache;
+    // Get only guilds that have subscribed to Cloudflare status via /monitor
+    const subscriptions = await getCloudflareSubscriptions();
+    
+    if (subscriptions.length === 0) {
+        console.log('[CloudflareStatus] No Cloudflare subscriptions found, skipping notification');
+        return;
+    }
+    
     let sent = 0;
     
-    for (const [, guild] of guilds) {
+    for (const sub of subscriptions) {
         try {
-            const channel = await getNotificationChannel(guild);
-            if (channel) {
+            // Get the specific channel from the subscription
+            const channel = await discordClient.channels.fetch(sub.channel_id).catch(() => null);
+            
+            if (channel && channel.isTextBased()) {
                 await channel.send({ embeds: [embed] });
                 sent++;
             }
         } catch (err) {
-            // Silently fail for individual guilds
+            // Silently fail for individual channels
+            console.warn(`[CloudflareStatus] Failed to send to channel ${sub.channel_id}:`, err.message);
         }
     }
     
     if (sent > 0) {
-        console.log(`[CloudflareStatus] Sent notification to ${sent} guilds`);
+        console.log(`[CloudflareStatus] Sent notification to ${sent} subscribed channels`);
     }
 }
 
@@ -192,7 +209,7 @@ async function checkCloudflareStatus() {
         if (lastStatus !== null && lastStatus !== currentStatus) {
             // Status changed - send notification
             const embed = buildStatusEmbed(currentStatus, currentDescription);
-            await sendToAllGuilds(embed);
+            await sendToSubscribedChannels(embed);
             console.log(`[CloudflareStatus] Status changed: ${lastStatus} -> ${currentStatus}`);
         }
         lastStatus = currentStatus;
@@ -203,7 +220,7 @@ async function checkCloudflareStatus() {
                 if (!lastIncidentIds.has(incident.id)) {
                     // New incident
                     const embed = buildIncidentEmbed(incident, true);
-                    await sendToAllGuilds(embed);
+                    await sendToSubscribedChannels(embed);
                     lastIncidentIds.add(incident.id);
                     console.log(`[CloudflareStatus] New incident: ${incident.name}`);
                 }
@@ -224,7 +241,7 @@ async function checkCloudflareStatus() {
                 if (!lastMaintenanceIds.has(maintenance.id)) {
                     // New maintenance
                     const embed = buildMaintenanceEmbed(maintenance, true);
-                    await sendToAllGuilds(embed);
+                    await sendToSubscribedChannels(embed);
                     lastMaintenanceIds.add(maintenance.id);
                     console.log(`[CloudflareStatus] New maintenance: ${maintenance.name}`);
                 }
