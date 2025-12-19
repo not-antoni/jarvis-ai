@@ -3489,6 +3489,15 @@ client.once(Events.ClientReady, async () => {
     dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
     dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
 
+    // Initialize Cloudflare status notifier for Discord alerts
+    try {
+        const cloudflareNotifier = require('./src/services/cloudflare-status-notifier');
+        cloudflareNotifier.init(client);
+        dashboardRouter.addLog('info', 'System', 'Cloudflare status notifier initialized');
+    } catch (e) {
+        console.warn('[CloudflareStatus] Failed to initialize:', e.message);
+    }
+
     // Initialize yt-dlp for YouTube fallback (auto-updates from GitHub)
     try {
         const ytDlpReady = await ytDlpManager.initialize();
