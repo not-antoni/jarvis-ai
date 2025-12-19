@@ -12,49 +12,25 @@ const LANDING_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis - Your Intelligent Discord Assistant</title>
-    <meta name="description" content="Jarvis is a powerful Discord bot with AI chat, moderation, economy, music, and more. Add Jarvis to your server today!">
-    <meta property="og:title" content="Jarvis - Discord Bot">
-    <meta property="og:description" content="Your intelligent Discord assistant with AI chat, moderation, economy, and more.">
+    <title>Jarvis - AI Discord Bot</title>
+    <meta name="description" content="Jarvis is an AI-powered Discord bot with natural conversation, moderation, economy, and music.">
+    <meta property="og:title" content="Jarvis - AI Discord Bot">
+    <meta property="og:description" content="AI-powered Discord assistant with natural conversation, moderation, and more.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://jorvis.org">
     <meta name="theme-color" content="#00d4ff">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0d0d2b 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0d0d14;
             color: #e4e4e4;
             min-height: 100vh;
             overflow-x: hidden;
-        }
-        
-        /* Animated background */
-        .bg-animation {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-            overflow: hidden;
-        }
-        
-        .bg-animation::before {
-            content: '';
-            position: absolute;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle at 20% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
-                        radial-gradient(circle at 80% 20%, rgba(138, 43, 226, 0.1) 0%, transparent 50%);
-            animation: float 20s ease-in-out infinite;
-        }
-        
-        @keyframes float {
-            0%, 100% { transform: translate(0, 0); }
-            50% { transform: translate(-5%, -5%); }
         }
         
         /* Navigation */
@@ -62,47 +38,44 @@ const LANDING_PAGE = `
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1.5rem 5%;
-            max-width: 1400px;
+            padding: 1.25rem 5%;
+            max-width: 1300px;
             margin: 0 auto;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
         }
         
         .logo {
-            font-size: 1.8rem;
+            font-size: 1.5rem;
             font-weight: 700;
-            background: linear-gradient(90deg, #00d4ff, #8a2be2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #00d4ff;
             text-decoration: none;
         }
         
         .nav-links {
             display: flex;
-            gap: 2rem;
+            gap: 1.75rem;
             list-style: none;
         }
         
         .nav-links a {
-            color: #b0b0b0;
+            color: #777;
             text-decoration: none;
             font-weight: 500;
-            transition: color 0.3s;
+            font-size: 0.9rem;
+            transition: color 0.2s;
         }
         
-        .nav-links a:hover {
-            color: #00d4ff;
-        }
+        .nav-links a:hover { color: #fff; }
         
-        /* User Menu */
         .user-menu {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.75rem;
         }
         
         .user-avatar {
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             border: 2px solid #00d4ff;
         }
@@ -110,75 +83,70 @@ const LANDING_PAGE = `
         .user-name {
             color: #fff;
             font-weight: 500;
+            font-size: 0.9rem;
         }
         
         .login-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.6rem 1.2rem;
-            background: #5865F2;
-            color: white;
-            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.08);
+            color: #aaa;
+            border-radius: 6px;
             text-decoration: none;
             font-weight: 500;
-            transition: all 0.3s;
+            font-size: 0.85rem;
+            transition: all 0.2s;
         }
         
         .login-btn:hover {
-            background: #4752c4;
-            transform: translateY(-1px);
+            background: rgba(255,255,255,0.12);
+            color: #fff;
         }
         
         .logout-btn {
-            padding: 0.5rem 1rem;
-            background: rgba(255,255,255,0.1);
+            padding: 0.4rem 0.8rem;
+            background: rgba(255,255,255,0.08);
             color: #888;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
         
         .logout-btn:hover {
-            background: rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.12);
             color: #fff;
         }
         
         /* Hero Section */
         .hero {
             text-align: center;
-            padding: 6rem 5% 4rem;
-            max-width: 900px;
+            padding: 5rem 5% 3rem;
+            max-width: 800px;
             margin: 0 auto;
         }
         
         .hero-icon {
-            width: 120px;
-            height: 120px;
+            width: 100px;
+            height: 100px;
             margin-bottom: 1.5rem;
-            border-radius: 20px;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            border-radius: 16px;
         }
         
         .hero h1 {
-            font-size: 3.5rem;
+            font-size: 3rem;
             font-weight: 800;
             margin-bottom: 1rem;
-            background: linear-gradient(90deg, #fff, #00d4ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #fff;
         }
         
         .hero p {
-            font-size: 1.3rem;
-            color: #a0a0a0;
-            margin-bottom: 2.5rem;
-            line-height: 1.6;
+            font-size: 1.15rem;
+            color: #888;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+            max-width: 550px;
+            margin-left: auto;
+            margin-right: auto;
         }
         
         .cta-buttons {
@@ -192,90 +160,132 @@ const LANDING_PAGE = `
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 1rem 2rem;
-            border-radius: 50px;
+            padding: 0.9rem 1.75rem;
+            border-radius: 8px;
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.95rem;
             text-decoration: none;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
         }
         
         .btn-primary {
-            background: linear-gradient(90deg, #00d4ff, #8a2be2);
-            color: white;
-            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+            background: #00d4ff;
+            color: #000;
         }
         
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 30px rgba(0, 212, 255, 0.4);
+            background: #00b8e0;
+            transform: translateY(-1px);
         }
         
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
         }
         
         .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.12);
+        }
+        
+        /* Showcase Section */
+        .showcase {
+            padding: 4rem 5%;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        
+        .showcase h2 {
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+        
+        .showcase .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 2.5rem;
+            font-size: 0.95rem;
+        }
+        
+        .screenshot-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .screenshot-item {
+            background: #16161f;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.2s;
+        }
+        
+        .screenshot-item:hover {
+            border-color: rgba(0, 212, 255, 0.2);
+        }
+        
+        .screenshot-item img {
+            width: 100%;
+            border-radius: 8px;
+            display: block;
         }
         
         /* Features Section */
         .features {
             padding: 4rem 5%;
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
         }
         
         .features h2 {
             text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 3rem;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 2.5rem;
             color: #fff;
         }
         
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
         }
         
         .feature-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 2rem;
-            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 1.5rem;
+            transition: all 0.2s ease;
         }
         
         .feature-card:hover {
-            background: rgba(255, 255, 255, 0.06);
-            transform: translateY(-5px);
-            border-color: rgba(0, 212, 255, 0.3);
-        }
-        
-        .feature-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(0, 212, 255, 0.2);
         }
         
         .feature-card h3 {
-            font-size: 1.3rem;
-            margin-bottom: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
             color: #fff;
         }
         
         .feature-card p {
-            color: #888;
-            line-height: 1.6;
+            color: #666;
+            line-height: 1.5;
+            font-size: 0.9rem;
         }
         
         /* Stats Section */
         .stats {
             padding: 3rem 5%;
-            background: rgba(0, 212, 255, 0.05);
+            background: rgba(0, 212, 255, 0.03);
+            border-top: 1px solid rgba(255,255,255,0.04);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
         }
         
         .stats-grid {
@@ -283,7 +293,7 @@ const LANDING_PAGE = `
             justify-content: center;
             gap: 4rem;
             flex-wrap: wrap;
-            max-width: 800px;
+            max-width: 700px;
             margin: 0 auto;
         }
         
@@ -292,92 +302,64 @@ const LANDING_PAGE = `
         }
         
         .stat-number {
-            font-size: 3rem;
+            font-size: 2.25rem;
             font-weight: 800;
-            background: linear-gradient(90deg, #00d4ff, #8a2be2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #00d4ff;
         }
         
         .stat-label {
-            color: #888;
-            font-size: 1rem;
-            margin-top: 0.5rem;
-        }
-        
-        /* Commands Section */
-        .commands {
-            padding: 4rem 5%;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        
-        .commands h2 {
-            text-align: center;
-            font-size: 2.5rem;
-            margin-bottom: 2rem;
-            color: #fff;
-        }
-        
-        .command-categories {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            justify-content: center;
-            margin-bottom: 2rem;
-        }
-        
-        .command-tag {
-            background: rgba(0, 212, 255, 0.1);
-            color: #00d4ff;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            border: 1px solid rgba(0, 212, 255, 0.2);
+            color: #666;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
         }
         
         /* Footer */
         footer {
-            padding: 3rem 5%;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2.5rem 5%;
             text-align: center;
         }
         
         .footer-links {
             display: flex;
             justify-content: center;
-            gap: 2rem;
-            margin-bottom: 1.5rem;
+            gap: 1.5rem;
+            margin-bottom: 1.25rem;
             flex-wrap: wrap;
         }
         
         .footer-links a {
-            color: #888;
+            color: #555;
             text-decoration: none;
-            transition: color 0.3s;
+            font-size: 0.85rem;
+            transition: color 0.2s;
         }
         
         .footer-links a:hover {
-            color: #00d4ff;
+            color: #888;
         }
         
         .footer-copy {
-            color: #666;
-            font-size: 0.9rem;
+            color: #444;
+            font-size: 0.8rem;
         }
         
         /* Responsive */
+        @media (max-width: 900px) {
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
         @media (max-width: 768px) {
-            .hero h1 { font-size: 2.5rem; }
-            .hero p { font-size: 1.1rem; }
+            .hero h1 { font-size: 2.25rem; }
+            .hero p { font-size: 1rem; }
             .nav-links { display: none; }
             .stats-grid { gap: 2rem; }
+            .features-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <div class="bg-animation"></div>
-    
     <nav>
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
@@ -388,61 +370,35 @@ const LANDING_PAGE = `
             <li><a href="/crypto">Crypto</a></li>
             <li><a href="/status">Status</a></li>
             <li><a href="/docs">Docs</a></li>
-            <li><a href="/me">My Portal</a></li>
+            <li><a href="/me">Portal</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
-            <a href="/auth/login" class="login-btn" id="loginBtn">
-                🔐 Login with Discord
-            </a>
+            <a href="/auth/login" class="login-btn" id="loginBtn">Login</a>
         </div>
     </nav>
     
     <section class="hero">
         <img src="/jarvis.gif" alt="Jarvis" class="hero-icon">
         <h1>Meet Jarvis</h1>
-        <p>Your intelligent Discord assistant powered by cutting-edge AI. Chat naturally, moderate effortlessly, and supercharge your server with advanced features.</p>
+        <p>An AI assistant for Discord with personality. Chat naturally, get things done, and have fun.</p>
         <div class="cta-buttons">
-            <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">
-                ➕ Add to Discord
-            </a>
-            <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">
-                💬 Join Support Server
-            </a>
+            <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">Add to Discord</a>
+            <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join Server</a>
         </div>
     </section>
     
-    <section class="features" id="features">
-        <h2>✨ Powerful Features</h2>
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🧠</div>
-                <h3>AI Conversations</h3>
-                <p>Natural language chat powered by multiple AI providers. Jarvis remembers context and learns your preferences.</p>
+    <section class="showcase">
+        <h2>See Jarvis in Action</h2>
+        <p class="subtitle">Real conversations from Discord</p>
+        <div class="screenshot-grid">
+            <div class="screenshot-item">
+                <img src="/screenshot-1.png" alt="Jarvis conversation example" loading="lazy">
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">🛡️</div>
-                <h3>Smart Moderation</h3>
-                <p>Automated content filtering, word blacklists, anti-spam, and comprehensive logging to keep your server safe.</p>
+            <div class="screenshot-item">
+                <img src="/screenshot-2.png" alt="Jarvis conversation example" loading="lazy">
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">💰</div>
-                <h3>Economy System</h3>
-                <p>Full economy with daily rewards, work commands, gambling, trading, and the Starkbucks (SBX) exchange.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🎵</div>
-                <h3>Music Player</h3>
-                <p>High-quality music playback from YouTube, Spotify, and more. Queue management, filters, and 24/7 mode.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">📊</div>
-                <h3>Server Statistics</h3>
-                <p>Track member activity, message analytics, voice time, and more with detailed insights and leaderboards.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">⚙️</div>
-                <h3>Customization</h3>
-                <p>Personalized AI personalities, custom commands, role rewards, welcome messages, and much more.</p>
+            <div class="screenshot-item">
+                <img src="/screenshot-3.png" alt="Jarvis conversation example" loading="lazy">
             </div>
         </div>
     </section>
@@ -451,7 +407,7 @@ const LANDING_PAGE = `
         <div class="stats-grid">
             <div class="stat-item">
                 <div class="stat-number">50+</div>
-                <div class="stat-label">AI Providers</div>
+                <div class="stat-label">AI Models</div>
             </div>
             <div class="stat-item">
                 <div class="stat-number">100+</div>
@@ -459,71 +415,72 @@ const LANDING_PAGE = `
             </div>
             <div class="stat-item">
                 <div class="stat-number">24/7</div>
-                <div class="stat-label">Uptime</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">🔒</div>
-                <div class="stat-label">Encrypted</div>
+                <div class="stat-label">Online</div>
             </div>
         </div>
     </section>
     
-    <section class="commands" id="commands">
-        <h2>📚 Command Categories</h2>
-        <div class="command-categories">
-            <span class="command-tag">💬 AI Chat</span>
-            <span class="command-tag">🛡️ Moderation</span>
-            <span class="command-tag">💰 Economy</span>
-            <span class="command-tag">🎵 Music</span>
-            <span class="command-tag">📊 Statistics</span>
-            <span class="command-tag">🎮 Games</span>
-            <span class="command-tag">🔧 Utility</span>
-            <span class="command-tag">⚙️ Settings</span>
-            <span class="command-tag">🎁 Rewards</span>
-            <span class="command-tag">📈 Leaderboards</span>
+    <section class="features" id="features">
+        <h2>What Jarvis Can Do</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>AI Chat</h3>
+                <p>Natural conversations with context memory. Multiple AI providers for reliability.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Moderation</h3>
+                <p>Auto-mod, word filters, anti-spam, and logging to keep your server clean.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Economy</h3>
+                <p>Virtual currency, daily rewards, gambling, trading, and the SBX exchange.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Music</h3>
+                <p>Play from YouTube, Spotify, and more. Queues, filters, and 24/7 mode.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Stats</h3>
+                <p>Track activity, messages, voice time, and compete on leaderboards.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Customize</h3>
+                <p>Set AI personalities, custom commands, welcome messages, and more.</p>
+            </div>
         </div>
-        <p style="text-align: center; color: #888;">Use <code style="background: rgba(255,255,255,0.1); padding: 0.2rem 0.5rem; border-radius: 4px;">*j help</code> or <code style="background: rgba(255,255,255,0.1); padding: 0.2rem 0.5rem; border-radius: 4px;">/help</code> in Discord to see all commands</p>
     </section>
     
     <footer>
         <div class="footer-links">
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
-            <a href="${DISCORD_INVITE}" target="_blank">Discord Server</a>
+            <a href="${DISCORD_INVITE}" target="_blank">Discord</a>
+            <a href="/commands">Commands</a>
             <a href="/changelog">Changelog</a>
-                        <a href="/tos">Terms of Service</a>
-            <a href="/policy">Privacy Policy</a>
+            <a href="/tos">Terms</a>
+            <a href="/policy">Privacy</a>
         </div>
-        <p class="footer-copy">© 2025 Jarvis. Made with ❤️ for Discord communities.</p>
+        <p class="footer-copy">© 2025 Jarvis</p>
     </footer>
     
     <script>
-        // Check user authentication on page load
         async function checkAuth() {
             try {
                 const res = await fetch('/api/user');
                 const data = await res.json();
-                
                 const userMenu = document.getElementById('userMenu');
                 
                 if (data.authenticated && data.user) {
                     userMenu.innerHTML = \`
-                        <img src="\${data.user.avatar}" class="user-avatar" alt="Avatar">
+                        <img src="\${data.user.avatar}" class="user-avatar" alt="">
                         <span class="user-name">\${data.user.globalName || data.user.username}</span>
                         <a href="/auth/logout" class="logout-btn">Logout</a>
                     \`;
                 }
-            } catch (e) {
-                console.log('Auth check failed:', e);
-            }
+            } catch (e) {}
         }
         
-        // Check for login success/error in URL
         const params = new URLSearchParams(window.location.search);
-        if (params.get('login') === 'success') {
-            history.replaceState({}, '', '/');
-        }
-        if (params.get('error')) {
-            console.error('Auth error:', params.get('error'));
+        if (params.get('login') === 'success' || params.get('error')) {
             history.replaceState({}, '', '/');
         }
         

@@ -2404,6 +2404,17 @@ app.get('/jarvis.gif', (req, res) => {
     res.sendFile(path.join(__dirname, 'jarvis.gif'));
 });
 
+// Serve screenshots for landing page
+app.get('/screenshot-1.png', (req, res) => {
+    res.sendFile(path.join(__dirname, 'screenshot-1.png'));
+});
+app.get('/screenshot-2.png', (req, res) => {
+    res.sendFile(path.join(__dirname, 'screenshot-2.png'));
+});
+app.get('/screenshot-3.png', (req, res) => {
+    res.sendFile(path.join(__dirname, 'screenshot-3.png'));
+});
+
 // Mount landing page (must be last to not override other routes)
 const landingRouter = require('./routes/landing');
 app.use('/', landingRouter);
