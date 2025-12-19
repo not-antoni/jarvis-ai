@@ -1,5 +1,7 @@
 'use strict';
 
+/* eslint-disable no-console */
+
 /**
  * Cloudflare Status Notifier
  * Checks Cloudflare status and sends updates ONLY to guilds with /monitor cloudflare subscription
