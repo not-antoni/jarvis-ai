@@ -393,13 +393,13 @@ const LANDING_PAGE = `
         <p class="subtitle">Real conversations from Discord</p>
         <div class="screenshot-grid">
             <div class="screenshot-item">
-                <img src="/screenshot-1.png" alt="Jarvis conversation example" loading="lazy">
+                <img src="/screenshot-1.png?v=2" alt="Jarvis conversation example" loading="lazy">
             </div>
             <div class="screenshot-item">
-                <img src="/screenshot-2.png" alt="Jarvis conversation example" loading="lazy">
+                <img src="/screenshot-2.png?v=2" alt="Jarvis conversation example" loading="lazy">
             </div>
             <div class="screenshot-item">
-                <img src="/screenshot-3.png" alt="Jarvis conversation example" loading="lazy">
+                <img src="/screenshot-3.png?v=2" alt="Jarvis conversation example" loading="lazy">
             </div>
         </div>
     </section>
