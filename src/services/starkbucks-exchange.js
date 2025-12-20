@@ -715,9 +715,11 @@ async function convertToSBX(userId, starkBucks) {
     
     await updatePrice();
     
-    // Conversion rate: 100 Stark Bucks = 1 SBX (adjusted by price)
-    const conversionRate = 100 / currentPrice;
-    const sbxAmount = Math.floor((starkBucks / conversionRate) * 100) / 100;
+    // Conversion: Higher price = SBX worth more = get less SBX per SB
+    // Base rate: 100 SB = 1 SBX at price 1.00
+    // Buy at slight premium (2% spread)
+    const buyPrice = currentPrice * 1.02;
+    const sbxAmount = Math.floor((starkBucks / (100 * buyPrice)) * 100) / 100;
     
     // Deduct from economy
     await starkEconomy.modifyBalance(userId, -starkBucks, 'Convert to SBX');
@@ -751,9 +753,11 @@ async function convertToStarkBucks(userId, sbxAmount) {
     
     await updatePrice();
     
-    // Conversion with 5% fee
-    const conversionRate = 100 / currentPrice;
-    const grossStarkBucks = Math.floor(sbxAmount * conversionRate);
+    // Conversion: Higher price = SBX worth more = get more SB per SBX
+    // Base rate: 1 SBX = 100 SB at price 1.00
+    // Sell at slight discount (2% spread) + 5% fee
+    const sellPrice = currentPrice * 0.98;
+    const grossStarkBucks = Math.floor(sbxAmount * 100 * sellPrice);
     const fee = Math.floor(grossStarkBucks * 0.05);
     const netStarkBucks = grossStarkBucks - fee;
     
