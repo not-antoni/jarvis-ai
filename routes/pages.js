@@ -770,7 +770,9 @@ const SBX_PAGE = `
             if (input === 'all') {
                 const balanceElement = document.getElementById('yourSbx');
                 const balanceText = balanceElement.textContent;
+                console.log('SBX balance text:', balanceText);
                 amount = parseFloat(balanceText);
+                console.log('Parsed amount:', amount);
                 if (isNaN(amount) || amount <= 0) {
                     showMessage('sellMessage', 'No SBX to sell', true);
                     return;
@@ -782,6 +784,10 @@ const SBX_PAGE = `
                     return;
                 }
             }
+            
+            // Clear the input field after getting the amount
+            document.getElementById('sellAmount').value = '';
+            
             try {
                 const res = await fetch('/api/user/sbx/sell', {
                     method: 'POST',
