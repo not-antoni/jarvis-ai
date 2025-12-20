@@ -1034,6 +1034,9 @@ async function withdrawInvestment(userId, amount) {
         return { success: false, error: 'Insufficient investment balance' };
     }
     
+    // Apply catastrophic price impact for partial withdrawals too
+    await applyWithdrawalImpact(amount);
+    
     // 2% early withdrawal fee
     const fee = Math.floor(amount * 0.02 * 100) / 100;
     const netAmount = amount - fee;
