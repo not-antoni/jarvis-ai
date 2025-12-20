@@ -56,8 +56,8 @@ const SBX_CONFIG = {
     basePrice: 1.00,           // Base price in "USD"
     minPrice: 0.10,            // Minimum price
     maxPrice: 100.00,          // Maximum price
-    volatility: 0.08,          // 8% max price change per tick
-    tickInterval: 30 * 1000,   // Price updates every 30 seconds
+    volatility: 0.15,          // 15% max price change per tick
+    tickInterval: 20 * 1000,   // Price updates every 20 seconds
     
     // Transaction settings
     ownerFeePercent: 0.10,     // 10% fee goes to bot owner
@@ -71,14 +71,14 @@ const SBX_CONFIG = {
     
     // Market events (random events that affect price)
     marketEvents: [
-        { name: '📈 Bull Run', priceChange: 0.15, chance: 0.02, duration: 30 * 60 * 1000 },
-        { name: '📉 Bear Market', priceChange: -0.12, chance: 0.02, duration: 30 * 60 * 1000 },
-        { name: '🚀 Stark Industries IPO', priceChange: 0.25, chance: 0.01, duration: 60 * 60 * 1000 },
-        { name: '💥 Market Crash', priceChange: -0.20, chance: 0.01, duration: 45 * 60 * 1000 },
-        { name: '⭐ Celebrity Endorsement', priceChange: 0.10, chance: 0.03, duration: 20 * 60 * 1000 },
-        { name: '📰 Bad Press', priceChange: -0.08, chance: 0.03, duration: 20 * 60 * 1000 },
-        { name: '🎉 Community Event', priceChange: 0.05, chance: 0.05, duration: 15 * 60 * 1000 },
-        { name: '🔧 Maintenance', priceChange: -0.03, chance: 0.05, duration: 10 * 60 * 1000 }
+        { name: '📈 Bull Run', priceChange: 0.20, chance: 0.04, duration: 20 * 60 * 1000 },
+        { name: '📉 Bear Market', priceChange: -0.18, chance: 0.04, duration: 20 * 60 * 1000 },
+        { name: '🚀 Stark Industries IPO', priceChange: 0.35, chance: 0.02, duration: 30 * 60 * 1000 },
+        { name: '💥 Market Crash', priceChange: -0.30, chance: 0.02, duration: 25 * 60 * 1000 },
+        { name: '⭐ Celebrity Endorsement', priceChange: 0.15, chance: 0.05, duration: 15 * 60 * 1000 },
+        { name: '📰 Bad Press', priceChange: -0.12, chance: 0.05, duration: 15 * 60 * 1000 },
+        { name: '🎉 Community Event', priceChange: 0.08, chance: 0.08, duration: 10 * 60 * 1000 },
+        { name: '🔧 Maintenance', priceChange: -0.05, chance: 0.08, duration: 8 * 60 * 1000 }
     ]
 };
 
@@ -280,6 +280,7 @@ let activeEvent = null;
 let dailyVolume = 0;
 const activeUsers = new Set();
 let lastPriceTick = 0; // Start at 0 to allow immediate first update
+let priceMomentum = 0; // Trend momentum (-1 to 1)
 
 // Pending transactions cache
 const pendingTransactions = new Map();
@@ -606,8 +607,13 @@ async function updatePrice() {
     
     let newPrice = currentPrice;
     
-    // Base volatility (random walk)
-    const randomChange = (Math.random() - 0.5) * 2 * SBX_CONFIG.volatility;
+    // Update momentum with some randomness (creates trends)
+    priceMomentum += (Math.random() - 0.5) * 0.3;
+    priceMomentum = Math.max(-0.8, Math.min(0.8, priceMomentum)); // Clamp momentum
+    priceMomentum *= 0.95; // Decay momentum over time
+    
+    // Base volatility with momentum bias (random walk + trend)
+    const randomChange = ((Math.random() - 0.5) + priceMomentum * 0.5) * SBX_CONFIG.volatility;
     newPrice *= (1 + randomChange);
     
     // Activity bonus
