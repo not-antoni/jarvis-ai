@@ -731,12 +731,14 @@ async function convertToSBX(userId, starkBucks) {
         return { success: false, error: 'Insufficient Stark Bucks' };
     }
     
-    await updatePrice();
+    // Don't update price during conversion to avoid mid-transaction changes
+    // Use current price as displayed to user
+    const priceAtTime = currentPrice;
     
     // Conversion: Higher price = SBX worth more = get less SBX per SB
     // Base rate: 100 SB = 1 SBX at price 1.00
     // Buy at slight premium (2% spread)
-    const buyPrice = currentPrice * 1.02;
+    const buyPrice = priceAtTime * 1.02;
     const sbxAmount = Math.floor((starkBucks / (100 * buyPrice)) * 100) / 100;
     
     // Deduct from economy
@@ -754,7 +756,8 @@ async function convertToSBX(userId, starkBucks) {
         starkBucksSpent: starkBucks,
         sbxReceived: sbxAmount,
         rate: buyPrice,
-        price: currentPrice
+        price: priceAtTime,
+        priceUsed: priceAtTime
     };
 }
 
@@ -769,12 +772,14 @@ async function convertToStarkBucks(userId, sbxAmount) {
         return { success: false, error: 'Insufficient SBX balance' };
     }
     
-    await updatePrice();
+    // Don't update price during conversion to avoid mid-transaction changes
+    // Use current price as displayed to user
+    const priceAtTime = currentPrice;
     
     // Conversion: Higher price = SBX worth more = get more SB per SBX
     // Base rate: 1 SBX = 100 SB at price 1.00
     // Sell at slight discount (2% spread) + 5% fee
-    const sellPrice = currentPrice * 0.98;
+    const sellPrice = priceAtTime * 0.98;
     const grossStarkBucks = Math.floor(sbxAmount * 100 * sellPrice);
     const fee = Math.floor(grossStarkBucks * 0.05);
     const netStarkBucks = grossStarkBucks - fee;
@@ -796,7 +801,8 @@ async function convertToStarkBucks(userId, sbxAmount) {
         starkBucksReceived: netStarkBucks,
         fee,
         rate: sellPrice,
-        price: currentPrice
+        price: priceAtTime,
+        priceUsed: priceAtTime
     };
 }
 
