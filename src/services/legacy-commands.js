@@ -656,11 +656,12 @@ const legacyCommands = {
                 return true;
             }
 
+            const formatNum = (n) => Math.floor(n).toLocaleString('en-US');
             const lines = lb
                 .map(u => {
                     const badge = u.hasVipBadge ? '⭐ ' : '';
                     const gold = u.hasGoldenName ? '✨' : '';
-                    return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${u.balance}** 💵`;
+                    return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${formatNum(u.balance)}** 💵`;
                 })
                 .join('\n');
 
