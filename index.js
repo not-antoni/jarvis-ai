@@ -2406,17 +2406,21 @@ app.get('/jarvis.gif', (req, res) => {
 
 // Serve favicon
 app.get('/jarvis.webp', (req, res) => {
+    res.type('image/webp');
     res.sendFile(path.join(__dirname, 'jarvis.webp'));
 });
 
 // Serve screenshots for landing page
 app.get('/screenshot-1.png', (req, res) => {
+    res.type('image/png');
     res.sendFile(path.join(__dirname, 'screenshot-1.png'));
 });
 app.get('/screenshot-2.png', (req, res) => {
+    res.type('image/png');
     res.sendFile(path.join(__dirname, 'screenshot-2.png'));
 });
 app.get('/screenshot-3.png', (req, res) => {
+    res.type('image/png');
     res.sendFile(path.join(__dirname, 'screenshot-3.png'));
 });
 
