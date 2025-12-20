@@ -684,9 +684,27 @@ async function updatePrice() {
 async function getMarketData() {
     await updatePrice();
     
-    const change24h = priceHistory.length > 0
-        ? ((currentPrice - priceHistory[0].price) / priceHistory[0].price) * 100
-        : 0;
+    // Calculate 24h change by finding price ~24 hours ago
+    let change24h = 0;
+    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+    
+    if (priceHistory.length > 0) {
+        // Find the price closest to 24 hours ago
+        let price24hAgo = priceHistory[0]?.price || currentPrice;
+        for (let i = 0; i < priceHistory.length; i++) {
+            if (priceHistory[i].timestamp >= twentyFourHoursAgo) {
+                price24hAgo = priceHistory[i].price;
+                break;
+            }
+        }
+        
+        // If we don't have 24h of data, use the oldest available
+        if (priceHistory[0].timestamp > twentyFourHoursAgo && priceHistory.length > 0) {
+            price24hAgo = priceHistory[0].price;
+        }
+        
+        change24h = ((currentPrice - price24hAgo) / price24hAgo) * 100;
+    }
     
     return {
         symbol: SBX_CONFIG.symbol,
