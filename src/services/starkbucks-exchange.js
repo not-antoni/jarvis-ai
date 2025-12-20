@@ -1127,8 +1127,46 @@ async function getLeaderboard(limit = 10) {
 
 let priceUpdateInterval = null;
 
-function startPriceUpdates() {
+/**
+ * Load price history from database on startup
+ */
+async function loadPriceHistory() {
+    try {
+        const col = await getCollection('sbx_price_history');
+        
+        // Get the most recent price
+        const latest = await col.findOne({}, { sort: { timestamp: -1 } });
+        if (latest) {
+            currentPrice = latest.price;
+            console.log(`[Starkbucks] Loaded current price: ${currentPrice} from DB`);
+        }
+        
+        // Load last 60 entries (1 hour at 1 min intervals)
+        const history = await col.find({}, { 
+            sort: { timestamp: -1 },
+            limit: 60
+        }).toArray();
+        
+        // Reverse to chronological order and populate priceHistory
+        priceHistory.length = 0; // Clear existing
+        history.reverse().forEach(entry => {
+            priceHistory.push({ price: entry.price, timestamp: entry.timestamp });
+        });
+        
+        console.log(`[Starkbucks] Loaded ${priceHistory.length} price history entries`);
+    } catch (error) {
+        console.error('[Starkbucks] Failed to load price history:', error);
+        // Keep defaults if DB load fails
+        currentPrice = SBX_CONFIG.basePrice;
+        priceHistory.length = 0;
+    }
+}
+
+async function startPriceUpdates() {
     if (priceUpdateInterval) { return; }
+    
+    // Load price history from DB on startup
+    await loadPriceHistory();
     
     priceUpdateInterval = setInterval(() => {
         updatePrice().catch(err => {
