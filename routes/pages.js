@@ -850,13 +850,25 @@ const SBX_PAGE = `
                 const res = await fetch('/api/sbx/market');
                 const data = await res.json();
                 const history = data.priceHistory || [];
-                if (history.length < 2) return;
                 
                 const canvas = document.getElementById('priceChart');
                 const ctx = canvas.getContext('2d');
                 const rect = canvas.parentElement.getBoundingClientRect();
                 canvas.width = rect.width - 48;
                 canvas.height = 200;
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (history.length < 2) {
+                    // Show "No data" message
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.font = '14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Price history will appear here', canvas.width / 2, canvas.height / 2);
+                    document.getElementById('chartRange').textContent = 'No data yet';
+                    return;
+                }
                 
                 const prices = history.map(p => p.price);
                 const minPrice = Math.min(...prices) * 0.98;
@@ -866,9 +878,6 @@ const SBX_PAGE = `
                 // Update range display
                 document.getElementById('chartRange').textContent = 
                     'Low: ' + Math.min(...prices).toFixed(2) + ' | High: ' + Math.max(...prices).toFixed(2);
-                
-                // Clear and draw
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
                 // Draw grid lines
                 ctx.strokeStyle = 'rgba(255,255,255,0.1)';

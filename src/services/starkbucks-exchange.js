@@ -735,7 +735,7 @@ async function convertToSBX(userId, starkBucks) {
         success: true,
         starkBucksSpent: starkBucks,
         sbxReceived: sbxAmount,
-        rate: conversionRate,
+        rate: buyPrice,
         price: currentPrice
     };
 }
@@ -777,7 +777,7 @@ async function convertToStarkBucks(userId, sbxAmount) {
         sbxSpent: sbxAmount,
         starkBucksReceived: netStarkBucks,
         fee,
-        rate: conversionRate,
+        rate: sellPrice,
         price: currentPrice
     };
 }
@@ -1074,6 +1074,9 @@ async function withdrawAllInvestments(userId) {
     const totalEarned = investment.earned || 0;
     const totalAmount = totalPrincipal + totalEarned;
     
+    // Calculate catastrophic price impact
+    await applyWithdrawalImpact(totalAmount);
+    
     // No withdrawal fee when withdrawing everything
     const fee = 0;
     
@@ -1094,6 +1097,60 @@ async function withdrawAllInvestments(userId) {
         earnings: totalEarned,
         fee
     };
+}
+
+/**
+ * Apply catastrophic price impact based on withdrawal size
+ */
+async function applyWithdrawalImpact(withdrawAmount) {
+    try {
+        // Get total invested across all users
+        const col = await getCollection('sbx_investments');
+        const totalInvested = await col.aggregate([
+            { $group: { _id: null, total: { $sum: "$principal" } } }
+        ]).toArray();
+        
+        const totalPrincipal = totalInvested[0]?.total || 0;
+        if (totalPrincipal <= 0) return;
+        
+        // Calculate percentage of total being withdrawn
+        const withdrawPercentage = withdrawAmount / totalPrincipal;
+        
+        // Apply catastrophic impact based on percentage
+        let priceImpact = 0;
+        if (withdrawPercentage > 0.5) {
+            // Withdrawing >50% crashes the market
+            priceImpact = -0.3; // -30% price
+        } else if (withdrawPercentage > 0.25) {
+            // Withdrawing >25% major impact
+            priceImpact = -0.2; // -20% price
+        } else if (withdrawPercentage > 0.1) {
+            // Withdrawing >10% significant impact
+            priceImpact = -0.1; // -10% price
+        } else if (withdrawPercentage > 0.05) {
+            // Withdrawing >5% moderate impact
+            priceImpact = -0.05; // -5% price
+        }
+        
+        if (priceImpact < 0) {
+            currentPrice *= (1 + priceImpact);
+            currentPrice = Math.max(SBX_CONFIG.minPrice, currentPrice);
+            currentPrice = Math.round(currentPrice * 100) / 100;
+            
+            // Store in history
+            priceHistory.push({ 
+                price: currentPrice, 
+                timestamp: Date.now(),
+                event: 'Catastrophic withdrawal'
+            });
+            
+            // eslint-disable-next-line no-console
+            console.log(`[Starkbucks] Catastrophic withdrawal impact: ${(priceImpact * 100).toFixed(1)}% | New price: ${currentPrice}`);
+        }
+    } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('[Starkbucks] Failed to apply withdrawal impact:', error);
+    }
 }
 
 // ============================================================================
@@ -1138,6 +1195,7 @@ async function loadPriceHistory() {
         const latest = await col.findOne({}, { sort: { timestamp: -1 } });
         if (latest) {
             currentPrice = latest.price;
+            // eslint-disable-next-line no-console
             console.log(`[Starkbucks] Loaded current price: ${currentPrice} from DB`);
         }
         
@@ -1153,8 +1211,10 @@ async function loadPriceHistory() {
             priceHistory.push({ price: entry.price, timestamp: entry.timestamp });
         });
         
+        // eslint-disable-next-line no-console
         console.log(`[Starkbucks] Loaded ${priceHistory.length} price history entries`);
     } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('[Starkbucks] Failed to load price history:', error);
         // Keep defaults if DB load fails
         currentPrice = SBX_CONFIG.basePrice;
