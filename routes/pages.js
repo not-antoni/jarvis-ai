@@ -636,7 +636,7 @@ const SBX_PAGE = `
                 </div>
                 <div class="trade-card">
                     <h3 style="margin-bottom: 1rem;">💵 Sell SBX</h3>
-                    <input type="number" class="trade-input" id="sellAmount" placeholder="Amount of SBX to sell" min="0.01" step="0.01">
+                    <input type="text" class="trade-input" id="sellAmount" placeholder="Amount of SBX to sell (or 'all')" min="0.01" step="0.01">
                     <button class="btn btn-primary" style="width: 100%;" onclick="sellSbx()">Sell SBX</button>
                     <div id="sellMessage" class="message"></div>
                 </div>
@@ -646,8 +646,11 @@ const SBX_PAGE = `
                 <h3 style="margin-bottom: 1rem;">📈 Invest SBX</h3>
                 <p style="color: #888; margin-bottom: 1rem;">Earn 0.5% daily returns on invested SBX</p>
                 <input type="number" class="trade-input" id="investAmount" placeholder="Amount of SBX to invest" min="1" step="0.01">
-                <button class="btn btn-primary" onclick="investSbx()">Invest</button>
-                <button class="btn btn-primary" onclick="claimEarnings()" style="margin-left: 0.5rem;">Claim Earnings</button>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <button class="btn btn-primary" onclick="investSbx()">Invest</button>
+                    <button class="btn btn-primary" onclick="claimEarnings()">Claim Earnings</button>
+                    <button class="btn btn-danger" onclick="withdrawAllInvestments()" style="margin-left: auto;">Withdraw All</button>
+                </div>
                 <div id="investMessage" class="message"></div>
             </div>
         </div>
@@ -749,10 +752,23 @@ const SBX_PAGE = `
         }
         
         async function sellSbx() {
-            const amount = parseFloat(document.getElementById('sellAmount').value);
-            if (!amount || amount < 0.01) {
-                showMessage('sellMessage', 'Enter a valid amount', true);
-                return;
+            const input = document.getElementById('sellAmount').value.toLowerCase().trim();
+            let amount;
+            
+            if (input === 'all') {
+                const balanceElement = document.getElementById('yourSbx');
+                const balanceText = balanceElement.textContent;
+                amount = parseFloat(balanceText);
+                if (isNaN(amount) || amount <= 0) {
+                    showMessage('sellMessage', 'No SBX to sell', true);
+                    return;
+                }
+            } else {
+                amount = parseFloat(input);
+                if (!amount || amount < 0.01) {
+                    showMessage('sellMessage', 'Enter a valid amount', true);
+                    return;
+                }
             }
             try {
                 const res = await fetch('/api/user/sbx/sell', {
@@ -805,6 +821,24 @@ const SBX_PAGE = `
                     loadUserBalance();
                 } else {
                     showMessage('investMessage', data.error || 'Nothing to claim', true);
+                }
+            } catch (e) {
+                showMessage('investMessage', 'Error: ' + e.message, true);
+            }
+        }
+        
+        async function withdrawAllInvestments() {
+            if (!confirm('Are you sure you want to withdraw ALL investments? This will return all invested SBX plus any earnings to your wallet.')) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/user/sbx/withdraw', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showMessage('investMessage', 'Withdrew ' + (data.total || 0).toFixed(2) + ' SBX!', false);
+                    loadUserBalance();
+                } else {
+                    showMessage('investMessage', data.error || 'Withdrawal failed', true);
                 }
             } catch (e) {
                 showMessage('investMessage', 'Error: ' + e.message, true);
@@ -2547,6 +2581,13 @@ const CHANGELOG_PAGE = `
         .tag-new { background: rgba(0,255,136,0.2); color: #00ff88; }
         .tag-fix { background: rgba(255,68,68,0.2); color: #ff4444; }
         .tag-improve { background: rgba(0,212,255,0.2); color: #00d4ff; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: inline-block; text-decoration: none; }
+        .btn-primary { background: #00d4ff; color: #000; }
+        .btn-primary:hover { background: #00b8e6; }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+        .btn-danger { background: #e74c3c; color: #fff; }
+        .btn-danger:hover { background: #c0392b; }
     </style>
 </head>
 <body>

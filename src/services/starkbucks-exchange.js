@@ -1060,6 +1060,42 @@ async function withdrawInvestment(userId, amount) {
     };
 }
 
+/**
+ * Withdraw all investments (principal + earnings)
+ */
+async function withdrawAllInvestments(userId) {
+    const investment = await dbFindOne('sbx_investments', { userId });
+    
+    if (!investment || (investment.principal <= 0 && investment.earned <= 0)) {
+        return { success: false, error: 'No active investments to withdraw' };
+    }
+    
+    const totalPrincipal = investment.principal || 0;
+    const totalEarned = investment.earned || 0;
+    const totalAmount = totalPrincipal + totalEarned;
+    
+    // No withdrawal fee when withdrawing everything
+    const fee = 0;
+    
+    // Delete investment record
+    await dbUpdateOne('sbx_investments', { userId }, { $set: { 
+        principal: 0, 
+        earned: 0, 
+        updatedAt: new Date() 
+    }});
+    
+    // Add total amount to wallet
+    await updateWallet(userId, totalAmount, 'Full investment withdrawal');
+    
+    return {
+        success: true,
+        total: totalAmount,
+        principal: totalPrincipal,
+        earnings: totalEarned,
+        fee
+    };
+}
+
 // ============================================================================
 // LEADERBOARD
 // ============================================================================
@@ -1157,6 +1193,7 @@ module.exports = {
     investSBX,
     claimInvestmentEarnings,
     withdrawInvestment,
+    withdrawAllInvestments,
     
     // Leaderboard
     getLeaderboard,
