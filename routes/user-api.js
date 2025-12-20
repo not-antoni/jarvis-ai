@@ -253,6 +253,22 @@ router.post('/api/user/sbx/claim', requireAuth, async (req, res) => {
     }
 });
 
+// Withdraw all SBX investments
+router.post('/api/user/sbx/withdraw', requireAuth, async (req, res) => {
+    try {
+        const sbx = require('../src/services/starkbucks-exchange');
+        const userId = req.userSession.userId;
+        
+        const result = await sbx.withdrawAllInvestments(userId);
+        if (!result.success) {
+            return res.status(400).json({ error: result.error || 'Withdrawal failed' });
+        }
+        res.json({ success: true, total: result.total, ...result });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
 // Get leaderboard
 router.get('/api/leaderboard/:type', async (req, res) => {
     try {
