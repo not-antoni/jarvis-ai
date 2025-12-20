@@ -630,13 +630,16 @@ const SBX_PAGE = `
             <div class="trade-row">
                 <div class="trade-card">
                     <h3 style="margin-bottom: 1rem;">💰 Buy SBX</h3>
-                    <input type="number" class="trade-input" id="buyAmount" placeholder="Amount of Stark Bucks to spend" min="1">
-                    <button class="btn btn-primary" style="width: 100%;" onclick="buySbx()">Buy SBX</button>
+                    <input type="number" class="trade-input" id="buyAmount" placeholder="Amount of Stark Bucks to spend" min="1" onkeypress="if(event.key==='Enter')buySbx()">
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <button class="btn btn-primary" style="flex: 1;" onclick="buySbx()">Buy SBX</button>
+                        <button class="btn btn-secondary" style="width: 120px;" onclick="fillBuyAll()">Use All</button>
+                    </div>
                     <div id="buyMessage" class="message"></div>
                 </div>
                 <div class="trade-card">
                     <h3 style="margin-bottom: 1rem;">💵 Sell SBX</h3>
-                    <input type="text" class="trade-input" id="sellAmount" placeholder="Amount of SBX to sell (or 'all')" min="0.01" step="0.01">
+                    <input type="text" class="trade-input" id="sellAmount" placeholder="Amount of SBX to sell (or 'all')" min="0.01" step="0.01" onkeypress="if(event.key==='Enter')sellSbx()">
                     <button class="btn btn-primary" style="width: 100%;" onclick="sellSbx()">Sell SBX</button>
                     <div id="sellMessage" class="message"></div>
                 </div>
@@ -748,6 +751,15 @@ const SBX_PAGE = `
                 }
             } catch (e) {
                 showMessage('buyMessage', 'Error: ' + e.message, true);
+            }
+        }
+        
+        function fillBuyAll() {
+            const balanceText = document.getElementById('yourBalance').textContent || '';
+            const numeric = balanceText.replace(' SB', '').replace(/,/g, '');
+            const balance = parseFloat(numeric);
+            if (!isNaN(balance) && balance > 0) {
+                document.getElementById('buyAmount').value = balance;
             }
         }
         
