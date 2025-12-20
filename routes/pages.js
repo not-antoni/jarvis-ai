@@ -561,6 +561,26 @@ const SBX_PAGE = `
         .message { padding: 1rem; border-radius: 8px; margin-top: 1rem; display: none; }
         .message.success { background: rgba(46,204,113,0.2); color: #2ecc71; display: block; }
         .message.error { background: rgba(231,76,60,0.2); color: #e74c3c; display: block; }
+        .chart-container {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .chart-title { font-size: 1.2rem; font-weight: 600; }
+        #priceChart {
+            width: 100%;
+            height: 200px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
@@ -573,6 +593,14 @@ const SBX_PAGE = `
             <div class="price-label">Current SBX Price</div>
             <div class="price-value" id="currentPrice">--</div>
             <div class="price-change" id="priceChange">Loading...</div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-header">
+                <span class="chart-title">📈 Price History (Last Hour)</span>
+                <span id="chartRange" style="color: #888; font-size: 0.9rem;">--</span>
+            </div>
+            <canvas id="priceChart"></canvas>
         </div>
         
         <div class="stats-grid">
@@ -783,8 +811,76 @@ const SBX_PAGE = `
             }
         }
         
+        async function loadPriceChart() {
+            try {
+                const res = await fetch('/api/sbx/market');
+                const data = await res.json();
+                const history = data.priceHistory || [];
+                if (history.length < 2) return;
+                
+                const canvas = document.getElementById('priceChart');
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.parentElement.getBoundingClientRect();
+                canvas.width = rect.width - 48;
+                canvas.height = 200;
+                
+                const prices = history.map(p => p.price);
+                const minPrice = Math.min(...prices) * 0.98;
+                const maxPrice = Math.max(...prices) * 1.02;
+                const range = maxPrice - minPrice || 1;
+                
+                // Update range display
+                document.getElementById('chartRange').textContent = 
+                    'Low: ' + Math.min(...prices).toFixed(2) + ' | High: ' + Math.max(...prices).toFixed(2);
+                
+                // Clear and draw
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw grid lines
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = (canvas.height / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+                
+                // Draw price line
+                const isUp = prices[prices.length - 1] >= prices[0];
+                ctx.strokeStyle = isUp ? '#00ff88' : '#ff4444';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                for (let i = 0; i < prices.length; i++) {
+                    const x = (i / (prices.length - 1)) * canvas.width;
+                    const y = canvas.height - ((prices[i] - minPrice) / range) * canvas.height;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                
+                // Fill gradient under line
+                ctx.lineTo(canvas.width, canvas.height);
+                ctx.lineTo(0, canvas.height);
+                ctx.closePath();
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, isUp ? 'rgba(0,255,136,0.3)' : 'rgba(255,68,68,0.3)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+            } catch (e) {
+                console.error('Chart error:', e);
+            }
+        }
+        
         checkAuth();
         loadSbxData();
+        loadPriceChart();
+        setInterval(loadSbxData, 20000);
+        setInterval(loadPriceChart, 20000);
     </script>
 </body>
 </html>
