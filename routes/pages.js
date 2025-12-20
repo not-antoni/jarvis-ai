@@ -769,10 +769,12 @@ const SBX_PAGE = `
             
             if (input === 'all') {
                 const balanceElement = document.getElementById('yourSbx');
-                const balanceText = balanceElement.textContent;
+                const balanceText = balanceElement.textContent || '0';
                 console.log('SBX balance text:', balanceText);
-                amount = parseFloat(balanceText);
-                console.log('Parsed amount:', amount);
+                // Remove any non-numeric characters except decimal point
+                const cleanText = balanceText.replace(/[^\d.-]/g, '').trim();
+                amount = parseFloat(cleanText);
+                console.log('Cleaned text:', cleanText, 'Parsed amount:', amount);
                 if (isNaN(amount) || amount <= 0) {
                     showMessage('sellMessage', 'No SBX to sell', true);
                     return;
