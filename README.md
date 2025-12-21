@@ -300,10 +300,39 @@ Jarvis includes a full website at your configured domain (or IP:PORT):
 | **Leaderboard** | `/leaderboard` | Public economy rankings |
 | **Store** | `/store` | SBX item shop |
 | **SBX Exchange** | `/sbx` | Starkbucks info & trading |
+| **Crypto** | `/crypto` | Stark Crypto trading |
 | **Docs** | `/docs` | Self-hosting guide |
-| **Changelog** | `/changelog` | Version history |
-| **Terms** | `/tos` | Terms of Service |
-| **Privacy** | `/policy` | Privacy Policy |
+
+### SBX News API
+
+Add funny "company" news to the SBX exchange that can affect stock prices:
+
+```bash
+# Add news (site owner only)
+curl -X POST https://your-site.com/api/sbx/news \
+  -H "Content-Type: application/json" \
+  -d '{
+    "headline": "BREAKING: Tony Stark spotted buying coffee with SBX",
+    "priceImpact": 0.02,
+    "secretKey": "YOUR_BOT_OWNER_ID"
+  }'
+
+# Get news feed
+curl https://your-site.com/api/sbx/news?limit=10
+
+# Clear all news
+curl -X DELETE https://your-site.com/api/sbx/news \
+  -H "Content-Type: application/json" \
+  -d '{"secretKey": "YOUR_BOT_OWNER_ID"}'
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `headline` | News text (max 280 chars) |
+| `priceImpact` | Optional: -0.05 to +0.05 (e.g., 0.02 = +2% price) |
+| `secretKey` | Your `BOT_OWNER_ID` or custom `SBX_NEWS_SECRET` |
+
+Other pages: `/changelog` (Version history), `/tos` (Terms), `/policy` (Privacy)
 
 ### Discord OAuth (optional)
 
