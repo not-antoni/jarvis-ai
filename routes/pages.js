@@ -946,14 +946,14 @@ const SBX_PAGE = `
                     return;
                 }
                 
-                // Sample data to reduce noise (take every Nth point)
-                const sampleRate = Math.max(1, Math.floor(history.length / 60));
+                // Sample data to reduce noise
+                const sampleRate = Math.max(1, Math.floor(history.length / 80));
                 const sampled = history.filter((_, i) => i % sampleRate === 0);
                 const prices = sampled.map(p => p.price);
                 
                 const minPrice = Math.min(...prices);
                 const maxPrice = Math.max(...prices);
-                const padding = (maxPrice - minPrice) * 0.1 || 0.01;
+                const padding = (maxPrice - minPrice) * 0.15 || 0.01;
                 const chartMin = minPrice - padding;
                 const chartMax = maxPrice + padding;
                 const range = chartMax - chartMin || 1;
@@ -962,7 +962,7 @@ const SBX_PAGE = `
                     'Low: ' + minPrice.toFixed(2) + ' | High: ' + maxPrice.toFixed(2);
                 
                 // Draw grid lines
-                ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                ctx.strokeStyle = 'rgba(255,255,255,0.06)';
                 ctx.lineWidth = 1;
                 for (let i = 0; i <= 4; i++) {
                     const y = (canvas.height / 4) * i;
@@ -972,46 +972,84 @@ const SBX_PAGE = `
                     ctx.stroke();
                 }
                 
-                // Draw smooth price line using bezier curves
-                const isUp = prices[prices.length - 1] >= prices[0];
-                const lineColor = isUp ? '#00ff88' : '#ff4444';
+                // Calculate points with padding from edges
+                const padX = 5;
+                const padY = 15;
+                const chartH = canvas.height - padY * 2;
+                const chartW = canvas.width - padX * 2;
                 
-                // Calculate points
                 const points = prices.map((price, i) => ({
-                    x: (i / (prices.length - 1)) * canvas.width,
-                    y: canvas.height - ((price - chartMin) / range) * (canvas.height - 20) - 10
+                    x: padX + (i / (prices.length - 1)) * chartW,
+                    y: padY + chartH - ((price - chartMin) / range) * chartH,
+                    price: price
                 }));
                 
-                // Draw gradient fill first
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                for (let i = 1; i < points.length; i++) {
-                    const xc = (points[i].x + points[i-1].x) / 2;
-                    const yc = (points[i].y + points[i-1].y) / 2;
-                    ctx.quadraticCurveTo(points[i-1].x, points[i-1].y, xc, yc);
-                }
-                ctx.lineTo(points[points.length-1].x, points[points.length-1].y);
-                ctx.lineTo(canvas.width, canvas.height);
-                ctx.lineTo(0, canvas.height);
-                ctx.closePath();
+                // Draw multi-colored line segments (red for down, green for up)
+                ctx.lineWidth = 2.5;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
                 
-                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-                gradient.addColorStop(0, isUp ? 'rgba(0,255,136,0.2)' : 'rgba(255,68,68,0.2)');
-                gradient.addColorStop(1, 'rgba(0,0,0,0)');
-                ctx.fillStyle = gradient;
+                for (let i = 1; i < points.length; i++) {
+                    const prev = points[i - 1];
+                    const curr = points[i];
+                    const isUp = curr.price >= prev.price;
+                    
+                    // Create gradient for smooth color transition
+                    const grad = ctx.createLinearGradient(prev.x, prev.y, curr.x, curr.y);
+                    
+                    // Look ahead and behind for smoother transitions
+                    const prevUp = i > 1 ? points[i-1].price >= points[i-2].price : isUp;
+                    const nextUp = i < points.length - 1 ? points[i+1].price >= curr.price : isUp;
+                    
+                    const startColor = prevUp ? '#00ff88' : '#ff4444';
+                    const endColor = isUp ? '#00ff88' : '#ff4444';
+                    
+                    grad.addColorStop(0, startColor);
+                    grad.addColorStop(1, endColor);
+                    
+                    ctx.beginPath();
+                    ctx.strokeStyle = grad;
+                    
+                    // Use bezier for smoothness
+                    if (i === 1) {
+                        ctx.moveTo(prev.x, prev.y);
+                        ctx.lineTo(curr.x, curr.y);
+                    } else {
+                        const prevPrev = points[i - 2];
+                        const cpX = prev.x;
+                        const cpY = prev.y;
+                        ctx.moveTo(prev.x, prev.y);
+                        ctx.lineTo(curr.x, curr.y);
+                    }
+                    ctx.stroke();
+                }
+                
+                // Draw subtle glow effect
+                ctx.globalAlpha = 0.3;
+                ctx.lineWidth = 6;
+                ctx.filter = 'blur(4px)';
+                for (let i = 1; i < points.length; i++) {
+                    const prev = points[i - 1];
+                    const curr = points[i];
+                    const isUp = curr.price >= prev.price;
+                    ctx.beginPath();
+                    ctx.strokeStyle = isUp ? '#00ff88' : '#ff4444';
+                    ctx.moveTo(prev.x, prev.y);
+                    ctx.lineTo(curr.x, curr.y);
+                    ctx.stroke();
+                }
+                ctx.filter = 'none';
+                ctx.globalAlpha = 1;
+                
+                // Draw current price dot
+                const lastPoint = points[points.length - 1];
+                const lastUp = prices[prices.length - 1] >= prices[prices.length - 2];
+                ctx.beginPath();
+                ctx.arc(lastPoint.x, lastPoint.y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = lastUp ? '#00ff88' : '#ff4444';
                 ctx.fill();
-                
-                // Draw the line on top
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                for (let i = 1; i < points.length; i++) {
-                    const xc = (points[i].x + points[i-1].x) / 2;
-                    const yc = (points[i].y + points[i-1].y) / 2;
-                    ctx.quadraticCurveTo(points[i-1].x, points[i-1].y, xc, yc);
-                }
-                ctx.lineTo(points[points.length-1].x, points[points.length-1].y);
-                ctx.strokeStyle = lineColor;
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1.5;
                 ctx.stroke();
                 
             } catch (e) {
