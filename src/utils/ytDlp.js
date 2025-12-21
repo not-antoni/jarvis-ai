@@ -500,7 +500,7 @@ async function checkVideoLimits(videoId, videoUrl) {
             const maxMinutes = Math.floor(MAX_DURATION_SECONDS / 60);
             return {
                 allowed: false,
-                reason: `⚠️ This track is ${minutes} minutes long! Maximum allowed is ${maxMinutes} minutes. Try a shorter track, sir.`
+                reason: `🦁 Sir, with all due respect... are you listening to National Geographic documentaries? This is ${minutes} minutes long! Max is ${maxMinutes} minutes.`
             };
         }
         
@@ -508,7 +508,7 @@ async function checkVideoLimits(videoId, videoUrl) {
         if (filesizeMB > MAX_FILESIZE_MB) {
             return {
                 allowed: false,
-                reason: `⚠️ This track is ~${Math.round(filesizeMB)}MB which exceeds the ${MAX_FILESIZE_MB}MB limit. Try a shorter or lower quality track, sir.`
+                reason: `🦁 Sir, with all due respect... are you listening to National Geographic documentaries? This is ~${Math.round(filesizeMB)}MB! Max is ${MAX_FILESIZE_MB}MB.`
             };
         }
         
