@@ -308,8 +308,8 @@ Jarvis includes a full website at your configured domain (or IP:PORT):
 Add funny "company" news to the SBX exchange that can affect stock prices:
 
 ```bash
-# Add news (site owner only)
-curl -X POST https://your-site.com/api/sbx/news \
+# Add news (site owner only) - replace YOUR_DOMAIN with your actual domain!
+curl -X POST https://YOUR_DOMAIN/api/sbx/news \
   -H "Content-Type: application/json" \
   -d '{
     "headline": "BREAKING: Tony Stark spotted buying coffee with SBX",
@@ -318,13 +318,15 @@ curl -X POST https://your-site.com/api/sbx/news \
   }'
 
 # Get news feed
-curl https://your-site.com/api/sbx/news?limit=10
+curl https://YOUR_DOMAIN/api/sbx/news?limit=10
 
 # Clear all news
-curl -X DELETE https://your-site.com/api/sbx/news \
+curl -X DELETE https://YOUR_DOMAIN/api/sbx/news \
   -H "Content-Type: application/json" \
   -d '{"secretKey": "YOUR_BOT_OWNER_ID"}'
 ```
+
+**Note:** Replace `YOUR_DOMAIN` with your actual site (e.g., `jarvis.example.com` or `123.45.67.89:3000`)
 
 | Parameter | Description |
 |-----------|-------------|
