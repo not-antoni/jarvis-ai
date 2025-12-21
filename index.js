@@ -1124,12 +1124,11 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('gamble')
         .setDescription('Gamble your Stark Bucks (double or nothing)')
-        .addIntegerOption(option =>
+        .addStringOption(option =>
             option
                 .setName('amount')
-                .setDescription('Amount to gamble')
+                .setDescription('Amount to gamble (e.g. 100, 5K, 1M, all)')
                 .setRequired(true)
-                .setMinValue(1)
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -1139,12 +1138,11 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('slots')
         .setDescription('Play the Stark Industries slot machine')
-        .addIntegerOption(option =>
+        .addStringOption(option =>
             option
                 .setName('bet')
-                .setDescription('Bet amount (min 10)')
+                .setDescription('Bet amount (e.g. 100, 5K, 1M, all)')
                 .setRequired(true)
-                .setMinValue(10)
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -1154,8 +1152,8 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('coinflip')
         .setDescription('Flip a coin and bet on the outcome')
-        .addIntegerOption(option =>
-            option.setName('bet').setDescription('Bet amount').setRequired(true).setMinValue(1)
+        .addStringOption(option =>
+            option.setName('bet').setDescription('Bet amount (e.g. 100, 5K, 1M, all)').setRequired(true)
         )
         .addStringOption(option =>
             option
