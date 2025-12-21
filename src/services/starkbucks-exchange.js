@@ -55,8 +55,9 @@ const SBX_CONFIG = {
     // Price fluctuation settings
     basePrice: 1.00,           // Base price in "USD"
     minPrice: 0.10,            // Minimum price
-    maxPrice: 100.00,          // Maximum price
-    volatility: 0.15,          // 15% max price change per tick
+    maxPrice: 10000.00,        // Maximum price (raised from 100 to allow growth)
+    volatility: 0.05,          // 5% max price change per tick (reduced from 15% to prevent wild swings)
+    maxTickChange: 0.08,       // Maximum 8% change per tick regardless of events
     tickInterval: 20 * 1000,   // Price updates every 20 seconds
     
     // Transaction settings
@@ -69,16 +70,16 @@ const SBX_CONFIG = {
     activityMultiplier: 0.001, // Price increase per active user
     volumeMultiplier: 0.0001,  // Price increase per SBX traded
     
-    // Market events (random events that affect price)
+    // Market events (random events that affect price) - reduced impact to prevent wild swings
     marketEvents: [
-        { name: '📈 Bull Run', priceChange: 0.20, chance: 0.04, duration: 20 * 60 * 1000 },
-        { name: '📉 Bear Market', priceChange: -0.18, chance: 0.04, duration: 20 * 60 * 1000 },
-        { name: '🚀 Stark Industries IPO', priceChange: 0.35, chance: 0.02, duration: 30 * 60 * 1000 },
-        { name: '💥 Market Crash', priceChange: -0.30, chance: 0.02, duration: 25 * 60 * 1000 },
-        { name: '⭐ Celebrity Endorsement', priceChange: 0.15, chance: 0.05, duration: 15 * 60 * 1000 },
-        { name: '📰 Bad Press', priceChange: -0.12, chance: 0.05, duration: 15 * 60 * 1000 },
-        { name: '🎉 Community Event', priceChange: 0.08, chance: 0.08, duration: 10 * 60 * 1000 },
-        { name: '🔧 Maintenance', priceChange: -0.05, chance: 0.08, duration: 8 * 60 * 1000 }
+        { name: '📈 Bull Run', priceChange: 0.05, chance: 0.04, duration: 20 * 60 * 1000 },
+        { name: '📉 Bear Market', priceChange: -0.05, chance: 0.04, duration: 20 * 60 * 1000 },
+        { name: '🚀 Stark Industries IPO', priceChange: 0.08, chance: 0.02, duration: 30 * 60 * 1000 },
+        { name: '💥 Market Dip', priceChange: -0.07, chance: 0.02, duration: 25 * 60 * 1000 },
+        { name: '⭐ Celebrity Endorsement', priceChange: 0.04, chance: 0.05, duration: 15 * 60 * 1000 },
+        { name: '📰 Bad Press', priceChange: -0.03, chance: 0.05, duration: 15 * 60 * 1000 },
+        { name: '🎉 Community Event', priceChange: 0.02, chance: 0.08, duration: 10 * 60 * 1000 },
+        { name: '🔧 Maintenance', priceChange: -0.02, chance: 0.08, duration: 8 * 60 * 1000 }
     ]
 };
 
@@ -284,6 +285,74 @@ let priceMomentum = 0; // Trend momentum (-1 to 1)
 
 // Pending transactions cache
 const pendingTransactions = new Map();
+
+// ============================================================================
+// NEWS SYSTEM - Site owner can add funny "company" news that affects stock
+// ============================================================================
+
+const liveNews = []; // In-memory news feed
+const NEWS_MAX_ITEMS = 50;
+const NEWS_SECRET = process.env.SBX_NEWS_SECRET || process.env.BOT_OWNER_ID || 'sbx-news-secret';
+
+/**
+ * Add news item (site owner only via API)
+ * News can optionally affect price with priceImpact (-0.05 to +0.05)
+ */
+function addNewsItem(headline, priceImpact = 0, secretKey = null) {
+    // Verify secret key
+    if (secretKey !== NEWS_SECRET) {
+        return { success: false, error: 'Invalid secret key' };
+    }
+    
+    // Clamp price impact to reasonable bounds
+    const clampedImpact = Math.max(-0.05, Math.min(0.05, priceImpact || 0));
+    
+    const newsItem = {
+        id: crypto.randomBytes(8).toString('hex'),
+        headline: String(headline).slice(0, 280),
+        priceImpact: clampedImpact,
+        timestamp: new Date().toISOString(),
+        applied: false
+    };
+    
+    liveNews.unshift(newsItem);
+    
+    // Keep only latest N items
+    if (liveNews.length > NEWS_MAX_ITEMS) {
+        liveNews.pop();
+    }
+    
+    // Apply price impact immediately if set
+    if (clampedImpact !== 0) {
+        const oldPrice = currentPrice;
+        currentPrice *= (1 + clampedImpact);
+        currentPrice = Math.max(SBX_CONFIG.minPrice, Math.min(SBX_CONFIG.maxPrice, currentPrice));
+        currentPrice = Math.round(currentPrice * 100) / 100;
+        newsItem.applied = true;
+        newsItem.oldPrice = oldPrice;
+        newsItem.newPrice = currentPrice;
+    }
+    
+    return { success: true, news: newsItem };
+}
+
+/**
+ * Get latest news feed
+ */
+function getNews(limit = 10) {
+    return liveNews.slice(0, limit);
+}
+
+/**
+ * Clear all news (site owner only)
+ */
+function clearNews(secretKey) {
+    if (secretKey !== NEWS_SECRET) {
+        return { success: false, error: 'Invalid secret key' };
+    }
+    liveNews.length = 0;
+    return { success: true };
+}
 
 // ============================================================================
 // DATABASE OPERATIONS (uses MongoDB - local or remote via MONGO_URI_MAIN)
@@ -597,6 +666,7 @@ async function completePayment(transactionId, payerId) {
 
 /**
  * Update price based on market conditions
+ * Stabilized to prevent extreme spikes/crashes (max 8% per tick)
  */
 async function updatePrice() {
     const now = Date.now();
@@ -605,24 +675,25 @@ async function updatePrice() {
     }
     lastPriceTick = now;
     
+    const oldPrice = currentPrice;
     let newPrice = currentPrice;
     
-    // Update momentum with some randomness (creates trends)
-    priceMomentum += (Math.random() - 0.5) * 0.3;
-    priceMomentum = Math.max(-0.8, Math.min(0.8, priceMomentum)); // Clamp momentum
-    priceMomentum *= 0.95; // Decay momentum over time
+    // Update momentum with some randomness (creates trends) - reduced intensity
+    priceMomentum += (Math.random() - 0.5) * 0.15; // Reduced from 0.3
+    priceMomentum = Math.max(-0.5, Math.min(0.5, priceMomentum)); // Tighter clamp
+    priceMomentum *= 0.92; // Faster decay
     
     // Base volatility with momentum bias (random walk + trend)
-    const randomChange = ((Math.random() - 0.5) + priceMomentum * 0.5) * SBX_CONFIG.volatility;
+    const randomChange = ((Math.random() - 0.5) + priceMomentum * 0.3) * SBX_CONFIG.volatility;
     newPrice *= (1 + randomChange);
     
-    // Activity bonus
-    const activityBonus = activeUsers.size * SBX_CONFIG.activityMultiplier;
+    // Activity bonus - capped
+    const activityBonus = Math.min(activeUsers.size * SBX_CONFIG.activityMultiplier, 0.02);
     newPrice *= (1 + activityBonus);
     
-    // Volume bonus
+    // Volume bonus - capped
     const volumeBonus = dailyVolume * SBX_CONFIG.volumeMultiplier;
-    newPrice *= (1 + Math.min(volumeBonus, 0.1)); // Cap at 10%
+    newPrice *= (1 + Math.min(volumeBonus, 0.03)); // Cap at 3%
     
     // Active event modifier
     if (activeEvent && now < activeEvent.expiresAt) {
@@ -645,7 +716,16 @@ async function updatePrice() {
         }
     }
     
-    // Clamp price
+    // CRITICAL: Cap maximum price change per tick to prevent 2000% spikes
+    const maxChange = SBX_CONFIG.maxTickChange || 0.08;
+    const priceChangeRatio = newPrice / oldPrice;
+    if (priceChangeRatio > (1 + maxChange)) {
+        newPrice = oldPrice * (1 + maxChange);
+    } else if (priceChangeRatio < (1 - maxChange)) {
+        newPrice = oldPrice * (1 - maxChange);
+    }
+    
+    // Clamp price to bounds
     newPrice = Math.max(SBX_CONFIG.minPrice, Math.min(SBX_CONFIG.maxPrice, newPrice));
     newPrice = Math.round(newPrice * 100) / 100;
     
@@ -1108,11 +1188,11 @@ async function withdrawAllInvestments(userId) {
     const fee = 0;
     
     // Delete investment record
-    await dbUpdateOne('sbx_investments', { userId }, { $set: { 
-        principal: 0, 
-        earned: 0, 
-        updatedAt: new Date() 
-    }});
+    await dbUpdateOne('sbx_investments', { userId }, { $set: {
+        principal: 0,
+        earned: 0,
+        updatedAt: new Date()
+    } });
     
     // Add total amount to wallet
     await updateWallet(userId, totalAmount, 'Full investment withdrawal');
@@ -1134,11 +1214,13 @@ async function applyWithdrawalImpact(withdrawAmount) {
         // Get total invested across all users
         const col = await getCollection('sbx_investments');
         const totalInvested = await col.aggregate([
-            { $group: { _id: null, total: { $sum: "$principal" } } }
+            { $group: { _id: null, total: { $sum: '$principal' } } }
         ]).toArray();
         
         const totalPrincipal = totalInvested[0]?.total || 0;
-        if (totalPrincipal <= 0) return;
+        if (totalPrincipal <= 0) {
+            return;
+        }
         
         // Calculate percentage of total being withdrawn
         const withdrawPercentage = withdrawAmount / totalPrincipal;
@@ -1322,6 +1404,11 @@ module.exports = {
     
     // Leaderboard
     getLeaderboard,
+    
+    // News System
+    addNewsItem,
+    getNews,
+    clearNews,
     
     // Lifecycle
     startPriceUpdates,

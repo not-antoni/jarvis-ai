@@ -464,6 +464,69 @@ router.post('/api/sbx/invest/withdraw', requireSbxAuth, async (req, res) => {
 });
 
 // ============================================================================
+// NEWS API (Site owner only)
+// ============================================================================
+
+/**
+ * GET /api/sbx/news
+ * Get latest news feed
+ */
+router.get('/api/sbx/news', async (req, res) => {
+    try {
+        const sbx = getSBX();
+        const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+        const news = sbx.getNews(limit);
+        res.json({ success: true, news });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to get news' });
+    }
+});
+
+/**
+ * POST /api/sbx/news
+ * Add news item (site owner only - requires secret key)
+ */
+router.post('/api/sbx/news', async (req, res) => {
+    try {
+        const sbx = getSBX();
+        const { headline, priceImpact, secretKey } = req.body;
+        
+        if (!headline) {
+            return res.status(400).json({ error: 'Headline required' });
+        }
+        
+        const result = sbx.addNewsItem(headline, priceImpact || 0, secretKey);
+        if (!result.success) {
+            return res.status(403).json(result);
+        }
+        
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to add news' });
+    }
+});
+
+/**
+ * DELETE /api/sbx/news
+ * Clear all news (site owner only - requires secret key)
+ */
+router.delete('/api/sbx/news', async (req, res) => {
+    try {
+        const sbx = getSBX();
+        const { secretKey } = req.body;
+        
+        const result = sbx.clearNews(secretKey);
+        if (!result.success) {
+            return res.status(403).json(result);
+        }
+        
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to clear news' });
+    }
+});
+
+// ============================================================================
 // HTML TEMPLATES
 // ============================================================================
 

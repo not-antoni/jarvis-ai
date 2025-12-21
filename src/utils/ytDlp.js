@@ -35,6 +35,10 @@ const MAX_FILE_AGE_MS = 15 * 60 * 1000;
 const CLEANUP_DELAY_MS = 2 * 60 * 1000;
 const COOKIE_FILE_NAME = 'youtube-cookies.txt';
 
+// Track/file size limits to prevent VPS crashes
+const MAX_FILESIZE_MB = parseInt(process.env.YTDLP_MAX_FILESIZE_MB || '50', 10);
+const MAX_DURATION_SECONDS = parseInt(process.env.YTDLP_MAX_DURATION || '900', 10); // 15 min default
+
 const cache = new Map(); // videoId -> { path, refs, timer, lastAccess }
 const pendingDownloads = new Map(); // videoId -> { promise, cancel }
 
@@ -453,7 +457,75 @@ async function cleanupArtifacts(base) {
     }
 }
 
+/**
+ * Check video duration/size limits BEFORE downloading
+ * Returns { allowed: true } or { allowed: false, reason: string }
+ */
+async function checkVideoLimits(videoId, videoUrl) {
+    try {
+        const binaryPath = await ensureBinary();
+        
+        // Get video info without downloading
+        const result = await new Promise((resolve, reject) => {
+            const args = ['-j', '--no-warnings', '--no-playlist', videoUrl];
+            const proc = spawn(binaryPath, args, { timeout: 30000 });
+            
+            let stdout = '';
+            let stderr = '';
+            
+            proc.stdout.on('data', data => { stdout += data.toString(); });
+            proc.stderr.on('data', data => { stderr += data.toString(); });
+            
+            proc.on('close', code => {
+                if (code === 0 && stdout.trim()) {
+                    try {
+                        resolve(JSON.parse(stdout));
+                    } catch {
+                        reject(new Error('Failed to parse video info'));
+                    }
+                } else {
+                    reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+                }
+            });
+            proc.on('error', reject);
+        });
+        
+        const durationSec = result.duration || 0;
+        const filesizeApprox = result.filesize_approx || result.filesize || 0;
+        const filesizeMB = filesizeApprox / (1024 * 1024);
+        
+        // Check duration limit
+        if (durationSec > MAX_DURATION_SECONDS) {
+            const minutes = Math.floor(durationSec / 60);
+            const maxMinutes = Math.floor(MAX_DURATION_SECONDS / 60);
+            return {
+                allowed: false,
+                reason: `⚠️ This track is ${minutes} minutes long! Maximum allowed is ${maxMinutes} minutes. Try a shorter track, sir.`
+            };
+        }
+        
+        // Check file size limit (if we can estimate it)
+        if (filesizeMB > MAX_FILESIZE_MB) {
+            return {
+                allowed: false,
+                reason: `⚠️ This track is ~${Math.round(filesizeMB)}MB which exceeds the ${MAX_FILESIZE_MB}MB limit. Try a shorter or lower quality track, sir.`
+            };
+        }
+        
+        return { allowed: true, duration: durationSec, title: result.title };
+    } catch (error) {
+        // If we can't check, allow it (fail open for edge cases)
+        return { allowed: true, error: error.message };
+    }
+}
+
 async function createDownloadTask(videoId, videoUrl) {
+    // Check limits BEFORE downloading
+    const limitCheck = await checkVideoLimits(videoId, videoUrl);
+    if (!limitCheck.allowed) {
+        throw new Error(limitCheck.reason);
+    }
+    
     const binaryPath = await ensureBinary();
     const { ffmpegPath, ffprobePath } = await ensureFfmpeg();
     const { base, finalPath } = getTargetPaths(videoId);
@@ -485,6 +557,8 @@ async function createDownloadTask(videoId, videoUrl) {
             '--no-progress',
             '--concurrent-fragments',
             '4',
+            // Enforce max file size during download as backup
+            '--max-filesize', `${MAX_FILESIZE_MB}M`,
             '--extractor-args',
             extractorArgs,
             '--ffmpeg-location',

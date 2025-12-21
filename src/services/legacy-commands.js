@@ -2373,6 +2373,78 @@ const legacyCommands = {
                 return true;
             }
         }
+    },
+
+    // Cookie update command (bot owner only)
+    cookies: {
+        description: 'Update YouTube cookies for music playback (bot owner only)',
+        usage: '*j cookies "<netscape cookie string>"',
+        ownerOnly: true,
+        async execute(message, args) {
+            // Only bot owner can run this
+            if (message.author.id !== BOT_OWNER_ID) {
+                await message.reply('❌ This command is restricted to the bot owner only, sir.');
+                return true;
+            }
+
+            // Get the full content after the command
+            const content = message.content;
+            const cookieMatch = content.match(/cookies\s+"([^"]+)"/i) || content.match(/cookies\s+(.+)/i);
+            
+            if (!cookieMatch || !cookieMatch[1]) {
+                await message.reply(
+                    '**🍪 YouTube Cookie Update**\n\n' +
+                    'Usage: `*j cookies "<your netscape format cookies>"`\n\n' +
+                    'To get cookies:\n' +
+                    '1. Install "Get cookies.txt LOCALLY" browser extension\n' +
+                    '2. Go to youtube.com while logged in\n' +
+                    '3. Click extension → Export as Netscape format\n' +
+                    '4. Paste the entire string in quotes\n\n' +
+                    '⚠️ Cookies will be updated in memory immediately.\n' +
+                    'For persistence, add to .env as `YT_COOKIES="..."`'
+                );
+                return true;
+            }
+
+            const cookieString = cookieMatch[1].trim();
+            
+            // Validate it looks like Netscape format
+            const isNetscape = cookieString.includes('.youtube.com') || 
+                               cookieString.includes('# Netscape') ||
+                               cookieString.includes('# HTTP Cookie');
+            
+            if (!isNetscape) {
+                await message.reply('❌ Invalid cookie format. Please use Netscape format (from browser extension).');
+                return true;
+            }
+
+            try {
+                // Update in memory by setting environment variable
+                process.env.YT_COOKIES = cookieString;
+                
+                // Delete the user's message for security (contains sensitive cookies)
+                try {
+                    await message.delete();
+                } catch {
+                    // Can't delete - warn user
+                    await message.channel.send('⚠️ Could not delete your message. Please delete it manually to protect your cookies!');
+                }
+
+                await message.channel.send(
+                    '✅ YouTube cookies updated in memory!\n\n' +
+                    '**Note:** These will be used for the next music playback.\n' +
+                    'For permanent storage, add to your `.env` file:\n' +
+                    '```\nYT_COOKIES="<your cookies>"\n```'
+                );
+                
+                console.log('[Cookies] YouTube cookies updated by bot owner');
+                return true;
+            } catch (error) {
+                console.error('[Cookies] Failed to update:', error);
+                await message.reply('❌ Failed to update cookies.');
+                return true;
+            }
+        }
     }
 };
 
