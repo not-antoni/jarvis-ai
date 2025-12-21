@@ -296,21 +296,24 @@ const NEWS_SECRET = process.env.SBX_NEWS_SECRET || process.env.BOT_OWNER_ID || '
 
 /**
  * Add news item (site owner only via API)
- * News can optionally affect price with priceImpact (-0.05 to +0.05)
+ * News can optionally affect price with priceImpact (-0.10 to +0.10)
+ * Now supports image URLs
  */
-function addNewsItem(headline, priceImpact = 0, secretKey = null) {
-    // Verify secret key
-    if (secretKey !== NEWS_SECRET) {
+function addNewsItem(headline, priceImpact = 0, secretKey = null, image = null) {
+    // Verify secret key (caller should have already verified via OAuth)
+    // This is just a fallback check
+    if (secretKey && secretKey !== NEWS_SECRET && secretKey !== process.env.BOT_OWNER_ID) {
         return { success: false, error: 'Invalid secret key' };
     }
     
-    // Clamp price impact to reasonable bounds
-    const clampedImpact = Math.max(-0.05, Math.min(0.05, priceImpact || 0));
+    // Clamp price impact to reasonable bounds (-10% to +10%)
+    const clampedImpact = Math.max(-0.10, Math.min(0.10, priceImpact || 0));
     
     const newsItem = {
         id: crypto.randomBytes(8).toString('hex'),
         headline: String(headline).slice(0, 280),
-        priceImpact: clampedImpact,
+        priceImpact: Math.round(clampedImpact * 10000) / 100, // Store as percentage for display
+        image: image ? String(image).slice(0, 500) : null,
         timestamp: new Date().toISOString(),
         applied: false
     };

@@ -484,22 +484,34 @@ router.get('/api/sbx/news', async (req, res) => {
 
 /**
  * POST /api/sbx/news
- * Add news item (site owner only - requires secret key)
+ * Add news item (site owner only - uses OAuth or secret key)
  */
 router.post('/api/sbx/news', async (req, res) => {
     try {
         const sbx = getSBX();
-        const { headline, priceImpact, secretKey } = req.body;
+        const { headline, priceImpact, secretKey, image } = req.body;
         
         if (!headline) {
             return res.status(400).json({ error: 'Headline required' });
         }
         
-        const result = sbx.addNewsItem(headline, priceImpact || 0, secretKey);
-        if (!result.success) {
-            return res.status(403).json(result);
+        // Check OAuth session first
+        const session = userAuth.getSessionFromRequest(req);
+        const botOwnerId = process.env.BOT_OWNER_ID;
+        
+        let authorized = false;
+        if (session && session.odUserId === botOwnerId) {
+            authorized = true;
+        } else if (secretKey) {
+            // Fall back to secret key auth
+            authorized = secretKey === botOwnerId || secretKey === process.env.SBX_NEWS_SECRET;
         }
         
+        if (!authorized) {
+            return res.status(403).json({ success: false, error: 'Unauthorized - owner only' });
+        }
+        
+        const result = sbx.addNewsItem(headline, priceImpact || 0, secretKey || botOwnerId, image);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Failed to add news' });
@@ -688,6 +700,19 @@ const BASE_STYLES = `
 
 function renderHeader() {
     return `
+        <nav style="background: rgba(0,0,0,0.3); padding: 10px 20px; margin-bottom: 20px; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <a href="/" style="color: #f39c12; text-decoration: none; font-weight: bold; font-size: 18px;">🤖 Jarvis</a>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <a href="/sbx" style="color: #e4e4e4; text-decoration: none;">☕ SBX</a>
+                    <a href="/store" style="color: #e4e4e4; text-decoration: none;">🛒 Store</a>
+                    <a href="/exchange" style="color: #e4e4e4; text-decoration: none;">📊 Exchange</a>
+                    <a href="/crypto" style="color: #e4e4e4; text-decoration: none;">💰 Crypto</a>
+                    <a href="/leaderboard" style="color: #e4e4e4; text-decoration: none;">🏆 Leaderboard</a>
+                    <a href="/commands" style="color: #e4e4e4; text-decoration: none;">📜 Commands</a>
+                </div>
+            </div>
+        </nav>
         <header class="header">
             <div class="logo">⭐ Starkbucks</div>
             <nav class="nav">
