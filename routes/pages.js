@@ -710,7 +710,7 @@ const SBX_PAGE = `
         
         async function checkAuth() {
             try {
-                const res = await fetch('/api/user');
+                const res = await fetch('/api/user', { credentials: 'include' });
                 const data = await res.json();
                 if (data.authenticated && data.user) {
                     currentUser = data.user;
@@ -726,7 +726,7 @@ const SBX_PAGE = `
         async function loadUserBalance() {
             if (!currentUser) return;
             try {
-                const res = await fetch('/api/user/balance');
+                const res = await fetch('/api/user/balance', { credentials: 'include' });
                 const data = await res.json();
                 if (data.success) {
                     document.getElementById('yourBalance').textContent = (data.balance || 0).toLocaleString() + ' SB';
@@ -771,6 +771,7 @@ const SBX_PAGE = `
                 const res = await fetch('/api/user/sbx/buy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ amount })
                 });
                 const data = await res.json();
@@ -825,6 +826,7 @@ const SBX_PAGE = `
                 const res = await fetch('/api/user/sbx/sell', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ amount })
                 });
                 const data = await res.json();
@@ -849,6 +851,7 @@ const SBX_PAGE = `
                 const res = await fetch('/api/user/sbx/invest', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ amount })
                 });
                 const data = await res.json();
@@ -865,7 +868,7 @@ const SBX_PAGE = `
         
         async function claimEarnings() {
             try {
-                const res = await fetch('/api/user/sbx/claim', { method: 'POST' });
+                const res = await fetch('/api/user/sbx/claim', { method: 'POST', credentials: 'include' });
                 const data = await res.json();
                 if (data.success) {
                     showMessage('investMessage', 'Claimed ' + (data.earnings || 0).toFixed(2) + ' SBX!', false);
@@ -883,7 +886,7 @@ const SBX_PAGE = `
                 return;
             }
             try {
-                const res = await fetch('/api/user/sbx/withdraw', { method: 'POST' });
+                const res = await fetch('/api/user/sbx/withdraw', { method: 'POST', credentials: 'include' });
                 const data = await res.json();
                 if (data.success) {
                     showMessage('investMessage', 'Withdrew ' + (data.total || 0).toFixed(2) + ' SBX!', false);
@@ -1074,7 +1077,7 @@ const SBX_PAGE = `
         // Check if user is bot owner and show news form
         async function checkOwnerStatus() {
             try {
-                const res = await fetch('/api/user');
+                const res = await fetch('/api/user', { credentials: 'include' });
                 const data = await res.json();
                 if (data.authenticated && data.user && data.user.isOwner) {
                     document.getElementById('newsForm').style.display = 'block';
@@ -1517,7 +1520,7 @@ const CRYPTO_PAGE = `
         
         async function checkAuth() {
             try {
-                const res = await fetch('/api/user');
+                const res = await fetch('/api/user', { credentials: 'include' });
                 const data = await res.json();
                 if (data.authenticated && data.user) {
                     currentUser = data.user;
@@ -1532,8 +1535,8 @@ const CRYPTO_PAGE = `
             if (!currentUser) return;
             try {
                 const [cryptoRes, balRes] = await Promise.all([
-                    fetch('/api/user/crypto'),
-                    fetch('/api/user/balance')
+                    fetch('/api/user/crypto', { credentials: 'include' }),
+                    fetch('/api/user/balance', { credentials: 'include' })
                 ]);
                 const cryptoData = await cryptoRes.json();
                 const balData = await balRes.json();
@@ -1585,7 +1588,7 @@ const CRYPTO_PAGE = `
         async function loadTradeHistory() {
             if (!currentUser) return;
             try {
-                const res = await fetch('/api/user/crypto/history?limit=10');
+                const res = await fetch('/api/user/crypto/history?limit=10', { credentials: 'include' });
                 const data = await res.json();
                 if (data.success && data.trades.length > 0) {
                     document.getElementById('tradeHistorySection').style.display = 'block';
@@ -1743,6 +1746,7 @@ const CRYPTO_PAGE = `
                 const res = await fetch('/api/user/crypto/' + action, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ symbol: selectedCoin, amount })
                 });
                 const data = await res.json();
