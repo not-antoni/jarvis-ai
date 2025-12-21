@@ -712,14 +712,17 @@ const SBX_PAGE = `
             try {
                 const res = await fetch('/api/user', { credentials: 'include' });
                 const data = await res.json();
+                console.log('[SBX Auth]', data); // Debug
                 if (data.authenticated && data.user) {
                     currentUser = data.user;
                     document.getElementById('loginPrompt').style.display = 'none';
                     document.getElementById('tradingUI').style.display = 'block';
                     loadUserBalance();
+                } else {
+                    console.log('[SBX Auth] Not authenticated, response:', data);
                 }
             } catch (e) {
-                console.log('Not logged in');
+                console.error('[SBX Auth] Error:', e);
             }
         }
         
