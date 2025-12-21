@@ -676,8 +676,15 @@ const SBX_PAGE = `
                 <h4 style="margin-bottom: 10px;">📝 Add News</h4>
                 <input type="text" id="newsHeadline" placeholder="BREAKING: Tony Stark did something amazing..." 
                     style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff; margin-bottom: 10px;">
-                <input type="text" id="newsImage" placeholder="Image URL (optional)" 
+                <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
+                    <input type="file" id="newsImageFile" accept="image/*" style="flex: 1; color: #888;">
+                    <span style="color: #666; font-size: 12px;">Max 1MB</span>
+                </div>
+                <input type="text" id="newsImage" placeholder="Or paste image URL..." 
                     style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff; margin-bottom: 10px;">
+                <div id="imagePreview" style="display: none; margin-bottom: 10px;">
+                    <img id="previewImg" style="max-width: 200px; max-height: 100px; border-radius: 8px;">
+                </div>
                 <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: center;">
                     <label style="color: #888;">Price Impact:</label>
                     <input type="range" id="newsPriceImpact" min="-10" max="10" value="0" step="0.5"
@@ -1072,11 +1079,30 @@ const SBX_PAGE = `
             label.style.color = val > 0 ? '#2ecc71' : val < 0 ? '#e74c3c' : '#f39c12';
         }
         
+        // Handle image file selection and preview
+        document.getElementById('newsImageFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 1024 * 1024) {
+                    alert('Image too large! Max 1MB');
+                    e.target.value = '';
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('previewImg').src = e.target.result;
+                    document.getElementById('imagePreview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
         // Post news (owner only - uses OAuth session)
         async function postNews() {
             const headline = document.getElementById('newsHeadline').value.trim();
-            const priceImpact = parseFloat(document.getElementById('newsPriceImpact').value) / 100; // Convert % to decimal
-            const image = document.getElementById('newsImage').value.trim();
+            const priceImpact = parseFloat(document.getElementById('newsPriceImpact').value) / 100;
+            const imageUrl = document.getElementById('newsImage').value.trim();
+            const imageFile = document.getElementById('newsImageFile').files[0];
             const status = document.getElementById('newsStatus');
             
             if (!headline) {
@@ -1085,12 +1111,43 @@ const SBX_PAGE = `
                 return;
             }
             
+            let finalImageUrl = imageUrl;
+            
+            // Upload image file if selected
+            if (imageFile) {
+                status.textContent = '⏳ Uploading image...';
+                status.style.color = '#f39c12';
+                
+                const formData = new FormData();
+                formData.append('image', imageFile);
+                
+                try {
+                    const uploadRes = await fetch('/api/sbx/news/upload', {
+                        method: 'POST',
+                        credentials: 'include',
+                        body: formData
+                    });
+                    const uploadData = await uploadRes.json();
+                    if (uploadData.success) {
+                        finalImageUrl = uploadData.url;
+                    } else {
+                        status.textContent = '❌ Upload failed: ' + (uploadData.error || 'Unknown');
+                        status.style.color = '#e74c3c';
+                        return;
+                    }
+                } catch (e) {
+                    status.textContent = '❌ Upload error: ' + e.message;
+                    status.style.color = '#e74c3c';
+                    return;
+                }
+            }
+            
             try {
                 const res = await fetch('/api/sbx/news', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include', // Send OAuth cookies
-                    body: JSON.stringify({ headline, priceImpact, image })
+                    credentials: 'include',
+                    body: JSON.stringify({ headline, priceImpact, image: finalImageUrl })
                 });
                 const data = await res.json();
                 
@@ -1099,10 +1156,12 @@ const SBX_PAGE = `
                     status.style.color = '#2ecc71';
                     document.getElementById('newsHeadline').value = '';
                     document.getElementById('newsImage').value = '';
+                    document.getElementById('newsImageFile').value = '';
+                    document.getElementById('imagePreview').style.display = 'none';
                     document.getElementById('newsPriceImpact').value = 0;
                     updatePriceLabel();
                     loadNews();
-                    loadSbxData(); // Refresh price
+                    loadSbxData();
                 } else {
                     status.textContent = '❌ ' + (data.error || 'Failed');
                     status.style.color = '#e74c3c';

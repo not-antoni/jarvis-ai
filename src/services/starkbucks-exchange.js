@@ -287,25 +287,19 @@ let priceMomentum = 0; // Trend momentum (-1 to 1)
 const pendingTransactions = new Map();
 
 // ============================================================================
-// NEWS SYSTEM - Site owner can add funny "company" news that affects stock
+// NEWS SYSTEM - Persisted to MongoDB, auto-deletes after 24 hours
 // ============================================================================
 
-const liveNews = []; // In-memory news feed
 const NEWS_MAX_ITEMS = 50;
+const NEWS_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 const NEWS_SECRET = process.env.SBX_NEWS_SECRET || process.env.BOT_OWNER_ID || 'sbx-news-secret';
 
 /**
  * Add news item (site owner only via API)
  * News can optionally affect price with priceImpact (-0.10 to +0.10)
- * Now supports image URLs
+ * Now persists to MongoDB and supports image URLs
  */
-function addNewsItem(headline, priceImpact = 0, secretKey = null, image = null) {
-    // Verify secret key (caller should have already verified via OAuth)
-    // This is just a fallback check
-    if (secretKey && secretKey !== NEWS_SECRET && secretKey !== process.env.BOT_OWNER_ID) {
-        return { success: false, error: 'Invalid secret key' };
-    }
-    
+async function addNewsItem(headline, priceImpact = 0, secretKey = null, image = null) {
     // Clamp price impact to reasonable bounds (-10% to +10%)
     const clampedImpact = Math.max(-0.10, Math.min(0.10, priceImpact || 0));
     
@@ -314,16 +308,10 @@ function addNewsItem(headline, priceImpact = 0, secretKey = null, image = null) 
         headline: String(headline).slice(0, 280),
         priceImpact: Math.round(clampedImpact * 10000) / 100, // Store as percentage for display
         image: image ? String(image).slice(0, 500) : null,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(),
+        expiresAt: new Date(Date.now() + NEWS_EXPIRY_MS), // Auto-delete after 24h
         applied: false
     };
-    
-    liveNews.unshift(newsItem);
-    
-    // Keep only latest N items
-    if (liveNews.length > NEWS_MAX_ITEMS) {
-        liveNews.pop();
-    }
     
     // Apply price impact immediately if set
     if (clampedImpact !== 0) {
@@ -336,30 +324,75 @@ function addNewsItem(headline, priceImpact = 0, secretKey = null, image = null) 
         newsItem.newPrice = currentPrice;
     }
     
+    // Save to MongoDB
+    try {
+        const col = await dbGetCollection('sbx_news');
+        await col.insertOne(newsItem);
+        // Clean up old news (keep only latest N and delete expired)
+        await col.deleteMany({ 
+            $or: [
+                { expiresAt: { $lt: new Date() } },
+            ]
+        });
+        // Keep only latest N items
+        const count = await col.countDocuments();
+        if (count > NEWS_MAX_ITEMS) {
+            const oldest = await col.find().sort({ timestamp: 1 }).limit(count - NEWS_MAX_ITEMS).toArray();
+            if (oldest.length > 0) {
+                await col.deleteMany({ _id: { $in: oldest.map(n => n._id) } });
+            }
+        }
+    } catch (e) {
+        console.error('[SBX News] Failed to save news:', e.message);
+    }
+    
     return { success: true, news: newsItem };
 }
 
 /**
- * Get latest news feed
+ * Get latest news feed from MongoDB
  */
-function getNews(limit = 10) {
-    return liveNews.slice(0, limit);
+async function getNews(limit = 10) {
+    try {
+        const col = await dbGetCollection('sbx_news');
+        // Delete expired news first
+        await col.deleteMany({ expiresAt: { $lt: new Date() } });
+        // Get latest news
+        const news = await col.find().sort({ timestamp: -1 }).limit(limit).toArray();
+        return news;
+    } catch (e) {
+        console.error('[SBX News] Failed to get news:', e.message);
+        return [];
+    }
 }
 
 /**
  * Clear all news (site owner only)
  */
-function clearNews(secretKey) {
-    if (secretKey !== NEWS_SECRET) {
+async function clearNews(secretKey) {
+    if (secretKey !== NEWS_SECRET && secretKey !== process.env.BOT_OWNER_ID) {
         return { success: false, error: 'Invalid secret key' };
     }
-    liveNews.length = 0;
-    return { success: true };
+    try {
+        const col = await dbGetCollection('sbx_news');
+        await col.deleteMany({});
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: 'Database error' };
+    }
 }
 
 // ============================================================================
 // DATABASE OPERATIONS (uses MongoDB - local or remote via MONGO_URI_MAIN)
 // ============================================================================
+
+async function dbGetCollection(name) {
+    await database.connect();
+    if (!database.db) {
+        throw new Error('[SBX] Database not connected');
+    }
+    return database.db.collection(name);
+}
 
 async function getCollection(name) {
     await database.connect();

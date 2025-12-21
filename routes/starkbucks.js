@@ -475,7 +475,7 @@ router.get('/api/sbx/news', async (req, res) => {
     try {
         const sbx = getSBX();
         const limit = Math.min(parseInt(req.query.limit) || 10, 50);
-        const news = sbx.getNews(limit);
+        const news = await sbx.getNews(limit);
         res.json({ success: true, news });
     } catch (error) {
         res.status(500).json({ error: 'Failed to get news' });
@@ -500,18 +500,23 @@ router.post('/api/sbx/news', async (req, res) => {
         const botOwnerId = process.env.BOT_OWNER_ID;
         
         let authorized = false;
-        if (session && session.odUserId === botOwnerId) {
-            authorized = true;
-        } else if (secretKey) {
+        if (session) {
+            // Check both odUserId and odUserId (Discord ID formats)
+            const sessionUserId = session.odUserId || session.userId;
+            if (sessionUserId === botOwnerId) {
+                authorized = true;
+            }
+        }
+        if (!authorized && secretKey) {
             // Fall back to secret key auth
             authorized = secretKey === botOwnerId || secretKey === process.env.SBX_NEWS_SECRET;
         }
         
         if (!authorized) {
-            return res.status(403).json({ success: false, error: 'Unauthorized - owner only' });
+            return res.status(403).json({ success: false, error: 'Unauthorized - owner only', debug: { sessionExists: !!session, botOwnerId: botOwnerId ? 'set' : 'not set' } });
         }
         
-        const result = sbx.addNewsItem(headline, priceImpact || 0, secretKey || botOwnerId, image);
+        const result = await sbx.addNewsItem(headline, priceImpact || 0, secretKey || botOwnerId, image);
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Failed to add news' });
@@ -527,7 +532,7 @@ router.delete('/api/sbx/news', async (req, res) => {
         const sbx = getSBX();
         const { secretKey } = req.body;
         
-        const result = sbx.clearNews(secretKey);
+        const result = await sbx.clearNews(secretKey);
         if (!result.success) {
             return res.status(403).json(result);
         }
@@ -535,6 +540,71 @@ router.delete('/api/sbx/news', async (req, res) => {
         res.json(result);
     } catch (error) {
         res.status(500).json({ error: 'Failed to clear news' });
+    }
+});
+
+/**
+ * POST /api/sbx/news/upload
+ * Upload image for news (max 1MB, owner only)
+ */
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure multer for image uploads (max 1MB)
+const newsImageStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../uploads/news');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueName = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + path.extname(file.originalname);
+        cb(null, uniqueName);
+    }
+});
+
+const newsImageUpload = multer({
+    storage: newsImageStorage,
+    limits: { fileSize: 1024 * 1024 }, // 1MB max
+    fileFilter: (req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (allowed.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only images allowed (jpg, png, gif, webp)'));
+        }
+    }
+});
+
+router.post('/api/sbx/news/upload', newsImageUpload.single('image'), async (req, res) => {
+    try {
+        // Check owner auth
+        const session = userAuth.getSessionFromRequest(req);
+        const botOwnerId = process.env.BOT_OWNER_ID;
+        
+        if (!session) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
+        
+        const sessionUserId = session.odUserId || session.userId;
+        if (sessionUserId !== botOwnerId) {
+            // Delete uploaded file if not authorized
+            if (req.file) fs.unlinkSync(req.file.path);
+            return res.status(403).json({ error: 'Owner only' });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image uploaded' });
+        }
+        
+        // Return the URL for the uploaded image
+        const imageUrl = '/uploads/news/' + req.file.filename;
+        res.json({ success: true, url: imageUrl });
+    } catch (error) {
+        res.status(500).json({ error: error.message || 'Upload failed' });
     }
 });
 
