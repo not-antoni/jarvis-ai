@@ -2414,6 +2414,9 @@ app.get('/jarvis.webp', (req, res) => {
     res.sendFile(path.join(__dirname, 'jarvis.webp'));
 });
 
+// Serve uploaded news images
+app.use('/uploads/news', express.static(path.join(__dirname, 'uploads/news')));
+
 // Serve screenshots for landing page
 app.get('/screenshot-1.png', (req, res) => {
     res.type('image/png');
