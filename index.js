@@ -2405,6 +2405,10 @@ app.get('/jarvis.gif', (req, res) => {
 });
 
 // Serve favicon
+app.get('/favicon.ico', (req, res) => {
+    res.type('image/webp');
+    res.sendFile(path.join(__dirname, 'jarvis.webp'));
+});
 app.get('/jarvis.webp', (req, res) => {
     res.type('image/webp');
     res.sendFile(path.join(__dirname, 'jarvis.webp'));
