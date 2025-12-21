@@ -726,15 +726,27 @@ const SBX_PAGE = `
             }
         }
         
+        // Format large numbers with K/M/B/T
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '0';
+            num = parseFloat(num);
+            if (isNaN(num)) return '0';
+            if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return num.toLocaleString();
+        }
+        
         async function loadUserBalance() {
             if (!currentUser) return;
             try {
                 const res = await fetch('/api/user/balance', { credentials: 'include' });
                 const data = await res.json();
                 if (data.success) {
-                    document.getElementById('yourBalance').textContent = (data.balance || 0).toLocaleString() + ' SB';
-                    document.getElementById('yourSbx').textContent = (data.sbx || 0).toFixed(2);
-                    document.getElementById('invested').textContent = (data.invested || 0).toFixed(2);
+                    document.getElementById('yourBalance').textContent = formatNumber(data.balance) + ' SB';
+                    document.getElementById('yourSbx').textContent = formatNumber(data.sbx);
+                    document.getElementById('invested').textContent = formatNumber(data.invested);
                 }
             } catch (e) {
                 console.error('Failed to load balance:', e);
@@ -914,11 +926,11 @@ const SBX_PAGE = `
                 canvas.width = rect.width - 48;
                 canvas.height = 200;
                 
-                // Clear canvas
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Clear canvas with dark background
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
                 if (history.length < 2) {
-                    // Show "No data" message
                     ctx.fillStyle = 'rgba(255,255,255,0.5)';
                     ctx.font = '14px Arial';
                     ctx.textAlign = 'center';
@@ -927,17 +939,23 @@ const SBX_PAGE = `
                     return;
                 }
                 
-                const prices = history.map(p => p.price);
-                const minPrice = Math.min(...prices) * 0.98;
-                const maxPrice = Math.max(...prices) * 1.02;
-                const range = maxPrice - minPrice || 1;
+                // Sample data to reduce noise (take every Nth point)
+                const sampleRate = Math.max(1, Math.floor(history.length / 60));
+                const sampled = history.filter((_, i) => i % sampleRate === 0);
+                const prices = sampled.map(p => p.price);
                 
-                // Update range display
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                const padding = (maxPrice - minPrice) * 0.1 || 0.01;
+                const chartMin = minPrice - padding;
+                const chartMax = maxPrice + padding;
+                const range = chartMax - chartMin || 1;
+                
                 document.getElementById('chartRange').textContent = 
-                    'Low: ' + Math.min(...prices).toFixed(2) + ' | High: ' + Math.max(...prices).toFixed(2);
+                    'Low: ' + minPrice.toFixed(2) + ' | High: ' + maxPrice.toFixed(2);
                 
                 // Draw grid lines
-                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)';
                 ctx.lineWidth = 1;
                 for (let i = 0; i <= 4; i++) {
                     const y = (canvas.height / 4) * i;
@@ -947,29 +965,47 @@ const SBX_PAGE = `
                     ctx.stroke();
                 }
                 
-                // Draw price line
+                // Draw smooth price line using bezier curves
                 const isUp = prices[prices.length - 1] >= prices[0];
-                ctx.strokeStyle = isUp ? '#00ff88' : '#ff4444';
-                ctx.lineWidth = 2;
+                const lineColor = isUp ? '#00ff88' : '#ff4444';
+                
+                // Calculate points
+                const points = prices.map((price, i) => ({
+                    x: (i / (prices.length - 1)) * canvas.width,
+                    y: canvas.height - ((price - chartMin) / range) * (canvas.height - 20) - 10
+                }));
+                
+                // Draw gradient fill first
                 ctx.beginPath();
-                
-                for (let i = 0; i < prices.length; i++) {
-                    const x = (i / (prices.length - 1)) * canvas.width;
-                    const y = canvas.height - ((prices[i] - minPrice) / range) * canvas.height;
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    const xc = (points[i].x + points[i-1].x) / 2;
+                    const yc = (points[i].y + points[i-1].y) / 2;
+                    ctx.quadraticCurveTo(points[i-1].x, points[i-1].y, xc, yc);
                 }
-                ctx.stroke();
-                
-                // Fill gradient under line
+                ctx.lineTo(points[points.length-1].x, points[points.length-1].y);
                 ctx.lineTo(canvas.width, canvas.height);
                 ctx.lineTo(0, canvas.height);
                 ctx.closePath();
+                
                 const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-                gradient.addColorStop(0, isUp ? 'rgba(0,255,136,0.3)' : 'rgba(255,68,68,0.3)');
+                gradient.addColorStop(0, isUp ? 'rgba(0,255,136,0.2)' : 'rgba(255,68,68,0.2)');
                 gradient.addColorStop(1, 'rgba(0,0,0,0)');
                 ctx.fillStyle = gradient;
                 ctx.fill();
+                
+                // Draw the line on top
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    const xc = (points[i].x + points[i-1].x) / 2;
+                    const yc = (points[i].y + points[i-1].y) / 2;
+                    ctx.quadraticCurveTo(points[i-1].x, points[i-1].y, xc, yc);
+                }
+                ctx.lineTo(points[points.length-1].x, points[points.length-1].y);
+                ctx.strokeStyle = lineColor;
+                ctx.lineWidth = 2;
+                ctx.stroke();
                 
             } catch (e) {
                 console.error('Chart error:', e);
