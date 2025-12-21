@@ -54,11 +54,16 @@ const SBX_CONFIG = {
     
     // Price fluctuation settings
     basePrice: 1.00,           // Base price in "USD"
-    minPrice: 0.10,            // Minimum price
-    maxPrice: 10000.00,        // Maximum price (raised from 100 to allow growth)
-    volatility: 0.05,          // 5% max price change per tick (reduced from 15% to prevent wild swings)
-    maxTickChange: 0.08,       // Maximum 8% change per tick regardless of events
+    minPrice: 0.01,            // Minimum price (lowered to allow more range)
+    maxPrice: 100000.00,       // Maximum price (100K cap)
+    targetPrice: 1.00,         // Target equilibrium price for mean reversion
+    volatility: 0.03,          // 3% max random change per tick
+    maxTickChange: 0.05,       // Maximum 5% change per tick
     tickInterval: 20 * 1000,   // Price updates every 20 seconds
+    
+    // Recovery mechanics
+    recoveryStrength: 0.02,    // 2% pull toward target when far from it
+    recoveryThreshold: 0.5,    // Start recovery when price < 50% of target
     
     // Transaction settings
     ownerFeePercent: 0.10,     // 10% fee goes to bot owner
@@ -702,7 +707,7 @@ async function completePayment(transactionId, payerId) {
 
 /**
  * Update price based on market conditions
- * Stabilized to prevent extreme spikes/crashes (max 8% per tick)
+ * Features mean reversion, recovery mechanics, and balanced volatility
  */
 async function updatePrice() {
     const now = Date.now();
@@ -713,35 +718,78 @@ async function updatePrice() {
     
     const oldPrice = currentPrice;
     let newPrice = currentPrice;
+    const target = SBX_CONFIG.targetPrice;
     
-    // Update momentum with some randomness (creates trends) - reduced intensity
-    priceMomentum += (Math.random() - 0.5) * 0.15; // Reduced from 0.3
-    priceMomentum = Math.max(-0.5, Math.min(0.5, priceMomentum)); // Tighter clamp
-    priceMomentum *= 0.92; // Faster decay
+    // =========================================================================
+    // MEAN REVERSION - Price naturally gravitates toward target over time
+    // =========================================================================
+    const priceRatio = currentPrice / target;
+    let meanReversionForce = 0;
     
-    // Base volatility with momentum bias (random walk + trend)
-    const randomChange = ((Math.random() - 0.5) + priceMomentum * 0.3) * SBX_CONFIG.volatility;
+    if (priceRatio < 0.1) {
+        // CRITICAL: Price is extremely low (<10% of target) - strong recovery
+        meanReversionForce = 0.08; // 8% upward push
+    } else if (priceRatio < 0.3) {
+        // Price is very low (<30% of target) - moderate recovery
+        meanReversionForce = 0.04; // 4% upward push
+    } else if (priceRatio < 0.7) {
+        // Price is below target - gentle recovery
+        meanReversionForce = 0.02; // 2% upward push
+    } else if (priceRatio > 3.0) {
+        // Price is very high (>300% of target) - gentle pullback
+        meanReversionForce = -0.02;
+    } else if (priceRatio > 5.0) {
+        // Price is extremely high - moderate pullback
+        meanReversionForce = -0.03;
+    }
+    
+    newPrice *= (1 + meanReversionForce);
+    
+    // =========================================================================
+    // MOMENTUM - Creates natural trends (but balanced)
+    // =========================================================================
+    // Bias momentum toward positive when price is low
+    const momentumBias = priceRatio < 0.5 ? 0.1 : (priceRatio > 2 ? -0.05 : 0);
+    priceMomentum += (Math.random() - 0.5 + momentumBias) * 0.1;
+    priceMomentum = Math.max(-0.3, Math.min(0.3, priceMomentum));
+    priceMomentum *= 0.95; // Gradual decay
+    
+    // =========================================================================
+    // RANDOM VOLATILITY - Natural market fluctuation
+    // =========================================================================
+    const randomChange = ((Math.random() - 0.5) + priceMomentum * 0.2) * SBX_CONFIG.volatility;
     newPrice *= (1 + randomChange);
     
-    // Activity bonus - capped
-    const activityBonus = Math.min(activeUsers.size * SBX_CONFIG.activityMultiplier, 0.02);
-    newPrice *= (1 + activityBonus);
+    // =========================================================================
+    // ACTIVITY & VOLUME BONUSES - Reward engagement
+    // =========================================================================
+    const activityBonus = Math.min(activeUsers.size * SBX_CONFIG.activityMultiplier, 0.015);
+    const volumeBonus = Math.min(dailyVolume * SBX_CONFIG.volumeMultiplier, 0.02);
+    newPrice *= (1 + activityBonus + volumeBonus);
     
-    // Volume bonus - capped
-    const volumeBonus = dailyVolume * SBX_CONFIG.volumeMultiplier;
-    newPrice *= (1 + Math.min(volumeBonus, 0.03)); // Cap at 3%
-    
-    // Active event modifier
+    // =========================================================================
+    // MARKET EVENTS - Random events with reduced frequency when recovering
+    // =========================================================================
     if (activeEvent && now < activeEvent.expiresAt) {
-        newPrice *= (1 + activeEvent.priceChange);
+        // Reduce negative event impact when price is low
+        let eventImpact = activeEvent.priceChange;
+        if (eventImpact < 0 && priceRatio < 0.5) {
+            eventImpact *= 0.3; // Reduce negative events when price is low
+        }
+        newPrice *= (1 + eventImpact);
     } else {
         activeEvent = null;
     }
     
-    // Check for new random event
+    // Check for new random event (less likely when recovering)
     if (!activeEvent) {
+        const eventChanceMultiplier = priceRatio < 0.5 ? 0.3 : 1; // Fewer events during recovery
         for (const event of SBX_CONFIG.marketEvents) {
-            if (Math.random() < event.chance) {
+            // Skip negative events more often when price is low
+            if (event.priceChange < 0 && priceRatio < 0.5 && Math.random() > 0.3) {
+                continue;
+            }
+            if (Math.random() < event.chance * eventChanceMultiplier) {
                 activeEvent = {
                     ...event,
                     startedAt: now,
@@ -752,8 +800,10 @@ async function updatePrice() {
         }
     }
     
-    // CRITICAL: Cap maximum price change per tick to prevent 2000% spikes
-    const maxChange = SBX_CONFIG.maxTickChange || 0.08;
+    // =========================================================================
+    // PRICE CHANGE LIMITS - Prevent extreme swings
+    // =========================================================================
+    const maxChange = SBX_CONFIG.maxTickChange;
     const priceChangeRatio = newPrice / oldPrice;
     if (priceChangeRatio > (1 + maxChange)) {
         newPrice = oldPrice * (1 + maxChange);
@@ -761,13 +811,15 @@ async function updatePrice() {
         newPrice = oldPrice * (1 - maxChange);
     }
     
-    // Clamp price to bounds
+    // Clamp to absolute bounds
     newPrice = Math.max(SBX_CONFIG.minPrice, Math.min(SBX_CONFIG.maxPrice, newPrice));
     newPrice = Math.round(newPrice * 100) / 100;
     
-    // Store history
+    // =========================================================================
+    // HISTORY & PERSISTENCE
+    // =========================================================================
     priceHistory.push({ price: newPrice, timestamp: now });
-    if (priceHistory.length > 1440) { // Keep 24 hours at 1 min intervals
+    if (priceHistory.length > 1440) {
         priceHistory.shift();
     }
     
