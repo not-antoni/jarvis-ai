@@ -13,7 +13,9 @@
 
 const express = require('express');
 const router = express.Router();
-// const path = require('path'); // unused
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const userAuth = require('../src/services/user-auth');
 
 // ============================================================================
@@ -547,10 +549,6 @@ router.delete('/api/sbx/news', async (req, res) => {
  * POST /api/sbx/news/upload
  * Upload image for news (max 1MB, owner only)
  */
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-
 // Configure multer for image uploads (max 1MB)
 const newsImageStorage = multer.diskStorage({
     destination: (req, file, cb) => {
