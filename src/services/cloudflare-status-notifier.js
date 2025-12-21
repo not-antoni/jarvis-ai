@@ -18,6 +18,7 @@ let lastStatus = null;
 const lastIncidentIds = new Set();
 const lastMaintenanceIds = new Set();
 let checkInterval = null;
+let isFirstCheck = true; // Skip notifications on first check to avoid spam on restart
 
 /**
  * Initialize the notifier with Discord client
@@ -204,11 +205,15 @@ async function checkCloudflareStatus() {
         
         const data = await response.json();
         
+        // On first check, just populate the state without sending notifications
+        // This prevents spam on bot restart
+        const shouldNotify = !isFirstCheck;
+        
         // Check for overall status change
         const currentStatus = data.status?.indicator || 'none';
         const currentDescription = data.status?.description || 'All Systems Operational';
         
-        if (lastStatus !== null && lastStatus !== currentStatus) {
+        if (lastStatus !== null && lastStatus !== currentStatus && shouldNotify) {
             // Status changed - send notification
             const embed = buildStatusEmbed(currentStatus, currentDescription);
             await sendToSubscribedChannels(embed);
@@ -220,11 +225,13 @@ async function checkCloudflareStatus() {
         if (data.incidents) {
             for (const incident of data.incidents) {
                 if (!lastIncidentIds.has(incident.id)) {
-                    // New incident
-                    const embed = buildIncidentEmbed(incident, true);
-                    await sendToSubscribedChannels(embed);
+                    // New incident - only notify if not first check
+                    if (shouldNotify) {
+                        const embed = buildIncidentEmbed(incident, true);
+                        await sendToSubscribedChannels(embed);
+                        console.log(`[CloudflareStatus] New incident: ${incident.name}`);
+                    }
                     lastIncidentIds.add(incident.id);
-                    console.log(`[CloudflareStatus] New incident: ${incident.name}`);
                 }
             }
             
@@ -241,11 +248,13 @@ async function checkCloudflareStatus() {
         if (data.scheduled_maintenances) {
             for (const maintenance of data.scheduled_maintenances) {
                 if (!lastMaintenanceIds.has(maintenance.id)) {
-                    // New maintenance
-                    const embed = buildMaintenanceEmbed(maintenance, true);
-                    await sendToSubscribedChannels(embed);
+                    // New maintenance - only notify if not first check
+                    if (shouldNotify) {
+                        const embed = buildMaintenanceEmbed(maintenance, true);
+                        await sendToSubscribedChannels(embed);
+                        console.log(`[CloudflareStatus] New maintenance: ${maintenance.name}`);
+                    }
                     lastMaintenanceIds.add(maintenance.id);
-                    console.log(`[CloudflareStatus] New maintenance: ${maintenance.name}`);
                 }
             }
             
@@ -256,6 +265,12 @@ async function checkCloudflareStatus() {
                     lastMaintenanceIds.delete(id);
                 }
             }
+        }
+        
+        // Mark first check as done
+        if (isFirstCheck) {
+            console.log(`[CloudflareStatus] Initial state loaded (${lastIncidentIds.size} incidents, ${lastMaintenanceIds.size} maintenances) - notifications enabled for future updates`);
+            isFirstCheck = false;
         }
         
     } catch (err) {
