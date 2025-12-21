@@ -738,11 +738,30 @@ const SBX_PAGE = `
             if (num === null || num === undefined) return '0';
             num = parseFloat(num);
             if (isNaN(num)) return '0';
+            if (num >= 1e15) return (num / 1e15).toFixed(2) + 'Q';
             if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
             if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
             if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
             if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
             return num.toLocaleString();
+        }
+        
+        // Parse formatted numbers like "64M" back to raw numbers
+        function parseFormattedNumber(str) {
+            if (!str) return NaN;
+            str = String(str).trim().toUpperCase();
+            // Handle "all" keyword
+            if (str === 'ALL') return 'ALL';
+            // Remove commas and spaces
+            str = str.replace(/,/g, '').replace(/\s/g, '');
+            // Check for suffix
+            const suffixes = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12, 'Q': 1e15 };
+            const lastChar = str.slice(-1);
+            if (suffixes[lastChar]) {
+                const num = parseFloat(str.slice(0, -1));
+                return isNaN(num) ? NaN : num * suffixes[lastChar];
+            }
+            return parseFloat(str);
         }
         
         async function loadUserBalance() {
@@ -784,9 +803,10 @@ const SBX_PAGE = `
         }
         
         async function buySbx() {
-            const amount = parseFloat(document.getElementById('buyAmount').value);
-            if (!amount || amount < 1) {
-                showMessage('buyMessage', 'Enter a valid amount', true);
+            const input = document.getElementById('buyAmount').value;
+            const amount = parseFormattedNumber(input);
+            if (isNaN(amount) || amount < 1) {
+                showMessage('buyMessage', 'Enter a valid amount (e.g. 100, 5K, 1M)', true);
                 return;
             }
             try {
@@ -798,7 +818,7 @@ const SBX_PAGE = `
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showMessage('buyMessage', 'Bought ' + data.sbxReceived.toFixed(2) + ' SBX!', false);
+                    showMessage('buyMessage', 'Bought ' + formatNumber(data.sbxReceived) + ' SBX!', false);
                     loadUserBalance();
                 } else {
                     showMessage('buyMessage', data.error || 'Purchase failed', true);
@@ -818,27 +838,24 @@ const SBX_PAGE = `
         }
         
         async function sellSbx() {
-            const input = document.getElementById('sellAmount').value.toLowerCase().trim();
-            let amount;
+            const input = document.getElementById('sellAmount').value.trim();
+            let amount = parseFormattedNumber(input);
             
-            if (input === 'all') {
-                const balanceElement = document.getElementById('yourSbx');
-                const balanceText = balanceElement.textContent || '0';
-                console.log('SBX balance text:', balanceText);
-                // Remove any non-numeric characters except decimal point
-                const cleanText = balanceText.replace(/[^\d.-]/g, '').trim();
-                amount = parseFloat(cleanText);
-                console.log('Cleaned text:', cleanText, 'Parsed amount:', amount);
-                if (isNaN(amount) || amount <= 0) {
-                    showMessage('sellMessage', 'No SBX to sell', true);
+            if (amount === 'ALL') {
+                // Fetch actual balance from server for accuracy
+                try {
+                    const balRes = await fetch('/api/user/balance', { credentials: 'include' });
+                    const balData = await balRes.json();
+                    amount = balData.sbx || 0;
+                } catch (e) {
+                    showMessage('sellMessage', 'Failed to get balance', true);
                     return;
                 }
-            } else {
-                amount = parseFloat(input);
-                if (!amount || amount < 0.01) {
-                    showMessage('sellMessage', 'Enter a valid amount', true);
-                    return;
-                }
+            }
+            
+            if (isNaN(amount) || amount < 0.01) {
+                showMessage('sellMessage', 'Enter a valid amount (e.g. 100, 5K, 1M, all)', true);
+                return;
             }
             
             // Clear the input field after getting the amount
@@ -853,7 +870,7 @@ const SBX_PAGE = `
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showMessage('sellMessage', 'Sold for ' + data.starkBucksReceived.toLocaleString() + ' SB!', false);
+                    showMessage('sellMessage', 'Sold for ' + formatNumber(data.starkBucksReceived) + ' SB!', false);
                     loadUserBalance();
                 } else {
                     showMessage('sellMessage', data.error || 'Sale failed', true);
@@ -864,9 +881,22 @@ const SBX_PAGE = `
         }
         
         async function investSbx() {
-            const amount = parseFloat(document.getElementById('investAmount').value);
-            if (!amount || amount < 1) {
-                showMessage('investMessage', 'Enter a valid amount', true);
+            const input = document.getElementById('investAmount').value.trim();
+            let amount = parseFormattedNumber(input);
+            
+            if (amount === 'ALL') {
+                try {
+                    const balRes = await fetch('/api/user/balance', { credentials: 'include' });
+                    const balData = await balRes.json();
+                    amount = balData.sbx || 0;
+                } catch (e) {
+                    showMessage('investMessage', 'Failed to get balance', true);
+                    return;
+                }
+            }
+            
+            if (isNaN(amount) || amount < 1) {
+                showMessage('investMessage', 'Enter a valid amount (e.g. 100, 5K, 1M, all)', true);
                 return;
             }
             try {
@@ -878,7 +908,7 @@ const SBX_PAGE = `
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showMessage('investMessage', 'Invested ' + amount.toFixed(2) + ' SBX!', false);
+                    showMessage('investMessage', 'Invested ' + formatNumber(amount) + ' SBX!', false);
                     loadUserBalance();
                 } else {
                     showMessage('investMessage', data.error || 'Investment failed', true);
@@ -893,7 +923,7 @@ const SBX_PAGE = `
                 const res = await fetch('/api/user/sbx/claim', { method: 'POST', credentials: 'include' });
                 const data = await res.json();
                 if (data.success) {
-                    showMessage('investMessage', 'Claimed ' + (data.earnings || 0).toFixed(2) + ' SBX!', false);
+                    showMessage('investMessage', 'Claimed ' + formatNumber(data.earnings || 0) + ' SBX!', false);
                     loadUserBalance();
                 } else {
                     showMessage('investMessage', data.error || 'Nothing to claim', true);
@@ -911,7 +941,7 @@ const SBX_PAGE = `
                 const res = await fetch('/api/user/sbx/withdraw', { method: 'POST', credentials: 'include' });
                 const data = await res.json();
                 if (data.success) {
-                    showMessage('investMessage', 'Withdrew ' + (data.total || 0).toFixed(2) + ' SBX!', false);
+                    showMessage('investMessage', 'Withdrew ' + formatNumber(data.total || 0) + ' SBX!', false);
                     loadUserBalance();
                 } else {
                     showMessage('investMessage', data.error || 'Withdrawal failed', true);
