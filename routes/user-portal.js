@@ -478,6 +478,18 @@ curl https://jorvis.org/api/v1/chat/completions \\
             setTimeout(() => el.classList.remove('show'), 5000);
         }
 
+        // Format large numbers with K/M/B/T suffixes
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '0';
+            num = parseFloat(num);
+            if (isNaN(num)) return '0';
+            if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return num.toLocaleString();
+        }
+        
         async function loadUserData() {
             try {
                 const res = await fetch('/api/user');
@@ -506,10 +518,10 @@ curl https://jorvis.org/api/v1/chat/completions \\
                 document.getElementById('statApiKeys').textContent = data.keyCount || 0;
                 document.getElementById('statLevel').textContent = data.economy?.level || 1;
                 
-                // Economy
-                document.getElementById('statStarkBucks').textContent = (data.economy?.starkBucks || 0).toLocaleString();
-                document.getElementById('statSbx').textContent = (data.economy?.sbx || 0).toFixed(2);
-                document.getElementById('statInvested').textContent = (data.economy?.invested || 0).toFixed(2);
+                // Economy (use formatNumber for large values)
+                document.getElementById('statStarkBucks').textContent = formatNumber(data.economy?.starkBucks);
+                document.getElementById('statSbx').textContent = formatNumber(data.economy?.sbx);
+                document.getElementById('statInvested').textContent = formatNumber(data.economy?.invested);
                 document.getElementById('statStreak').textContent = data.economy?.dailyStreak || 0;
 
                 // Render lists
@@ -579,15 +591,15 @@ curl https://jorvis.org/api/v1/chat/completions \\
             if (!economy) return;
             document.getElementById('economyDetails').innerHTML = \`
                 <div class="stat-item">
-                    <div class="stat-value">\${(economy.starkBucks || 0).toLocaleString()}</div>
+                    <div class="stat-value">\${formatNumber(economy.starkBucks)}</div>
                     <div class="stat-label">Stark Bucks</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">\${(economy.sbx || 0).toFixed(2)}</div>
+                    <div class="stat-value">\${formatNumber(economy.sbx)}</div>
                     <div class="stat-label">SBX Balance</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">\${(economy.invested || 0).toFixed(2)}</div>
+                    <div class="stat-value">\${formatNumber(economy.invested)}</div>
                     <div class="stat-label">SBX Invested</div>
                 </div>
                 <div class="stat-item">
@@ -595,7 +607,7 @@ curl https://jorvis.org/api/v1/chat/completions \\
                     <div class="stat-label">Level</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value">\${(economy.xp || 0).toLocaleString()}</div>
+                    <div class="stat-value">\${formatNumber(economy.xp)}</div>
                     <div class="stat-label">XP</div>
                 </div>
                 <div class="stat-item">
