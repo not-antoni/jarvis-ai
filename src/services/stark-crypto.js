@@ -151,6 +151,56 @@ const CRYPTO_COINS = {
         tier: 'rare',            // Store of value
         correlation: -0.3,       // Inverse correlation (safe haven)
         description: 'The rarest - digital gold'
+    },
+    'FURY': {
+        symbol: 'FURY',
+        name: 'Fury Token',
+        emoji: '👁️',
+        basePrice: 300,
+        volatility: 0.07,
+        tier: 'mid',
+        correlation: 0.6,
+        description: 'Strategic investments by SHIELD'
+    },
+    'LOKI': {
+        symbol: 'LOKI',
+        name: 'Mischief Coin',
+        emoji: '🦹',
+        basePrice: 15,
+        volatility: 0.30,
+        tier: 'meme',
+        correlation: -0.2,
+        description: 'Extremely chaotic - expect the unexpected'
+    },
+    'GROOT': {
+        symbol: 'GROOT',
+        name: 'Groot Token',
+        emoji: '🌳',
+        basePrice: 35,
+        volatility: 0.15,
+        tier: 'small',
+        correlation: 0.4,
+        description: 'I am Groot (slow and steady growth)'
+    },
+    'WANDA': {
+        symbol: 'WANDA',
+        name: 'Scarlet Coin',
+        emoji: '🔮',
+        basePrice: 250,
+        volatility: 0.11,
+        tier: 'mid',
+        correlation: 0.55,
+        description: 'Reality-bending potential returns'
+    },
+    'MJOLNIR': {
+        symbol: 'MJOLNIR',
+        name: 'Worthy Token',
+        emoji: '🔨',
+        basePrice: 800,
+        volatility: 0.05,
+        tier: 'large',
+        correlation: 0.8,
+        description: 'Only the worthy can hold this asset'
     }
 };
 
@@ -395,6 +445,81 @@ async function sellCrypto(userId, symbol, amount) {
         fee,
         netProceeds,
         marketImpact: 'Bearish pressure added'
+    };
+}
+
+/**
+ * Transfer cryptocurrency between users
+ */
+async function transferCrypto(fromUserId, toUserId, symbol, amount) {
+    const coin = CRYPTO_COINS[symbol.toUpperCase()];
+    
+    if (!coin) {
+        return { success: false, error: 'Unknown cryptocurrency' };
+    }
+    
+    if (amount < SX_CONFIG.minTrade) {
+        return { success: false, error: `Minimum transfer is ${SX_CONFIG.minTrade} coins` };
+    }
+    
+    if (fromUserId === toUserId) {
+        return { success: false, error: 'Cannot transfer to yourself' };
+    }
+    
+    // Check sender holdings
+    const senderPortfolio = await getPortfolio(fromUserId);
+    const holdings = senderPortfolio.holdings?.[symbol.toUpperCase()] || 0;
+    
+    if (holdings < amount) {
+        return { success: false, error: `Insufficient ${symbol}. You have ${holdings}` };
+    }
+    
+    // Calculate transfer fee (1%)
+    const fee = Math.ceil(amount * 0.01 * 100) / 100;
+    const netAmount = amount - fee;
+    
+    const col = await getCollection('sx_portfolios');
+    
+    // Deduct from sender
+    await col.updateOne(
+        { userId: fromUserId },
+        {
+            $inc: { [`holdings.${symbol.toUpperCase()}`]: -amount },
+            $set: { updatedAt: new Date() }
+        }
+    );
+    
+    // Add to receiver (minus fee)
+    await col.updateOne(
+        { userId: toUserId },
+        {
+            $inc: { [`holdings.${symbol.toUpperCase()}`]: netAmount },
+            $set: { updatedAt: new Date() }
+        },
+        { upsert: true }
+    );
+    
+    // Fee goes to bot owner
+    const ownerId = process.env.BOT_OWNER_ID;
+    if (fee > 0 && ownerId) {
+        await col.updateOne(
+            { userId: ownerId },
+            {
+                $inc: { [`holdings.${symbol.toUpperCase()}`]: fee },
+                $set: { updatedAt: new Date() }
+            },
+            { upsert: true }
+        );
+    }
+    
+    return {
+        success: true,
+        symbol: symbol.toUpperCase(),
+        amount,
+        fee,
+        netAmount,
+        from: fromUserId,
+        to: toUserId
     };
 }
 
@@ -737,6 +862,7 @@ module.exports = {
     getPortfolio,
     buyCrypto,
     sellCrypto,
+    transferCrypto,
     
     // Prices & Market
     updatePrices,

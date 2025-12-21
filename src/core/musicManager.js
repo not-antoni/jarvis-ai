@@ -207,6 +207,21 @@ class MusicManager {
             return '⚠️ Nothing to stop, sir.';
         }
 
+        // Clear timeout first to prevent race conditions
+        if (state.timeout) {
+            clearTimeout(state.timeout);
+            state.timeout = null;
+        }
+        
+        // Stop the player before cleanup to ensure it actually stops
+        try {
+            if (state.player) {
+                state.player.stop(true);
+            }
+        } catch (e) {
+            console.warn('Failed to stop player:', e?.message || e);
+        }
+
         this.cleanup(guildId);
         return '🛑 Stopped playback and cleared queue.';
     }
@@ -314,14 +329,22 @@ class MusicManager {
                 this.releaseCurrent(state);
             }
 
+            // Clear any existing timeout before deciding what to do
+            if (state.timeout) {
+                clearTimeout(state.timeout);
+                state.timeout = null;
+            }
+
             if (state.queue.length > 0) {
                 const next = state.queue.shift();
                 await this.play(guildId, next, { announce: 'channel' });
-            } else {
+            } else if (!state.currentVideo && !state.pendingVideoId) {
+                // Only set inactivity timeout if truly idle (no current song, no pending, no queue)
                 state.timeout = setTimeout(() => {
-                    if (this.queues.has(guildId)) {
-                        const queueState = this.queues.get(guildId);
-                        if (queueState?.textChannel) {
+                    const queueState = this.queues.get(guildId);
+                    // Double-check we're still idle before leaving
+                    if (queueState && !queueState.currentVideo && !queueState.pendingVideoId && queueState.queue.length === 0) {
+                        if (queueState.textChannel) {
                             queueState.textChannel
                                 .send('⌛ Leaving voice channel due to inactivity.')
                                 .catch(() => {});

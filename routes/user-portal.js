@@ -56,22 +56,30 @@ async function getUserEconomy(userId) {
         return null;
     }
     try {
-        const profiles = database.db.collection('user_profiles');
+        const starkEconomy = database.db.collection('starkEconomy');
         const sbxWallets = database.db.collection('sbx_wallets');
+        const sbxInvestments = database.db.collection('sbx_investments');
         
-        const [profile, wallet] = await Promise.all([
-            profiles.findOne({ odUserId: userId }),
-            sbxWallets.findOne({ odUserId: userId })
+        // Query by both odUserId and userId to handle both systems
+        const [economyProfile, wallet, investment] = await Promise.all([
+            starkEconomy.findOne({ userId: userId }),
+            sbxWallets.findOne({ userId: userId }),
+            sbxInvestments.findOne({ userId: userId })
         ]);
 
         return {
-            starkBucks: profile?.starkBucks || 0,
+            starkBucks: economyProfile?.balance || 0,
             sbx: wallet?.balance || 0,
-            invested: wallet?.invested || 0,
-            dailyStreak: profile?.dailyStreak || 0,
-            lastDaily: profile?.lastDaily,
-            xp: profile?.xp || 0,
-            level: profile?.level || 1
+            invested: investment?.principal || 0,
+            dailyStreak: economyProfile?.dailyStreak || 0,
+            lastDaily: economyProfile?.lastDaily,
+            xp: economyProfile?.xp || 0,
+            level: economyProfile?.level || 1,
+            gamesPlayed: economyProfile?.gamesPlayed || 0,
+            gamesWon: economyProfile?.gamesWon || 0,
+            winRate: economyProfile?.gamesPlayed > 0 
+                ? Math.round((economyProfile.gamesWon / economyProfile.gamesPlayed) * 100) 
+                : 0
         };
     } catch (err) {
         return null;

@@ -43,6 +43,7 @@ const ECONOMY_CONFIG = {
     robCooldown: 60 * 1000, // 1 minute
     cleanupInterval: 60 * 60 * 1000, // 1 hour
     maxBalance: 1000000000, // 1 billion cap
+    gamblingWinRate: 0.45, // 45% base win rate for gambling
     // Multiplier event settings
     multiplierInterval: 3 * 60 * 60 * 1000, // Every 3 hours
     multiplierDuration: 7 * 60 * 60 * 1000, // Lasts 7 hours
