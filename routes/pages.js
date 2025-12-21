@@ -659,8 +659,15 @@ const SBX_PAGE = `
         </div>
         
         <div class="card">
-            <h3 style="margin-bottom: 15px;">📰 Market News</h3>
-            <div id="newsFeed" style="max-height: 250px; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3>📰 Market News</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button onclick="loadNews(newsPage - 1)" id="newsPrev" style="background: rgba(255,255,255,0.1); border: none; color: #888; padding: 5px 10px; border-radius: 4px; cursor: pointer;" disabled>← Prev</button>
+                    <span id="newsPageInfo" style="color: #666; font-size: 12px;">Page 1</span>
+                    <button onclick="loadNews(newsPage + 1)" id="newsNext" style="background: rgba(255,255,255,0.1); border: none; color: #888; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Next →</button>
+                </div>
+            </div>
+            <div id="newsFeed" style="max-height: 300px; overflow-y: auto;">
                 <p style="color: #666;">Loading news...</p>
             </div>
             
@@ -963,19 +970,37 @@ const SBX_PAGE = `
             }
         }
         
-        // Load news feed
-        async function loadNews() {
+        // News pagination
+        let newsPage = 1;
+        const newsPerPage = 5;
+        let totalNews = 0;
+        
+        // Load news feed with pagination
+        async function loadNews(page = 1) {
+            if (page < 1) return;
+            newsPage = page;
+            
             try {
-                const res = await fetch('/api/sbx/news?limit=10');
+                const res = await fetch('/api/sbx/news?limit=50'); // Fetch all, paginate client-side
                 const data = await res.json();
                 const feed = document.getElementById('newsFeed');
                 
                 if (!data.news || data.news.length === 0) {
                     feed.innerHTML = '<p style="color: #666; font-style: italic;">No news yet. The market is quiet...</p>';
+                    document.getElementById('newsPageInfo').textContent = 'No news';
+                    document.getElementById('newsPrev').disabled = true;
+                    document.getElementById('newsNext').disabled = true;
                     return;
                 }
                 
-                feed.innerHTML = data.news.map(n => {
+                totalNews = data.news.length;
+                const totalPages = Math.ceil(totalNews / newsPerPage);
+                if (page > totalPages) { newsPage = totalPages; page = totalPages; }
+                
+                const start = (page - 1) * newsPerPage;
+                const pageNews = data.news.slice(start, start + newsPerPage);
+                
+                feed.innerHTML = pageNews.map(n => {
                     const time = new Date(n.timestamp).toLocaleString();
                     const impact = n.priceImpact > 0 ? '📈' : n.priceImpact < 0 ? '📉' : '';
                     const impactText = n.priceImpact ? ' (' + (n.priceImpact > 0 ? '+' : '') + n.priceImpact + '%)' : '';
@@ -987,6 +1012,11 @@ const SBX_PAGE = `
                     html += '<small style="color: #666;">' + time + '</small></div>';
                     return html;
                 }).join('');
+                
+                // Update pagination controls
+                document.getElementById('newsPageInfo').textContent = 'Page ' + page + ' of ' + totalPages;
+                document.getElementById('newsPrev').disabled = page <= 1;
+                document.getElementById('newsNext').disabled = page >= totalPages;
             } catch (e) {
                 document.getElementById('newsFeed').innerHTML = '<p style="color: #888;">Failed to load news</p>';
             }
@@ -1409,6 +1439,10 @@ const CRYPTO_PAGE = `
                     <div class="stat-value primary" id="portfolioValue">0 SB</div>
                 </div>
                 <div class="stat-card">
+                    <div class="stat-label">Profit / Loss</div>
+                    <div class="stat-value" id="profitLoss">0 SB</div>
+                </div>
+                <div class="stat-card">
                     <div class="stat-label">Available Balance</div>
                     <div class="stat-value" id="userBalance">0 SB</div>
                 </div>
@@ -1504,6 +1538,14 @@ const CRYPTO_PAGE = `
                     document.getElementById('portfolioValue').textContent = (portfolio.totalValue || 0).toLocaleString() + ' SB';
                     document.getElementById('totalInvested').textContent = (portfolio.totalInvested || 0).toLocaleString() + ' SB';
                     document.getElementById('totalTrades').textContent = portfolio.trades || 0;
+                    
+                    // Display P&L with color
+                    const plEl = document.getElementById('profitLoss');
+                    const pl = portfolio.profitLoss || 0;
+                    const plPct = portfolio.profitLossPercent || 0;
+                    plEl.textContent = (pl >= 0 ? '+' : '') + pl.toLocaleString() + ' SB (' + (plPct >= 0 ? '+' : '') + plPct + '%)';
+                    plEl.className = 'stat-value ' + (pl >= 0 ? 'up' : 'down');
+                    
                     renderHoldings();
                 }
                 if (balData.success) {
@@ -1576,6 +1618,12 @@ const CRYPTO_PAGE = `
             }
         }
         
+        function formatMarketCap(value) {
+            if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
+            if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
+            return value.toLocaleString();
+        }
+        
         function renderCoins() {
             const grid = document.getElementById('cryptoGrid');
             grid.innerHTML = Object.entries(prices).map(([symbol, coin]) => {
@@ -1611,7 +1659,7 @@ const CRYPTO_PAGE = `
                         <div class="coin-stats">
                             <span>H: \${(coin.high24h || coin.price).toLocaleString()}</span>
                             <span>L: \${(coin.low24h || coin.price).toLocaleString()}</span>
-                            <span>\${coin.trend === 'up' ? '📈' : coin.trend === 'down' ? '📉' : '➡️'}</span>
+                            <span>MCap: \${formatMarketCap(coin.marketCap || coin.price * 10000)}</span>
                         </div>
                     </div>
                 \`;

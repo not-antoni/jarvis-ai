@@ -373,13 +373,26 @@ async function getPortfolio(userId) {
             await col.insertOne(portfolio);
         }
         
-        // Calculate current value
+        // Calculate current value and P&L
         let totalValue = 0;
+        const holdingsWithPL = {};
         for (const [symbol, amount] of Object.entries(portfolio.holdings || {})) {
             const price = coinPrices.get(symbol) || 0;
-            totalValue += price * amount;
+            const value = price * amount;
+            totalValue += value;
+            if (amount > 0) {
+                holdingsWithPL[symbol] = { amount, value: Math.round(value * 100) / 100, price };
+            }
         }
         portfolio.totalValue = Math.round(totalValue * 100) / 100;
+        portfolio.holdingsDetail = holdingsWithPL;
+        
+        // Calculate P&L (profit/loss)
+        const profitLoss = portfolio.totalValue - (portfolio.totalInvested || 0);
+        portfolio.profitLoss = Math.round(profitLoss * 100) / 100;
+        portfolio.profitLossPercent = portfolio.totalInvested > 0 
+            ? Math.round((profitLoss / portfolio.totalInvested) * 10000) / 100 
+            : 0;
         
         return portfolio;
     } catch (error) {
@@ -401,6 +414,10 @@ async function buyCrypto(userId, symbol, amount) {
     
     if (amount < SX_CONFIG.minTrade) {
         return { success: false, error: `Minimum trade is ${SX_CONFIG.minTrade} coins` };
+    }
+    
+    if (amount > SX_CONFIG.maxTrade) {
+        return { success: false, error: `Maximum trade is ${SX_CONFIG.maxTrade} coins per transaction` };
     }
     
     const price = coinPrices.get(symbol.toUpperCase());
@@ -466,6 +483,10 @@ async function sellCrypto(userId, symbol, amount) {
     
     if (amount < SX_CONFIG.minTrade) {
         return { success: false, error: `Minimum trade is ${SX_CONFIG.minTrade} coins` };
+    }
+    
+    if (amount > SX_CONFIG.maxTrade) {
+        return { success: false, error: `Maximum trade is ${SX_CONFIG.maxTrade} coins per transaction` };
     }
     
     // Check holdings
