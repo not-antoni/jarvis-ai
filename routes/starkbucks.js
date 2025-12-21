@@ -819,14 +819,14 @@ function renderStorePage(items, market, category = null) {
     const categories = ['cosmetic', 'feature', 'economy', 'exclusive', 'consumable'];
     
     const itemsHtml = items.map(item => `
-        <div class="item-card">
+        <div class="item-card" data-item-id="${item.id}" data-one-time="${item.oneTime || false}">
             <span class="category-badge category-${item.category}">${item.category}</span>
             <div class="item-name">${item.name}</div>
             <div class="item-desc">${item.description}</div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
                 <span class="item-price">${item.price} SBX</span>
-                <button class="btn btn-primary" style="padding: 8px 16px;" onclick="buyItem('${item.id}')">
-                    ${item.oneTime ? 'Buy' : 'Buy'}
+                <button class="btn btn-primary item-btn" data-item-id="${item.id}" style="padding: 8px 16px;" onclick="buyItem('${item.id}')">
+                    Buy
                 </button>
             </div>
         </div>
@@ -890,6 +890,7 @@ function renderStorePage(items, market, category = null) {
     
     <script>
         let currentUser = null;
+        let userPurchases = [];
         
         async function checkAuth() {
             try {
@@ -897,8 +898,40 @@ function renderStorePage(items, market, category = null) {
                 const data = await res.json();
                 if (data.authenticated && data.user) {
                     currentUser = data.user;
+                    await loadPurchases();
                 }
             } catch (e) {}
+        }
+        
+        async function loadPurchases() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch('/api/sbx/store/purchases/' + currentUser.odUserId);
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    userPurchases = data.map(p => p.itemId);
+                    updateOwnedButtons();
+                }
+            } catch (e) {
+                console.error('Failed to load purchases:', e);
+            }
+        }
+        
+        function updateOwnedButtons() {
+            document.querySelectorAll('.item-card').forEach(card => {
+                const itemId = card.dataset.itemId;
+                const isOneTime = card.dataset.oneTime === 'true';
+                const btn = card.querySelector('.item-btn');
+                
+                if (isOneTime && userPurchases.includes(itemId)) {
+                    btn.textContent = '✓ Owned';
+                    btn.disabled = true;
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-secondary');
+                    btn.style.opacity = '0.7';
+                    btn.style.cursor = 'not-allowed';
+                }
+            });
         }
         
         async function buyItem(itemId) {
@@ -909,8 +942,15 @@ function renderStorePage(items, market, category = null) {
                 return;
             }
             
+            // Check if already owned
+            const card = document.querySelector('.item-card[data-item-id="' + itemId + '"]');
+            if (card && card.dataset.oneTime === 'true' && userPurchases.includes(itemId)) {
+                alert('You already own this item!');
+                return;
+            }
+            
             try {
-                const res = await fetch('/api/store/purchase', {
+                const res = await fetch('/api/sbx/store/purchase', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ itemId })
@@ -918,7 +958,8 @@ function renderStorePage(items, market, category = null) {
                 const data = await res.json();
                 if (data.success) {
                     alert('Purchase successful! ' + (data.message || ''));
-                    location.reload();
+                    userPurchases.push(itemId);
+                    updateOwnedButtons();
                 } else {
                     alert('Purchase failed: ' + (data.error || 'Unknown error'));
                 }
@@ -1011,33 +1052,6 @@ function renderExchangePage(market) {
         </div>
         
         <div class="card">
-            <h3 style="margin-bottom: 15px;">📰 Market News</h3>
-            <div id="newsFeed" style="max-height: 300px; overflow-y: auto;">
-                <p style="color: #666;">Loading news...</p>
-            </div>
-            
-            <!-- Owner-only news form (hidden by default) -->
-            <div id="newsForm" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <h4 style="margin-bottom: 10px;">📝 Add News (Owner Only)</h4>
-                <input type="text" id="newsHeadline" placeholder="BREAKING: Tony Stark did something amazing..." 
-                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff; margin-bottom: 10px;">
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <select id="newsPriceImpact" style="padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff;">
-                        <option value="0">No price impact</option>
-                        <option value="0.02">📈 +2% (Good news)</option>
-                        <option value="0.05">🚀 +5% (Great news)</option>
-                        <option value="-0.02">📉 -2% (Bad news)</option>
-                        <option value="-0.05">💥 -5% (Terrible news)</option>
-                    </select>
-                    <input type="password" id="newsSecret" placeholder="Secret key" 
-                        style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff;">
-                </div>
-                <button onclick="postNews()" class="btn btn-primary">Post News</button>
-                <span id="newsStatus" style="margin-left: 10px; color: #888;"></span>
-            </div>
-        </div>
-        
-        <div class="card">
             <h3 style="margin-bottom: 15px;">📊 How SBX Price Works</h3>
             <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
                 <div>
@@ -1098,99 +1112,6 @@ function renderExchangePage(market) {
                 document.querySelector('.price-tag').textContent = '$' + data.price.toFixed(2);
             } catch (e) {}
         }, 30000);
-        
-        // Load news feed
-        async function loadNews() {
-            try {
-                const res = await fetch('/api/sbx/news?limit=10');
-                const data = await res.json();
-                const feed = document.getElementById('newsFeed');
-                
-                if (!data.news || data.news.length === 0) {
-                    feed.innerHTML = '<p style="color: #666; font-style: italic;">No news yet. The market is quiet...</p>';
-                    return;
-                }
-                
-                feed.innerHTML = data.news.map(n => {
-                    const time = new Date(n.timestamp).toLocaleString();
-                    const impact = n.priceImpact > 0 ? '📈' : n.priceImpact < 0 ? '📉' : '';
-                    return '<div style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">' +
-                        '<p style="margin: 0;">' + impact + ' ' + n.headline + '</p>' +
-                        '<small style="color: #666;">' + time + '</small>' +
-                    '</div>';
-                }).join('');
-            } catch (e) {
-                document.getElementById('newsFeed').innerHTML = '<p style="color: #888;">Failed to load news</p>';
-            }
-        }
-        
-        // Post news (owner only)
-        async function postNews() {
-            const headline = document.getElementById('newsHeadline').value.trim();
-            const priceImpact = parseFloat(document.getElementById('newsPriceImpact').value);
-            const secretKey = document.getElementById('newsSecret').value.trim();
-            const status = document.getElementById('newsStatus');
-            
-            if (!headline) {
-                status.textContent = '❌ Enter a headline';
-                status.style.color = '#e74c3c';
-                return;
-            }
-            
-            if (!secretKey) {
-                status.textContent = '❌ Enter secret key';
-                status.style.color = '#e74c3c';
-                return;
-            }
-            
-            try {
-                const res = await fetch('/api/sbx/news', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ headline, priceImpact, secretKey })
-                });
-                const data = await res.json();
-                
-                if (data.success) {
-                    status.textContent = '✅ News posted!';
-                    status.style.color = '#2ecc71';
-                    document.getElementById('newsHeadline').value = '';
-                    loadNews();
-                    // Refresh price if impact was applied
-                    if (data.news?.applied) {
-                        document.querySelector('.price-tag').textContent = '$' + data.news.newPrice.toFixed(2);
-                    }
-                } else {
-                    status.textContent = '❌ ' + (data.error || 'Failed');
-                    status.style.color = '#e74c3c';
-                }
-            } catch (e) {
-                status.textContent = '❌ Error: ' + e.message;
-                status.style.color = '#e74c3c';
-            }
-        }
-        
-        // Show news form if secret key saved in localStorage
-        const savedSecret = localStorage.getItem('sbx_news_secret');
-        if (savedSecret) {
-            document.getElementById('newsForm').style.display = 'block';
-            document.getElementById('newsSecret').value = savedSecret;
-        }
-        
-        // Save secret to localStorage when used successfully
-        document.getElementById('newsSecret').addEventListener('change', function() {
-            if (this.value) localStorage.setItem('sbx_news_secret', this.value);
-        });
-        
-        // Toggle news form with keyboard shortcut (Ctrl+Shift+N)
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.shiftKey && e.key === 'N') {
-                const form = document.getElementById('newsForm');
-                form.style.display = form.style.display === 'none' ? 'block' : 'none';
-            }
-        });
-        
-        loadNews();
     </script>
 </body>
 </html>
