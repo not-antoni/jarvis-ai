@@ -12,6 +12,32 @@
         let telemetryMetadata = {};
         let telemetrySubcommand = null;
         let shouldSetCooldown = false;
+        
+        // Helper: Parse formatted numbers like "1M", "5K", "1B"
+        const parseFormattedNumber = (str) => {
+            if (!str) return NaN;
+            str = String(str).trim().toUpperCase();
+            if (str === 'ALL') return NaN; // Handle separately
+            str = str.replace(/,/g, '').replace(/\s/g, '');
+            const suffixes = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12, 'Q': 1e15 };
+            const lastChar = str.slice(-1);
+            if (suffixes[lastChar]) {
+                const num = parseFloat(str.slice(0, -1));
+                return isNaN(num) ? NaN : num * suffixes[lastChar];
+            }
+            return parseFloat(str);
+        };
+        
+        // Helper: Format numbers with K/M/B/T/Q suffixes
+        const formatNum = (n) => {
+            n = Math.floor(n);
+            if (n >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
+            if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+            if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+            if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+            return n.toLocaleString('en-US');
+        };
 
         const finalizeTelemetry = () => {
             const metadata = telemetryMetadata && Object.keys(telemetryMetadata).length > 0
@@ -932,8 +958,17 @@
                 }
                 case 'gamble': {
                     telemetryMetadata.category = 'economy';
-                    const amount = interaction.options.getInteger('amount');
-                    const result = await starkEconomy.gamble(interaction.user.id, amount);
+                    const amountInput = interaction.options.getString('amount');
+                    let amount = parseFormattedNumber(amountInput);
+                    if (amountInput.toLowerCase() === 'all') {
+                        const bal = await starkEconomy.getBalance(interaction.user.id);
+                        amount = bal || 0;
+                    }
+                    if (isNaN(amount) || amount < 1) {
+                        response = '❌ Invalid amount. Use a number like 100, 5K, 1M, or "all"';
+                        break;
+                    }
+                    const result = await starkEconomy.gamble(interaction.user.id, Math.floor(amount));
                     if (!result.success) {
                         response = `❌ ${result.error}`;
                         break;
@@ -941,10 +976,10 @@
                     const gambleEmbed = new EmbedBuilder()
                         .setTitle(result.won ? '🎰 You Won!' : '🎰 You Lost!')
                         .setDescription(result.won 
-                            ? `Congratulations! You won **${result.amount}** Stark Bucks!`
-                            : `Better luck next time. You lost **${result.amount}** Stark Bucks.`)
+                            ? `Congratulations! You won **${formatNum(result.amount)}** Stark Bucks!`
+                            : `Better luck next time. You lost **${formatNum(result.amount)}** Stark Bucks.`)
                         .setColor(result.won ? 0x2ecc71 : 0xe74c3c)
-                        .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                        .addFields({ name: '💰 Balance', value: `${formatNum(result.newBalance)}`, inline: true })
                         .setFooter({ text: `Win rate: ${result.winRate}%` });
                     selfhostFeatures.jarvisSoul.evolve(result.won ? 'helpful' : 'chaos', 'neutral');
                     response = { embeds: [gambleEmbed] };
@@ -952,8 +987,17 @@
                 }
                 case 'slots': {
                     telemetryMetadata.category = 'economy';
-                    const bet = interaction.options.getInteger('bet');
-                    const result = await starkEconomy.playSlots(interaction.user.id, bet);
+                    const betInput = interaction.options.getString('bet');
+                    let bet = parseFormattedNumber(betInput);
+                    if (betInput.toLowerCase() === 'all') {
+                        const bal = await starkEconomy.getBalance(interaction.user.id);
+                        bet = bal || 0;
+                    }
+                    if (isNaN(bet) || bet < 10) {
+                        response = '❌ Invalid bet. Minimum 10. Use a number like 100, 5K, 1M, or "all"';
+                        break;
+                    }
+                    const result = await starkEconomy.playSlots(interaction.user.id, Math.floor(bet));
                     if (!result.success) {
                         response = `❌ ${result.error}`;
                         break;
@@ -969,9 +1013,9 @@
                         .setDescription(`**[ ${slotDisplay} ]**\n\n${resultText}`)
                         .setColor(result.change > 0 ? 0x2ecc71 : 0xe74c3c)
                         .addFields(
-                            { name: '💵 Bet', value: `${result.bet}`, inline: true },
-                            { name: '💰 Won', value: `${result.winnings}`, inline: true },
-                            { name: '🏦 Balance', value: `${result.newBalance}`, inline: true }
+                            { name: '💵 Bet', value: `${formatNum(result.bet)}`, inline: true },
+                            { name: '💰 Won', value: `${formatNum(result.winnings)}`, inline: true },
+                            { name: '🏦 Balance', value: `${formatNum(result.newBalance)}`, inline: true }
                         )
                         .setFooter({ text: `Multiplier: x${result.multiplier}` });
                     response = { embeds: [slotsEmbed] };
@@ -979,9 +1023,18 @@
                 }
                 case 'coinflip': {
                     telemetryMetadata.category = 'economy';
-                    const bet = interaction.options.getInteger('bet');
+                    const cfBetInput = interaction.options.getString('bet');
+                    let cfBet = parseFormattedNumber(cfBetInput);
+                    if (cfBetInput.toLowerCase() === 'all') {
+                        const bal = await starkEconomy.getBalance(interaction.user.id);
+                        cfBet = bal || 0;
+                    }
+                    if (isNaN(cfBet) || cfBet < 1) {
+                        response = '❌ Invalid bet. Use a number like 100, 5K, 1M, or "all"';
+                        break;
+                    }
                     const choice = interaction.options.getString('choice');
-                    const result = await starkEconomy.coinflip(interaction.user.id, bet, choice);
+                    const result = await starkEconomy.coinflip(interaction.user.id, Math.floor(cfBet), choice);
                     if (!result.success) {
                         response = `❌ ${result.error}`;
                         break;
@@ -991,7 +1044,7 @@
                         .setTitle(`${coinEmoji} Coinflip`)
                         .setDescription(`The coin landed on **${result.result.toUpperCase()}**!\n\nYou chose **${result.choice}** - ${result.won ? '**YOU WIN!**' : 'You lose.'}`)
                         .setColor(result.won ? 0x2ecc71 : 0xe74c3c)
-                        .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                        .addFields({ name: '💰 Balance', value: `${formatNum(result.newBalance)}`, inline: true })
                         .setFooter({ text: '50/50 chance' });
                     response = { embeds: [cfEmbed] };
                     break;
