@@ -1012,7 +1012,7 @@ const SBX_PAGE = `
                     const impactText = n.priceImpact ? ' (' + (n.priceImpact > 0 ? '+' : '') + n.priceImpact + '%)' : '';
                     let html = '<div style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">';
                     if (n.image) {
-                        html += '<img src="' + n.image + '" style="max-width: 100%; max-height: 150px; border-radius: 8px; margin-bottom: 8px;" onerror="this.style.display=\'none\'">';
+                        html += '<img src="' + n.image + '" style="max-width: 100%; max-height: 150px; border-radius: 8px; margin-bottom: 8px;" onerror="this.style.display=&quot;none&quot;">';
                     }
                     html += '<p style="margin: 0;">' + impact + ' ' + n.headline + '<span style="color: #f39c12; font-size: 12px;">' + impactText + '</span></p>';
                     html += '<small style="color: #666;">' + time + '</small></div>';
