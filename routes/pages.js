@@ -664,26 +664,22 @@ const SBX_PAGE = `
                 <p style="color: #666;">Loading news...</p>
             </div>
             
-            <!-- Owner-only news form (hidden by default) -->
+            <!-- Owner-only news form (hidden, shown via OAuth check) -->
             <div id="newsForm" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
-                <h4 style="margin-bottom: 10px;">📝 Add News (Owner Only)</h4>
+                <h4 style="margin-bottom: 10px;">📝 Add News</h4>
                 <input type="text" id="newsHeadline" placeholder="BREAKING: Tony Stark did something amazing..." 
                     style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff; margin-bottom: 10px;">
-                <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
-                    <select id="newsPriceImpact" style="padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff;">
-                        <option value="0">No price impact</option>
-                        <option value="0.02">📈 +2% (Good news)</option>
-                        <option value="0.05">🚀 +5% (Great news)</option>
-                        <option value="-0.02">📉 -2% (Bad news)</option>
-                        <option value="-0.05">💥 -5% (Terrible news)</option>
-                    </select>
-                    <input type="password" id="newsSecret" placeholder="Secret key (BOT_OWNER_ID)" 
-                        style="flex: 1; min-width: 150px; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff;">
+                <input type="text" id="newsImage" placeholder="Image URL (optional)" 
+                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff; margin-bottom: 10px;">
+                <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; align-items: center;">
+                    <label style="color: #888;">Price Impact:</label>
+                    <input type="range" id="newsPriceImpact" min="-10" max="10" value="0" step="0.5"
+                        style="flex: 1; min-width: 100px;" oninput="updatePriceLabel()">
+                    <span id="priceImpactLabel" style="min-width: 60px; color: #f39c12; font-weight: bold;">0%</span>
                 </div>
                 <button onclick="postNews()" class="btn btn-primary">Post News</button>
                 <span id="newsStatus" style="margin-left: 10px; color: #888;"></span>
             </div>
-            <button onclick="toggleNewsForm()" style="margin-top: 15px; background: transparent; border: 1px dashed rgba(255,255,255,0.2); color: #666; padding: 8px 16px; border-radius: 8px; cursor: pointer;">🔐 Owner: Add News</button>
         </div>
         
         <div class="card">
@@ -982,26 +978,33 @@ const SBX_PAGE = `
                 feed.innerHTML = data.news.map(n => {
                     const time = new Date(n.timestamp).toLocaleString();
                     const impact = n.priceImpact > 0 ? '📈' : n.priceImpact < 0 ? '📉' : '';
-                    return '<div style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">' +
-                        '<p style="margin: 0;">' + impact + ' ' + n.headline + '</p>' +
-                        '<small style="color: #666;">' + time + '</small>' +
-                    '</div>';
+                    const impactText = n.priceImpact ? ' (' + (n.priceImpact > 0 ? '+' : '') + n.priceImpact + '%)' : '';
+                    let html = '<div style="padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);">';
+                    if (n.image) {
+                        html += '<img src="' + n.image + '" style="max-width: 100%; max-height: 150px; border-radius: 8px; margin-bottom: 8px;" onerror="this.style.display=\'none\'">';
+                    }
+                    html += '<p style="margin: 0;">' + impact + ' ' + n.headline + '<span style="color: #f39c12; font-size: 12px;">' + impactText + '</span></p>';
+                    html += '<small style="color: #666;">' + time + '</small></div>';
+                    return html;
                 }).join('');
             } catch (e) {
                 document.getElementById('newsFeed').innerHTML = '<p style="color: #888;">Failed to load news</p>';
             }
         }
         
-        function toggleNewsForm() {
-            const form = document.getElementById('newsForm');
-            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        function updatePriceLabel() {
+            const val = parseFloat(document.getElementById('newsPriceImpact').value);
+            const label = document.getElementById('priceImpactLabel');
+            const prefix = val > 0 ? '+' : '';
+            label.textContent = prefix + val + '%';
+            label.style.color = val > 0 ? '#2ecc71' : val < 0 ? '#e74c3c' : '#f39c12';
         }
         
-        // Post news (owner only)
+        // Post news (owner only - uses OAuth session)
         async function postNews() {
             const headline = document.getElementById('newsHeadline').value.trim();
-            const priceImpact = parseFloat(document.getElementById('newsPriceImpact').value);
-            const secretKey = document.getElementById('newsSecret').value.trim();
+            const priceImpact = parseFloat(document.getElementById('newsPriceImpact').value) / 100; // Convert % to decimal
+            const image = document.getElementById('newsImage').value.trim();
             const status = document.getElementById('newsStatus');
             
             if (!headline) {
@@ -1010,17 +1013,12 @@ const SBX_PAGE = `
                 return;
             }
             
-            if (!secretKey) {
-                status.textContent = '❌ Enter secret key';
-                status.style.color = '#e74c3c';
-                return;
-            }
-            
             try {
                 const res = await fetch('/api/sbx/news', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ headline, priceImpact, secretKey })
+                    credentials: 'include', // Send OAuth cookies
+                    body: JSON.stringify({ headline, priceImpact, image })
                 });
                 const data = await res.json();
                 
@@ -1028,7 +1026,9 @@ const SBX_PAGE = `
                     status.textContent = '✅ News posted!';
                     status.style.color = '#2ecc71';
                     document.getElementById('newsHeadline').value = '';
-                    localStorage.setItem('sbx_news_secret', secretKey);
+                    document.getElementById('newsImage').value = '';
+                    document.getElementById('newsPriceImpact').value = 0;
+                    updatePriceLabel();
                     loadNews();
                     loadSbxData(); // Refresh price
                 } else {
@@ -1041,13 +1041,19 @@ const SBX_PAGE = `
             }
         }
         
-        // Restore saved secret
-        const savedSecret = localStorage.getItem('sbx_news_secret');
-        if (savedSecret) {
-            document.getElementById('newsSecret').value = savedSecret;
+        // Check if user is bot owner and show news form
+        async function checkOwnerStatus() {
+            try {
+                const res = await fetch('/api/user');
+                const data = await res.json();
+                if (data.authenticated && data.user && data.user.isOwner) {
+                    document.getElementById('newsForm').style.display = 'block';
+                }
+            } catch (e) {}
         }
         
         checkAuth();
+        checkOwnerStatus();
         loadSbxData();
         loadPriceChart();
         loadNews();

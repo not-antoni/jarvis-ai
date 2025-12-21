@@ -201,6 +201,76 @@ const CRYPTO_COINS = {
         tier: 'large',
         correlation: 0.8,
         description: 'Only the worthy can hold this asset'
+    },
+    'SPIDEY': {
+        symbol: 'SPIDEY',
+        name: 'Spider Coin',
+        emoji: '🕸️',
+        basePrice: 45,
+        volatility: 0.14,
+        tier: 'small',
+        correlation: 0.5,
+        description: 'With great power comes great gains'
+    },
+    'PANTHER': {
+        symbol: 'PANTHER',
+        name: 'Wakanda Token',
+        emoji: '🐆',
+        basePrice: 600,
+        volatility: 0.06,
+        tier: 'large',
+        correlation: 0.7,
+        description: 'Wakanda Forever - premium African tech'
+    },
+    'STRANGE': {
+        symbol: 'STRANGE',
+        name: 'Mystic Coin',
+        emoji: '🧙',
+        basePrice: 400,
+        volatility: 0.12,
+        tier: 'mid',
+        correlation: 0.45,
+        description: 'Dormammu, I\'ve come to bargain'
+    },
+    'VISION': {
+        symbol: 'VISION',
+        name: 'Mind Stone Token',
+        emoji: '🤖',
+        basePrice: 350,
+        volatility: 0.08,
+        tier: 'mid',
+        correlation: 0.6,
+        description: 'Synthezoid intelligence-backed asset'
+    },
+    'ANTMAN': {
+        symbol: 'ANTMAN',
+        name: 'Quantum Coin',
+        emoji: '🐜',
+        basePrice: 5,
+        volatility: 0.35,
+        tier: 'meme',
+        correlation: 0.2,
+        description: 'Tiny price, quantum potential!'
+    },
+    'GAMORA': {
+        symbol: 'GAMORA',
+        name: 'Guardian Token',
+        emoji: '💚',
+        basePrice: 180,
+        volatility: 0.10,
+        tier: 'mid',
+        correlation: 0.55,
+        description: 'Deadliest woman in the galaxy'
+    },
+    'THANOS': {
+        symbol: 'THANOS',
+        name: 'Inevitable Coin',
+        emoji: '🟣',
+        basePrice: 1500,
+        volatility: 0.04,
+        tier: 'rare',
+        correlation: -0.4,
+        description: 'Perfectly balanced, as all things should be'
     }
 };
 
