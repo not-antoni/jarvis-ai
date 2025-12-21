@@ -349,6 +349,47 @@ async function getCollection(name) {
 }
 
 // ============================================================================
+// TRADE HISTORY
+// ============================================================================
+
+/**
+ * Log a trade to history
+ */
+async function logTrade(userId, action, symbol, amount, price, total) {
+    try {
+        const col = await getCollection('sx_trade_history');
+        await col.insertOne({
+            userId,
+            action, // 'buy' or 'sell'
+            symbol,
+            amount,
+            price,
+            total,
+            timestamp: new Date()
+        });
+    } catch (e) {
+        console.error('[StarkCrypto] Failed to log trade:', e);
+    }
+}
+
+/**
+ * Get user's trade history
+ */
+async function getTradeHistory(userId, limit = 20) {
+    try {
+        const col = await getCollection('sx_trade_history');
+        const trades = await col.find({ userId })
+            .sort({ timestamp: -1 })
+            .limit(limit)
+            .toArray();
+        return trades;
+    } catch (e) {
+        console.error('[StarkCrypto] Failed to get trade history:', e);
+        return [];
+    }
+}
+
+// ============================================================================
 // PORTFOLIO MANAGEMENT
 // ============================================================================
 
@@ -458,6 +499,9 @@ async function buyCrypto(userId, symbol, amount) {
     // Record trade impact on market
     recordTradeImpact(symbol.toUpperCase(), amount, true);
     
+    // Log trade history
+    await logTrade(userId, 'buy', symbol.toUpperCase(), amount, price, totalWithFee);
+    
     return {
         success: true,
         symbol: symbol.toUpperCase(),
@@ -526,6 +570,9 @@ async function sellCrypto(userId, symbol, amount) {
     
     // Record trade impact on market
     recordTradeImpact(symbol.toUpperCase(), amount, false);
+    
+    // Log trade history
+    await logTrade(userId, 'sell', symbol.toUpperCase(), amount, price, netProceeds);
     
     return {
         success: true,
@@ -954,6 +1001,7 @@ module.exports = {
     buyCrypto,
     sellCrypto,
     transferCrypto,
+    getTradeHistory,
     
     // Prices & Market
     updatePrices,

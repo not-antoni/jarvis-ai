@@ -369,6 +369,19 @@ router.get('/api/user/crypto', requireAuth, async (req, res) => {
     }
 });
 
+// Get user's crypto trade history
+router.get('/api/user/crypto/history', requireAuth, async (req, res) => {
+    try {
+        const crypto = require('../src/services/stark-crypto');
+        const userId = req.userSession.userId;
+        const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+        const trades = await crypto.getTradeHistory(userId, limit);
+        res.json({ success: true, trades });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Buy crypto
 router.post('/api/user/crypto/buy', requireAuth, async (req, res) => {
     try {
