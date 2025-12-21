@@ -1460,6 +1460,11 @@ const CRYPTO_PAGE = `
                 <h3 style="margin-bottom: 1rem;">Your Holdings</h3>
                 <div class="holdings-grid" id="holdingsGrid"></div>
             </div>
+            
+            <div class="holdings-section" id="tradeHistorySection" style="display: none; margin-top: 1.5rem;">
+                <h3 style="margin-bottom: 1rem;">📜 Recent Trades</h3>
+                <div id="tradeHistoryList" style="max-height: 200px; overflow-y: auto;"></div>
+            </div>
         </div>
         
         <!-- Crypto Grid -->
@@ -1547,6 +1552,7 @@ const CRYPTO_PAGE = `
                     plEl.className = 'stat-value ' + (pl >= 0 ? 'up' : 'down');
                     
                     renderHoldings();
+                    loadTradeHistory();
                 }
                 if (balData.success) {
                     document.getElementById('userBalance').textContent = (balData.balance || 0).toLocaleString() + ' SB';
@@ -1574,6 +1580,27 @@ const CRYPTO_PAGE = `
                     </div>
                 \`;
             }).join('');
+        }
+        
+        async function loadTradeHistory() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch('/api/user/crypto/history?limit=10');
+                const data = await res.json();
+                if (data.success && data.trades.length > 0) {
+                    document.getElementById('tradeHistorySection').style.display = 'block';
+                    document.getElementById('tradeHistoryList').innerHTML = data.trades.map(t => {
+                        const isBuy = t.action === 'buy';
+                        const color = isBuy ? '#00ff88' : '#ff4444';
+                        const icon = isBuy ? '📈' : '📉';
+                        const time = new Date(t.timestamp).toLocaleString();
+                        return \`<div style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                            <span>\${icon} <strong style="color:\${color}">\${t.action.toUpperCase()}</strong> \${t.amount} \${t.symbol}</span>
+                            <span style="color: #666; font-size: 0.8rem;">@ \${t.price.toLocaleString()} SB • \${time}</span>
+                        </div>\`;
+                    }).join('');
+                }
+            } catch (e) { console.error('Trade history error:', e); }
         }
         
         async function loadMarketState() {
@@ -1740,7 +1767,7 @@ const CRYPTO_PAGE = `
         loadMarketState();
         setInterval(loadPrices, 30000);
         setInterval(loadMarketState, 15000);
-        setInterval(() => { if (currentUser) loadPortfolio(); }, 60000);
+        setInterval(() => { if (currentUser) { loadPortfolio(); loadTradeHistory(); } }, 60000);
     </script>
 </body>
 </html>
