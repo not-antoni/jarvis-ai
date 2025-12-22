@@ -1,0 +1,62 @@
+# Jarvis AI - Systemd Service File
+#
+# Installation:
+#   sudo cp scripts/jarvis.service /etc/systemd/system/jarvis.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable jarvis
+#   sudo systemctl start jarvis
+#
+# Commands:
+#   sudo systemctl status jarvis   # Check status
+#   sudo systemctl restart jarvis  # Restart
+#   sudo journalctl -u jarvis -f   # View logs
+
+[Unit]
+Description=Jarvis AI Discord Bot
+Documentation=https://github.com/not-antoni/jarvis-ai
+After=network.target mongodb.service
+Wants=mongodb.service
+
+[Service]
+Type=simple
+User=jarvis
+Group=jarvis
+WorkingDirectory=/opt/jarvis-ai
+
+# Environment
+Environment=NODE_ENV=production
+Environment=DEPLOY_TARGET=selfhost
+Environment=SELFHOST_MODE=true
+EnvironmentFile=-/opt/jarvis-ai/.env
+
+# Process management
+ExecStart=/usr/bin/node index.js
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=80%
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/opt/jarvis-ai/data /opt/jarvis-ai/logs
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=jarvis
+
+# Graceful shutdown
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
