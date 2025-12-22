@@ -152,8 +152,9 @@ async function processClankerGifFast(avatarUrl) {
             .toBuffer();
         fs.writeFileSync(avatarPath, resizedAvatar);
         
-        // Use ffmpeg to overlay avatar on animated GIF
-        const cmd = `ffmpeg -y -i "${CLANKER_GIF_PATH}" -i "${avatarPath}" -filter_complex "[0:v][1:v]overlay=${AVATAR_X}:${AVATAR_Y}:format=auto" -gifflags +transdiff "${outputPath}"`;
+        // Use ffmpeg to overlay avatar on animated GIF with smooth output
+        // fps=15 for smoother playback, split/palettegen for better quality
+        const cmd = `ffmpeg -y -i "${CLANKER_GIF_PATH}" -i "${avatarPath}" -filter_complex "[0:v]fps=15[gif];[gif][1:v]overlay=${AVATAR_X}:${AVATAR_Y}:format=auto,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3" -loop 0 "${outputPath}"`;
         
         execSync(cmd, { stdio: 'pipe', timeout: 30000 });
         
