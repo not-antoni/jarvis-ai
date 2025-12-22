@@ -5,7 +5,7 @@
 const { ObjectId } = require('mongodb');
 const config = require('../../config');
 const vaultClient = require('./vault-client');
-const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
+const { connectMain, getJarvisDb, mainClient, closeMain, setupConnectionMonitoring, IS_SELFHOST } = require('./db');
 const localdb = require('../localdb');
 const { LRUCache } = require('../utils/lru-cache');
 
