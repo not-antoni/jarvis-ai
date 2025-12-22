@@ -720,6 +720,36 @@
             return;
         }
 
+        // ============ CLANKER DETECTION (overrides AI response) ============
+        // Check if user said "clanker" in any variation (case-insensitive)
+        if (clankerGif.containsClanker(rawContent)) {
+            try {
+                await message.channel.sendTyping();
+                
+                // Get user's avatar URL (high quality)
+                const avatarUrl = message.author.displayAvatarURL({ 
+                    format: 'png', 
+                    size: 128,
+                    dynamic: false 
+                });
+                
+                // Process the clanker.gif with user's avatar overlay
+                const processedGif = await clankerGif.processClankerGifFast(avatarUrl);
+                
+                // Send the processed GIF
+                const attachment = new AttachmentBuilder(processedGif, { name: 'clanker.gif' });
+                await message.reply({ 
+                    files: [attachment],
+                    allowedMentions: { parse: [] }
+                });
+                
+                return; // Exit early, no AI response
+            } catch (clankerError) {
+                console.error('[Clanker] Failed to process clanker GIF:', clankerError);
+                // Fall through to normal AI response if clanker processing fails
+            }
+        }
+
         await this.handleJarvisInteraction(message, client);
     }
 
@@ -856,37 +886,6 @@
         if (await this.handleClipCommand(message, client)) {
             this.setCooldown(message.author.id, messageScope);
             return; // Exit early, no AI response
-        }
-
-        // ============ CLANKER DETECTION (overrides AI response) ============
-        // Check if user said "clanker" in any variation (case-insensitive)
-        if (clankerGif.containsClanker(cleanContent)) {
-            try {
-                await message.channel.sendTyping();
-                
-                // Get user's avatar URL (high quality)
-                const avatarUrl = message.author.displayAvatarURL({ 
-                    format: 'png', 
-                    size: 128,
-                    dynamic: false 
-                });
-                
-                // Process the clanker.gif with user's avatar overlay
-                const processedGif = await clankerGif.processClankerGifFast(avatarUrl);
-                
-                // Send the processed GIF
-                const attachment = new AttachmentBuilder(processedGif, { name: 'clanker.gif' });
-                await message.reply({ 
-                    files: [attachment],
-                    allowedMentions: { parse: [] }
-                });
-                
-                this.setCooldown(message.author.id, messageScope);
-                return; // Exit early, no AI response
-            } catch (clankerError) {
-                console.error('[Clanker] Failed to process clanker GIF:', clankerError);
-                // Fall through to normal AI response if clanker processing fails
-            }
         }
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
