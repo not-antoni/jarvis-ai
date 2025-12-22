@@ -12,6 +12,16 @@ const LOCAL_DB_MODE =
 
 const VALID_MONITOR_TYPES = new Set(['rss', 'website', 'youtube', 'twitch', 'cloudflare', 'statuspage']);
 
+// In-memory cache for subscriptions (fallback when DB is temporarily unavailable)
+let subscriptionCache = [];
+let lastCacheUpdate = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Failure tracking to prevent aggressive deletion
+const failureCounters = new Map(); // subId -> { count, lastFailure }
+const MAX_FAILURES_BEFORE_DELETE = 5;
+const FAILURE_RESET_MS = 60 * 60 * 1000; // 1 hour
+
 function assertMonitorType(monitorType) {
     const normalized = String(monitorType || '').trim().toLowerCase();
     if (!VALID_MONITOR_TYPES.has(normalized)) {
@@ -192,14 +202,37 @@ async function remove_subscription_by_id({ id } = {}) {
 async function get_all_subscriptions() {
     const collection = getMongoCollection();
     if (collection) {
-        return collection.find({}).sort({ createdAt: 1 }).toArray();
+        try {
+            const subs = await collection.find({}).sort({ createdAt: 1 }).toArray();
+            // Update cache on successful fetch
+            subscriptionCache = subs;
+            lastCacheUpdate = Date.now();
+            return subs;
+        } catch (error) {
+            console.warn('[MonitorSubs] DB fetch failed, using cache:', error.message);
+            // Return cached data if DB fails
+            if (subscriptionCache.length > 0 && Date.now() - lastCacheUpdate < CACHE_TTL_MS * 2) {
+                return subscriptionCache;
+            }
+        }
     }
 
     if (!LOCAL_DB_MODE) {
+        // Return cached data instead of empty array when DB is temporarily down
+        if (subscriptionCache.length > 0) {
+            console.warn('[MonitorSubs] DB not connected, using cached subscriptions');
+            return subscriptionCache;
+        }
         return [];
     }
 
-    return localdb.readCollection(config.database.collections.subscriptions);
+    const localSubs = localdb.readCollection(config.database.collections.subscriptions);
+    // Also cache local DB data
+    if (localSubs.length > 0) {
+        subscriptionCache = localSubs;
+        lastCacheUpdate = Date.now();
+    }
+    return localSubs;
 }
 
 async function get_subscriptions_for_guild(guild_id) {
@@ -252,6 +285,39 @@ async function update_last_seen_data({ id, last_seen_data } = {}) {
     return docs[idx];
 }
 
+/**
+ * Track a failure for a subscription. Returns true if it should be deleted.
+ */
+function trackFailure(subId) {
+    const now = Date.now();
+    const existing = failureCounters.get(subId);
+    
+    if (existing && now - existing.lastFailure < FAILURE_RESET_MS) {
+        existing.count++;
+        existing.lastFailure = now;
+        failureCounters.set(subId, existing);
+        return existing.count >= MAX_FAILURES_BEFORE_DELETE;
+    }
+    
+    // Reset or create new counter
+    failureCounters.set(subId, { count: 1, lastFailure: now });
+    return false;
+}
+
+/**
+ * Clear failure counter for a subscription (on success)
+ */
+function clearFailure(subId) {
+    failureCounters.delete(subId);
+}
+
+/**
+ * Invalidate the subscription cache (call after add/remove)
+ */
+function invalidateCache() {
+    lastCacheUpdate = 0;
+}
+
 module.exports = {
     add_subscription,
     remove_subscription,
@@ -259,5 +325,8 @@ module.exports = {
     get_subscriptions_for_guild,
     get_all_subscriptions,
     update_last_seen_data,
+    trackFailure,
+    clearFailure,
+    invalidateCache,
     VALID_MONITOR_TYPES
 };
