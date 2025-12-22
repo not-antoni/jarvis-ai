@@ -6,7 +6,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fetch = require('node-fetch');
 
-const CLANKER_GIF_PATH = path.join(__dirname, '../../..', 'clanker.gif');
+const CLANKER_GIF_PATH = path.join(__dirname, '../..', 'clanker.gif');
 
 // Avatar overlay position (small square area)
 const AVATAR_X = 411;
