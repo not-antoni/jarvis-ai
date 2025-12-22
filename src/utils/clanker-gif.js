@@ -11,9 +11,9 @@ const CLANKER_GIF_PATH = path.join(__dirname, '../..', 'clanker-optimized.gif');
 
 // Avatar overlay position - scaled for 320x320 (original was 640x640)
 // Original coords: x:411, y:368 → scaled by 0.5
-const AVATAR_X = 206;
-const AVATAR_Y = 184;
-const AVATAR_SIZE = 64; // Bigger avatar
+const AVATAR_X = 196;
+const AVATAR_Y = 174;
+const AVATAR_SIZE = 80; // Bigger avatar
 
 /**
  * Check if message contains "clanker" (case-insensitive, any variation)
