@@ -128,7 +128,7 @@ async function maybeExportMongoOnStartup() {
         const outDir = config.deployment.exportPath;
         const collections =
             Array.isArray(config.deployment.exportCollections) &&
-            config.deployment.exportCollections.length
+                config.deployment.exportCollections.length
                 ? config.deployment.exportCollections
                 : [];
         const file = await exportAllCollections({
@@ -576,81 +576,42 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
+    // ============ SOCIAL (Consolidated) ============
     new SlashCommandBuilder()
-        .setName('ship')
-        .setDescription('Calculate the compatibility between two people')
-        .addUserOption(option =>
-            option.setName('person1').setDescription('First person').setRequired(true)
+        .setName('social')
+        .setDescription('Social interaction commands')
+        .addSubcommand(sub =>
+            sub.setName('ship')
+                .setDescription('Calculate compatibility between two people')
+                .addUserOption(opt => opt.setName('person1').setDescription('First person').setRequired(true))
+                .addUserOption(opt => opt.setName('person2').setDescription('Second person').setRequired(false))
         )
-        .addUserOption(option =>
-            option.setName('person2').setDescription('Second person').setRequired(false)
+        .addSubcommand(sub =>
+            sub.setName('howgay')
+                .setDescription('Calculate how gay someone is (just for fun)')
+                .addUserOption(opt => opt.setName('user').setDescription('Who to check').setRequired(false))
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('howgay')
-        .setDescription('Calculate how gay someone is (just for fun)')
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who to check').setRequired(false)
+        .addSubcommand(sub =>
+            sub.setName('howbased')
+                .setDescription('Calculate how based someone is')
+                .addUserOption(opt => opt.setName('user').setDescription('Who to check').setRequired(false))
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('howbased')
-        .setDescription('Calculate how based someone is')
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who to check').setRequired(false)
+        .addSubcommand(sub => sub.setName('pickupline').setDescription('Get a random pickup line'))
+        .addSubcommand(sub => sub.setName('dadjoke').setDescription('Get a random dad joke'))
+        .addSubcommand(sub =>
+            sub.setName('fight')
+                .setDescription('Start a fight with someone')
+                .addUserOption(opt => opt.setName('opponent').setDescription('Who to fight').setRequired(true))
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('pickupline')
-        .setDescription('Get a random pickup line (cringe guaranteed)')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('dadjoke')
-        .setDescription('Get a random dad joke')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('fight')
-        .setDescription('Start a fight with someone')
-        .addUserOption(option =>
-            option.setName('opponent').setDescription('Who to fight').setRequired(true)
+        .addSubcommand(sub =>
+            sub.setName('hug')
+                .setDescription('Give someone a hug')
+                .addUserOption(opt => opt.setName('user').setDescription('Who to hug').setRequired(true))
         )
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
-        .setName('hug')
-        .setDescription('Give someone a hug')
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who to hug').setRequired(true)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('slap')
-        .setDescription('Slap someone')
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who to slap').setRequired(true)
+        .addSubcommand(sub =>
+            sub.setName('slap')
+                .setDescription('Slap someone')
+                .addUserOption(opt => opt.setName('user').setDescription('Who to slap').setRequired(true))
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -1100,94 +1061,34 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
-    // ============ STARK BUCKS ECONOMY ============
+    // ============ STARK BUCKS ECONOMY (Consolidated) ============
     new SlashCommandBuilder()
-        .setName('balance')
-        .setDescription('Check your Stark Bucks balance and stats')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('daily')
-        .setDescription('Claim your daily Stark Bucks reward')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('work')
-        .setDescription('Work at Stark Industries for some Stark Bucks')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('gamble')
-        .setDescription('Gamble your Stark Bucks (double or nothing)')
-        .addStringOption(option =>
-            option
-                .setName('amount')
-                .setDescription('Amount to gamble (e.g. 100, 5K, 1M, all)')
-                .setRequired(true)
+        .setName('economy')
+        .setDescription('Stark Bucks economy commands')
+        .addSubcommand(sub => sub.setName('balance').setDescription('Check your Stark Bucks balance and stats'))
+        .addSubcommand(sub => sub.setName('daily').setDescription('Claim your daily Stark Bucks reward'))
+        .addSubcommand(sub => sub.setName('work').setDescription('Work at Stark Industries for Stark Bucks'))
+        .addSubcommand(sub =>
+            sub.setName('gamble')
+                .setDescription('Gamble your Stark Bucks (double or nothing)')
+                .addStringOption(opt => opt.setName('amount').setDescription('Amount to gamble (e.g. 100, 5K, 1M, all)').setRequired(true))
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('slots')
-        .setDescription('Play the Stark Industries slot machine')
-        .addStringOption(option =>
-            option
-                .setName('bet')
-                .setDescription('Bet amount (e.g. 100, 5K, 1M, all)')
-                .setRequired(true)
+        .addSubcommand(sub =>
+            sub.setName('slots')
+                .setDescription('Play the Stark Industries slot machine')
+                .addStringOption(opt => opt.setName('bet').setDescription('Bet amount (e.g. 100, 5K, 1M, all)').setRequired(true))
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('coinflip')
-        .setDescription('Flip a coin and bet on the outcome')
-        .addStringOption(option =>
-            option.setName('bet').setDescription('Bet amount (e.g. 100, 5K, 1M, all)').setRequired(true)
+        .addSubcommand(sub =>
+            sub.setName('coinflip')
+                .setDescription('Flip a coin and bet on the outcome')
+                .addStringOption(opt => opt.setName('bet').setDescription('Bet amount (e.g. 100, 5K, 1M, all)').setRequired(true))
+                .addStringOption(opt => opt.setName('choice').setDescription('Heads or tails?').setRequired(true).addChoices({ name: 'Heads', value: 'heads' }, { name: 'Tails', value: 'tails' }))
         )
-        .addStringOption(option =>
-            option
-                .setName('choice')
-                .setDescription('Heads or tails?')
-                .setRequired(true)
-                .addChoices({ name: 'Heads', value: 'heads' }, { name: 'Tails', value: 'tails' })
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('shop')
-        .setDescription('Browse the Stark Industries shop')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('buy')
-        .setDescription('Buy an item from the shop')
-        .addStringOption(option =>
-            option
-                .setName('item')
-                .setDescription('Item ID to buy')
-                .setRequired(true)
-                .addChoices(
+        .addSubcommand(sub => sub.setName('shop').setDescription('Browse the Stark Industries shop'))
+        .addSubcommand(sub =>
+            sub.setName('buy')
+                .setDescription('Buy an item from the shop')
+                .addStringOption(opt => opt.setName('item').setDescription('Item ID to buy').setRequired(true).addChoices(
                     { name: '⭐ VIP Badge (500)', value: 'vip_badge' },
                     { name: '✨ Golden Name (1000)', value: 'golden_name' },
                     { name: '🍀 Lucky Charm (200)', value: 'lucky_charm' },
@@ -1195,109 +1096,40 @@ const allCommands = [
                     { name: '🛡️ Shield (300)', value: 'shield' },
                     { name: '☕ Stark Coffee (100)', value: 'stark_coffee' },
                     { name: '💠 Arc Reactor (10000)', value: 'arc_reactor' }
-                )
+                ))
+        )
+        .addSubcommand(sub => sub.setName('leaderboard').setDescription('View the Stark Bucks leaderboard'))
+        .addSubcommand(sub => sub.setName('show').setDescription('Show off your Stark Bucks balance'))
+        .addSubcommand(sub =>
+            sub.setName('give')
+                .setDescription('Give Stark Bucks to another user')
+                .addUserOption(opt => opt.setName('user').setDescription('User to give money to').setRequired(true))
+                .addIntegerOption(opt => opt.setName('amount').setDescription('Amount to give').setRequired(true).setMinValue(1))
         )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
+    // ============ MINIGAMES (Consolidated) ============
     new SlashCommandBuilder()
-        .setName('leaderboard')
-        .setDescription('View the Stark Bucks leaderboard')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('show')
-        .setDescription('Show off your Stark Bucks balance to everyone!')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('hunt')
-        .setDescription('Hunt for animals and earn Stark Bucks')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('fish')
-        .setDescription('Go fishing and earn Stark Bucks')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('dig')
-        .setDescription('Dig for treasure and earn Stark Bucks')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('beg')
-        .setDescription('Beg for Stark Bucks (no shame)')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('give')
-        .setDescription('Give Stark Bucks to another user')
-        .addUserOption(option =>
-            option.setName('user').setDescription('User to give money to').setRequired(true)
-        )
-        .addIntegerOption(option =>
-            option
-                .setName('amount')
-                .setDescription('Amount to give')
-                .setRequired(true)
-                .setMinValue(1)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('crime')
-        .setDescription('Commit a crime for money (risky!)')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('postmeme')
-        .setDescription('Post a meme and hope it goes viral')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('searchlocation')
-        .setDescription('Search a location for money')
-        .addStringOption(option =>
-            option
-                .setName('location')
-                .setDescription('Where to search')
-                .setRequired(false)
-                .addChoices(
+        .setName('minigame')
+        .setDescription('Stark Bucks minigames')
+        .addSubcommand(sub => sub.setName('hunt').setDescription('Hunt for animals and earn Stark Bucks'))
+        .addSubcommand(sub => sub.setName('fish').setDescription('Go fishing and earn Stark Bucks'))
+        .addSubcommand(sub => sub.setName('dig').setDescription('Dig for treasure and earn Stark Bucks'))
+        .addSubcommand(sub => sub.setName('beg').setDescription('Beg for Stark Bucks (no shame)'))
+        .addSubcommand(sub => sub.setName('crime').setDescription('Commit a crime for money (risky!)'))
+        .addSubcommand(sub => sub.setName('postmeme').setDescription('Post a meme and hope it goes viral'))
+        .addSubcommand(sub =>
+            sub.setName('search')
+                .setDescription('Search a location for money')
+                .addStringOption(opt => opt.setName('location').setDescription('Where to search').setRequired(false).addChoices(
                     { name: "Tony's couch cushions", value: '0' },
                     { name: 'Stark Industries dumpster', value: '1' },
                     { name: "Happy's car", value: '2' },
                     { name: 'Avengers compound', value: '3' }
-                )
+                ))
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -3232,8 +3064,8 @@ app.get('/dashboard', async (req, res) => {
                     const status = provider.isDisabled
                         ? 'Paused'
                         : provider.hasError
-                          ? 'Error'
-                          : 'Healthy';
+                            ? 'Error'
+                            : 'Healthy';
                     const disabledUntil =
                         provider.isDisabled && provider.disabledUntil
                             ? new Date(provider.disabledUntil).toLocaleString()
@@ -3708,7 +3540,7 @@ client.on('interactionCreate', async interaction => {
         ) {
             await interaction
                 .reply({ content: 'Technical difficulties, sir.', ephemeral: true })
-                .catch(() => {});
+                .catch(() => { });
         }
     }
 });
@@ -3798,13 +3630,13 @@ async function gracefulShutdown(signal) {
     console.log(`Jarvis received ${signal}, shutting down gracefully...`);
     try {
         serverStatsRefreshJob.stop();
-        try { announcementScheduler.stop(); } catch (_) {}
-        try { monitorScheduler.stop(); } catch (_) {}
-        try { starkEconomy.stopMultiplierScheduler(); } catch (_) {}
-        try { tempSweepJob.stop(); } catch (_) {}
+        try { announcementScheduler.stop(); } catch (_) { }
+        try { monitorScheduler.stop(); } catch (_) { }
+        try { starkEconomy.stopMultiplierScheduler(); } catch (_) { }
+        try { tempSweepJob.stop(); } catch (_) { }
         await database.disconnect();
         // Flush logger before exit to ensure all logs are written
-        try { await require('./src/utils/logger').flush(); } catch (_) {}
+        try { await require('./src/utils/logger').flush(); } catch (_) { }
         client.destroy();
     } catch (error) {
         console.error('Error during shutdown:', error);
@@ -3872,7 +3704,7 @@ app.use((req, res) => {
     <h1>404</h1>
     <p>There's nothing here.</p>
     <a href="/" class="btn">🏠 Go Home</a>
-    <p class="path">${req.path.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}</p>
+    <p class="path">${req.path.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])}</p>
 </body>
 </html>
     `);
@@ -3942,7 +3774,7 @@ async function startBot() {
         try {
             const cloudflareDomain = require('./src/services/cloudflare-domain');
             const cfConfig = cloudflareDomain.getConfig();
-            
+
             // Auto-setup Nginx reverse proxy (selfhost only)
             if (cfConfig.domain && cfConfig.deployTarget !== 'render') {
                 const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain);
@@ -3958,7 +3790,7 @@ async function startBot() {
                     console.log(`[Nginx] ⚠️ ${nginxResult.error}`);
                 }
             }
-            
+
             // Auto-configure Cloudflare DNS
             if (cfConfig.zoneId || cfConfig.domain) {
                 console.log('[Cloudflare] Checking domain configuration...');
