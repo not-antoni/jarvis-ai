@@ -1131,6 +1131,21 @@ const allCommands = [
                     { name: 'Avengers compound', value: '3' }
                 ))
         )
+        .addSubcommand(sub =>
+            sub.setName('blackjack')
+                .setDescription('Play a simplified game of Blackjack')
+                .addIntegerOption(opt => opt.setName('bet').setDescription('Amount to bet (min 10)').setRequired(true))
+        )
+        .addSubcommand(sub =>
+            sub.setName('rob')
+                .setDescription('Attempt to rob another user (risky!)')
+                .addUserOption(opt => opt.setName('user').setDescription('The target to rob').setRequired(true))
+        )
+        .addSubcommand(sub =>
+            sub.setName('lottery')
+                .setDescription('Stark Lottery System')
+                .addIntegerOption(opt => opt.setName('buy_tickets').setDescription('Number of tickets to buy (100 each)').setRequired(false))
+        )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
@@ -2192,7 +2207,16 @@ try {
     helmet = null;
 }
 if (helmet) {
-    app.use(helmet());
+    app.use(helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"],
+                connectSrc: ["'self'", "https://cloudflareinsights.com"],
+                imgSrc: ["'self'", "data:", "https:", "*"],
+            },
+        },
+    }));
 } else {
     app.use((req, res, next) => {
         res.setHeader('X-Content-Type-Options', 'nosniff');

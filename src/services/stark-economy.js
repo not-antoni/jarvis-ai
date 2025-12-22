@@ -130,6 +130,52 @@ const SHOP_ITEMS = {
         price: 10000,
         type: 'legendary',
         oneTime: true
+    },
+    // New Upgrades & Peripherals
+    ai_assistant_chip: {
+        id: 'ai_assistant_chip',
+        name: '💾 AI Assistant Chip',
+        description: 'Reduces work cooldown by 25% permanently',
+        price: 2500,
+        type: 'upgrade',
+        oneTime: true,
+        effect: { workCooldownReduction: 0.25 }
+    },
+    mark_v_briefcase: {
+        id: 'mark_v_briefcase',
+        name: '💼 Mark V Briefcase',
+        description: 'Increase gambling win rate by 2% permanently',
+        price: 5000,
+        type: 'upgrade',
+        oneTime: true,
+        effect: { gamblingBonus: 0.02 }
+    },
+    edith_glasses: {
+        id: 'edith_glasses',
+        name: '👓 E.D.I.T.H. Glasses',
+        description: '+10% earnings boost for 4 hours',
+        price: 800,
+        type: 'booster',
+        duration: 4 * 60 * 60 * 1000,
+        effect: { earningsBonus: 0.10 }
+    },
+    hulkbuster_armor: {
+        id: 'hulkbuster_armor',
+        name: '🦾 Hulkbuster Armor',
+        description: 'Ultimate protection! 24h robbery immunity',
+        price: 2000,
+        type: 'protection',
+        duration: 24 * 60 * 60 * 1000,
+        effect: { robberyImmunity: true }
+    },
+    iron_legion_droid: {
+        id: 'iron_legion_droid',
+        name: '🤖 Iron Legion Droid',
+        description: 'Automated defense system. 50% chance to repel robbers for 12h.',
+        price: 1200,
+        type: 'protection',
+        duration: 12 * 60 * 60 * 1000,
+        effect: { robberyDefense: 0.5 }
     }
 };
 
@@ -745,18 +791,18 @@ async function getBalance(userId, username) {
  */
 async function modifyBalance(userId, amount, reason = 'unknown') {
     const safeAmount = ensureNumber(amount, 0);
-    
+
     // For withdrawals, use atomic conditional update
     if (safeAmount < 0) {
         const absAmount = Math.abs(safeAmount);
         try {
             const col = await getCollection();
-            
+
             // Atomic update: only deduct if balance >= amount
             const result = await col.findOneAndUpdate(
                 { userId: userId, balance: { $gte: absAmount } },
                 {
-                    $inc: { 
+                    $inc: {
                         balance: safeAmount,
                         totalLost: absAmount
                     },
@@ -764,31 +810,31 @@ async function modifyBalance(userId, amount, reason = 'unknown') {
                 },
                 { returnDocument: 'after' }
             );
-            
+
             if (!result) {
                 // Either user doesn't exist or insufficient balance
                 const user = await loadUser(userId);
                 const currentBalance = ensureNumber(user.balance, 0);
                 if (currentBalance < absAmount) {
-                    return { 
-                        success: false, 
+                    return {
+                        success: false,
                         error: 'Insufficient balance',
-                        oldBalance: currentBalance, 
-                        newBalance: currentBalance, 
-                        change: 0 
+                        oldBalance: currentBalance,
+                        newBalance: currentBalance,
+                        change: 0
                     };
                 }
                 // User doesn't exist - create and retry
                 await saveUser(userId, user);
                 return modifyBalance(userId, amount, reason);
             }
-            
+
             const newBalance = ensureNumber(result.balance, 0);
             const oldBalance = newBalance + absAmount;
-            
+
             // Invalidate cache
             userCache.delete(userId);
-            
+
             return { success: true, oldBalance, newBalance, change: safeAmount };
         } catch (error) {
             console.error('[StarkEconomy] Atomic withdraw failed:', error);
@@ -804,19 +850,19 @@ async function modifyBalance(userId, amount, reason = 'unknown') {
             return { success: true, oldBalance, newBalance: user.balance, change: safeAmount };
         }
     }
-    
+
     // For deposits, use atomic $inc (always safe)
     try {
         const col = await getCollection();
         const result = await col.findOneAndUpdate(
             { userId: userId },
             {
-                $inc: { 
+                $inc: {
                     balance: safeAmount,
                     totalEarned: safeAmount
                 },
                 $set: { updatedAt: new Date() },
-                $setOnInsert: { 
+                $setOnInsert: {
                     userId: userId,
                     totalLost: 0,
                     totalGambled: 0,
@@ -830,13 +876,13 @@ async function modifyBalance(userId, amount, reason = 'unknown') {
             },
             { upsert: true, returnDocument: 'after' }
         );
-        
+
         const newBalance = ensureNumber(result?.balance, safeAmount);
         const oldBalance = newBalance - safeAmount;
-        
+
         // Invalidate cache
         userCache.delete(userId);
-        
+
         return { success: true, oldBalance, newBalance, change: safeAmount };
     } catch (error) {
         console.error('[StarkEconomy] Atomic deposit failed:', error);
@@ -866,7 +912,7 @@ function checkCooldown(userId, action, cooldownMs) {
     if (isBotOwner(userId)) {
         return { onCooldown: false, remaining: 0, ownerBypass: true };
     }
-    
+
     const key = `${userId}:${action}`;
     const lastAction = cooldowns.get(key) || 0;
     const now = Date.now();
@@ -911,7 +957,7 @@ async function hasArcReactor(userId) {
 async function getArcReactorPerks(userId) {
     const hasReactor = await hasArcReactor(userId);
     const perks = ECONOMY_CONFIG.arcReactorPerks;
-    
+
     return {
         hasReactor,
         earningsMultiplier: hasReactor ? (1 + perks.earningsBonus) : 1,
@@ -930,17 +976,17 @@ async function getArcReactorPerks(userId) {
 async function awardSbxBonus(userId, starkBucksEarned, reason = 'activity') {
     const sbx = getStarkbucks();
     if (!sbx) return { sbxAwarded: 0 };
-    
+
     try {
         // Get current SBX price to calculate bonus
         const market = await sbx.getMarketData();
         const price = market?.price || 1;
-        
+
         // Award 1% of Stark Bucks as SBX value (divided by price)
         // Minimum 0.01 SBX for any activity
         const sbxBonus = Math.max(0.01, (starkBucksEarned * 0.01) / price);
         const roundedBonus = Math.floor(sbxBonus * 100) / 100;
-        
+
         if (roundedBonus > 0) {
             await sbx.updateWallet(userId, roundedBonus, `Bonus: ${reason}`);
             return { sbxAwarded: roundedBonus };
@@ -958,7 +1004,7 @@ async function awardSbxBonus(userId, starkBucksEarned, reason = 'activity') {
 async function getCombinedPerks(userId) {
     // Get Arc Reactor perks
     const arcPerks = await getArcReactorPerks(userId);
-    
+
     // Get SBX purchase effects
     let sbxEffects = {};
     const sbx = getStarkbucks();
@@ -969,38 +1015,78 @@ async function getCombinedPerks(userId) {
             sbxEffects = {};
         }
     }
-    
-    // Combine perks - SBX effects stack with Arc Reactor
+
+    // Get Local Economy effects (Shop purchases)
+    const user = await loadUser(userId);
+    const localActive = await getActiveEffects(userId); // Reuse existing helper
+    const inventory = user.inventory || [];
+
+    let localBonus = {
+        earnings: 0,
+        cooldownRed: 0,
+        gambling: 0,
+        robberyImmunity: false,
+        robberyDefense: 0
+    };
+
+    // Process Active Effects (Shields, Boosters)
+    for (const eff of localActive) {
+        // Legacy shield check
+        if (eff.itemId === 'shield') localBonus.robberyImmunity = true;
+
+        if (eff.effect) {
+            if (eff.effect.earningsBonus) localBonus.earnings += eff.effect.earningsBonus;
+            if (eff.effect.workCooldownReduction) localBonus.cooldownRed += eff.effect.workCooldownReduction;
+            if (eff.effect.gamblingBonus) localBonus.gambling += eff.effect.gamblingBonus;
+            if (eff.effect.robberyImmunity) localBonus.robberyImmunity = true;
+            if (eff.effect.robberyDefense) localBonus.robberyDefense += eff.effect.robberyDefense;
+        }
+    }
+
+    // Process Passive Upgrades (Inventory)
+    for (const item of inventory) {
+        const shopItem = SHOP_ITEMS[item.id];
+        if (shopItem && shopItem.type === 'upgrade' && shopItem.effect) {
+            if (shopItem.effect.workCooldownReduction) localBonus.cooldownRed += shopItem.effect.workCooldownReduction;
+            if (shopItem.effect.gamblingBonus) localBonus.gambling += shopItem.effect.gamblingBonus;
+        }
+    }
+
+    // Combine perks - SBX effects stack with Arc Reactor stack with Local Shop
     return {
         // Arc Reactor base
         hasReactor: arcPerks.hasReactor,
-        
-        // Earnings multiplier (Arc: 1.15x, SBX income_boost: 1.25x)
-        earningsMultiplier: arcPerks.earningsMultiplier * (sbxEffects.incomeMultiplier || 1),
-        
-        // Cooldown reduction (Arc: 0.75x, SBX cooldown_reduction: 0.70x)
-        cooldownMultiplier: arcPerks.cooldownMultiplier * (1 - (sbxEffects.cooldownReduction || 0)),
-        
-        // Gambling bonus (Arc: +5%, SBX luck_boost: +10%)
-        gamblingBonus: arcPerks.gamblingBonus + (sbxEffects.luckBoost || 0),
-        
-        // Daily multiplier (SBX daily_multiplier: 1.5x)
+
+        // Earnings multiplier (Arc * SBX * Local)
+        earningsMultiplier: arcPerks.earningsMultiplier * (sbxEffects.incomeMultiplier || 1) * (1 + localBonus.earnings),
+
+        // Cooldown reduction (Stacking multiplicatively for balance)
+        cooldownMultiplier: arcPerks.cooldownMultiplier * (1 - (sbxEffects.cooldownReduction || 0)) * (1 - Math.min(0.8, localBonus.cooldownRed)),
+
+        // Gambling bonus (Additive)
+        gamblingBonus: arcPerks.gamblingBonus + (sbxEffects.luckBoost || 0) + localBonus.gambling,
+
+        // Daily multiplier
         dailyMultiplier: sbxEffects.dailyMultiplier || 1,
-        
-        // Flat daily bonus (Arc: 500)
+
+        // Flat daily bonus
         dailyBonus: arcPerks.dailyBonus,
-        
-        // Interest rate (Arc: 1%)
+
+        // Interest rate
         interestRate: arcPerks.interestRate,
-        
+
         // Minigame cooldown
         minigameCooldown: Math.floor(arcPerks.minigameCooldown * (1 - (sbxEffects.cooldownReduction || 0))),
-        
+
+        // Defense
+        robberyImmunity: localBonus.robberyImmunity,
+        robberyDefense: localBonus.robberyDefense,
+
         // SBX-specific effects
         sbxMultiplier: sbxEffects.sbxMultiplier || 1,
         xpMultiplier: sbxEffects.xpMultiplier || 1,
-        
-        // AI-related perks (for use in AI handlers)
+
+        // AI-related perks
         memoryMultiplier: sbxEffects.memoryMultiplier || 1,
         priorityQueue: sbxEffects.priorityQueue || false,
         personalities: sbxEffects.personalities || [],
@@ -1008,7 +1094,7 @@ async function getCombinedPerks(userId) {
         betaAccess: sbxEffects.betaAccess || false,
         customCommands: sbxEffects.customCommands || 0,
         vipSupport: sbxEffects.vipSupport || false,
-        
+
         // Raw SBX effects for reference
         _sbxEffects: sbxEffects
     };
@@ -1072,9 +1158,9 @@ async function claimDaily(userId, username) {
     const baseReward =
         configuredDailyReward && typeof configuredDailyReward === 'object'
             ? ensureNumber(configuredDailyReward.min, 0) +
-              Math.random() *
-                  (ensureNumber(configuredDailyReward.max, 0) -
-                      ensureNumber(configuredDailyReward.min, 0))
+            Math.random() *
+            (ensureNumber(configuredDailyReward.max, 0) -
+                ensureNumber(configuredDailyReward.min, 0))
             : ensureNumber(configuredDailyReward, 0);
 
     let reward = Math.floor(baseReward);
@@ -1162,7 +1248,7 @@ async function work(userId, username) {
 
     let reward = Math.floor(
         ECONOMY_CONFIG.workReward.min +
-            Math.random() * (ECONOMY_CONFIG.workReward.max - ECONOMY_CONFIG.workReward.min)
+        Math.random() * (ECONOMY_CONFIG.workReward.max - ECONOMY_CONFIG.workReward.min)
     );
 
     // Apply Arc Reactor earnings bonus
@@ -1407,6 +1493,104 @@ async function coinflip(userId, bet, choice) {
 }
 
 /**
+ * Play blackjack
+ */
+async function playBlackjack(userId, bet) {
+    const user = await loadUser(userId);
+    if (user.balance < bet) {
+        return { success: false, error: 'Insufficient funds' };
+    }
+
+    // Simple blackjack - draw cards
+    const cards = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const suits = ['♠', '♥', '♦', '♣'];
+
+    const drawCard = () => {
+        const card = cards[Math.floor(Math.random() * cards.length)];
+        const suit = suits[Math.floor(Math.random() * suits.length)];
+        return { card, suit, display: `${card}${suit}` };
+    };
+
+    const getValue = (hand) => {
+        let value = 0;
+        let aces = 0;
+        for (const c of hand) {
+            if (c.card === 'A') { aces++; value += 11; }
+            else if (['K', 'Q', 'J'].includes(c.card)) value += 10;
+            else value += parseInt(c.card);
+        }
+        while (value > 21 && aces > 0) { value -= 10; aces--; }
+        return value;
+    };
+
+    // Draw initial hands
+    const playerHand = [drawCard(), drawCard()];
+    const dealerHand = [drawCard(), drawCard()];
+
+    // Simple AI: dealer draws until 17+
+    while (getValue(dealerHand) < 17) {
+        dealerHand.push(drawCard());
+    }
+
+    // Player also auto-draws if under 17 (simplified)
+    while (getValue(playerHand) < 17) {
+        playerHand.push(drawCard());
+    }
+
+    const playerValue = getValue(playerHand);
+    const dealerValue = getValue(dealerHand);
+
+    let result, winnings, won;
+
+    if (playerValue > 21) {
+        result = 'BUST! You lose.';
+        winnings = -bet;
+        won = false;
+    } else if (dealerValue > 21) {
+        result = 'Dealer busts! You win!';
+        winnings = bet;
+        won = true;
+    } else if (playerValue > dealerValue) {
+        result = 'You win!';
+        winnings = bet;
+        won = true;
+    } else if (playerValue < dealerValue) {
+        result = 'Dealer wins!';
+        winnings = -bet;
+        won = false;
+    } else {
+        result = 'Push! Tie game.';
+        winnings = 0;
+        won = false;
+    }
+
+    // Update balance
+    user.balance += winnings;
+    user.totalGambled = (user.totalGambled || 0) + bet;
+
+    if (winnings > 0) {
+        user.totalEarned = (user.totalEarned || 0) + winnings;
+        user.gamesWon = (user.gamesWon || 0) + 1;
+    } else if (winnings < 0) {
+        user.totalLost = (user.totalLost || 0) + Math.abs(winnings);
+    }
+    user.gamesPlayed = (user.gamesPlayed || 0) + 1;
+
+    await saveUser(userId, user);
+
+    return {
+        success: true,
+        playerHand,
+        dealerHand,
+        playerValue,
+        dealerValue,
+        result,
+        winnings,
+        newBalance: user.balance
+    };
+}
+
+/**
  * Rob another user
  */
 async function rob(userId, targetId, username) {
@@ -1420,11 +1604,28 @@ async function rob(userId, targetId, username) {
     const user = await loadUser(userId, username);
     const target = await loadUser(targetId);
 
-    // Check if target has shield
-    const targetEffects = await getActiveEffects(targetId);
-    const hasShield = targetEffects.some(e => e.itemId === 'shield');
-    if (hasShield) {
-        return { success: false, error: 'Target has a shield active!' };
+    // Get combined perks (handles immunity/defense from all sources)
+    const targetPerks = await getCombinedPerks(targetId);
+
+    if (targetPerks.robberyImmunity) {
+        return { success: false, error: 'Target is immune to robbery! (Shield/Armor active)' };
+    }
+
+    // Defense logic
+    if (targetPerks.robberyDefense > 0 && Math.random() < targetPerks.robberyDefense) {
+        const fine = Math.floor(user.balance * 0.15); // 15% fine
+        user.balance -= fine;
+        user.totalLost = (user.totalLost || 0) + fine;
+        await saveUser(userId, user);
+
+        return {
+            success: true,
+            succeeded: false,
+            caught: true,
+            message: `**SYSTEM DEFENSE!** Target's defense systems repelled you. You paid a fine of **${fine}** Stark Bucks.`,
+            fine,
+            newBalance: user.balance
+        };
     }
 
     if (target.balance < 50) {
@@ -1432,10 +1633,11 @@ async function rob(userId, targetId, username) {
     }
 
     // Bot owner always succeeds
-    const succeeded = isBotOwner(userId) ? true : Math.random() < ECONOMY_CONFIG.robSuccessRate;
+    const baseChance = ECONOMY_CONFIG.robChance || 0.4;
+    const succeeded = isBotOwner(userId) ? true : Math.random() < baseChance;
 
     if (succeeded) {
-        const maxSteal = Math.floor(target.balance * ECONOMY_CONFIG.robMaxPercent);
+        const maxSteal = Math.floor(target.balance * (ECONOMY_CONFIG.robMaxPercent || 0.5));
         const stolen = Math.floor(Math.random() * maxSteal) + 1;
 
         user.balance += stolen;
@@ -1450,7 +1652,8 @@ async function rob(userId, targetId, username) {
             success: true,
             succeeded: true,
             stolen,
-            newBalance: user.balance
+            newBalance: user.balance,
+            message: `You stole **${stolen}** Stark Bucks from ${targetPerks.hasReactor ? 'Arc Reactor user' : 'target'}!`
         };
     } else {
         // Failed - pay fine
@@ -1463,6 +1666,7 @@ async function rob(userId, targetId, username) {
             success: true,
             succeeded: false,
             fine,
+            message: `**BUSTED!** Police caught you. You paid a fine of **${fine}** Stark Bucks.`,
             newBalance: user.balance
         };
     }
@@ -2019,7 +2223,7 @@ async function sellItem(userId, itemIndex) {
     }
 
     const item = user.inventory[itemIndex];
-    
+
     // Can't sell special items like arc_reactor
     if (item.id === 'arc_reactor' || item.oneTime) {
         return { success: false, error: 'This item cannot be sold' };
@@ -2103,7 +2307,7 @@ const BOSSES = [
 async function getDailyChallenges(userId) {
     const user = await loadUser(userId);
     const today = new Date().toDateString();
-    
+
     // Reset challenges if new day
     if (user.challengeDate !== today) {
         // Pick 3 random challenges
@@ -2116,7 +2320,7 @@ async function getDailyChallenges(userId) {
         user.challengeDate = today;
         await saveUser(userId, user);
     }
-    
+
     return user.dailyChallenges || [];
 }
 
@@ -2126,7 +2330,7 @@ async function getDailyChallenges(userId) {
 async function updateChallengeProgress(userId, challengeType, amount = 1) {
     const user = await loadUser(userId);
     if (!user.dailyChallenges) return;
-    
+
     for (const challenge of user.dailyChallenges) {
         if (challenge.id.startsWith(challengeType) && !challenge.completed) {
             challenge.progress += amount;
@@ -2157,14 +2361,14 @@ async function getPrestigeData(userId) {
 async function prestige(userId) {
     const user = await loadUser(userId);
     const newLevel = (user.prestigeLevel || 0) + 1;
-    
+
     user.prestigeLevel = newLevel;
     user.balance = ECONOMY_CONFIG.startingBalance; // Reset balance
     user.totalEarned = 0;
     user.totalLost = 0;
-    
+
     await saveUser(userId, user);
-    
+
     return {
         success: true,
         newLevel,
@@ -2189,22 +2393,22 @@ async function getPetData(userId) {
  */
 async function buyPet(userId, petType) {
     const user = await loadUser(userId);
-    
+
     if (user.pet) {
         return { success: false, error: 'You already have a pet!' };
     }
-    
+
     const type = petType.toLowerCase();
     const petDef = PET_TYPES[type];
-    
+
     if (!petDef) {
         return { success: false, error: `Unknown pet type. Available: ${Object.keys(PET_TYPES).join(', ')}` };
     }
-    
+
     if (user.balance < petDef.cost) {
         return { success: false, error: `Insufficient funds! Need ${petDef.cost} Stark Bucks` };
     }
-    
+
     user.balance -= petDef.cost;
     user.pet = {
         type: petDef.name,
@@ -2218,9 +2422,9 @@ async function buyPet(userId, petType) {
         lastFed: Date.now(),
         adoptedAt: Date.now()
     };
-    
+
     await saveUser(userId, user);
-    
+
     return { success: true, pet: user.pet, cost: petDef.cost };
 }
 
@@ -2229,28 +2433,28 @@ async function buyPet(userId, petType) {
  */
 async function feedPet(userId) {
     const user = await loadUser(userId);
-    
+
     if (!user.pet) {
         return { success: false, error: 'You don\'t have a pet!' };
     }
-    
+
     const feedCost = 100;
     if (user.balance < feedCost) {
         return { success: false, error: 'Not enough money to feed your pet!' };
     }
-    
+
     user.balance -= feedCost;
     const happinessGain = Math.min(100 - user.pet.happiness, 30);
     user.pet.happiness = Math.min(100, user.pet.happiness + happinessGain);
     user.pet.lastFed = Date.now();
-    
+
     // Level up pet occasionally
     if (Math.random() < 0.1) {
         user.pet.level++;
     }
-    
+
     await saveUser(userId, user);
-    
+
     return { success: true, newHappiness: user.pet.happiness, happinessGain, cost: feedCost };
 }
 
@@ -2272,15 +2476,15 @@ async function startHeist(guildId, userId, bet) {
     if (activeHeists.has(guildId)) {
         return { success: false, error: 'A heist is already in progress!' };
     }
-    
+
     const user = await loadUser(userId);
     if (user.balance < bet) {
         return { success: false, error: 'Insufficient funds!' };
     }
-    
+
     user.balance -= bet;
     await saveUser(userId, user);
-    
+
     activeHeists.set(guildId, {
         startedBy: userId,
         bet,
@@ -2289,7 +2493,7 @@ async function startHeist(guildId, userId, bet) {
         startTime: Date.now(),
         maxParticipants: 8
     });
-    
+
     return { success: true };
 }
 
@@ -2298,32 +2502,32 @@ async function startHeist(guildId, userId, bet) {
  */
 async function joinHeist(guildId, userId) {
     const heist = activeHeists.get(guildId);
-    
+
     if (!heist) {
         return { success: false, error: 'No active heist!' };
     }
-    
+
     if (heist.participants.some(p => p.id === userId)) {
         return { success: false, error: 'Already in this heist!' };
     }
-    
+
     if (heist.participants.length >= heist.maxParticipants) {
         return { success: false, error: 'Heist is full!' };
     }
-    
+
     const user = await loadUser(userId);
     if (user.balance < heist.bet) {
         return { success: false, error: 'Insufficient funds!' };
     }
-    
+
     user.balance -= heist.bet;
     await saveUser(userId, user);
-    
+
     heist.participants.push({ id: userId, bet: heist.bet });
     heist.prizePool += heist.bet;
-    
-    return { 
-        success: true, 
+
+    return {
+        success: true,
         participants: heist.participants.length,
         maxParticipants: heist.maxParticipants
     };
@@ -2334,13 +2538,13 @@ async function joinHeist(guildId, userId) {
  */
 async function executeHeist(guildId) {
     const heist = activeHeists.get(guildId);
-    
+
     if (!heist) {
         return { success: false, error: 'No active heist!' };
     }
-    
+
     activeHeists.delete(guildId);
-    
+
     if (heist.participants.length < 3) {
         // Refund everyone
         for (const p of heist.participants) {
@@ -2348,11 +2552,11 @@ async function executeHeist(guildId) {
         }
         return { success: true, won: false, story: 'Not enough participants. Everyone refunded.' };
     }
-    
+
     // Calculate success (more participants = better odds)
     const successChance = 0.3 + (heist.participants.length * 0.08);
     const won = Math.random() < successChance;
-    
+
     const stories = won ? [
         'The team infiltrated the vault undetected!',
         'Jarvis hacked the security system perfectly!',
@@ -2362,23 +2566,23 @@ async function executeHeist(guildId) {
         'The vault was empty - it was a trap!',
         'Iron Man showed up and stopped the heist!'
     ];
-    
+
     const story = stories[Math.floor(Math.random() * stories.length)];
-    
+
     if (won) {
         const bonus = Math.floor(heist.prizePool * 0.5); // 50% bonus
         const totalPayout = heist.prizePool + bonus;
         const perPerson = Math.floor(totalPayout / heist.participants.length);
-        
+
         const winners = [];
         for (const p of heist.participants) {
             await modifyBalance(p.id, perPerson, 'heist_win');
             winners.push({ id: p.id, winnings: perPerson });
         }
-        
+
         return { success: true, won: true, story, winners };
     }
-    
+
     return { success: true, won: false, story, winners: [] };
 }
 
@@ -2387,11 +2591,11 @@ async function executeHeist(guildId) {
  */
 async function getHeistStatus(guildId) {
     const heist = activeHeists.get(guildId);
-    
+
     if (!heist) {
         return { active: false };
     }
-    
+
     return {
         active: true,
         participants: heist.participants.length,
@@ -2416,7 +2620,7 @@ async function getBossData(guildId) {
             spawnTime: Date.now()
         });
     }
-    
+
     const boss = activeBosses.get(guildId);
     return {
         name: boss.name,
@@ -2434,23 +2638,23 @@ async function getBossData(guildId) {
  */
 async function attackBoss(guildId, userId) {
     const boss = activeBosses.get(guildId);
-    
+
     if (!boss) {
         return { success: false, error: 'No boss available!' };
     }
-    
+
     const cooldown = checkCooldown(userId, 'boss_attack', 30000);
     if (cooldown.onCooldown) {
         return { success: false, error: `Wait ${Math.ceil(cooldown.remaining / 1000)}s!` };
     }
-    
+
     const damage = Math.floor(50 + Math.random() * 200);
     boss.hp -= damage;
     boss.attackers++;
-    
+
     const userDamage = (boss.damageDealt.get(userId) || 0) + damage;
     boss.damageDealt.set(userId, userDamage);
-    
+
     const result = {
         success: true,
         damage,
@@ -2458,20 +2662,20 @@ async function attackBoss(guildId, userId) {
         userTotalDamage: userDamage,
         bossDefeated: boss.hp <= 0
     };
-    
+
     if (boss.hp <= 0) {
         // Distribute rewards
         const totalDamage = Array.from(boss.damageDealt.values()).reduce((a, b) => a + b, 0);
         const userShare = userDamage / totalDamage;
         const reward = Math.floor(boss.rewardPool * userShare);
-        
+
         await modifyBalance(userId, reward, 'boss_kill');
         result.reward = reward;
-        
+
         // Respawn new boss
         activeBosses.delete(guildId);
     }
-    
+
     return result;
 }
 
@@ -2482,7 +2686,7 @@ async function getLotteryData(userId = null) {
     const timeUntilDraw = lotteryData.drawTime - Date.now();
     const days = Math.floor(timeUntilDraw / (24 * 60 * 60 * 1000));
     const hours = Math.floor((timeUntilDraw % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-    
+
     return {
         jackpot: lotteryData.jackpot,
         ticketPrice: lotteryData.ticketPrice,
@@ -2499,18 +2703,18 @@ async function getLotteryData(userId = null) {
 async function buyLotteryTickets(userId, count) {
     const cost = count * lotteryData.ticketPrice;
     const user = await loadUser(userId);
-    
+
     if (user.balance < cost) {
         return { success: false, error: 'Insufficient funds!' };
     }
-    
+
     user.balance -= cost;
     await saveUser(userId, user);
-    
+
     const currentTickets = lotteryData.tickets.get(userId) || 0;
     lotteryData.tickets.set(userId, currentTickets + count);
     lotteryData.jackpot += cost;
-    
+
     return {
         success: true,
         cost,
@@ -2542,21 +2746,21 @@ async function getAvailableQuests() {
  */
 async function startQuest(userId, questId) {
     const user = await loadUser(userId);
-    
+
     if (user.activeQuest) {
         return { success: false, error: 'You already have an active quest! Complete it first.' };
     }
-    
+
     const quest = QUESTS.find(q => q.id === questId) || QUESTS[Math.floor(Math.random() * QUESTS.length)];
-    
+
     user.activeQuest = {
         ...quest,
         progress: new Array(quest.objectives.length).fill(false),
         startedAt: Date.now()
     };
-    
+
     await saveUser(userId, user);
-    
+
     return { success: true, quest: user.activeQuest };
 }
 
@@ -2565,22 +2769,22 @@ async function startQuest(userId, questId) {
  */
 async function completeQuest(userId) {
     const user = await loadUser(userId);
-    
+
     if (!user.activeQuest) {
         return { success: false, error: 'No active quest!' };
     }
-    
+
     // For simplicity, auto-complete after some activity
     const quest = user.activeQuest;
-    
+
     user.balance += quest.reward;
     user.totalEarned = (user.totalEarned || 0) + quest.reward;
     user.completedQuests = user.completedQuests || [];
     user.completedQuests.push(quest.id);
     user.activeQuest = null;
-    
+
     await saveUser(userId, user);
-    
+
     return { success: true, quest, reward: quest.reward, xp: quest.xp };
 }
 
@@ -2600,7 +2804,7 @@ async function getTournamentData(guildId) {
             endTime: Date.now() + 2 * 60 * 60 * 1000
         });
     }
-    
+
     return activeTournaments.get(guildId);
 }
 
@@ -2609,18 +2813,18 @@ async function getTournamentData(guildId) {
  */
 async function joinTournament(guildId, userId) {
     const tournament = activeTournaments.get(guildId);
-    
+
     if (!tournament) {
         return { success: false, error: 'No active tournament!' };
     }
-    
+
     if (tournament.leaderboard.some(p => p.id === userId)) {
         return { success: false, error: 'Already in tournament!' };
     }
-    
+
     tournament.participants++;
     tournament.leaderboard.push({ id: userId, score: 0 });
-    
+
     return { success: true };
 }
 
@@ -2629,18 +2833,18 @@ async function joinTournament(guildId, userId) {
  */
 async function listAuction(userId, itemIndex, price) {
     const user = await loadUser(userId);
-    
+
     if (!user.inventory || itemIndex >= user.inventory.length) {
         return { success: false, error: 'Invalid item!' };
     }
-    
+
     const item = user.inventory[itemIndex];
     if (item.id === 'arc_reactor') {
         return { success: false, error: 'Cannot sell Arc Reactor!' };
     }
-    
+
     const auctionId = `AH${Date.now().toString(36)}`;
-    
+
     auctionListings.set(auctionId, {
         id: auctionId,
         sellerId: userId,
@@ -2650,10 +2854,10 @@ async function listAuction(userId, itemIndex, price) {
         price,
         listedAt: Date.now()
     });
-    
+
     user.inventory.splice(itemIndex, 1);
     await saveUser(userId, user);
-    
+
     return { success: true, item: item.name, auctionId };
 }
 
@@ -2662,33 +2866,33 @@ async function listAuction(userId, itemIndex, price) {
  */
 async function buyAuction(userId, auctionId) {
     const listing = auctionListings.get(auctionId);
-    
+
     if (!listing) {
         return { success: false, error: 'Listing not found!' };
     }
-    
+
     if (listing.sellerId === userId) {
         return { success: false, error: 'Cannot buy your own listing!' };
     }
-    
+
     const buyer = await loadUser(userId);
-    
+
     if (buyer.balance < listing.price) {
         return { success: false, error: 'Insufficient funds!' };
     }
-    
+
     // Transfer money
     buyer.balance -= listing.price;
     buyer.inventory = buyer.inventory || [];
     buyer.inventory.push(listing.itemData);
     await saveUser(userId, buyer);
-    
+
     // Pay seller (minus 5% fee)
     const sellerPayout = Math.floor(listing.price * 0.95);
     await modifyBalance(listing.sellerId, sellerPayout, 'auction_sale');
-    
+
     auctionListings.delete(auctionId);
-    
+
     return { success: true, item: listing.item, price: listing.price };
 }
 
@@ -2727,6 +2931,7 @@ module.exports = {
     gamble,
     playSlots,
     coinflip,
+    playBlackjack,
     rob,
 
     // Shop

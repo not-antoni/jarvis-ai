@@ -1418,6 +1418,93 @@
                             response = { embeds: [giveEmbed] };
                             break;
                         }
+                        case 'blackjack': {
+                            const bet = interaction.options.getInteger('bet');
+                            if (bet < 10) {
+                                response = '❌ Minimum bet is 10 Stark Bucks.';
+                                break;
+                            }
+                            const result = await starkEconomy.playBlackjack(interaction.user.id, bet);
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+                            
+                            const playerHandStr = result.playerHand.map(c => c.display).join(' ');
+                            const dealerHandStr = result.dealerHand.map(c => c.display).join(' ');
+                            const color = result.winnings > 0 ? 0x2ecc71 : (result.winnings < 0 ? 0xe74c3c : 0xf1c40f);
+                            
+                            const embed = new EmbedBuilder()
+                                .setTitle('🃏 Blackjack')
+                                .setColor(color)
+                                .addFields(
+                                    { name: `Your Hand (${result.playerValue})`, value: playerHandStr, inline: true },
+                                    { name: `Dealer (${result.dealerValue})`, value: dealerHandStr, inline: true },
+                                    { name: 'Result', value: `${result.result}\n${result.winnings >= 0 ? '+' : ''}${result.winnings} Stark Bucks`, inline: false },
+                                    { name: '💰 Balance', value: `${result.newBalance}`, inline: true }
+                                );
+                            response = { embeds: [embed] };
+                            break;
+                        }
+                        case 'rob': {
+                            const target = interaction.options.getUser('user');
+                            const result = await starkEconomy.rob(interaction.user.id, target.id, interaction.user.username);
+                            
+                            if (result.cooldown) {
+                                const remaining = Math.ceil(result.cooldown / 1000);
+                                response = `👮 **POLICE ALERT!**\nYou are laying low. Try robbing again in ${remaining}s.`;
+                                break;
+                            }
+                            
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+                            
+                            const embed = new EmbedBuilder()
+                                .setTitle('🦹 Robbery')
+                                .setColor(result.caught ? 0xe74c3c : 0x2ecc71)
+                                .setDescription(result.message)
+                                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true })
+                                .setFooter({ text: result.caught ? 'Busted!' : 'Clean getaway!' });
+                             
+                            response = { embeds: [embed] };
+                            break;
+                        }
+                        case 'lottery': {
+                            const buyTickets = interaction.options.getInteger('buy_tickets');
+                            if (buyTickets) {
+                                if (buyTickets < 1) {
+                                    response = '❌ You must buy at least 1 ticket.';
+                                    break;
+                                }
+                                const result = await starkEconomy.buyLotteryTickets(interaction.user.id, buyTickets);
+                                if (!result.success) {
+                                    response = `❌ ${result.error}`;
+                                    break;
+                                }
+                                response = `🎟️ **Lottery:** Successfully purchased **${buyTickets}** tickets for **${result.cost}** Stark Bucks!\nYou now have ${result.totalTickets} tickets. Good luck!`;
+                            } else {
+                                const data = await starkEconomy.getLotteryData();
+                                const timeRemaining = Math.max(0, Math.ceil((data.drawTime - Date.now()) / 1000 / 60));
+                                const timeStr = timeRemaining > 60 
+                                    ? `${Math.floor(timeRemaining/60)}h ${timeRemaining%60}m` 
+                                    : `${timeRemaining}m`;
+                                
+                                const embed = new EmbedBuilder()
+                                    .setTitle('🎰 Stark Lottery')
+                                    .setColor(0x9b59b6)
+                                    .setDescription(`**Jackpot:** ${data.jackpot.toLocaleString()} Stark Bucks\n**Ticket Price:** ${data.ticketPrice} each`)
+                                    .addFields(
+                                        { name: 'Entries', value: `${data.totalTickets} tickets sold`, inline: true },
+                                        { name: 'Draw In', value: timeStr, inline: true },
+                                        { name: 'Last Winner', value: data.lastWinner ? `<@${data.lastWinner}>` : 'None', inline: false }
+                                    )
+                                    .setFooter({ text: 'Use /economy lottery buy_tickets:N to play' });
+                                response = { embeds: [embed] };
+                            }
+                            break;
+                        }
                         default:
                             response = '❌ Unknown economy subcommand.';
                     }

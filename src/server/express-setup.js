@@ -32,7 +32,16 @@ function createExpressApp(options = {}) {
         helmet = null;
     }
     if (helmet) {
-        app.use(helmet());
+        app.use(helmet({
+            contentSecurityPolicy: {
+                directives: {
+                    defaultSrc: ["'self'"],
+                    scriptSrc: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"],
+                    connectSrc: ["'self'", "https://cloudflareinsights.com"],
+                    imgSrc: ["'self'", "data:", "https:", "*"],
+                },
+            },
+        }));
     } else {
         app.use((req, res, next) => {
             res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -126,8 +135,8 @@ function createExpressApp(options = {}) {
 
                 const status =
                     snapshot.env.hasAllRequired &&
-                    snapshot.database.connected &&
-                    healthyProviders > 0
+                        snapshot.database.connected &&
+                        healthyProviders > 0
                         ? 'ok'
                         : 'degraded';
 
