@@ -505,11 +505,20 @@ async function processSubscription(sub) {
         return;
     }
 
+    const subId = String(sub.id);
     const channel = await schedulerState.client.channels.fetch(String(sub.channel_id)).catch(() => null);
     if (!channel || typeof channel.send !== 'function') {
-        await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+        // Track failure instead of immediate deletion
+        const shouldDelete = subscriptions.trackFailure(subId);
+        if (shouldDelete) {
+            console.warn(`[Monitor] Removing subscription ${subId} after repeated channel fetch failures`);
+            await subscriptions.remove_subscription_by_id({ id: subId }).catch(() => null);
+        }
         return;
     }
+    
+    // Clear failure counter on successful channel fetch
+    subscriptions.clearFailure(subId);
 
     const type = String(sub.monitor_type);
 
@@ -539,7 +548,11 @@ async function processSubscription(sub) {
             const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send RSS notification:', sent.error?.message || sent.error);
-                await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+                // Track failure instead of immediate deletion
+                if (subscriptions.trackFailure(subId)) {
+                    console.warn(`[Monitor] Removing RSS subscription ${subId} after repeated send failures`);
+                    await subscriptions.remove_subscription_by_id({ id: subId }).catch(() => null);
+                }
                 return;
             }
 
@@ -576,7 +589,10 @@ async function processSubscription(sub) {
             const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send YouTube notification:', sent.error?.message || sent.error);
-                await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+                if (subscriptions.trackFailure(subId)) {
+                    console.warn(`[Monitor] Removing YouTube subscription ${subId} after repeated send failures`);
+                    await subscriptions.remove_subscription_by_id({ id: subId }).catch(() => null);
+                }
                 return;
             }
 
@@ -613,7 +629,10 @@ async function processSubscription(sub) {
             const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send website notification:', sent.error?.message || sent.error);
-                await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+                if (subscriptions.trackFailure(subId)) {
+                    console.warn(`[Monitor] Removing website subscription ${subId} after repeated send failures`);
+                    await subscriptions.remove_subscription_by_id({ id: subId }).catch(() => null);
+                }
                 return;
             }
 
@@ -649,7 +668,10 @@ async function processSubscription(sub) {
                 const sent = await safeSendMessage(channel, { embeds: [embed] });
                 if (!sent.ok) {
                     console.warn('[Monitor] Failed to send Twitch notification:', sent.error?.message || sent.error);
-                    await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+                    if (subscriptions.trackFailure(subId)) {
+                        console.warn(`[Monitor] Removing Twitch subscription ${subId} after repeated send failures`);
+                        await subscriptions.remove_subscription_by_id({ id: subId }).catch(() => null);
+                    }
                     return;
                 }
             }
@@ -734,7 +756,10 @@ async function processSubscription(sub) {
             const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send Cloudflare notification:', sent.error?.message || sent.error);
-                await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+                if (subscriptions.trackFailure(subId)) {
+                    console.warn(`[Monitor] Removing Cloudflare subscription ${subId} after repeated send failures`);
+                    await subscriptions.remove_subscription_by_id({ id: subId }).catch(() => null);
+                }
                 return;
             }
 
@@ -770,7 +795,10 @@ async function processSubscription(sub) {
             const sent = await safeSendMessage(channel, { embeds: [embed] });
             if (!sent.ok) {
                 console.warn('[Monitor] Failed to send status page notification:', sent.error?.message || sent.error);
-                await subscriptions.remove_subscription_by_id({ id: String(sub.id) }).catch(() => null);
+                if (subscriptions.trackFailure(subId)) {
+                    console.warn(`[Monitor] Removing statuspage subscription ${subId} after repeated send failures`);
+                    await subscriptions.remove_subscription_by_id({ id: subId }).catch(() => null);
+                }
                 return;
             }
 
