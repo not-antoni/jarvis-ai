@@ -52,10 +52,14 @@ const errorLogger = require('./src/services/error-logger');
 const announcementScheduler = require('./src/services/announcement-scheduler');
 const monitorScheduler = require('./src/services/monitor-scheduler');
 const { printSelfhostStatus } = require('./scripts/selfhost-check');
+const { printRenderStatus } = require('./scripts/render-check');
 const { DEFAULT_STATUS_MESSAGES } = require('./data/status-messages');
 
-// Run selfhost check early
-printSelfhostStatus();
+// Run deployment environment check early
+const selfhostResult = printSelfhostStatus();
+if (!selfhostResult.isSelfhost) {
+    printRenderStatus();
+}
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {

@@ -30,8 +30,30 @@ const enableMessageContentIntent = parseBooleanEnv(
     false
 );
 const enablePresenceIntent = parseBooleanEnv(process.env.DISCORD_ENABLE_PRESENCE_INTENT, false);
-const deploymentTarget = (process.env.DEPLOY_TARGET || 'render').trim().toLowerCase();
-const selfhostMode = parseBooleanEnv(process.env.SELFHOST_MODE, false);
+
+// Detect deployment environment
+const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
+const explicitTarget = (process.env.DEPLOY_TARGET || '').trim().toLowerCase();
+
+// Hybrid mode: auto-detect based on environment
+function resolveDeploymentTarget() {
+    if (explicitTarget && explicitTarget !== 'hybrid') {
+        return explicitTarget; // Explicit selfhost or render
+    }
+    // Auto-detect: if Render env vars present, use render; otherwise selfhost
+    if (IS_RENDER) {
+        return 'render';
+    }
+    // Check for selfhost indicators
+    if (process.env.SELFHOST_MODE === 'true' || process.env.PUBLIC_BASE_URL) {
+        return 'selfhost';
+    }
+    // Default to render for backward compatibility
+    return 'render';
+}
+
+const deploymentTarget = resolveDeploymentTarget();
+const selfhostMode = parseBooleanEnv(process.env.SELFHOST_MODE, false) || deploymentTarget === 'selfhost';
 const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, true);
 const liveAgentModeEnabled = parseBooleanEnv(process.env.LIVE_AGENT_MODE, true);
 const agentAllowlist = (process.env.AGENT_ALLOWLIST_DOMAINS || '')
