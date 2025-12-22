@@ -6,12 +6,14 @@ const sharp = require('sharp');
 const path = require('path');
 const fetch = require('node-fetch');
 
-const CLANKER_GIF_PATH = path.join(__dirname, '../..', 'clanker.gif');
+// Use optimized GIF (320x320, 75 frames instead of 640x640, 223 frames)
+const CLANKER_GIF_PATH = path.join(__dirname, '../..', 'clanker-optimized.gif');
 
-// Avatar overlay position (small square area)
-const AVATAR_X = 411;
-const AVATAR_Y = 368;
-const AVATAR_SIZE = 48; // Small square
+// Avatar overlay position - scaled for 320x320 (original was 640x640)
+// Original coords: x:411, y:368 → scaled by 0.5
+const AVATAR_X = 206;
+const AVATAR_Y = 184;
+const AVATAR_SIZE = 64; // Bigger avatar
 
 /**
  * Check if message contains "clanker" (case-insensitive, any variation)
@@ -127,39 +129,74 @@ async function processClankerGif(avatarUrl) {
 }
 
 /**
- * Fast single-pass GIF processing - just overlay avatar on static first frame
- * Sending as static image for speed on low-resource servers
+ * Process animated GIF with avatar overlay using optimized GIF
  * @param {string} avatarUrl - URL of the user's avatar
- * @returns {Promise<Buffer>} - Processed image buffer
+ * @returns {Promise<Buffer>} - Processed animated GIF buffer
  */
 async function processClankerGifFast(avatarUrl) {
     // Fetch and resize avatar
     const avatarBuffer = await fetchAvatar(avatarUrl);
     
-    // Just extract first frame and composite - much faster
-    const targetWidth = 400;
-    const metadata = await sharp(CLANKER_GIF_PATH).metadata();
-    const originalWidth = metadata.width || 800;
-    const scale = targetWidth / originalWidth;
-    
-    const scaledAvatarSize = Math.round(AVATAR_SIZE * scale);
-    const scaledX = Math.round(AVATAR_X * scale);
-    const scaledY = Math.round(AVATAR_Y * scale);
-    
     const resizedAvatar = await sharp(avatarBuffer)
-        .resize(scaledAvatarSize, scaledAvatarSize, { fit: 'cover' })
+        .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
         .png()
         .toBuffer();
 
-    // Extract first frame, resize, composite avatar, output as GIF
-    const result = await sharp(CLANKER_GIF_PATH, { page: 0 })
-        .resize(targetWidth, null, { withoutEnlargement: true })
-        .composite([{
-            input: resizedAvatar,
-            left: scaledX,
-            top: scaledY
-        }])
-        .gif()
+    // Get metadata for frame info
+    const metadata = await sharp(CLANKER_GIF_PATH, { animated: true }).metadata();
+    const frameCount = metadata.pages || 1;
+    const frameHeight = metadata.pageHeight || metadata.height;
+    const width = metadata.width;
+    const delay = metadata.delay || Array(frameCount).fill(100);
+
+    // Process frames in parallel batches for speed
+    const batchSize = 10;
+    const frames = [];
+    
+    for (let batch = 0; batch < frameCount; batch += batchSize) {
+        const batchPromises = [];
+        for (let i = batch; i < Math.min(batch + batchSize, frameCount); i++) {
+            batchPromises.push(
+                sharp(CLANKER_GIF_PATH, { page: i })
+                    .composite([{
+                        input: resizedAvatar,
+                        left: AVATAR_X,
+                        top: AVATAR_Y
+                    }])
+                    .png()
+                    .toBuffer()
+            );
+        }
+        const batchResults = await Promise.all(batchPromises);
+        frames.push(...batchResults);
+    }
+
+    // Stack frames vertically
+    const stackedHeight = frameHeight * frameCount;
+    const compositeInputs = frames.map((frame, i) => ({
+        input: frame,
+        left: 0,
+        top: i * frameHeight
+    }));
+
+    const stacked = await sharp({
+        create: {
+            width: width,
+            height: stackedHeight,
+            channels: 4,
+            background: { r: 0, g: 0, b: 0, alpha: 0 }
+        }
+    })
+        .composite(compositeInputs)
+        .png()
+        .toBuffer();
+
+    // Convert to animated GIF
+    const result = await sharp(stacked)
+        .gif({
+            loop: 0,
+            delay: Array.isArray(delay) ? delay : Array(frameCount).fill(100)
+        })
         .toBuffer();
 
     return result;
