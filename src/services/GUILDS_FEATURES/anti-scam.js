@@ -6,16 +6,99 @@
  * - Alt accounts (suspicious patterns)
  * - Potential scammers
  *
- * REQUIREMENTS:
- * - MESSAGE_CONTENT intent (not currently available)
- * - Additional API keys for enhanced detection (TODO)
- *
- * This is a PLACEHOLDER implementation. Full functionality requires:
- * 1. Discord MESSAGE_CONTENT privileged intent
- * 2. Additional API integrations for scam detection
+ * Features:
+ * - Account age detection
+ * - Suspicious username pattern detection
+ * - Default avatar detection
+ * - Common scam keyword detection
  */
 
 const guildFeatures = require('./guild-features');
+
+// Common scam username patterns
+const SCAM_USERNAME_PATTERNS = [
+    /free\s*nitro/i,
+    /discord\s*(?:mod|admin|staff|support)/i,
+    /giveaway/i,
+    /claim\s*(?:your|free)/i,
+    /steam\s*(?:gift|trade|admin)/i,
+    /cs\s*go\s*(?:skin|trade)/i,
+    /crypto\s*(?:give|airdrop)/i,
+    /nft\s*(?:drop|mint|free)/i,
+    /elon\s*musk/i,
+    /official\s*bot/i,
+    /verify\s*bot/i,
+];
+
+// Suspicious character patterns (homoglyphs, excessive symbols)
+const SUSPICIOUS_CHAR_PATTERNS = [
+    /[а-яА-Я].*[a-zA-Z]|[a-zA-Z].*[а-яА-Я]/,  // Mixed Cyrillic and Latin (homoglyph attacks)
+    /(.)\1{4,}/,  // Same character repeated 5+ times
+    /[^\w\s]{3,}/,  // 3+ special characters in a row
+];
+
+/**
+ * Check username for scam patterns
+ * @param {string} username - Username to check
+ * @returns {Object|null} Warning object if suspicious
+ */
+function checkUsernamePatterns(username) {
+    const lowerUsername = username.toLowerCase();
+    
+    // Check against known scam patterns
+    for (const pattern of SCAM_USERNAME_PATTERNS) {
+        if (pattern.test(username)) {
+            return {
+                level: 'high',
+                message: `⚠️ **HIGH RISK**: Username matches scam pattern: "${username}"`,
+                type: 'scam_username'
+            };
+        }
+    }
+    
+    // Check for suspicious characters
+    for (const pattern of SUSPICIOUS_CHAR_PATTERNS) {
+        if (pattern.test(username)) {
+            return {
+                level: 'medium',
+                message: `⚠️ **MEDIUM RISK**: Username contains suspicious characters: "${username}"`,
+                type: 'suspicious_chars'
+            };
+        }
+    }
+    
+    // Check for impersonation attempts (common service names)
+    const impersonationKeywords = ['discord', 'steam', 'twitch', 'youtube', 'twitter', 'paypal', 'support', 'admin', 'moderator'];
+    for (const keyword of impersonationKeywords) {
+        if (lowerUsername.includes(keyword) && !lowerUsername.includes('fan') && !lowerUsername.includes('lover')) {
+            return {
+                level: 'medium',
+                message: `⚠️ **MEDIUM RISK**: Possible impersonation attempt: "${username}"`,
+                type: 'impersonation'
+            };
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Check if user has default avatar (potential alt/throwaway)
+ * @param {User} user - Discord.js User object
+ * @returns {Object|null} Warning object if default avatar
+ */
+function checkDefaultAvatar(user) {
+    // Discord default avatars use the discriminator or user ID
+    // Users with default avatars have avatar = null
+    if (!user.avatar) {
+        return {
+            level: 'low',
+            message: `ℹ️ **LOW RISK**: User has default avatar (potential throwaway account)`,
+            type: 'default_avatar'
+        };
+    }
+    return null;
+}
 
 /**
  * Analyze a member that just joined
@@ -78,11 +161,26 @@ async function analyzeMember(member) {
         });
     }
 
-    // TODO: Additional checks when MESSAGE_CONTENT intent is available:
-    // - Check for scam patterns in username
-    // - Check for suspicious avatar
-    // - Check for matching patterns with known alt accounts
-    // - Check against external scammer databases (requires API keys)
+    // Check username for scam patterns
+    const usernameWarning = checkUsernamePatterns(member.user.username);
+    if (usernameWarning) {
+        warnings.push(usernameWarning);
+    }
+    
+    // Also check display name if different from username
+    if (member.user.globalName && member.user.globalName !== member.user.username) {
+        const displayNameWarning = checkUsernamePatterns(member.user.globalName);
+        if (displayNameWarning) {
+            displayNameWarning.message = displayNameWarning.message.replace('Username', 'Display name');
+            warnings.push(displayNameWarning);
+        }
+    }
+    
+    // Check for default avatar (potential throwaway)
+    const avatarWarning = checkDefaultAvatar(member.user);
+    if (avatarWarning) {
+        warnings.push(avatarWarning);
+    }
 
     return {
         shouldWarn: warnings.length > 0,
@@ -197,12 +295,13 @@ module.exports = {
     formatWarningMessage,
     sendWarningToAdmins,
     handleMemberJoin,
-    // Feature availability check - account age detection works without MESSAGE_CONTENT
+    checkUsernamePatterns,
+    checkDefaultAvatar,
+    SCAM_USERNAME_PATTERNS,
     isAvailable: () => true,
-    // Required setup info for full functionality
     requirements: {
-        intents: [], // Basic account age detection works without special intents
-        apiKeys: [], // External API keys optional for enhanced detection
+        intents: [],
+        apiKeys: [],
         permissions: ['MANAGE_GUILD']
     }
 };
