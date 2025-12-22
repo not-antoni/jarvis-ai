@@ -1949,6 +1949,672 @@ async function sellItem(userId, itemIndex) {
 }
 
 // ============================================================================
+// NEW FEATURES: Daily Challenges, Prestige, Pets, Heist, Boss, Lottery, Quests, Tournaments, Auction
+// ============================================================================
+
+// In-memory storage for new features (persisted via user document)
+const activeHeists = new Map(); // guildId -> heist data
+const activeBosses = new Map(); // guildId -> boss data
+const activeTournaments = new Map(); // guildId -> tournament data
+const auctionListings = new Map(); // auctionId -> listing data
+
+// Lottery data
+let lotteryData = {
+    jackpot: 10000,
+    ticketPrice: 100,
+    tickets: new Map(), // odUserId -> ticket count
+    lastWinner: null,
+    drawTime: Date.now() + 7 * 24 * 60 * 60 * 1000 // 1 week
+};
+
+// Daily challenge definitions
+const DAILY_CHALLENGES = [
+    { id: 'work_5', name: 'Hard Worker', task: 'Work 5 times', target: 5, reward: 500 },
+    { id: 'gamble_3', name: 'Risk Taker', task: 'Gamble 3 times', target: 3, reward: 300 },
+    { id: 'hunt_3', name: 'Hunter', task: 'Hunt 3 times', target: 3, reward: 400 },
+    { id: 'fish_3', name: 'Fisherman', task: 'Fish 3 times', target: 3, reward: 400 },
+    { id: 'dig_3', name: 'Treasure Hunter', task: 'Dig 3 times', target: 3, reward: 400 },
+    { id: 'win_gamble', name: 'Lucky', task: 'Win a gamble', target: 1, reward: 600 },
+    { id: 'earn_1000', name: 'Money Maker', task: 'Earn 1000 Stark Bucks', target: 1000, reward: 800 },
+    { id: 'craft_item', name: 'Crafter', task: 'Craft an item', target: 1, reward: 700 }
+];
+
+// Pet definitions
+const PET_TYPES = {
+    dog: { emoji: '🐕', name: 'Dog', cost: 5000, bonus: '+5% work earnings', bonusType: 'work', bonusValue: 0.05 },
+    cat: { emoji: '🐈', name: 'Cat', cost: 5000, bonus: '+5% gambling luck', bonusType: 'gambling', bonusValue: 0.05 },
+    dragon: { emoji: '🐉', name: 'Dragon', cost: 25000, bonus: '+10% all earnings', bonusType: 'all', bonusValue: 0.10 },
+    phoenix: { emoji: '🔥', name: 'Phoenix', cost: 50000, bonus: '+15% all earnings', bonusType: 'all', bonusValue: 0.15 },
+    unicorn: { emoji: '🦄', name: 'Unicorn', cost: 30000, bonus: '-30% cooldowns', bonusType: 'cooldown', bonusValue: 0.30 }
+};
+
+// Quest definitions
+const QUESTS = [
+    { id: 'iron_collector', name: 'Iron Collector', shortDesc: 'Collect iron materials', description: 'Tony needs scrap metal for a new suit.', difficulty: 'Easy', objectives: ['Dig 5 times', 'Collect 3 Iron Ore'], reward: 1000, xp: 50 },
+    { id: 'sea_hunter', name: 'Sea Hunter', shortDesc: 'Master the seas', description: 'Prove yourself as a fisherman.', difficulty: 'Easy', objectives: ['Fish 10 times', 'Catch a rare fish'], reward: 1500, xp: 75 },
+    { id: 'risk_taker', name: 'Risk Taker', shortDesc: 'Test your luck', description: 'Gamble your way to glory.', difficulty: 'Medium', objectives: ['Win 5 gambles', 'Win 1000 total'], reward: 3000, xp: 150 },
+    { id: 'master_crafter', name: 'Master Crafter', shortDesc: 'Craft MCU items', description: 'Create legendary Stark tech.', difficulty: 'Hard', objectives: ['Craft 5 items', 'Craft a rare+ item'], reward: 5000, xp: 250 },
+    { id: 'stark_employee', name: 'Stark Employee', shortDesc: 'Work at Stark Industries', description: 'Prove your worth to Tony.', difficulty: 'Easy', objectives: ['Work 10 times', 'Earn 500 from work'], reward: 1200, xp: 60 }
+];
+
+// Boss definitions
+const BOSSES = [
+    { name: 'Ultron Prime', description: 'The rogue AI returns!', maxHp: 50000, rewardPool: 25000 },
+    { name: 'Thanos', description: 'The Mad Titan seeks the stones.', maxHp: 100000, rewardPool: 50000 },
+    { name: 'Dormammu', description: 'The Dark Dimension threatens reality.', maxHp: 75000, rewardPool: 35000 },
+    { name: 'Galactus', description: 'The Devourer of Worlds approaches!', maxHp: 150000, rewardPool: 75000 }
+];
+
+/**
+ * Get daily challenges for user
+ */
+async function getDailyChallenges(userId) {
+    const user = await loadUser(userId);
+    const today = new Date().toDateString();
+    
+    // Reset challenges if new day
+    if (user.challengeDate !== today) {
+        // Pick 3 random challenges
+        const shuffled = [...DAILY_CHALLENGES].sort(() => Math.random() - 0.5);
+        user.dailyChallenges = shuffled.slice(0, 3).map(c => ({
+            ...c,
+            progress: 0,
+            completed: false
+        }));
+        user.challengeDate = today;
+        await saveUser(userId, user);
+    }
+    
+    return user.dailyChallenges || [];
+}
+
+/**
+ * Update challenge progress
+ */
+async function updateChallengeProgress(userId, challengeType, amount = 1) {
+    const user = await loadUser(userId);
+    if (!user.dailyChallenges) return;
+    
+    for (const challenge of user.dailyChallenges) {
+        if (challenge.id.startsWith(challengeType) && !challenge.completed) {
+            challenge.progress += amount;
+            if (challenge.progress >= challenge.target) {
+                challenge.completed = true;
+                user.balance += challenge.reward;
+                user.totalEarned = (user.totalEarned || 0) + challenge.reward;
+            }
+        }
+    }
+    await saveUser(userId, user);
+}
+
+/**
+ * Get prestige data
+ */
+async function getPrestigeData(userId) {
+    const user = await loadUser(userId);
+    return {
+        level: user.prestigeLevel || 0,
+        bonus: (user.prestigeLevel || 0) * 5 // 5% per level
+    };
+}
+
+/**
+ * Perform prestige
+ */
+async function prestige(userId) {
+    const user = await loadUser(userId);
+    const newLevel = (user.prestigeLevel || 0) + 1;
+    
+    user.prestigeLevel = newLevel;
+    user.balance = ECONOMY_CONFIG.startingBalance; // Reset balance
+    user.totalEarned = 0;
+    user.totalLost = 0;
+    
+    await saveUser(userId, user);
+    
+    return {
+        success: true,
+        newLevel,
+        bonusPercent: newLevel * 5,
+        newBalance: user.balance
+    };
+}
+
+/**
+ * Get pet data
+ */
+async function getPetData(userId) {
+    const user = await loadUser(userId);
+    return {
+        hasPet: !!user.pet,
+        pet: user.pet || null
+    };
+}
+
+/**
+ * Buy a pet
+ */
+async function buyPet(userId, petType) {
+    const user = await loadUser(userId);
+    
+    if (user.pet) {
+        return { success: false, error: 'You already have a pet!' };
+    }
+    
+    const type = petType.toLowerCase();
+    const petDef = PET_TYPES[type];
+    
+    if (!petDef) {
+        return { success: false, error: `Unknown pet type. Available: ${Object.keys(PET_TYPES).join(', ')}` };
+    }
+    
+    if (user.balance < petDef.cost) {
+        return { success: false, error: `Insufficient funds! Need ${petDef.cost} Stark Bucks` };
+    }
+    
+    user.balance -= petDef.cost;
+    user.pet = {
+        type: petDef.name,
+        emoji: petDef.emoji,
+        name: petDef.name,
+        level: 1,
+        happiness: 100,
+        bonus: petDef.bonus,
+        bonusType: petDef.bonusType,
+        bonusValue: petDef.bonusValue,
+        lastFed: Date.now(),
+        adoptedAt: Date.now()
+    };
+    
+    await saveUser(userId, user);
+    
+    return { success: true, pet: user.pet, cost: petDef.cost };
+}
+
+/**
+ * Feed pet
+ */
+async function feedPet(userId) {
+    const user = await loadUser(userId);
+    
+    if (!user.pet) {
+        return { success: false, error: 'You don\'t have a pet!' };
+    }
+    
+    const feedCost = 100;
+    if (user.balance < feedCost) {
+        return { success: false, error: 'Not enough money to feed your pet!' };
+    }
+    
+    user.balance -= feedCost;
+    const happinessGain = Math.min(100 - user.pet.happiness, 30);
+    user.pet.happiness = Math.min(100, user.pet.happiness + happinessGain);
+    user.pet.lastFed = Date.now();
+    
+    // Level up pet occasionally
+    if (Math.random() < 0.1) {
+        user.pet.level++;
+    }
+    
+    await saveUser(userId, user);
+    
+    return { success: true, newHappiness: user.pet.happiness, happinessGain, cost: feedCost };
+}
+
+/**
+ * Rename pet
+ */
+async function renamePet(userId, newName) {
+    const user = await loadUser(userId);
+    if (user.pet) {
+        user.pet.name = newName;
+        await saveUser(userId, user);
+    }
+}
+
+/**
+ * Start a heist
+ */
+async function startHeist(guildId, userId, bet) {
+    if (activeHeists.has(guildId)) {
+        return { success: false, error: 'A heist is already in progress!' };
+    }
+    
+    const user = await loadUser(userId);
+    if (user.balance < bet) {
+        return { success: false, error: 'Insufficient funds!' };
+    }
+    
+    user.balance -= bet;
+    await saveUser(userId, user);
+    
+    activeHeists.set(guildId, {
+        startedBy: userId,
+        bet,
+        participants: [{ id: userId, bet }],
+        prizePool: bet,
+        startTime: Date.now(),
+        maxParticipants: 8
+    });
+    
+    return { success: true };
+}
+
+/**
+ * Join a heist
+ */
+async function joinHeist(guildId, userId) {
+    const heist = activeHeists.get(guildId);
+    
+    if (!heist) {
+        return { success: false, error: 'No active heist!' };
+    }
+    
+    if (heist.participants.some(p => p.id === userId)) {
+        return { success: false, error: 'Already in this heist!' };
+    }
+    
+    if (heist.participants.length >= heist.maxParticipants) {
+        return { success: false, error: 'Heist is full!' };
+    }
+    
+    const user = await loadUser(userId);
+    if (user.balance < heist.bet) {
+        return { success: false, error: 'Insufficient funds!' };
+    }
+    
+    user.balance -= heist.bet;
+    await saveUser(userId, user);
+    
+    heist.participants.push({ id: userId, bet: heist.bet });
+    heist.prizePool += heist.bet;
+    
+    return { 
+        success: true, 
+        participants: heist.participants.length,
+        maxParticipants: heist.maxParticipants
+    };
+}
+
+/**
+ * Execute heist
+ */
+async function executeHeist(guildId) {
+    const heist = activeHeists.get(guildId);
+    
+    if (!heist) {
+        return { success: false, error: 'No active heist!' };
+    }
+    
+    activeHeists.delete(guildId);
+    
+    if (heist.participants.length < 3) {
+        // Refund everyone
+        for (const p of heist.participants) {
+            await modifyBalance(p.id, p.bet, 'heist_refund');
+        }
+        return { success: true, won: false, story: 'Not enough participants. Everyone refunded.' };
+    }
+    
+    // Calculate success (more participants = better odds)
+    const successChance = 0.3 + (heist.participants.length * 0.08);
+    const won = Math.random() < successChance;
+    
+    const stories = won ? [
+        'The team infiltrated the vault undetected!',
+        'Jarvis hacked the security system perfectly!',
+        'A flawless execution worthy of Ocean\'s Eleven!'
+    ] : [
+        'Security caught wind of the plan!',
+        'The vault was empty - it was a trap!',
+        'Iron Man showed up and stopped the heist!'
+    ];
+    
+    const story = stories[Math.floor(Math.random() * stories.length)];
+    
+    if (won) {
+        const bonus = Math.floor(heist.prizePool * 0.5); // 50% bonus
+        const totalPayout = heist.prizePool + bonus;
+        const perPerson = Math.floor(totalPayout / heist.participants.length);
+        
+        const winners = [];
+        for (const p of heist.participants) {
+            await modifyBalance(p.id, perPerson, 'heist_win');
+            winners.push({ id: p.id, winnings: perPerson });
+        }
+        
+        return { success: true, won: true, story, winners };
+    }
+    
+    return { success: true, won: false, story, winners: [] };
+}
+
+/**
+ * Get heist status
+ */
+async function getHeistStatus(guildId) {
+    const heist = activeHeists.get(guildId);
+    
+    if (!heist) {
+        return { active: false };
+    }
+    
+    return {
+        active: true,
+        participants: heist.participants.length,
+        maxParticipants: heist.maxParticipants,
+        prizePool: heist.prizePool,
+        timeLeft: 60000 - (Date.now() - heist.startTime)
+    };
+}
+
+/**
+ * Get boss data
+ */
+async function getBossData(guildId) {
+    if (!activeBosses.has(guildId)) {
+        // Spawn a random boss
+        const bossDef = BOSSES[Math.floor(Math.random() * BOSSES.length)];
+        activeBosses.set(guildId, {
+            ...bossDef,
+            hp: bossDef.maxHp,
+            attackers: 0,
+            damageDealt: new Map(),
+            spawnTime: Date.now()
+        });
+    }
+    
+    const boss = activeBosses.get(guildId);
+    return {
+        name: boss.name,
+        description: boss.description,
+        hp: boss.hp,
+        maxHp: boss.maxHp,
+        attackers: boss.attackers,
+        rewardPool: boss.rewardPool,
+        resetTime: (24 * 60 * 60 * 1000) - (Date.now() - boss.spawnTime)
+    };
+}
+
+/**
+ * Attack boss
+ */
+async function attackBoss(guildId, userId) {
+    const boss = activeBosses.get(guildId);
+    
+    if (!boss) {
+        return { success: false, error: 'No boss available!' };
+    }
+    
+    const cooldown = checkCooldown(userId, 'boss_attack', 30000);
+    if (cooldown.onCooldown) {
+        return { success: false, error: `Wait ${Math.ceil(cooldown.remaining / 1000)}s!` };
+    }
+    
+    const damage = Math.floor(50 + Math.random() * 200);
+    boss.hp -= damage;
+    boss.attackers++;
+    
+    const userDamage = (boss.damageDealt.get(userId) || 0) + damage;
+    boss.damageDealt.set(userId, userDamage);
+    
+    const result = {
+        success: true,
+        damage,
+        remainingHp: Math.max(0, boss.hp),
+        userTotalDamage: userDamage,
+        bossDefeated: boss.hp <= 0
+    };
+    
+    if (boss.hp <= 0) {
+        // Distribute rewards
+        const totalDamage = Array.from(boss.damageDealt.values()).reduce((a, b) => a + b, 0);
+        const userShare = userDamage / totalDamage;
+        const reward = Math.floor(boss.rewardPool * userShare);
+        
+        await modifyBalance(userId, reward, 'boss_kill');
+        result.reward = reward;
+        
+        // Respawn new boss
+        activeBosses.delete(guildId);
+    }
+    
+    return result;
+}
+
+/**
+ * Get lottery data
+ */
+async function getLotteryData(userId = null) {
+    const timeUntilDraw = lotteryData.drawTime - Date.now();
+    const days = Math.floor(timeUntilDraw / (24 * 60 * 60 * 1000));
+    const hours = Math.floor((timeUntilDraw % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    
+    return {
+        jackpot: lotteryData.jackpot,
+        ticketPrice: lotteryData.ticketPrice,
+        totalTickets: Array.from(lotteryData.tickets.values()).reduce((a, b) => a + b, 0),
+        userTickets: userId ? (lotteryData.tickets.get(userId) || 0) : 0,
+        timeUntilDraw: `${days}d ${hours}h`,
+        lastWinner: lotteryData.lastWinner
+    };
+}
+
+/**
+ * Buy lottery tickets
+ */
+async function buyLotteryTickets(userId, count) {
+    const cost = count * lotteryData.ticketPrice;
+    const user = await loadUser(userId);
+    
+    if (user.balance < cost) {
+        return { success: false, error: 'Insufficient funds!' };
+    }
+    
+    user.balance -= cost;
+    await saveUser(userId, user);
+    
+    const currentTickets = lotteryData.tickets.get(userId) || 0;
+    lotteryData.tickets.set(userId, currentTickets + count);
+    lotteryData.jackpot += cost;
+    
+    return {
+        success: true,
+        cost,
+        userTickets: currentTickets + count,
+        jackpot: lotteryData.jackpot
+    };
+}
+
+/**
+ * Get quest data
+ */
+async function getQuestData(userId) {
+    const user = await loadUser(userId);
+    return {
+        activeQuest: user.activeQuest || null,
+        completedQuests: user.completedQuests || []
+    };
+}
+
+/**
+ * Get available quests
+ */
+async function getAvailableQuests() {
+    return QUESTS;
+}
+
+/**
+ * Start a quest
+ */
+async function startQuest(userId, questId) {
+    const user = await loadUser(userId);
+    
+    if (user.activeQuest) {
+        return { success: false, error: 'You already have an active quest! Complete it first.' };
+    }
+    
+    const quest = QUESTS.find(q => q.id === questId) || QUESTS[Math.floor(Math.random() * QUESTS.length)];
+    
+    user.activeQuest = {
+        ...quest,
+        progress: new Array(quest.objectives.length).fill(false),
+        startedAt: Date.now()
+    };
+    
+    await saveUser(userId, user);
+    
+    return { success: true, quest: user.activeQuest };
+}
+
+/**
+ * Complete quest
+ */
+async function completeQuest(userId) {
+    const user = await loadUser(userId);
+    
+    if (!user.activeQuest) {
+        return { success: false, error: 'No active quest!' };
+    }
+    
+    // For simplicity, auto-complete after some activity
+    const quest = user.activeQuest;
+    
+    user.balance += quest.reward;
+    user.totalEarned = (user.totalEarned || 0) + quest.reward;
+    user.completedQuests = user.completedQuests || [];
+    user.completedQuests.push(quest.id);
+    user.activeQuest = null;
+    
+    await saveUser(userId, user);
+    
+    return { success: true, quest, reward: quest.reward, xp: quest.xp };
+}
+
+/**
+ * Get tournament data
+ */
+async function getTournamentData(guildId) {
+    if (!activeTournaments.has(guildId)) {
+        const types = ['Fishing', 'Hunting', 'Gambling', 'Mining'];
+        activeTournaments.set(guildId, {
+            type: types[Math.floor(Math.random() * types.length)],
+            description: 'Compete for the highest score!',
+            participants: 0,
+            prizePool: 10000,
+            leaderboard: [],
+            endsIn: '2h',
+            endTime: Date.now() + 2 * 60 * 60 * 1000
+        });
+    }
+    
+    return activeTournaments.get(guildId);
+}
+
+/**
+ * Join tournament
+ */
+async function joinTournament(guildId, userId) {
+    const tournament = activeTournaments.get(guildId);
+    
+    if (!tournament) {
+        return { success: false, error: 'No active tournament!' };
+    }
+    
+    if (tournament.leaderboard.some(p => p.id === userId)) {
+        return { success: false, error: 'Already in tournament!' };
+    }
+    
+    tournament.participants++;
+    tournament.leaderboard.push({ id: userId, score: 0 });
+    
+    return { success: true };
+}
+
+/**
+ * List auction
+ */
+async function listAuction(userId, itemIndex, price) {
+    const user = await loadUser(userId);
+    
+    if (!user.inventory || itemIndex >= user.inventory.length) {
+        return { success: false, error: 'Invalid item!' };
+    }
+    
+    const item = user.inventory[itemIndex];
+    if (item.id === 'arc_reactor') {
+        return { success: false, error: 'Cannot sell Arc Reactor!' };
+    }
+    
+    const auctionId = `AH${Date.now().toString(36)}`;
+    
+    auctionListings.set(auctionId, {
+        id: auctionId,
+        sellerId: userId,
+        sellerName: user.username || 'Unknown',
+        item: item.name,
+        itemData: item,
+        price,
+        listedAt: Date.now()
+    });
+    
+    user.inventory.splice(itemIndex, 1);
+    await saveUser(userId, user);
+    
+    return { success: true, item: item.name, auctionId };
+}
+
+/**
+ * Buy from auction
+ */
+async function buyAuction(userId, auctionId) {
+    const listing = auctionListings.get(auctionId);
+    
+    if (!listing) {
+        return { success: false, error: 'Listing not found!' };
+    }
+    
+    if (listing.sellerId === userId) {
+        return { success: false, error: 'Cannot buy your own listing!' };
+    }
+    
+    const buyer = await loadUser(userId);
+    
+    if (buyer.balance < listing.price) {
+        return { success: false, error: 'Insufficient funds!' };
+    }
+    
+    // Transfer money
+    buyer.balance -= listing.price;
+    buyer.inventory = buyer.inventory || [];
+    buyer.inventory.push(listing.itemData);
+    await saveUser(userId, buyer);
+    
+    // Pay seller (minus 5% fee)
+    const sellerPayout = Math.floor(listing.price * 0.95);
+    await modifyBalance(listing.sellerId, sellerPayout, 'auction_sale');
+    
+    auctionListings.delete(auctionId);
+    
+    return { success: true, item: listing.item, price: listing.price };
+}
+
+/**
+ * Get all auctions
+ */
+async function getAuctions() {
+    return Array.from(auctionListings.values()).slice(0, 50);
+}
+
+/**
+ * Get user's auctions
+ */
+async function getUserAuctions(userId) {
+    return Array.from(auctionListings.values()).filter(a => a.sellerId === userId);
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -2012,5 +2678,49 @@ module.exports = {
     getMultiplierStatus,
     getBoostText,
     startMultiplierEvent,
-    startMultiplierScheduler
+    startMultiplierScheduler,
+
+    // NEW: Daily Challenges
+    getDailyChallenges,
+    updateChallengeProgress,
+
+    // NEW: Prestige System
+    getPrestigeData,
+    prestige,
+
+    // NEW: Pet System
+    getPetData,
+    buyPet,
+    feedPet,
+    renamePet,
+
+    // NEW: Heist System
+    startHeist,
+    joinHeist,
+    executeHeist,
+    getHeistStatus,
+
+    // NEW: Boss Battles
+    getBossData,
+    attackBoss,
+
+    // NEW: Lottery
+    getLotteryData,
+    buyLotteryTickets,
+
+    // NEW: Quests
+    getQuestData,
+    getAvailableQuests,
+    startQuest,
+    completeQuest,
+
+    // NEW: Tournaments
+    getTournamentData,
+    joinTournament,
+
+    // NEW: Auction House
+    listAuction,
+    buyAuction,
+    getAuctions,
+    getUserAuctions
 };

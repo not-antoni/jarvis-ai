@@ -13,10 +13,14 @@ const starkTinker = require('./stark-tinker');
 const starkbucks = require('./starkbucks-exchange');
 const funFeatures = require('./fun-features');
 const moderation = require('./GUILDS_FEATURES/moderation');
+const { AchievementsSystem, ACHIEVEMENTS } = require('./achievements');
 const config = require('../../config');
 const database = require('./database');
 const localdb = require('../localdb');
 const { safeSend } = require('../utils/discord-safe-send');
+
+// Initialize achievements system
+const achievements = new AchievementsSystem();
 
 const LEGACY_PREFIX = '*j';
 
@@ -24,6 +28,12 @@ const LEGACY_PREFIX = '*j';
 const cooldowns = new Map();
 const COOLDOWN_MS = 3000; // 3 second cooldown for most commands
 const BOT_OWNER_ID = process.env.BOT_OWNER_ID || '';
+
+// Commands that have their own cooldown handling in stark-economy
+const ECONOMY_COOLDOWN_COMMANDS = [
+    'work', 'daily', 'hunt', 'fish', 'dig', 'beg', 'crime', 'postmeme', 
+    'search', 'rob', 'heist', 'lottery'
+];
 
 function checkCooldown(userId, commandName) {
     // Bot owner bypasses all cooldowns
@@ -48,7 +58,7 @@ const helpPages = new Map(); // userId -> currentPage
 
 const HELP_PAGES = [
     {
-        title: '📜 Legacy Commands - Page 1/6',
+        title: '📜 Legacy Commands - Page 1/10',
         subtitle: 'Fun Commands',
         fields: [
             {
@@ -64,7 +74,7 @@ const HELP_PAGES = [
         ]
     },
     {
-        title: '📜 Legacy Commands - Page 2/6',
+        title: '📜 Legacy Commands - Page 2/10',
         subtitle: 'Social Commands',
         fields: [
             {
@@ -80,7 +90,7 @@ const HELP_PAGES = [
         ]
     },
     {
-        title: '📜 Legacy Commands - Page 3/6',
+        title: '📜 Legacy Commands - Page 3/10',
         subtitle: 'Economy Commands',
         fields: [
             {
@@ -90,14 +100,14 @@ const HELP_PAGES = [
             },
             {
                 name: '🎰 **Gambling**',
-                value: '`*j gamble <amt>` - Double or nothing\n`*j slots <bet>` - Slot machine\n`*j coinflip <bet> <h/t>` - Coin flip',
+                value: '`*j gamble <amt>` - Double or nothing\n`*j slots <bet>` - Slot machine\n`*j coinflip <bet> <h/t>` - Coin flip\n`*j blackjack <bet>` - Play blackjack',
                 inline: false
             }
         ]
     },
     {
-        title: '📜 Legacy Commands - Page 4/6',
-        subtitle: 'Minigames & Tinker',
+        title: '📜 Legacy Commands - Page 4/10',
+        subtitle: 'Minigames & Crime',
         fields: [
             {
                 name: '🏹 **Minigames**',
@@ -105,15 +115,31 @@ const HELP_PAGES = [
                 inline: false
             },
             {
-                name: '🔧 **Tinker Lab**',
-                value: '`*j tinker [recipe]` - Craft MCU items\n`*j recipes [rarity]` - View all recipes\n`*j contract` - Stark Industries contracts',
+                name: '🦹 **Crime & Risk**',
+                value: '`*j crime` - Commit a crime\n`*j rob @user` - Rob another user\n`*j search` - Search locations\n`*j postmeme` - Post memes for money',
                 inline: false
             }
         ]
     },
     {
-        title: '📜 Legacy Commands - Page 5/6',
-        subtitle: 'Shop & Arc Reactor',
+        title: '📜 Legacy Commands - Page 5/10',
+        subtitle: 'Tinker & Crafting',
+        fields: [
+            {
+                name: '🔧 **Tinker Lab**',
+                value: '`*j tinker [recipe]` - Craft MCU items\n`*j recipes [rarity]` - View all recipes\n`*j materials` - View your materials\n`*j sell <#>` - Sell crafted items',
+                inline: false
+            },
+            {
+                name: '📋 **Contracts**',
+                value: '`*j contract` - Stark Industries contracts\n`*j quest` - View active quests\n`*j challenge` - Daily challenges',
+                inline: false
+            }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 6/10',
+        subtitle: 'Shop & Transfers',
         fields: [
             {
                 name: '🛒 **Shop**',
@@ -121,14 +147,62 @@ const HELP_PAGES = [
                 inline: false
             },
             {
-                name: '💠 **Arc Reactor**',
-                value: '`*j reactor` - Check Arc Reactor status\n`*j buy arc_reactor` - Buy for 10,000💵\n*Perks: +15% earnings, -25% cooldowns, +5% luck*',
+                name: '💸 **Transfers**',
+                value: '`*j give @user <amt>` - Give money\n`*j pay @user <amt>` - Pay someone\n`*j lottery [buy #]` - Weekly lottery',
                 inline: false
             }
         ]
     },
     {
-        title: '📜 Legacy Commands - Page 6/6',
+        title: '📜 Legacy Commands - Page 7/10',
+        subtitle: 'Advanced Economy',
+        fields: [
+            {
+                name: '💠 **Arc Reactor**',
+                value: '`*j reactor` - Check Arc Reactor status\n`*j buy arc_reactor` - Buy for 10,000💵\n*Perks: +15% earnings, -25% cooldowns, +5% luck*',
+                inline: false
+            },
+            {
+                name: '📈 **Progression**',
+                value: '`*j profile` - View your profile\n`*j achievements` - View achievements\n`*j prestige` - Prestige for bonuses\n`*j pet` - Manage your pet',
+                inline: false
+            }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 8/10',
+        subtitle: 'Multiplayer & Events',
+        fields: [
+            {
+                name: '🏦 **Heist System**',
+                value: '`*j heist start` - Start a heist\n`*j heist join` - Join active heist\n`*j heist status` - View heist progress',
+                inline: false
+            },
+            {
+                name: '👹 **Boss Battles**',
+                value: '`*j boss` - View current boss\n`*j boss attack` - Attack the boss\n`*j tournament` - Join tournaments',
+                inline: false
+            }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 9/10',
+        subtitle: 'Crypto & Trading',
+        fields: [
+            {
+                name: '💱 **Starkbucks (SBX)**',
+                value: '`*j sbx wallet` - View SBX balance\n`*j sbx convert <amt>` - Convert currency\n`*j sbx store` - SBX shop\n`*j sbx invest` - Stake SBX',
+                inline: false
+            },
+            {
+                name: '📊 **Stark Crypto**',
+                value: '`*j crypto prices` - View coin prices\n`*j crypto buy <coin> <amt>` - Buy crypto\n`*j crypto sell <coin> <amt>` - Sell crypto\n`*j crypto portfolio` - Your holdings',
+                inline: false
+            }
+        ]
+    },
+    {
+        title: '📜 Legacy Commands - Page 10/10',
         subtitle: 'Utility & Moderation',
         fields: [
             {
@@ -1844,6 +1918,1024 @@ const legacyCommands = {
                 .setFooter({ text: 'Arc Reactor technology by Stark Industries' });
             
             await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // ============ MISSING ECONOMY COMMANDS (Bug Fixes) ============
+    
+    // Crime command
+    crime: {
+        description: 'Commit a crime (risky but high reward)',
+        usage: '*j crime',
+        aliases: ['steal', 'heist'],
+        execute: async (message, args) => {
+            const result = await starkEconomy.crime(message.author.id);
+            
+            if (!result.success) {
+                const seconds = Math.ceil(result.cooldown / 1000);
+                await message.reply(`🚨 Lay low for ${seconds}s before your next crime!`);
+                return true;
+            }
+            
+            const isPositive = result.reward > 0;
+            const embed = new EmbedBuilder()
+                .setTitle(isPositive ? '🦹 Crime Successful!' : '🚔 Busted!')
+                .setDescription(`${result.outcome}\n\n**${isPositive ? 'Earned' : 'Lost'}:** ${Math.abs(result.reward)} Stark Bucks`)
+                .setColor(isPositive ? 0x2ecc71 : 0xe74c3c)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Post meme command
+    postmeme: {
+        description: 'Post a meme for money',
+        usage: '*j postmeme',
+        aliases: ['meme', 'post'],
+        execute: async (message, args) => {
+            const result = await starkEconomy.postmeme(message.author.id);
+            
+            if (!result.success) {
+                const seconds = Math.ceil(result.cooldown / 1000);
+                await message.reply(`📱 Wait ${seconds}s before posting again!`);
+                return true;
+            }
+            
+            const isPositive = result.reward > 0;
+            const embed = new EmbedBuilder()
+                .setTitle('📱 Meme Posted!')
+                .setDescription(`${result.outcome}\n\n**Earned:** ${result.reward} Stark Bucks`)
+                .setColor(result.reward > 100 ? 0x2ecc71 : result.reward > 0 ? 0x3498db : 0xe74c3c)
+                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Search command
+    search: {
+        description: 'Search a location for money',
+        usage: '*j search',
+        execute: async (message, args) => {
+            const result = await starkEconomy.search(message.author.id);
+            
+            if (!result.success) {
+                const seconds = Math.ceil(result.cooldown / 1000);
+                await message.reply(`🔍 Wait ${seconds}s before searching again!`);
+                return true;
+            }
+            
+            const isPositive = result.reward > 0;
+            const embed = new EmbedBuilder()
+                .setTitle('🔍 Search Complete!')
+                .setDescription(`You searched **${result.location}**...\n\n${result.outcome}`)
+                .setColor(isPositive ? 0x2ecc71 : result.reward < 0 ? 0xe74c3c : 0x95a5a6)
+                .addFields(
+                    { name: isPositive ? '💰 Found' : result.reward < 0 ? '💸 Lost' : '📦 Result', value: `${Math.abs(result.reward)} Stark Bucks`, inline: true },
+                    { name: '💰 Balance', value: `${result.newBalance}`, inline: true }
+                );
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Rob command
+    rob: {
+        description: 'Attempt to rob another user',
+        usage: '*j rob @user',
+        execute: async (message, args) => {
+            const target = message.mentions.users.first();
+            if (!target) {
+                await message.reply('Usage: `*j rob @user`');
+                return true;
+            }
+            
+            if (target.id === message.author.id) {
+                await message.reply("You can't rob yourself, sir.");
+                return true;
+            }
+            
+            if (target.bot) {
+                await message.reply("You can't rob bots!");
+                return true;
+            }
+            
+            const result = await starkEconomy.rob(message.author.id, target.id, message.author.username);
+            
+            if (!result.success) {
+                if (result.cooldown) {
+                    const seconds = Math.ceil(result.cooldown / 1000);
+                    await message.reply(`🚨 Lay low for ${seconds}s!`);
+                } else {
+                    await message.reply(`❌ ${result.error}`);
+                }
+                return true;
+            }
+            
+            if (result.succeeded) {
+                const embed = new EmbedBuilder()
+                    .setTitle('💰 Robbery Successful!')
+                    .setDescription(`You robbed **${result.stolen}** Stark Bucks from ${target}!`)
+                    .setColor(0x2ecc71)
+                    .addFields({ name: '💰 Your Balance', value: `${result.newBalance}`, inline: true });
+                await message.reply({ embeds: [embed] });
+            } else {
+                const embed = new EmbedBuilder()
+                    .setTitle('🚔 Robbery Failed!')
+                    .setDescription(`You got caught and paid a **${result.fine}** Stark Bucks fine!`)
+                    .setColor(0xe74c3c)
+                    .addFields({ name: '💰 Your Balance', value: `${result.newBalance}`, inline: true });
+                await message.reply({ embeds: [embed] });
+            }
+            return true;
+        }
+    },
+
+    // Give/Transfer command
+    give: {
+        description: 'Give money to another user',
+        usage: '*j give @user <amount>',
+        aliases: ['transfer', 'send'],
+        execute: async (message, args) => {
+            const target = message.mentions.users.first();
+            const amountStr = args.find(a => !a.startsWith('<@'));
+            const amount = parseInt(amountStr);
+            
+            if (!target || !amount || amount < 1) {
+                await message.reply('Usage: `*j give @user <amount>`');
+                return true;
+            }
+            
+            if (target.id === message.author.id) {
+                await message.reply("You can't give money to yourself!");
+                return true;
+            }
+            
+            const result = await starkEconomy.give(
+                message.author.id, 
+                target.id, 
+                amount, 
+                message.author.username, 
+                target.username
+            );
+            
+            if (!result.success) {
+                await message.reply(`❌ ${result.error}`);
+                return true;
+            }
+            
+            const embed = new EmbedBuilder()
+                .setTitle('💸 Transfer Complete!')
+                .setDescription(`You gave **${amount}** Stark Bucks to ${target}!`)
+                .setColor(0x2ecc71)
+                .addFields(
+                    { name: 'Your Balance', value: `${result.fromBalance}`, inline: true },
+                    { name: `${target.username}'s Balance`, value: `${result.toBalance}`, inline: true }
+                );
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Blackjack command
+    blackjack: {
+        description: 'Play blackjack',
+        usage: '*j blackjack <bet>',
+        aliases: ['bj'],
+        execute: async (message, args) => {
+            const bet = parseInt(args[0]);
+            
+            if (!bet || bet < 10) {
+                await message.reply('Usage: `*j blackjack <bet>` (minimum 10)');
+                return true;
+            }
+            
+            const stats = await starkEconomy.getUserStats(message.author.id);
+            if (stats.balance < bet) {
+                await message.reply('❌ Insufficient funds!');
+                return true;
+            }
+            
+            // Simple blackjack - draw cards
+            const cards = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+            const suits = ['♠', '♥', '♦', '♣'];
+            
+            const drawCard = () => {
+                const card = cards[Math.floor(Math.random() * cards.length)];
+                const suit = suits[Math.floor(Math.random() * suits.length)];
+                return { card, suit, display: `${card}${suit}` };
+            };
+            
+            const getValue = (hand) => {
+                let value = 0;
+                let aces = 0;
+                for (const c of hand) {
+                    if (c.card === 'A') { aces++; value += 11; }
+                    else if (['K', 'Q', 'J'].includes(c.card)) value += 10;
+                    else value += parseInt(c.card);
+                }
+                while (value > 21 && aces > 0) { value -= 10; aces--; }
+                return value;
+            };
+            
+            // Draw initial hands
+            const playerHand = [drawCard(), drawCard()];
+            const dealerHand = [drawCard(), drawCard()];
+            
+            // Simple AI: dealer draws until 17+
+            while (getValue(dealerHand) < 17) {
+                dealerHand.push(drawCard());
+            }
+            
+            // Player also auto-draws if under 17 (simplified)
+            while (getValue(playerHand) < 17) {
+                playerHand.push(drawCard());
+            }
+            
+            const playerValue = getValue(playerHand);
+            const dealerValue = getValue(dealerHand);
+            
+            let result, color, winnings;
+            if (playerValue > 21) {
+                result = 'BUST! You lose.';
+                color = 0xe74c3c;
+                winnings = -bet;
+            } else if (dealerValue > 21) {
+                result = 'Dealer busts! You win!';
+                color = 0x2ecc71;
+                winnings = bet;
+            } else if (playerValue > dealerValue) {
+                result = 'You win!';
+                color = 0x2ecc71;
+                winnings = bet;
+            } else if (playerValue < dealerValue) {
+                result = 'Dealer wins!';
+                color = 0xe74c3c;
+                winnings = -bet;
+            } else {
+                result = 'Push! Tie game.';
+                color = 0xf1c40f;
+                winnings = 0;
+            }
+            
+            await starkEconomy.modifyBalance(message.author.id, winnings, 'blackjack');
+            const newStats = await starkEconomy.getUserStats(message.author.id);
+            
+            const embed = new EmbedBuilder()
+                .setTitle('🃏 Blackjack')
+                .setColor(color)
+                .addFields(
+                    { name: `Your Hand (${playerValue})`, value: playerHand.map(c => c.display).join(' '), inline: true },
+                    { name: `Dealer (${dealerValue})`, value: dealerHand.map(c => c.display).join(' '), inline: true },
+                    { name: 'Result', value: `${result}\n${winnings >= 0 ? '+' : ''}${winnings} Stark Bucks`, inline: false },
+                    { name: '💰 Balance', value: `${newStats.balance}`, inline: true }
+                );
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // ============ PROFILE & ACHIEVEMENTS (Improvements) ============
+
+    // Profile command
+    profile: {
+        description: 'View your full profile',
+        usage: '*j profile [@user]',
+        aliases: ['me', 'stats'],
+        execute: async (message, args) => {
+            const target = message.mentions.users.first() || message.author;
+            const stats = await starkEconomy.getUserStats(target.id);
+            const achievementProfile = await achievements.getProfile(target.id);
+            const hasReactor = await starkEconomy.hasArcReactor(target.id);
+            
+            const formatNum = (n) => {
+                n = Math.floor(n);
+                if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+                if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+                if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+                return n.toLocaleString();
+            };
+            
+            const embed = new EmbedBuilder()
+                .setTitle(`${hasReactor ? '💠 ' : ''}${target.username}'s Profile`)
+                .setThumbnail(target.displayAvatarURL({ dynamic: true }))
+                .setColor(hasReactor ? 0x00d4ff : 0x3498db)
+                .addFields(
+                    { name: '💰 Balance', value: formatNum(stats.balance), inline: true },
+                    { name: '📈 Total Earned', value: formatNum(stats.totalEarned), inline: true },
+                    { name: '📉 Total Lost', value: formatNum(stats.totalLost), inline: true },
+                    { name: '🎰 Games Played', value: `${stats.gamesPlayed}`, inline: true },
+                    { name: '🏆 Win Rate', value: `${stats.winRate}%`, inline: true },
+                    { name: '🔥 Daily Streak', value: `${stats.dailyStreak} days`, inline: true },
+                    { name: '🏅 Achievements', value: `${achievementProfile.unlockedCount}/${achievementProfile.totalCount} (${achievementProfile.percentage}%)`, inline: true },
+                    { name: '⭐ Achievement Points', value: `${achievementProfile.totalPoints}`, inline: true },
+                    { name: '🎒 Inventory', value: `${stats.inventoryCount} items`, inline: true }
+                );
+            
+            if (hasReactor) {
+                embed.setFooter({ text: '💠 Arc Reactor Owner - All perks active!' });
+            }
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // Achievements command
+    achievements: {
+        description: 'View your achievements',
+        usage: '*j achievements [category]',
+        aliases: ['achieve', 'ach'],
+        execute: async (message, args) => {
+            const category = args[0] || null;
+            const profile = await achievements.getProfile(message.author.id);
+            
+            if (category) {
+                // Show specific category
+                const userData = await achievements.getUserData(message.author.id);
+                const categoryAchievements = achievements.getAchievementsByCategory(
+                    category.charAt(0).toUpperCase() + category.slice(1).toLowerCase(), 
+                    userData
+                );
+                
+                if (categoryAchievements.length === 0) {
+                    await message.reply(`❌ Unknown category. Categories: ${achievements.getAllCategories().join(', ')}`);
+                    return true;
+                }
+                
+                const list = categoryAchievements.slice(0, 15).map(a => 
+                    `${a.unlocked ? '✅' : '⬜'} ${a.emoji} **${a.name}** - ${a.description} (${a.points}pts)`
+                ).join('\n');
+                
+                const embed = new EmbedBuilder()
+                    .setTitle(`🏆 ${category} Achievements`)
+                    .setDescription(list)
+                    .setColor(0xf1c40f)
+                    .setFooter({ text: `${categoryAchievements.filter(a => a.unlocked).length}/${categoryAchievements.length} unlocked` });
+                
+                await message.reply({ embeds: [embed] });
+            } else {
+                // Show overview
+                const categoryList = Object.entries(profile.categories)
+                    .map(([cat, data]) => `**${cat}**: ${data.unlocked}/${data.total}`)
+                    .join('\n');
+                
+                const recentList = profile.recent.length > 0 
+                    ? profile.recent.map(a => `${a.emoji} ${a.name}`).join(', ')
+                    : 'None yet';
+                
+                const embed = new EmbedBuilder()
+                    .setTitle(`🏆 ${message.author.username}'s Achievements`)
+                    .setColor(0xf1c40f)
+                    .addFields(
+                        { name: '📊 Progress', value: `${profile.unlockedCount}/${profile.totalCount} (${profile.percentage}%)`, inline: true },
+                        { name: '⭐ Total Points', value: `${profile.totalPoints}`, inline: true },
+                        { name: '🆕 Recent Unlocks', value: recentList, inline: false },
+                        { name: '📁 By Category', value: categoryList, inline: false }
+                    )
+                    .setFooter({ text: 'Use *j achievements <category> to view specific achievements' });
+                
+                await message.reply({ embeds: [embed] });
+            }
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Daily Challenges ============
+
+    challenge: {
+        description: 'View and complete daily challenges',
+        usage: '*j challenge',
+        aliases: ['challenges', 'daily_challenge'],
+        execute: async (message, args) => {
+            const userId = message.author.id;
+            const challenges = await starkEconomy.getDailyChallenges(userId);
+            
+            const challengeList = challenges.map((c, i) => {
+                const progress = Math.min(c.progress, c.target);
+                const bar = '█'.repeat(Math.floor(progress / c.target * 10)) + '░'.repeat(10 - Math.floor(progress / c.target * 10));
+                const status = c.completed ? '✅' : '⬜';
+                return `${status} **${c.name}**\n${bar} ${progress}/${c.target} | Reward: ${c.reward} 💵`;
+            }).join('\n\n');
+            
+            const completed = challenges.filter(c => c.completed).length;
+            
+            const embed = new EmbedBuilder()
+                .setTitle('📋 Daily Challenges')
+                .setDescription(challengeList || 'No challenges available!')
+                .setColor(completed === challenges.length ? 0x2ecc71 : 0x3498db)
+                .setFooter({ text: `${completed}/${challenges.length} completed • Resets at midnight UTC` });
+            
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Prestige System ============
+
+    prestige: {
+        description: 'Prestige for permanent bonuses',
+        usage: '*j prestige [confirm]',
+        execute: async (message, args) => {
+            const userId = message.author.id;
+            const stats = await starkEconomy.getUserStats(userId);
+            const prestigeData = await starkEconomy.getPrestigeData(userId);
+            
+            const requirement = 1000000 * (prestigeData.level + 1); // 1M * level
+            const canPrestige = stats.totalEarned >= requirement;
+            
+            if (args[0] === 'confirm' && canPrestige) {
+                const result = await starkEconomy.prestige(userId);
+                
+                const embed = new EmbedBuilder()
+                    .setTitle('⭐ PRESTIGE COMPLETE!')
+                    .setDescription(`You are now **Prestige ${result.newLevel}**!`)
+                    .setColor(0xf1c40f)
+                    .addFields(
+                        { name: '🎁 Bonus Earned', value: `+${result.bonusPercent}% permanent earnings`, inline: true },
+                        { name: '💰 Balance Reset', value: `${result.newBalance} Stark Bucks`, inline: true }
+                    )
+                    .setFooter({ text: 'Your prestige bonuses stack forever!' });
+                
+                await message.reply({ embeds: [embed] });
+            } else {
+                const embed = new EmbedBuilder()
+                    .setTitle('⭐ Prestige System')
+                    .setDescription(canPrestige 
+                        ? '**You can prestige!** Use `*j prestige confirm` to reset.\n\n⚠️ This will reset your balance but give permanent bonuses!'
+                        : `You need **${(requirement - stats.totalEarned).toLocaleString()}** more total earnings to prestige.`)
+                    .setColor(canPrestige ? 0x2ecc71 : 0x3498db)
+                    .addFields(
+                        { name: '📊 Current Prestige', value: `Level ${prestigeData.level}`, inline: true },
+                        { name: '📈 Current Bonus', value: `+${prestigeData.bonus}%`, inline: true },
+                        { name: '🎯 Next Requirement', value: `${requirement.toLocaleString()} total earned`, inline: true },
+                        { name: '📊 Your Total Earned', value: `${stats.totalEarned.toLocaleString()}`, inline: true }
+                    );
+                
+                await message.reply({ embeds: [embed] });
+            }
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Pet System ============
+
+    pet: {
+        description: 'Manage your pet companion',
+        usage: '*j pet [buy|feed|rename|stats]',
+        aliases: ['pets'],
+        execute: async (message, args) => {
+            const userId = message.author.id;
+            const subcommand = (args[0] || 'stats').toLowerCase();
+            
+            const petData = await starkEconomy.getPetData(userId);
+            
+            switch (subcommand) {
+                case 'buy':
+                case 'adopt': {
+                    if (petData.hasPet) {
+                        await message.reply('❌ You already have a pet! Use `*j pet stats` to see them.');
+                        return true;
+                    }
+                    
+                    const petType = args[1] || 'random';
+                    const result = await starkEconomy.buyPet(userId, petType);
+                    
+                    if (!result.success) {
+                        await message.reply(`❌ ${result.error}`);
+                        return true;
+                    }
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('🐾 Pet Adopted!')
+                        .setDescription(`You adopted a **${result.pet.emoji} ${result.pet.name}**!`)
+                        .setColor(0x2ecc71)
+                        .addFields(
+                            { name: '💰 Cost', value: `${result.cost} Stark Bucks`, inline: true },
+                            { name: '🎁 Bonus', value: result.pet.bonus, inline: true }
+                        );
+                    await message.reply({ embeds: [embed] });
+                    break;
+                }
+                
+                case 'feed': {
+                    if (!petData.hasPet) {
+                        await message.reply('❌ You don\'t have a pet! Use `*j pet buy` to adopt one.');
+                        return true;
+                    }
+                    
+                    const result = await starkEconomy.feedPet(userId);
+                    
+                    if (!result.success) {
+                        await message.reply(`❌ ${result.error}`);
+                        return true;
+                    }
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle(`${petData.pet.emoji} Pet Fed!`)
+                        .setDescription(`${petData.pet.name} is happy! (+${result.happinessGain} happiness)`)
+                        .setColor(0x2ecc71)
+                        .addFields(
+                            { name: '❤️ Happiness', value: `${result.newHappiness}/100`, inline: true },
+                            { name: '💰 Cost', value: `${result.cost} Stark Bucks`, inline: true }
+                        );
+                    await message.reply({ embeds: [embed] });
+                    break;
+                }
+                
+                case 'rename': {
+                    if (!petData.hasPet) {
+                        await message.reply('❌ You don\'t have a pet!');
+                        return true;
+                    }
+                    
+                    const newName = args.slice(1).join(' ');
+                    if (!newName || newName.length > 20) {
+                        await message.reply('Usage: `*j pet rename <name>` (max 20 characters)');
+                        return true;
+                    }
+                    
+                    await starkEconomy.renamePet(userId, newName);
+                    await message.reply(`✅ Your pet is now named **${newName}**!`);
+                    break;
+                }
+                
+                case 'stats':
+                default: {
+                    if (!petData.hasPet) {
+                        const embed = new EmbedBuilder()
+                            .setTitle('🐾 Pet Shop')
+                            .setDescription('You don\'t have a pet yet!\n\nPets provide passive bonuses and companionship.')
+                            .setColor(0x3498db)
+                            .addFields(
+                                { name: '🐕 Dog', value: '+5% work earnings - 5,000 💵', inline: true },
+                                { name: '🐈 Cat', value: '+5% gambling luck - 5,000 💵', inline: true },
+                                { name: '🐉 Dragon', value: '+10% all earnings - 25,000 💵', inline: true }
+                            )
+                            .setFooter({ text: 'Use *j pet buy <type> to adopt!' });
+                        await message.reply({ embeds: [embed] });
+                        return true;
+                    }
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle(`${petData.pet.emoji} ${petData.pet.name}`)
+                        .setColor(0x9b59b6)
+                        .addFields(
+                            { name: '🏷️ Type', value: petData.pet.type, inline: true },
+                            { name: '📊 Level', value: `${petData.pet.level}`, inline: true },
+                            { name: '❤️ Happiness', value: `${petData.pet.happiness}/100`, inline: true },
+                            { name: '🎁 Bonus', value: petData.pet.bonus, inline: true },
+                            { name: '🍖 Last Fed', value: petData.pet.lastFed ? `<t:${Math.floor(petData.pet.lastFed / 1000)}:R>` : 'Never', inline: true }
+                        )
+                        .setFooter({ text: 'Feed your pet daily to keep them happy!' });
+                    await message.reply({ embeds: [embed] });
+                }
+            }
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Heist System ============
+
+    heist: {
+        description: 'Multiplayer heist system',
+        usage: '*j heist [start|join|status]',
+        execute: async (message, args) => {
+            const subcommand = (args[0] || 'status').toLowerCase();
+            const userId = message.author.id;
+            const guildId = message.guild?.id;
+            
+            if (!guildId) {
+                await message.reply('Heists only work in servers!');
+                return true;
+            }
+            
+            switch (subcommand) {
+                case 'start': {
+                    const bet = parseInt(args[1]) || 500;
+                    const result = await starkEconomy.startHeist(guildId, userId, bet);
+                    
+                    if (!result.success) {
+                        await message.reply(`❌ ${result.error}`);
+                        return true;
+                    }
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('🏦 Heist Started!')
+                        .setDescription(`${message.author} is planning a heist!\n\nUse \`*j heist join\` to participate!\nEntry: **${bet}** Stark Bucks`)
+                        .setColor(0xe74c3c)
+                        .addFields(
+                            { name: '👥 Participants', value: '1/8', inline: true },
+                            { name: '💰 Prize Pool', value: `${bet}`, inline: true },
+                            { name: '⏰ Starts In', value: '60 seconds', inline: true }
+                        )
+                        .setFooter({ text: 'Minimum 3 participants required!' });
+                    
+                    await message.reply({ embeds: [embed] });
+                    
+                    // Auto-execute heist after 60 seconds
+                    setTimeout(async () => {
+                        const heistResult = await starkEconomy.executeHeist(guildId);
+                        if (heistResult.success) {
+                            const resultEmbed = new EmbedBuilder()
+                                .setTitle(heistResult.won ? '🎉 Heist Successful!' : '🚔 Heist Failed!')
+                                .setDescription(heistResult.story)
+                                .setColor(heistResult.won ? 0x2ecc71 : 0xe74c3c);
+                            
+                            if (heistResult.won) {
+                                const winnerList = heistResult.winners.map(w => `<@${w.id}>: +${w.winnings}`).join('\n');
+                                resultEmbed.addFields({ name: '💰 Payouts', value: winnerList || 'None', inline: false });
+                            }
+                            
+                            await message.channel.send({ embeds: [resultEmbed] });
+                        }
+                    }, 60000);
+                    break;
+                }
+                
+                case 'join': {
+                    const result = await starkEconomy.joinHeist(guildId, userId);
+                    
+                    if (!result.success) {
+                        await message.reply(`❌ ${result.error}`);
+                        return true;
+                    }
+                    
+                    await message.reply(`✅ You joined the heist! (${result.participants}/${result.maxParticipants} participants)`);
+                    break;
+                }
+                
+                case 'status':
+                default: {
+                    const heist = await starkEconomy.getHeistStatus(guildId);
+                    
+                    if (!heist.active) {
+                        await message.reply('No active heist. Use `*j heist start <bet>` to start one!');
+                        return true;
+                    }
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('🏦 Active Heist')
+                        .setColor(0xe74c3c)
+                        .addFields(
+                            { name: '👥 Participants', value: `${heist.participants}/${heist.maxParticipants}`, inline: true },
+                            { name: '💰 Prize Pool', value: `${heist.prizePool}`, inline: true },
+                            { name: '⏰ Time Left', value: `${Math.ceil(heist.timeLeft / 1000)}s`, inline: true }
+                        );
+                    
+                    await message.reply({ embeds: [embed] });
+                }
+            }
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Boss Battles ============
+
+    boss: {
+        description: 'Fight the server boss',
+        usage: '*j boss [attack]',
+        execute: async (message, args) => {
+            const subcommand = (args[0] || 'status').toLowerCase();
+            const guildId = message.guild?.id;
+            
+            if (!guildId) {
+                await message.reply('Boss battles only work in servers!');
+                return true;
+            }
+            
+            const bossData = await starkEconomy.getBossData(guildId);
+            
+            if (subcommand === 'attack') {
+                const result = await starkEconomy.attackBoss(guildId, message.author.id);
+                
+                if (!result.success) {
+                    await message.reply(`❌ ${result.error}`);
+                    return true;
+                }
+                
+                const embed = new EmbedBuilder()
+                    .setTitle(`⚔️ Attack on ${bossData.name}!`)
+                    .setDescription(`You dealt **${result.damage}** damage!`)
+                    .setColor(0xe74c3c)
+                    .addFields(
+                        { name: '❤️ Boss HP', value: `${result.remainingHp}/${bossData.maxHp}`, inline: true },
+                        { name: '📊 Your Total Damage', value: `${result.userTotalDamage}`, inline: true }
+                    );
+                
+                if (result.bossDefeated) {
+                    embed.addFields({ 
+                        name: '🎉 BOSS DEFEATED!', 
+                        value: `Rewards distributed! You earned **${result.reward}** Stark Bucks!`, 
+                        inline: false 
+                    });
+                }
+                
+                await message.reply({ embeds: [embed] });
+            } else {
+                const hpBar = '█'.repeat(Math.floor(bossData.hp / bossData.maxHp * 20)) + '░'.repeat(20 - Math.floor(bossData.hp / bossData.maxHp * 20));
+                
+                const embed = new EmbedBuilder()
+                    .setTitle(`👹 ${bossData.name}`)
+                    .setDescription(bossData.description)
+                    .setColor(0x9b59b6)
+                    .addFields(
+                        { name: '❤️ HP', value: `${hpBar}\n${bossData.hp}/${bossData.maxHp}`, inline: false },
+                        { name: '👥 Attackers', value: `${bossData.attackers}`, inline: true },
+                        { name: '💰 Reward Pool', value: `${bossData.rewardPool}`, inline: true },
+                        { name: '⏰ Resets In', value: `${Math.ceil(bossData.resetTime / 3600000)}h`, inline: true }
+                    )
+                    .setFooter({ text: 'Use *j boss attack to deal damage!' });
+                
+                await message.reply({ embeds: [embed] });
+            }
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Lottery System ============
+
+    lottery: {
+        description: 'Weekly lottery system',
+        usage: '*j lottery [buy <tickets>]',
+        aliases: ['lotto'],
+        execute: async (message, args) => {
+            const subcommand = (args[0] || 'status').toLowerCase();
+            const userId = message.author.id;
+            
+            const lotteryData = await starkEconomy.getLotteryData();
+            
+            if (subcommand === 'buy') {
+                const tickets = parseInt(args[1]) || 1;
+                const result = await starkEconomy.buyLotteryTickets(userId, tickets);
+                
+                if (!result.success) {
+                    await message.reply(`❌ ${result.error}`);
+                    return true;
+                }
+                
+                await message.reply(`✅ Bought **${tickets}** lottery ticket(s) for **${result.cost}** Stark Bucks!\nYour tickets: ${result.userTickets} | Total pot: ${result.jackpot}`);
+            } else {
+                const embed = new EmbedBuilder()
+                    .setTitle('🎰 Weekly Lottery')
+                    .setColor(0xf1c40f)
+                    .addFields(
+                        { name: '💰 Jackpot', value: `${lotteryData.jackpot.toLocaleString()} Stark Bucks`, inline: true },
+                        { name: '🎫 Ticket Price', value: `${lotteryData.ticketPrice}`, inline: true },
+                        { name: '📊 Total Tickets', value: `${lotteryData.totalTickets}`, inline: true },
+                        { name: '🎫 Your Tickets', value: `${lotteryData.userTickets || 0}`, inline: true },
+                        { name: '⏰ Draw In', value: `${lotteryData.timeUntilDraw}`, inline: true }
+                    )
+                    .setFooter({ text: 'Use *j lottery buy <amount> to enter!' });
+                
+                if (lotteryData.lastWinner) {
+                    embed.addFields({ name: '🏆 Last Winner', value: `<@${lotteryData.lastWinner.id}> won ${lotteryData.lastWinner.amount}!`, inline: false });
+                }
+                
+                await message.reply({ embeds: [embed] });
+            }
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Quest System ============
+
+    quest: {
+        description: 'View and complete quests',
+        usage: '*j quest [start <name>|complete]',
+        aliases: ['quests', 'mission'],
+        execute: async (message, args) => {
+            const subcommand = (args[0] || 'status').toLowerCase();
+            const userId = message.author.id;
+            
+            const questData = await starkEconomy.getQuestData(userId);
+            
+            if (subcommand === 'start') {
+                const questName = args.slice(1).join('_').toLowerCase() || 'random';
+                const result = await starkEconomy.startQuest(userId, questName);
+                
+                if (!result.success) {
+                    await message.reply(`❌ ${result.error}`);
+                    return true;
+                }
+                
+                const embed = new EmbedBuilder()
+                    .setTitle('📜 Quest Started!')
+                    .setDescription(`**${result.quest.name}**\n\n${result.quest.description}`)
+                    .setColor(0x9b59b6)
+                    .addFields(
+                        { name: '🎯 Objectives', value: result.quest.objectives.map(o => `⬜ ${o}`).join('\n'), inline: false },
+                        { name: '🎁 Rewards', value: `${result.quest.reward} Stark Bucks + ${result.quest.xp} XP`, inline: true }
+                    );
+                
+                await message.reply({ embeds: [embed] });
+            } else if (subcommand === 'complete') {
+                const result = await starkEconomy.completeQuest(userId);
+                
+                if (!result.success) {
+                    await message.reply(`❌ ${result.error}`);
+                    return true;
+                }
+                
+                const embed = new EmbedBuilder()
+                    .setTitle('🎉 Quest Complete!')
+                    .setDescription(`You completed **${result.quest.name}**!`)
+                    .setColor(0x2ecc71)
+                    .addFields(
+                        { name: '💰 Reward', value: `${result.reward} Stark Bucks`, inline: true },
+                        { name: '⭐ XP', value: `+${result.xp}`, inline: true }
+                    );
+                
+                await message.reply({ embeds: [embed] });
+            } else {
+                if (!questData.activeQuest) {
+                    const availableQuests = await starkEconomy.getAvailableQuests();
+                    const questList = availableQuests.slice(0, 5).map(q => 
+                        `**${q.name}** - ${q.difficulty}\n> ${q.shortDesc}`
+                    ).join('\n\n');
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('📜 Available Quests')
+                        .setDescription(questList || 'No quests available!')
+                        .setColor(0x3498db)
+                        .setFooter({ text: 'Use *j quest start <name> to begin!' });
+                    
+                    await message.reply({ embeds: [embed] });
+                } else {
+                    const q = questData.activeQuest;
+                    const objectives = q.objectives.map((o, i) => 
+                        `${q.progress[i] ? '✅' : '⬜'} ${o}`
+                    ).join('\n');
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle(`📜 ${q.name}`)
+                        .setDescription(q.description)
+                        .setColor(0x9b59b6)
+                        .addFields(
+                            { name: '🎯 Objectives', value: objectives, inline: false },
+                            { name: '🎁 Reward', value: `${q.reward} 💵`, inline: true },
+                            { name: '📊 Progress', value: `${q.progress.filter(Boolean).length}/${q.objectives.length}`, inline: true }
+                        );
+                    
+                    await message.reply({ embeds: [embed] });
+                }
+            }
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Tournament System ============
+
+    tournament: {
+        description: 'Join fishing/hunting tournaments',
+        usage: '*j tournament [join|leaderboard]',
+        aliases: ['tourney'],
+        execute: async (message, args) => {
+            const subcommand = (args[0] || 'status').toLowerCase();
+            const guildId = message.guild?.id;
+            
+            if (!guildId) {
+                await message.reply('Tournaments only work in servers!');
+                return true;
+            }
+            
+            const tournamentData = await starkEconomy.getTournamentData(guildId);
+            
+            if (subcommand === 'join') {
+                const result = await starkEconomy.joinTournament(guildId, message.author.id);
+                
+                if (!result.success) {
+                    await message.reply(`❌ ${result.error}`);
+                    return true;
+                }
+                
+                await message.reply(`✅ You joined the **${tournamentData.type}** tournament! Good luck!`);
+            } else if (subcommand === 'leaderboard' || subcommand === 'lb') {
+                const lb = tournamentData.leaderboard.slice(0, 10);
+                const lbText = lb.map((u, i) => `**#${i + 1}** <@${u.id}> - ${u.score} pts`).join('\n');
+                
+                const embed = new EmbedBuilder()
+                    .setTitle(`🏆 ${tournamentData.type} Tournament Leaderboard`)
+                    .setDescription(lbText || 'No participants yet!')
+                    .setColor(0xf1c40f);
+                
+                await message.reply({ embeds: [embed] });
+            } else {
+                const embed = new EmbedBuilder()
+                    .setTitle(`🏆 ${tournamentData.type} Tournament`)
+                    .setDescription(tournamentData.description)
+                    .setColor(0x3498db)
+                    .addFields(
+                        { name: '👥 Participants', value: `${tournamentData.participants}`, inline: true },
+                        { name: '💰 Prize Pool', value: `${tournamentData.prizePool}`, inline: true },
+                        { name: '⏰ Ends In', value: tournamentData.endsIn, inline: true }
+                    )
+                    .setFooter({ text: 'Use *j tournament join to participate!' });
+                
+                await message.reply({ embeds: [embed] });
+            }
+            return true;
+        }
+    },
+
+    // ============ NEW FEATURE: Auction House ============
+
+    auction: {
+        description: 'Player-to-player auction house',
+        usage: '*j auction [list|browse|buy]',
+        aliases: ['ah'],
+        execute: async (message, args) => {
+            const subcommand = (args[0] || 'browse').toLowerCase();
+            const userId = message.author.id;
+            
+            switch (subcommand) {
+                case 'list': {
+                    const itemIndex = parseInt(args[1]) - 1;
+                    const price = parseInt(args[2]);
+                    
+                    if (isNaN(itemIndex) || isNaN(price) || price < 1) {
+                        await message.reply('Usage: `*j auction list <item_number> <price>`\nView items with `*j inventory` first.');
+                        return true;
+                    }
+                    
+                    const result = await starkEconomy.listAuction(userId, itemIndex, price);
+                    
+                    if (!result.success) {
+                        await message.reply(`❌ ${result.error}`);
+                        return true;
+                    }
+                    
+                    await message.reply(`✅ Listed **${result.item}** for **${price}** Stark Bucks! (ID: ${result.auctionId})`);
+                    break;
+                }
+                
+                case 'buy': {
+                    const auctionId = args[1];
+                    
+                    if (!auctionId) {
+                        await message.reply('Usage: `*j auction buy <auction_id>`');
+                        return true;
+                    }
+                    
+                    const result = await starkEconomy.buyAuction(userId, auctionId);
+                    
+                    if (!result.success) {
+                        await message.reply(`❌ ${result.error}`);
+                        return true;
+                    }
+                    
+                    await message.reply(`✅ Purchased **${result.item}** for **${result.price}** Stark Bucks!`);
+                    break;
+                }
+                
+                case 'my': {
+                    const myListings = await starkEconomy.getUserAuctions(userId);
+                    
+                    if (myListings.length === 0) {
+                        await message.reply('You have no active listings. Use `*j auction list` to sell items!');
+                        return true;
+                    }
+                    
+                    const listText = myListings.map(a => `\`${a.id}\` **${a.item}** - ${a.price} 💵`).join('\n');
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('📦 Your Auction Listings')
+                        .setDescription(listText)
+                        .setColor(0x9b59b6);
+                    
+                    await message.reply({ embeds: [embed] });
+                    break;
+                }
+                
+                case 'browse':
+                default: {
+                    const auctions = await starkEconomy.getAuctions();
+                    
+                    if (auctions.length === 0) {
+                        await message.reply('No items for sale! Use `*j auction list` to sell something.');
+                        return true;
+                    }
+                    
+                    const listText = auctions.slice(0, 15).map(a => 
+                        `\`${a.id}\` **${a.item}** - ${a.price} 💵 by ${a.sellerName}`
+                    ).join('\n');
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('🏪 Auction House')
+                        .setDescription(listText)
+                        .setColor(0x3498db)
+                        .setFooter({ text: 'Use *j auction buy <id> to purchase' });
+                    
+                    await message.reply({ embeds: [embed] });
+                }
+            }
             return true;
         }
     },
