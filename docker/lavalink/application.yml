@@ -50,14 +50,16 @@ plugins:
       - MUSIC
       - WEB
     oauth:
-      enabled: true
-      clientId: "318747114816-93reli8g60tvv8hh9qu52aun6fhni74i.apps.googleusercontent.com"
-      clientSecret: "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"
-      refreshToken: "1//09huzZ8oZ2qq0CgYIARAAGAkSNwF-L9Ir0oSpnu8JMte1NAWAXl7TdwzXExtxVIdA_58JXQ419H3CxE41FNIl2THL5JK1pumwx60"
+      # OAuth credentials - set via environment variables for security
+      # YOUTUBE_OAUTH_CLIENT_ID, YOUTUBE_OAUTH_CLIENT_SECRET, YOUTUBE_OAUTH_REFRESH_TOKEN
+      enabled: ${YOUTUBE_OAUTH_ENABLED:false}
+      clientId: ${YOUTUBE_OAUTH_CLIENT_ID:}
+      clientSecret: ${YOUTUBE_OAUTH_CLIENT_SECRET:}
+      refreshToken: ${YOUTUBE_OAUTH_REFRESH_TOKEN:}
     # Remote cipher server to handle YouTube signature extraction
     remoteCipher:
-      url: "http://yt-cipher:8001"
-      password: "yt-cipher-token-12345"
+      url: ${YT_CIPHER_URL:http://yt-cipher:8001}
+      password: ${YT_CIPHER_TOKEN:yt-cipher-token-12345}
 
 metrics:
   prometheus:

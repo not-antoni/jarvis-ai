@@ -150,6 +150,33 @@ if command -v pm2 &> /dev/null; then
     fi
 fi
 
+# Backup MongoDB if mongodump is available and MONGO_URI_MAIN is set
+if command -v mongodump &> /dev/null; then
+    # Try to load .env file for MONGO_URI_MAIN
+    if [ -f "$PROJECT_DIR/.env" ]; then
+        MONGO_URI=$(grep -E "^MONGO_URI_MAIN=" "$PROJECT_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    fi
+    MONGO_URI="${MONGO_URI:-$MONGO_URI_MAIN}"
+    
+    if [ -n "$MONGO_URI" ]; then
+        if [ "$DRY_RUN" = true ]; then
+            log_info "[DRY RUN] Would dump MongoDB database"
+        else
+            log_info "Backing up MongoDB..."
+            mkdir -p "$STAGING_DIR/mongodb"
+            if mongodump --uri="$MONGO_URI" --out="$STAGING_DIR/mongodb" --quiet 2>/dev/null; then
+                log_success "MongoDB backup complete"
+            else
+                log_warn "MongoDB backup failed (check connection/permissions)"
+            fi
+        fi
+    else
+        log_warn "MONGO_URI_MAIN not set, skipping MongoDB backup"
+    fi
+else
+    log_info "mongodump not installed, skipping MongoDB backup"
+fi
+
 # Create metadata file
 if [ "$DRY_RUN" = false ]; then
     cat > "$STAGING_DIR/backup-info.json" << EOF
