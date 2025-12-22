@@ -14,6 +14,9 @@
 
 - [Features](#features)
 - [Quick Start](#quick-start)
+- [Deployment Modes](#deployment-modes)
+- [Self-Hosting Guide](#self-hosting-guide)
+- [Database Migration](#database-migration)
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
@@ -106,41 +109,88 @@ DISCORD_CLIENT_SECRET=...
 
 ---
 
-## Self-Hosting (VPS)
+## Deployment Modes
 
-For running Jarvis on your own VPS instead of Render.
+Jarvis supports three deployment modes:
 
-### Quick Start
+| Mode | `DEPLOY_TARGET` | Use Case |
+|------|-----------------|----------|
+| **Render** | `render` (default) | Cloud hosting on Render.com |
+| **Selfhost** | `selfhost` | VPS, Raspberry Pi, home server |
+| **Hybrid** | `hybrid` | Auto-detects based on environment |
 
-```bash
-# Run the interactive setup wizard
-node scripts/selfhost-setup.js
-
-# Or verify your current configuration
-node scripts/selfhost-setup.js --verify
-```
-
-### Selfhost Environment Variables
+### Quick Mode Selection
 
 ```env
-# Enable selfhost mode
+# Cloud (Render.com)
+DEPLOY_TARGET=render
+
+# Self-hosted (VPS, Raspberry Pi)
 DEPLOY_TARGET=selfhost
 SELFHOST_MODE=true
-PUBLIC_BASE_URL=http://YOUR_VPS_IP:3000
 
-# yt-dlp / ffmpeg (prevents VPS overload)
-FFMPEG_PATH=/usr/bin/ffmpeg
-YTDLP_MAX_DURATION=900      # Max 15 minutes (music, not documentaries)
-YTDLP_MAX_FILESIZE_MB=50    # Max 50MB per video
+# Auto-detect (recommended for flexibility)
+DEPLOY_TARGET=hybrid
 ```
 
-### Production Setup (PM2)
+---
+
+## Self-Hosting Guide
+
+### Option 1: Quick Setup Wizard
 
 ```bash
+# Interactive setup - configures everything
+node scripts/selfhost-setup.js
+
+# Verify your configuration
+node scripts/selfhost-check.js
+```
+
+### Option 2: Manual Setup
+
+#### Step 1: Environment Variables
+
+```env
+# Core settings
+DEPLOY_TARGET=selfhost
+SELFHOST_MODE=true
+PUBLIC_BASE_URL=http://YOUR_IP:3000
+
+# Database (MongoDB)
+MONGO_URI_MAIN=mongodb://localhost:27017/jarvis_ai
+MONGO_URI_VAULT=mongodb://localhost:27017/jarvis_vault
+
+# Security
+MASTER_KEY_BASE64=<generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))">
+USER_SESSION_SECRET=<random 32+ char string>
+
+# Performance (for VPS/Raspberry Pi)
+FFMPEG_PATH=/usr/bin/ffmpeg
+YTDLP_MAX_DURATION=900
+YTDLP_MAX_FILESIZE_MB=50
+```
+
+#### Step 2: Install Dependencies
+
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install -y ffmpeg mongodb
+sudo systemctl start mongodb
+sudo systemctl enable mongodb
+
 # Install PM2
 sudo npm install -g pm2
+```
 
-# Start with auto-restart
+#### Step 3: Run with PM2
+
+```bash
+# Using the included ecosystem config
+pm2 start ecosystem.config.js
+
+# Or manually
 pm2 start index.js --name "jarvis" --max-memory-restart 500M
 
 # Auto-start on boot
@@ -150,20 +200,145 @@ pm2 startup && pm2 save
 pm2 logs jarvis
 ```
 
+### Option 3: Docker Deployment
+
+```bash
+cd docker
+docker-compose up -d
+```
+
+This starts:
+- Jarvis bot
+- MongoDB (with persistent volume)
+- Lavalink (for music)
+- yt-cipher (YouTube support)
+
+### Option 4: Systemd Service
+
+```bash
+# Copy service file
+sudo cp scripts/jarvis.service /etc/systemd/system/
+
+# Edit paths in the service file
+sudo nano /etc/systemd/system/jarvis.service
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable jarvis
+sudo systemctl start jarvis
+```
+
+### Health Monitoring
+
+```bash
+# Run health check script (cron-compatible)
+./scripts/health-check.sh
+
+# Add to crontab for auto-restart
+crontab -e
+# Add: */5 * * * * /path/to/jarvis-ai/scripts/health-check.sh
+```
+
 ### OAuth Redirect URLs
 
-After getting your VPS IP, add these to [Discord Developer Portal](https://discord.com/developers/applications):
+Add to [Discord Developer Portal](https://discord.com/developers/applications):
 
 ```
-http://YOUR_VPS_IP:3000/auth/discord/callback
-http://YOUR_VPS_IP:3000/moderator/callback
+http://YOUR_IP:3000/auth/discord/callback
+http://YOUR_IP:3000/auth/callback
+http://YOUR_IP:3000/moderator/callback
 ```
 
-### System Requirements
+---
 
-- **Node.js 18+** (recommended)
-- **ffmpeg** - `sudo apt install ffmpeg`
-- **PM2** - `sudo npm install -g pm2`
+## Database Migration
+
+### Migrate from Atlas/Render to Local MongoDB
+
+When switching from cloud MongoDB (Atlas) to local MongoDB:
+
+```bash
+# 1. Check current status
+node scripts/migrate-to-local.js --check
+
+# 2. Full clone: Atlas → Local MongoDB
+node scripts/migrate-to-local.js --clone
+
+# 3. Or just export to JSON (backup)
+node scripts/migrate-to-local.js
+```
+
+### Migration Commands
+
+| Command | Description |
+|---------|-------------|
+| `--check` | Show migration status |
+| `--clone` | Full clone: Remote → JSON → Local MongoDB |
+| `--to-local-mongo` | Import JSON export to local MongoDB |
+| `--import` | Import JSON to local file-based DB |
+| `--restore` | Restore from backup |
+| `--backups` | List available backups |
+
+### After Migration
+
+Update your `.env`:
+
+```env
+# Local MongoDB
+MONGO_URI_MAIN=mongodb://localhost:27017/jarvis_local
+MONGO_URI_VAULT=mongodb://localhost:27017/jarvis_vault
+
+# Enable selfhost
+SELFHOST_MODE=true
+DEPLOY_TARGET=selfhost
+```
+
+### Backup & Safety
+
+The migration script automatically:
+- Creates backups before any sync
+- Keeps last 5 backups
+- Allows restore anytime with `--restore`
+
+---
+
+## Raspberry Pi Setup
+
+### Quick Start
+
+```bash
+# 1. Install MongoDB
+sudo apt update
+sudo apt install -y mongodb
+sudo systemctl enable mongodb
+
+# 2. Clone and setup
+git clone https://github.com/not-antoni/jarvis-ai.git
+cd jarvis-ai
+npm install
+
+# 3. Run setup wizard
+node scripts/selfhost-setup.js
+
+# 4. Migrate data from cloud
+node scripts/migrate-to-local.js --clone
+
+# 5. Start with PM2
+pm2 start ecosystem.config.js
+pm2 save
+```
+
+### Recommended Pi Settings
+
+```env
+# Lower resource usage
+UV_THREADPOOL_SIZE=4
+YTDLP_MAX_DURATION=600
+YTDLP_MAX_FILESIZE_MB=30
+
+# Use local MongoDB
+MONGO_URI_MAIN=mongodb://localhost:27017/jarvis_ai
+```
 
 See [SELFHOST.md](SELFHOST.md) for complete documentation.
 
