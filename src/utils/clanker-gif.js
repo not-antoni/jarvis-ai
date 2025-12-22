@@ -140,16 +140,21 @@ async function processClankerGifFast(avatarUrl) {
         .png()
         .toBuffer();
 
-    // Load animated GIF and composite avatar on all frames at once
-    // Sharp 0.33+ supports animated GIF compositing
+    // Load animated GIF, resize to reduce file size, and composite avatar
+    // Discord has 8MB limit, original GIF is 5.2MB but processing bloats it
     const result = await sharp(CLANKER_GIF_PATH, { animated: true })
+        .resize(480, null, { withoutEnlargement: true }) // Reduce width, maintain aspect
         .composite([{
             input: resizedAvatar,
-            left: AVATAR_X,
-            top: AVATAR_Y,
+            left: Math.round(AVATAR_X * 0.6), // Scale position with resize
+            top: Math.round(AVATAR_Y * 0.6),
             tile: true // Apply to all frames
         }])
-        .gif({ loop: 0 })
+        .gif({ 
+            loop: 0,
+            colours: 128, // Reduce color palette for smaller file
+            dither: 0.5
+        })
         .toBuffer();
 
     return result;
