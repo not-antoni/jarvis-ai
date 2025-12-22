@@ -127,22 +127,21 @@ async function processClankerGif(avatarUrl) {
 }
 
 /**
- * Process clanker GIF with avatar overlay - frame by frame approach
+ * Fast single-pass GIF processing - just overlay avatar on static first frame
+ * Sending as static image for speed on low-resource servers
  * @param {string} avatarUrl - URL of the user's avatar
- * @returns {Promise<Buffer>} - Processed GIF buffer
+ * @returns {Promise<Buffer>} - Processed image buffer
  */
 async function processClankerGifFast(avatarUrl) {
     // Fetch and resize avatar
     const avatarBuffer = await fetchAvatar(avatarUrl);
     
-    // Get GIF metadata first
-    const metadata = await sharp(CLANKER_GIF_PATH, { animated: true }).metadata();
-    const frameCount = metadata.pages || 1;
+    // Just extract first frame and composite - much faster
+    const targetWidth = 400;
+    const metadata = await sharp(CLANKER_GIF_PATH).metadata();
     const originalWidth = metadata.width || 800;
-    const targetWidth = 400; // Smaller for Discord limit
     const scale = targetWidth / originalWidth;
     
-    // Scale avatar size and position
     const scaledAvatarSize = Math.round(AVATAR_SIZE * scale);
     const scaledX = Math.round(AVATAR_X * scale);
     const scaledY = Math.round(AVATAR_Y * scale);
@@ -152,59 +151,15 @@ async function processClankerGifFast(avatarUrl) {
         .png()
         .toBuffer();
 
-    // Process each frame individually
-    const frames = [];
-    for (let i = 0; i < frameCount; i++) {
-        const frame = await sharp(CLANKER_GIF_PATH, { animated: true, page: i })
-            .resize(targetWidth, null, { withoutEnlargement: true })
-            .composite([{
-                input: resizedAvatar,
-                left: scaledX,
-                top: scaledY
-            }])
-            .png()
-            .toBuffer();
-        frames.push(frame);
-    }
-
-    // Get frame height after resize
-    const firstFrameMeta = await sharp(frames[0]).metadata();
-    const frameHeight = firstFrameMeta.height;
-
-    // Stack frames vertically
-    const stackedHeight = frameHeight * frameCount;
-    const compositeInputs = frames.map((frame, i) => ({
-        input: frame,
-        left: 0,
-        top: i * frameHeight
-    }));
-
-    const stacked = await sharp({
-        create: {
-            width: targetWidth,
-            height: stackedHeight,
-            channels: 4,
-            background: { r: 0, g: 0, b: 0, alpha: 0 }
-        }
-    })
-        .composite(compositeInputs)
-        .png()
-        .toBuffer();
-
-    // Convert to animated GIF
-    const delay = metadata.delay || Array(frameCount).fill(100);
-    const result = await sharp(stacked, { 
-        raw: {
-            width: targetWidth,
-            height: stackedHeight,
-            channels: 4
-        }
-    })
-        .gif({
-            loop: 0,
-            delay: Array.isArray(delay) ? delay : Array(frameCount).fill(100),
-            force: true
-        })
+    // Extract first frame, resize, composite avatar, output as GIF
+    const result = await sharp(CLANKER_GIF_PATH, { page: 0 })
+        .resize(targetWidth, null, { withoutEnlargement: true })
+        .composite([{
+            input: resizedAvatar,
+            left: scaledX,
+            top: scaledY
+        }])
+        .gif()
         .toBuffer();
 
     return result;
