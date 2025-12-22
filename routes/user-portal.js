@@ -38,7 +38,7 @@ async function getUserConversations(userId, limit = 50) {
     try {
         const collection = database.db.collection('conversations');
         const convos = await collection
-            .find({ odUserId: userId })
+            .find({ $or: [{ userId: userId }, { odUserId: userId }] })
             .sort({ updatedAt: -1 })
             .limit(limit)
             .toArray();

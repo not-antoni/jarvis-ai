@@ -116,13 +116,12 @@ router.get('/api/user', (req, res) => {
     }
     
     const botOwnerId = process.env.BOT_OWNER_ID;
-    const isOwner = session.odUserId === botOwnerId || session.userId === botOwnerId;
+    const isOwner = session.userId === botOwnerId;
     
     res.json({
         authenticated: true,
         user: {
             id: session.userId,
-            odUserId: session.odUserId,
             username: session.username,
             globalName: session.globalName,
             avatar: userAuth.getAvatarUrl(session),

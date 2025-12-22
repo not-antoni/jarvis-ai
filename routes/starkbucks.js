@@ -999,7 +999,7 @@ function renderStorePage(items, market, category = null) {
         async function loadPurchases() {
             if (!currentUser) return;
             try {
-                const res = await fetch('/api/sbx/store/purchases/' + currentUser.odUserId);
+                const res = await fetch('/api/sbx/store/purchases/' + (currentUser.id || currentUser.userId));
                 const data = await res.json();
                 if (Array.isArray(data)) {
                     userPurchases = data.map(p => p.itemId);

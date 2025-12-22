@@ -740,22 +740,114 @@ async function getBalance(userId, username) {
 }
 
 /**
- * Modify user balance
+ * Modify user balance (atomic for withdrawals to prevent race conditions)
+ * For negative amounts, uses conditional update to ensure balance doesn't go negative
  */
 async function modifyBalance(userId, amount, reason = 'unknown') {
-    const user = await loadUser(userId);
     const safeAmount = ensureNumber(amount, 0);
-    const oldBalance = ensureNumber(user.balance, ECONOMY_CONFIG.startingBalance);
-    user.balance = Math.max(0, oldBalance + safeAmount);
-
-    if (safeAmount > 0) {
-        user.totalEarned = ensureNumber(user.totalEarned, 0) + safeAmount;
-    } else {
-        user.totalLost = ensureNumber(user.totalLost, 0) + Math.abs(safeAmount);
+    
+    // For withdrawals, use atomic conditional update
+    if (safeAmount < 0) {
+        const absAmount = Math.abs(safeAmount);
+        try {
+            const col = await getCollection();
+            
+            // Atomic update: only deduct if balance >= amount
+            const result = await col.findOneAndUpdate(
+                { userId: userId, balance: { $gte: absAmount } },
+                {
+                    $inc: { 
+                        balance: safeAmount,
+                        totalLost: absAmount
+                    },
+                    $set: { updatedAt: new Date() }
+                },
+                { returnDocument: 'after' }
+            );
+            
+            if (!result) {
+                // Either user doesn't exist or insufficient balance
+                const user = await loadUser(userId);
+                const currentBalance = ensureNumber(user.balance, 0);
+                if (currentBalance < absAmount) {
+                    return { 
+                        success: false, 
+                        error: 'Insufficient balance',
+                        oldBalance: currentBalance, 
+                        newBalance: currentBalance, 
+                        change: 0 
+                    };
+                }
+                // User doesn't exist - create and retry
+                await saveUser(userId, user);
+                return modifyBalance(userId, amount, reason);
+            }
+            
+            const newBalance = ensureNumber(result.balance, 0);
+            const oldBalance = newBalance + absAmount;
+            
+            // Invalidate cache
+            userCache.delete(userId);
+            
+            return { success: true, oldBalance, newBalance, change: safeAmount };
+        } catch (error) {
+            console.error('[StarkEconomy] Atomic withdraw failed:', error);
+            // Fallback to non-atomic (better than failing completely)
+            const user = await loadUser(userId);
+            const oldBalance = ensureNumber(user.balance, ECONOMY_CONFIG.startingBalance);
+            if (oldBalance < absAmount) {
+                return { success: false, error: 'Insufficient balance', oldBalance, newBalance: oldBalance, change: 0 };
+            }
+            user.balance = oldBalance + safeAmount;
+            user.totalLost = ensureNumber(user.totalLost, 0) + absAmount;
+            await saveUser(userId, user);
+            return { success: true, oldBalance, newBalance: user.balance, change: safeAmount };
+        }
     }
-
-    await saveUser(userId, user);
-    return { oldBalance, newBalance: user.balance, change: safeAmount };
+    
+    // For deposits, use atomic $inc (always safe)
+    try {
+        const col = await getCollection();
+        const result = await col.findOneAndUpdate(
+            { userId: userId },
+            {
+                $inc: { 
+                    balance: safeAmount,
+                    totalEarned: safeAmount
+                },
+                $set: { updatedAt: new Date() },
+                $setOnInsert: { 
+                    userId: userId,
+                    totalLost: 0,
+                    totalGambled: 0,
+                    gamesPlayed: 0,
+                    gamesWon: 0,
+                    dailyStreak: 0,
+                    inventory: [],
+                    activeEffects: [],
+                    createdAt: new Date()
+                }
+            },
+            { upsert: true, returnDocument: 'after' }
+        );
+        
+        const newBalance = ensureNumber(result?.balance, safeAmount);
+        const oldBalance = newBalance - safeAmount;
+        
+        // Invalidate cache
+        userCache.delete(userId);
+        
+        return { success: true, oldBalance, newBalance, change: safeAmount };
+    } catch (error) {
+        console.error('[StarkEconomy] Atomic deposit failed:', error);
+        // Fallback to non-atomic
+        const user = await loadUser(userId);
+        const oldBalance = ensureNumber(user.balance, ECONOMY_CONFIG.startingBalance);
+        user.balance = oldBalance + safeAmount;
+        user.totalEarned = ensureNumber(user.totalEarned, 0) + safeAmount;
+        await saveUser(userId, user);
+        return { success: true, oldBalance, newBalance: user.balance, change: safeAmount };
+    }
 }
 
 /**
@@ -1962,7 +2054,7 @@ const auctionListings = new Map(); // auctionId -> listing data
 let lotteryData = {
     jackpot: 10000,
     ticketPrice: 100,
-    tickets: new Map(), // odUserId -> ticket count
+    tickets: new Map(), // userId -> ticket count
     lastWinner: null,
     drawTime: Date.now() + 7 * 24 * 60 * 60 * 1000 // 1 week
 };
