@@ -129,77 +129,48 @@ async function processClankerGif(avatarUrl) {
 }
 
 /**
- * Process animated GIF with avatar overlay using optimized GIF
+ * Process animated GIF with avatar overlay using ffmpeg (most reliable)
  * @param {string} avatarUrl - URL of the user's avatar
  * @returns {Promise<Buffer>} - Processed animated GIF buffer
  */
 async function processClankerGifFast(avatarUrl) {
-    // Fetch and resize avatar
-    const avatarBuffer = await fetchAvatar(avatarUrl);
+    const { execSync } = require('child_process');
+    const fs = require('fs');
+    const os = require('os');
     
-    const resizedAvatar = await sharp(avatarBuffer)
-        .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
-        .png()
-        .toBuffer();
-
-    // Get metadata for frame info
-    const metadata = await sharp(CLANKER_GIF_PATH, { animated: true }).metadata();
-    const frameCount = metadata.pages || 1;
-    const frameHeight = metadata.pageHeight || metadata.height;
-    const width = metadata.width;
-    const delay = metadata.delay || Array(frameCount).fill(100);
-
-    // Process frames in parallel batches for speed
-    const batchSize = 10;
-    const frames = [];
+    // Create temp files
+    const tempDir = os.tmpdir();
+    const avatarPath = path.join(tempDir, `avatar-${Date.now()}.png`);
+    const outputPath = path.join(tempDir, `clanker-${Date.now()}.gif`);
     
-    for (let batch = 0; batch < frameCount; batch += batchSize) {
-        const batchPromises = [];
-        for (let i = batch; i < Math.min(batch + batchSize, frameCount); i++) {
-            batchPromises.push(
-                sharp(CLANKER_GIF_PATH, { page: i })
-                    .composite([{
-                        input: resizedAvatar,
-                        left: AVATAR_X,
-                        top: AVATAR_Y
-                    }])
-                    .png()
-                    .toBuffer()
-            );
-        }
-        const batchResults = await Promise.all(batchPromises);
-        frames.push(...batchResults);
+    try {
+        // Fetch and save avatar
+        const avatarBuffer = await fetchAvatar(avatarUrl);
+        const resizedAvatar = await sharp(avatarBuffer)
+            .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: 'cover' })
+            .png()
+            .toBuffer();
+        fs.writeFileSync(avatarPath, resizedAvatar);
+        
+        // Use ffmpeg to overlay avatar on animated GIF
+        const cmd = `ffmpeg -y -i "${CLANKER_GIF_PATH}" -i "${avatarPath}" -filter_complex "[0:v][1:v]overlay=${AVATAR_X}:${AVATAR_Y}:format=auto" -gifflags +transdiff "${outputPath}"`;
+        
+        execSync(cmd, { stdio: 'pipe', timeout: 30000 });
+        
+        // Read result
+        const result = fs.readFileSync(outputPath);
+        
+        // Cleanup
+        fs.unlinkSync(avatarPath);
+        fs.unlinkSync(outputPath);
+        
+        return result;
+    } catch (error) {
+        // Cleanup on error
+        try { fs.unlinkSync(avatarPath); } catch (_) {}
+        try { fs.unlinkSync(outputPath); } catch (_) {}
+        throw error;
     }
-
-    // Stack frames vertically
-    const stackedHeight = frameHeight * frameCount;
-    const compositeInputs = frames.map((frame, i) => ({
-        input: frame,
-        left: 0,
-        top: i * frameHeight
-    }));
-
-    const stacked = await sharp({
-        create: {
-            width: width,
-            height: stackedHeight,
-            channels: 4,
-            background: { r: 0, g: 0, b: 0, alpha: 0 }
-        }
-    })
-        .composite(compositeInputs)
-        .png()
-        .toBuffer();
-
-    // Convert to animated GIF
-    const result = await sharp(stacked)
-        .gif({
-            loop: 0,
-            delay: Array.isArray(delay) ? delay : Array(frameCount).fill(100)
-        })
-        .toBuffer();
-
-    return result;
 }
 
 module.exports = {
