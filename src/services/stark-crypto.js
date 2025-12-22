@@ -466,14 +466,11 @@ async function buyCrypto(userId, symbol, amount) {
     const fee = Math.ceil(totalCost * SX_CONFIG.tradeFeePercent);
     const totalWithFee = totalCost + fee;
     
-    // Check balance
-    const balance = await starkEconomy.getBalance(userId);
-    if (balance < totalWithFee) {
+    // Atomically deduct from balance (prevents race conditions)
+    const deductResult = await starkEconomy.modifyBalance(userId, -totalWithFee, `Buy ${amount} ${symbol}`);
+    if (!deductResult.success) {
         return { success: false, error: `Insufficient funds. Need ${totalWithFee} SB` };
     }
-    
-    // Deduct from balance
-    await starkEconomy.modifyBalance(userId, -totalWithFee, `Buy ${amount} ${symbol}`);
     
     // Add to portfolio
     const col = await getCollection('sx_portfolios');
@@ -546,20 +543,25 @@ async function sellCrypto(userId, symbol, amount) {
     const fee = Math.ceil(totalValue * SX_CONFIG.tradeFeePercent);
     const netProceeds = totalValue - fee;
     
-    // Remove from portfolio
+    // Atomically remove from portfolio (only if holdings >= amount)
     const col = await getCollection('sx_portfolios');
-    await col.updateOne(
-        { userId },
+    const updateResult = await col.findOneAndUpdate(
+        { userId, [`holdings.${symbol.toUpperCase()}`]: { $gte: amount } },
         {
             $inc: {
                 [`holdings.${symbol.toUpperCase()}`]: -amount,
                 trades: 1
             },
             $set: { updatedAt: new Date() }
-        }
+        },
+        { returnDocument: 'after' }
     );
     
-    // Add to balance
+    if (!updateResult) {
+        return { success: false, error: `Insufficient ${symbol}. Holdings changed during transaction.` };
+    }
+    
+    // Add to balance (atomic)
     await starkEconomy.modifyBalance(userId, netProceeds, `Sell ${amount} ${symbol}`);
     
     // Fee to owner (TAX TIME!)
