@@ -62,6 +62,7 @@ const { AchievementsSystem, ACHIEVEMENTS } = require('./achievements');
 const guildModeration = require('./GUILDS_FEATURES/moderation');
 const antiScam = require('./GUILDS_FEATURES/anti-scam');
 const achievements = new AchievementsSystem();
+const clankerGif = require('../utils/clanker-gif');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
