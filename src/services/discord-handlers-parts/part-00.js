@@ -57,6 +57,7 @@ const selfhostFeatures = require('./selfhost-features');
 const ytDlpManager = require('./yt-dlp-manager');
 const { getSentientAgent } = require('../agents/sentient-core');
 const legacyCommands = require('./legacy-commands');
+const starkTinker = require('./stark-tinker');
 const starkEconomy = require('./stark-economy');
 const { AchievementsSystem, ACHIEVEMENTS } = require('./achievements');
 const guildModeration = require('./GUILDS_FEATURES/moderation');

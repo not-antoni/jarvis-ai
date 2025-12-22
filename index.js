@@ -1136,6 +1136,45 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
+    // ============ CRAFTING & ITEMS ============
+    new SlashCommandBuilder()
+        .setName('inventory')
+        .setDescription('View your inventory of items and materials')
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
+    new SlashCommandBuilder()
+        .setName('tinker')
+        .setDescription('Stark Industries Tinker Lab: Crafting System')
+        .addSubcommand(sub =>
+            sub.setName('craft')
+                .setDescription('Craft MCU items from materials')
+                .addStringOption(opt => opt.setName('recipe').setDescription('Recipe ID to craft (use /tinker recipes to see IDs)').setRequired(true))
+        )
+        .addSubcommand(sub =>
+            sub.setName('recipes')
+                .setDescription('View available crafting recipes')
+                .addStringOption(opt => opt.setName('rarity').setDescription('Filter by rarity').setRequired(false).addChoices(
+                    { name: 'Common', value: 'common' },
+                    { name: 'Uncommon', value: 'uncommon' },
+                    { name: 'Rare', value: 'rare' },
+                    { name: 'Epic', value: 'epic' },
+                    { name: 'Legendary', value: 'legendary' }
+                ))
+        )
+        .addSubcommand(sub => sub.setName('materials').setDescription('View your collected materials'))
+        .addSubcommand(sub =>
+            sub.setName('sell')
+                .setDescription('Sell a crafted item')
+                .addStringOption(opt => opt.setName('item').setDescription('Item name to sell (or part of name)').setRequired(true))
+        )
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
     // ============ SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
         .setName('selfmod')
