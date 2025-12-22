@@ -101,6 +101,9 @@ async function add_subscription({
             { upsert: true, returnDocument: 'after' }
         );
 
+        // Invalidate cache on add/update
+        invalidateCache();
+
         if (result?.value) {
             return result.value;
         }
