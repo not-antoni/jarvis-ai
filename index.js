@@ -1095,7 +1095,12 @@ const allCommands = [
                     { name: '2️⃣ Double Daily (150)', value: 'double_daily' },
                     { name: '🛡️ Shield (300)', value: 'shield' },
                     { name: '☕ Stark Coffee (100)', value: 'stark_coffee' },
-                    { name: '💠 Arc Reactor (10000)', value: 'arc_reactor' }
+                    { name: '💠 Arc Reactor (10000)', value: 'arc_reactor' },
+                    { name: '🦾 Hulkbuster Armor (2000)', value: 'hulkbuster_armor' },
+                    { name: '👓 E.D.I.T.H. Glasses (800)', value: 'edith_glasses' },
+                    { name: '🤖 Iron Legion Droid (1200)', value: 'iron_legion_droid' },
+                    { name: '💾 AI Assistant Chip (2500)', value: 'ai_assistant_chip' },
+                    { name: '💼 Mark V Briefcase (5000)', value: 'mark_v_briefcase' }
                 ))
         )
         .addSubcommand(sub => sub.setName('leaderboard').setDescription('View the Stark Bucks leaderboard'))
