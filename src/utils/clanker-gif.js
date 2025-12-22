@@ -9,8 +9,8 @@ const fetch = require('node-fetch');
 const CLANKER_GIF_PATH = path.join(__dirname, '../../..', 'clanker.gif');
 
 // Avatar overlay position (small square area)
-const AVATAR_X = 362;
-const AVATAR_Y = 470;
+const AVATAR_X = 411;
+const AVATAR_Y = 368;
 const AVATAR_SIZE = 48; // Small square
 
 /**
