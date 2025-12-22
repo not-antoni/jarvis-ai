@@ -295,37 +295,6 @@
                 });
             }
 
-            // ============ CLANKER DETECTION ============
-            // Check if user said "clanker" in any variation (case-insensitive)
-            if (clankerGif.containsClanker(fullContent)) {
-                try {
-                    await message.channel.sendTyping();
-                    
-                    // Get user's avatar URL (high quality)
-                    const avatarUrl = message.author.displayAvatarURL({ 
-                        format: 'png', 
-                        size: 128,
-                        dynamic: false 
-                    });
-                    
-                    // Process the clanker.gif with user's avatar overlay
-                    const processedGif = await clankerGif.processClankerGifFast(avatarUrl);
-                    
-                    // Send the processed GIF
-                    const attachment = new AttachmentBuilder(processedGif, { name: 'clanker.gif' });
-                    await message.reply({ 
-                        files: [attachment],
-                        allowedMentions: { parse: [] }
-                    });
-                    
-                    this.setCooldown(message.author.id, messageScope);
-                    return;
-                } catch (clankerError) {
-                    console.error('[Clanker] Failed to process clanker GIF:', clankerError);
-                    // Fall through to normal AI response if clanker processing fails
-                }
-            }
-
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
 
             if (typeof response === "string" && response.trim()) {
