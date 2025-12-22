@@ -614,6 +614,146 @@
                     response = { embeds: [embed] };
                     break;
                 }
+                // ============ CRAFTING & ITEMS ============
+                case 'inventory': {
+                    telemetryMetadata.category = 'economy';
+                    const inventory = await starkEconomy.getInventory(interaction.user.id);
+                    const hasReactor = await starkEconomy.hasArcReactor(interaction.user.id);
+                    
+                    if (!inventory.length) {
+                        response = 'Your inventory is empty, sir. Visit the shop with `/economy shop` or craft items with `/tinker craft`.';
+                        break;
+                    }
+                    
+                    const itemList = inventory.map(item => {
+                        const uses = item.uses ? ` (${item.uses} uses)` : '';
+                        return `• ${item.name}${uses}`;
+                    }).join('\n');
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle(`🎒 ${interaction.user.username}'s Inventory`)
+                        .setDescription(itemList)
+                        .setColor(hasReactor ? 0x00d4ff : 0x9b59b6)
+                        .setFooter({ text: hasReactor ? '💠 Arc Reactor Owner - All perks active!' : 'Use /tinker craft to make items' });
+                    
+                    if (hasReactor) {
+                        embed.addFields({
+                            name: '💠 Arc Reactor Perks',
+                            value: '• +15% earnings\n• -25% cooldowns\n• +5% gambling luck\n• +500 daily bonus\n• +1% daily interest',
+                            inline: false
+                        });
+                    }
+                    
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'tinker': {
+                    telemetryMetadata.category = 'economy';
+                    const tinkerSubcommand = interaction.options.getSubcommand();
+
+                    switch (tinkerSubcommand) {
+                        case 'craft': {
+                             const recipeName = interaction.options.getString('recipe').toLowerCase();
+                             const recipe = starkTinker.getRecipe(recipeName);
+                             if (!recipe) {
+                                 response = `❌ Unknown recipe: \`${recipeName}\`. Use \`/tinker recipes\` to see all recipes.`;
+                                 break;
+                             }
+                             
+                             const result = await starkEconomy.craftItem(interaction.user.id, recipeName, recipe);
+                             if (!result.success) {
+                                const materials = await starkEconomy.getMaterials(interaction.user.id);
+                                const missing = Object.entries(recipe.ingredients)
+                                    .filter(([mat, req]) => (materials[mat] || 0) < req)
+                                    .map(([mat, req]) => `${req - (materials[mat] || 0)}x ${mat}`)
+                                    .join(', ');
+                                response = `❌ **Cannot craft ${recipe.name}**\n\nMissing: ${missing}\n\nCollect materials with \`/minigame hunt\`, \`/minigame fish\`, \`/minigame dig\``;
+                                break;
+                             }
+                             
+                             const rarityColors = { common: 0x95a5a6, uncommon: 0x2ecc71, rare: 0x3498db, epic: 0x9b59b6, legendary: 0xf1c40f };
+                             const embed = new EmbedBuilder()
+                                .setTitle('🔧 Item Crafted!')
+                                .setDescription(`You crafted **${result.item}**!\n\n${recipe.description}`)
+                                .setColor(rarityColors[result.rarity] || 0x95a5a6)
+                                .addFields(
+                                    { name: 'Rarity', value: result.rarity.toUpperCase(), inline: true },
+                                    { name: 'Value', value: `${result.value} 💵`, inline: true }
+                                )
+                                .setFooter({ text: 'View with /inventory' });
+                             response = { embeds: [embed] };
+                             break;
+                        }
+                        case 'recipes': {
+                            const rarity = interaction.options.getString('rarity');
+                            let recipes = starkTinker.getAllRecipes();
+                            if (rarity) {
+                                recipes = recipes.filter(r => r.rarity === rarity);
+                            }
+                            if (recipes.length > 25) recipes = recipes.slice(0, 25);
+                            
+                            const recipeList = recipes.map(r => 
+                                `**${r.name}** (${r.rarity}) [ID: \`${r.id}\`]\n> ${Object.entries(r.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}`
+                            ).join('\n');
+                            
+                            const embed = new EmbedBuilder()
+                                .setTitle(rarity ? `🔧 ${rarity.charAt(0).toUpperCase() + rarity.slice(1)} Recipes` : '🔧 Tinker Lab Recipes')
+                                .setDescription(recipeList || 'No recipes found.')
+                                .setColor(0xe74c3c)
+                                .setFooter({ text: 'Use /tinker craft <id> to craft' });
+                             response = { embeds: [embed] };
+                             break;
+                        }
+                        case 'materials': {
+                            const materials = await starkEconomy.getMaterials(interaction.user.id);
+                            const entries = Object.entries(materials);
+                            if (entries.length === 0) {
+                                response = '📦 You have no materials yet!\n\nCollect them with `/minigame hunt`, `/minigame fish`, `/minigame dig`, `/minigame beg`';
+                                break;
+                            }
+                            entries.sort((a, b) => b[1] - a[1]);
+                            const materialList = entries.slice(0, 25).map(([name, qty]) => `${name}: **${qty}**`).join('\n');
+                            
+                            const embed = new EmbedBuilder()
+                                .setTitle(`📦 ${interaction.user.username}'s Materials`)
+                                .setDescription(materialList + (entries.length > 25 ? `\n\n*...and ${entries.length - 25} more*` : ''))
+                                .setColor(0x3498db)
+                                .setFooter({ text: `${entries.length} material types • Use /tinker craft` });
+                             response = { embeds: [embed] };
+                             break;
+                        }
+                        case 'sell': {
+                             const itemInput = interaction.options.getString('item').toLowerCase();
+                             const inventory = await starkEconomy.getInventory(interaction.user.id);
+                             
+                             // Find index
+                             const index = inventory.findIndex(i => 
+                                i.name.toLowerCase().includes(itemInput) || 
+                                (i.id && i.id.toLowerCase() === itemInput)
+                             );
+                             
+                             if (index === -1) {
+                                 response = `❌ Could not find item "${itemInput}" in your inventory.`;
+                                 break;
+                             }
+                             
+                             const result = await starkEconomy.sellItem(interaction.user.id, index);
+                             if (!result.success) {
+                                 response = `❌ ${result.error}`;
+                                 break;
+                             }
+                             
+                             const embed = new EmbedBuilder()
+                                .setTitle('💰 Item Sold')
+                                .setDescription(`You sold **${result.item}** for **${result.value}** Stark Bucks!`)
+                                .setColor(0x2ecc71)
+                                .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
+                             response = { embeds: [embed] };
+                             break;
+                        }
+                    }
+                    break;
+                }
                 // ============ SOCIAL (Consolidated) ============
                 case 'social': {
                     telemetryMetadata.category = 'fun';
