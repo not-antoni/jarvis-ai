@@ -502,12 +502,8 @@ router.post('/api/sbx/news', async (req, res) => {
         const botOwnerId = process.env.BOT_OWNER_ID;
         
         let authorized = false;
-        if (session) {
-            // Check both odUserId and odUserId (Discord ID formats)
-            const sessionUserId = session.odUserId || session.userId;
-            if (sessionUserId === botOwnerId) {
-                authorized = true;
-            }
+        if (session && session.userId === botOwnerId) {
+            authorized = true;
         }
         if (!authorized && secretKey) {
             // Fall back to secret key auth
@@ -587,8 +583,7 @@ router.post('/api/sbx/news/upload', newsImageUpload.single('image'), async (req,
             return res.status(401).json({ error: 'Not authenticated' });
         }
         
-        const sessionUserId = session.odUserId || session.userId;
-        if (sessionUserId !== botOwnerId) {
+        if (session.userId !== botOwnerId) {
             // Delete uploaded file if not authorized
             if (req.file) fs.unlinkSync(req.file.path);
             return res.status(403).json({ error: 'Owner only' });
