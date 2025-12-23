@@ -203,8 +203,9 @@ class ImageGenerator {
         const rowHeight = 80;
         const headerHeight = 120;
         const padding = 20;
+        // Optimize: Reduce width for faster generation
+        const width = 600;
         const totalHeight = Math.max(this.height, headerHeight + (users.length * rowHeight) + padding);
-        const width = this.width;
 
         // Preload avatars (same as static)
         const avatarPromises = users.map(async (user) => {
@@ -223,10 +224,13 @@ class ImageGenerator {
         encoder.start();
         encoder.setRepeat(0);   // Loop forever
         encoder.setDelay(100);  // 100ms
-        encoder.setQuality(5);  // Sharper quality (lower is better)
 
-        // Generate 15 frames (1.5 seconds) - Optimized for speed
-        const totalFrames = 15;
+        // OPTIMIZATION: Lower quality number is SLOWER (1 is best/slowest, 20 is fast/decent)
+        // Changed from 5 to 20 to speed up encoding significantly
+        encoder.setQuality(20);
+
+        // Generate 10 frames (1 second loop) - Faster than 15
+        const totalFrames = 10;
         const canvas = createCanvas(width, totalHeight);
         const ctx = canvas.getContext('2d');
 
