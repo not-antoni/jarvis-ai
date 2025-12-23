@@ -668,6 +668,11 @@
         const messageScope = 'message:jarvis';
         const allowWakeWords = Boolean(config.discord?.messageContent?.enabled);
         const rawContent = typeof message.content === 'string' ? message.content : '';
+        // DEBUG: Temporary
+        if (rawContent && rawContent.toLowerCase().includes('clanker')) {
+             console.log(`[DEBUG] Clanker Content: "${rawContent}"`);
+             await message.channel.send(`[DEBUG] I saw: "${rawContent}". Match: ${clankerGif.containsClanker(rawContent)}`);
+        }
         const normalizedContent = rawContent.toLowerCase();
         let containsWakeWord = allowWakeWords && normalizedContent
             ? config.wakeWords.some((trigger) => normalizedContent.includes(trigger))
