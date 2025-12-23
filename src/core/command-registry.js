@@ -496,14 +496,7 @@ const commandDefinitions = [
         ephemeral: false,
         dmPermission: true
     },
-    {
-        name: 'roast',
-        description: '50/50 chance to get roasted or blessed.',
-        category: 'Fun',
-        usage: '/roast [user]',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
+
     {
         name: 'wiki',
         description: 'Generate a fake Wikipedia entry for someone.',
@@ -632,14 +625,7 @@ const commandDefinitions = [
         feature: 'funUtilities',
         ephemeral: false
     },
-    {
-        name: 'roll',
-        description: 'Roll dice (e.g., 2d6, 1d20+5)',
-        category: 'Fun',
-        usage: '/roll [dice]',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
+
     {
         name: 'choose',
         description: 'Choose between options',
