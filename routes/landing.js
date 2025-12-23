@@ -459,6 +459,7 @@ const LANDING_PAGE = `
             <a href="/changelog">Changelog</a>
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>
+            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
         </div>
         <p class="footer-copy">© 2025 Jarvis</p>
     </footer>
