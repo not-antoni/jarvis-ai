@@ -82,7 +82,23 @@ class ImageGenerator {
         // --- Rows ---
         let y = headerHeight;
 
-        for (const user of users) {
+        // Preload all avatars in parallel with timeout for speed
+        const avatarPromises = users.map(async (user) => {
+            if (!user.avatar) return null;
+            try {
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('timeout')), 2000)
+                );
+                return await Promise.race([loadImage(user.avatar), timeoutPromise]);
+            } catch {
+                return null;
+            }
+        });
+        const avatarImages = await Promise.all(avatarPromises);
+
+        for (let i = 0; i < users.length; i++) {
+            const user = users[i];
+            const avatarImg = avatarImages[i];
             const isTop3 = user.rank <= 3;
 
             // Row Background (zebra striping / highlight top 3)
@@ -107,34 +123,30 @@ class ImageGenerator {
 
             ctx.fillText(`#${user.rank}`, 60, y + 50);
 
-            // Avatar (Circle)
-            try {
-                // If avatar URL is provided
-                if (user.avatar) {
-                    const avatar = await loadImage(user.avatar);
-                    const avatarSize = 60;
-                    const avatarX = 110;
-                    const avatarY = y + 5;
+            // Avatar (Circle) - use preloaded image
+            const avatarSize = 60;
+            const avatarX = 110;
+            const avatarY = y + 5;
 
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2, true);
-                    ctx.closePath();
-                    ctx.clip();
-                    ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
-                    ctx.restore();
-
-                    // Border around avatar
-                    ctx.beginPath();
-                    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2, true);
-                    ctx.lineWidth = 2;
-                    ctx.strokeStyle = isTop3 ? ctx.fillStyle : '#555'; // Use rank color
-                    ctx.stroke();
-                }
-            } catch (err) {
-                // Fallback circle if image load fails
+            if (avatarImg) {
+                ctx.save();
                 ctx.beginPath();
-                ctx.arc(140, y + 35, 30, 0, Math.PI * 2);
+                ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2, true);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
+                ctx.restore();
+
+                // Border around avatar
+                ctx.beginPath();
+                ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2, true);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = isTop3 ? (user.rank === 1 ? '#FFD700' : user.rank === 2 ? '#C0C0C0' : '#CD7F32') : '#555';
+                ctx.stroke();
+            } else {
+                // Fallback circle if no avatar
+                ctx.beginPath();
+                ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
                 ctx.fillStyle = '#333';
                 ctx.fill();
             }
