@@ -1847,13 +1847,13 @@ const CRYPTO_PAGE = `
                                     <div class="coin-name">\${coin.name}</div>
                                 </div>
                             </div>
-                            <span class="coin-tier \${tierClass}">${coin.tier || 'mid'}</span>
+                            <span class="coin-tier \${tierClass}">\${coin.tier || 'mid'}</span>
                         </div>
                         <div class="coin-price-row">
                             <span class="coin-price">\${formatNumber(coin.price)} SB</span>
-                            <span class="coin-change \${changeClass}">${arrow} ${Math.abs(coin.change24h).toFixed(2)}%</span>
+                            <span class="coin-change \${changeClass}">\${arrow} \${Math.abs(coin.change24h).toFixed(2)}%</span>
                         </div>
-                        <div class="coin-sparkline" style="color: \${sparkColor}">${bars.join('')}</div>
+                        <div class="coin-sparkline" style="color: \${sparkColor}">\${bars.join('')}</div>
                         <div class="coin-stats">
                             <span>H: \${formatNumber(coin.high24h || coin.price)}</span>
                             <span>L: \${formatNumber(coin.low24h || coin.price)}</span>
