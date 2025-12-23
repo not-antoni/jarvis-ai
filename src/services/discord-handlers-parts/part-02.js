@@ -728,7 +728,8 @@
 
         // ============ CLANKER DETECTION (Top Priority) ============
         // Check if user said "clanker" in any variation (case-insensitive)
-        if (clankerGif.containsClanker(rawContent)) {
+        // Inline check to ensure reliability
+        if (rawContent && rawContent.toLowerCase().includes('clanker')) {
             const { limited } = this.hitCooldown(userId, messageScope);
             if (limited) return;
 
@@ -755,6 +756,7 @@
                 return; // Exit early, no AI response
             } catch (clankerError) {
                 console.error('[Clanker] Failed to process clanker GIF:', clankerError);
+                // Reply with error so user knows we tried
                 await message.reply('**[System Error]** Clanker protocol malfunctioned. Check logs for details.');
                 return; // Stop execution, do not fall through to AI
             }
