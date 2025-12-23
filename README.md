@@ -2,6 +2,8 @@
 
 **Just A Rather Very Intelligent System** — A feature-rich Discord bot inspired by Tony Stark's AI assistant.
 
+**OFFICIAL SITE**: https://jorvis.org/
+
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)](https://discord.js.org)
 [![Node.js](https://img.shields.io/badge/node-24.12.0-green.svg)](https://nodejs.org)
