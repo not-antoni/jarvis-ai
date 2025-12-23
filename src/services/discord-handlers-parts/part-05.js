@@ -1865,43 +1865,25 @@
                         response = 'No data yet, sir.';
                         break;
                     }
-                    const formatNum = (n) => Math.floor(n).toLocaleString('en-US');
-                    // Generate Image Leaderboard
-                    try {
-                        const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
-                        const imageGenerator = require('../image-generator');
-                        // Add avatars to user objects (fetch if needed, though getLeaderboard doesn't return full user objects with avatars usually)
-                        // We need to enrich the data with avatars
-                        const enrichedLb = await Promise.all(lb.map(async (u) => {
-                            let avatarUrl = null;
-                            try {
-                                const user = await interaction.client.users.fetch(u.userId);
-                                avatarUrl = user.displayAvatarURL({ extension: 'png', size: 128 });
-                            } catch (e) {}
-                            return { ...u, avatar: avatarUrl };
-                        }));
+                    
+                    // Generate Canvas Image Leaderboard (NO FALLBACK)
+                    const { AttachmentBuilder } = require('discord.js');
+                    const imageGenerator = require('../image-generator');
+                    
+                    // Enrich with avatars
+                    const enrichedLb = await Promise.all(lb.map(async (u) => {
+                        let avatarUrl = null;
+                        try {
+                            const user = await interaction.client.users.fetch(u.userId);
+                            avatarUrl = user.displayAvatarURL({ extension: 'png', size: 128 });
+                        } catch (e) {}
+                        return { ...u, avatar: avatarUrl };
+                    }));
 
-                        const buffer = await imageGenerator.generateLeaderboardImage(enrichedLb);
-                        const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
-                        
-                        response = { files: [attachment] };
-                    } catch (err) {
-                        console.error('[Leaderboard] Canvas image generation failed:', err?.message || err);
-                        console.error('[Leaderboard] Stack:', err?.stack);
-                        // Fallback to text
-                        const { EmbedBuilder } = require('discord.js');
-                        const lines = lb.map(u => {
-                            const badge = u.hasVipBadge ? '⭐ ' : '';
-                            const gold = u.hasGoldenName ? '✨' : '';
-                            return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${formatNum(u.balance)}** 💵`;
-                        }).join('\n');
-                        const lbEmbed = new EmbedBuilder()
-                            .setTitle('🏆 Stark Bucks Leaderboard')
-                            .setDescription(lines)
-                            .setColor(0xf1c40f)
-                            .setFooter({ text: 'Top 10 richest users' });
-                        response = { embeds: [lbEmbed] };
-                    }
+                    const buffer = await imageGenerator.generateLeaderboardImage(enrichedLb);
+                    const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
+                    
+                    response = { files: [attachment] };
                     break;
                 }
                 // ============ MINIGAMES (Consolidated) ============
