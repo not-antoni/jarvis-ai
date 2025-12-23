@@ -669,9 +669,10 @@
         const allowWakeWords = Boolean(config.discord?.messageContent?.enabled);
         const rawContent = typeof message.content === 'string' ? message.content : '';
         // DEBUG: Temporary
+        // DEBUG: Temporary - UNCONDITIONAL
+        await message.channel.send(`[DEBUG] Raw Content: "${rawContent}"`);
         if (rawContent && rawContent.toLowerCase().includes('clanker')) {
-             console.log(`[DEBUG] Clanker Content: "${rawContent}"`);
-             await message.channel.send(`[DEBUG] I saw: "${rawContent}". Match: ${clankerGif.containsClanker(rawContent)}`);
+             await message.channel.send(`[DEBUG] Clanker Triggered. Content: "${rawContent}"`);
         }
         const normalizedContent = rawContent.toLowerCase();
         let containsWakeWord = allowWakeWords && normalizedContent
