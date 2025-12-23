@@ -1504,18 +1504,24 @@
                                 response = 'No data yet, sir.';
                                 break;
                             }
-                            const fmtNum = (n) => Math.floor(n).toLocaleString('en-US');
-                            const lines = lb.map(u => {
-                                const badge = u.hasVipBadge ? '⭐ ' : '';
-                                const gold = u.hasGoldenName ? '✨' : '';
-                                return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${fmtNum(u.balance)}** 💵`;
-                            }).join('\n');
-                            const lbEmbed = new EmbedBuilder()
-                                .setTitle('🏆 Stark Bucks Leaderboard')
-                                .setDescription(lines)
-                                .setColor(0xf1c40f)
-                                .setFooter({ text: 'Top 10 richest users' });
-                            response = { embeds: [lbEmbed] };
+                            
+                            // Generate Canvas Image Leaderboard
+                            const { AttachmentBuilder } = require('discord.js');
+                            const imageGenerator = require('../image-generator');
+                            
+                            const enrichedLb = await Promise.all(lb.map(async (u) => {
+                                let avatarUrl = null;
+                                try {
+                                    const user = await interaction.client.users.fetch(u.userId);
+                                    avatarUrl = user.displayAvatarURL({ extension: 'png', size: 128 });
+                                } catch (e) {}
+                                return { ...u, avatar: avatarUrl };
+                            }));
+
+                            const buffer = await imageGenerator.generateLeaderboardImage(enrichedLb);
+                            const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
+                            
+                            response = { files: [attachment] };
                             break;
                         }
                         case 'show': {
