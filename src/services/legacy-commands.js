@@ -31,7 +31,7 @@ const BOT_OWNER_ID = process.env.BOT_OWNER_ID || '';
 
 // Commands that have their own cooldown handling in stark-economy
 const ECONOMY_COOLDOWN_COMMANDS = [
-    'work', 'daily', 'hunt', 'fish', 'dig', 'beg', 'crime', 'postmeme', 
+    'work', 'daily', 'hunt', 'fish', 'dig', 'beg', 'crime', 'postmeme',
     'search', 'rob', 'heist', 'lottery'
 ];
 
@@ -40,7 +40,7 @@ function checkCooldown(userId, commandName) {
     if (BOT_OWNER_ID && userId === BOT_OWNER_ID) {
         return 0;
     }
-    
+
     const key = `${userId}:${commandName}`;
     const now = Date.now();
     const cooldownEnd = cooldowns.get(key) || 0;
@@ -730,30 +730,23 @@ const legacyCommands = {
                 return true;
             }
 
-            const formatNum = (n) => {
-                n = Math.floor(n);
-                if (n >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
-                if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
-                if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-                if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-                if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
-                return n.toLocaleString('en-US');
-            };
-            const lines = lb
-                .map(u => {
-                    const badge = u.hasVipBadge ? '⭐ ' : '';
-                    const gold = u.hasGoldenName ? '✨' : '';
-                    return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${formatNum(u.balance)}** 💵`;
-                })
-                .join('\n');
+            // Generate Canvas Image Leaderboard
+            const { AttachmentBuilder } = require('discord.js');
+            const imageGenerator = require('./image-generator');
 
-            const embed = new EmbedBuilder()
-                .setTitle('🏆 Stark Bucks Leaderboard')
-                .setDescription(lines)
-                .setColor(0xf1c40f)
-                .setFooter({ text: 'Top 10 richest users' });
+            const enrichedLb = await Promise.all(lb.map(async (u) => {
+                let avatarUrl = null;
+                try {
+                    const user = await client.users.fetch(u.userId);
+                    avatarUrl = user.displayAvatarURL({ extension: 'png', size: 128 });
+                } catch (e) { }
+                return { ...u, avatar: avatarUrl };
+            }));
 
-            await message.reply({ embeds: [embed] });
+            const buffer = await imageGenerator.generateLeaderboardImage(enrichedLb);
+            const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
+
+            await message.reply({ files: [attachment] });
             return true;
         }
     },
@@ -1526,20 +1519,20 @@ const legacyCommands = {
     },
 
     // ============ NEW ECONOMY COMMANDS ============
-    
+
     // Hunt command
     hunt: {
         description: 'Hunt for animals in the wild',
         usage: '*j hunt',
         execute: async (message, args) => {
             const result = await starkEconomy.hunt(message.author.id, message.author.username);
-            
+
             if (!result.success) {
                 const seconds = Math.ceil(result.cooldown / 1000);
                 await message.reply(`🏹 You're still tracking your last prey! Wait ${seconds}s.`);
                 return true;
             }
-            
+
             const huntMessages = [
                 `You ventured into the wilderness and found a ${result.item}!`,
                 `After hours of tracking, you caught a ${result.item}!`,
@@ -1547,14 +1540,14 @@ const legacyCommands = {
                 `You spotted and captured a ${result.item} in the forest!`,
                 `A wild ${result.item} appeared! You caught it!`
             ];
-            
+
             const msg = huntMessages[Math.floor(Math.random() * huntMessages.length)];
             const embed = new EmbedBuilder()
                 .setTitle('🏹 Hunt Complete!')
                 .setDescription(`${msg}\n\n**Reward:** ${result.reward} Stark Bucks`)
                 .setColor(result.reward > 50 ? 0x2ecc71 : 0x95a5a6)
                 .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1566,13 +1559,13 @@ const legacyCommands = {
         usage: '*j fish',
         execute: async (message, args) => {
             const result = await starkEconomy.fish(message.author.id, message.author.username);
-            
+
             if (!result.success) {
                 const seconds = Math.ceil(result.cooldown / 1000);
                 await message.reply(`🎣 Your line is still in the water! Wait ${seconds}s.`);
                 return true;
             }
-            
+
             const fishMessages = [
                 `You reeled in a ${result.item}!`,
                 `After patient waiting, you caught a ${result.item}!`,
@@ -1580,14 +1573,14 @@ const legacyCommands = {
                 `The ocean blessed you with a ${result.item}!`,
                 `Splash! You pulled out a ${result.item}!`
             ];
-            
+
             const msg = fishMessages[Math.floor(Math.random() * fishMessages.length)];
             const embed = new EmbedBuilder()
                 .setTitle('🎣 Fishing Complete!')
                 .setDescription(`${msg}\n\n**Reward:** ${result.reward} Stark Bucks`)
                 .setColor(result.reward > 50 ? 0x3498db : 0x95a5a6)
                 .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1599,13 +1592,13 @@ const legacyCommands = {
         usage: '*j dig',
         execute: async (message, args) => {
             const result = await starkEconomy.dig(message.author.id, message.author.username);
-            
+
             if (!result.success) {
                 const seconds = Math.ceil(result.cooldown / 1000);
                 await message.reply(`⛏️ Your shovel is still stuck! Wait ${seconds}s.`);
                 return true;
             }
-            
+
             const digMessages = [
                 `You dug up a ${result.item}!`,
                 `After some digging, you found a ${result.item}!`,
@@ -1613,14 +1606,14 @@ const legacyCommands = {
                 `You struck ${result.item}!`,
                 `Buried treasure! You found a ${result.item}!`
             ];
-            
+
             const msg = digMessages[Math.floor(Math.random() * digMessages.length)];
             const embed = new EmbedBuilder()
                 .setTitle('⛏️ Dig Complete!')
                 .setDescription(`${msg}\n\n**Reward:** ${result.reward} Stark Bucks`)
                 .setColor(result.reward > 100 ? 0xf1c40f : 0x95a5a6)
                 .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1632,19 +1625,19 @@ const legacyCommands = {
         usage: '*j beg',
         execute: async (message, args) => {
             const result = await starkEconomy.beg(message.author.id, message.author.username);
-            
+
             if (!result.success) {
                 const seconds = Math.ceil(result.cooldown / 1000);
                 await message.reply(`🙏 Have some dignity! Wait ${seconds}s before begging again.`);
                 return true;
             }
-            
+
             const embed = new EmbedBuilder()
                 .setTitle('🙏 Begging Results')
                 .setDescription(`${result.message} **${result.reward}** Stark Bucks!`)
                 .setColor(result.reward > 0 ? 0x2ecc71 : 0xe74c3c)
                 .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1658,23 +1651,23 @@ const legacyCommands = {
         execute: async (message, args) => {
             const inventory = await starkEconomy.getInventory(message.author.id);
             const hasReactor = await starkEconomy.hasArcReactor(message.author.id);
-            
+
             if (!inventory.length) {
                 await message.reply('Your inventory is empty, sir. Visit the shop with `*j shop`.');
                 return true;
             }
-            
+
             const itemList = inventory.map(item => {
                 const uses = item.uses ? ` (${item.uses} uses)` : '';
                 return `• ${item.name}${uses}`;
             }).join('\n');
-            
+
             const embed = new EmbedBuilder()
                 .setTitle(`🎒 ${message.author.username}'s Inventory`)
                 .setDescription(itemList)
                 .setColor(hasReactor ? 0x00d4ff : 0x9b59b6)
                 .setFooter({ text: hasReactor ? '💠 Arc Reactor Owner - All perks active!' : 'Use *j buy <item> to get more items' });
-            
+
             if (hasReactor) {
                 embed.addFields({
                     name: '💠 Arc Reactor Perks',
@@ -1682,7 +1675,7 @@ const legacyCommands = {
                     inline: false
                 });
             }
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1695,16 +1688,16 @@ const legacyCommands = {
         aliases: ['craft'],
         execute: async (message, args) => {
             const recipeName = args.join('_').toLowerCase();
-            
+
             if (!recipeName) {
                 // Show available recipes and user's materials
                 const materials = await starkEconomy.getMaterials(message.author.id);
                 const materialCount = Object.keys(materials).length;
                 const recipes = starkTinker.getAllRecipes().slice(0, 10);
-                const recipeList = recipes.map(r => 
+                const recipeList = recipes.map(r =>
                     `**${r.name}** (${r.rarity})\n> ${Object.entries(r.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}`
                 ).join('\n');
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle('🔧 Stark Industries Tinker Lab')
                     .setDescription(`Combine materials from minigames to craft MCU items!\n\n**Sample Recipes:**\n${recipeList}`)
@@ -1714,33 +1707,33 @@ const legacyCommands = {
                         { name: '📖 Total Recipes', value: `${starkTinker.getAllRecipes().length}`, inline: true }
                     )
                     .setFooter({ text: 'Use *j tinker <recipe_id> to craft • *j materials to view yours' });
-                
+
                 await message.reply({ embeds: [embed] });
                 return true;
             }
-            
+
             const recipe = starkTinker.getRecipe(recipeName);
             if (!recipe) {
                 await message.reply(`❌ Unknown recipe: \`${recipeName}\`. Use \`*j recipes\` to see all recipes.`);
                 return true;
             }
-            
+
             // Attempt to craft
             const result = await starkEconomy.craftItem(message.author.id, recipeName, recipe);
-            
+
             if (!result.success) {
                 const materials = await starkEconomy.getMaterials(message.author.id);
                 const missing = Object.entries(recipe.ingredients)
                     .filter(([mat, req]) => (materials[mat] || 0) < req)
                     .map(([mat, req]) => `${req - (materials[mat] || 0)}x ${mat}`)
                     .join(', ');
-                
+
                 await message.reply(`❌ **Cannot craft ${recipe.name}**\n\nMissing: ${missing}\n\nCollect materials with \`*j hunt\`, \`*j fish\`, \`*j dig\``);
                 return true;
             }
-            
+
             const rarityColors = { common: 0x95a5a6, uncommon: 0x2ecc71, rare: 0x3498db, epic: 0x9b59b6, legendary: 0xf1c40f };
-            
+
             const embed = new EmbedBuilder()
                 .setTitle('🔧 Item Crafted!')
                 .setDescription(`You crafted **${result.item}**!\n\n${recipe.description}`)
@@ -1750,7 +1743,7 @@ const legacyCommands = {
                     { name: 'Value', value: `${result.value} 💵`, inline: true }
                 )
                 .setFooter({ text: 'Sell with *j sell <item_number> • View with *j inventory' });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1764,22 +1757,22 @@ const legacyCommands = {
         execute: async (message, args) => {
             const materials = await starkEconomy.getMaterials(message.author.id);
             const entries = Object.entries(materials);
-            
+
             if (entries.length === 0) {
                 await message.reply('📦 You have no materials yet!\n\nCollect them with `*j hunt`, `*j fish`, `*j dig`, `*j beg`');
                 return true;
             }
-            
+
             // Sort by quantity
             entries.sort((a, b) => b[1] - a[1]);
             const materialList = entries.slice(0, 25).map(([name, qty]) => `${name}: **${qty}**`).join('\n');
-            
+
             const embed = new EmbedBuilder()
                 .setTitle(`📦 ${message.author.username}'s Materials`)
                 .setDescription(materialList + (entries.length > 25 ? `\n\n*...and ${entries.length - 25} more*` : ''))
                 .setColor(0x3498db)
                 .setFooter({ text: `${entries.length} material types • Use *j tinker to craft` });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1791,25 +1784,25 @@ const legacyCommands = {
         usage: '*j sell <item_number>',
         execute: async (message, args) => {
             const itemIndex = parseInt(args[0]) - 1; // 1-indexed for user
-            
+
             if (isNaN(itemIndex) || itemIndex < 0) {
                 await message.reply('Usage: `*j sell <item_number>`\n\nView your items with `*j inventory` first.');
                 return true;
             }
-            
+
             const result = await starkEconomy.sellItem(message.author.id, itemIndex);
-            
+
             if (!result.success) {
                 await message.reply(`❌ ${result.error}`);
                 return true;
             }
-            
+
             const embed = new EmbedBuilder()
                 .setTitle('💰 Item Sold!')
                 .setDescription(`You sold **${result.item}** for **${result.value}** Stark Bucks!`)
                 .setColor(0x2ecc71)
                 .addFields({ name: '💰 New Balance', value: `${result.newBalance}`, inline: true });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1822,23 +1815,23 @@ const legacyCommands = {
         execute: async (message, args) => {
             const rarity = args[0]?.toLowerCase() || 'all';
             let recipes;
-            
+
             if (['common', 'uncommon', 'rare', 'epic', 'legendary'].includes(rarity)) {
                 recipes = starkTinker.getRecipesByRarity(rarity);
             } else {
                 recipes = starkTinker.getAllRecipes();
             }
-            
-            const recipeList = recipes.slice(0, 20).map(r => 
+
+            const recipeList = recipes.slice(0, 20).map(r =>
                 `**${r.name}** - ${r.rarity} - ${r.value}💵`
             ).join('\n');
-            
+
             const embed = new EmbedBuilder()
                 .setTitle(`📜 Tinker Recipes (${recipes.length} total)`)
                 .setDescription(recipeList + (recipes.length > 20 ? `\n\n*...and ${recipes.length - 20} more*` : ''))
                 .setColor(0x9b59b6)
                 .setFooter({ text: 'Filter: *j recipes common/uncommon/rare/epic/legendary' });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1852,16 +1845,16 @@ const legacyCommands = {
         execute: async (message, args) => {
             const contract = starkTinker.getRandomContract();
             const reward = Math.floor(contract.reward.min + Math.random() * (contract.reward.max - contract.reward.min));
-            
+
             // Apply Arc Reactor bonus
             const arcPerks = await starkEconomy.getArcReactorPerks(message.author.id);
             const finalReward = Math.floor(reward * arcPerks.earningsMultiplier);
-            
+
             await starkEconomy.modifyBalance(message.author.id, finalReward, 'contract');
-            
+
             const difficultyColors = { easy: 0x2ecc71, medium: 0xf1c40f, hard: 0xe74c3c };
             const difficultyEmoji = { easy: '🟢', medium: '🟡', hard: '🔴' };
-            
+
             const embed = new EmbedBuilder()
                 .setTitle('📋 Contract Complete!')
                 .setDescription(`**${contract.name}**\n\nYou earned **${finalReward}** Stark Bucks!${arcPerks.hasReactor ? ' *(+15% Arc Reactor bonus)*' : ''}`)
@@ -1870,7 +1863,7 @@ const legacyCommands = {
                     { name: 'Difficulty', value: `${difficultyEmoji[contract.difficulty]} ${contract.difficulty.toUpperCase()}`, inline: true }
                 )
                 .setFooter({ text: 'Stark Industries appreciates your service' });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1884,7 +1877,7 @@ const legacyCommands = {
         execute: async (message, args) => {
             const hasReactor = await starkEconomy.hasArcReactor(message.author.id);
             const stats = await starkEconomy.getUserStats(message.author.id);
-            
+
             if (!hasReactor) {
                 const embed = new EmbedBuilder()
                     .setTitle('💠 Arc Reactor')
@@ -1896,13 +1889,13 @@ const legacyCommands = {
                         inline: false
                     })
                     .setFooter({ text: 'The ultimate Stark Industries collector item' });
-                
+
                 await message.reply({ embeds: [embed] });
                 return true;
             }
-            
+
             const interest = Math.floor(stats.balance * 0.01);
-            
+
             const embed = new EmbedBuilder()
                 .setTitle('💠 Arc Reactor - ACTIVE')
                 .setDescription(`*"Proof that Tony Stark has a heart"*\n\nYour Arc Reactor is powering all systems!`)
@@ -1916,14 +1909,14 @@ const legacyCommands = {
                     { name: '💠 Status', value: 'Leaderboard badge active', inline: true }
                 )
                 .setFooter({ text: 'Arc Reactor technology by Stark Industries' });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
     },
 
     // ============ MISSING ECONOMY COMMANDS (Bug Fixes) ============
-    
+
     // Crime command
     crime: {
         description: 'Commit a crime (risky but high reward)',
@@ -1931,20 +1924,20 @@ const legacyCommands = {
         aliases: ['steal', 'heist'],
         execute: async (message, args) => {
             const result = await starkEconomy.crime(message.author.id);
-            
+
             if (!result.success) {
                 const seconds = Math.ceil(result.cooldown / 1000);
                 await message.reply(`🚨 Lay low for ${seconds}s before your next crime!`);
                 return true;
             }
-            
+
             const isPositive = result.reward > 0;
             const embed = new EmbedBuilder()
                 .setTitle(isPositive ? '🦹 Crime Successful!' : '🚔 Busted!')
                 .setDescription(`${result.outcome}\n\n**${isPositive ? 'Earned' : 'Lost'}:** ${Math.abs(result.reward)} Stark Bucks`)
                 .setColor(isPositive ? 0x2ecc71 : 0xe74c3c)
                 .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1957,20 +1950,20 @@ const legacyCommands = {
         aliases: ['meme', 'post'],
         execute: async (message, args) => {
             const result = await starkEconomy.postmeme(message.author.id);
-            
+
             if (!result.success) {
                 const seconds = Math.ceil(result.cooldown / 1000);
                 await message.reply(`📱 Wait ${seconds}s before posting again!`);
                 return true;
             }
-            
+
             const isPositive = result.reward > 0;
             const embed = new EmbedBuilder()
                 .setTitle('📱 Meme Posted!')
                 .setDescription(`${result.outcome}\n\n**Earned:** ${result.reward} Stark Bucks`)
                 .setColor(result.reward > 100 ? 0x2ecc71 : result.reward > 0 ? 0x3498db : 0xe74c3c)
                 .addFields({ name: '💰 Balance', value: `${result.newBalance}`, inline: true });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -1982,13 +1975,13 @@ const legacyCommands = {
         usage: '*j search',
         execute: async (message, args) => {
             const result = await starkEconomy.search(message.author.id);
-            
+
             if (!result.success) {
                 const seconds = Math.ceil(result.cooldown / 1000);
                 await message.reply(`🔍 Wait ${seconds}s before searching again!`);
                 return true;
             }
-            
+
             const isPositive = result.reward > 0;
             const embed = new EmbedBuilder()
                 .setTitle('🔍 Search Complete!')
@@ -1998,7 +1991,7 @@ const legacyCommands = {
                     { name: isPositive ? '💰 Found' : result.reward < 0 ? '💸 Lost' : '📦 Result', value: `${Math.abs(result.reward)} Stark Bucks`, inline: true },
                     { name: '💰 Balance', value: `${result.newBalance}`, inline: true }
                 );
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -2014,19 +2007,19 @@ const legacyCommands = {
                 await message.reply('Usage: `*j rob @user`');
                 return true;
             }
-            
+
             if (target.id === message.author.id) {
                 await message.reply("You can't rob yourself, sir.");
                 return true;
             }
-            
+
             if (target.bot) {
                 await message.reply("You can't rob bots!");
                 return true;
             }
-            
+
             const result = await starkEconomy.rob(message.author.id, target.id, message.author.username);
-            
+
             if (!result.success) {
                 if (result.cooldown) {
                     const seconds = Math.ceil(result.cooldown / 1000);
@@ -2036,7 +2029,7 @@ const legacyCommands = {
                 }
                 return true;
             }
-            
+
             if (result.succeeded) {
                 const embed = new EmbedBuilder()
                     .setTitle('💰 Robbery Successful!')
@@ -2065,30 +2058,30 @@ const legacyCommands = {
             const target = message.mentions.users.first();
             const amountStr = args.find(a => !a.startsWith('<@'));
             const amount = parseInt(amountStr);
-            
+
             if (!target || !amount || amount < 1) {
                 await message.reply('Usage: `*j give @user <amount>`');
                 return true;
             }
-            
+
             if (target.id === message.author.id) {
                 await message.reply("You can't give money to yourself!");
                 return true;
             }
-            
+
             const result = await starkEconomy.give(
-                message.author.id, 
-                target.id, 
-                amount, 
-                message.author.username, 
+                message.author.id,
+                target.id,
+                amount,
+                message.author.username,
                 target.username
             );
-            
+
             if (!result.success) {
                 await message.reply(`❌ ${result.error}`);
                 return true;
             }
-            
+
             const embed = new EmbedBuilder()
                 .setTitle('💸 Transfer Complete!')
                 .setDescription(`You gave **${amount}** Stark Bucks to ${target}!`)
@@ -2097,7 +2090,7 @@ const legacyCommands = {
                     { name: 'Your Balance', value: `${result.fromBalance}`, inline: true },
                     { name: `${target.username}'s Balance`, value: `${result.toBalance}`, inline: true }
                 );
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -2110,28 +2103,28 @@ const legacyCommands = {
         aliases: ['bj'],
         execute: async (message, args) => {
             const bet = parseInt(args[0]);
-            
+
             if (!bet || bet < 10) {
                 await message.reply('Usage: `*j blackjack <bet>` (minimum 10)');
                 return true;
             }
-            
+
             const stats = await starkEconomy.getUserStats(message.author.id);
             if (stats.balance < bet) {
                 await message.reply('❌ Insufficient funds!');
                 return true;
             }
-            
+
             // Simple blackjack - draw cards
             const cards = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
             const suits = ['♠', '♥', '♦', '♣'];
-            
+
             const drawCard = () => {
                 const card = cards[Math.floor(Math.random() * cards.length)];
                 const suit = suits[Math.floor(Math.random() * suits.length)];
                 return { card, suit, display: `${card}${suit}` };
             };
-            
+
             const getValue = (hand) => {
                 let value = 0;
                 let aces = 0;
@@ -2143,24 +2136,24 @@ const legacyCommands = {
                 while (value > 21 && aces > 0) { value -= 10; aces--; }
                 return value;
             };
-            
+
             // Draw initial hands
             const playerHand = [drawCard(), drawCard()];
             const dealerHand = [drawCard(), drawCard()];
-            
+
             // Simple AI: dealer draws until 17+
             while (getValue(dealerHand) < 17) {
                 dealerHand.push(drawCard());
             }
-            
+
             // Player also auto-draws if under 17 (simplified)
             while (getValue(playerHand) < 17) {
                 playerHand.push(drawCard());
             }
-            
+
             const playerValue = getValue(playerHand);
             const dealerValue = getValue(dealerHand);
-            
+
             let result, color, winnings;
             if (playerValue > 21) {
                 result = 'BUST! You lose.';
@@ -2183,10 +2176,10 @@ const legacyCommands = {
                 color = 0xf1c40f;
                 winnings = 0;
             }
-            
+
             await starkEconomy.modifyBalance(message.author.id, winnings, 'blackjack');
             const newStats = await starkEconomy.getUserStats(message.author.id);
-            
+
             const embed = new EmbedBuilder()
                 .setTitle('🃏 Blackjack')
                 .setColor(color)
@@ -2196,7 +2189,7 @@ const legacyCommands = {
                     { name: 'Result', value: `${result}\n${winnings >= 0 ? '+' : ''}${winnings} Stark Bucks`, inline: false },
                     { name: '💰 Balance', value: `${newStats.balance}`, inline: true }
                 );
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -2214,7 +2207,7 @@ const legacyCommands = {
             const stats = await starkEconomy.getUserStats(target.id);
             const achievementProfile = await achievements.getProfile(target.id);
             const hasReactor = await starkEconomy.hasArcReactor(target.id);
-            
+
             const formatNum = (n) => {
                 n = Math.floor(n);
                 if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
@@ -2222,7 +2215,7 @@ const legacyCommands = {
                 if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
                 return n.toLocaleString();
             };
-            
+
             const embed = new EmbedBuilder()
                 .setTitle(`${hasReactor ? '💠 ' : ''}${target.username}'s Profile`)
                 .setThumbnail(target.displayAvatarURL({ dynamic: true }))
@@ -2238,11 +2231,11 @@ const legacyCommands = {
                     { name: '⭐ Achievement Points', value: `${achievementProfile.totalPoints}`, inline: true },
                     { name: '🎒 Inventory', value: `${stats.inventoryCount} items`, inline: true }
                 );
-            
+
             if (hasReactor) {
                 embed.setFooter({ text: '💠 Arc Reactor Owner - All perks active!' });
             }
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -2256,41 +2249,41 @@ const legacyCommands = {
         execute: async (message, args) => {
             const category = args[0] || null;
             const profile = await achievements.getProfile(message.author.id);
-            
+
             if (category) {
                 // Show specific category
                 const userData = await achievements.getUserData(message.author.id);
                 const categoryAchievements = achievements.getAchievementsByCategory(
-                    category.charAt(0).toUpperCase() + category.slice(1).toLowerCase(), 
+                    category.charAt(0).toUpperCase() + category.slice(1).toLowerCase(),
                     userData
                 );
-                
+
                 if (categoryAchievements.length === 0) {
                     await message.reply(`❌ Unknown category. Categories: ${achievements.getAllCategories().join(', ')}`);
                     return true;
                 }
-                
-                const list = categoryAchievements.slice(0, 15).map(a => 
+
+                const list = categoryAchievements.slice(0, 15).map(a =>
                     `${a.unlocked ? '✅' : '⬜'} ${a.emoji} **${a.name}** - ${a.description} (${a.points}pts)`
                 ).join('\n');
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle(`🏆 ${category} Achievements`)
                     .setDescription(list)
                     .setColor(0xf1c40f)
                     .setFooter({ text: `${categoryAchievements.filter(a => a.unlocked).length}/${categoryAchievements.length} unlocked` });
-                
+
                 await message.reply({ embeds: [embed] });
             } else {
                 // Show overview
                 const categoryList = Object.entries(profile.categories)
                     .map(([cat, data]) => `**${cat}**: ${data.unlocked}/${data.total}`)
                     .join('\n');
-                
-                const recentList = profile.recent.length > 0 
+
+                const recentList = profile.recent.length > 0
                     ? profile.recent.map(a => `${a.emoji} ${a.name}`).join(', ')
                     : 'None yet';
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle(`🏆 ${message.author.username}'s Achievements`)
                     .setColor(0xf1c40f)
@@ -2301,7 +2294,7 @@ const legacyCommands = {
                         { name: '📁 By Category', value: categoryList, inline: false }
                     )
                     .setFooter({ text: 'Use *j achievements <category> to view specific achievements' });
-                
+
                 await message.reply({ embeds: [embed] });
             }
             return true;
@@ -2317,22 +2310,22 @@ const legacyCommands = {
         execute: async (message, args) => {
             const userId = message.author.id;
             const challenges = await starkEconomy.getDailyChallenges(userId);
-            
+
             const challengeList = challenges.map((c, i) => {
                 const progress = Math.min(c.progress, c.target);
                 const bar = '█'.repeat(Math.floor(progress / c.target * 10)) + '░'.repeat(10 - Math.floor(progress / c.target * 10));
                 const status = c.completed ? '✅' : '⬜';
                 return `${status} **${c.name}**\n${bar} ${progress}/${c.target} | Reward: ${c.reward} 💵`;
             }).join('\n\n');
-            
+
             const completed = challenges.filter(c => c.completed).length;
-            
+
             const embed = new EmbedBuilder()
                 .setTitle('📋 Daily Challenges')
                 .setDescription(challengeList || 'No challenges available!')
                 .setColor(completed === challenges.length ? 0x2ecc71 : 0x3498db)
                 .setFooter({ text: `${completed}/${challenges.length} completed • Resets at midnight UTC` });
-            
+
             await message.reply({ embeds: [embed] });
             return true;
         }
@@ -2347,13 +2340,13 @@ const legacyCommands = {
             const userId = message.author.id;
             const stats = await starkEconomy.getUserStats(userId);
             const prestigeData = await starkEconomy.getPrestigeData(userId);
-            
+
             const requirement = 1000000 * (prestigeData.level + 1); // 1M * level
             const canPrestige = stats.totalEarned >= requirement;
-            
+
             if (args[0] === 'confirm' && canPrestige) {
                 const result = await starkEconomy.prestige(userId);
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle('⭐ PRESTIGE COMPLETE!')
                     .setDescription(`You are now **Prestige ${result.newLevel}**!`)
@@ -2363,12 +2356,12 @@ const legacyCommands = {
                         { name: '💰 Balance Reset', value: `${result.newBalance} Stark Bucks`, inline: true }
                     )
                     .setFooter({ text: 'Your prestige bonuses stack forever!' });
-                
+
                 await message.reply({ embeds: [embed] });
             } else {
                 const embed = new EmbedBuilder()
                     .setTitle('⭐ Prestige System')
-                    .setDescription(canPrestige 
+                    .setDescription(canPrestige
                         ? '**You can prestige!** Use `*j prestige confirm` to reset.\n\n⚠️ This will reset your balance but give permanent bonuses!'
                         : `You need **${(requirement - stats.totalEarned).toLocaleString()}** more total earnings to prestige.`)
                     .setColor(canPrestige ? 0x2ecc71 : 0x3498db)
@@ -2378,7 +2371,7 @@ const legacyCommands = {
                         { name: '🎯 Next Requirement', value: `${requirement.toLocaleString()} total earned`, inline: true },
                         { name: '📊 Your Total Earned', value: `${stats.totalEarned.toLocaleString()}`, inline: true }
                     );
-                
+
                 await message.reply({ embeds: [embed] });
             }
             return true;
@@ -2394,9 +2387,9 @@ const legacyCommands = {
         execute: async (message, args) => {
             const userId = message.author.id;
             const subcommand = (args[0] || 'stats').toLowerCase();
-            
+
             const petData = await starkEconomy.getPetData(userId);
-            
+
             switch (subcommand) {
                 case 'buy':
                 case 'adopt': {
@@ -2404,15 +2397,15 @@ const legacyCommands = {
                         await message.reply('❌ You already have a pet! Use `*j pet stats` to see them.');
                         return true;
                     }
-                    
+
                     const petType = args[1] || 'random';
                     const result = await starkEconomy.buyPet(userId, petType);
-                    
+
                     if (!result.success) {
                         await message.reply(`❌ ${result.error}`);
                         return true;
                     }
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle('🐾 Pet Adopted!')
                         .setDescription(`You adopted a **${result.pet.emoji} ${result.pet.name}**!`)
@@ -2424,20 +2417,20 @@ const legacyCommands = {
                     await message.reply({ embeds: [embed] });
                     break;
                 }
-                
+
                 case 'feed': {
                     if (!petData.hasPet) {
                         await message.reply('❌ You don\'t have a pet! Use `*j pet buy` to adopt one.');
                         return true;
                     }
-                    
+
                     const result = await starkEconomy.feedPet(userId);
-                    
+
                     if (!result.success) {
                         await message.reply(`❌ ${result.error}`);
                         return true;
                     }
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle(`${petData.pet.emoji} Pet Fed!`)
                         .setDescription(`${petData.pet.name} is happy! (+${result.happinessGain} happiness)`)
@@ -2449,24 +2442,24 @@ const legacyCommands = {
                     await message.reply({ embeds: [embed] });
                     break;
                 }
-                
+
                 case 'rename': {
                     if (!petData.hasPet) {
                         await message.reply('❌ You don\'t have a pet!');
                         return true;
                     }
-                    
+
                     const newName = args.slice(1).join(' ');
                     if (!newName || newName.length > 20) {
                         await message.reply('Usage: `*j pet rename <name>` (max 20 characters)');
                         return true;
                     }
-                    
+
                     await starkEconomy.renamePet(userId, newName);
                     await message.reply(`✅ Your pet is now named **${newName}**!`);
                     break;
                 }
-                
+
                 case 'stats':
                 default: {
                     if (!petData.hasPet) {
@@ -2483,7 +2476,7 @@ const legacyCommands = {
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle(`${petData.pet.emoji} ${petData.pet.name}`)
                         .setColor(0x9b59b6)
@@ -2511,22 +2504,22 @@ const legacyCommands = {
             const subcommand = (args[0] || 'status').toLowerCase();
             const userId = message.author.id;
             const guildId = message.guild?.id;
-            
+
             if (!guildId) {
                 await message.reply('Heists only work in servers!');
                 return true;
             }
-            
+
             switch (subcommand) {
                 case 'start': {
                     const bet = parseInt(args[1]) || 500;
                     const result = await starkEconomy.startHeist(guildId, userId, bet);
-                    
+
                     if (!result.success) {
                         await message.reply(`❌ ${result.error}`);
                         return true;
                     }
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle('🏦 Heist Started!')
                         .setDescription(`${message.author} is planning a heist!\n\nUse \`*j heist join\` to participate!\nEntry: **${bet}** Stark Bucks`)
@@ -2537,9 +2530,9 @@ const legacyCommands = {
                             { name: '⏰ Starts In', value: '60 seconds', inline: true }
                         )
                         .setFooter({ text: 'Minimum 3 participants required!' });
-                    
+
                     await message.reply({ embeds: [embed] });
-                    
+
                     // Auto-execute heist after 60 seconds
                     setTimeout(async () => {
                         const heistResult = await starkEconomy.executeHeist(guildId);
@@ -2548,39 +2541,39 @@ const legacyCommands = {
                                 .setTitle(heistResult.won ? '🎉 Heist Successful!' : '🚔 Heist Failed!')
                                 .setDescription(heistResult.story)
                                 .setColor(heistResult.won ? 0x2ecc71 : 0xe74c3c);
-                            
+
                             if (heistResult.won) {
                                 const winnerList = heistResult.winners.map(w => `<@${w.id}>: +${w.winnings}`).join('\n');
                                 resultEmbed.addFields({ name: '💰 Payouts', value: winnerList || 'None', inline: false });
                             }
-                            
+
                             await message.channel.send({ embeds: [resultEmbed] });
                         }
                     }, 60000);
                     break;
                 }
-                
+
                 case 'join': {
                     const result = await starkEconomy.joinHeist(guildId, userId);
-                    
+
                     if (!result.success) {
                         await message.reply(`❌ ${result.error}`);
                         return true;
                     }
-                    
+
                     await message.reply(`✅ You joined the heist! (${result.participants}/${result.maxParticipants} participants)`);
                     break;
                 }
-                
+
                 case 'status':
                 default: {
                     const heist = await starkEconomy.getHeistStatus(guildId);
-                    
+
                     if (!heist.active) {
                         await message.reply('No active heist. Use `*j heist start <bet>` to start one!');
                         return true;
                     }
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle('🏦 Active Heist')
                         .setColor(0xe74c3c)
@@ -2589,7 +2582,7 @@ const legacyCommands = {
                             { name: '💰 Prize Pool', value: `${heist.prizePool}`, inline: true },
                             { name: '⏰ Time Left', value: `${Math.ceil(heist.timeLeft / 1000)}s`, inline: true }
                         );
-                    
+
                     await message.reply({ embeds: [embed] });
                 }
             }
@@ -2605,22 +2598,22 @@ const legacyCommands = {
         execute: async (message, args) => {
             const subcommand = (args[0] || 'status').toLowerCase();
             const guildId = message.guild?.id;
-            
+
             if (!guildId) {
                 await message.reply('Boss battles only work in servers!');
                 return true;
             }
-            
+
             const bossData = await starkEconomy.getBossData(guildId);
-            
+
             if (subcommand === 'attack') {
                 const result = await starkEconomy.attackBoss(guildId, message.author.id);
-                
+
                 if (!result.success) {
                     await message.reply(`❌ ${result.error}`);
                     return true;
                 }
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle(`⚔️ Attack on ${bossData.name}!`)
                     .setDescription(`You dealt **${result.damage}** damage!`)
@@ -2629,19 +2622,19 @@ const legacyCommands = {
                         { name: '❤️ Boss HP', value: `${result.remainingHp}/${bossData.maxHp}`, inline: true },
                         { name: '📊 Your Total Damage', value: `${result.userTotalDamage}`, inline: true }
                     );
-                
+
                 if (result.bossDefeated) {
-                    embed.addFields({ 
-                        name: '🎉 BOSS DEFEATED!', 
-                        value: `Rewards distributed! You earned **${result.reward}** Stark Bucks!`, 
-                        inline: false 
+                    embed.addFields({
+                        name: '🎉 BOSS DEFEATED!',
+                        value: `Rewards distributed! You earned **${result.reward}** Stark Bucks!`,
+                        inline: false
                     });
                 }
-                
+
                 await message.reply({ embeds: [embed] });
             } else {
                 const hpBar = '█'.repeat(Math.floor(bossData.hp / bossData.maxHp * 20)) + '░'.repeat(20 - Math.floor(bossData.hp / bossData.maxHp * 20));
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle(`👹 ${bossData.name}`)
                     .setDescription(bossData.description)
@@ -2653,7 +2646,7 @@ const legacyCommands = {
                         { name: '⏰ Resets In', value: `${Math.ceil(bossData.resetTime / 3600000)}h`, inline: true }
                     )
                     .setFooter({ text: 'Use *j boss attack to deal damage!' });
-                
+
                 await message.reply({ embeds: [embed] });
             }
             return true;
@@ -2669,18 +2662,18 @@ const legacyCommands = {
         execute: async (message, args) => {
             const subcommand = (args[0] || 'status').toLowerCase();
             const userId = message.author.id;
-            
+
             const lotteryData = await starkEconomy.getLotteryData();
-            
+
             if (subcommand === 'buy') {
                 const tickets = parseInt(args[1]) || 1;
                 const result = await starkEconomy.buyLotteryTickets(userId, tickets);
-                
+
                 if (!result.success) {
                     await message.reply(`❌ ${result.error}`);
                     return true;
                 }
-                
+
                 await message.reply(`✅ Bought **${tickets}** lottery ticket(s) for **${result.cost}** Stark Bucks!\nYour tickets: ${result.userTickets} | Total pot: ${result.jackpot}`);
             } else {
                 const embed = new EmbedBuilder()
@@ -2694,11 +2687,11 @@ const legacyCommands = {
                         { name: '⏰ Draw In', value: `${lotteryData.timeUntilDraw}`, inline: true }
                     )
                     .setFooter({ text: 'Use *j lottery buy <amount> to enter!' });
-                
+
                 if (lotteryData.lastWinner) {
                     embed.addFields({ name: '🏆 Last Winner', value: `<@${lotteryData.lastWinner.id}> won ${lotteryData.lastWinner.amount}!`, inline: false });
                 }
-                
+
                 await message.reply({ embeds: [embed] });
             }
             return true;
@@ -2714,18 +2707,18 @@ const legacyCommands = {
         execute: async (message, args) => {
             const subcommand = (args[0] || 'status').toLowerCase();
             const userId = message.author.id;
-            
+
             const questData = await starkEconomy.getQuestData(userId);
-            
+
             if (subcommand === 'start') {
                 const questName = args.slice(1).join('_').toLowerCase() || 'random';
                 const result = await starkEconomy.startQuest(userId, questName);
-                
+
                 if (!result.success) {
                     await message.reply(`❌ ${result.error}`);
                     return true;
                 }
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle('📜 Quest Started!')
                     .setDescription(`**${result.quest.name}**\n\n${result.quest.description}`)
@@ -2734,16 +2727,16 @@ const legacyCommands = {
                         { name: '🎯 Objectives', value: result.quest.objectives.map(o => `⬜ ${o}`).join('\n'), inline: false },
                         { name: '🎁 Rewards', value: `${result.quest.reward} Stark Bucks + ${result.quest.xp} XP`, inline: true }
                     );
-                
+
                 await message.reply({ embeds: [embed] });
             } else if (subcommand === 'complete') {
                 const result = await starkEconomy.completeQuest(userId);
-                
+
                 if (!result.success) {
                     await message.reply(`❌ ${result.error}`);
                     return true;
                 }
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle('🎉 Quest Complete!')
                     .setDescription(`You completed **${result.quest.name}**!`)
@@ -2752,28 +2745,28 @@ const legacyCommands = {
                         { name: '💰 Reward', value: `${result.reward} Stark Bucks`, inline: true },
                         { name: '⭐ XP', value: `+${result.xp}`, inline: true }
                     );
-                
+
                 await message.reply({ embeds: [embed] });
             } else {
                 if (!questData.activeQuest) {
                     const availableQuests = await starkEconomy.getAvailableQuests();
-                    const questList = availableQuests.slice(0, 5).map(q => 
+                    const questList = availableQuests.slice(0, 5).map(q =>
                         `**${q.name}** - ${q.difficulty}\n> ${q.shortDesc}`
                     ).join('\n\n');
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle('📜 Available Quests')
                         .setDescription(questList || 'No quests available!')
                         .setColor(0x3498db)
                         .setFooter({ text: 'Use *j quest start <name> to begin!' });
-                    
+
                     await message.reply({ embeds: [embed] });
                 } else {
                     const q = questData.activeQuest;
-                    const objectives = q.objectives.map((o, i) => 
+                    const objectives = q.objectives.map((o, i) =>
                         `${q.progress[i] ? '✅' : '⬜'} ${o}`
                     ).join('\n');
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle(`📜 ${q.name}`)
                         .setDescription(q.description)
@@ -2783,7 +2776,7 @@ const legacyCommands = {
                             { name: '🎁 Reward', value: `${q.reward} 💵`, inline: true },
                             { name: '📊 Progress', value: `${q.progress.filter(Boolean).length}/${q.objectives.length}`, inline: true }
                         );
-                    
+
                     await message.reply({ embeds: [embed] });
                 }
             }
@@ -2800,32 +2793,32 @@ const legacyCommands = {
         execute: async (message, args) => {
             const subcommand = (args[0] || 'status').toLowerCase();
             const guildId = message.guild?.id;
-            
+
             if (!guildId) {
                 await message.reply('Tournaments only work in servers!');
                 return true;
             }
-            
+
             const tournamentData = await starkEconomy.getTournamentData(guildId);
-            
+
             if (subcommand === 'join') {
                 const result = await starkEconomy.joinTournament(guildId, message.author.id);
-                
+
                 if (!result.success) {
                     await message.reply(`❌ ${result.error}`);
                     return true;
                 }
-                
+
                 await message.reply(`✅ You joined the **${tournamentData.type}** tournament! Good luck!`);
             } else if (subcommand === 'leaderboard' || subcommand === 'lb') {
                 const lb = tournamentData.leaderboard.slice(0, 10);
                 const lbText = lb.map((u, i) => `**#${i + 1}** <@${u.id}> - ${u.score} pts`).join('\n');
-                
+
                 const embed = new EmbedBuilder()
                     .setTitle(`🏆 ${tournamentData.type} Tournament Leaderboard`)
                     .setDescription(lbText || 'No participants yet!')
                     .setColor(0xf1c40f);
-                
+
                 await message.reply({ embeds: [embed] });
             } else {
                 const embed = new EmbedBuilder()
@@ -2838,7 +2831,7 @@ const legacyCommands = {
                         { name: '⏰ Ends In', value: tournamentData.endsIn, inline: true }
                     )
                     .setFooter({ text: 'Use *j tournament join to participate!' });
-                
+
                 await message.reply({ embeds: [embed] });
             }
             return true;
@@ -2854,85 +2847,85 @@ const legacyCommands = {
         execute: async (message, args) => {
             const subcommand = (args[0] || 'browse').toLowerCase();
             const userId = message.author.id;
-            
+
             switch (subcommand) {
                 case 'list': {
                     const itemIndex = parseInt(args[1]) - 1;
                     const price = parseInt(args[2]);
-                    
+
                     if (isNaN(itemIndex) || isNaN(price) || price < 1) {
                         await message.reply('Usage: `*j auction list <item_number> <price>`\nView items with `*j inventory` first.');
                         return true;
                     }
-                    
+
                     const result = await starkEconomy.listAuction(userId, itemIndex, price);
-                    
+
                     if (!result.success) {
                         await message.reply(`❌ ${result.error}`);
                         return true;
                     }
-                    
+
                     await message.reply(`✅ Listed **${result.item}** for **${price}** Stark Bucks! (ID: ${result.auctionId})`);
                     break;
                 }
-                
+
                 case 'buy': {
                     const auctionId = args[1];
-                    
+
                     if (!auctionId) {
                         await message.reply('Usage: `*j auction buy <auction_id>`');
                         return true;
                     }
-                    
+
                     const result = await starkEconomy.buyAuction(userId, auctionId);
-                    
+
                     if (!result.success) {
                         await message.reply(`❌ ${result.error}`);
                         return true;
                     }
-                    
+
                     await message.reply(`✅ Purchased **${result.item}** for **${result.price}** Stark Bucks!`);
                     break;
                 }
-                
+
                 case 'my': {
                     const myListings = await starkEconomy.getUserAuctions(userId);
-                    
+
                     if (myListings.length === 0) {
                         await message.reply('You have no active listings. Use `*j auction list` to sell items!');
                         return true;
                     }
-                    
+
                     const listText = myListings.map(a => `\`${a.id}\` **${a.item}** - ${a.price} 💵`).join('\n');
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle('📦 Your Auction Listings')
                         .setDescription(listText)
                         .setColor(0x9b59b6);
-                    
+
                     await message.reply({ embeds: [embed] });
                     break;
                 }
-                
+
                 case 'browse':
                 default: {
                     const auctions = await starkEconomy.getAuctions();
-                    
+
                     if (auctions.length === 0) {
                         await message.reply('No items for sale! Use `*j auction list` to sell something.');
                         return true;
                     }
-                    
-                    const listText = auctions.slice(0, 15).map(a => 
+
+                    const listText = auctions.slice(0, 15).map(a =>
                         `\`${a.id}\` **${a.item}** - ${a.price} 💵 by ${a.sellerName}`
                     ).join('\n');
-                    
+
                     const embed = new EmbedBuilder()
                         .setTitle('🏪 Auction House')
                         .setDescription(listText)
                         .setColor(0x3498db)
                         .setFooter({ text: 'Use *j auction buy <id> to purchase' });
-                    
+
                     await message.reply({ embeds: [embed] });
                 }
             }
@@ -2941,7 +2934,7 @@ const legacyCommands = {
     },
 
     // ============ STARKBUCKS (SBX) COMMANDS ============
-    
+
     sbx: {
         description: 'Starkbucks exchange commands',
         usage: '*j sbx [wallet|convert|store|invest|pay|market]',
@@ -2950,7 +2943,7 @@ const legacyCommands = {
             const subcommand = (args[0] || 'wallet').toLowerCase();
             const userId = message.author.id;
             const username = message.author.username;
-            
+
             try {
                 switch (subcommand) {
                     case 'wallet':
@@ -2959,7 +2952,7 @@ const legacyCommands = {
                         const wallet = await starkbucks.getWallet(userId);
                         const market = await starkbucks.getMarketData();
                         const usdValue = (wallet.balance * market.price).toFixed(2);
-                        
+
                         const embed = new EmbedBuilder()
                             .setTitle('💳 SBX Wallet')
                             .setDescription(`**${username}**'s Starkbucks wallet`)
@@ -2972,18 +2965,18 @@ const legacyCommands = {
                                 { name: '🛒 Total Spent', value: `${wallet.totalSpent.toFixed(2)} SBX`, inline: true }
                             )
                             .setFooter({ text: 'Use *j sbx help for more commands' });
-                        
+
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     case 'market':
                     case 'price':
                     case 'ticker': {
                         const market = await starkbucks.getMarketData();
                         const changeEmoji = market.change24h >= 0 ? '📈' : '📉';
                         const changeColor = market.change24h >= 0 ? 0x2ecc71 : 0xe74c3c;
-                        
+
                         const embed = new EmbedBuilder()
                             .setTitle('📊 SBX Market')
                             .setColor(changeColor)
@@ -2995,25 +2988,25 @@ const legacyCommands = {
                                 { name: '⬇️ 24h Low', value: `$${market.low24h.toFixed(2)}`, inline: true },
                                 { name: '👥 Active Users', value: `${market.activeUsers}`, inline: true }
                             );
-                        
+
                         if (market.event) {
                             embed.addFields({ name: '🎯 Active Event', value: market.event.name, inline: false });
                         }
-                        
+
                         embed.setFooter({ text: 'Price updates every minute • Virtual currency only' });
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     case 'convert': {
                         const amount = parseInt(args[1]);
                         const direction = (args[2] || 'tosbx').toLowerCase();
-                        
+
                         if (!amount || amount <= 0) {
                             await message.reply('Usage: `*j sbx convert <amount> [tosbx|tostark]`\nExample: `*j sbx convert 1000 tosbx`');
                             return true;
                         }
-                        
+
                         let result;
                         if (direction === 'tostark' || direction === 'tostarkbucks') {
                             result = await starkbucks.convertToStarkBucks(userId, amount);
@@ -3048,40 +3041,40 @@ const legacyCommands = {
                         }
                         return true;
                     }
-                    
+
                     case 'store':
                     case 'shop': {
                         const category = args[1] || null;
                         const items = starkbucks.getStoreItems(category);
                         const domain = process.env.JARVIS_DOMAIN || 'your-domain.com';
-                        
+
                         const embed = new EmbedBuilder()
                             .setTitle('🛒 SBX Store')
                             .setColor(0xf39c12)
                             .setDescription(`Buy features and cosmetics with SBX!\n🌐 **[Visit Online Store](https://${domain}/store)**`)
                             .setFooter({ text: 'Use *j sbx buy <item_id> to purchase' });
-                        
+
                         const grouped = {};
                         for (const item of items.slice(0, 12)) {
                             if (!grouped[item.category]) grouped[item.category] = [];
                             grouped[item.category].push(`• **${item.name}** - ${item.price} SBX`);
                         }
-                        
+
                         for (const [cat, itemList] of Object.entries(grouped)) {
                             embed.addFields({ name: cat.charAt(0).toUpperCase() + cat.slice(1), value: itemList.join('\n'), inline: true });
                         }
-                        
+
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     case 'buy': {
                         const itemId = args[1];
                         if (!itemId) {
                             await message.reply('Usage: `*j sbx buy <item_id>`\nUse `*j sbx store` to see available items.');
                             return true;
                         }
-                        
+
                         const result = await starkbucks.purchaseItem(userId, itemId);
                         if (result.success) {
                             const embed = new EmbedBuilder()
@@ -3098,11 +3091,11 @@ const legacyCommands = {
                         }
                         return true;
                     }
-                    
+
                     case 'invest': {
                         const action = (args[1] || 'status').toLowerCase();
                         const amount = parseFloat(args[2]);
-                        
+
                         if (action === 'stake' && amount > 0) {
                             const result = await starkbucks.investSBX(userId, amount);
                             if (result.success) {
@@ -3153,22 +3146,22 @@ const legacyCommands = {
                         }
                         return true;
                     }
-                    
+
                     case 'pay':
                     case 'send': {
                         const target = message.mentions.users.first();
                         const amount = parseFloat(args[2] || args[1]);
-                        
+
                         if (!target || !amount || amount <= 0) {
                             await message.reply('Usage: `*j sbx pay @user <amount>`');
                             return true;
                         }
-                        
+
                         if (target.id === userId) {
                             await message.reply('❌ You cannot send SBX to yourself!');
                             return true;
                         }
-                        
+
                         const result = await starkbucks.transfer(userId, target.id, amount, `From ${username}`);
                         if (result.success) {
                             const embed = new EmbedBuilder()
@@ -3186,17 +3179,17 @@ const legacyCommands = {
                         }
                         return true;
                     }
-                    
+
                     case 'request':
                     case 'invoice': {
                         const amount = parseFloat(args[1]);
                         const memo = args.slice(2).join(' ') || '';
-                        
+
                         if (!amount || amount <= 0) {
                             await message.reply('Usage: `*j sbx request <amount> [memo]`');
                             return true;
                         }
-                        
+
                         const result = await starkbucks.createPaymentRequest(userId, amount, memo);
                         const embed = new EmbedBuilder()
                             .setTitle('📝 Payment Request Created')
@@ -3207,13 +3200,13 @@ const legacyCommands = {
                                 { name: 'Amount', value: `${amount} SBX`, inline: true },
                                 { name: 'Expires', value: `<t:${Math.floor(new Date(result.expiresAt).getTime() / 1000)}:R>`, inline: true }
                             );
-                        
+
                         if (memo) embed.addFields({ name: 'Memo', value: memo, inline: false });
-                        
+
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     case 'help':
                     default: {
                         const embed = new EmbedBuilder()
@@ -3231,7 +3224,7 @@ const legacyCommands = {
                                 { name: '📝 Request', value: '`*j sbx request <amt>`', inline: true }
                             )
                             .setFooter({ text: '10% fee on all transactions • Virtual currency only' });
-                        
+
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
@@ -3245,7 +3238,7 @@ const legacyCommands = {
     },
 
     // ============ STARK CRYPTO (SX) COMMANDS ============
-    
+
     crypto: {
         description: 'Stark Crypto trading commands',
         usage: '*j crypto [prices|buy|sell|portfolio|market]',
@@ -3253,10 +3246,10 @@ const legacyCommands = {
         execute: async (message, args) => {
             const starkCrypto = require('./stark-crypto');
             starkCrypto.startPriceUpdates();
-            
+
             const subcommand = (args[0] || 'prices').toLowerCase();
             const userId = message.author.id;
-            
+
             try {
                 switch (subcommand) {
                     case 'prices':
@@ -3264,34 +3257,34 @@ const legacyCommands = {
                     case 'all': {
                         const prices = starkCrypto.getAllPrices();
                         const market = starkCrypto.getMarketState();
-                        
+
                         const cycleEmoji = market.cycle === 'bull' ? '📈' : market.cycle === 'bear' ? '📉' : '➡️';
                         const cycleColor = market.cycle === 'bull' ? 0x00ff88 : market.cycle === 'bear' ? 0xff4444 : 0xffaa00;
-                        
+
                         const embed = new EmbedBuilder()
                             .setTitle('📊 Stark Crypto Exchange')
                             .setColor(cycleColor)
                             .setDescription(`${cycleEmoji} **${market.cycle.toUpperCase()} MARKET** | Sentiment: ${(market.sentiment * 100).toFixed(0)}%${market.activeEvent ? `\n🎯 **Event:** ${market.activeEvent.name}` : ''}`);
-                        
+
                         const coinList = Object.entries(prices).map(([symbol, coin]) => {
                             const arrow = coin.change24h >= 0 ? '▲' : '▼';
                             const change = Math.abs(coin.change24h).toFixed(1);
                             return `${coin.emoji} **${symbol}** ${coin.price.toLocaleString()} SB ${arrow}${change}%`;
                         }).join('\n');
-                        
+
                         embed.addFields({ name: 'Current Prices', value: coinList, inline: false });
                         embed.setFooter({ text: 'Use *j crypto buy <coin> <amount> to trade • 2.5% fee' });
-                        
+
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     case 'market':
                     case 'status': {
                         const market = starkCrypto.getMarketState();
                         const cycleEmoji = market.cycle === 'bull' ? '📈' : market.cycle === 'bear' ? '📉' : '➡️';
                         const cycleColor = market.cycle === 'bull' ? 0x00ff88 : market.cycle === 'bear' ? 0xff4444 : 0xffaa00;
-                        
+
                         const embed = new EmbedBuilder()
                             .setTitle('🌍 Market Status')
                             .setColor(cycleColor)
@@ -3300,28 +3293,28 @@ const legacyCommands = {
                                 { name: 'Sentiment', value: `${(market.sentiment * 100).toFixed(0)}%`, inline: true },
                                 { name: '24h Volume', value: `${market.volume24h.toLocaleString()} SB`, inline: true }
                             );
-                        
+
                         if (market.activeEvent) {
                             const timeLeft = Math.ceil(market.activeEvent.endsIn / 60000);
-                            embed.addFields({ 
-                                name: '🎯 Active Event', 
-                                value: `**${market.activeEvent.name}**\nEnds in ${timeLeft} minutes`, 
-                                inline: false 
+                            embed.addFields({
+                                name: '🎯 Active Event',
+                                value: `**${market.activeEvent.name}**\nEnds in ${timeLeft} minutes`,
+                                inline: false
                             });
                         }
-                        
+
                         embed.setFooter({ text: 'Market cycles change every hour • Events can crash or pump prices!' });
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     case 'portfolio':
                     case 'wallet':
                     case 'holdings': {
                         const portfolio = await starkCrypto.getPortfolio(userId);
                         const prices = starkCrypto.getAllPrices();
                         const balance = await starkEconomy.getBalance(userId);
-                        
+
                         const embed = new EmbedBuilder()
                             .setTitle('💼 Your Crypto Portfolio')
                             .setColor(0x00d4ff)
@@ -3330,7 +3323,7 @@ const legacyCommands = {
                                 { name: '📊 Total Invested', value: `${portfolio.totalInvested.toLocaleString()} SB`, inline: true },
                                 { name: '🔄 Total Trades', value: `${portfolio.trades}`, inline: true }
                             );
-                        
+
                         const holdings = Object.entries(portfolio.holdings || {}).filter(([s, a]) => a > 0);
                         if (holdings.length > 0) {
                             const holdingsList = holdings.map(([symbol, amount]) => {
@@ -3342,23 +3335,23 @@ const legacyCommands = {
                         } else {
                             embed.addFields({ name: '📦 Holdings', value: 'No crypto yet! Use `*j crypto buy <coin> <amount>`', inline: false });
                         }
-                        
+
                         embed.addFields({ name: '💵 Available Balance', value: `${balance.toLocaleString()} Stark Bucks`, inline: false });
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     case 'buy': {
                         const symbol = (args[1] || '').toUpperCase();
                         const amount = parseFloat(args[2]);
-                        
+
                         if (!symbol || !amount || amount <= 0) {
                             await message.reply('Usage: `*j crypto buy <COIN> <amount>`\nExample: `*j crypto buy IRON 10`');
                             return true;
                         }
-                        
+
                         const result = await starkCrypto.buyCrypto(userId, symbol, amount);
-                        
+
                         if (result.success) {
                             const embed = new EmbedBuilder()
                                 .setTitle('✅ Purchase Successful!')
@@ -3376,18 +3369,18 @@ const legacyCommands = {
                         }
                         return true;
                     }
-                    
+
                     case 'sell': {
                         const symbol = (args[1] || '').toUpperCase();
                         const amount = parseFloat(args[2]);
-                        
+
                         if (!symbol || !amount || amount <= 0) {
                             await message.reply('Usage: `*j crypto sell <COIN> <amount>`\nExample: `*j crypto sell IRON 10`');
                             return true;
                         }
-                        
+
                         const result = await starkCrypto.sellCrypto(userId, symbol, amount);
-                        
+
                         if (result.success) {
                             const embed = new EmbedBuilder()
                                 .setTitle('✅ Sale Successful!')
@@ -3406,7 +3399,7 @@ const legacyCommands = {
                         }
                         return true;
                     }
-                    
+
                     case 'price':
                     case 'info': {
                         const symbol = (args[1] || '').toUpperCase();
@@ -3414,16 +3407,16 @@ const legacyCommands = {
                             await message.reply('Usage: `*j crypto price <COIN>`\nExample: `*j crypto price IRON`');
                             return true;
                         }
-                        
+
                         const coin = starkCrypto.getCoinPrice(symbol);
                         if (!coin) {
                             await message.reply(`❌ Unknown coin: ${symbol}`);
                             return true;
                         }
-                        
+
                         const changeEmoji = coin.change24h >= 0 ? '📈' : '📉';
                         const changeColor = coin.change24h >= 0 ? 0x00ff88 : 0xff4444;
-                        
+
                         const embed = new EmbedBuilder()
                             .setTitle(`${coin.emoji} ${coin.name} (${symbol})`)
                             .setColor(changeColor)
@@ -3437,11 +3430,11 @@ const legacyCommands = {
                                 { name: '📈 Trend', value: coin.trend === 'up' ? '🟢 Bullish' : coin.trend === 'down' ? '🔴 Bearish' : '🟡 Neutral', inline: true }
                             )
                             .setFooter({ text: `Volatility: ${(coin.volatility * 100).toFixed(0)}% • Correlation: ${coin.correlation}` });
-                        
+
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
-                    
+
                     case 'help':
                     default: {
                         const embed = new EmbedBuilder()
@@ -3462,7 +3455,7 @@ const legacyCommands = {
                                 inline: false
                             })
                             .setFooter({ text: '2.5% fee on all trades • Prices change every 30 seconds' });
-                        
+
                         await message.reply({ embeds: [embed] });
                         return true;
                     }
@@ -3490,7 +3483,7 @@ const legacyCommands = {
             // Get the full content after the command
             const content = message.content;
             const cookieMatch = content.match(/cookies\s+"([^"]+)"/i) || content.match(/cookies\s+(.+)/i);
-            
+
             if (!cookieMatch || !cookieMatch[1]) {
                 await message.reply(
                     '**🍪 YouTube Cookie Update**\n\n' +
@@ -3507,12 +3500,12 @@ const legacyCommands = {
             }
 
             const cookieString = cookieMatch[1].trim();
-            
+
             // Validate it looks like Netscape format
-            const isNetscape = cookieString.includes('.youtube.com') || 
-                               cookieString.includes('# Netscape') ||
-                               cookieString.includes('# HTTP Cookie');
-            
+            const isNetscape = cookieString.includes('.youtube.com') ||
+                cookieString.includes('# Netscape') ||
+                cookieString.includes('# HTTP Cookie');
+
             if (!isNetscape) {
                 await message.reply('❌ Invalid cookie format. Please use Netscape format (from browser extension).');
                 return true;
@@ -3521,7 +3514,7 @@ const legacyCommands = {
             try {
                 // Update in memory by setting environment variable
                 process.env.YT_COOKIES = cookieString;
-                
+
                 // Delete the user's message for security (contains sensitive cookies)
                 try {
                     await message.delete();
@@ -3536,7 +3529,7 @@ const legacyCommands = {
                     'For permanent storage, add to your `.env` file:\n' +
                     '```\nYT_COOKIES="<your cookies>"\n```'
                 );
-                
+
                 console.log('[Cookies] YouTube cookies updated by bot owner');
                 return true;
             } catch (error) {
@@ -3593,7 +3586,7 @@ async function handleLegacyCommand(message, client) {
     if (!command) {
         await message
             .reply('Unknown legacy command, sir. Use `*j help`.')
-            .catch(() => {});
+            .catch(() => { });
         return true;
     }
 
@@ -3604,7 +3597,7 @@ async function handleLegacyCommand(message, client) {
         if (cooldownLeft > 0) {
             await message
                 .reply(`⏰ Cooldown! Wait ${cooldownLeft}s before using this command again.`)
-                .catch(() => {});
+                .catch(() => { });
             return true;
         }
     }
@@ -3614,7 +3607,7 @@ async function handleLegacyCommand(message, client) {
         return true;
     } catch (error) {
         console.error(`[LegacyCommands] Error executing ${commandName}:`, error);
-        await message.reply('Something went wrong executing that command, sir.').catch(() => {});
+        await message.reply('Something went wrong executing that command, sir.').catch(() => { });
         return true;
     }
 }
