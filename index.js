@@ -2147,7 +2147,15 @@ const commands = allCommands.filter(builder => {
 });
 
 function buildCommandData() {
-    return commands.map(command => command.toJSON());
+    const seen = new Set();
+    const unique = [];
+    for (const command of commands) {
+        if (!seen.has(command.name)) {
+            seen.add(command.name);
+            unique.push(command);
+        }
+    }
+    return unique.map(command => command.toJSON());
 }
 
 function ensureCommandSyncState() {
