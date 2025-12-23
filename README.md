@@ -1,4 +1,4 @@
-# J.A.R.V.I.S. AI
+# J.A.R.V.I.S.
 
 **Just A Rather Very Intelligent System** — A feature-rich Discord bot inspired by Tony Stark's AI assistant.
 
@@ -6,7 +6,10 @@
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)](https://discord.js.org)
 [![Node.js](https://img.shields.io/badge/node-24.12.0-green.svg)](https://nodejs.org)
 
-> **145 JavaScript files • 51,000+ lines of code • 100% open source**
+> **196 JavaScript files • 94,000+ lines of code • 100% open source**
+
+> [!IMPORTANT]
+> **Production Requirement**: This project **REQUIRES** Node.js **v24.12.0** exactly to function correctly in production (as defined in `render.yaml`). Using other versions may lead to instability or errors. Please ensure your environment matches this version.
 
 ---
 
