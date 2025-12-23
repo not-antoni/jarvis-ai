@@ -1763,10 +1763,10 @@ const CRYPTO_PAGE = `
                         const color = isBuy ? '#00ff88' : '#ff4444';
                         const icon = isBuy ? '📈' : '📉';
                         const time = new Date(t.timestamp).toLocaleString();
-                        return \`<div style = "padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;" >
-                            <span>\${icon} <strong style="color:${color}">${t.action.toUpperCase()}</strong> ${t.amount} ${t.symbol}</span>
-                            <span style="color: #666; font-size: 0.8rem;">@ \${t.price.toLocaleString()} SB • ${time}</span>
-                        </div> \`;
+                        return \`<div style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                            <span>\${icon} <strong style="color:\${color}">\${t.action.toUpperCase()}</strong> \${t.amount} \${t.symbol}</span>
+                            <span style="color: #666; font-size: 0.8rem;">@ \${t.price.toLocaleString()} SB • \${time}</span>
+                        </div>\`;
                     }).join('');
                 }
             } catch (e) { console.error('Trade history error:', e); }
