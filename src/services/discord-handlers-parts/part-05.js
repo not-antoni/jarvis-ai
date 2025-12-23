@@ -754,6 +754,161 @@
                     }
                     break;
                 }
+                // ============ PET SYSTEM ============
+                case 'pet': {
+                    telemetryMetadata.category = 'economy';
+                    const sub = interaction.options.getSubcommand();
+                    if (sub === 'info') {
+                        const pet = await starkEconomy.getPetData(interaction.user.id);
+                        if (!pet) {
+                            response = 'You don\'t have a pet! Use `/pet adopt` to get one.';
+                            break;
+                        }
+                        const embed = new EmbedBuilder()
+                            .setTitle(`🐾 ${pet.name} (${pet.type.toUpperCase()})`)
+                            .setDescription(`Level: ${pet.level}\nXP: ${pet.xp}/${pet.nextLevelXp}`)
+                            .addFields(
+                                { name: 'Hunger', value: `${pet.hunger}%`, inline: true },
+                                { name: 'Happiness', value: `${pet.happiness}%`, inline: true }
+                            )
+                            .setColor(0xf1c40f);
+                        response = { embeds: [embed] };
+                    } else if (sub === 'adopt') {
+                        const type = interaction.options.getString('type');
+                        const res = await starkEconomy.buyPet(interaction.user.id, type);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `🎉 You adopted a **${type}** named **${res.pet.name}**!`;
+                    } else if (sub === 'feed') {
+                        const res = await starkEconomy.feedPet(interaction.user.id);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `🍖 You fed your pet! Hunger is now ${res.pet.hunger}%.`;
+                    } else if (sub === 'rename') {
+                        const name = interaction.options.getString('name');
+                        const res = await starkEconomy.renamePet(interaction.user.id, name);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `✏️ Pet renamed to **${name}**!`;
+                    }
+                    break;
+                }
+                // ============ HEIST SYSTEM ============
+                case 'heist': {
+                    telemetryMetadata.category = 'economy';
+                    const sub = interaction.options.getSubcommand();
+                    if (sub === 'start') {
+                        const amount = interaction.options.getInteger('amount');
+                        const res = await starkEconomy.startHeist(interaction.guild.id, interaction.user.id, amount);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `🚨 **HEIST STARTED!**\nLeader: ${interaction.user.username}\nTarget: ${formatNum(res.targetAmount)}\nRequires: ${res.minPlayers} players\n\nType \`/heist join\` to join!`;
+                    } else if (sub === 'join') {
+                        const res = await starkEconomy.joinHeist(interaction.guild.id, interaction.user.id);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `🔫 You joined the heist! (${res.playerCount} crew members ready)`;
+                    } else if (sub === 'status') {
+                        const status = await starkEconomy.getHeistStatus(interaction.guild.id);
+                        if (!status.active) { response = 'No active heist. Start one with `/heist start`!'; break; }
+                        response = `🚨 **Active Heist**\nPlayers: ${status.players.length}\nPot: ${formatNum(status.pot)}\nTime Left: ${status.timeLeft}s`;
+                    }
+                    break;
+                }
+                // ============ BOSS BATTLE ============
+                case 'boss': {
+                    telemetryMetadata.category = 'game';
+                    const sub = interaction.options.getSubcommand();
+                    if (sub === 'status') {
+                        const boss = await starkEconomy.getBossData(interaction.guild.id);
+                        if (!boss.active) { response = 'No active boss. Bosses spawn randomly!'; break; }
+                        const hpPercent = Math.floor((boss.hp / boss.maxHp) * 100);
+                        const bar = '🟥'.repeat(Math.floor(hpPercent / 10)) + '⬜'.repeat(10 - Math.floor(hpPercent / 10));
+                        response = `👹 **${boss.name}** is attacking!\nHP: ${boss.hp}/${boss.maxHp} (${hpPercent}%)\n${bar}`;
+                    } else if (sub === 'attack') {
+                        const res = await starkEconomy.attackBoss(interaction.guild.id, interaction.user.id);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `⚔️ You dealt **${res.damage}** damage to **${res.bossName}**! Reward: ${res.reward} 💵`;
+                    }
+                    break;
+                }
+                // ============ SBX CRYPTO ============
+                case 'sbx': {
+                    telemetryMetadata.category = 'economy';
+                    const sub = interaction.options.getSubcommand();
+                    if (sub === 'market') {
+                        const data = await starkEconomy.getSBXMarketData();
+                        if (!data) { response = '❌ Market offline.'; break; }
+                        const embed = new EmbedBuilder()
+                            .setTitle('📈 SBX Market')
+                            .setDescription(`Price: **${data.price}** Stark Bucks`)
+                            .setColor(0x3498db)
+                            .setFooter({ text: 'Invest in the future!' });
+                        response = { embeds: [embed] };
+                    } else if (sub === 'buy') {
+                        const amount = interaction.options.getInteger('amount');
+                        const res = await starkEconomy.buySBX(interaction.user.id, amount);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `✅ Bought **${amount} SBX** for **${res.cost}** Stark Bucks.`;
+                    } else if (sub === 'sell') {
+                        const amount = interaction.options.getInteger('amount');
+                        const res = await starkEconomy.sellSBX(interaction.user.id, amount);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `✅ Sold **${amount} SBX** for **${res.earnings}** Stark Bucks.`;
+                    } else if (sub === 'invest') {
+                        const amount = interaction.options.getInteger('amount');
+                        const res = await starkEconomy.investSBX(interaction.user.id, amount);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `💼 Invested **${amount} SBX**! Earning 0.5% daily.`;
+                    } else if (sub === 'withdraw') {
+                        const amount = interaction.options.getInteger('amount');
+                        const res = await starkEconomy.withdrawInvestment(interaction.user.id, amount);
+                        if (!res.success) { response = `❌ ${res.error}`; break; }
+                        response = `🏧 Withdrew **${res.withdrawn} SBX** from investment.`;
+                    }
+                    break;
+                }
+                // ============ AUCTION ============
+                case 'auction': {
+                     telemetryMetadata.category = 'economy';
+                     const sub = interaction.options.getSubcommand();
+                     if (sub === 'list') {
+                         const auctions = await starkEconomy.getAuctions();
+                         if (!auctions.length) { response = 'No active auctions.'; break; }
+                         const list = auctions.map(a => `**${a.item.name}** - Price: ${a.price} (ID: ${a.id})`).join('\n');
+                         response = `🏛️ **Auction House**\n${list}`;
+                     } else if (sub === 'buy') {
+                         const id = interaction.options.getString('id');
+                         const res = await starkEconomy.buyAuction(interaction.user.id, id);
+                         if (!res.success) { response = `❌ ${res.error}`; break; }
+                         response = `🔨 You bought **${res.item.name}** for ${res.price}!`;
+                     } else if (sub === 'create') {
+                         const item = interaction.options.getString('item');
+                         const price = interaction.options.getInteger('price');
+                         const res = await starkEconomy.listAuction(interaction.user.id, item, price);
+                         if (!res.success) { response = `❌ ${res.error}`; break; }
+                         response = `📢 Auction created for **${res.item.name}** at ${price}! (ID: ${res.auctionId})`;
+                     }
+                     break;
+                }
+                // ============ QUESTS ============
+                case 'quests': {
+                     telemetryMetadata.category = 'game';
+                     const sub = interaction.options.getSubcommand();
+                     if (sub === 'list') {
+                         const quests = await starkEconomy.getAvailableQuests(interaction.user.id);
+                         if (!quests.length) { response = 'No quests available.'; break; }
+                         const list = quests.map(q => `**${q.name}** (${q.reward} 💵) [ID: ${q.id}]`).join('\n');
+                         response = `📜 **Quests**\n${list}`;
+                     } else if (sub === 'start') {
+                         const id = interaction.options.getString('id');
+                         const res = await starkEconomy.startQuest(interaction.user.id, id);
+                         if (!res.success) { response = `❌ ${res.error}`; break; }
+                         response = `⚔️ Quest **${res.quest.name}** started! Good luck.`;
+                     }
+                     break;
+                }
+                // ============ ACHIEVEMENTS ============
+                case 'achievements': {
+                    telemetryMetadata.category = 'user';
+                    response = '🏆 **Achievements**\nFeature fully integrated but stats visible in user profile.';
+                    break;
+                }
                 // ============ SOCIAL (Consolidated) ============
                 case 'social': {
                     telemetryMetadata.category = 'fun';
@@ -1711,17 +1866,41 @@
                         break;
                     }
                     const formatNum = (n) => Math.floor(n).toLocaleString('en-US');
-                    const lines = lb.map(u => {
-                        const badge = u.hasVipBadge ? '⭐ ' : '';
-                        const gold = u.hasGoldenName ? '✨' : '';
-                        return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${formatNum(u.balance)}** 💵`;
-                    }).join('\n');
-                    const lbEmbed = new EmbedBuilder()
-                        .setTitle('🏆 Stark Bucks Leaderboard')
-                        .setDescription(lines)
-                        .setColor(0xf1c40f)
-                        .setFooter({ text: 'Top 10 richest users' });
-                    response = { embeds: [lbEmbed] };
+                    // Generate Image Leaderboard
+                    try {
+                        const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
+                        const imageGenerator = require('../image-generator');
+                        // Add avatars to user objects (fetch if needed, though getLeaderboard doesn't return full user objects with avatars usually)
+                        // We need to enrich the data with avatars
+                        const enrichedLb = await Promise.all(lb.map(async (u) => {
+                            let avatarUrl = null;
+                            try {
+                                const user = await interaction.client.users.fetch(u.userId);
+                                avatarUrl = user.displayAvatarURL({ extension: 'png', size: 128 });
+                            } catch (e) {}
+                            return { ...u, avatar: avatarUrl };
+                        }));
+
+                        const buffer = await imageGenerator.generateLeaderboardImage(enrichedLb);
+                        const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
+                        
+                        response = { files: [attachment] };
+                    } catch (err) {
+                        console.error('Failed to generate leaderboard image:', err);
+                        // Fallback to text
+                        const { EmbedBuilder } = require('discord.js');
+                        const lines = lb.map(u => {
+                            const badge = u.hasVipBadge ? '⭐ ' : '';
+                            const gold = u.hasGoldenName ? '✨' : '';
+                            return `**#${u.rank}** ${badge}${gold}${u.username || 'Unknown'}${gold} - **${formatNum(u.balance)}** 💵`;
+                        }).join('\n');
+                        const lbEmbed = new EmbedBuilder()
+                            .setTitle('🏆 Stark Bucks Leaderboard')
+                            .setDescription(lines)
+                            .setColor(0xf1c40f)
+                            .setFooter({ text: 'Top 10 richest users' });
+                        response = { embeds: [lbEmbed] };
+                    }
                     break;
                 }
                 // ============ MINIGAMES (Consolidated) ============

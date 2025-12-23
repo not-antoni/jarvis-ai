@@ -2074,6 +2074,70 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
+    // ============ LEGACY FEATURES ============
+    // Pet System
+    new SlashCommandBuilder()
+        .setName('pet')
+        .setDescription('Manage your virtual pet')
+        .setContexts([InteractionContextType.Guild])
+        .addSubcommand(s => s.setName('info').setDescription('View your pet'))
+        .addSubcommand(s => s.setName('adopt').setDescription('Adopt a pet').addStringOption(o => o.setName('type').setDescription('Pet type').setRequired(true).addChoices(
+            { name: 'Dog (500)', value: 'dog' }, { name: 'Cat (500)', value: 'cat' }, { name: 'Dragon (50000)', value: 'dragon' }
+        )))
+        .addSubcommand(s => s.setName('feed').setDescription('Feed your pet'))
+        .addSubcommand(s => s.setName('rename').setDescription('Rename your pet').addStringOption(o => o.setName('name').setDescription('New name').setRequired(true))),
+
+    // Heist System
+    new SlashCommandBuilder()
+        .setName('heist')
+        .setDescription('Organize a bank heist')
+        .setContexts([InteractionContextType.Guild])
+        .addSubcommand(s => s.setName('start').setDescription('Start a heist').addIntegerOption(o => o.setName('amount').setDescription('Bet amount').setRequired(true)))
+        .addSubcommand(s => s.setName('join').setDescription('Join active heist'))
+        .addSubcommand(s => s.setName('status').setDescription('View heist status')),
+
+    // SBX Crypto
+    new SlashCommandBuilder()
+        .setName('sbx')
+        .setDescription('Starkbucks Crypto Exchange')
+        .setContexts([InteractionContextType.Guild])
+        .addSubcommand(s => s.setName('market').setDescription('View SBX market data'))
+        .addSubcommand(s => s.setName('buy').setDescription('Buy SBX with Stark Bucks').addIntegerOption(o => o.setName('amount').setDescription('Amount of SBX to buy').setRequired(true)))
+        .addSubcommand(s => s.setName('sell').setDescription('Sell SBX for Stark Bucks').addIntegerOption(o => o.setName('amount').setDescription('Amount of SBX to sell').setRequired(true)))
+        .addSubcommand(s => s.setName('invest').setDescription('Invest SBX for passive income').addIntegerOption(o => o.setName('amount').setDescription('Amount to invest').setRequired(true)))
+        .addSubcommand(s => s.setName('withdraw').setDescription('Withdraw invested SBX').addIntegerOption(o => o.setName('amount').setDescription('Amount to withdraw (or 0 for all)').setRequired(true))),
+
+    // Boss Battle
+    new SlashCommandBuilder()
+        .setName('boss')
+        .setDescription('World Boss Battles')
+        .setContexts([InteractionContextType.Guild])
+        .addSubcommand(s => s.setName('status').setDescription('Check boss status'))
+        .addSubcommand(s => s.setName('attack').setDescription('Attack the boss')),
+
+    // Achievements
+    new SlashCommandBuilder()
+        .setName('achievements')
+        .setDescription('View your achievements')
+        .setContexts([InteractionContextType.Guild]),
+
+    // Quests
+    new SlashCommandBuilder()
+        .setName('quests')
+        .setDescription('Adventure Quests')
+        .setContexts([InteractionContextType.Guild])
+        .addSubcommand(s => s.setName('list').setDescription('List available quests'))
+        .addSubcommand(s => s.setName('start').setDescription('Start a quest').addStringOption(o => o.setName('id').setDescription('Quest ID').setRequired(true))),
+
+    // Auction House
+    new SlashCommandBuilder()
+        .setName('auction')
+        .setDescription('Auction House')
+        .setContexts([InteractionContextType.Guild])
+        .addSubcommand(s => s.setName('list').setDescription('View active auctions'))
+        .addSubcommand(s => s.setName('buy').setDescription('Bid/Buy on an auction').addStringOption(o => o.setName('id').setDescription('Auction ID').setRequired(true)))
+        .addSubcommand(s => s.setName('create').setDescription('Create an auction').addStringOption(o => o.setName('item').setDescription('Item ID').setRequired(true)).addIntegerOption(o => o.setName('price').setDescription('Starting price').setRequired(true))),
+
     ...musicCommandList.map(command => command.data)
 ];
 
@@ -2217,6 +2281,7 @@ if (helmet) {
             directives: {
                 defaultSrc: ["'self'"],
                 scriptSrc: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"],
+                scriptSrcAttr: ["'self'", "'unsafe-inline'"],
                 connectSrc: ["'self'", "https://cloudflareinsights.com"],
                 imgSrc: ["'self'", "data:", "https:", "*"],
             },
