@@ -1741,13 +1741,13 @@ const CRYPTO_PAGE = `
             grid.innerHTML = holdings.map(([symbol, amount]) => {
                 const coin = prices[symbol] || {};
                 const value = (coin.price || 0) * amount;
-                return \`
-                    <div class="holding-card" onclick="openTradeModal('\${symbol}')">
-                        <div>\${coin.emoji || '💰'} \${symbol}</div>
-                        <div class="holding-amount">\${amount.toLocaleString()}</div>
-                        <div class="holding-value">\${value.toLocaleString()} SB</div>
-                    </div>
-                \`;
+                return `
+    < div class="holding-card" onclick = "openTradeModal('${symbol}')" >
+                        <div>${coin.emoji || '💰'} ${symbol}</div>
+                        <div class="holding-amount">${amount.toLocaleString()}</div>
+                        <div class="holding-value">${formatNumber(value)} SB</div>
+                    </div >
+    `;
             }).join('');
         }
         
@@ -1763,10 +1763,10 @@ const CRYPTO_PAGE = `
                         const color = isBuy ? '#00ff88' : '#ff4444';
                         const icon = isBuy ? '📈' : '📉';
                         const time = new Date(t.timestamp).toLocaleString();
-                        return \`<div style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
-                            <span>\${icon} <strong style="color:\${color}">\${t.action.toUpperCase()}</strong> \${t.amount} \${t.symbol}</span>
-                            <span style="color: #666; font-size: 0.8rem;">@ \${t.price.toLocaleString()} SB • \${time}</span>
-                        </div>\`;
+                        return `< div style = "padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;" >
+                            <span>${icon} <strong style="color:${color}">${t.action.toUpperCase()}</strong> ${t.amount} ${t.symbol}</span>
+                            <span style="color: #666; font-size: 0.8rem;">@ ${t.price.toLocaleString()} SB • ${time}</span>
+                        </div > `;
                     }).join('');
                 }
             } catch (e) { console.error('Trade history error:', e); }
@@ -1819,6 +1819,8 @@ const CRYPTO_PAGE = `
             if (value >= 1000) return (value / 1000).toFixed(1) + 'K';
             return value.toLocaleString();
         }
+
+
         
         function renderCoins() {
             const grid = document.getElementById('cryptoGrid');
@@ -1835,30 +1837,30 @@ const CRYPTO_PAGE = `
                     bars.push('<div class="spark-bar" style="height:' + h + '%;"></div>');
                 }
                 
-                return \`
-                    <div class="coin-card" onclick="openTradeModal('\${symbol}')">
+                return `
+    < div class="coin-card" onclick = "openTradeModal('${symbol}')" >
                         <div class="coin-header">
                             <div class="coin-info">
-                                <span class="coin-emoji">\${coin.emoji}</span>
+                                <span class="coin-emoji">${coin.emoji}</span>
                                 <div>
-                                    <div class="coin-symbol">\${symbol}</div>
-                                    <div class="coin-name">\${coin.name}</div>
+                                    <div class="coin-symbol">${symbol}</div>
+                                    <div class="coin-name">${coin.name}</div>
                                 </div>
                             </div>
-                            <span class="coin-tier \${tierClass}">\${coin.tier || 'mid'}</span>
+                            <span class="coin-tier ${tierClass}">${coin.tier || 'mid'}</span>
                         </div>
                         <div class="coin-price-row">
-                            <span class="coin-price">\${coin.price.toLocaleString()} SB</span>
-                            <span class="coin-change \${changeClass}">\${arrow} \${Math.abs(coin.change24h).toFixed(2)}%</span>
+                            <span class="coin-price">${formatNumber(coin.price)} SB</span>
+                            <span class="coin-change ${changeClass}">${arrow} ${Math.abs(coin.change24h).toFixed(2)}%</span>
                         </div>
-                        <div class="coin-sparkline" style="color: \${sparkColor}">\${bars.join('')}</div>
+                        <div class="coin-sparkline" style="color: ${sparkColor}">${bars.join('')}</div>
                         <div class="coin-stats">
-                            <span>H: \${(coin.high24h || coin.price).toLocaleString()}</span>
-                            <span>L: \${(coin.low24h || coin.price).toLocaleString()}</span>
-                            <span>MCap: \${formatMarketCap(coin.marketCap || coin.price * 10000)}</span>
+                            <span>H: ${formatNumber(coin.high24h || coin.price)}</span>
+                            <span>L: ${formatNumber(coin.low24h || coin.price)}</span>
+                            <span>MCap: ${formatMarketCap(coin.marketCap || coin.price * 10000)}</span>
                         </div>
-                    </div>
-                \`;
+                    </div >
+    `;
             }).join('');
         }
         
