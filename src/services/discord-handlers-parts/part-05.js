@@ -1886,7 +1886,8 @@
                         
                         response = { files: [attachment] };
                     } catch (err) {
-                        console.error('Failed to generate leaderboard image:', err);
+                        console.error('[Leaderboard] Canvas image generation failed:', err?.message || err);
+                        console.error('[Leaderboard] Stack:', err?.stack);
                         // Fallback to text
                         const { EmbedBuilder } = require('discord.js');
                         const lines = lb.map(u => {
