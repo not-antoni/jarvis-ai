@@ -1507,7 +1507,7 @@
                             
                             // Generate Canvas Image Leaderboard
                             const { AttachmentBuilder } = require('discord.js');
-                            const imageGenerator = require('../image-generator');
+                            const imageGenerator = require('./image-generator');
                             
                             const enrichedLb = await Promise.all(lb.map(async (u) => {
                                 let avatarUrl = null;
@@ -1874,7 +1874,7 @@
                     
                     // Generate Canvas Image Leaderboard (NO FALLBACK)
                     const { AttachmentBuilder } = require('discord.js');
-                    const imageGenerator = require('../image-generator');
+                    const imageGenerator = require('./image-generator');
                     
                     // Enrich with avatars
                     const enrichedLb = await Promise.all(lb.map(async (u) => {
