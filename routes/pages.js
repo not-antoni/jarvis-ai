@@ -1743,7 +1743,7 @@ const CRYPTO_PAGE = `
                 const value = (coin.price || 0) * amount;
                 return \`
     <div class="holding-card" onclick = "openTradeModal('\${symbol}')" >
-                        <div>\${coin.emoji || '💰'} ${symbol}</div>
+                        <div>\${coin.emoji || '💰'} \${symbol}</div>
                         <div class="holding-amount">\${amount.toLocaleString()}</div>
                         <div class="holding-value">\${formatNumber(value)} SB</div>
                     </div>
