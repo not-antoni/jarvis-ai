@@ -1526,27 +1526,34 @@
                         }
                         case 'show': {
                             const showUser = await starkEconomy.loadUser(interaction.user.id, interaction.user.username);
-                            const multiplierStatus = starkEconomy.getMultiplierStatus();
-                            const showEmbed = new EmbedBuilder()
-                                .setTitle(`💰 ${interaction.user.username}'s Stark Bucks`)
-                                .setColor(0xf1c40f)
-                                .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
-                                .addFields(
-                                    { name: '💵 Balance', value: `**${showUser.balance.toLocaleString()}** Stark Bucks`, inline: true },
-                                    { name: '📈 Total Earned', value: `${(showUser.totalEarned || 0).toLocaleString()}`, inline: true },
-                                    { name: '🎮 Games Played', value: `${showUser.gamesPlayed || 0}`, inline: true },
-                                    { name: '🏆 Games Won', value: `${showUser.gamesWon || 0}`, inline: true },
-                                    { name: '🔥 Daily Streak', value: `${showUser.dailyStreak || 0} days`, inline: true }
-                                );
-                            if (multiplierStatus.active) {
-                                showEmbed.addFields({ 
-                                    name: '🎉 EVENT ACTIVE!', 
-                                    value: `**${multiplierStatus.multiplier}x MULTIPLIER (${multiplierStatus.multiplier * 100}%)!**`, 
-                                    inline: false 
-                                });
+                            const stats = await starkEconomy.getUserStats(interaction.user.id);
+                            
+                            // Try to find rank in top 100
+                            const lb = await starkEconomy.getLeaderboard(100, interaction.client);
+                            const rankIndex = lb.findIndex(u => u.userId === interaction.user.id);
+                            const rank = rankIndex !== -1 ? rankIndex + 1 : null;
+
+                            // Generate Profile Image
+                            const { AttachmentBuilder } = require('discord.js');
+                            const imageGenerator = require('./image-generator');
+
+                            const profileData = {
+                                username: interaction.user.username,
+                                avatar: interaction.user.displayAvatarURL({ extension: 'png', size: 256 }),
+                                balance: showUser.balance,
+                                totalEarned: showUser.totalEarned || 0,
+                                winRate: stats.winRate,
+                                rank: rank
+                            };
+
+                            try {
+                                const buffer = await imageGenerator.generateProfileImage(profileData);
+                                const attachment = new AttachmentBuilder(buffer, { name: 'profile.png' });
+                                response = { files: [attachment] };
+                            } catch (err) {
+                                console.error('[Profile] Image generation failed:', err);
+                                response = `**${interaction.user.username}**\n💰 Balance: **${showUser.balance.toLocaleString()}** SB`;
                             }
-                            showEmbed.setFooter({ text: 'Flex those Stark Bucks!' });
-                            response = { embeds: [showEmbed] };
                             break;
                         }
                         case 'give': {

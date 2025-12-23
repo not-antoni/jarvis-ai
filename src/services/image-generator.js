@@ -222,11 +222,11 @@ class ImageGenerator {
         const encoder = new GifEncoder(width, totalHeight);
         encoder.start();
         encoder.setRepeat(0);   // Loop forever
-        encoder.setDelay(100);  // 100ms = 10fps
-        encoder.setQuality(10); // 10 = default/good quality
+        encoder.setDelay(100);  // 100ms
+        encoder.setQuality(5);  // Sharper quality (lower is better)
 
-        // Generate 20 frames (2 seconds)
-        const totalFrames = 20;
+        // Generate 15 frames (1.5 seconds) - Optimized for speed
+        const totalFrames = 15;
         const canvas = createCanvas(width, totalHeight);
         const ctx = canvas.getContext('2d');
 
@@ -362,6 +362,125 @@ class ImageGenerator {
 
         encoder.finish();
         return encoder.out.getData();
+    }
+
+    /**
+     * Generate Profile Card Image (Static)
+     * @param {Object} user - { username, balance, avatar, rank, totalEarned, winRate }
+     * @returns {Promise<Buffer>}
+     */
+    async generateProfileImage(user) {
+        const width = 800;
+        const height = 400;
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+
+        // --- Background ---
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#141E30');
+        gradient.addColorStop(1, '#243B55');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // Tech Hexagons/Grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < width; i += 50) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, height); ctx.stroke();
+        }
+
+        // --- Card Header "ACCESS GRANTED" ---
+        ctx.fillStyle = '#00ffaa';
+        ctx.font = '16px Sans';
+        ctx.textAlign = 'right';
+        ctx.fillText('STARK IDENTITY CARD // VERIFIED', width - 30, 30);
+
+        // --- Avatar ---
+        const avatarSize = 150;
+        const avatarX = 50;
+        const avatarY = height / 2 - avatarSize / 2;
+
+        try {
+            if (user.avatar) {
+                const avatar = await loadImage(user.avatar);
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
+                ctx.restore();
+
+                // Avatar Hologram Ring
+                ctx.beginPath();
+                ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 10, 0, Math.PI * 2);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#00d4ff'; // Cyan
+                ctx.shadowColor = '#00d4ff';
+                ctx.shadowBlur = 15;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+        } catch (e) {
+            // Fallback
+            ctx.beginPath();
+            ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+            ctx.fillStyle = '#333';
+            ctx.fill();
+        }
+
+        // --- User Info ---
+        const textX = 250;
+
+        // Name
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 45px Sans';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowBlur = 4;
+        const safeName = user.username.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
+        ctx.fillText(safeName, textX, 120);
+        ctx.shadowBlur = 0;
+
+        // Rank Badge
+        if (user.rank) {
+            ctx.fillStyle = '#FFD700'; // Gold
+            ctx.font = 'bold 24px Sans';
+            ctx.fillText(`RANK #${user.rank}`, textX, 160);
+        }
+
+        // Stats Block
+        const statsY = 230;
+
+        // Balance
+        ctx.fillStyle = '#888';
+        ctx.font = '20px Sans';
+        ctx.fillText('CURRENT BALANCE', textX, statsY);
+
+        ctx.fillStyle = '#00d4ff';
+        ctx.font = 'bold 50px Sans';
+        ctx.fillText(this.formatNumber(user.balance) + ' SB', textX, statsY + 50);
+
+        // Sidebar Stats
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillRect(550, 100, 2, 200); // Divider
+
+        const rightX = 580;
+        ctx.fillStyle = '#aaa';
+        ctx.font = '18px Sans';
+        ctx.fillText('TOTAL EARNED', rightX, 150);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 24px Sans';
+        ctx.fillText(this.formatNumber(user.totalEarned || 0), rightX, 180);
+
+        ctx.fillStyle = '#aaa';
+        ctx.font = '18px Sans';
+        ctx.fillText('WIN RATE', rightX, 240);
+        ctx.fillStyle = (user.winRate > 50 ? '#2ecc71' : '#e74c3c'); // Green/Red
+        ctx.font = 'bold 24px Sans';
+        ctx.fillText((user.winRate || 0) + '%', rightX, 270);
+
+        return canvas.toBuffer();
     }
 
     formatNumber(num) {

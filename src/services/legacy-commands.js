@@ -457,19 +457,33 @@ const legacyCommands = {
         aliases: ['bal', 'money', 'wallet'],
         execute: async (message, args) => {
             const stats = await starkEconomy.getUserStats(message.author.id);
-            const embed = new EmbedBuilder()
-                .setTitle('💰 Stark Bucks Balance')
-                .setDescription(`You have **${stats.balance}** Stark Bucks, sir.`)
-                .setColor(0xf1c40f)
-                .addFields(
-                    { name: '📈 Total Earned', value: `${stats.totalEarned}`, inline: true },
-                    { name: '📉 Total Lost', value: `${stats.totalLost}`, inline: true },
-                    { name: '🎰 Win Rate', value: `${stats.winRate}%`, inline: true },
-                    { name: '🔥 Daily Streak', value: `${stats.dailyStreak} days`, inline: true }
-                )
-                .setFooter({ text: 'Stark Industries Financial Division' });
 
-            await message.reply({ embeds: [embed] });
+            // Try to find rank in top 100
+            const lb = await starkEconomy.getLeaderboard(100, client);
+            const rankIndex = lb.findIndex(u => u.userId === message.author.id);
+            const rank = rankIndex !== -1 ? rankIndex + 1 : null;
+
+            // Generate Profile Image
+            const { AttachmentBuilder } = require('discord.js');
+            const imageGenerator = require('./image-generator');
+
+            const profileData = {
+                username: message.author.username,
+                avatar: message.author.displayAvatarURL({ extension: 'png', size: 256 }),
+                balance: stats.balance,
+                totalEarned: stats.totalEarned || 0,
+                winRate: stats.winRate,
+                rank: rank
+            };
+
+            try {
+                const buffer = await imageGenerator.generateProfileImage(profileData);
+                const attachment = new AttachmentBuilder(buffer, { name: 'balance.png' });
+                await message.reply({ files: [attachment] });
+            } catch (err) {
+                console.error('[Balance] Image generation failed:', err);
+                await message.reply(`💰 **${message.author.username}** has **${stats.balance.toLocaleString()}** Stark Bucks.`);
+            }
             return true;
         }
     },
@@ -2216,27 +2230,38 @@ const legacyCommands = {
                 return n.toLocaleString();
             };
 
-            const embed = new EmbedBuilder()
-                .setTitle(`${hasReactor ? '💠 ' : ''}${target.username}'s Profile`)
-                .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-                .setColor(hasReactor ? 0x00d4ff : 0x3498db)
-                .addFields(
-                    { name: '💰 Balance', value: formatNum(stats.balance), inline: true },
-                    { name: '📈 Total Earned', value: formatNum(stats.totalEarned), inline: true },
-                    { name: '📉 Total Lost', value: formatNum(stats.totalLost), inline: true },
-                    { name: '🎰 Games Played', value: `${stats.gamesPlayed}`, inline: true },
-                    { name: '🏆 Win Rate', value: `${stats.winRate}%`, inline: true },
-                    { name: '🔥 Daily Streak', value: `${stats.dailyStreak} days`, inline: true },
-                    { name: '🏅 Achievements', value: `${achievementProfile.unlockedCount}/${achievementProfile.totalCount} (${achievementProfile.percentage}%)`, inline: true },
-                    { name: '⭐ Achievement Points', value: `${achievementProfile.totalPoints}`, inline: true },
-                    { name: '🎒 Inventory', value: `${stats.inventoryCount} items`, inline: true }
-                );
+            // Try to find rank in top 100
+            const client = message.client; // ensure client is available
+            const lb = await starkEconomy.getLeaderboard(100, client);
+            const rankIndex = lb.findIndex(u => u.userId === target.id);
+            const rank = rankIndex !== -1 ? rankIndex + 1 : null;
 
-            if (hasReactor) {
-                embed.setFooter({ text: '💠 Arc Reactor Owner - All perks active!' });
+            // Generate Profile Image
+            const { AttachmentBuilder } = require('discord.js');
+            const imageGenerator = require('./image-generator');
+
+            const profileData = {
+                username: target.username,
+                avatar: target.displayAvatarURL({ extension: 'png', size: 256 }),
+                balance: stats.balance,
+                totalEarned: stats.totalEarned || 0,
+                winRate: stats.winRate,
+                rank: rank
+            };
+
+            try {
+                const buffer = await imageGenerator.generateProfileImage(profileData);
+                const attachment = new AttachmentBuilder(buffer, { name: 'profile.png' });
+                await message.reply({ files: [attachment] });
+            } catch (err) {
+                console.error('[Profile] Image generation failed:', err);
+                // Fallback to simpler text
+                await message.reply(`**${target.username}'s Profile**\n💰 Balance: ${stats.balance.toLocaleString()}\n🏆 Win Rate: ${stats.winRate}%`);
             }
 
-            await message.reply({ embeds: [embed] });
+            if (hasReactor) {
+                await message.channel.send('💠 **Arc Reactor Owner - All perks active!**');
+            }
             return true;
         }
     },
