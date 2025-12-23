@@ -698,6 +698,21 @@
         }
 
         const isMentioned = message.mentions.has(client.user);
+        let isRoleMentioned = false;
+        
+        // Check for role mentions
+        if (message.guild && message.mentions.roles.size > 0) {
+            try {
+                // Use cached member if available, otherwise fetch
+                const botMember = message.guild.members.me || await message.guild.members.fetchMe().catch(() => null);
+                if (botMember) {
+                    isRoleMentioned = message.mentions.roles.some(role => botMember.roles.cache.has(role.id));
+                }
+            } catch (err) {
+                 // Ignore role check errors
+            }
+        }
+
         let isReplyToJarvis = false;
 
         if (!isMentioned && message.reference?.messageId) {
@@ -711,7 +726,10 @@
             }
         }
 
-        if (!isMentioned && !isReplyToJarvis && !containsWakeWord) {
+        // Check if clanker is mentioned (bypass wake word requirement)
+        const isClankerTrigger = clankerGif.containsClanker(rawContent);
+
+        if (!isMentioned && !isRoleMentioned && !isReplyToJarvis && !containsWakeWord && !isClankerTrigger) {
             return;
         }
 
