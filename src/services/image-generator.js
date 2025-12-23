@@ -154,12 +154,23 @@ class ImageGenerator {
             // Username
             ctx.textAlign = 'left';
             ctx.font = 'bold 24px Sans';
-            ctx.fillStyle = user.hasGoldenName ? '#FFD700' : '#FFFFFF';
 
-            let nameText = user.username;
-            if (user.hasVipBadge) nameText = '⭐ ' + nameText;
+            // Gold for VIPs or Golden Name owners
+            if (user.hasVipBadge || user.hasGoldenName) {
+                ctx.fillStyle = '#FFD700';
+                ctx.shadowColor = 'rgba(255, 215, 0, 0.6)'; // Glow for VIPs
+                ctx.shadowBlur = 10;
+            } else {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.shadowBlur = 0;
+            }
+
+            // Remove emoji characters that might cause rendering issues on VPS
+            // and don't add the star prefix
+            let nameText = user.username.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
 
             ctx.fillText(nameText, 190, y + 45);
+            ctx.shadowBlur = 0; // Reset shadow for next items
 
             // Balance
             ctx.textAlign = 'right';
