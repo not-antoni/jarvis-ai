@@ -219,6 +219,23 @@ class ImageGenerator {
         });
         const avatarImages = await Promise.all(avatarPromises);
 
+        // Pre-calculate truncated names to save CPU in loop
+        const tempCanvas = createCanvas(width, 100);
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.font = 'bold 24px Sans';
+
+        const truncatedNames = users.map(user => {
+            let name = user.username.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
+            const maxNameWidth = 220;
+            if (tempCtx.measureText(name).width > maxNameWidth) {
+                while (tempCtx.measureText(name + '...').width > maxNameWidth && name.length > 0) {
+                    name = name.slice(0, -1);
+                }
+                name += '...';
+            }
+            return name;
+        });
+
         // Setup GIF Encoder
         const encoder = new GifEncoder(width, totalHeight);
         encoder.start();
@@ -341,7 +358,7 @@ class ImageGenerator {
                     ctx.fillStyle = '#FFFFFF';
                     ctx.shadowBlur = 0;
                 }
-                const nameText = user.username.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
+                const nameText = truncatedNames[i];
                 ctx.fillText(nameText, 190, y + 45);
                 ctx.shadowBlur = 0; // Reset
 
