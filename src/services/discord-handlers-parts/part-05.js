@@ -1518,8 +1518,8 @@
                                 return { ...u, avatar: avatarUrl };
                             }));
 
-                            const buffer = await imageGenerator.generateLeaderboardImage(enrichedLb);
-                            const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
+                            const buffer = await imageGenerator.generateLeaderboardGif(enrichedLb); // Animated GIF
+                            const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.gif' });
                             
                             response = { files: [attachment] };
                             break;
@@ -1886,8 +1886,8 @@
                         return { ...u, avatar: avatarUrl };
                     }));
 
-                    const buffer = await imageGenerator.generateLeaderboardImage(enrichedLb);
-                    const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
+                    const buffer = await imageGenerator.generateLeaderboardGif(enrichedLb); // Animated GIF
+                    const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.gif' });
                     
                     response = { files: [attachment] };
                     break;
