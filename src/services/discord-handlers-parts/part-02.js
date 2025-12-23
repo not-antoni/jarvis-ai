@@ -726,21 +726,12 @@
             }
         }
 
-        // Check if clanker is mentioned (bypass wake word requirement)
-        const isClankerTrigger = clankerGif.containsClanker(rawContent);
-
-        if (!isMentioned && !isRoleMentioned && !isReplyToJarvis && !containsWakeWord && !isClankerTrigger) {
-            return;
-        }
-
-        const { limited } = this.hitCooldown(userId, messageScope);
-        if (limited) {
-            return;
-        }
-
-        // ============ CLANKER DETECTION (overrides AI response) ============
+        // ============ CLANKER DETECTION (Top Priority) ============
         // Check if user said "clanker" in any variation (case-insensitive)
         if (clankerGif.containsClanker(rawContent)) {
+            const { limited } = this.hitCooldown(userId, messageScope);
+            if (limited) return;
+
             try {
                 await message.channel.sendTyping();
                 
@@ -764,8 +755,18 @@
                 return; // Exit early, no AI response
             } catch (clankerError) {
                 console.error('[Clanker] Failed to process clanker GIF:', clankerError);
-                // Fall through to normal AI response if clanker processing fails
+                await message.reply('**[System Error]** Clanker protocol malfunctioned. Check logs for details.');
+                return; // Stop execution, do not fall through to AI
             }
+        }
+
+        if (!isMentioned && !isRoleMentioned && !isReplyToJarvis && !containsWakeWord) {
+            return;
+        }
+
+        const { limited } = this.hitCooldown(userId, messageScope);
+        if (limited) {
+            return;
         }
 
         await this.handleJarvisInteraction(message, client);
