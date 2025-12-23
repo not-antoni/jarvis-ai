@@ -65,3 +65,9 @@ vendor/
 
 # Vendor/external repos for analysis
 vendor/
+
+# SSL Certificates (local testing)
+jorvis.org.key
+jorvis.org.pem
+*.key
+*.pem

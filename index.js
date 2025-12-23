@@ -2290,7 +2290,7 @@ if (helmet) {
                 defaultSrc: ["'self'"],
                 scriptSrc: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"],
                 scriptSrcAttr: ["'self'", "'unsafe-inline'"],
-                connectSrc: ["'self'", "https://cloudflareinsights.com"],
+                connectSrc: ["'self'", "https://cloudflareinsights.com", "https://www.cloudflarestatus.com"],
                 imgSrc: ["'self'", "data:", "https:", "*"],
             },
         },

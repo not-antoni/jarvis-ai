@@ -1667,7 +1667,7 @@ const CRYPTO_PAGE = `
                     <div class="trade-stat-value down" id="tradeLow">0 SB</div>
                 </div>
             </div>
-            <input type="number" class="trade-input" id="tradeAmount" placeholder="Amount" min="0.01" step="0.01">
+            <input type="number" class="trade-input" id="tradeAmount" placeholder="Amount" min="0.01" step="0.01" onkeypress="if(event.key==='Enter')executeTrade('buy')">
             <div class="trade-cost" id="tradeCost">Total: 0 SB (+ 0 SB fee)</div>
             <div class="trade-buttons">
                 <button class="btn btn-buy" onclick="executeTrade('buy')">Buy</button>
@@ -1683,6 +1683,44 @@ const CRYPTO_PAGE = `
         let selectedCoin = null;
         let prices = {};
         let portfolio = null;
+        
+        // Format large numbers with K/M/B/T
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '0';
+            num = parseFloat(num);
+            if (isNaN(num)) return '0';
+            if (num >= 1e15) return (num / 1e15).toFixed(2) + 'Q';
+            if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+            return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        
+        // Format market cap
+        function formatMarketCap(num) {
+            if (!num || isNaN(num)) return '0';
+            if (num >= 1e12) return (num / 1e12).toFixed(1) + 'T';
+            if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+            return num.toFixed(0);
+        }
+        
+        // Parse formatted numbers like "64M" back to raw numbers
+        function parseFormattedNumber(str) {
+            if (!str) return NaN;
+            str = String(str).trim().toUpperCase();
+            if (str === 'ALL') return 'ALL';
+            str = str.replace(/,/g, '').replace(/\s/g, '');
+            const suffixes = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12, 'Q': 1e15 };
+            const lastChar = str.slice(-1);
+            if (suffixes[lastChar]) {
+                const num = parseFloat(str.slice(0, -1));
+                return isNaN(num) ? NaN : num * suffixes[lastChar];
+            }
+            return parseFloat(str);
+        }
         
         async function checkAuth() {
             try {
@@ -1901,7 +1939,7 @@ const CRYPTO_PAGE = `
         }
         
         async function executeTrade(action) {
-            const amount = parseFloat(document.getElementById('tradeAmount').value);
+            const amount = parseFormattedNumber(document.getElementById('tradeAmount').value);
             if (!amount || amount < 0.01) {
                 document.getElementById('tradeMessage').innerHTML = '<span style="color: #ff4444;">Enter a valid amount (min 0.01)</span>';
                 return;
@@ -1943,20 +1981,20 @@ const CRYPTO_PAGE = `
     </script>
 </body>
 </html>
-\`;
+`;
 
 // ============================================================================
 // DOCS PAGE - User Guide + API Documentation
 // ============================================================================
 
-const DOCS_PAGE = \`
+const DOCS_PAGE = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Documentation | Jarvis API</title>
-    <style>\${SHARED_STYLES}
+    <style>${SHARED_STYLES}
         .doc-section { margin-bottom: 3rem; }
         pre {
             background: rgba(0,0,0,0.3);
@@ -2035,7 +2073,7 @@ const DOCS_PAGE = \`
     </style>
 </head>
 <body>
-    \${NAV_HTML}
+    ${NAV_HTML}
     <div class="container">
         <h1>📖 Documentation</h1>
         <p style="color: #888; margin-bottom: 2rem;">User guide and API reference for Jarvis</p>
@@ -2369,20 +2407,20 @@ print(response.choices[0].message.content)</pre>
     </script>
 </body>
 </html>
-\`;
+`;
 
 // ============================================================================
 // STATUS PAGE - System status with Cloudflare updates and API uptime history
 // ============================================================================
 
-const STATUS_PAGE = \`
+const STATUS_PAGE = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Status | Jarvis</title>
-    <style>\${SHARED_STYLES}
+    <style>${SHARED_STYLES}
         .status-header {
             text-align: center;
             padding: 2rem;
@@ -2618,7 +2656,7 @@ const STATUS_PAGE = \`
     </style>
 </head>
 <body>
-    \${NAV_HTML}
+    ${NAV_HTML}
     <div class="container">
         <h1>📊 System Status</h1>
         <p style="color: #888; margin-bottom: 2rem;">Real-time status of Jarvis services</p>
@@ -2927,20 +2965,20 @@ const STATUS_PAGE = \`
     </script>
 </body>
 </html>
-\`;
+`;
 
 // ============================================================================
 // CHANGELOG PAGE
 // ============================================================================
 
-const CHANGELOG_PAGE = \`
+const CHANGELOG_PAGE = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Changelog | Jarvis</title>
-    <style>\${SHARED_STYLES}
+    <style>${SHARED_STYLES}
         .version {
             background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.08);
@@ -2982,7 +3020,7 @@ const CHANGELOG_PAGE = \`
     </style>
 </head>
 <body>
-    \${NAV_HTML}
+    ${NAV_HTML}
     <div class="container">
         <h1>📋 Changelog</h1>
         <p style="color: #888; margin-bottom: 2rem;">Version history and updates</p>
