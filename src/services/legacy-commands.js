@@ -212,7 +212,7 @@ const HELP_PAGES = [
             },
             {
                 name: '🛡️ **Moderation**',
-                value: '`*j kick @user [reason]` - Kick a member\n`*j enable moderation` - Enable AI moderation\n`*j moderation status` - View mod settings',
+                value: '`*j kick @user [reason]` - Kick a member\n`*j ban @user [time] [reason]` - Ban (10m, 2h, 7d, forever)\n`*j enable moderation` - Enable AI moderation\n`*j moderation status` - View mod settings',
                 inline: false
             }
         ]
@@ -1165,7 +1165,182 @@ const legacyCommands = {
         }
     },
 
-    // ============ MODERATION COMMANDS (Admin/Owner Only) ============
+    ban: {
+        description: 'Ban a member from the server',
+        usage: '*j ban @user [time] [reason]',
+        aliases: ['banish'],
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember) {
+                await message.reply('Could not resolve your member permissions, sir.');
+                return true;
+            }
+
+            if (!authorMember.permissions?.has(PermissionFlagsBits.BanMembers)) {
+                await message.reply('🔒 You need **Ban Members** permission to do that, sir.');
+                return true;
+            }
+
+            const botMember =
+                message.guild.members.me ||
+                (await message.guild.members.fetchMe().catch(() => null));
+
+            if (!botMember) {
+                await message.reply('I could not verify my permissions in this server, sir.');
+                return true;
+            }
+
+            if (!botMember.permissions?.has(PermissionFlagsBits.BanMembers)) {
+                await message.reply('❌ I do not have **Ban Members** permission in this server.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            if (!mentionedUser) {
+                await message.reply('Usage: `*j ban @user [time] [reason]`\nTime examples: `10m`, `2h`, `7d`, `forever`');
+                return true;
+            }
+
+            const targetMember =
+                message.mentions.members.first() ||
+                (await message.guild.members.fetch(mentionedUser.id).catch(() => null));
+
+            if (targetMember) {
+                if (targetMember.id === message.guild.ownerId) {
+                    await message.reply('I cannot ban the server owner, sir.');
+                    return true;
+                }
+
+                if (targetMember.id === message.author.id) {
+                    await message.reply("Banning yourself? That's... creative, sir. I'll decline.");
+                    return true;
+                }
+
+                if (targetMember.id === botMember.id) {
+                    await message.reply("I will not be banning myself today, sir.");
+                    return true;
+                }
+
+                const isOwner = message.guild.ownerId === message.author.id;
+                if (!isOwner) {
+                    const authorHigher =
+                        authorMember.roles?.highest &&
+                        targetMember.roles?.highest &&
+                        authorMember.roles.highest.comparePositionTo(targetMember.roles.highest) > 0;
+
+                    if (!authorHigher) {
+                        await message.reply(
+                            '🔒 You cannot ban that member due to role hierarchy, sir.'
+                        );
+                        return true;
+                    }
+                }
+
+                if (!targetMember.bannable) {
+                    await message.reply(
+                        '❌ I cannot ban that member (missing permissions or role hierarchy issue).'
+                    );
+                    return true;
+                }
+            }
+
+            // Parse time and reason from args
+            const mentionIndex = args.findIndex(token => /^<@!?\d+>$/.test(token));
+            const afterMention = mentionIndex >= 0 ? args.slice(mentionIndex + 1) : args.slice(1);
+
+            let banDuration = null; // null = permanent
+            let reason = '';
+
+            if (afterMention.length > 0) {
+                const timeArg = afterMention[0].toLowerCase();
+                const timeMatch = timeArg.match(/^(\d+)(m|min|mins|minutes?|h|hr|hrs|hours?|d|day|days?)$/i);
+
+                if (timeMatch) {
+                    const amount = parseInt(timeMatch[1], 10);
+                    const unit = timeMatch[2].toLowerCase();
+
+                    if (unit.startsWith('m')) {
+                        banDuration = amount * 60 * 1000; // minutes
+                    } else if (unit.startsWith('h')) {
+                        banDuration = amount * 60 * 60 * 1000; // hours
+                    } else if (unit.startsWith('d')) {
+                        banDuration = amount * 24 * 60 * 60 * 1000; // days
+                    }
+
+                    reason = afterMention.slice(1).join(' ').trim();
+                } else if (timeArg === 'forever' || timeArg === 'permanent' || timeArg === 'perm') {
+                    banDuration = null; // permanent
+                    reason = afterMention.slice(1).join(' ').trim();
+                } else {
+                    // No time specified, all args are reason
+                    reason = afterMention.join(' ').trim();
+                }
+            }
+
+            const BANE_GIF = 'https://tenor.com/view/bane-no-banned-and-you-are-explode-gif-16047504';
+
+            try {
+                await message.guild.members.ban(mentionedUser.id, {
+                    reason: reason || `Banned by ${message.author.tag}`,
+                    deleteMessageSeconds: 0
+                });
+
+                // Format duration text
+                let durationText = '**permanently**';
+                if (banDuration) {
+                    const mins = Math.floor(banDuration / 60000);
+                    const hours = Math.floor(mins / 60);
+                    const days = Math.floor(hours / 24);
+
+                    if (days > 0) {
+                        durationText = `for **${days} day${days > 1 ? 's' : ''}**`;
+                    } else if (hours > 0) {
+                        durationText = `for **${hours} hour${hours > 1 ? 's' : ''}**`;
+                    } else {
+                        durationText = `for **${mins} minute${mins > 1 ? 's' : ''}**`;
+                    }
+
+                    // Schedule unban if temporary
+                    setTimeout(async () => {
+                        try {
+                            await message.guild.members.unban(mentionedUser.id, 'Temporary ban expired');
+                            const channel = message.channel;
+                            if (channel) {
+                                await safeSend(channel, { content: `✅ **${mentionedUser.tag || mentionedUser.username}** has been automatically unbanned (temp ban expired).` }, message.client);
+                            }
+                        } catch (e) {
+                            console.error('[LegacyCommands] Auto-unban failed:', e);
+                        }
+                    }, banDuration);
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🔨 BANNED')
+                    .setDescription(`**${mentionedUser.tag || mentionedUser.username}** has been banned ${durationText}.`)
+                    .setColor(0xe74c3c)
+                    .setImage(BANE_GIF);
+
+                if (reason) {
+                    embed.addFields({ name: 'Reason', value: reason, inline: false });
+                }
+
+                embed.setFooter({ text: `Banned by ${message.author.tag}` });
+                embed.setTimestamp();
+
+                await message.reply({ embeds: [embed] });
+            } catch (error) {
+                console.error('[LegacyCommands] Ban failed:', error);
+                await message.reply('❌ Ban failed, sir.');
+            }
+
+            return true;
+        }
+    },
     enable: {
         description: 'Enable a feature (moderation)',
         usage: '*j enable moderation',
