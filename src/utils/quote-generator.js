@@ -31,7 +31,6 @@ function wrapText(ctx, text, maxWidth) {
  * @returns {Promise<Buffer>}
  */
 async function generateQuoteImage(text, username, avatarUrl, timestamp) {
-    // Upscaled dimensions for better quality
     const width = 1800;
     const padding = 80;
     const minHeight = 600;
@@ -40,12 +39,12 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     const tempCanvas = createCanvas(width, minHeight);
     const tempCtx = tempCanvas.getContext('2d');
 
-    // Font settings (Scaled up)
+    // Robust Font Stack for Special Chars
+    const fontStack = '"Noto Sans", "Noto Sans CJK SC", "Noto Color Emoji", "DejaVu Sans", sans-serif';
     const fontSize = 80;
-    const fontFamily = 'sans-serif'; // Fallback
-    tempCtx.font = `${fontSize}px ${fontFamily}`;
+    tempCtx.font = `${fontSize}px ${fontStack}`;
 
-    // Max width for text (Right side, ~50% of screen)
+    // Max width for text
     const maxTextWidth = (width / 2) - padding;
     const lines = wrapText(tempCtx, text || '', maxTextWidth);
 
@@ -54,58 +53,66 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     const nameHeight = 60;
     const handleHeight = 40;
 
-    // Dynamic height based on text
     const canvasHeight = Math.max(minHeight, textBlockHeight + nameHeight + handleHeight + (padding * 3));
 
     // Create Real Canvas
     const canvas = createCanvas(width, canvasHeight);
     const ctx = canvas.getContext('2d');
 
-    // 1. Black Background
-    ctx.fillStyle = '#000000';
+    // 1. Solid Black Background (Force Opaque)
+    ctx.fillStyle = 'black'; // Named color, just in case
     ctx.fillRect(0, 0, width, canvasHeight);
 
-    // 2. Draw Grayscale Avatar on Left
+    // 2. Draw Grayscale Avatar (Isolated Canvas to prevent Alpha bleed)
     try {
         const avatar = await loadImage(avatarUrl);
 
-        ctx.save();
         // Aspect fill logic
         const imgRatio = avatar.width / avatar.height;
         let drawWidth = canvasHeight * imgRatio;
         let drawHeight = canvasHeight;
 
-        // Ensure it covers enough width
         if (drawWidth < width * 0.6) {
             drawWidth = width * 0.6;
             drawHeight = drawWidth / imgRatio;
         }
 
-        // Apply filter
-        // Note: ctx.filter might vary by canvas version, if it fails it draws normal
-        if (ctx.filter) {
-            ctx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';
+        // Draw avatar to an isolated canvas first
+        const avCanvas = createCanvas(drawWidth, drawHeight);
+        const avCtx = avCanvas.getContext('2d');
+
+        // Apply filter on isolated canvas
+        if (avCtx.filter) {
+            avCtx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';
         }
-        ctx.drawImage(avatar, 0, (canvasHeight - drawHeight) / 2, drawWidth, drawHeight);
-        ctx.restore();
+        avCtx.drawImage(avatar, 0, 0, drawWidth, drawHeight);
+
+        // Composite onto main canvas
+        // We assume main canvas is black. 
+        // If avatar has transparency, we want black to show, which it will (since we filled main canvas).
+        const drawX = 0;
+        const drawY = (canvasHeight - drawHeight) / 2;
+
+        ctx.drawImage(avCanvas, drawX, drawY);
+
     } catch (e) {
-        // Fallback pattern if avatar fails
-        ctx.fillStyle = '#222';
+        // Fallback pattern
+        ctx.fillStyle = '#222222';
         ctx.fillRect(0, 0, width / 2, canvasHeight);
         console.error("Avatar load failed", e);
     }
 
-    // 3. Gradient Overlay (Left to Right: Transparent -> Black)
-    const gradient = ctx.createLinearGradient(0, 0, width * 0.75, 0); // Extended gradient
+    // 3. Gradient Overlay
+    const gradient = ctx.createLinearGradient(0, 0, width * 0.75, 0);
     gradient.addColorStop(0, 'rgba(0, 0, 0, 0.2)');
     gradient.addColorStop(0.4, 'rgba(0, 0, 0, 0.6)');
     gradient.addColorStop(0.8, 'rgba(0, 0, 0, 1)');
-    gradient.addColorStop(1, '#000000');
+    gradient.addColorStop(1, 'black');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, canvasHeight);
 
-    // 4. Draw Text (Right side)
+    // 4. Draw Text
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -114,7 +121,7 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
 
     // Draw Message
     ctx.fillStyle = '#ffffff';
-    ctx.font = `${fontSize}px ${fontFamily}`;
+    ctx.font = `${fontSize}px ${fontStack}`;
 
     let currentY = textCenterY - ((lines.length - 1) * lineHeight) / 2 - 40;
 
@@ -124,9 +131,10 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     }
 
     // Draw Name
-    const nameY = currentY + 30; // More space
+    const nameY = currentY + 30;
     ctx.fillStyle = '#ffffff';
-    ctx.font = `italic 48px ${fontFamily}`;
+    // Italic for name, but keep font stack
+    ctx.font = `italic 48px ${fontStack}`;
     ctx.fillText(`- ${username}`, textCenterX, nameY);
 
     // 5. Watermark
