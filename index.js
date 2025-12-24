@@ -392,6 +392,14 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
+        .setName('ping')
+        .setDescription('Check bot latency and system vitals')
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
+    new SlashCommandBuilder()
         .setName('time')
         .setDescription('Get the current time in your timezone')
         .addStringOption(option =>
@@ -2161,8 +2169,15 @@ const allCommands = [
         .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
         .setContexts([InteractionContextType.Guild])
         .addUserOption(o => o.setName('user').setDescription('User to mute').setRequired(true))
-        .addStringOption(o => o.setName('duration').setDescription('Mute duration (e.g. 10m, 1h, 1d)').setRequired(true))
+        .addStringOption(o => o.setName('duration').setDescription('Mute duration (e.g. 30s, 10m, 1h, 1d)').setRequired(true))
         .addStringOption(o => o.setName('reason').setDescription('Reason for mute')),
+    new SlashCommandBuilder()
+        .setName('unmute')
+        .setDescription('Remove a timeout from a member')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+        .setContexts([InteractionContextType.Guild])
+        .addUserOption(o => o.setName('user').setDescription('User to unmute').setRequired(true))
+        .addStringOption(o => o.setName('reason').setDescription('Reason for unmute')),
     new SlashCommandBuilder()
         .setName('warn')
         .setDescription('Warn a member')
