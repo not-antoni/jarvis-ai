@@ -2463,10 +2463,18 @@ async function feedPet(userId) {
  */
 async function renamePet(userId, newName) {
     const user = await loadUser(userId);
-    if (user.pet) {
-        user.pet.name = newName;
-        await saveUser(userId, user);
+    if (!user.pet) {
+        return { success: false, error: 'You don\'t have a pet!' };
     }
+
+    // Validate name (basic profanity/length check optional, but for now just length)
+    if (newName.length > 50) {
+        return { success: false, error: 'Name too long (max 50 chars).' };
+    }
+
+    user.pet.name = newName;
+    await saveUser(userId, user);
+    return { success: true, pet: user.pet };
 }
 
 /**
@@ -2485,16 +2493,25 @@ async function startHeist(guildId, userId, bet) {
     user.balance -= bet;
     await saveUser(userId, user);
 
+    const targetAmount = Math.floor(bet * (5 + Math.random() * 5)); // 5x to 10x multiplier
+    const minPlayers = 2;
+
     activeHeists.set(guildId, {
         startedBy: userId,
         bet,
         participants: [{ id: userId, bet }],
         prizePool: bet,
+        targetAmount,
+        minPlayers,
         startTime: Date.now(),
         maxParticipants: 8
     });
 
-    return { success: true };
+    return {
+        success: true,
+        targetAmount,
+        minPlayers
+    };
 }
 
 /**
@@ -2529,6 +2546,7 @@ async function joinHeist(guildId, userId) {
     return {
         success: true,
         participants: heist.participants.length,
+        playerCount: heist.participants.length, // Alias for handler compatibility
         maxParticipants: heist.maxParticipants
     };
 }
