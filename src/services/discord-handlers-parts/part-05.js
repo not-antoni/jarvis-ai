@@ -3024,7 +3024,11 @@
                             }, banDuration);
                         }
                         
-                        response = `🔨 **${targetUser.tag}** has been banned ${durationText}.\nhttps://c.tenor.com/9zCgefg___cAAAAC/tenor.gif`;
+                        response = `🔨 **${targetUser.tag}** has been banned ${durationText}.`;
+                        // Send GIF as followup so it embeds properly
+                        setTimeout(() => {
+                            interaction.followUp('https://c.tenor.com/9zCgefg___cAAAAC/tenor.gif').catch(() => {});
+                        }, 500);
                     } catch (error) {
                         response = `❌ Ban failed: ${error.message}`;
                     }
