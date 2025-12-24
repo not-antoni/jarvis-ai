@@ -305,7 +305,9 @@ router.post(
             autoMute: req.body?.autoMute === 'on',
             autoBan: req.body?.autoBan === 'on',
             pingRoles: parseDiscordIdList(req.body?.pingRoles),
-            pingUsers: parseDiscordIdList(req.body?.pingUsers)
+            pingUsers: parseDiscordIdList(req.body?.pingUsers),
+            alertChannel: req.body?.alertChannel || null,
+            logChannel: req.body?.logChannel || null
         };
 
         moderation.updateSettings(String(guildId), patch);
@@ -456,10 +458,23 @@ function getGuildPage(session, guild, status, errorCode = '') {
     const canEnable = Boolean(status?.canEnable);
     const isEnabled = Boolean(status?.isEnabled);
     const settings = status?.settings || {};
+    const stats = status?.stats || {};
+    const recentDetections = status?.recentDetections || [];
     const error = String(errorCode || '');
 
     const errorBanner = !canEnable && !isEnabled ? 'ask Stark for a invite, sir.' : '';
     const showNotWhitelisted = error === 'not_whitelisted';
+
+    // Get guild channels for dropdowns
+    const channels = [];
+    if (guild?.channels?.cache) {
+        for (const channel of guild.channels.cache.values()) {
+            if (channel.type === 0 || channel.type === 5) { // Text or Announcement
+                channels.push({ id: channel.id, name: channel.name });
+            }
+        }
+        channels.sort((a, b) => a.name.localeCompare(b.name));
+    }
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -469,63 +484,35 @@ function getGuildPage(session, guild, status, errorCode = '') {
     <title>Guild Moderation - Jarvis</title>
     <style>
         ${getBaseStyles()}
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 30px;
-        }
-        .user-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .user-avatar {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            border: 1px solid rgba(255,255,255,0.2);
-            object-fit: cover;
-            background: rgba(0,0,0,0.2);
-        }
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .status-enabled {
-            background: rgba(46, 204, 113, 0.2);
-            color: #2ecc71;
-        }
-        .status-disabled {
-            background: rgba(255, 255, 255, 0.12);
-            color: #cfcfcf;
-        }
-        .select {
-            width: 100%;
-            padding: 12px 16px;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(0, 0, 0, 0.3);
-            color: white;
-            font-size: 16px;
-            margin-bottom: 15px;
-        }
-        .row {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        .row > .card {
-            flex: 1 1 420px;
-        }
-        .muted {
-            color: #888;
-            font-size: 13px;
-        }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 30px; }
+        .user-badge { display: inline-flex; align-items: center; gap: 10px; }
+        .user-avatar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); object-fit: cover; background: rgba(0,0,0,0.2); }
+        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .status-enabled { background: rgba(46, 204, 113, 0.2); color: #2ecc71; }
+        .status-disabled { background: rgba(255, 255, 255, 0.12); color: #cfcfcf; }
+        .select { width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.3); color: white; font-size: 16px; margin-bottom: 15px; }
+        .row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .row > .card { flex: 1 1 420px; }
+        .muted { color: #888; font-size: 13px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-item { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; text-align: center; }
+        .stat-value { font-size: 1.8rem; font-weight: bold; background: linear-gradient(135deg, #e94560, #0f3460); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stat-label { color: #888; font-size: 12px; margin-top: 5px; }
+        .section-title { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .detection-list { max-height: 300px; overflow-y: auto; }
+        .detection-item { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 3px solid; }
+        .detection-item.critical { border-left-color: #e74c3c; }
+        .detection-item.high { border-left-color: #e67e22; }
+        .detection-item.medium { border-left-color: #f1c40f; }
+        .detection-item.low { border-left-color: #3498db; }
+        .category-tag { display: inline-block; background: rgba(233,69,96,0.2); color: #e94560; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-right: 5px; }
+        .toggle-section { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .toggle-switch { position: relative; width: 50px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.2); transition: 0.3s; border-radius: 26px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; }
+        input:checked + .toggle-slider { background-color: #2ecc71; }
+        input:checked + .toggle-slider:before { transform: translateX(24px); }
     </style>
 </head>
 <body>
@@ -555,58 +542,116 @@ function getGuildPage(session, guild, status, errorCode = '') {
         ${errorBanner ? `<div class="error">${errorBanner}</div>` : ''}
         ${error && error !== 'not_whitelisted' ? `<div class="error">${error}</div>` : ''}
 
+        ${isEnabled ? `
+        <div class="stats-grid">
+            <div class="stat-item"><div class="stat-value">${stats.total || 0}</div><div class="stat-label">Total Detections</div></div>
+            <div class="stat-item"><div class="stat-value">${stats.byCategory?.scam || 0}</div><div class="stat-label">Scams Blocked</div></div>
+            <div class="stat-item"><div class="stat-value">${stats.byCategory?.spam || 0}</div><div class="stat-label">Spam Caught</div></div>
+            <div class="stat-item"><div class="stat-value">${status?.trackedMembersCount || 0}</div><div class="stat-label">Tracked Members</div></div>
+        </div>
+        ` : ''}
+
         <div class="row">
             <div class="card">
-                <h2 style="margin-bottom: 12px;">Toggle Moderation</h2>
-                <p class="muted" style="margin-bottom: 14px;">You can manage moderation for guilds you own. Whitelist applies.</p>
-
-                <form method="POST" action="/moderator/guild/${guild?.id || ''}/toggle">
+                <h2 class="section-title">⚡ Quick Controls</h2>
+                
+                <form method="POST" action="/moderator/guild/${guild?.id || ''}/toggle" style="margin-bottom: 20px;">
                     <input type="hidden" name="enabled" value="${isEnabled ? 'false' : 'true'}">
-                    <button type="submit" class="btn btn-primary" ${!canEnable && !isEnabled ? 'disabled' : ''}>
-                        ${isEnabled ? 'Disable Moderation' : 'Enable Moderation'}
+                    <button type="submit" class="btn btn-primary" style="width: 100%;" ${!canEnable && !isEnabled ? 'disabled' : ''}>
+                        ${isEnabled ? '🔴 Disable Moderation' : '🟢 Enable Moderation'}
                     </button>
                 </form>
 
-                ${!canEnable && !isEnabled ? `<p class="muted" style="margin-top: 10px;">ask Stark for a invite, sir.</p>` : ''}
+                ${!canEnable && !isEnabled ? `<p class="muted" style="text-align: center; margin-bottom: 15px;">ask Stark for a invite, sir.</p>` : ''}
+
+                ${isEnabled ? `
+                <form method="POST" action="/moderator/guild/${guild?.id || ''}/settings">
+                    <h3 style="font-size: 14px; color: #aaa; margin-bottom: 10px;">📢 Channel Configuration</h3>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Alert Channel</label>
+                    <select class="select" name="alertChannel">
+                        <option value="">Same as message channel</option>
+                        ${channels.map(ch => `<option value="${ch.id}" ${settings.alertChannel === ch.id ? 'selected' : ''}>#${ch.name}</option>`).join('')}
+                    </select>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Mod Log Channel</label>
+                    <select class="select" name="logChannel">
+                        <option value="">Disabled</option>
+                        ${channels.map(ch => `<option value="${ch.id}" ${settings.logChannel === ch.id ? 'selected' : ''}>#${ch.name}</option>`).join('')}
+                    </select>
+
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">🎯 Detection Settings</h3>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Minimum Severity</label>
+                    <select class="select" name="minSeverity">
+                        ${['low', 'medium', 'high', 'critical'].map(v => `<option value="${v}" ${(settings.minSeverity || 'medium') === v ? 'selected' : ''}>${v.charAt(0).toUpperCase() + v.slice(1)}</option>`).join('')}
+                    </select>
+
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="useAI" ${settings.useAI ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>AI Detection</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="useFallbackPatterns" ${settings.useFallbackPatterns ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Pattern Matching (Fallback)</span>
+                    </div>
+
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">⚡ Auto Actions</h3>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="autoDelete" ${settings.autoDelete ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Auto Delete Flagged Messages</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="autoMute" ${settings.autoMute ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Auto Mute Offenders</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="autoBan" ${settings.autoBan ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Auto Ban (Critical Only)</span>
+                    </div>
+
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">🔔 Alert Notifications</h3>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Roles (IDs, comma separated)</label>
+                    <input type="text" name="pingRoles" placeholder="Role IDs" value="${(settings.pingRoles || []).join(', ')}">
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Users (IDs, comma separated)</label>
+                    <input type="text" name="pingUsers" placeholder="User IDs" value="${(settings.pingUsers || []).join(', ')}">
+
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">💾 Save Settings</button>
+                </form>
+                ` : ''}
             </div>
 
             <div class="card">
-                <h2 style="margin-bottom: 12px;">Settings</h2>
-                ${!isEnabled ? `<p class="muted">Enable moderation to edit settings.</p>` : ''}
-                ${
-                    isEnabled
-                        ? `
-                <form method="POST" action="/moderator/guild/${guild?.id || ''}/settings">
-                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Minimum Severity</label>
-                    <select class="select" name="minSeverity" ${!canEnable ? 'disabled' : ''}>
-                        ${['low', 'medium', 'high', 'critical'].map(v => `<option value="${v}" ${(settings.minSeverity || 'medium') === v ? 'selected' : ''}>${v}</option>`).join('')}
-                    </select>
+                <h2 class="section-title">📊 Recent Detections</h2>
+                
+                ${!isEnabled ? `<p class="muted">Enable moderation to see detections.</p>` :
+            recentDetections.length === 0 ? `<p class="muted">No recent detections. Your server is clean! ✨</p>` : `
+                <div class="detection-list">
+                    ${recentDetections.slice(0, 10).map(d => `
+                        <div class="detection-item ${d.severity || 'medium'}">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span class="category-tag">${d.category || 'unknown'}</span>
+                                <span class="muted" style="font-size: 11px;">${d.timestamp ? new Date(d.timestamp).toLocaleString() : 'Unknown'}</span>
+                            </div>
+                            <div style="font-size: 13px;"><strong>User:</strong> ${d.userId || 'Unknown'}</div>
+                            ${d.reason ? `<div style="font-size: 12px; color: #aaa; margin-top: 5px;">${d.reason}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                `}
 
-                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Roles</label>
-                    <input type="text" name="pingRoles" placeholder="Role IDs or <@&role> mentions (comma/space separated)" value="${(settings.pingRoles || []).join(', ')}" ${!canEnable ? 'disabled' : ''}>
-
-                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Users</label>
-                    <input type="text" name="pingUsers" placeholder="User IDs or <@user> mentions (comma/space separated)" value="${(settings.pingUsers || []).join(', ')}" ${!canEnable ? 'disabled' : ''}>
-
-                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Detection Options</label>
-                    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 15px;">
-                        <label><input type="checkbox" name="useAI" ${settings.useAI ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Use AI</label>
-                        <label><input type="checkbox" name="useFallbackPatterns" ${settings.useFallbackPatterns ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Use fallback patterns</label>
-                    </div>
-
-                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Actions</label>
-                    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom: 15px;">
-                        <label><input type="checkbox" name="autoDelete" ${settings.autoDelete ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Auto delete</label>
-                        <label><input type="checkbox" name="autoMute" ${settings.autoMute ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Auto mute</label>
-                        <label><input type="checkbox" name="autoBan" ${settings.autoBan ? 'checked' : ''} ${!canEnable ? 'disabled' : ''}> Auto ban</label>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary" ${!canEnable ? 'disabled' : ''}>Save Settings</button>
-                    ${!canEnable ? `<p class="muted" style="margin-top: 10px;">ask Stark for a invite, sir.</p>` : ''}
-                </form>
-                `
-                        : ''
-                }
+                ${isEnabled ? `
+                <h3 style="font-size: 14px; color: #aaa; margin: 25px 0 10px;">📈 Detection Categories</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${Object.entries(stats.byCategory || {}).map(([cat, count]) => `<span class="category-tag" style="padding: 5px 12px;">${cat}: ${count}</span>`).join('') || '<span class="muted">No categories yet</span>'}
+                </div>
+                ` : ''}
             </div>
         </div>
 
@@ -843,17 +888,16 @@ function getDashboardPage(session, guildStats) {
         <div class="card">
             <h2 style="margin-bottom: 20px;">🧰 Moderation Controls</h2>
             
-            ${
-                guildStats.length === 0
-                    ? `
+            ${guildStats.length === 0
+            ? `
                 <p style="color: #888; text-align: center; padding: 40px;">
                     No manageable guilds found.<br>
                     You can only manage guilds where you are the <strong>owner</strong> and Jarvis is present.
                 </p>
             `
-                    : guildStats
-                          .map(
-                              guild => `
+            : guildStats
+                .map(
+                    guild => `
                 <div class="guild-card">
                     <div class="guild-header">
                         <div>
@@ -896,8 +940,7 @@ function getDashboardPage(session, guildStats) {
                         </div>
                     </div>
                     
-                    ${
-                        Object.keys(guild.stats?.byCategory || {}).length > 0
+                    ${Object.keys(guild.stats?.byCategory || {}).length > 0
                             ? `
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
                             <div class="setting-label" style="margin-bottom: 8px;">Detection Categories</div>
@@ -913,12 +956,12 @@ function getDashboardPage(session, guildStats) {
                         </div>
                     `
                             : ''
-                    }
+                        }
                 </div>
             `
-                          )
-                          .join('')
-            }
+                )
+                .join('')
+        }
         </div>
         
         <div style="text-align: center; color: #666; font-size: 12px; margin-top: 40px;">
