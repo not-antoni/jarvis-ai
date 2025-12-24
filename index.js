@@ -14,6 +14,7 @@ const {
     GatewayIntentBits,
     SlashCommandBuilder,
     InteractionContextType,
+    ApplicationIntegrationType,
     ChannelType,
     Partials,
     PermissionsBitField: _PermissionsBitField,
@@ -2242,7 +2243,20 @@ function buildCommandData() {
             unique.push(command);
         }
     }
-    return unique.map(command => command.toJSON());
+    // Automatically inject integration_types if not present
+    // This ensures commands appear on bot profile in Discord
+    return unique.map(command => {
+        const json = command.toJSON();
+        // Default to GuildInstall if not specified
+        if (!json.integration_types) {
+            json.integration_types = [ApplicationIntegrationType.GuildInstall];
+        }
+        // Default contexts if not specified (Guild only for safety)
+        if (!json.contexts) {
+            json.contexts = [InteractionContextType.Guild];
+        }
+        return json;
+    });
 }
 
 function ensureCommandSyncState() {
