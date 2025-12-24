@@ -17,6 +17,7 @@ const {
     ChannelType,
     Partials,
     PermissionsBitField: _PermissionsBitField,
+    PermissionFlagsBits,
     ActivityType,
     Events
 } = require('discord.js');
