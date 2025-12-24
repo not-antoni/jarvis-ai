@@ -713,15 +713,12 @@ async function analyzeTextContent(message, member, settings) {
         try {
             const aiManager = require('../ai-providers');
 
-            const messages = [
-                { role: 'system', content: INTERNAL_MODERATION_PROMPT },
-                { role: 'user', content: contextString }
-            ];
-
-            const response = await aiManager.generate(messages, {
-                maxTokens: 200,
-                temperature: 0.1
-            });
+            // Use the correct method signature: generateResponse(systemPrompt, userPrompt, maxTokens)
+            const response = await aiManager.generateResponse(
+                INTERNAL_MODERATION_PROMPT,
+                contextString,
+                200
+            );
 
             if (response?.content) {
                 const parsed = parseAIResponse(response.content);
@@ -759,15 +756,9 @@ async function analyzeImageContent(imageUrl, message, member, settings) {
     const context = buildModerationContext(message, member);
 
     try {
-        const fetch = require('node-fetch');
-        const ollamaUrl = settings?.ollamaUrl || 'http://localhost:11434';
-        const model = settings?.ollamaModel || 'llava';
+        const aiManager = require('../ai-providers');
 
-        const imageResponse = await fetch(imageUrl);
-        const imageBuffer = await imageResponse.buffer();
-        const base64Image = imageBuffer.toString('base64');
-
-        // Build context-aware prompt for Ollama
+        // Build context-aware prompt for image analysis
         const contextPrompt = `${OLLAMA_IMAGE_PROMPT}
 
 === CONTEXT ===
@@ -777,28 +768,24 @@ Account Age: ${context.accountAgeDays} days
 Date/Time: ${context.currentDate}
 Server: ${context.guildName}`;
 
-        const response = await fetch(`${ollamaUrl}/api/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model,
-                prompt: contextPrompt,
-                images: [base64Image],
-                stream: false
-            })
-        });
+        // Use the ai-providers module to handle image analysis
+        // This will use any available vision-capable provider (Ollama, etc)
+        const response = await aiManager.generateResponseWithImages(
+            OLLAMA_IMAGE_PROMPT,
+            contextPrompt,
+            [{ url: imageUrl }],
+            200
+        );
 
-        const data = await response.json();
-
-        if (data.response) {
+        if (response?.content) {
             // Try parsing with our format first
-            const parsed = parseAIResponse(data.response);
+            const parsed = parseAIResponse(response.content);
             if (parsed) {
                 return { success: true, result: parsed, context };
             }
 
             // Fallback to JSON parsing
-            const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+            const jsonMatch = response.content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 try {
                     const jsonResult = JSON.parse(jsonMatch[0]);
