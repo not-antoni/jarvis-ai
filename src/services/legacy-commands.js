@@ -1319,20 +1319,14 @@ const legacyCommands = {
                     }, banDuration);
                 }
 
-                const embed = new EmbedBuilder()
-                    .setTitle('🔨 BANNED')
-                    .setDescription(`**${mentionedUser.tag || mentionedUser.username}** has been banned ${durationText}.`)
-                    .setColor(0xe74c3c)
-                    .setImage(BANE_GIF);
-
+                // Simple text message + gif
+                let banMessage = `🔨 **${mentionedUser.tag || mentionedUser.username}** has been banned ${durationText}.`;
                 if (reason) {
-                    embed.addFields({ name: 'Reason', value: reason, inline: false });
+                    banMessage += `\nReason: ${reason}`;
                 }
 
-                embed.setFooter({ text: `Banned by ${message.author.tag}` });
-                embed.setTimestamp();
-
-                await message.reply({ embeds: [embed] });
+                await message.reply(banMessage);
+                await message.channel.send(BANE_GIF);
             } catch (error) {
                 console.error('[LegacyCommands] Ban failed:', error);
                 await message.reply('❌ Ban failed, sir.');
