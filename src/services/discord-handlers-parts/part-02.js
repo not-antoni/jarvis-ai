@@ -630,6 +630,17 @@
         if (message.author.id === client.user.id) return;
         if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
+        // ============ LEGACY COMMANDS (.j prefix) ============
+        // Allow in DMs (no intent needed) or if Message Content Intent is enabled
+        if ((config.discord?.messageContent?.enabled || !message.guild) && message.content) {
+            try {
+                const handled = await legacyCommands.handleLegacyCommand(message, client);
+                if (handled) return;
+            } catch (error) {
+                console.error('Legacy command error:', error);
+            }
+        }
+
         if (!message.guild) {
             try {
                 await this.handleAgentDmMessage(message);
@@ -651,12 +662,7 @@
             }
         }
 
-        // ============ LEGACY COMMANDS (.j prefix) ============
-        // Only works when Message Content Intent is enabled
-        if (config.discord?.messageContent?.enabled) {
-            const handled = await legacyCommands.handleLegacyCommand(message, client);
-            if (handled) return;
-        }
+
 
         const chatEnabled = await this.isCommandFeatureEnabled('jarvis', message.guild);
         if (!chatEnabled || !isFeatureGloballyEnabled('coreChat')) {
