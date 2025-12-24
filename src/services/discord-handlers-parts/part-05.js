@@ -2998,7 +2998,7 @@
                     }
                     
                     // Parse duration using shared utility
-                    const { parseDuration, formatDuration } = require('../../../src/utils/parse-duration');
+                    const { parseDuration, formatDuration } = require('../utils/parse-duration');
                     let banDuration = null;
                     if (duration) {
                         banDuration = parseDuration(duration);
@@ -3106,7 +3106,7 @@
                     if (!targetMember.moderatable) { response = '❌ I cannot mute that member.'; break; }
                     
                     // Parse duration using shared utility
-                    const { parseDuration, MAX_TIMEOUT_MS } = require('../../../src/utils/parse-duration');
+                    const { parseDuration, MAX_TIMEOUT_MS } = require('../utils/parse-duration');
                     const durationMs = parseDuration(duration);
                     if (!durationMs) { response = '❌ Invalid duration. Use format like 10m, 1h, 1d'; break; }
                     
@@ -3199,7 +3199,7 @@
                     // Parse duration (0 to disable)
                     let seconds = 0;
                     if (durationStr !== '0' && durationStr !== 'off') {
-                        const { parseDuration } = require('../../../src/utils/parse-duration');
+                        const { parseDuration } = require('../utils/parse-duration');
                         const ms = parseDuration(durationStr);
                         if (!ms) {
                             response = '❌ Invalid duration. Use format like `5s`, `1m`, `0` to disable.';
