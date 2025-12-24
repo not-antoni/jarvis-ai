@@ -262,6 +262,32 @@ fi' > /home/admin/auto-deploy.sh && chmod +x /home/admin/auto-deploy.sh && (cron
 
 Replace `YOUR_DISCORD_WEBHOOK_URL` and `YOUR_DISCORD_USER_ID` with your values. Verify with: `crontab -l`
 
+### PM2 Error Logger (Discord Alerts)
+
+Monitor your bot for errors and get instant Discord notifications:
+
+```bash
+# Set your webhook URL and owner ID
+export PM2_ERROR_WEBHOOK="https://discord.com/api/webhooks/..."
+export OWNER_DISCORD_ID="YOUR_DISCORD_USER_ID"
+
+# Run the error logger alongside your bot
+pm2 start scripts/pm2-error-logger.js --name "jarvis-logger"
+
+# Or add both to ecosystem.config.js:
+# apps: [
+#   { name: 'jarvis', script: 'index.js', ... },
+#   { name: 'jarvis-logger', script: 'scripts/pm2-error-logger.js', ... }
+# ]
+```
+
+**Features:**
+- 🚨 Instant Discord alerts for ReferenceError, TypeError, SyntaxError, etc.
+- 🔕 Rate limiting (max 5 alerts per minute)
+- 🔄 Deduplication (same error won't spam for 5 minutes)
+- 📋 Stack traces included in alerts
+- 🟢 Startup notification when logger starts
+
 ### Option 3: Docker Deployment
 
 ```bash

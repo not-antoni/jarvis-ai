@@ -1048,6 +1048,8 @@ async function handleMessage(message, client) {
     // Analyze in background (non-blocking)
     setImmediate(async () => {
         try {
+            let alertSent = false; // Only send one alert per message
+
             // Text analysis - pass full message and member for rich context
             if (message.content?.length > 3) {
                 const textResult = await analyzeTextContent(message, member, settings);
@@ -1069,6 +1071,7 @@ async function handleMessage(message, client) {
                             context,
                             riskData
                         );
+                        alertSent = true;
                         // Auto-delete flagged message if enabled
                         if (settings.autoDelete) {
                             try {
@@ -1090,51 +1093,54 @@ async function handleMessage(message, client) {
                 }
             }
 
-            // Image analysis - pass message and member for context
-            for (const attachment of message.attachments.values()) {
-                if (attachment.contentType?.startsWith('image/')) {
-                    const imageResult = await analyzeImageContent(
-                        attachment.url,
-                        message,
-                        member,
-                        settings
-                    );
-                    const context = imageResult.context;
-                    const riskData = context ? calculateRiskScore(message, member, context) : null;
+            // Image analysis - only if no alert sent yet for this message
+            if (!alertSent) {
+                for (const attachment of message.attachments.values()) {
+                    if (alertSent) break; // Stop after first alert
+                    if (attachment.contentType?.startsWith('image/')) {
+                        const imageResult = await analyzeImageContent(
+                            attachment.url,
+                            message,
+                            member,
+                            settings
+                        );
+                        const context = imageResult.context;
+                        const riskData = context ? calculateRiskScore(message, member, context) : null;
 
-                    if (imageResult.success && imageResult.result?.isUnsafe) {
-                        if (
-                            meetsMinSeverity(
-                                imageResult.result.severity,
-                                settings.minSeverity || 'medium'
-                            )
-                        ) {
-                            await sendAlert(
-                                message,
-                                imageResult.result,
-                                'image',
-                                client,
-                                context,
-                                riskData
-                            );
-                            // Auto-delete flagged message if enabled
-                            if (settings.autoDelete) {
-                                try {
-                                    await message.delete();
-                                    console.log(`[Moderation] Auto-deleted image from ${message.author.tag}`);
-                                } catch (e) {
-                                    console.warn('[Moderation] Failed to auto-delete:', e.message);
+                        if (imageResult.success && imageResult.result?.isUnsafe) {
+                            if (
+                                meetsMinSeverity(
+                                    imageResult.result.severity,
+                                    settings.minSeverity || 'medium'
+                                )
+                            ) {
+                                await sendAlert(
+                                    message,
+                                    imageResult.result,
+                                    'image',
+                                    client,
+                                    context,
+                                    riskData
+                                );
+                                alertSent = true;
+                                // Auto-delete flagged message if enabled
+                                if (settings.autoDelete) {
+                                    try {
+                                        await message.delete();
+                                    } catch (e) {
+                                        console.warn('[Moderation] Failed to auto-delete:', e.message);
+                                    }
                                 }
+                                setAlertCooldown(guildId, userId);
+                                pauseTracking(guildId, userId);
+                                recordDetection(
+                                    guildId,
+                                    userId,
+                                    imageResult.result.categories?.[0] || 'image',
+                                    imageResult.result.reason || null,
+                                    imageResult.result.severity || 'medium'
+                                );
                             }
-                            setAlertCooldown(guildId, userId);
-                            pauseTracking(guildId, userId);
-                            recordDetection(
-                                guildId,
-                                userId,
-                                imageResult.result.categories?.[0] || 'image',
-                                imageResult.result.reason || null,
-                                imageResult.result.severity || 'medium'
-                            );
                         }
                     }
                 }
