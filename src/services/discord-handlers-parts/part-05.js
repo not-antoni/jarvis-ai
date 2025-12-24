@@ -2995,19 +2995,11 @@
                         break;
                     }
                     
-                    // Parse duration
+                    // Parse duration using shared utility
+                    const { parseDuration, formatDuration } = require('../../../src/utils/parse-duration');
                     let banDuration = null;
                     if (duration) {
-                        const timeMatch = duration.match(/^(\d+)(s|m|h|d|w)?$/i);
-                        if (timeMatch) {
-                            const amount = parseInt(timeMatch[1], 10);
-                            const unit = (timeMatch[2] || 'm').toLowerCase();
-                            if (unit === 's') banDuration = amount * 1000;
-                            else if (unit === 'm') banDuration = amount * 60 * 1000;
-                            else if (unit === 'h') banDuration = amount * 60 * 60 * 1000;
-                            else if (unit === 'd') banDuration = amount * 24 * 60 * 60 * 1000;
-                            else if (unit === 'w') banDuration = amount * 7 * 24 * 60 * 60 * 1000;
-                        }
+                        banDuration = parseDuration(duration);
                     }
                     
                     try {
@@ -3105,18 +3097,10 @@
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
                     if (!targetMember.moderatable) { response = '❌ I cannot mute that member.'; break; }
                     
-                    // Parse duration
-                    const timeMatch = duration.match(/^(\d+)(s|m|h|d|w)?$/i);
-                    if (!timeMatch) { response = '❌ Invalid duration. Use format like 10m, 1h, 1d'; break; }
-                    
-                    const amount = parseInt(timeMatch[1], 10);
-                    const unit = (timeMatch[2] || 'm').toLowerCase();
-                    let durationMs;
-                    if (unit === 's') durationMs = amount * 1000;
-                    else if (unit === 'm') durationMs = amount * 60 * 1000;
-                    else if (unit === 'h') durationMs = amount * 60 * 60 * 1000;
-                    else if (unit === 'd') durationMs = amount * 24 * 60 * 60 * 1000;
-                    else if (unit === 'w') durationMs = amount * 7 * 24 * 60 * 60 * 1000;
+                    // Parse duration using shared utility
+                    const { parseDuration, MAX_TIMEOUT_MS } = require('../../../src/utils/parse-duration');
+                    const durationMs = parseDuration(duration);
+                    if (!durationMs) { response = '❌ Invalid duration. Use format like 10m, 1h, 1d'; break; }
                     
                     if (durationMs > 28 * 24 * 60 * 60 * 1000) { response = '❌ Maximum mute is 28 days.'; break; }
                     
@@ -3226,6 +3210,96 @@
                     } catch (error) {
                         response = `❌ Failed to set slowmode: ${error.message}`;
                     }
+                    break;
+                }
+                case 'lockdown': {
+                    telemetryMetadata.category = 'moderation';
+                    const action = interaction.options.getString('action', true);
+                    const reason = interaction.options.getString('reason') || `Channel ${action}ed by ${interaction.user.tag}`;
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    if (!interaction.channel || !interaction.channel.permissionOverwrites) {
+                        response = '❌ Cannot modify this channel type.';
+                        break;
+                    }
+                    
+                    try {
+                        const everyone = interaction.guild.roles.everyone;
+                        if (action === 'lock') {
+                            await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: false }, { reason });
+                            response = `🔒 Channel locked.\nReason: ${reason}`;
+                        } else {
+                            await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: null }, { reason });
+                            response = `🔓 Channel unlocked.`;
+                        }
+                    } catch (error) {
+                        response = `❌ Lockdown failed: ${error.message}`;
+                    }
+                    break;
+                }
+                case 'userinfo': {
+                    telemetryMetadata.category = 'utility';
+                    const targetUser = interaction.options.getUser('user') || interaction.user;
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    
+                    const { EmbedBuilder } = require('discord.js');
+                    const embed = new EmbedBuilder()
+                        .setTitle(`👤 ${targetUser.tag}`)
+                        .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
+                        .setColor(member?.displayHexColor || 0x3498db)
+                        .addFields(
+                            { name: 'ID', value: targetUser.id, inline: true },
+                            { name: 'Bot', value: targetUser.bot ? 'Yes' : 'No', inline: true },
+                            { name: 'Created', value: `<t:${Math.floor(targetUser.createdTimestamp / 1000)}:R>`, inline: true }
+                        );
+                    
+                    if (member) {
+                        embed.addFields(
+                            { name: 'Joined', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
+                            { name: 'Nickname', value: member.nickname || 'None', inline: true },
+                            { name: 'Roles', value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'None', inline: true }
+                        );
+                        if (member.premiumSinceTimestamp) {
+                            embed.addFields({ name: 'Boosting Since', value: `<t:${Math.floor(member.premiumSinceTimestamp / 1000)}:R>`, inline: true });
+                        }
+                    }
+                    
+                    response = { embeds: [embed] };
+                    break;
+                }
+                case 'serverinfo': {
+                    telemetryMetadata.category = 'utility';
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    const guild = interaction.guild;
+                    const owner = await guild.fetchOwner().catch(() => null);
+                    
+                    const { EmbedBuilder } = require('discord.js');
+                    const embed = new EmbedBuilder()
+                        .setTitle(`🏰 ${guild.name}`)
+                        .setThumbnail(guild.iconURL({ size: 256 }))
+                        .setColor(0x9b59b6)
+                        .addFields(
+                            { name: 'ID', value: guild.id, inline: true },
+                            { name: 'Owner', value: owner ? owner.user.tag : 'Unknown', inline: true },
+                            { name: 'Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
+                            { name: 'Members', value: `${guild.memberCount.toLocaleString()}`, inline: true },
+                            { name: 'Channels', value: `${guild.channels.cache.size}`, inline: true },
+                            { name: 'Roles', value: `${guild.roles.cache.size}`, inline: true },
+                            { name: 'Boost Level', value: `Tier ${guild.premiumTier}`, inline: true },
+                            { name: 'Boosts', value: `${guild.premiumSubscriptionCount || 0}`, inline: true },
+                            { name: 'Emojis', value: `${guild.emojis.cache.size}`, inline: true }
+                        );
+                    
+                    if (guild.description) {
+                        embed.setDescription(guild.description);
+                    }
+                    
+                    response = { embeds: [embed] };
                     break;
                 }
                 default: {
