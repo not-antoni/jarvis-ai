@@ -2983,13 +2983,15 @@
                 // ============ MODERATION SLASH COMMANDS ============
                 case 'ban': {
                     telemetryMetadata.category = 'moderation';
-                    const targetUser = interaction.options.getUser('user', true);
+                    const userInput = interaction.options.getString('user', true);
                     const duration = interaction.options.getString('duration');
                     const reason = interaction.options.getString('reason') || `Banned by ${interaction.user.tag}`;
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
+                    if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     if (targetMember && !targetMember.bannable) {
                         response = '❌ I cannot ban that member (role hierarchy issue).';
                         break;
@@ -3022,7 +3024,7 @@
                             }, banDuration);
                         }
                         
-                        response = `🔨 **${targetUser.tag}** has been banned ${durationText}.\nhttps://media.tenor.com/0hWoNqVMAPMAAAAC/bane-no.gif`;
+                        response = `🔨 **${targetUser.tag}** has been banned ${durationText}.\nhttps://c.tenor.com/9zCgefg___cAAAAC/tenor.gif`;
                     } catch (error) {
                         response = `❌ Ban failed: ${error.message}`;
                     }
@@ -3030,14 +3032,14 @@
                 }
                 case 'unban': {
                     telemetryMetadata.category = 'moderation';
-                    const targetUser = interaction.options.getUser('user', true); // This might be a User object if resolved, or ID? unban takes ID.
-                    // Slash command 'user' option returns a User object if found, or APIUser.
-                    // For unban, we often need just ID if user is not in server. 
-                    // But Discord resolves it if possible. 
-                    
+                    const userInput = interaction.options.getString('user', true);
                     const reason = interaction.options.getString('reason') || `Unbanned by ${interaction.user.tag}`;
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { user: targetUser, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
+                    if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     
                     try {
                         await interaction.guild.members.unban(targetUser.id, reason);
@@ -3049,12 +3051,14 @@
                 }
                 case 'kick': {
                     telemetryMetadata.category = 'moderation';
-                    const targetUser = interaction.options.getUser('user', true);
+                    const userInput = interaction.options.getString('user', true);
                     const reason = interaction.options.getString('reason') || `Kicked by ${interaction.user.tag}`;
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
+                    if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
                     if (!targetMember.kickable) { response = '❌ I cannot kick that member.'; break; }
                     
@@ -3068,12 +3072,14 @@
                 }
                 case 'unmute': {
                     telemetryMetadata.category = 'moderation';
-                    const targetUser = interaction.options.getUser('user', true);
+                    const userInput = interaction.options.getString('user', true);
                     const reason = interaction.options.getString('reason') || `Unmuted by ${interaction.user.tag}`;
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
+                    if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
                     
                     try {
@@ -3087,13 +3093,15 @@
                 }
                 case 'mute': {
                     telemetryMetadata.category = 'moderation';
-                    const targetUser = interaction.options.getUser('user', true);
+                    const userInput = interaction.options.getString('user', true);
                     const duration = interaction.options.getString('duration', true);
                     const reason = interaction.options.getString('reason') || `Muted by ${interaction.user.tag}`;
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
+                    if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
                     if (!targetMember.moderatable) { response = '❌ I cannot mute that member.'; break; }
                     
@@ -3114,10 +3122,14 @@
                 }
                 case 'warn': {
                     telemetryMetadata.category = 'moderation';
-                    const targetUser = interaction.options.getUser('user', true);
+                    const userInput = interaction.options.getString('user', true);
                     const reason = interaction.options.getString('reason', true);
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
+                    if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     
                     // Store warning
                     const guildId = interaction.guild.id;
