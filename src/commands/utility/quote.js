@@ -86,11 +86,13 @@ const quoteContext = {
         const author = message.author;
 
         let attachmentUrl = null;
+        let urlsToStrip = [];
 
         // 1. Check Attachments
         const attachment = message.attachments.find(a => a.contentType && a.contentType.startsWith('image/'));
         if (attachment) {
             attachmentUrl = attachment.url;
+            urlsToStrip.push(attachment.url);
         }
 
         // 2. Check Embeds
@@ -101,23 +103,32 @@ const quoteContext = {
             } else if (embed.image && embed.image.url) {
                 attachmentUrl = embed.image.url;
             }
+            // Track the embed URL (Page URL) to strip it too
+            if (attachmentUrl && embed.url) {
+                urlsToStrip.push(embed.url);
+            }
         }
 
         let text = content || '';
 
         // Remove attachment URL from text if present (Fuzzy match for cdn/media mismatch)
         if (attachmentUrl) {
-            // Try distinct exact remove
-            text = text.replace(attachmentUrl, '');
+            // Strip exact matches (CDN link, Page link)
+            for (const url of urlsToStrip) {
+                text = text.replace(url, '');
+            }
 
+            // If the text is JUST a URL (any URL) and we have an image, it's likely the source. Clean it.
+            if (/^https?:\/\/[^\s]+$/.test(text.trim())) {
+                text = '';
+            }
+
+            // Fuzzy remove for Discord CDN
             try {
-                // url structure: https://.../attachments/12398123.../filename.png
-                // We extract the numeric ID and filename
                 const match = attachmentUrl.match(/\/(\d+)\/([^/?]+)/);
                 if (match) {
                     const id = match[1];
                     const filename = match[2];
-                    // Regex to find any URL containing this ID and Filename
                     const fuzzyRegex = new RegExp(`https?:\\/\\/[^\\s]*${id}\\/${escapeRegExp(filename)}[^\\s]*`, 'g');
                     text = text.replace(fuzzyRegex, '');
                 }
