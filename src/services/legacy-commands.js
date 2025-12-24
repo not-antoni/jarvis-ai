@@ -336,7 +336,7 @@ const legacyCommands = {
                     title: 'Utility Commands',
                     description: 'Helpful utility commands',
                     fields: [
-                        { name: '🔧 Tools', value: '`*j ping` - Bot latency\n`*j remind in <time> <msg>` - Set reminder\n`*j profile` - View profile', inline: false }
+                        { name: '🔧 Tools', value: '`*j ping` - Bot latency\n`*j remind` - Set reminder\n`*j profile` - View profile\n`*j cookies` - Update YT cookies 👑', inline: false }
                     ]
                 },
                 premium: {
@@ -4819,7 +4819,7 @@ async function handleLegacyCommand(message, client) {
 
         // Remove loading reaction
         if (loadingReaction) {
-            await loadingReaction.remove().catch(() => { });
+            await loadingReaction.users.remove(client.user.id).catch(() => { });
         }
 
         return true;
@@ -4828,7 +4828,7 @@ async function handleLegacyCommand(message, client) {
 
         // Remove loading reaction on error too
         if (loadingReaction) {
-            await loadingReaction.remove().catch(() => { });
+            await loadingReaction.users.remove(client.user.id).catch(() => { });
         }
 
         await message.reply('Something went wrong executing that command, sir.').catch(() => { });
