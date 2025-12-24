@@ -31,16 +31,17 @@ function wrapText(ctx, text, maxWidth) {
  * @returns {Promise<Buffer>}
  */
 async function generateQuoteImage(text, username, avatarUrl, timestamp) {
-    const width = 1200;
-    const padding = 60;
-    const minHeight = 400;
+    // Upscaled dimensions for better quality
+    const width = 1800;
+    const padding = 80;
+    const minHeight = 600;
 
     // Calculate Text Lines first to determine height
     const tempCanvas = createCanvas(width, minHeight);
     const tempCtx = tempCanvas.getContext('2d');
 
-    // Font settings
-    const fontSize = 60;
+    // Font settings (Scaled up)
+    const fontSize = 80;
     const fontFamily = 'sans-serif'; // Fallback
     tempCtx.font = `${fontSize}px ${fontFamily}`;
 
@@ -50,8 +51,8 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
 
     const lineHeight = fontSize * 1.5;
     const textBlockHeight = lines.length * lineHeight;
-    const nameHeight = 50;
-    const handleHeight = 30;
+    const nameHeight = 60;
+    const handleHeight = 40;
 
     // Dynamic height based on text
     const canvasHeight = Math.max(minHeight, textBlockHeight + nameHeight + handleHeight + (padding * 3));
@@ -68,20 +69,23 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     try {
         const avatar = await loadImage(avatarUrl);
 
-        // Use filter if supported (Canvas 2.x+)
         ctx.save();
-        // Make it cover the left half+ a bit
         // Aspect fill logic
         const imgRatio = avatar.width / avatar.height;
         let drawWidth = canvasHeight * imgRatio;
         let drawHeight = canvasHeight;
 
+        // Ensure it covers enough width
         if (drawWidth < width * 0.6) {
             drawWidth = width * 0.6;
             drawHeight = drawWidth / imgRatio;
         }
 
-        ctx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';
+        // Apply filter
+        // Note: ctx.filter might vary by canvas version, if it fails it draws normal
+        if (ctx.filter) {
+            ctx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';
+        }
         ctx.drawImage(avatar, 0, (canvasHeight - drawHeight) / 2, drawWidth, drawHeight);
         ctx.restore();
     } catch (e) {
@@ -92,10 +96,10 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     }
 
     // 3. Gradient Overlay (Left to Right: Transparent -> Black)
-    const gradient = ctx.createLinearGradient(0, 0, width * 0.7, 0);
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.2)'); // Slight tint on left
+    const gradient = ctx.createLinearGradient(0, 0, width * 0.75, 0); // Extended gradient
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.2)');
     gradient.addColorStop(0.4, 'rgba(0, 0, 0, 0.6)');
-    gradient.addColorStop(0.8, 'rgba(0, 0, 0, 1)'); // Solid black at 80% mark
+    gradient.addColorStop(0.8, 'rgba(0, 0, 0, 1)');
     gradient.addColorStop(1, '#000000');
 
     ctx.fillStyle = gradient;
@@ -105,14 +109,14 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const textCenterX = (width * 0.75); // Center of right half (roughly)
+    const textCenterX = (width * 0.75);
     const textCenterY = canvasHeight / 2;
 
     // Draw Message
     ctx.fillStyle = '#ffffff';
     ctx.font = `${fontSize}px ${fontFamily}`;
 
-    let currentY = textCenterY - ((lines.length - 1) * lineHeight) / 2 - 40; // Shift up a bit for name space
+    let currentY = textCenterY - ((lines.length - 1) * lineHeight) / 2 - 40;
 
     for (const line of lines) {
         ctx.fillText(line, textCenterX, currentY);
@@ -120,25 +124,16 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     }
 
     // Draw Name
-    const nameY = currentY + 20;
+    const nameY = currentY + 30; // More space
     ctx.fillStyle = '#ffffff';
-    ctx.font = `italic 36px ${fontFamily}`;
+    ctx.font = `italic 48px ${fontFamily}`;
     ctx.fillText(`- ${username}`, textCenterX, nameY);
-
-    // Draw Handle (fake handle logic for design)
-    // We don't have handle passed easily, so we skip or use username lowercased
-    /*
-    const handleY = nameY + 30;
-    ctx.fillStyle = '#888888';
-    ctx.font = `24px ${fontFamily}`;
-    ctx.fillText(`@${username.replace(/\s+/g, '_').toLowerCase()}`, textCenterX, handleY);
-    */
 
     // 5. Watermark
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.font = '20px sans-serif';
-    ctx.fillText('Jarvis Quotes', width - 20, canvasHeight - 20);
+    ctx.font = '24px sans-serif';
+    ctx.fillText('Jarvis Quotes', width - 30, canvasHeight - 30);
 
     return canvas.toBuffer();
 }
