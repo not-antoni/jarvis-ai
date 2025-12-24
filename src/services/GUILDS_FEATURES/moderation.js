@@ -778,8 +778,12 @@ Server: ${context.guildName}`;
         );
 
         if (response?.content) {
+            console.log('[Moderation] Image AI response:', response.content.substring(0, 500));
+
             // Try parsing with our format first
             const parsed = parseAIResponse(response.content);
+            console.log('[Moderation] Parsed result:', JSON.stringify(parsed));
+
             if (parsed) {
                 return { success: true, result: parsed, context };
             }
@@ -789,6 +793,7 @@ Server: ${context.guildName}`;
             if (jsonMatch) {
                 try {
                     const jsonResult = JSON.parse(jsonMatch[0]);
+                    console.log('[Moderation] JSON parsed result:', JSON.stringify(jsonResult));
                     return { success: true, result: jsonResult, context };
                 } catch { }
             }
