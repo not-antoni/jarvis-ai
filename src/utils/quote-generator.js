@@ -125,7 +125,12 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
             })());
         } else if (t.type === 'unicode') {
             assetsToLoad.push((async () => {
-                try { t.image = await loadImage(`https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${getTwemojiCode(t.content)}.png`); }
+                try {
+                    // Strip Variation Selectors (FE0F) for Twemoji compatibility
+                    const cleanEmoji = t.content.replace(/\uFE0F/g, '');
+                    const code = getTwemojiCode(cleanEmoji);
+                    t.image = await loadImage(`https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`);
+                }
                 catch (e) { t.failed = true; }
             })());
         }
