@@ -212,6 +212,7 @@ Set up automatic deployment with Discord alerts when you push to GitHub. Run thi
 ```bash
 echo '#!/bin/bash
 WEBHOOK="YOUR_DISCORD_WEBHOOK_URL"
+PING="<@YOUR_DISCORD_USER_ID>"
 LOGFILE="/home/admin/deploy.log"
 export PATH="/usr/local/bin:/usr/bin:/bin:$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH"
 cd /home/admin/jarvis-ai
@@ -223,14 +224,14 @@ fi
 
 # Check if PM2 process is online
 if ! pm2 list 2>/dev/null | grep -q "jarvis.*online"; then
-    curl -s -H "Content-Type: application/json" -d "{\"content\":\"🔴 **JARVIS DOWN** - PM2 process not running! Attempting restart...\"}" "$WEBHOOK"
-    pm2 restart jarvis 2>&1 || curl -s -H "Content-Type: application/json" -d "{\"content\":\"❌ **RESTART FAILED** - Manual intervention needed!\"}" "$WEBHOOK"
+    curl -s -H "Content-Type: application/json" -d "{\"content\":\"$PING 🔴 **JARVIS DOWN** - PM2 process not running! Attempting restart...\"}" "$WEBHOOK"
+    pm2 restart jarvis 2>&1 || curl -s -H "Content-Type: application/json" -d "{\"content\":\"$PING ❌ **RESTART FAILED** - Manual intervention needed!\"}" "$WEBHOOK"
 fi
 
 # Auto-deploy check
 git fetch origin main 2>&1
 if [ $? -ne 0 ]; then
-    curl -s -H "Content-Type: application/json" -d "{\"content\":\"⚠️ **Git fetch failed** - Check VPS network/credentials\"}" "$WEBHOOK"
+    curl -s -H "Content-Type: application/json" -d "{\"content\":\"$PING ⚠️ **Git fetch failed** - Check VPS network/credentials\"}" "$WEBHOOK"
     exit 1
 fi
 
@@ -240,12 +241,12 @@ REMOTE=$(git rev-parse origin/main)
 if [ "$LOCAL" != "$REMOTE" ]; then
     git pull origin main 2>&1
     if [ $? -ne 0 ]; then
-        curl -s -H "Content-Type: application/json" -d "{\"content\":\"❌ **Git pull failed** - Merge conflict or error\"}" "$WEBHOOK"
+        curl -s -H "Content-Type: application/json" -d "{\"content\":\"$PING ❌ **Git pull failed** - Merge conflict or error\"}" "$WEBHOOK"
         exit 1
     fi
     pm2 restart jarvis 2>&1
     if [ $? -ne 0 ]; then
-        curl -s -H "Content-Type: application/json" -d "{\"content\":\"❌ **PM2 restart failed** after deploy\"}" "$WEBHOOK"
+        curl -s -H "Content-Type: application/json" -d "{\"content\":\"$PING ❌ **PM2 restart failed** after deploy\"}" "$WEBHOOK"
         exit 1
     fi
     curl -s -H "Content-Type: application/json" -d "{\"content\":\"✅ **Deployed successfully** - $(git log -1 --pretty=%s)\"}" "$WEBHOOK"
@@ -254,12 +255,12 @@ fi' > /home/admin/auto-deploy.sh && chmod +x /home/admin/auto-deploy.sh && (cron
 
 **Features:**
 - ✅ Deploys automatically when you push to `origin/main`
-- 🔴 Alerts if PM2 process is down and tries to restart
-- ⚠️ Alerts if git fetch/pull fails
+- 🔴 Pings you if PM2 process is down and tries to restart
+- ⚠️ Pings you if git fetch/pull fails
 - 📋 Auto-rotates logs (keeps last 500 lines)
-- ✅ Success message with commit title
+- ✅ Success message with commit title (no ping)
 
-Replace `YOUR_DISCORD_WEBHOOK_URL` with your actual webhook. Verify with: `crontab -l`
+Replace `YOUR_DISCORD_WEBHOOK_URL` and `YOUR_DISCORD_USER_ID` with your values. Verify with: `crontab -l`
 
 ### Option 3: Docker Deployment
 
