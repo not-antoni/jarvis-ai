@@ -212,7 +212,7 @@ const HELP_PAGES = [
             },
             {
                 name: '🛡️ **Moderation**',
-                value: '`*j kick @user [reason]` - Kick a member\n`*j ban @user [time] [reason]` - Ban (10m, 2h, 7d, forever)\n`*j enable moderation` - Enable AI moderation\n`*j moderation status` - View mod settings',
+                value: '`*j kick @user` · `*j ban @user [time]` · `*j unban <id>`\n`*j mute @user <time>` · `*j unmute @user`\n`*j warn @user <reason>` · `*j warnings @user` · `*j clearwarnings @user`',
                 inline: false
             }
         ]
@@ -1335,6 +1335,335 @@ const legacyCommands = {
             return true;
         }
     },
+
+    unban: {
+        description: 'Unban a user from the server',
+        usage: '*j unban <user_id> [reason]',
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember?.permissions?.has(PermissionFlagsBits.BanMembers)) {
+                await message.reply('🔒 You need **Ban Members** permission to do that, sir.');
+                return true;
+            }
+
+            const botMember = message.guild.members.me ||
+                (await message.guild.members.fetchMe().catch(() => null));
+            if (!botMember?.permissions?.has(PermissionFlagsBits.BanMembers)) {
+                await message.reply('❌ I do not have **Ban Members** permission in this server.');
+                return true;
+            }
+
+            // Get user ID from args or mention
+            let userId = args[0];
+            const mentionMatch = userId?.match(/^<@!?(\d+)>$/);
+            if (mentionMatch) {
+                userId = mentionMatch[1];
+            }
+
+            if (!userId || !/^\d+$/.test(userId)) {
+                await message.reply('Usage: `*j unban <user_id> [reason]`\nYou can find the user ID in the server ban list.');
+                return true;
+            }
+
+            const reason = args.slice(1).join(' ').trim() || `Unbanned by ${message.author.tag}`;
+
+            try {
+                await message.guild.members.unban(userId, reason);
+                await message.reply(`✅ Unbanned user ID \`${userId}\`.`);
+            } catch (error) {
+                console.error('[LegacyCommands] Unban failed:', error);
+                await message.reply('❌ Unban failed. User may not be banned or ID is invalid.');
+            }
+
+            return true;
+        }
+    },
+
+    mute: {
+        description: 'Timeout a member',
+        usage: '*j mute @user <time> [reason]',
+        aliases: ['timeout'],
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('🔒 You need **Timeout Members** permission to do that, sir.');
+                return true;
+            }
+
+            const botMember = message.guild.members.me ||
+                (await message.guild.members.fetchMe().catch(() => null));
+            if (!botMember?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('❌ I do not have **Timeout Members** permission in this server.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            if (!mentionedUser) {
+                await message.reply('Usage: `*j mute @user <time> [reason]`\nTime examples: `10m`, `1h`, `1d`');
+                return true;
+            }
+
+            const targetMember = message.mentions.members.first() ||
+                (await message.guild.members.fetch(mentionedUser.id).catch(() => null));
+
+            if (!targetMember) {
+                await message.reply('Could not find that member in this server, sir.');
+                return true;
+            }
+
+            if (!targetMember.moderatable) {
+                await message.reply('❌ I cannot timeout that member (role hierarchy issue).');
+                return true;
+            }
+
+            // Parse time
+            const mentionIndex = args.findIndex(token => /^<@!?\d+>$/.test(token));
+            const afterMention = mentionIndex >= 0 ? args.slice(mentionIndex + 1) : args.slice(1);
+
+            if (afterMention.length === 0) {
+                await message.reply('Please specify a time. Example: `*j mute @user 10m being annoying`');
+                return true;
+            }
+
+            const timeArg = afterMention[0].toLowerCase();
+            const timeMatch = timeArg.match(/^(\d+)(m|min|mins|minutes?|h|hr|hrs|hours?|d|day|days?)$/i);
+
+            if (!timeMatch) {
+                await message.reply('Invalid time format. Use: `10m`, `1h`, `1d`');
+                return true;
+            }
+
+            const amount = parseInt(timeMatch[1], 10);
+            const unit = timeMatch[2].toLowerCase();
+            let durationMs;
+
+            if (unit.startsWith('m')) {
+                durationMs = amount * 60 * 1000;
+            } else if (unit.startsWith('h')) {
+                durationMs = amount * 60 * 60 * 1000;
+            } else if (unit.startsWith('d')) {
+                durationMs = amount * 24 * 60 * 60 * 1000;
+            }
+
+            // Max timeout is 28 days
+            if (durationMs > 28 * 24 * 60 * 60 * 1000) {
+                await message.reply('Maximum timeout is 28 days, sir.');
+                return true;
+            }
+
+            const reason = afterMention.slice(1).join(' ').trim() || `Timed out by ${message.author.tag}`;
+
+            try {
+                await targetMember.timeout(durationMs, reason);
+                await message.reply(`🔇 **${targetMember.user.tag}** has been muted for **${afterMention[0]}**.${reason !== `Timed out by ${message.author.tag}` ? `\nReason: ${reason}` : ''}`);
+            } catch (error) {
+                console.error('[LegacyCommands] Mute failed:', error);
+                await message.reply('❌ Mute failed, sir.');
+            }
+
+            return true;
+        }
+    },
+
+    unmute: {
+        description: 'Remove timeout from a member',
+        usage: '*j unmute @user',
+        aliases: ['untimeout'],
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('🔒 You need **Timeout Members** permission to do that, sir.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            if (!mentionedUser) {
+                await message.reply('Usage: `*j unmute @user`');
+                return true;
+            }
+
+            const targetMember = message.mentions.members.first() ||
+                (await message.guild.members.fetch(mentionedUser.id).catch(() => null));
+
+            if (!targetMember) {
+                await message.reply('Could not find that member in this server, sir.');
+                return true;
+            }
+
+            try {
+                await targetMember.timeout(null, `Unmuted by ${message.author.tag}`);
+                await message.reply(`🔊 **${targetMember.user.tag}** has been unmuted.`);
+            } catch (error) {
+                console.error('[LegacyCommands] Unmute failed:', error);
+                await message.reply('❌ Unmute failed, sir.');
+            }
+
+            return true;
+        }
+    },
+
+    warn: {
+        description: 'Warn a member (stored in memory)',
+        usage: '*j warn @user <reason>',
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('🔒 You need **Timeout Members** permission to do that, sir.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            if (!mentionedUser) {
+                await message.reply('Usage: `*j warn @user <reason>`');
+                return true;
+            }
+
+            const mentionIndex = args.findIndex(token => /^<@!?\d+>$/.test(token));
+            const reason = mentionIndex >= 0
+                ? args.slice(mentionIndex + 1).join(' ').trim()
+                : args.slice(1).join(' ').trim();
+
+            if (!reason) {
+                await message.reply('Please provide a reason for the warning.');
+                return true;
+            }
+
+            // Store warning (in-memory for now, but you can add DB persistence later)
+            const guildId = message.guild.id;
+            const userId = mentionedUser.id;
+
+            if (!global.jarvisWarnings) {
+                global.jarvisWarnings = new Map();
+            }
+            if (!global.jarvisWarnings.has(guildId)) {
+                global.jarvisWarnings.set(guildId, new Map());
+            }
+
+            const guildWarnings = global.jarvisWarnings.get(guildId);
+            const userWarnings = guildWarnings.get(userId) || [];
+            userWarnings.push({
+                reason,
+                warnedBy: message.author.id,
+                timestamp: Date.now()
+            });
+            guildWarnings.set(userId, userWarnings);
+
+            const embed = new EmbedBuilder()
+                .setTitle('⚠️ Warning Issued')
+                .setColor(0xf39c12)
+                .setDescription(`**${mentionedUser.tag}** has been warned.`)
+                .addFields(
+                    { name: 'Reason', value: reason, inline: false },
+                    { name: 'Total Warnings', value: `${userWarnings.length}`, inline: true }
+                )
+                .setFooter({ text: `Warned by ${message.author.tag}` })
+                .setTimestamp();
+
+            await message.reply({ embeds: [embed] });
+
+            // DM the user
+            try {
+                await mentionedUser.send(`⚠️ You have been warned in **${message.guild.name}**\nReason: ${reason}\nTotal warnings: ${userWarnings.length}`);
+            } catch {
+                // Can't DM user
+            }
+
+            return true;
+        }
+    },
+
+    warnings: {
+        description: 'View warnings for a member',
+        usage: '*j warnings @user',
+        aliases: ['warns'],
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first() || message.author;
+            const guildId = message.guild.id;
+            const userId = mentionedUser.id;
+
+            const guildWarnings = global.jarvisWarnings?.get(guildId);
+            const userWarnings = guildWarnings?.get(userId) || [];
+
+            if (userWarnings.length === 0) {
+                await message.reply(`**${mentionedUser.tag}** has no warnings. Clean record! ✨`);
+                return true;
+            }
+
+            const warningList = userWarnings.slice(-10).map((w, i) =>
+                `**${i + 1}.** ${w.reason} - <t:${Math.floor(w.timestamp / 1000)}:R>`
+            ).join('\n');
+
+            const embed = new EmbedBuilder()
+                .setTitle(`⚠️ Warnings for ${mentionedUser.tag}`)
+                .setColor(0xf39c12)
+                .setDescription(warningList)
+                .setFooter({ text: `Total: ${userWarnings.length} warning(s)` });
+
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    clearwarnings: {
+        description: 'Clear warnings for a member',
+        usage: '*j clearwarnings @user',
+        aliases: ['clearwarns'],
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('🔒 You need **Timeout Members** permission to do that, sir.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            if (!mentionedUser) {
+                await message.reply('Usage: `*j clearwarnings @user`');
+                return true;
+            }
+
+            const guildId = message.guild.id;
+            const userId = mentionedUser.id;
+
+            const guildWarnings = global.jarvisWarnings?.get(guildId);
+            if (guildWarnings) {
+                guildWarnings.delete(userId);
+            }
+
+            await message.reply(`✅ Cleared all warnings for **${mentionedUser.tag}**.`);
+            return true;
+        }
+    },
+
     enable: {
         description: 'Enable a feature (moderation)',
         usage: '*j enable moderation',
