@@ -2248,7 +2248,8 @@ const allCommands = [
         .setDescription('Get detailed information about the server')
         .setContexts([InteractionContextType.Guild]),
 
-    ...musicCommandList.map(command => command.data)
+    ...musicCommandList.map(command => command.data),
+    ...require('./src/commands/utility/quote').map(c => c.data)
 ];
 
 const commands = allCommands.filter(builder => {
@@ -3786,7 +3787,7 @@ client.on('messageCreate', async message => {
 
 client.on('interactionCreate', async interaction => {
     try {
-        if (interaction.isChatInputCommand()) {
+        if (interaction.isChatInputCommand() || interaction.isContextMenuCommand()) {
             dashboardRouter.trackCommand(interaction.commandName, interaction.user.id);
             await discordHandlers.handleSlashCommand(interaction);
         } else if (interaction.isModalSubmit()) {
