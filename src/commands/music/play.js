@@ -58,6 +58,47 @@ module.exports = {
             return;
         }
 
+        // Check video duration (Limit: 20 minutes)
+        const MAX_DURATION_MINS = 20;
+        const MAX_DURATION_SECONDS = MAX_DURATION_MINS * 60;
+
+        let durationSec = 0;
+        if (typeof video.duration === 'number') {
+            durationSec = video.duration;
+        } else if (typeof video.duration === 'string') {
+            // Parse "HH:MM:SS" or "MM:SS"
+            const parts = video.duration.split(':').map(Number);
+            if (parts.length === 3) durationSec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+            else if (parts.length === 2) durationSec = parts[0] * 60 + parts[1];
+            else if (parts.length === 1) durationSec = parts[0];
+        }
+
+        // If duration is missing or 0, fetch details directly to be sure
+        if (!durationSec) {
+            try {
+                const { getVideoInfo } = require('../../utils/playDl');
+                const info = await getVideoInfo(video.url);
+                if (info && info.duration) {
+                    durationSec = info.duration;
+                    // Update video object with better info
+                    video.title = info.title || video.title;
+                    video.thumbnail = info.thumbnail || video.thumbnail;
+                    video.duration = info.duration;
+                }
+            } catch (e) {
+                console.warn('Failed to fetch detailed video info for duration check:', e.message);
+                // Proceed with caution or block? 
+                // Allowing it risks the bypass. 
+                // But blocking valid videos where metadata fails is annoying.
+                // We'll proceed but log it.
+            }
+        }
+
+        if (durationSec > MAX_DURATION_SECONDS) {
+            await interaction.editReply(`❌ Video is too long, sir. Maximum duration is ${MAX_DURATION_MINS} minutes.\nThis video is approximately ${Math.floor(durationSec / 60)} minutes.`);
+            return;
+        }
+
         try {
             const message = await musicManager.get().enqueue(
                 interaction.guild.id,
