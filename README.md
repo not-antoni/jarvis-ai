@@ -33,7 +33,7 @@
 ## Features
 
 ### AI Chat
-Multi-provider AI with OpenAI, OpenRouter, Groq, Google Gemini, Vercel AI Gateway, and local Ollama support. Context-aware conversations with switchable personas.
+Multi-provider AI with OpenAI, OpenRouter, Groq, Google Gemini, Cloudflare Workers AI, Vercel AI Gateway, and local Ollama support. Context-aware conversations with switchable personas.
 
 ### Economy System
 Full economy with MongoDB persistence:
@@ -102,6 +102,10 @@ OPENROUTER_API_KEY=...
 GROQ_API_KEY=...
 GOOGLE_AI_API_KEY=...
 OPENAI_API_KEY=...
+
+# Cloudflare Workers AI (optional)
+CLOUDFLARE_WORKER_URL=...  # Your deployed worker URL
+AI_PROXY_TOKEN=...         # Shared auth token (also used for other proxies)
 
 # Extras
 BRAVE_API_KEY=...        # Web search
