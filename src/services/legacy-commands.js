@@ -324,8 +324,9 @@ const legacyCommands = {
                     title: 'Moderation Commands',
                     description: 'Server moderation tools (requires permissions)',
                     fields: [
-                        { name: '🔨 Actions', value: '`*j kick @user [reason]` - Kick member\n`*j ban @user [time] [reason]` - Ban member\n`*j unban <id>` - Unban by ID', inline: false },
+                        { name: '🔨 Actions', value: '`*j kick @user [reason]` - Kick member\n`*j ban @user [time] [reason]` - Ban member\n`*j unban <id>` - Unban by ID\n`*j purge <n>` - Delete n messages', inline: false },
                         { name: '🔇 Timeout', value: '`*j mute @user <time>` - Timeout user\n`*j unmute @user` - Remove timeout', inline: false },
+                        { name: '⚡ Strikes', value: '`*j strike @user <reason>` - Strike (auto-escalates)\n`*j strikes @user` - View strikes\n`*j clearstrikes @user` - Clear strikes\n*2 strikes = 1h mute, 3 = 24h, 5 = ban*', inline: false },
                         { name: '⚠️ Warnings', value: '`*j warn @user <reason>` - Warn user\n`*j warnings @user` - View warnings\n`*j clearwarnings @user` - Clear warns', inline: false },
                         { name: '🤖 AI Moderation', value: '`*j enable moderation` - Enable AI mod\n`*j moderation status` - View settings', inline: false }
                     ]
@@ -1736,6 +1737,221 @@ const legacyCommands = {
             }
 
             await message.reply(`✅ Cleared all warnings for **${mentionedUser.tag}**.`);
+            return true;
+        }
+    },
+
+    purge: {
+        description: 'Delete multiple messages at once',
+        usage: '*j purge <amount> [@user]',
+        aliases: ['clear', 'prune', 'clean'],
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember?.permissions?.has(PermissionFlagsBits.ManageMessages)) {
+                await message.reply('🔒 You need **Manage Messages** permission to do that, sir.');
+                return true;
+            }
+
+            const amount = parseInt(args[0], 10);
+            if (isNaN(amount) || amount < 1 || amount > 100) {
+                await message.reply('Please specify a number between 1 and 100. Usage: `*j purge 50`');
+                return true;
+            }
+
+            const targetUser = message.mentions.users.first();
+
+            try {
+                // Delete the command message first
+                await message.delete().catch(() => { });
+
+                let deleted;
+                if (targetUser) {
+                    // Fetch messages and filter by user
+                    const messages = await message.channel.messages.fetch({ limit: 100 });
+                    const userMessages = messages.filter(m => m.author.id === targetUser.id).first(amount);
+                    deleted = await message.channel.bulkDelete(userMessages, true);
+                } else {
+                    deleted = await message.channel.bulkDelete(amount, true);
+                }
+
+                const response = await message.channel.send(
+                    `🧹 Deleted **${deleted.size}** message(s)${targetUser ? ` from ${targetUser.tag}` : ''}.`
+                );
+
+                // Auto-delete response after 3 seconds
+                setTimeout(() => response.delete().catch(() => { }), 3000);
+            } catch (error) {
+                await message.channel.send(`❌ Failed to delete messages: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
+    strike: {
+        description: 'Issue a strike (escalating punishment)',
+        usage: '*j strike @user <reason>',
+        aliases: ['str'],
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('🔒 You need **Timeout Members** permission to do that, sir.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            if (!mentionedUser) {
+                await message.reply('Usage: `*j strike @user <reason>`');
+                return true;
+            }
+
+            const reason = args.slice(1).join(' ') || 'No reason provided';
+            const guildId = message.guild.id;
+            const userId = mentionedUser.id;
+
+            // Initialize strike storage
+            if (!global.jarvisStrikes) global.jarvisStrikes = new Map();
+            if (!global.jarvisStrikes.has(guildId)) global.jarvisStrikes.set(guildId, new Map());
+
+            const guildStrikes = global.jarvisStrikes.get(guildId);
+            const userStrikes = guildStrikes.get(userId) || [];
+            userStrikes.push({ reason, issuedBy: message.author.id, timestamp: Date.now() });
+            guildStrikes.set(userId, userStrikes);
+
+            const strikeCount = userStrikes.length;
+
+            // Escalation actions
+            let action = 'warning';
+            let actionTaken = '';
+            const targetMember = await message.guild.members.fetch(userId).catch(() => null);
+
+            // Strike escalation policy (like Sapphire)
+            if (strikeCount >= 5 && targetMember?.bannable) {
+                // 5+ strikes = ban
+                await targetMember.ban({ reason: `Strike ${strikeCount}: ${reason}` });
+                action = 'ban';
+                actionTaken = '🔨 **BANNED** (5 strikes reached)';
+            } else if (strikeCount >= 3 && targetMember?.moderatable) {
+                // 3-4 strikes = 24 hour mute
+                await targetMember.timeout(24 * 60 * 60 * 1000, `Strike ${strikeCount}: ${reason}`);
+                action = 'mute';
+                actionTaken = '🔇 **24h MUTE** (3+ strikes)';
+            } else if (strikeCount >= 2 && targetMember?.moderatable) {
+                // 2 strikes = 1 hour mute
+                await targetMember.timeout(60 * 60 * 1000, `Strike ${strikeCount}: ${reason}`);
+                action = 'mute';
+                actionTaken = '🔇 **1h MUTE** (2 strikes)';
+            }
+
+            // Build embed
+            const embed = new EmbedBuilder()
+                .setTitle('⚡ Strike Issued')
+                .setColor(strikeCount >= 5 ? 0xe74c3c : strikeCount >= 3 ? 0xe67e22 : 0xf1c40f)
+                .setDescription(`**${mentionedUser.tag}** has received a strike.`)
+                .addFields(
+                    { name: 'Reason', value: reason, inline: false },
+                    { name: 'Strike Count', value: `${strikeCount}/5`, inline: true },
+                    { name: 'Action', value: actionTaken || '⚠️ Warning only', inline: true }
+                )
+                .setFooter({ text: `Issued by ${message.author.tag}` })
+                .setTimestamp();
+
+            // DM user about strike
+            try {
+                await mentionedUser.send({
+                    embeds: [new EmbedBuilder()
+                        .setTitle(`⚡ Strike Received in ${message.guild.name}`)
+                        .setColor(0xe74c3c)
+                        .setDescription(`You have received strike #${strikeCount}`)
+                        .addFields(
+                            { name: 'Reason', value: reason, inline: false },
+                            { name: 'Action', value: actionTaken || 'Warning - behavior noted', inline: false }
+                        )
+                        .setFooter({ text: `${5 - strikeCount} strike(s) until permanent ban` })
+                    ]
+                });
+            } catch { }
+
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    strikes: {
+        description: 'View strikes for a member',
+        usage: '*j strikes [@user]',
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first() || message.author;
+            const guildId = message.guild.id;
+            const userId = mentionedUser.id;
+
+            const guildStrikes = global.jarvisStrikes?.get(guildId);
+            const userStrikes = guildStrikes?.get(userId) || [];
+
+            if (userStrikes.length === 0) {
+                await message.reply(`**${mentionedUser.tag}** has no strikes. Clean record! ✨`);
+                return true;
+            }
+
+            const strikeList = userStrikes.slice(-10).map((s, i) =>
+                `**Strike ${i + 1}.** ${s.reason} - <t:${Math.floor(s.timestamp / 1000)}:R>`
+            ).join('\n');
+
+            const embed = new EmbedBuilder()
+                .setTitle(`⚡ Strikes for ${mentionedUser.tag}`)
+                .setColor(userStrikes.length >= 3 ? 0xe74c3c : 0xf1c40f)
+                .setDescription(strikeList)
+                .setFooter({ text: `Total: ${userStrikes.length}/5 strikes` });
+
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    clearstrikes: {
+        description: 'Clear strikes for a member',
+        usage: '*j clearstrikes @user',
+        execute: async (message, args) => {
+            if (!message.guild) {
+                await message.reply('This command only works in servers, sir.');
+                return true;
+            }
+
+            const authorMember = message.member;
+            if (!authorMember?.permissions?.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('🔒 You need **Timeout Members** permission to do that, sir.');
+                return true;
+            }
+
+            const mentionedUser = message.mentions.users.first();
+            if (!mentionedUser) {
+                await message.reply('Usage: `*j clearstrikes @user`');
+                return true;
+            }
+
+            const guildId = message.guild.id;
+            const userId = mentionedUser.id;
+
+            const guildStrikes = global.jarvisStrikes?.get(guildId);
+            if (guildStrikes) {
+                guildStrikes.delete(userId);
+            }
+
+            await message.reply(`✅ Cleared all strikes for **${mentionedUser.tag}**.`);
             return true;
         }
     },
