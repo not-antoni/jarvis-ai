@@ -3036,6 +3036,25 @@
                     }
                     break;
                 }
+                case 'unban': {
+                    telemetryMetadata.category = 'moderation';
+                    const targetUser = interaction.options.getUser('user', true); // This might be a User object if resolved, or ID? unban takes ID.
+                    // Slash command 'user' option returns a User object if found, or APIUser.
+                    // For unban, we often need just ID if user is not in server. 
+                    // But Discord resolves it if possible. 
+                    
+                    const reason = interaction.options.getString('reason') || `Unbanned by ${interaction.user.tag}`;
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    try {
+                        await interaction.guild.members.unban(targetUser.id, reason);
+                        response = `🔓 **${targetUser.tag}** has been unbanned.`;
+                    } catch (error) {
+                        response = `❌ Unban failed: ${error.message}`;
+                    }
+                    break;
+                }
                 case 'kick': {
                     telemetryMetadata.category = 'moderation';
                     const targetUser = interaction.options.getUser('user', true);

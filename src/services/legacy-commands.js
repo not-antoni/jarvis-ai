@@ -435,6 +435,219 @@ const legacyCommands = {
         }
     },
 
+    // ============ MODERATION COMMANDS ============
+    ban: {
+        description: 'Ban a user',
+        usage: '*j ban @user [time] [reason]',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+                await message.reply('❌ You lack permissions to ban members.');
+                return true;
+            }
+            const target = message.mentions.members.first();
+            if (!target) {
+                await message.reply('❌ Please mention a user to ban.');
+                return true;
+            }
+            if (!target.bannable) {
+                await message.reply('❌ I cannot ban that member (role hierarchy or permissions).');
+                return true;
+            }
+
+            // Args: [mentions], [duration?], [reason...]
+            // We need to robustly find duration string if present
+            const potentialDuration = args[1]; // *j ban @user 10m reason
+            let reason = args.slice(1).join(' ');
+            let durationMs = null;
+            let durationStr = null;
+
+            if (potentialDuration) {
+                const match = potentialDuration.match(/^(\d+)(s|m|h|d|w)?$/i);
+                if (match) {
+                    const amount = parseInt(match[1]);
+                    const unit = (match[2] || 'm').toLowerCase();
+                    if (unit === 's') durationMs = amount * 1000;
+                    else if (unit === 'm') durationMs = amount * 60 * 1000;
+                    else if (unit === 'h') durationMs = amount * 60 * 60 * 1000;
+                    else if (unit === 'd') durationMs = amount * 24 * 60 * 60 * 1000;
+                    else if (unit === 'w') durationMs = amount * 7 * 24 * 60 * 60 * 1000;
+
+                    durationStr = potentialDuration;
+                    reason = args.slice(2).join(' ') || 'No reason provided';
+                }
+            }
+
+            try {
+                await target.ban({ reason, deleteMessageSeconds: 0 });
+
+                let msg = `🔨 **${target.user.tag}** has been banned`;
+                if (durationMs) {
+                    msg += ` for **${durationStr}**`;
+                    setTimeout(async () => {
+                        try { await message.guild.members.unban(target.id, 'Temp ban expired'); } catch { }
+                    }, durationMs);
+                }
+                msg += `.\nReason: ${reason}\nhttps://tenor.com/view/bane-no-banned-and-you-are-explode-gif-16047504`;
+                await message.reply(msg);
+            } catch (error) {
+                await message.reply(`❌ Ban failed: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
+    unban: {
+        description: 'Unban a user by ID',
+        usage: '*j unban <userid> [reason]',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
+                await message.reply('❌ You lack permissions to unban members.');
+                return true;
+            }
+            const userId = args[0];
+            if (!userId || !/^\d+$/.test(userId)) {
+                await message.reply('❌ Please provide a valid User ID to unban.');
+                return true;
+            }
+            const reason = args.slice(1).join(' ') || `Unbanned by ${message.author.tag}`;
+            try {
+                await message.guild.members.unban(userId, reason);
+                await message.reply(`🔓 User **${userId}** has been unbanned.`);
+            } catch (error) {
+                await message.reply(`❌ Unban failed: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
+    kick: {
+        description: 'Kick a user',
+        usage: '*j kick @user [reason]',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
+                await message.reply('❌ You lack permissions to kick members.');
+                return true;
+            }
+            const target = message.mentions.members.first();
+            if (!target) {
+                await message.reply('❌ Please mention a user to kick.');
+                return true;
+            }
+            if (!target.kickable) {
+                await message.reply('❌ I cannot kick that member.');
+                return true;
+            }
+            const reason = args.slice(1).join(' ') || `Kicked by ${message.author.tag}`;
+            try {
+                await target.kick(reason);
+                await message.reply(`👢 **${target.user.tag}** has been kicked.\nReason: ${reason}`);
+            } catch (error) {
+                await message.reply(`❌ Kick failed: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
+    mute: {
+        description: 'Timeout a user',
+        usage: '*j mute @user <duration> [reason]',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('❌ You lack permissions to mute members.');
+                return true;
+            }
+            const target = message.mentions.members.first();
+            if (!target) {
+                await message.reply('❌ Please mention a user to mute.');
+                return true;
+            }
+            if (!target.moderatable) {
+                await message.reply('❌ I cannot mute that member.');
+                return true;
+            }
+
+            const durationStr = args[1];
+            if (!durationStr) {
+                await message.reply('❌ Please specify a duration (e.g., 10m, 1h).');
+                return true;
+            }
+
+            let durationMs = 0;
+            const match = durationStr.match(/^(\d+)(s|m|h|d|w)?$/i);
+            if (match) {
+                const amount = parseInt(match[1]);
+                const unit = (match[2] || 'm').toLowerCase();
+                if (unit === 's') durationMs = amount * 1000;
+                else if (unit === 'm') durationMs = amount * 60 * 1000;
+                else if (unit === 'h') durationMs = amount * 60 * 60 * 1000;
+                else if (unit === 'd') durationMs = amount * 24 * 60 * 60 * 1000;
+                else if (unit === 'w') durationMs = amount * 7 * 24 * 60 * 60 * 1000;
+            }
+
+            if (!durationMs || durationMs > 28 * 24 * 60 * 60 * 1000) {
+                await message.reply('❌ Invalid duration (max 28 days). Format: 10m, 1h, 1d');
+                return true;
+            }
+
+            const reason = args.slice(2).join(' ') || `Muted by ${message.author.tag}`;
+            try {
+                await target.timeout(durationMs, reason);
+                await message.reply(`🔇 **${target.user.tag}** muted for **${durationStr}**.\nReason: ${reason}`);
+            } catch (error) {
+                await message.reply(`❌ Mute failed: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
+    unmute: {
+        description: 'Remove timeout',
+        usage: '*j unmute @user [reason]',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('❌ You lack permissions to moderate members.');
+                return true;
+            }
+            const target = message.mentions.members.first();
+            if (!target) {
+                await message.reply('❌ Please mention a user to unmute.');
+                return true;
+            }
+            const reason = args.slice(1).join(' ') || `Unmuted by ${message.author.tag}`;
+            try {
+                await target.timeout(null, reason);
+                await message.reply(`🔊 **${target.user.tag}** has been unmuted.`);
+            } catch (error) {
+                await message.reply(`❌ Unmute failed: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
+    warn: {
+        description: 'Warn a user',
+        usage: '*j warn @user <reason>',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
+                await message.reply('❌ You lack permissions to warn members.');
+                return true;
+            }
+            const target = message.mentions.members.first();
+            if (!target) {
+                await message.reply('❌ Please mention a user to warn.');
+                return true;
+            }
+            const reason = args.slice(1).join(' ');
+            if (!reason) {
+                await message.reply('❌ Please provide a warning reason.');
+                return true;
+            }
+            // In a real system, we'd save this to DB. For now, just echo.
+            await message.reply(`⚠️ **${target.user.tag}** has been warned.\nReason: ${reason}`);
+            return true;
+        }
+    },
+
     // Aatrox
     aatrox: {
         description: 'GYAATROX',
