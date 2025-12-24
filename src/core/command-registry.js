@@ -798,9 +798,9 @@ const commandDefinitions = [
     },
     {
         name: 'mute',
-        description: 'Timeout a user (put them in the corner).',
+        description: 'Timeout a user (e.g., 10m, 6h, 1d).',
         category: 'Moderation',
-        usage: '/mute <user> <time> [reason]',
+        usage: '/mute <user> <duration> [reason]',
         feature: 'moderation',
         ephemeral: false
     },
