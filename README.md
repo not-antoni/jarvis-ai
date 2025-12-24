@@ -207,20 +207,59 @@ pm2 logs jarvis
 
 ### Auto-Deploy (Git Pull + PM2 Restart)
 
-Set up automatic deployment when you push to GitHub. Run this one command on your VPS:
+Set up automatic deployment with Discord alerts when you push to GitHub. Run this one command on your VPS:
 
 ```bash
 echo '#!/bin/bash
-cd /home/admin/jarvis-ai && git fetch origin main && [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ] && git pull origin main && pm2 restart jarvis && echo "$(date): Deployed"' > /home/admin/auto-deploy.sh && chmod +x /home/admin/auto-deploy.sh && (crontab -l 2>/dev/null | grep -v auto-deploy; echo "* * * * * /home/admin/auto-deploy.sh >> /home/admin/deploy.log 2>&1") | crontab -
+WEBHOOK="YOUR_DISCORD_WEBHOOK_URL"
+LOGFILE="/home/admin/deploy.log"
+export PATH="/usr/local/bin:/usr/bin:/bin:$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH"
+cd /home/admin/jarvis-ai
+
+# Keep only last 500 lines of log
+if [ -f "$LOGFILE" ] && [ $(wc -l < "$LOGFILE") -gt 500 ]; then
+    tail -n 500 "$LOGFILE" > "$LOGFILE.tmp" && mv "$LOGFILE.tmp" "$LOGFILE"
+fi
+
+# Check if PM2 process is online
+if ! pm2 list 2>/dev/null | grep -q "jarvis.*online"; then
+    curl -s -H "Content-Type: application/json" -d "{\"content\":\"🔴 **JARVIS DOWN** - PM2 process not running! Attempting restart...\"}" "$WEBHOOK"
+    pm2 restart jarvis 2>&1 || curl -s -H "Content-Type: application/json" -d "{\"content\":\"❌ **RESTART FAILED** - Manual intervention needed!\"}" "$WEBHOOK"
+fi
+
+# Auto-deploy check
+git fetch origin main 2>&1
+if [ $? -ne 0 ]; then
+    curl -s -H "Content-Type: application/json" -d "{\"content\":\"⚠️ **Git fetch failed** - Check VPS network/credentials\"}" "$WEBHOOK"
+    exit 1
+fi
+
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+
+if [ "$LOCAL" != "$REMOTE" ]; then
+    git pull origin main 2>&1
+    if [ $? -ne 0 ]; then
+        curl -s -H "Content-Type: application/json" -d "{\"content\":\"❌ **Git pull failed** - Merge conflict or error\"}" "$WEBHOOK"
+        exit 1
+    fi
+    pm2 restart jarvis 2>&1
+    if [ $? -ne 0 ]; then
+        curl -s -H "Content-Type: application/json" -d "{\"content\":\"❌ **PM2 restart failed** after deploy\"}" "$WEBHOOK"
+        exit 1
+    fi
+    curl -s -H "Content-Type: application/json" -d "{\"content\":\"✅ **Deployed successfully** - $(git log -1 --pretty=%s)\"}" "$WEBHOOK"
+fi' > /home/admin/auto-deploy.sh && chmod +x /home/admin/auto-deploy.sh && (crontab -l 2>/dev/null | grep -v auto-deploy; echo "* * * * * /home/admin/auto-deploy.sh >> /home/admin/deploy.log 2>&1") | crontab -
 ```
 
-**What it does:**
-- Creates `/home/admin/auto-deploy.sh`
-- Checks for updates every minute
-- Only pulls & restarts if there are actual changes
-- Logs to `/home/admin/deploy.log`
+**Features:**
+- ✅ Deploys automatically when you push to `origin/main`
+- 🔴 Alerts if PM2 process is down and tries to restart
+- ⚠️ Alerts if git fetch/pull fails
+- 📋 Auto-rotates logs (keeps last 500 lines)
+- ✅ Success message with commit title
 
-Verify with: `crontab -l`
+Replace `YOUR_DISCORD_WEBHOOK_URL` with your actual webhook. Verify with: `crontab -l`
 
 ### Option 3: Docker Deployment
 
