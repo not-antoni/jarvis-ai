@@ -2192,6 +2192,19 @@ const allCommands = [
         .setContexts([InteractionContextType.Guild])
         .addUserOption(o => o.setName('user').setDescription('User to warn').setRequired(true))
         .addStringOption(o => o.setName('reason').setDescription('Reason for warning').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('purge')
+        .setDescription('Bulk delete messages from a channel')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+        .setContexts([InteractionContextType.Guild])
+        .addIntegerOption(o => o.setName('count').setDescription('Number of messages to delete (1-100)').setRequired(true).setMinValue(1).setMaxValue(100))
+        .addUserOption(o => o.setName('user').setDescription('Only delete messages from this user')),
+    new SlashCommandBuilder()
+        .setName('slowmode')
+        .setDescription('Set channel slowmode delay')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+        .setContexts([InteractionContextType.Guild])
+        .addStringOption(o => o.setName('duration').setDescription('Slowmode duration (e.g., 5s, 1m, 0 to disable)').setRequired(true)),
 
     ...musicCommandList.map(command => command.data)
 ];

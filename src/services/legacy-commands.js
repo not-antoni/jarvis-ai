@@ -648,6 +648,86 @@ const legacyCommands = {
         }
     },
 
+    purge: {
+        description: 'Bulk delete messages',
+        usage: '*j purge <count> [@user]',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+                await message.reply('❌ You lack permissions to manage messages.');
+                return true;
+            }
+
+            const count = parseInt(args[0]);
+            if (!count || count < 1 || count > 100) {
+                await message.reply('❌ Please specify a number between 1 and 100.');
+                return true;
+            }
+
+            const targetUser = message.mentions.users.first();
+
+            try {
+                let messages;
+                if (targetUser) {
+                    const fetched = await message.channel.messages.fetch({ limit: 100 });
+                    messages = fetched.filter(m => m.author.id === targetUser.id).first(count);
+                } else {
+                    messages = await message.channel.messages.fetch({ limit: count + 1 }); // +1 for command message
+                }
+
+                const deleted = await message.channel.bulkDelete(messages, true);
+                const reply = await message.channel.send(`🗑️ Deleted **${deleted.size}** message${deleted.size !== 1 ? 's' : ''}.`);
+                setTimeout(() => reply.delete().catch(() => { }), 3000);
+            } catch (error) {
+                await message.reply(`❌ Purge failed: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
+    slowmode: {
+        description: 'Set channel slowmode',
+        usage: '*j slowmode <duration|off>',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+                await message.reply('❌ You lack permissions to manage channels.');
+                return true;
+            }
+
+            const durationStr = args[0];
+            if (!durationStr) {
+                await message.reply('❌ Usage: `*j slowmode <duration>` (e.g., 5s, 1m, off)');
+                return true;
+            }
+
+            let seconds = 0;
+            if (durationStr !== '0' && durationStr !== 'off') {
+                const { parseDuration } = require('../../utils/parse-duration');
+                const ms = parseDuration(durationStr);
+                if (!ms) {
+                    await message.reply('❌ Invalid duration. Use format like `5s`, `1m`, `0` to disable.');
+                    return true;
+                }
+                seconds = Math.floor(ms / 1000);
+                if (seconds > 21600) {
+                    await message.reply('❌ Maximum slowmode is 6 hours.');
+                    return true;
+                }
+            }
+
+            try {
+                await message.channel.setRateLimitPerUser(seconds);
+                if (seconds === 0) {
+                    await message.reply('⚡ Slowmode disabled for this channel.');
+                } else {
+                    await message.reply(`🐌 Slowmode set to **${durationStr}**.`);
+                }
+            } catch (error) {
+                await message.reply(`❌ Failed to set slowmode: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
     // Aatrox
     aatrox: {
         description: 'GYAATROX',
