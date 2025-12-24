@@ -205,6 +205,23 @@ pm2 startup && pm2 save
 pm2 logs jarvis
 ```
 
+### Auto-Deploy (Git Pull + PM2 Restart)
+
+Set up automatic deployment when you push to GitHub. Run this one command on your VPS:
+
+```bash
+echo '#!/bin/bash
+cd /home/admin/jarvis-ai && git fetch origin main && [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ] && git pull origin main && pm2 restart jarvis && echo "$(date): Deployed"' > /home/admin/auto-deploy.sh && chmod +x /home/admin/auto-deploy.sh && (crontab -l 2>/dev/null | grep -v auto-deploy; echo "* * * * * /home/admin/auto-deploy.sh >> /home/admin/deploy.log 2>&1") | crontab -
+```
+
+**What it does:**
+- Creates `/home/admin/auto-deploy.sh`
+- Checks for updates every minute
+- Only pulls & restarts if there are actual changes
+- Logs to `/home/admin/deploy.log`
+
+Verify with: `crontab -l`
+
 ### Option 3: Docker Deployment
 
 ```bash
