@@ -21,35 +21,35 @@ const quoteSlash = {
         .addStringOption(option =>
             option.setName('text')
                 .setDescription('The text to quote')
+                .setRequired(false))
+        .addAttachmentOption(option =>
+            option.setName('image')
+                .setDescription('Attach an image or gif')
                 .setRequired(false)),
     async execute(interaction) {
-        // deferReply removed as handled by main handler or previously removed. 
-        // Wait, main handler only handles Guild interactions properly?
-        // If User Install, interaction might be different.
-        // But main handler checks `isChatInputCommand`.
-
-        // Actually, if User Install, `interaction.guild` might be null.
-        // But `generateQuoteImage` uses `user` and `text`. It doesn't use `guild`.
-
         let targetUser = interaction.options.getUser('user') || interaction.user;
         let text = interaction.options.getString('text');
+        const attachment = interaction.options.getAttachment('image');
 
-        if (!text) {
-            await interaction.editReply('⚠️ Please provide the text to quote, sir.');
+        let attachmentUrl = attachment ? attachment.url : null;
+
+        if (!text && !attachmentUrl) {
+            await interaction.editReply('⚠️ Please provide text or an image to quote, sir.');
             return;
         }
 
         try {
             const avatarUrl = targetUser.displayAvatarURL({ extension: 'png', size: 256 });
             const buffer = await generateQuoteImage(
-                text,
+                text || '',
                 targetUser.displayName || targetUser.username,
                 avatarUrl,
-                new Date()
+                new Date(),
+                attachmentUrl
             );
 
-            const attachment = new AttachmentBuilder(buffer, { name: 'quote.jpg' });
-            await interaction.editReply({ files: [attachment] });
+            const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.jpg' });
+            await interaction.editReply({ files: [attachmentFile] });
 
         } catch (error) {
             console.error('Quote generation failed:', error);
@@ -72,8 +72,6 @@ const quoteContext = {
             InteractionContextType.PrivateChannel
         ]),
     async execute(interaction) {
-        // execute logic
-
         const message = interaction.targetMessage;
         if (!message) {
             await interaction.editReply('❌ Could not fetch message.');
@@ -83,13 +81,31 @@ const quoteContext = {
         const content = message.content;
         const author = message.author;
 
-        if (!content && message.attachments.size === 0) {
-            await interaction.editReply('❌ Message has no content to quote.');
+        // Find Image URL (Attachment or Embed)
+        let attachmentUrl = null;
+
+        // 1. Check Attachments
+        const attachment = message.attachments.find(a => a.contentType && a.contentType.startsWith('image/'));
+        if (attachment) {
+            attachmentUrl = attachment.url;
+        }
+
+        // 2. Check Embeds (Tenor, Giphy, etc)
+        if (!attachmentUrl && message.embeds.length > 0) {
+            const embed = message.embeds[0];
+            if (embed.thumbnail && embed.thumbnail.url) {
+                attachmentUrl = embed.thumbnail.url;
+            } else if (embed.image && embed.image.url) {
+                attachmentUrl = embed.image.url;
+            }
+        }
+
+        if (!content && !attachmentUrl) {
+            await interaction.editReply('❌ Message has no content or image to quote.');
             return;
         }
 
-        // prioritized text, fallback to "Sent an image" if only attachment
-        const text = content || (message.attachments.size > 0 ? '[Sent an image]' : '[Empty message]');
+        const text = content || '';
 
         try {
             const avatarUrl = author.displayAvatarURL({ extension: 'png', size: 256 });
@@ -97,11 +113,12 @@ const quoteContext = {
                 text,
                 author.displayName || author.username,
                 avatarUrl,
-                message.createdAt
+                message.createdAt,
+                attachmentUrl
             );
 
-            const attachment = new AttachmentBuilder(buffer, { name: 'quote.jpg' });
-            await interaction.editReply({ files: [attachment] });
+            const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.jpg' });
+            await interaction.editReply({ files: [attachmentFile] });
 
         } catch (error) {
             console.error('Quote generation failed:', error);

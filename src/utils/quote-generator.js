@@ -18,20 +18,15 @@ function tokenizeText(text) {
 
     let currentIndex = 0;
 
-    // We process by finding Custom Emojis first, then splitting text around them for words/unicode
     const customMatches = [...text.matchAll(customEmojiRegex)];
 
-    // Helper to process plain text segments (splitting words and finding unicode emojis)
     const processPlain = (plainText) => {
         const subTokens = [];
-        // Find unicode emojis in this segment
         const subMatches = [...plainText.matchAll(unicodeEmojiRegex)];
         let lastIdx = 0;
 
         const addWords = (str) => {
-            // Split by spaces but keep them attached or separate?
-            // Simple: split by spaces
-            const words = str.split(/(\s+)/); // Keep delimiters
+            const words = str.split(/(\s+)/);
             for (const w of words) {
                 if (w.length > 0) subTokens.push({ type: 'text', content: w });
             }
@@ -72,26 +67,16 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
     const lines = [];
     let currentLine = [];
     let currentWidth = 0;
-    const spaceWidth = ctx.measureText(" ").width;
 
     for (const token of tokens) {
         let tokenWidth = 0;
         if (token.type === 'text') {
-            // Text word
             tokenWidth = ctx.measureText(token.content).width;
         } else {
-            // Emoji (square)
-            tokenWidth = fontSize * 1.1; // Slight padding
+            tokenWidth = fontSize * 1.1;
         }
 
-        // Check overflow
-        // If it's whitespace, we don't break line usually, unless it's huge? 
-        // Logic: Add to line. If line width > max, break.
-        // But if breaking, move current token to next line.
-
-        // Handling spaces strictly
         if (token.type === 'text' && /^\s+$/.test(token.content)) {
-            // It's space
             currentLine.push(token);
             currentWidth += tokenWidth;
             continue;
@@ -113,12 +98,12 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
 /**
  * Generate Quote Image
  */
-async function generateQuoteImage(text, username, avatarUrl, timestamp) {
+async function generateQuoteImage(text, username, avatarUrl, timestamp, attachmentImageUrl) {
     const width = 1800;
     const padding = 80;
     const minHeight = 600;
 
-    const canvas = createCanvas(width, minHeight); // Initial sizing context
+    const canvas = createCanvas(width, minHeight);
     const ctx = canvas.getContext('2d');
 
     const fontStack = '"Noto Sans", "Noto Sans CJK SC", "Dejavu Sans", "Arial", sans-serif';
@@ -128,54 +113,71 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     // 1. Tokenize & Asset Load
     const tokens = tokenizeText(text || '');
 
-    // Load Emojis
-    const emojiLoadPromises = tokens.map(async (t) => {
+    // Load Emojis & Attachment
+    const assetsToLoad = [];
+
+    // Emojis
+    tokens.forEach(t => {
         if (t.type === 'custom') {
-            try {
-                t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.png`);
-            } catch (e) {
-                console.warn(`Failed to load custom emoji ${t.id}`);
-                t.type = 'text'; t.content = `:${t.name}:`; // Fallback
-            }
+            assetsToLoad.push((async () => {
+                try { t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.png`); }
+                catch (e) { t.type = 'text'; t.content = `:${t.name}:`; }
+            })());
         } else if (t.type === 'unicode') {
-            try {
-                // Try Twemoji
-                // Note: Removing VS16 (fe0f) is often needed for Twemoji filenames
-                // But let's try strict code points first
-                let code = getTwemojiCode(t.content);
-                // Sanitize variation selectors if needed logic could go here
-                // Simple attempt: 
-                t.image = await loadImage(`https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${code}.png`);
-            } catch (e) {
-                // Fallback to text rendering (font)
-                console.warn(`Failed to load unicode emoji ${t.content}`);
-                // Keep type unicode; render loop will fallback to text
-                t.failed = true;
-            }
+            assetsToLoad.push((async () => {
+                try { t.image = await loadImage(`https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/${getTwemojiCode(t.content)}.png`); }
+                catch (e) { t.failed = true; }
+            })());
         }
     });
 
-    await Promise.all(emojiLoadPromises);
+    // Attachment
+    let attachmentImage = null;
+    if (attachmentImageUrl) {
+        assetsToLoad.push((async () => {
+            try { attachmentImage = await loadImage(attachmentImageUrl); }
+            catch (e) { console.warn("Failed to load attachment", e); }
+        })());
+    }
 
-    // 2. Wrap
+    await Promise.all(assetsToLoad);
+
+    // 2. Layout Calculation
     const maxTextWidth = (width / 2) - padding;
     const lines = wrapTokens(ctx, tokens, maxTextWidth, fontSize);
 
     const lineHeight = fontSize * 1.5;
     const textBlockHeight = lines.length * lineHeight;
+
+    // Image Layout
+    let imageDrawWidth = 0;
+    let imageDrawHeight = 0;
+    if (attachmentImage) {
+        const ratio = attachmentImage.width / attachmentImage.height;
+        imageDrawWidth = Math.min(maxTextWidth, attachmentImage.width); // Don't upscale small images
+        // Actually for quote, better to fit width if large
+        if (imageDrawWidth < maxTextWidth * 0.5 && attachmentImage.width < maxTextWidth) {
+            imageDrawWidth = attachmentImage.width; // Keep small
+        } else {
+            imageDrawWidth = maxTextWidth; // Fit width
+        }
+        imageDrawHeight = imageDrawWidth / ratio;
+    }
+
+    const contentSpacing = (lines.length > 0 && attachmentImage) ? 40 : 0;
+    const totalContentHeight = textBlockHeight + imageDrawHeight + contentSpacing;
+
     const nameHeight = 60;
     const handleHeight = 40;
 
-    const canvasHeight = Math.max(minHeight, textBlockHeight + nameHeight + handleHeight + (padding * 3));
+    const canvasHeight = Math.max(minHeight, totalContentHeight + nameHeight + handleHeight + (padding * 3));
 
     // Resize Canvas
     canvas.width = width;
     canvas.height = canvasHeight;
-    // Context properties reset on resize!
     ctx.font = `${fontSize}px ${fontStack}`;
 
-    // 3. Draw Backgrounds (Copied from previous design)
-    // Black Base
+    // 3. Draw Backgrounds
     ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, width, canvasHeight);
 
@@ -202,7 +204,6 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
         const avCtx = avCanvas.getContext('2d');
         if (avCtx.filter) avCtx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';
         avCtx.drawImage(avatar, 0, 0, drawWidth, drawHeight);
-
         ctx.drawImage(avCanvas, 0, (canvasHeight - drawHeight) / 2);
 
     } catch (e) {
@@ -219,65 +220,81 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, canvasHeight);
 
-    // 4. Draw Lines with Tokens
-    ctx.textAlign = 'left'; // We must draw token by token manually
+    // 4. Draw Content
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
     const textCenterX = (width * 0.75);
-    // Center block vertically
-    const textStartY = (canvasHeight / 2) - ((lines.length * lineHeight) / 2);
+    // Center the whole content block (Text + Image) vertically
+    let currentY = (canvasHeight / 2) - (totalContentHeight / 2);
 
     ctx.fillStyle = '#ffffff';
 
-    lines.forEach((line, lineIndex) => {
-        // Calculate line width to center it horizontally relative to textCenterX
+    // Draw Text Lines
+    lines.forEach((line) => {
         let lineWidth = 0;
         line.forEach(t => {
             if (t.type === 'text') lineWidth += ctx.measureText(t.content).width;
             else lineWidth += fontSize * 1.1;
         });
 
-        // Since textCenterX is center of the right block, we align center to it
         let currentX = textCenterX - (lineWidth / 2);
-        const currentY = textStartY + (lineIndex * lineHeight); // + adjustment? top align
-        // Actually textStartY is TOP of block. + half line height for baseline middle
         const baselineY = currentY + (lineHeight / 2);
 
         line.forEach(token => {
             if (token.type === 'text') {
                 ctx.fillText(token.content, currentX, baselineY);
                 currentX += ctx.measureText(token.content).width;
-            } else if (token.type === 'custom' && token.image) {
-                // Draw Image centered on baseline?
+            } else if ((token.type === 'custom' || token.type === 'unicode') && token.image) {
                 const size = fontSize;
-                const y = baselineY - (size / 2);
-                ctx.drawImage(token.image, currentX, y, size, size);
+                ctx.drawImage(token.image, currentX, baselineY - (size / 2), size, size);
                 currentX += size * 1.1;
-            } else if (token.type === 'unicode') {
-                if (token.image) {
-                    const size = fontSize;
-                    const y = baselineY - (size / 2);
-                    ctx.drawImage(token.image, currentX, y, size, size);
-                    currentX += size * 1.1;
-                } else {
-                    // Fallback to text
-                    ctx.fillText(token.content, currentX, baselineY);
-                    currentX += fontSize; // approx width
-                }
             } else {
-                // fallback
                 ctx.fillText(token.content || '', currentX, baselineY);
                 currentX += ctx.measureText(token.content || '').width;
             }
         });
+        currentY += lineHeight;
     });
 
+    // Draw Attachment Image
+    if (attachmentImage) {
+        currentY += contentSpacing;
+        const imgX = textCenterX - (imageDrawWidth / 2);
+
+        // Rounded corners for image
+        ctx.save();
+        ctx.beginPath();
+        // Simple manual rounded rect
+        const radius = 20;
+        ctx.moveTo(imgX + radius, currentY);
+        ctx.lineTo(imgX + imageDrawWidth - radius, currentY);
+        ctx.quadraticCurveTo(imgX + imageDrawWidth, currentY, imgX + imageDrawWidth, currentY + radius);
+        ctx.lineTo(imgX + imageDrawWidth, currentY + imageDrawHeight - radius);
+        ctx.quadraticCurveTo(imgX + imageDrawWidth, currentY + imageDrawHeight, imgX + imageDrawWidth - radius, currentY + imageDrawHeight);
+        ctx.lineTo(imgX + radius, currentY + imageDrawHeight);
+        ctx.quadraticCurveTo(imgX, currentY + imageDrawHeight, imgX, currentY + imageDrawHeight - radius);
+        ctx.lineTo(imgX, currentY + radius);
+        ctx.quadraticCurveTo(imgX, currentY, imgX + radius, currentY);
+        ctx.closePath();
+        ctx.clip();
+
+        ctx.drawImage(attachmentImage, imgX, currentY, imageDrawWidth, imageDrawHeight);
+        ctx.restore();
+
+        currentY += imageDrawHeight;
+    }
+
     // 5. Name
-    const nameY = textStartY + (lines.length * lineHeight) + 40;
+    const nameY = currentY + 40;
+    // Wait, nameY usually is relative to Text? No, relative to bottom of content.
+    // If we center content, Name should hang below it.
+    // Actually, `currentY` is now at bottom of text+image.
+
     let cleanName = username.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
     if (cleanName.length < 2) cleanName = username;
 
-    ctx.textAlign = 'center'; // Name is simple text
+    ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.font = `italic 48px ${fontStack}`;
     ctx.fillText(`- ${cleanName}`, textCenterX, nameY);
