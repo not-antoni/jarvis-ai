@@ -386,6 +386,7 @@ function getDefaultSettings() {
 
         // Log channel
         logChannel: null,
+        alertChannel: null,
 
         // Actions
         autoDelete: false,
@@ -463,7 +464,8 @@ function getStatus(guildId) {
         enabledAt: config?.enabledAt || null,
         settings: config?.settings || getDefaultSettings(),
         stats: config?.stats || { total: 0, byCategory: {}, byUser: {} },
-        trackedMembersCount: trackedMembers.get(guildId)?.size || 0
+        trackedMembersCount: trackedMembers.get(guildId)?.size || 0,
+        recentDetections: config?.recentDetections || []
     };
 }
 
@@ -540,17 +542,32 @@ function setAlertCooldown(guildId, userId) {
 
 // ============ STATISTICS ============
 
-function recordDetection(guildId, userId, category) {
+function recordDetection(guildId, userId, category, reason = null, severity = 'medium') {
     const config = enabledGuilds.get(guildId);
     if (!config) return;
 
     if (!config.stats) {
         config.stats = { total: 0, byCategory: {}, byUser: {} };
     }
+    if (!config.recentDetections) {
+        config.recentDetections = [];
+    }
 
     config.stats.total++;
     config.stats.byCategory[category] = (config.stats.byCategory[category] || 0) + 1;
     config.stats.byUser[userId] = (config.stats.byUser[userId] || 0) + 1;
+
+    // Add to recent detections (keep last 50)
+    config.recentDetections.unshift({
+        userId,
+        category,
+        severity,
+        reason,
+        timestamp: new Date().toISOString()
+    });
+    if (config.recentDetections.length > 50) {
+        config.recentDetections = config.recentDetections.slice(0, 50);
+    }
 
     // Save periodically (every 10 detections)
     if (config.stats.total % 10 === 0) {
@@ -1065,7 +1082,9 @@ async function handleMessage(message, client) {
                         recordDetection(
                             guildId,
                             userId,
-                            textResult.result.categories?.[0] || 'unknown'
+                            textResult.result.categories?.[0] || 'unknown',
+                            textResult.result.reason || null,
+                            textResult.result.severity || 'medium'
                         );
                     }
                 }
@@ -1112,7 +1131,9 @@ async function handleMessage(message, client) {
                             recordDetection(
                                 guildId,
                                 userId,
-                                imageResult.result.categories?.[0] || 'image'
+                                imageResult.result.categories?.[0] || 'image',
+                                imageResult.result.reason || null,
+                                imageResult.result.severity || 'medium'
                             );
                         }
                     }
