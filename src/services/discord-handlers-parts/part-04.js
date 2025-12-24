@@ -2604,6 +2604,146 @@
             return;
         }
 
+        // Help menu category buttons
+        if (interaction.customId.startsWith('help_')) {
+            const categoryKey = interaction.customId.replace('help_', '');
+            const categories = {
+                overview: {
+                    emoji: '📋',
+                    title: 'Command Overview',
+                    description: 'Welcome to Jarvis Legacy Commands!\nSelect a category below to see commands.',
+                    fields: [
+                        { name: '💰 Economy', value: '`*j help economy`', inline: true },
+                        { name: '🎰 Gambling', value: '`*j help gambling`', inline: true },
+                        { name: '🎮 Fun', value: '`*j help fun`', inline: true },
+                        { name: '🛡️ Moderation', value: '`*j help mod`', inline: true },
+                        { name: '⚙️ Utility', value: '`*j help utility`', inline: true },
+                        { name: '💎 Premium', value: '`*j help premium`', inline: true }
+                    ]
+                },
+                economy: {
+                    emoji: '💰',
+                    title: 'Economy Commands',
+                    description: 'Build your Stark Industries fortune!',
+                    fields: [
+                        { name: '💵 Basics', value: '`*j balance` - Check balance\n`*j daily` - Daily reward\n`*j work` - Earn money\n`*j beg` - Beg for coins', inline: false },
+                        { name: '💳 Transactions', value: '`*j pay @user <amt>` - Send money\n`*j deposit <amt>` - Bank deposit\n`*j withdraw <amt>` - Bank withdraw\n`*j leaderboard` - Rich list', inline: false },
+                        { name: '🛒 Shopping', value: '`*j shop` - View shop\n`*j buy <item>` - Buy item\n`*j inventory` - Your items', inline: false }
+                    ]
+                },
+                gambling: {
+                    emoji: '🎰',
+                    title: 'Gambling Commands',
+                    description: 'Test your luck at Stark Casino!',
+                    fields: [
+                        { name: '🎲 Games', value: '`*j coinflip <amt>` - Flip a coin\n`*j slots <amt>` - Slot machine\n`*j blackjack <amt>` - Play 21\n`*j roulette <amt> <bet>` - Roulette', inline: false },
+                        { name: '🎯 More Games', value: '`*j dice <amt>` - Roll dice\n`*j crash <amt>` - Crash game\n`*j highlow <amt>` - Higher or lower', inline: false },
+                        { name: '🏆 Multiplayer', value: '`*j heist start` - Start a heist\n`*j heist join` - Join heist\n`*j boss attack` - Attack boss', inline: false }
+                    ]
+                },
+                fun: {
+                    emoji: '🎮',
+                    title: 'Fun Commands',
+                    description: 'Entertainment and social commands!',
+                    fields: [
+                        { name: '🎱 Random', value: '`*j 8ball <q>` - Magic 8-ball\n`*j roll [dice]` - Roll dice\n`*j rate <thing>` - Rate something\n`*j dadjoke` - Dad joke', inline: false },
+                        { name: '💕 Social', value: '`*j hug @user` - Hug someone\n`*j slap @user` - Slap someone\n`*j ship @u1 @u2` - Ship people\n`*j fight @user` - Fight!', inline: false },
+                        { name: '📊 Meters', value: '`*j howgay @user` - Gay meter\n`*j howbased @user` - Based meter\n`*j vibecheck @user` - Vibe check\n`*j roast @user` - Roast someone', inline: false }
+                    ]
+                },
+                mod: {
+                    emoji: '🛡️',
+                    title: 'Moderation Commands',
+                    description: 'Server moderation tools (requires permissions)',
+                    fields: [
+                        { name: '🔨 Actions', value: '`*j kick @user [reason]` - Kick member\n`*j ban @user [time] [reason]` - Ban member\n`*j unban <id>` - Unban by ID', inline: false },
+                        { name: '🔇 Timeout', value: '`*j mute @user <time>` - Timeout user\n`*j unmute @user` - Remove timeout', inline: false },
+                        { name: '⚠️ Warnings', value: '`*j warn @user <reason>` - Warn user\n`*j warnings @user` - View warnings\n`*j clearwarnings @user` - Clear warns', inline: false },
+                        { name: '🤖 AI Moderation', value: '`*j enable moderation` - Enable AI mod\n`*j moderation status` - View settings', inline: false }
+                    ]
+                },
+                utility: {
+                    emoji: '⚙️',
+                    title: 'Utility Commands',
+                    description: 'Helpful utility commands',
+                    fields: [
+                        { name: '🔧 Tools', value: '`*j ping` - Bot latency\n`*j remind in <time> <msg>` - Set reminder\n`*j profile` - View profile', inline: false }
+                    ]
+                },
+                premium: {
+                    emoji: '💎',
+                    title: 'Premium Features',
+                    description: 'Advanced economy features',
+                    fields: [
+                        { name: '💠 Arc Reactor', value: '`*j reactor` - Check reactor\n`*j buy arc_reactor` - Buy (10,000💵)\n*+15% earnings, -25% cooldowns*', inline: false },
+                        { name: '💱 Starkbucks', value: '`*j sbx wallet` - SBX balance\n`*j sbx convert <amt>` - Convert\n`*j sbx store` - SBX shop', inline: false },
+                        { name: '📊 Crypto', value: '`*j crypto prices` - View prices\n`*j crypto buy <coin> <amt>` - Buy\n`*j crypto portfolio` - Holdings', inline: false }
+                    ]
+                }
+            };
+
+            const category = categories[categoryKey] || categories.overview;
+            
+            const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+            
+            const embed = new EmbedBuilder()
+                .setTitle(`${category.emoji} ${category.title}`)
+                .setDescription(category.description)
+                .setColor(0x3498db)
+                .setFooter({ text: 'Use *j help <category> to view specific commands' });
+
+            category.fields.forEach(f => embed.addFields(f));
+
+            const row1 = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('help_overview')
+                    .setLabel('Overview')
+                    .setEmoji('📋')
+                    .setStyle(categoryKey === 'overview' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_economy')
+                    .setLabel('Economy')
+                    .setEmoji('💰')
+                    .setStyle(categoryKey === 'economy' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_gambling')
+                    .setLabel('Gambling')
+                    .setEmoji('🎰')
+                    .setStyle(categoryKey === 'gambling' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_fun')
+                    .setLabel('Fun')
+                    .setEmoji('🎮')
+                    .setStyle(categoryKey === 'fun' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+            );
+
+            const row2 = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('help_mod')
+                    .setLabel('Moderation')
+                    .setEmoji('🛡️')
+                    .setStyle(categoryKey === 'mod' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_utility')
+                    .setLabel('Utility')
+                    .setEmoji('⚙️')
+                    .setStyle(categoryKey === 'utility' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_premium')
+                    .setLabel('Premium')
+                    .setEmoji('💎')
+                    .setStyle(categoryKey === 'premium' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+            );
+
+            try {
+                await interaction.update({ embeds: [embed], components: [row1, row2] });
+            } catch {
+                // Fallback if update fails
+                await interaction.reply({ embeds: [embed], components: [row1, row2], ephemeral: true });
+            }
+            return;
+        }
+
         // Error log status buttons
         try {
             const errorLogger = require('./error-logger');

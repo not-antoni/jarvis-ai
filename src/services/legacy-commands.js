@@ -6,7 +6,7 @@
  * They mirror slash command functionality for users who prefer text commands
  */
 
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const selfhostFeatures = require('./selfhost-features');
 const starkEconomy = require('./stark-economy');
 const starkTinker = require('./stark-tinker');
@@ -270,78 +270,154 @@ function parseScheduleTime(timeStr) {
  * Legacy command definitions
  */
 const legacyCommands = {
-    // Help command (paginated)
+    // Help command (category-based with buttons)
     help: {
         description: 'Show available legacy commands',
-        usage: '*j help',
-        execute: async (message, args) => {
-            const pageNum = parseInt(args[0]) || 1;
-            const pageIndex = Math.max(0, Math.min(pageNum - 1, HELP_PAGES.length - 1));
-            helpPages.set(message.author.id, pageIndex);
+        usage: '*j help [category]',
+        execute: async (message, args, client) => {
+            const categories = {
+                overview: {
+                    emoji: '📋',
+                    title: 'Command Overview',
+                    description: 'Welcome to Jarvis Legacy Commands!\nSelect a category below to see commands.',
+                    fields: [
+                        { name: '💰 Economy', value: '`*j help economy`', inline: true },
+                        { name: '🎰 Gambling', value: '`*j help gambling`', inline: true },
+                        { name: '🎮 Fun', value: '`*j help fun`', inline: true },
+                        { name: '🛡️ Moderation', value: '`*j help mod`', inline: true },
+                        { name: '⚙️ Utility', value: '`*j help utility`', inline: true },
+                        { name: '💎 Premium', value: '`*j help premium`', inline: true }
+                    ]
+                },
+                economy: {
+                    emoji: '💰',
+                    title: 'Economy Commands',
+                    description: 'Build your Stark Industries fortune!',
+                    fields: [
+                        { name: '💵 Basics', value: '`*j balance` - Check balance\n`*j daily` - Daily reward\n`*j work` - Earn money\n`*j beg` - Beg for coins', inline: false },
+                        { name: '💳 Transactions', value: '`*j pay @user <amt>` - Send money\n`*j deposit <amt>` - Bank deposit\n`*j withdraw <amt>` - Bank withdraw\n`*j leaderboard` - Rich list', inline: false },
+                        { name: '🛒 Shopping', value: '`*j shop` - View shop\n`*j buy <item>` - Buy item\n`*j inventory` - Your items', inline: false }
+                    ]
+                },
+                gambling: {
+                    emoji: '🎰',
+                    title: 'Gambling Commands',
+                    description: 'Test your luck at Stark Casino!',
+                    fields: [
+                        { name: '🎲 Games', value: '`*j coinflip <amt>` - Flip a coin\n`*j slots <amt>` - Slot machine\n`*j blackjack <amt>` - Play 21\n`*j roulette <amt> <bet>` - Roulette', inline: false },
+                        { name: '🎯 More Games', value: '`*j dice <amt>` - Roll dice\n`*j crash <amt>` - Crash game\n`*j highlow <amt>` - Higher or lower', inline: false },
+                        { name: '🏆 Multiplayer', value: '`*j heist start` - Start a heist\n`*j heist join` - Join heist\n`*j boss attack` - Attack boss', inline: false }
+                    ]
+                },
+                fun: {
+                    emoji: '🎮',
+                    title: 'Fun Commands',
+                    description: 'Entertainment and social commands!',
+                    fields: [
+                        { name: '🎱 Random', value: '`*j 8ball <q>` - Magic 8-ball\n`*j roll [dice]` - Roll dice\n`*j rate <thing>` - Rate something\n`*j dadjoke` - Dad joke', inline: false },
+                        { name: '💕 Social', value: '`*j hug @user` - Hug someone\n`*j slap @user` - Slap someone\n`*j ship @u1 @u2` - Ship people\n`*j fight @user` - Fight!', inline: false },
+                        { name: '📊 Meters', value: '`*j howgay @user` - Gay meter\n`*j howbased @user` - Based meter\n`*j vibecheck @user` - Vibe check\n`*j roast @user` - Roast someone', inline: false }
+                    ]
+                },
+                mod: {
+                    emoji: '🛡️',
+                    title: 'Moderation Commands',
+                    description: 'Server moderation tools (requires permissions)',
+                    fields: [
+                        { name: '🔨 Actions', value: '`*j kick @user [reason]` - Kick member\n`*j ban @user [time] [reason]` - Ban member\n`*j unban <id>` - Unban by ID', inline: false },
+                        { name: '🔇 Timeout', value: '`*j mute @user <time>` - Timeout user\n`*j unmute @user` - Remove timeout', inline: false },
+                        { name: '⚠️ Warnings', value: '`*j warn @user <reason>` - Warn user\n`*j warnings @user` - View warnings\n`*j clearwarnings @user` - Clear warns', inline: false },
+                        { name: '🤖 AI Moderation', value: '`*j enable moderation` - Enable AI mod\n`*j moderation status` - View settings', inline: false }
+                    ]
+                },
+                utility: {
+                    emoji: '⚙️',
+                    title: 'Utility Commands',
+                    description: 'Helpful utility commands',
+                    fields: [
+                        { name: '🔧 Tools', value: '`*j ping` - Bot latency\n`*j remind in <time> <msg>` - Set reminder\n`*j profile` - View profile', inline: false }
+                    ]
+                },
+                premium: {
+                    emoji: '💎',
+                    title: 'Premium Features',
+                    description: 'Advanced economy features',
+                    fields: [
+                        { name: '💠 Arc Reactor', value: '`*j reactor` - Check reactor\n`*j buy arc_reactor` - Buy (10,000💵)\n*+15% earnings, -25% cooldowns*', inline: false },
+                        { name: '💱 Starkbucks', value: '`*j sbx wallet` - SBX balance\n`*j sbx convert <amt>` - Convert\n`*j sbx store` - SBX shop', inline: false },
+                        { name: '📊 Crypto', value: '`*j crypto prices` - View prices\n`*j crypto buy <coin> <amt>` - Buy\n`*j crypto portfolio` - Holdings', inline: false }
+                    ]
+                }
+            };
 
-            const page = HELP_PAGES[pageIndex];
+            // Check for category argument
+            const categoryArg = (args[0] || 'overview').toLowerCase();
+            const categoryAliases = {
+                'moderation': 'mod',
+                'moderate': 'mod',
+                'gamble': 'gambling',
+                'casino': 'gambling',
+                'money': 'economy',
+                'eco': 'economy',
+                'util': 'utility',
+                'tools': 'utility',
+                'vip': 'premium'
+            };
+
+            const categoryKey = categoryAliases[categoryArg] || categoryArg;
+            const category = categories[categoryKey] || categories.overview;
+
             const embed = new EmbedBuilder()
-                .setTitle(page.title)
-                .setDescription(
-                    `**${page.subtitle}**\nText commands for when you're feeling retro, sir.`
-                )
+                .setTitle(`${category.emoji} ${category.title}`)
+                .setDescription(category.description)
                 .setColor(0x3498db)
-                .setFooter({
-                    text: `Use *j next / *j prev to navigate • Page ${pageIndex + 1}/${HELP_PAGES.length}`
-                });
+                .setFooter({ text: 'Use *j help <category> to view specific commands' });
 
-            page.fields.forEach(f => embed.addFields(f));
+            category.fields.forEach(f => embed.addFields(f));
 
-            await message.reply({ embeds: [embed] });
-            return true;
-        }
-    },
+            // Create category buttons
+            const row1 = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('help_overview')
+                    .setLabel('Overview')
+                    .setEmoji('📋')
+                    .setStyle(categoryKey === 'overview' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_economy')
+                    .setLabel('Economy')
+                    .setEmoji('💰')
+                    .setStyle(categoryKey === 'economy' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_gambling')
+                    .setLabel('Gambling')
+                    .setEmoji('🎰')
+                    .setStyle(categoryKey === 'gambling' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_fun')
+                    .setLabel('Fun')
+                    .setEmoji('🎮')
+                    .setStyle(categoryKey === 'fun' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+            );
 
-    // Next page
-    next: {
-        description: 'Next help page',
-        usage: '*j next',
-        execute: async (message, args) => {
-            const current = helpPages.get(message.author.id) || 0;
-            const next = Math.min(current + 1, HELP_PAGES.length - 1);
-            helpPages.set(message.author.id, next);
+            const row2 = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('help_mod')
+                    .setLabel('Moderation')
+                    .setEmoji('🛡️')
+                    .setStyle(categoryKey === 'mod' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_utility')
+                    .setLabel('Utility')
+                    .setEmoji('⚙️')
+                    .setStyle(categoryKey === 'utility' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('help_premium')
+                    .setLabel('Premium')
+                    .setEmoji('💎')
+                    .setStyle(categoryKey === 'premium' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+            );
 
-            const page = HELP_PAGES[next];
-            const embed = new EmbedBuilder()
-                .setTitle(page.title)
-                .setDescription(`**${page.subtitle}**`)
-                .setColor(0x3498db)
-                .setFooter({
-                    text: `Use *j next / *j prev to navigate • Page ${next + 1}/${HELP_PAGES.length}`
-                });
-
-            page.fields.forEach(f => embed.addFields(f));
-            await message.reply({ embeds: [embed] });
-            return true;
-        }
-    },
-
-    // Previous page
-    prev: {
-        description: 'Previous help page',
-        usage: '*j prev',
-        aliases: ['previous', 'back'],
-        execute: async (message, args) => {
-            const current = helpPages.get(message.author.id) || 0;
-            const prev = Math.max(current - 1, 0);
-            helpPages.set(message.author.id, prev);
-
-            const page = HELP_PAGES[prev];
-            const embed = new EmbedBuilder()
-                .setTitle(page.title)
-                .setDescription(`**${page.subtitle}**`)
-                .setColor(0x3498db)
-                .setFooter({
-                    text: `Use *j next / *j prev to navigate • Page ${prev + 1}/${HELP_PAGES.length}`
-                });
-
-            page.fields.forEach(f => embed.addFields(f));
-            await message.reply({ embeds: [embed] });
+            await message.reply({ embeds: [embed], components: [row1, row2] });
             return true;
         }
     },
@@ -4125,11 +4201,33 @@ async function handleLegacyCommand(message, client) {
         }
     }
 
+    // Add loading reaction
+    const LOADING_EMOJI = 'a:loading:1452765129652310056';
+    let loadingReaction = null;
+
+    try {
+        loadingReaction = await message.react(LOADING_EMOJI).catch(() => null);
+    } catch {
+        // Ignore if can't react
+    }
+
     try {
         await command.execute(message, args, client);
+
+        // Remove loading reaction
+        if (loadingReaction) {
+            await loadingReaction.remove().catch(() => { });
+        }
+
         return true;
     } catch (error) {
         console.error(`[LegacyCommands] Error executing ${commandName}:`, error);
+
+        // Remove loading reaction on error too
+        if (loadingReaction) {
+            await loadingReaction.remove().catch(() => { });
+        }
+
         await message.reply('Something went wrong executing that command, sir.').catch(() => { });
         return true;
     }

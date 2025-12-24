@@ -2138,6 +2138,38 @@ const allCommands = [
         .addSubcommand(s => s.setName('buy').setDescription('Bid/Buy on an auction').addStringOption(o => o.setName('id').setDescription('Auction ID').setRequired(true)))
         .addSubcommand(s => s.setName('create').setDescription('Create an auction').addStringOption(o => o.setName('item').setDescription('Item ID').setRequired(true)).addIntegerOption(o => o.setName('price').setDescription('Starting price').setRequired(true))),
 
+    // ============ MODERATION SLASH COMMANDS ============
+    new SlashCommandBuilder()
+        .setName('ban')
+        .setDescription('Ban a member from the server')
+        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+        .setContexts([InteractionContextType.Guild])
+        .addUserOption(o => o.setName('user').setDescription('User to ban').setRequired(true))
+        .addStringOption(o => o.setName('duration').setDescription('Ban duration (e.g. 10m, 1h, 7d, or leave empty for permanent)'))
+        .addStringOption(o => o.setName('reason').setDescription('Reason for ban')),
+    new SlashCommandBuilder()
+        .setName('kick')
+        .setDescription('Kick a member from the server')
+        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
+        .setContexts([InteractionContextType.Guild])
+        .addUserOption(o => o.setName('user').setDescription('User to kick').setRequired(true))
+        .addStringOption(o => o.setName('reason').setDescription('Reason for kick')),
+    new SlashCommandBuilder()
+        .setName('mute')
+        .setDescription('Timeout a member')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+        .setContexts([InteractionContextType.Guild])
+        .addUserOption(o => o.setName('user').setDescription('User to mute').setRequired(true))
+        .addStringOption(o => o.setName('duration').setDescription('Mute duration (e.g. 10m, 1h, 1d)').setRequired(true))
+        .addStringOption(o => o.setName('reason').setDescription('Reason for mute')),
+    new SlashCommandBuilder()
+        .setName('warn')
+        .setDescription('Warn a member')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+        .setContexts([InteractionContextType.Guild])
+        .addUserOption(o => o.setName('user').setDescription('User to warn').setRequired(true))
+        .addStringOption(o => o.setName('reason').setDescription('Reason for warning').setRequired(true)),
+
     ...musicCommandList.map(command => command.data)
 ];
 
