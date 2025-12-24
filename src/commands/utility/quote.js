@@ -100,12 +100,17 @@ const quoteContext = {
             }
         }
 
-        if (!content && !attachmentUrl) {
+        let text = content || '';
+
+        // If we found an image and the text is just a URL (likely the source of the embed), hide the text
+        if (attachmentUrl && /^https?:\/\/[^\s]+$/.test(text.trim())) {
+            text = '';
+        }
+
+        if (!text && !attachmentUrl) {
             await interaction.editReply('❌ Message has no content or image to quote.');
             return;
         }
-
-        const text = content || '';
 
         try {
             const avatarUrl = author.displayAvatarURL({ extension: 'png', size: 256 });
