@@ -20,22 +20,19 @@ async function loadGifFrame(url) {
         const buffer = await res.arrayBuffer();
         fs.writeFileSync(inputPath, Buffer.from(buffer));
 
-        // Extract Frame at 1.0s
+        // Extract Frame 10 (heuristic to skip start/blank frames)
         // -y: overwrite
-        // -ss 1.0: seek to 1 second
         // -vframes 1: output 1 frame
         // This handles transparency (compositing on transparent bg) correctly mostly
         // If the GIF is transparent, ffmpeg output png will preserve it usually?
-        // Or we might need complex filters. But default is usually good.
-        // If duration < 1s, we might fail. If so, fallback catch will handle it.
-        const cmd = `ffmpeg -i "${inputPath}" -ss 1.0 -vframes 1 "${outputPath}" -y`;
+        // -vf "select='eq(n,10)'" selects the 11th frame specifically
+        const cmd = `ffmpeg -i "${inputPath}" -vf "select='eq(n,10)'" -vframes 1 "${outputPath}" -y`;
 
         await exec(cmd);
 
         if (!fs.existsSync(outputPath)) {
-            // Try seeking 0.0 if 1.0 failed (short gif?)
-            // Fallback to standard load
-            throw new Error("FFmpeg produced no output");
+            // If Frame 10 doesn't exist (short GIF), try Frame 0 or just fallback
+            throw new Error("FFmpeg produced no output (GIF too short?)");
         }
 
         const image = await loadImage(outputPath);
