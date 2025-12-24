@@ -1,6 +1,10 @@
 const { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder, ApplicationIntegrationType, InteractionContextType } = require('discord.js');
 const { generateQuoteImage } = require('../../utils/quote-generator');
 
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 const quoteSlash = {
     data: new SlashCommandBuilder()
         .setName('quote')
@@ -81,7 +85,6 @@ const quoteContext = {
         const content = message.content;
         const author = message.author;
 
-        // Find Image URL (Attachment or Embed)
         let attachmentUrl = null;
 
         // 1. Check Attachments
@@ -90,7 +93,7 @@ const quoteContext = {
             attachmentUrl = attachment.url;
         }
 
-        // 2. Check Embeds (Tenor, Giphy, etc)
+        // 2. Check Embeds
         if (!attachmentUrl && message.embeds.length > 0) {
             const embed = message.embeds[0];
             if (embed.thumbnail && embed.thumbnail.url) {
@@ -102,9 +105,27 @@ const quoteContext = {
 
         let text = content || '';
 
-        // Remove attachment URL from text if present
+        // Remove attachment URL from text if present (Fuzzy match for cdn/media mismatch)
         if (attachmentUrl) {
-            text = text.replace(attachmentUrl, '').trim();
+            // Try distinct exact remove
+            text = text.replace(attachmentUrl, '');
+
+            try {
+                // url structure: https://.../attachments/12398123.../filename.png
+                // We extract the numeric ID and filename
+                const match = attachmentUrl.match(/\/(\d+)\/([^/?]+)/);
+                if (match) {
+                    const id = match[1];
+                    const filename = match[2];
+                    // Regex to find any URL containing this ID and Filename
+                    const fuzzyRegex = new RegExp(`https?:\\/\\/[^\\s]*${id}\\/${escapeRegExp(filename)}[^\\s]*`, 'g');
+                    text = text.replace(fuzzyRegex, '');
+                }
+            } catch (e) {
+                console.warn("Fuzzy strip failed", e);
+            }
+
+            text = text.trim();
         }
 
         if (!text && !attachmentUrl) {
