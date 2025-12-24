@@ -795,6 +795,22 @@ const commandDefinitions = [
         usage: '/queue',
         feature: 'music',
         ephemeral: false
+    },
+    {
+        name: 'mute',
+        description: 'Timeout a user (put them in the corner).',
+        category: 'Moderation',
+        usage: '/mute <user> <time> [reason]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'unmute',
+        description: 'Remove a timeout from a user.',
+        category: 'Moderation',
+        usage: '/unmute <user> [reason]',
+        feature: 'moderation',
+        ephemeral: false
     }
 ];
 
