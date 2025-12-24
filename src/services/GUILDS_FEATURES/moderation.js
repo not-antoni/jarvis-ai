@@ -605,20 +605,27 @@ function recordDetection(guildId, userId, category, reason = null, severity = 'm
     config.stats.byCategory[category] = (config.stats.byCategory[category] || 0) + 1;
     config.stats.byUser[userId] = (config.stats.byUser[userId] || 0) + 1;
 
+    // Truncate byUser to keep only top 100 users (prevent memory bloat)
+    const userEntries = Object.entries(config.stats.byUser);
+    if (userEntries.length > 100) {
+        const sorted = userEntries.sort((a, b) => b[1] - a[1]).slice(0, 100);
+        config.stats.byUser = Object.fromEntries(sorted);
+    }
+
     // Add to recent detections (keep last 50)
     config.recentDetections.unshift({
         userId,
         category,
         severity,
-        reason,
+        reason: reason?.slice(0, 200), // Truncate reason to save space
         timestamp: new Date().toISOString()
     });
     if (config.recentDetections.length > 50) {
         config.recentDetections = config.recentDetections.slice(0, 50);
     }
 
-    // Save periodically (every 10 detections)
-    if (config.stats.total % 10 === 0) {
+    // Save immediately on first few detections, then every 5
+    if (config.stats.total <= 5 || config.stats.total % 5 === 0) {
         saveConfig(guildId);
     }
 }
