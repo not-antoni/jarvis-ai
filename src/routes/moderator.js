@@ -307,7 +307,9 @@ router.post(
             pingRoles: parseDiscordIdList(req.body?.pingRoles),
             pingUsers: parseDiscordIdList(req.body?.pingUsers),
             alertChannel: req.body?.alertChannel || null,
-            logChannel: req.body?.logChannel || null
+            logChannel: req.body?.logChannel || null,
+            useEmbeds: req.body?.useEmbeds === 'on',
+            customAlertTemplate: req.body?.customAlertTemplate || ''
         };
 
         moderation.updateSettings(String(guildId), patch);
@@ -621,6 +623,17 @@ function getGuildPage(session, guild, status, errorCode = '') {
                     
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Users (IDs, comma separated)</label>
                     <input type="text" name="pingUsers" placeholder="User IDs" value="${(settings.pingUsers || []).join(', ')}">
+
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">✨ Alert Style</h3>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="useEmbeds" ${settings.useEmbeds !== false ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Use Rich Embeds</span>
+                    </div>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Custom Alert Message (leave empty for default)</label>
+                    <textarea name="customAlertTemplate" rows="3" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 14px; margin-bottom: 10px; resize: vertical;" placeholder="⚡ {pings} THREAT: {user} | {category} ⚡">${settings.customAlertTemplate || ''}</textarea>
+                    <p class="muted" style="margin-bottom: 15px;">Variables: <code>{user}</code> <code>{username}</code> <code>{category}</code> <code>{severity}</code> <code>{pings}</code> <code>{reason}</code> <code>{channel}</code></p>
 
                     <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">💾 Save Settings</button>
                 </form>
