@@ -14,7 +14,7 @@ const quoteSlash = {
                 .setDescription('The text to quote')
                 .setRequired(false)),
     async execute(interaction) {
-        await interaction.deferReply();
+
 
         let targetUser = interaction.options.getUser('user') || interaction.user;
         let text = interaction.options.getString('text');
@@ -52,7 +52,7 @@ const quoteContext = {
         .setName('Make it a Quote')
         .setType(ApplicationCommandType.Message),
     async execute(interaction) {
-        await interaction.deferReply();
+
 
         const message = interaction.targetMessage;
         if (!message) {
