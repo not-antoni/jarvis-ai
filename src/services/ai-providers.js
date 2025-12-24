@@ -368,6 +368,23 @@ class AIProviderManager {
             });
         });
 
+        // ---------- Cloudflare Workers AI (via deployed worker) ----------
+        // Uses AI_PROXY_TOKEN for authentication (same as other proxies)
+        const cfWorkerUrl = process.env.CLOUDFLARE_WORKER_URL;
+        const cfWorkerToken = process.env.AI_PROXY_TOKEN;
+        if (cfWorkerUrl && cfWorkerToken) {
+            this.providers.push({
+                name: 'CloudflareAI',
+                workerUrl: cfWorkerUrl,
+                apiKey: cfWorkerToken,
+                model: '@cf/meta/llama-3.1-8b-instruct-fp8',
+                type: 'cloudflare-worker',
+                family: 'cloudflare',
+                costTier: 'free'
+            });
+            console.log('Cloudflare Workers AI provider configured');
+        }
+
         // Rank cheapest first by default
         this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
 
@@ -807,8 +824,8 @@ class AIProviderManager {
                                 ? 429
                                 : errorMessage.includes('safety') ||
                                     errorMessage.includes('blocked')
-                                  ? 400
-                                  : 502);
+                                    ? 400
+                                    : 502);
                         throw Object.assign(new Error(`Gemini error: ${errorMessage}`), { status });
                     }
 
@@ -993,6 +1010,64 @@ class AIProviderManager {
                     };
                 }
 
+                // ---------- Cloudflare Workers AI handler (via deployed worker) ----------
+                if (provider.type === 'cloudflare-worker') {
+                    const cfEndpoint = `${provider.workerUrl}/api/chat`;
+
+                    const messages = [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ];
+
+                    const response = await aiFetch(cfEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${provider.apiKey}`
+                        },
+                        body: JSON.stringify({ messages, max_tokens: maxTokens })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text().catch(() => 'Unknown error');
+                        throw Object.assign(new Error(`Cloudflare AI error: ${errorText}`), {
+                            status: response.status
+                        });
+                    }
+
+                    // Handle SSE stream - collect all chunks
+                    const text = await response.text();
+                    let fullContent = '';
+
+                    // Parse SSE format: data: {"response":"..."}
+                    const lines = text.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const jsonStr = line.slice(6);
+                            if (jsonStr === '[DONE]') continue;
+                            try {
+                                const chunk = JSON.parse(jsonStr);
+                                if (chunk.response) {
+                                    fullContent += chunk.response;
+                                }
+                            } catch { }
+                        }
+                    }
+
+                    if (!fullContent.trim()) {
+                        throw Object.assign(
+                            new Error(`Empty response from Cloudflare AI`),
+                            { status: 502, transient: true }
+                        );
+                    }
+
+                    const cleaned = sanitizeAssistantMessage(fullContent);
+                    return {
+                        choices: [{ message: { content: cleaned } }],
+                        usage: { prompt_tokens: 0, completion_tokens: 0 }
+                    };
+                }
+
                 // OpenAI-compatible providers (OpenRouter, Groq, DeepSeek via Vercel AI Gateway)
                 const resp = await provider.client.chat.completions.create({
                     model: provider.model,
@@ -1054,10 +1129,10 @@ class AIProviderManager {
 
                 const raw =
                     resp &&
-                    resp.choices &&
-                    resp.choices[0] &&
-                    resp.choices[0].message &&
-                    resp.choices[0].message.content
+                        resp.choices &&
+                        resp.choices[0] &&
+                        resp.choices[0].message &&
+                        resp.choices[0].message.content
                         ? String(resp.choices[0].message.content)
                         : '';
                 const cleaned = sanitizeAssistantMessage(raw);
