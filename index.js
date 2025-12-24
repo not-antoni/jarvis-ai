@@ -2157,6 +2157,13 @@ const allCommands = [
         .addStringOption(o => o.setName('duration').setDescription('Ban duration (e.g. 10m, 1h, 7d, or leave empty for permanent)'))
         .addStringOption(o => o.setName('reason').setDescription('Reason for ban')),
     new SlashCommandBuilder()
+        .setName('unban')
+        .setDescription('Unban a user from the server')
+        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+        .setContexts([InteractionContextType.Guild])
+        .addUserOption(o => o.setName('user').setDescription('User ID to unban').setRequired(true))
+        .addStringOption(o => o.setName('reason').setDescription('Reason for unban')),
+    new SlashCommandBuilder()
         .setName('kick')
         .setDescription('Kick a member from the server')
         .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
