@@ -71,3 +71,4 @@ jorvis.org.key
 jorvis.org.pem
 *.key
 *.pem
+vendor/llm-chat-app-template/
