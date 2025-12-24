@@ -25,8 +25,8 @@ async function loadGifFrame(url) {
         // -vframes 1: output 1 frame
         // This handles transparency (compositing on transparent bg) correctly mostly
         // If the GIF is transparent, ffmpeg output png will preserve it usually?
-        // -vf "select='eq(n,60)'" selects the 61st frame specifically (User requested 60 frames wait)
-        const cmd = `ffmpeg -i "${inputPath}" -vf "select='eq(n,60)'" -vframes 1 "${outputPath}" -y`;
+        // -vf "select='eq(n,20)'" selects the 21st frame specifically (User requested 20 frames wait)
+        const cmd = `ffmpeg -i "${inputPath}" -vf "select='eq(n,20)'" -vframes 1 "${outputPath}" -y`;
 
         await exec(cmd);
 
