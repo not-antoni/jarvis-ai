@@ -759,7 +759,7 @@
                     telemetryMetadata.category = 'economy';
                     const sub = interaction.options.getSubcommand();
                     if (sub === 'info') {
-                        const pet = await starkEconomy.getPetData(interaction.user.id);
+                        const { pet } = await starkEconomy.getPetData(interaction.user.id);
                         if (!pet) {
                             response = 'You don\'t have a pet! Use `/pet adopt` to get one.';
                             break;
