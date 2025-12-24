@@ -388,6 +388,12 @@ function getDefaultSettings() {
         logChannel: null,
         alertChannel: null,
 
+        // Alert customization
+        useEmbeds: true, // false = simple message only
+        customAlertTemplate: '', // Empty = use default Jarvis style
+        // Variables: {user} {category} {severity} {pings} {reason}
+        // Example: "⚠️ {pings} THREAT DETECTED: {user} | {category} | {severity}"
+
         // Actions
         autoDelete: false,
         autoMute: false,
@@ -983,7 +989,6 @@ function buildAlertEmbed(message, result, contentType, context, riskData) {
 async function sendAlert(message, result, contentType, client, context, riskData) {
     const guildId = message.guild.id;
     const settings = getSettings(guildId);
-    const embed = buildAlertEmbed(message, result, contentType, context, riskData);
 
     // Build pings
     const pings = [];
@@ -992,22 +997,60 @@ async function sendAlert(message, result, contentType, client, context, riskData
     for (const userId of settings.pingUsers || []) pings.push(`<@${userId}>`);
     const pingString = pings.join(' ');
 
-    // Build Jarvis-style alert message
+    // Build alert message
     const category = result.categories?.[0] || 'scam';
-    const alertMessage = buildJarvisAlert(category, pingString);
+    const severity = result.severity || 'medium';
+    const reason = result.reason || 'Suspicious content detected';
+    const userMention = `<@${message.author.id}>`;
+    const userName = message.author.tag || message.author.username;
 
-    // Send in current channel
+    let alertMessage;
+    if (settings.customAlertTemplate && settings.customAlertTemplate.trim()) {
+        // Use custom template with variable replacement
+        alertMessage = settings.customAlertTemplate
+            .replace(/\{user\}/gi, userMention)
+            .replace(/\{username\}/gi, userName)
+            .replace(/\{category\}/gi, category.toUpperCase())
+            .replace(/\{severity\}/gi, severity.toUpperCase())
+            .replace(/\{pings\}/gi, pingString)
+            .replace(/\{reason\}/gi, reason)
+            .replace(/\{channel\}/gi, `<#${message.channel.id}>`)
+            .replace(/\{type\}/gi, contentType);
+    } else {
+        // Default Jarvis-style
+        alertMessage = buildJarvisAlert(category, pingString);
+    }
+
+    // Prepare message payload
+    const payload = { content: alertMessage };
+
+    // Add embed if enabled
+    if (settings.useEmbeds !== false) {
+        const embed = buildAlertEmbed(message, result, contentType, context, riskData);
+        payload.embeds = [embed];
+    }
+
+    // Determine target channel (alertChannel or message channel)
+    const targetChannel = settings.alertChannel
+        ? await client.channels.fetch(settings.alertChannel).catch(() => message.channel)
+        : message.channel;
+
+    // Send alert
     try {
-        await safeSend(message.channel, { content: alertMessage, embeds: [embed] }, client);
+        await safeSend(targetChannel, payload, client);
     } catch (error) {
         console.error('[Moderation] Failed to send alert:', error.message);
     }
 
-    // Also send to log channel if configured
-    if (settings.logChannel && settings.logChannel !== message.channel.id) {
+    // Also send to log channel if configured (different from alert channel)
+    if (settings.logChannel && settings.logChannel !== targetChannel.id) {
         try {
             const channel = await client.channels.fetch(settings.logChannel);
-            if (channel) await safeSend(channel, { content: pingString, embeds: [embed] }, client);
+            if (channel) {
+                // Log channel always gets embed for record keeping
+                const embed = buildAlertEmbed(message, result, contentType, context, riskData);
+                await safeSend(channel, { content: pingString, embeds: [embed] }, client);
+            }
         } catch (error) {
             console.error('[Moderation] Failed to send to log channel:', error.message);
         }
