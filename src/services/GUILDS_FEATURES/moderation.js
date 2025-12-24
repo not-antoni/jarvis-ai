@@ -631,10 +631,6 @@ function parseAIResponse(response) {
         return null;
     }
 
-    const lines = response
-        .split('\n')
-        .map(l => l.trim())
-        .filter(l => l);
     const result = {
         isUnsafe: false,
         severity: 'low',
@@ -643,27 +639,39 @@ function parseAIResponse(response) {
         confidence: 0.5
     };
 
-    for (const line of lines) {
-        if (line.startsWith('ACTION:')) {
-            const action = line.replace('ACTION:', '').trim().toUpperCase();
-            result.isUnsafe = action === 'FLAG';
-        } else if (line.startsWith('SEVERITY:')) {
-            const sev = line.replace('SEVERITY:', '').trim().toLowerCase();
-            if (['low', 'medium', 'high', 'critical'].includes(sev)) {
-                result.severity = sev;
-            }
-        } else if (line.startsWith('CATEGORY:')) {
-            const cat = line.replace('CATEGORY:', '').trim().toLowerCase();
-            if (cat && cat !== 'safe') {
-                result.categories = [cat];
-            }
-        } else if (line.startsWith('REASON:')) {
-            result.reason = line.replace('REASON:', '').trim();
-        } else if (line.startsWith('CONFIDENCE:')) {
-            const conf = parseFloat(line.replace('CONFIDENCE:', '').trim());
-            if (!isNaN(conf) && conf >= 0 && conf <= 1) {
-                result.confidence = conf;
-            }
+    // Handle both newline-separated and space-separated formats
+    // e.g. "ACTION:FLAG SEVERITY:critical CATEGORY:scam..." or "ACTION:FLAG\nSEVERITY:critical\n..."
+
+    // Extract ACTION
+    const actionMatch = response.match(/ACTION:\s*(FLAG|SAFE)/i);
+    if (actionMatch) {
+        result.isUnsafe = actionMatch[1].toUpperCase() === 'FLAG';
+    }
+
+    // Extract SEVERITY
+    const severityMatch = response.match(/SEVERITY:\s*(low|medium|high|critical)/i);
+    if (severityMatch) {
+        result.severity = severityMatch[1].toLowerCase();
+    }
+
+    // Extract CATEGORY
+    const categoryMatch = response.match(/CATEGORY:\s*(\w+)/i);
+    if (categoryMatch && categoryMatch[1].toLowerCase() !== 'safe') {
+        result.categories = [categoryMatch[1].toLowerCase()];
+    }
+
+    // Extract REASON - everything after REASON: until the next field or end
+    const reasonMatch = response.match(/REASON:\s*(.+?)(?=\s*(?:CONFIDENCE:|$))/is);
+    if (reasonMatch) {
+        result.reason = reasonMatch[1].trim();
+    }
+
+    // Extract CONFIDENCE
+    const confidenceMatch = response.match(/CONFIDENCE:\s*([\d.]+)/i);
+    if (confidenceMatch) {
+        const conf = parseFloat(confidenceMatch[1]);
+        if (!isNaN(conf) && conf >= 0 && conf <= 1) {
+            result.confidence = conf;
         }
     }
 
