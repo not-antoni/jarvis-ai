@@ -25,14 +25,14 @@ async function loadGifFrame(url) {
         // -vframes 1: output 1 frame
         // This handles transparency (compositing on transparent bg) correctly mostly
         // If the GIF is transparent, ffmpeg output png will preserve it usually?
-        // -vf "select='eq(n,20)'" selects the 21st frame specifically (User requested 20 frames wait)
-        const cmd = `ffmpeg -i "${inputPath}" -vf "select='eq(n,20)'" -vframes 1 "${outputPath}" -y`;
+        // Use 'thumbnail' filter to automatically pick a representative frame
+        // This is better than guessing a specific frame number (skips blank starts)
+        const cmd = `ffmpeg -i "${inputPath}" -vf "thumbnail" -vframes 1 "${outputPath}" -y`;
 
         await exec(cmd);
 
         if (!fs.existsSync(outputPath)) {
-            // If Frame 10 doesn't exist (short GIF), try Frame 0 or just fallback
-            throw new Error("FFmpeg produced no output (GIF too short?)");
+            throw new Error("FFmpeg produced no output");
         }
 
         const image = await loadImage(outputPath);
@@ -312,22 +312,33 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
     if (attachmentImage) {
         currentY += contentSpacing;
         const imgX = textCenterX - (imageDrawWidth / 2);
+        const radius = 20;
 
+        // Draw Visibility Backdrop
         ctx.save();
         ctx.beginPath();
-        const radius = 20;
-        ctx.moveTo(imgX + radius, currentY);
-        ctx.lineTo(imgX + imageDrawWidth - radius, currentY);
-        ctx.quadraticCurveTo(imgX + imageDrawWidth, currentY, imgX + imageDrawWidth, currentY + radius);
-        ctx.lineTo(imgX + imageDrawWidth, currentY + imageDrawHeight - radius);
-        ctx.quadraticCurveTo(imgX + imageDrawWidth, currentY + imageDrawHeight, imgX + imageDrawWidth - radius, currentY + imageDrawHeight);
-        ctx.lineTo(imgX + radius, currentY + imageDrawHeight);
-        ctx.quadraticCurveTo(imgX, currentY + imageDrawHeight, imgX, currentY + imageDrawHeight - radius);
-        ctx.lineTo(imgX, currentY + radius);
-        ctx.quadraticCurveTo(imgX, currentY, imgX + radius, currentY);
-        ctx.closePath();
-        ctx.clip();
+        if (ctx.roundRect) {
+            ctx.roundRect(imgX, currentY, imageDrawWidth, imageDrawHeight, radius);
+        } else {
+            // Fallback for older canvas versions
+            ctx.moveTo(imgX + radius, currentY);
+            ctx.lineTo(imgX + imageDrawWidth - radius, currentY);
+            ctx.quadraticCurveTo(imgX + imageDrawWidth, currentY, imgX + imageDrawWidth, currentY + radius);
+            ctx.lineTo(imgX + imageDrawWidth, currentY + imageDrawHeight - radius);
+            ctx.quadraticCurveTo(imgX + imageDrawWidth, currentY + imageDrawHeight, imgX + imageDrawWidth - radius, currentY + imageDrawHeight);
+            ctx.lineTo(imgX + radius, currentY + imageDrawHeight);
+            ctx.quadraticCurveTo(imgX, currentY + imageDrawHeight, imgX, currentY + imageDrawHeight - radius);
+            ctx.lineTo(imgX, currentY + radius);
+            ctx.quadraticCurveTo(imgX, currentY, imgX + radius, currentY);
+        }
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
+        // Clip and Draw Image
+        ctx.clip(); // Clip to the rect we just drew
         ctx.drawImage(attachmentImage, imgX, currentY, imageDrawWidth, imageDrawHeight);
         ctx.restore();
 
