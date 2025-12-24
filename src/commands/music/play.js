@@ -95,7 +95,7 @@ module.exports = {
         }
 
         if (durationSec > MAX_DURATION_SECONDS) {
-            await interaction.editReply(`❌ Video is too long, sir. Maximum duration is ${MAX_DURATION_MINS} minutes.\nThis video is approximately ${Math.floor(durationSec / 60)} minutes.`);
+            await interaction.editReply(`❌ **Video is too long, sir.** (Max: ${MAX_DURATION_MINS}m)\n"Sir, are you listening to music or National Geographic?" 🤨🌍`);
             return;
         }
 
