@@ -23,105 +23,124 @@ function wrapText(ctx, text, maxWidth) {
 }
 
 /**
- * Generate a "Make it a Quote" style image
+ * Generate a "Make it a Quote" style image with Gradient Background
  * @param {string} text - Message text
  * @param {string} username - User display name
  * @param {string} avatarUrl - Avatar URL (png/jpg)
- * @param {Date} timestamp - Message timestamp
- * @param {string} [attachmentImage] - Optional attachment image URL
+ * @param {Date} timestamp - Message timestamp (unused in new design but kept for compat)
  * @returns {Promise<Buffer>}
  */
-async function generateQuoteImage(text, username, avatarUrl, timestamp, attachmentImage = null) {
-    const width = 800;
-    const padding = 40;
-    const avatarSize = 150;
+async function generateQuoteImage(text, username, avatarUrl, timestamp) {
+    const width = 1200;
+    const padding = 60;
+    const minHeight = 400;
 
-    // Setup temporary canvas to measure text
-    const canvas = createCanvas(width, 500); // Initial height, will resize
-    const ctx = canvas.getContext('2d');
+    // Calculate Text Lines first to determine height
+    const tempCanvas = createCanvas(width, minHeight);
+    const tempCtx = tempCanvas.getContext('2d');
 
     // Font settings
-    const fontSize = 42;
-    const fontFamily = 'sans-serif';
-    ctx.font = `${fontSize}px ${fontFamily}`;
+    const fontSize = 60;
+    const fontFamily = 'sans-serif'; // Fallback
+    tempCtx.font = `${fontSize}px ${fontFamily}`;
 
-    // Wrap text
-    const maxTextWidth = width - (padding * 3) - avatarSize;
-    const lines = wrapText(ctx, text || '', maxTextWidth);
+    // Max width for text (Right side, ~50% of screen)
+    const maxTextWidth = (width / 2) - padding;
+    const lines = wrapText(tempCtx, text || '', maxTextWidth);
 
-    // Calculate Height
-    const lineHeight = fontSize * 1.4;
-    const textHeight = Math.max(lines.length * lineHeight, avatarSize); // ensure at least as tall as avatar
-    const nameHeight = 60;
+    const lineHeight = fontSize * 1.5;
+    const textBlockHeight = lines.length * lineHeight;
+    const nameHeight = 50;
+    const handleHeight = 30;
 
-    let canvasHeight = padding + nameHeight + textHeight + padding;
+    // Dynamic height based on text
+    const canvasHeight = Math.max(minHeight, textBlockHeight + nameHeight + handleHeight + (padding * 3));
 
-    // Start drawing real canvas
-    const finalCanvas = createCanvas(width, canvasHeight);
-    const finalCtx = finalCanvas.getContext('2d');
+    // Create Real Canvas
+    const canvas = createCanvas(width, canvasHeight);
+    const ctx = canvas.getContext('2d');
 
-    // Background (Dark Theme)
-    finalCtx.fillStyle = '#161618'; // Dark gray
-    finalCtx.fillRect(0, 0, width, canvasHeight);
+    // 1. Black Background
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, width, canvasHeight);
 
-    // Avatar
+    // 2. Draw Grayscale Avatar on Left
     try {
         const avatar = await loadImage(avatarUrl);
-        finalCtx.save();
-        const avX = padding;
-        const avY = padding;
-        const radius = avatarSize / 2;
 
-        finalCtx.beginPath();
-        finalCtx.arc(avX + radius, avY + radius, radius, 0, Math.PI * 2, true);
-        finalCtx.closePath();
-        finalCtx.clip();
+        // Use filter if supported (Canvas 2.x+)
+        ctx.save();
+        // Make it cover the left half+ a bit
+        // Aspect fill logic
+        const imgRatio = avatar.width / avatar.height;
+        let drawWidth = canvasHeight * imgRatio;
+        let drawHeight = canvasHeight;
 
-        finalCtx.drawImage(avatar, avX, avY, avatarSize, avatarSize);
-        finalCtx.restore();
+        if (drawWidth < width * 0.6) {
+            drawWidth = width * 0.6;
+            drawHeight = drawWidth / imgRatio;
+        }
+
+        ctx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';
+        ctx.drawImage(avatar, 0, (canvasHeight - drawHeight) / 2, drawWidth, drawHeight);
+        ctx.restore();
     } catch (e) {
-        // Fallback for failed avatar
-        finalCtx.fillStyle = '#7289da';
-        finalCtx.beginPath();
-        finalCtx.arc(padding + avatarSize / 2, padding + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-        finalCtx.fill();
+        // Fallback pattern if avatar fails
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, 0, width / 2, canvasHeight);
+        console.error("Avatar load failed", e);
     }
 
-    // Text Position
-    const textX = padding * 2 + avatarSize;
-    let textY = padding + 50; // Text start Y
+    // 3. Gradient Overlay (Left to Right: Transparent -> Black)
+    const gradient = ctx.createLinearGradient(0, 0, width * 0.7, 0);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.2)'); // Slight tint on left
+    gradient.addColorStop(0.4, 'rgba(0, 0, 0, 0.6)');
+    gradient.addColorStop(0.8, 'rgba(0, 0, 0, 1)'); // Solid black at 80% mark
+    gradient.addColorStop(1, '#000000');
 
-    // Metadata (Date)
-    const dateStr = timestamp.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, canvasHeight);
 
-    // Draw Username
-    finalCtx.fillStyle = '#ffffff';
-    finalCtx.font = `bold 36px ${fontFamily}`;
-    finalCtx.fillText(username, textX, padding + 30);
+    // 4. Draw Text (Right side)
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
-    // Draw Date (next to username or below?)
-    finalCtx.fillStyle = '#72767d'; // Dim gray
-    finalCtx.font = `24px ${fontFamily}`;
-    const nameWidth = finalCtx.measureText(username).width;
-    finalCtx.fillText(dateStr, textX + nameWidth + 20, padding + 30);
+    const textCenterX = (width * 0.75); // Center of right half (roughly)
+    const textCenterY = canvasHeight / 2;
 
-    // Draw Message Text
-    finalCtx.fillStyle = '#dcddde'; // Discord text color
-    finalCtx.font = `${fontSize}px ${fontFamily}`;
+    // Draw Message
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${fontSize}px ${fontFamily}`;
 
-    textY = padding + nameHeight + 10;
+    let currentY = textCenterY - ((lines.length - 1) * lineHeight) / 2 - 40; // Shift up a bit for name space
 
     for (const line of lines) {
-        finalCtx.fillText(line, textX, textY);
-        textY += lineHeight;
+        ctx.fillText(line, textCenterX, currentY);
+        currentY += lineHeight;
     }
 
-    // Watermark
-    finalCtx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-    finalCtx.font = '20px sans-serif';
-    finalCtx.fillText('Jarvis Quotes', width - 150, canvasHeight - 20);
+    // Draw Name
+    const nameY = currentY + 20;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `italic 36px ${fontFamily}`;
+    ctx.fillText(`- ${username}`, textCenterX, nameY);
 
-    return finalCanvas.toBuffer();
+    // Draw Handle (fake handle logic for design)
+    // We don't have handle passed easily, so we skip or use username lowercased
+    /*
+    const handleY = nameY + 30;
+    ctx.fillStyle = '#888888';
+    ctx.font = `24px ${fontFamily}`;
+    ctx.fillText(`@${username.replace(/\s+/g, '_').toLowerCase()}`, textCenterX, handleY);
+    */
+
+    // 5. Watermark
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.font = '20px sans-serif';
+    ctx.fillText('Jarvis Quotes', width - 20, canvasHeight - 20);
+
+    return canvas.toBuffer();
 }
 
 module.exports = { generateQuoteImage };
