@@ -315,20 +315,22 @@ const updateBotPresence = () => {
     }
 
     const { message, type } = getNextRotatingStatus();
+    const activity = { name: message };
+    if (typeof type !== 'undefined') {
+        activity.type = type;
+    }
 
     try {
         client.user.setPresence({
             status: 'online',
-            activities: [
-                { name: 'jorvis.org', type: ActivityType.Custom, state: 'jorvis.org' },
-                { name: message, type: type ?? ActivityType.Playing }
-            ],
+            activities: [activity],
             afk: false
         });
     } catch (error) {
         console.error('Failed to update bot presence:', error);
     }
 };
+
 
 function buildProviderDigestResponse(providers = []) {
     const list = Array.isArray(providers) ? providers : [];
