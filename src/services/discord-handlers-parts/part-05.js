@@ -2927,6 +2927,149 @@
                     }
                     break;
                 }
+                // ============ MODERATION SLASH COMMANDS ============
+                case 'ban': {
+                    telemetryMetadata.category = 'moderation';
+                    const targetUser = interaction.options.getUser('user', true);
+                    const duration = interaction.options.getString('duration');
+                    const reason = interaction.options.getString('reason') || `Banned by ${interaction.user.tag}`;
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    if (targetMember && !targetMember.bannable) {
+                        response = '❌ I cannot ban that member (role hierarchy issue).';
+                        break;
+                    }
+                    
+                    // Parse duration
+                    let banDuration = null;
+                    if (duration) {
+                        const timeMatch = duration.match(/^(\d+)(m|h|d)$/i);
+                        if (timeMatch) {
+                            const amount = parseInt(timeMatch[1], 10);
+                            const unit = timeMatch[2].toLowerCase();
+                            if (unit === 'm') banDuration = amount * 60 * 1000;
+                            else if (unit === 'h') banDuration = amount * 60 * 60 * 1000;
+                            else if (unit === 'd') banDuration = amount * 24 * 60 * 60 * 1000;
+                        }
+                    }
+                    
+                    try {
+                        await interaction.guild.members.ban(targetUser.id, { reason, deleteMessageSeconds: 0 });
+                        
+                        let durationText = 'permanently';
+                        if (banDuration) {
+                            const mins = Math.floor(banDuration / 60000);
+                            const hours = Math.floor(mins / 60);
+                            const days = Math.floor(hours / 24);
+                            if (days > 0) durationText = `for ${days} day(s)`;
+                            else if (hours > 0) durationText = `for ${hours} hour(s)`;
+                            else durationText = `for ${mins} minute(s)`;
+                            
+                            // Schedule unban
+                            setTimeout(async () => {
+                                try {
+                                    await interaction.guild.members.unban(targetUser.id, 'Temporary ban expired');
+                                } catch {}
+                            }, banDuration);
+                        }
+                        
+                        response = `🔨 **${targetUser.tag}** has been banned ${durationText}.\nhttps://tenor.com/view/bane-no-banned-and-you-are-explode-gif-16047504`;
+                    } catch (error) {
+                        response = `❌ Ban failed: ${error.message}`;
+                    }
+                    break;
+                }
+                case 'kick': {
+                    telemetryMetadata.category = 'moderation';
+                    const targetUser = interaction.options.getUser('user', true);
+                    const reason = interaction.options.getString('reason') || `Kicked by ${interaction.user.tag}`;
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    if (!targetMember) { response = '❌ User not found in this server.'; break; }
+                    if (!targetMember.kickable) { response = '❌ I cannot kick that member.'; break; }
+                    
+                    try {
+                        await targetMember.kick(reason);
+                        response = `👢 **${targetUser.tag}** has been kicked.\nReason: ${reason}`;
+                    } catch (error) {
+                        response = `❌ Kick failed: ${error.message}`;
+                    }
+                    break;
+                }
+                case 'mute': {
+                    telemetryMetadata.category = 'moderation';
+                    const targetUser = interaction.options.getUser('user', true);
+                    const duration = interaction.options.getString('duration', true);
+                    const reason = interaction.options.getString('reason') || `Muted by ${interaction.user.tag}`;
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    if (!targetMember) { response = '❌ User not found in this server.'; break; }
+                    if (!targetMember.moderatable) { response = '❌ I cannot mute that member.'; break; }
+                    
+                    // Parse duration
+                    const timeMatch = duration.match(/^(\d+)(m|h|d)$/i);
+                    if (!timeMatch) { response = '❌ Invalid duration. Use format like 10m, 1h, 1d'; break; }
+                    
+                    const amount = parseInt(timeMatch[1], 10);
+                    const unit = timeMatch[2].toLowerCase();
+                    let durationMs;
+                    if (unit === 'm') durationMs = amount * 60 * 1000;
+                    else if (unit === 'h') durationMs = amount * 60 * 60 * 1000;
+                    else durationMs = amount * 24 * 60 * 60 * 1000;
+                    
+                    if (durationMs > 28 * 24 * 60 * 60 * 1000) { response = '❌ Maximum mute is 28 days.'; break; }
+                    
+                    try {
+                        await targetMember.timeout(durationMs, reason);
+                        response = `🔇 **${targetUser.tag}** has been muted for **${duration}**.\nReason: ${reason}`;
+                    } catch (error) {
+                        response = `❌ Mute failed: ${error.message}`;
+                    }
+                    break;
+                }
+                case 'warn': {
+                    telemetryMetadata.category = 'moderation';
+                    const targetUser = interaction.options.getUser('user', true);
+                    const reason = interaction.options.getString('reason', true);
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    // Store warning
+                    const guildId = interaction.guild.id;
+                    const userId = targetUser.id;
+                    
+                    if (!global.jarvisWarnings) global.jarvisWarnings = new Map();
+                    if (!global.jarvisWarnings.has(guildId)) global.jarvisWarnings.set(guildId, new Map());
+                    
+                    const guildWarnings = global.jarvisWarnings.get(guildId);
+                    const userWarnings = guildWarnings.get(userId) || [];
+                    userWarnings.push({ reason, warnedBy: interaction.user.id, timestamp: Date.now() });
+                    guildWarnings.set(userId, userWarnings);
+                    
+                    const { EmbedBuilder } = require('discord.js');
+                    const embed = new EmbedBuilder()
+                        .setTitle('⚠️ Warning Issued')
+                        .setColor(0xf39c12)
+                        .setDescription(`**${targetUser.tag}** has been warned.`)
+                        .addFields(
+                            { name: 'Reason', value: reason, inline: false },
+                            { name: 'Total Warnings', value: `${userWarnings.length}`, inline: true }
+                        )
+                        .setFooter({ text: `Warned by ${interaction.user.tag}` })
+                        .setTimestamp();
+                    
+                    // Try to DM user
+                    try { await targetUser.send(`⚠️ You have been warned in **${interaction.guild.name}**\nReason: ${reason}`); } catch {}
+                    
+                    response = { embeds: [embed] };
+                    break;
+                }
                 default: {
                     response = await this.jarvis.handleUtilityCommand(
                         commandName,
