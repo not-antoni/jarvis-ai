@@ -793,7 +793,13 @@
                 // ============ HEIST SYSTEM ============
                 case 'heist': {
                     telemetryMetadata.category = 'economy';
-                    const sub = interaction.options.getSubcommand();
+                    let sub;
+                    try {
+                        sub = interaction.options.getSubcommand();
+                    } catch {
+                        response = '❌ Please specify a subcommand: `/heist start`, `/heist join`, or `/heist status`.';
+                        break;
+                    }
                     if (sub === 'start') {
                         const amount = interaction.options.getInteger('amount');
                         const res = await starkEconomy.startHeist(interaction.guild.id, interaction.user.id, amount);
