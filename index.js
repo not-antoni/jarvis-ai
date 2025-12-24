@@ -293,16 +293,14 @@ const updateBotPresence = () => {
         return;
     }
 
-    const { message, type } = getNextRotatingStatus();
-    const activity = { name: message };
-    if (typeof type !== 'undefined') {
-        activity.type = type;
-    }
-
     try {
         client.user.setPresence({
             status: 'online',
-            activities: [activity],
+            activities: [{
+                name: 'jorvis.org',
+                type: ActivityType.Custom,
+                state: 'jorvis.org'
+            }],
             afk: false
         });
     } catch (error) {
