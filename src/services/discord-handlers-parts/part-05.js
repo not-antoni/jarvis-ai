@@ -3022,7 +3022,7 @@
                             }, banDuration);
                         }
                         
-                        response = `🔨 **${targetUser.tag}** has been banned ${durationText}.\nhttps://tenor.com/view/bane-no-banned-and-you-are-explode-gif-16047504`;
+                        response = `🔨 **${targetUser.tag}** has been banned ${durationText}.\nhttps://media.tenor.com/0hWoNqVMAPMAAAAC/bane-no.gif`;
                     } catch (error) {
                         response = `❌ Ban failed: ${error.message}`;
                     }
