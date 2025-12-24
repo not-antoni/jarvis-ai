@@ -2998,13 +2998,15 @@
                     // Parse duration
                     let banDuration = null;
                     if (duration) {
-                        const timeMatch = duration.match(/^(\d+)(m|h|d)$/i);
+                        const timeMatch = duration.match(/^(\d+)(s|m|h|d|w)?$/i);
                         if (timeMatch) {
                             const amount = parseInt(timeMatch[1], 10);
-                            const unit = timeMatch[2].toLowerCase();
-                            if (unit === 'm') banDuration = amount * 60 * 1000;
+                            const unit = (timeMatch[2] || 'm').toLowerCase();
+                            if (unit === 's') banDuration = amount * 1000;
+                            else if (unit === 'm') banDuration = amount * 60 * 1000;
                             else if (unit === 'h') banDuration = amount * 60 * 60 * 1000;
                             else if (unit === 'd') banDuration = amount * 24 * 60 * 60 * 1000;
+                            else if (unit === 'w') banDuration = amount * 7 * 24 * 60 * 60 * 1000;
                         }
                     }
                     
@@ -3085,15 +3087,17 @@
                     if (!targetMember.moderatable) { response = '❌ I cannot mute that member.'; break; }
                     
                     // Parse duration
-                    const timeMatch = duration.match(/^(\d+)(m|h|d)$/i);
+                    const timeMatch = duration.match(/^(\d+)(s|m|h|d|w)?$/i);
                     if (!timeMatch) { response = '❌ Invalid duration. Use format like 10m, 1h, 1d'; break; }
                     
                     const amount = parseInt(timeMatch[1], 10);
-                    const unit = timeMatch[2].toLowerCase();
+                    const unit = (timeMatch[2] || 'm').toLowerCase();
                     let durationMs;
-                    if (unit === 'm') durationMs = amount * 60 * 1000;
+                    if (unit === 's') durationMs = amount * 1000;
+                    else if (unit === 'm') durationMs = amount * 60 * 1000;
                     else if (unit === 'h') durationMs = amount * 60 * 60 * 1000;
-                    else durationMs = amount * 24 * 60 * 60 * 1000;
+                    else if (unit === 'd') durationMs = amount * 24 * 60 * 60 * 1000;
+                    else if (unit === 'w') durationMs = amount * 7 * 24 * 60 * 60 * 1000;
                     
                     if (durationMs > 28 * 24 * 60 * 60 * 1000) { response = '❌ Maximum mute is 28 days.'; break; }
                     
