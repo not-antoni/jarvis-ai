@@ -309,7 +309,17 @@ router.post(
             alertChannel: req.body?.alertChannel || null,
             logChannel: req.body?.logChannel || null,
             useEmbeds: req.body?.useEmbeds === 'on',
-            customAlertTemplate: req.body?.customAlertTemplate || ''
+            customAlertTemplate: req.body?.customAlertTemplate || '',
+            // Auto-mod modules
+            antiSpam: req.body?.antiSpam === 'on',
+            antiMentionSpam: req.body?.antiMentionSpam === 'on',
+            antiEmojiSpam: req.body?.antiEmojiSpam === 'on',
+            antiCaps: req.body?.antiCaps === 'on',
+            antiLinks: req.body?.antiLinks === 'on',
+            antiInvites: req.body?.antiInvites === 'on',
+            antiRaid: req.body?.antiRaid === 'on',
+            antiLinksWhitelist: (req.body?.antiLinksWhitelist || '').split(',').map(s => s.trim()).filter(Boolean),
+            punishmentDMTemplate: req.body?.punishmentDMTemplate || ''
         };
 
         moderation.updateSettings(String(guildId), patch);
@@ -634,6 +644,50 @@ function getGuildPage(session, guild, status, errorCode = '') {
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Custom Alert Message (leave empty for default)</label>
                     <textarea name="customAlertTemplate" rows="3" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 14px; margin-bottom: 10px; resize: vertical;" placeholder="⚡ {pings} THREAT: {user} | {category} ⚡">${settings.customAlertTemplate || ''}</textarea>
                     <p class="muted" style="margin-bottom: 15px;">Variables: <code>{user}</code> <code>{username}</code> <code>{category}</code> <code>{severity}</code> <code>{pings}</code> <code>{reason}</code> <code>{channel}</code></p>
+
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">🛡️ Auto-Mod Modules</h3>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="antiSpam" ${settings.antiSpam ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Anti-Spam (${settings.antiSpamMaxMessages || 5} msgs / ${(settings.antiSpamWindow || 5000) / 1000}s)</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="antiMentionSpam" ${settings.antiMentionSpam ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Anti-Mention Spam (max ${settings.antiMentionMax || 5})</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="antiEmojiSpam" ${settings.antiEmojiSpam ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Anti-Emoji Spam (max ${settings.antiEmojiMax || 10})</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="antiCaps" ${settings.antiCaps ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Anti-Caps (${settings.antiCapsPercent || 70}%+ caps)</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="antiLinks" ${settings.antiLinks ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Anti-Links</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="antiInvites" ${settings.antiInvites ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Anti-Discord Invites</span>
+                    </div>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="antiRaid" ${settings.antiRaid ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Anti-Raid (${settings.antiRaidJoinThreshold || 10} joins / min)</span>
+                    </div>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa; margin-top: 15px;">Link Whitelist (domains, comma separated)</label>
+                    <input type="text" name="antiLinksWhitelist" placeholder="youtube.com, twitter.com" value="${(settings.antiLinksWhitelist || []).join(', ')}">
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Punishment DM Template</label>
+                    <textarea name="punishmentDMTemplate" rows="2" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 14px; margin-bottom: 10px; resize: vertical;" placeholder="You have been {action} in {guild} for: {reason}">${settings.punishmentDMTemplate || ''}</textarea>
+                    <p class="muted" style="margin-bottom: 15px;">Variables: <code>{user}</code> <code>{action}</code> <code>{reason}</code> <code>{guild}</code> <code>{module}</code></p>
 
                     <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">💾 Save Settings</button>
                 </form>

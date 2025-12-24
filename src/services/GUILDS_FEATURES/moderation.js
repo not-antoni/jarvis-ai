@@ -397,7 +397,49 @@ function getDefaultSettings() {
         // Actions
         autoDelete: false,
         autoMute: false,
-        autoBan: false
+        autoBan: false,
+
+        // ============ AUTO-MOD MODULES (Sapphire-like) ============
+        // Spam detection
+        antiSpam: false,
+        antiSpamMaxMessages: 5, // Max messages in window
+        antiSpamWindow: 5000, // Time window in ms
+        antiSpamAction: 'mute', // 'warn', 'mute', 'kick', 'ban'
+
+        // Mention spam
+        antiMentionSpam: false,
+        antiMentionMax: 5, // Max mentions per message
+        antiMentionAction: 'warn',
+
+        // Emoji spam
+        antiEmojiSpam: false,
+        antiEmojiMax: 10, // Max emojis per message
+        antiEmojiAction: 'warn',
+
+        // Link filtering
+        antiLinks: false,
+        antiLinksWhitelist: [], // Allowed domains
+        antiLinksAction: 'delete',
+
+        // Invite links
+        antiInvites: false,
+        antiInvitesAction: 'delete',
+
+        // Caps spam
+        antiCaps: false,
+        antiCapsPercent: 70, // % of message that's caps
+        antiCapsMinLength: 10, // Min message length to check
+        antiCapsAction: 'warn',
+
+        // Raid detection
+        antiRaid: false,
+        antiRaidJoinThreshold: 10, // Members joining
+        antiRaidJoinWindow: 60000, // Within this time (ms)
+        antiRaidAction: 'lockdown', // 'lockdown', 'kick', 'ban'
+
+        // Punishment DM templates
+        punishmentDMTemplate: '', // Custom DM message when punished
+        // Variables: {user} {action} {reason} {guild} {duration}
     };
 }
 
@@ -579,6 +621,241 @@ function recordDetection(guildId, userId, category, reason = null, severity = 'm
     if (config.stats.total % 10 === 0) {
         saveConfig(guildId);
     }
+}
+
+// ============ AUTO-MOD MODULES ============
+
+// Spam tracking for anti-spam module
+const spamTracker = new Map(); // guildId:userId -> { messages: [], lastViolation: timestamp }
+const raidTracker = new Map(); // guildId -> { joins: [timestamps] }
+
+/**
+ * Check all auto-mod modules
+ * Returns { triggered: boolean, module: string, action: string, reason: string }
+ */
+function checkAutoModules(message, settings) {
+    const content = message.content || '';
+    const guildId = message.guild.id;
+    const userId = message.author.id;
+
+    // Anti-Spam (message rate)
+    if (settings.antiSpam) {
+        const key = `${guildId}:${userId}`;
+        const now = Date.now();
+        let userData = spamTracker.get(key) || { messages: [], lastViolation: 0 };
+
+        // Clean old messages outside window
+        userData.messages = userData.messages.filter(t => now - t < settings.antiSpamWindow);
+        userData.messages.push(now);
+        spamTracker.set(key, userData);
+
+        if (userData.messages.length > settings.antiSpamMaxMessages) {
+            // Cooldown to prevent spam alerts
+            if (now - userData.lastViolation > 30000) {
+                userData.lastViolation = now;
+                spamTracker.set(key, userData);
+                return {
+                    triggered: true,
+                    module: 'Anti-Spam',
+                    action: settings.antiSpamAction,
+                    reason: `Sent ${userData.messages.length} messages in ${settings.antiSpamWindow / 1000}s`
+                };
+            }
+        }
+    }
+
+    // Anti-Mention Spam
+    if (settings.antiMentionSpam) {
+        const mentionCount = (message.mentions.users?.size || 0) +
+            (message.mentions.roles?.size || 0) +
+            (message.mentions.everyone ? 10 : 0);
+        if (mentionCount > settings.antiMentionMax) {
+            return {
+                triggered: true,
+                module: 'Anti-Mention',
+                action: settings.antiMentionAction,
+                reason: `${mentionCount} mentions (max: ${settings.antiMentionMax})`
+            };
+        }
+    }
+
+    // Anti-Emoji Spam
+    if (settings.antiEmojiSpam) {
+        const emojiRegex = /(\p{Emoji_Presentation}|\p{Extended_Pictographic}|<a?:[a-zA-Z0-9_]+:\d+>)/gu;
+        const emojiCount = (content.match(emojiRegex) || []).length;
+        if (emojiCount > settings.antiEmojiMax) {
+            return {
+                triggered: true,
+                module: 'Anti-Emoji',
+                action: settings.antiEmojiAction,
+                reason: `${emojiCount} emojis (max: ${settings.antiEmojiMax})`
+            };
+        }
+    }
+
+    // Anti-Caps
+    if (settings.antiCaps && content.length >= settings.antiCapsMinLength) {
+        const letters = content.replace(/[^a-zA-Z]/g, '');
+        if (letters.length > 0) {
+            const capsCount = (letters.match(/[A-Z]/g) || []).length;
+            const capsPercent = (capsCount / letters.length) * 100;
+            if (capsPercent >= settings.antiCapsPercent) {
+                return {
+                    triggered: true,
+                    module: 'Anti-Caps',
+                    action: settings.antiCapsAction,
+                    reason: `${Math.round(capsPercent)}% caps (max: ${settings.antiCapsPercent}%)`
+                };
+            }
+        }
+    }
+
+    // Anti-Invites (Discord invites)
+    if (settings.antiInvites) {
+        const inviteRegex = /(discord\.(gg|io|me|li)|discordapp\.com\/invite|discord\.com\/invite)\/[a-zA-Z0-9]+/gi;
+        if (inviteRegex.test(content)) {
+            return {
+                triggered: true,
+                module: 'Anti-Invite',
+                action: settings.antiInvitesAction,
+                reason: 'Discord invite link detected'
+            };
+        }
+    }
+
+    // Anti-Links
+    if (settings.antiLinks) {
+        const urlRegex = /https?:\/\/[^\s]+/gi;
+        const urls = content.match(urlRegex) || [];
+        const whitelist = settings.antiLinksWhitelist || [];
+
+        for (const url of urls) {
+            try {
+                const domain = new URL(url).hostname.toLowerCase();
+                const isWhitelisted = whitelist.some(w =>
+                    domain === w.toLowerCase() || domain.endsWith('.' + w.toLowerCase())
+                );
+                if (!isWhitelisted) {
+                    return {
+                        triggered: true,
+                        module: 'Anti-Link',
+                        action: settings.antiLinksAction,
+                        reason: `Link detected: ${domain}`
+                    };
+                }
+            } catch { }
+        }
+    }
+
+    return { triggered: false };
+}
+
+/**
+ * Execute auto-mod action
+ */
+async function executeAutoModAction(message, member, action, reason, moduleName, client, settings) {
+    const guildId = message.guild.id;
+    const userId = message.author.id;
+
+    // Send punishment DM
+    if (settings.punishmentDMTemplate) {
+        try {
+            const dmMessage = settings.punishmentDMTemplate
+                .replace(/\{user\}/gi, message.author.tag)
+                .replace(/\{action\}/gi, action)
+                .replace(/\{reason\}/gi, reason)
+                .replace(/\{guild\}/gi, message.guild.name)
+                .replace(/\{module\}/gi, moduleName);
+            await message.author.send(dmMessage).catch(() => { });
+        } catch { }
+    }
+
+    try {
+        switch (action) {
+            case 'delete':
+                await message.delete().catch(() => { });
+                break;
+
+            case 'warn':
+                await message.delete().catch(() => { });
+                await message.channel.send(`⚠️ <@${userId}> Warning: ${reason}`).then(m =>
+                    setTimeout(() => m.delete().catch(() => { }), 5000)
+                );
+                break;
+
+            case 'mute':
+                await message.delete().catch(() => { });
+                if (member?.moderatable) {
+                    await member.timeout(10 * 60 * 1000, `[${moduleName}] ${reason}`);
+                }
+                await message.channel.send(`🔇 <@${userId}> Muted (10m): ${reason}`).then(m =>
+                    setTimeout(() => m.delete().catch(() => { }), 5000)
+                );
+                break;
+
+            case 'kick':
+                await message.delete().catch(() => { });
+                if (member?.kickable) {
+                    await member.kick(`[${moduleName}] ${reason}`);
+                    await message.channel.send(`👢 ${message.author.tag} kicked: ${reason}`);
+                }
+                break;
+
+            case 'ban':
+                await message.delete().catch(() => { });
+                if (member?.bannable) {
+                    await member.ban({ reason: `[${moduleName}] ${reason}` });
+                    await message.channel.send(`🔨 ${message.author.tag} banned: ${reason}`);
+                }
+                break;
+        }
+
+        // Record detection
+        recordDetection(guildId, userId, moduleName.toLowerCase(), reason, 'medium');
+
+    } catch (error) {
+        console.error(`[AutoMod] Failed to execute ${action}:`, error.message);
+    }
+}
+
+/**
+ * Check for raid (mass joins)
+ */
+function checkRaidDetection(member, settings) {
+    if (!settings.antiRaid) return false;
+
+    const guildId = member.guild.id;
+    const now = Date.now();
+
+    let raidData = raidTracker.get(guildId) || { joins: [], inLockdown: false };
+
+    // Clean old joins
+    raidData.joins = raidData.joins.filter(t => now - t < settings.antiRaidJoinWindow);
+    raidData.joins.push(now);
+    raidTracker.set(guildId, raidData);
+
+    if (raidData.joins.length >= settings.antiRaidJoinThreshold && !raidData.inLockdown) {
+        raidData.inLockdown = true;
+        raidTracker.set(guildId, raidData);
+
+        // Auto-reset lockdown after 5 minutes
+        setTimeout(() => {
+            const data = raidTracker.get(guildId);
+            if (data) {
+                data.inLockdown = false;
+                data.joins = [];
+                raidTracker.set(guildId, data);
+            }
+        }, 5 * 60 * 1000);
+
+        return {
+            detected: true,
+            joinCount: raidData.joins.length,
+            action: settings.antiRaidAction
+        };
+    }
+
+    return { detected: false };
 }
 
 // ============ AI MODERATION ============
@@ -1088,7 +1365,22 @@ async function handleMessage(message, client) {
         return { handled: false, reason: 'On cooldown' };
     }
 
-    // Analyze in background (non-blocking)
+    // Check auto-mod modules FIRST (synchronous, fast checks)
+    const autoModResult = checkAutoModules(message, settings);
+    if (autoModResult.triggered) {
+        await executeAutoModAction(
+            message,
+            member,
+            autoModResult.action,
+            autoModResult.reason,
+            autoModResult.module,
+            client,
+            settings
+        );
+        return { handled: true, reason: autoModResult.module };
+    }
+
+    // Analyze in background (non-blocking) - AI analysis for scams/threats
     setImmediate(async () => {
         try {
             let alertSent = false; // Only send one alert per message
@@ -1201,6 +1493,64 @@ async function handleMemberJoin(member, client) {
     if (!isEnabled(guildId)) return { handled: false };
 
     const settings = getSettings(guildId);
+
+    // Check for raid
+    const raidResult = checkRaidDetection(member, settings);
+    if (raidResult.detected) {
+        console.log(`[Moderation] RAID DETECTED in ${member.guild.name}: ${raidResult.joinCount} joins`);
+
+        try {
+            // Find a channel to alert
+            const alertChannel = settings.alertChannel
+                ? await client.channels.fetch(settings.alertChannel).catch(() => null)
+                : member.guild.systemChannel;
+
+            if (alertChannel) {
+                const pings = [];
+                if (settings.pingOwner) pings.push(`<@${member.guild.ownerId}>`);
+                for (const roleId of settings.pingRoles || []) pings.push(`<@&${roleId}>`);
+
+                await alertChannel.send(
+                    `🚨 **RAID DETECTED** ${pings.join(' ')}\n\n` +
+                    `**${raidResult.joinCount}** members joined in the last minute!\n` +
+                    `Action: **${raidResult.action.toUpperCase()}**`
+                );
+            }
+
+            // Execute raid action
+            switch (raidResult.action) {
+                case 'lockdown':
+                    // Set verification level to highest
+                    try {
+                        await member.guild.setVerificationLevel(4); // VERY_HIGH
+                        if (alertChannel) {
+                            await alertChannel.send('🔒 Server verification level set to **VERY HIGH** (phone verification required)');
+                        }
+                    } catch (e) {
+                        console.error('[Moderation] Failed to set verification level:', e.message);
+                    }
+                    break;
+
+                case 'kick':
+                    if (member.kickable) {
+                        await member.kick('Raid detection - auto kick');
+                    }
+                    break;
+
+                case 'ban':
+                    if (member.bannable) {
+                        await member.ban({ reason: 'Raid detection - auto ban' });
+                    }
+                    break;
+            }
+        } catch (error) {
+            console.error('[Moderation] Raid response error:', error.message);
+        }
+
+        return { handled: true, raid: true };
+    }
+
+    // Normal new member tracking
     if (shouldMonitorMember(member, settings)) {
         startTracking(guildId, member.id);
         return { handled: true, tracking: true };
