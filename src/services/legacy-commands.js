@@ -4684,24 +4684,43 @@ const legacyCommands = {
 
             // Get the full content after the command
             const content = message.content;
-            const cookieMatch = content.match(/cookies\s+"([^"]+)"/i) || content.match(/cookies\s+(.+)/i);
+            let cookieString = '';
 
-            if (!cookieMatch || !cookieMatch[1]) {
+            // Check for file attachment first
+            const attachment = message.attachments.first();
+            if (attachment) {
+                if (attachment.contentType && !attachment.contentType.includes('text/')) {
+                    await message.reply('❌ Please upload a text file (.txt)');
+                    return true;
+                }
+                try {
+                    const response = await fetch(attachment.url);
+                    if (!response.ok) throw new Error('Failed to fetch attachment');
+                    cookieString = await response.text();
+                } catch (e) {
+                    await message.reply(`❌ Failed to read attachment: ${e.message}`);
+                    return true;
+                }
+            } else {
+                // Try parsing from message content
+                const cookieMatch = content.match(/cookies\s+"([^"]+)"/i) || content.match(/cookies\s+(.+)/i);
+                if (cookieMatch) cookieString = cookieMatch[1];
+            }
+
+            if (!cookieString) {
                 await message.reply(
                     '**🍪 YouTube Cookie Update**\n\n' +
-                    'Usage: `*j cookies "<your netscape format cookies>"`\n\n' +
+                    '**Option 1 (Recommended):** Upload your `cookies.txt` file with this command.\n' +
+                    '**Option 2:** Usage: `*j cookies "<cookies>"` (if short enough)\n\n' +
                     'To get cookies:\n' +
-                    '1. Install "Get cookies.txt LOCALLY" browser extension\n' +
-                    '2. Go to youtube.com while logged in\n' +
-                    '3. Click extension → Export as Netscape format\n' +
-                    '4. Paste the entire string in quotes\n\n' +
-                    '⚠️ Cookies will be updated in memory immediately.\n' +
-                    'For persistence, add to .env as `YT_COOKIES="..."`'
+                    '1. Install "Get cookies.txt LOCALLY" extension\n' +
+                    '2. Export as Netscape format\n' +
+                    '3. Upload the text file here'
                 );
                 return true;
             }
 
-            const cookieString = cookieMatch[1].trim();
+            cookieString = cookieString.trim();
 
             // Validate it looks like Netscape format
             const isNetscape = cookieString.includes('.youtube.com') ||
