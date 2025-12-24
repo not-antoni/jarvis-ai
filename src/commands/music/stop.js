@@ -45,7 +45,7 @@ module.exports = {
         state.textChannel = interaction.channel ?? state.textChannel;
 
         await interaction.deferReply();
-        const message = musicManager.stop(interaction.guild.id);
+        const message = musicManager.get().stop(interaction.guild.id);
         await interaction.editReply(message);
     }
 };
