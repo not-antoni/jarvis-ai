@@ -39,8 +39,9 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     const tempCanvas = createCanvas(width, minHeight);
     const tempCtx = tempCanvas.getContext('2d');
 
-    // Robust Font Stack for Special Chars
-    const fontStack = '"Noto Sans", "Noto Sans CJK SC", "Noto Color Emoji", "DejaVu Sans", sans-serif';
+    // Robust Font Stack
+    // We also SANITIZE the username below to avoid missing glyphs
+    const fontStack = '"Noto Sans", "Noto Sans CJK SC", "Dejavu Sans", "Arial", sans-serif';
     const fontSize = 80;
     tempCtx.font = `${fontSize}px ${fontStack}`;
 
@@ -59,15 +60,14 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     const canvas = createCanvas(width, canvasHeight);
     const ctx = canvas.getContext('2d');
 
-    // 1. Solid Black Background (Force Opaque)
-    ctx.fillStyle = 'black'; // Named color, just in case
+    // 1. Solid Black Background
+    ctx.fillStyle = 'black';
     ctx.fillRect(0, 0, width, canvasHeight);
 
-    // 2. Draw Grayscale Avatar (Isolated Canvas to prevent Alpha bleed)
+    // 2. Draw Avatar
     try {
         const avatar = await loadImage(avatarUrl);
 
-        // Aspect fill logic
         const imgRatio = avatar.width / avatar.height;
         let drawWidth = canvasHeight * imgRatio;
         let drawHeight = canvasHeight;
@@ -77,32 +77,27 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
             drawHeight = drawWidth / imgRatio;
         }
 
-        // Draw avatar to an isolated canvas first
+        // Draw avatar to isolated canvas
         const avCanvas = createCanvas(drawWidth, drawHeight);
         const avCtx = avCanvas.getContext('2d');
 
-        // Apply filter on isolated canvas
         if (avCtx.filter) {
             avCtx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';
         }
         avCtx.drawImage(avatar, 0, 0, drawWidth, drawHeight);
 
-        // Composite onto main canvas
-        // We assume main canvas is black. 
-        // If avatar has transparency, we want black to show, which it will (since we filled main canvas).
         const drawX = 0;
         const drawY = (canvasHeight - drawHeight) / 2;
 
         ctx.drawImage(avCanvas, drawX, drawY);
 
     } catch (e) {
-        // Fallback pattern
-        ctx.fillStyle = '#222222';
+        ctx.fillStyle = '#222';
         ctx.fillRect(0, 0, width / 2, canvasHeight);
-        console.error("Avatar load failed", e);
+        console.error("Avatar error", e);
     }
 
-    // 3. Gradient Overlay
+    // 3. Gradient
     const gradient = ctx.createLinearGradient(0, 0, width * 0.75, 0);
     gradient.addColorStop(0, 'rgba(0, 0, 0, 0.2)');
     gradient.addColorStop(0.4, 'rgba(0, 0, 0, 0.6)');
@@ -119,7 +114,6 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     const textCenterX = (width * 0.75);
     const textCenterY = canvasHeight / 2;
 
-    // Draw Message
     ctx.fillStyle = '#ffffff';
     ctx.font = `${fontSize}px ${fontStack}`;
 
@@ -130,12 +124,17 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
         currentY += lineHeight;
     }
 
-    // Draw Name
+    // Draw Name - With Sanitization for symbols
     const nameY = currentY + 30;
+
+    // Strip non-visual characters or complex symbols if they fail rendering
+    // We allow basic latin, numbers, common punctuation
+    let cleanName = username.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+    if (cleanName.length < 2) cleanName = username; // Fallback if name is ALL symbols
+
     ctx.fillStyle = '#ffffff';
-    // Italic for name, but keep font stack
     ctx.font = `italic 48px ${fontStack}`;
-    ctx.fillText(`- ${username}`, textCenterX, nameY);
+    ctx.fillText(`- ${cleanName}`, textCenterX, nameY);
 
     // 5. Watermark
     ctx.textAlign = 'right';
@@ -143,7 +142,8 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp) {
     ctx.font = '24px sans-serif';
     ctx.fillText('Jarvis Quotes', width - 30, canvasHeight - 30);
 
-    return canvas.toBuffer();
+    // RETURN JPEG TO PREVENT TRANSPARENCY
+    return canvas.toBuffer('image/jpeg', { quality: 0.95 });
 }
 
 module.exports = { generateQuoteImage };

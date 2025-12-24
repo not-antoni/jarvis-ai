@@ -37,7 +37,7 @@ const quoteSlash = {
                 new Date()
             );
 
-            const attachment = new AttachmentBuilder(buffer, { name: 'quote.png' });
+            const attachment = new AttachmentBuilder(buffer, { name: 'quote.jpg' });
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
@@ -80,7 +80,7 @@ const quoteContext = {
                 message.createdAt
             );
 
-            const attachment = new AttachmentBuilder(buffer, { name: 'quote.png' });
+            const attachment = new AttachmentBuilder(buffer, { name: 'quote.jpg' });
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
