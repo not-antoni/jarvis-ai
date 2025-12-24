@@ -139,6 +139,26 @@ async function maybeExportMongoOnStartup() {
             filenamePrefix: 'startup-export'
         });
         console.log(`Self-host: exported Mongo snapshot to ${file}`);
+
+        // Cleanup old exports - keep only the 10 most recent
+        try {
+            const MAX_EXPORTS = 10;
+            const files = fs.readdirSync(outDir)
+                .filter(f => f.startsWith('startup-export') && f.endsWith('.json'))
+                .map(f => ({ name: f, time: fs.statSync(path.join(outDir, f)).mtime.getTime() }))
+                .sort((a, b) => b.time - a.time);
+
+            if (files.length > MAX_EXPORTS) {
+                const toDelete = files.slice(MAX_EXPORTS);
+                for (const f of toDelete) {
+                    fs.unlinkSync(path.join(outDir, f.name));
+                }
+                console.log(`Cleaned up ${toDelete.length} old Mongo exports (kept ${MAX_EXPORTS} most recent)`);
+            }
+        } catch (cleanupError) {
+            console.warn('Failed to cleanup old exports:', cleanupError.message);
+        }
+
         try {
             const { syncFromLatestExport } = require('./src/localdb');
             const result = syncFromLatestExport();
@@ -154,6 +174,7 @@ async function maybeExportMongoOnStartup() {
         console.error('Self-host Mongo export failed:', error);
     }
 }
+
 
 // ------------------------ Discord Client Setup ------------------------
 const client = new Client({
@@ -293,14 +314,15 @@ const updateBotPresence = () => {
         return;
     }
 
+    const { message, type } = getNextRotatingStatus();
+
     try {
         client.user.setPresence({
             status: 'online',
-            activities: [{
-                name: 'jorvis.org',
-                type: ActivityType.Custom,
-                state: 'jorvis.org'
-            }],
+            activities: [
+                { name: 'jorvis.org', type: ActivityType.Custom, state: 'jorvis.org' },
+                { name: message, type: type ?? ActivityType.Playing }
+            ],
             afk: false
         });
     } catch (error) {
