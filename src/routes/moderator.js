@@ -641,9 +641,10 @@ function getGuildPage(session, guild, status, errorCode = '') {
                         <span>Use Rich Embeds</span>
                     </div>
                     
-                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Custom Alert Message (leave empty for default)</label>
-                    <textarea name="customAlertTemplate" rows="3" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 14px; margin-bottom: 10px; resize: vertical;" placeholder="⚡ {pings} THREAT: {user} | {category} ⚡">${settings.customAlertTemplate || ''}</textarea>
-                    <p class="muted" style="margin-bottom: 15px;">Variables: <code>{user}</code> <code>{username}</code> <code>{category}</code> <code>{severity}</code> <code>{pings}</code> <code>{reason}</code> <code>{channel}</code></p>
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Custom Alert Message (supports emojis! 🔥⚡🚨)</label>
+                    <textarea name="customAlertTemplate" rows="3" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 14px; margin-bottom: 10px; resize: vertical;" placeholder="🚨 {pings} ⚠️ THREAT DETECTED ⚠️ {user} | {category} 🚨">${settings.customAlertTemplate || ''}</textarea>
+                    <p class="muted" style="margin-bottom: 8px;">Variables: <code>{user}</code> <code>{username}</code> <code>{category}</code> <code>{severity}</code> <code>{pings}</code> <code>{reason}</code> <code>{channel}</code></p>
+                    <p class="muted" style="margin-bottom: 15px;">💡 <strong>Tip:</strong> Use any emojis! Examples: ⚡🔥🚨⚠️💀🛡️ or Discord custom emojis: <code>&lt;:name:id&gt;</code></p>
 
                     <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">🛡️ Auto-Mod Modules</h3>
                     
