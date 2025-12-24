@@ -53,6 +53,14 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'ping',
+        description: 'Check bot latency and system vitals.',
+        category: 'Core Systems',
+        usage: '/ping',
+        feature: 'coreChat',
+        ephemeral: false
+    },
+    {
         name: 'providers',
         description: 'List available AI providers and rotation status.',
         category: 'Core Systems',

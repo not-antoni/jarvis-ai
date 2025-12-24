@@ -232,6 +232,59 @@
             }
 
             switch (commandName) {
+                case 'ping': {
+                    telemetryMetadata.category = 'core';
+                    const sent = await interaction.editReply({ content: 'Pinging system...', fetchReply: true });
+                    const roundtripLatency = sent.createdTimestamp - interaction.createdTimestamp;
+                    const apiLatency = Math.round(interaction.client.ws.ping);
+
+                    const os = require('os');
+                    const fs = require('fs');
+                    const path = require('path');
+                    
+                    let botVersion = 'Unknown';
+                    try {
+                        const pkg = require(path.join(process.cwd(), 'package.json'));
+                        botVersion = pkg.version;
+                    } catch (e) {}
+
+                    // Get detailed OS info
+                    let hostOs = `${os.type()} ${os.release()}`;
+                    try {
+                        if (fs.existsSync('/etc/os-release')) {
+                            const fileContent = fs.readFileSync('/etc/os-release', 'utf8');
+                            const match = fileContent.match(/PRETTY_NAME="([^"]+)"/);
+                            if (match && match[1]) {
+                                hostOs = match[1];
+                            }
+                        }
+                    } catch (e) {}
+
+                    const cpuModel = os.cpus()[0].model;
+                    const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
+                    const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
+                    
+                    const uptimeSeconds = process.uptime();
+                    const uptime = `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m ${Math.floor(uptimeSeconds % 60)}s`;
+
+                    const embed = new EmbedBuilder()
+                        .setTitle('🏓 Pong!')
+                        .setColor(0x3498db)
+                        .addFields(
+                            { name: '🤖 Bot Version', value: `v${botVersion}`, inline: true },
+                            { name: '🛠️ Node Runtime', value: `${process.version}`, inline: true },
+                            { name: '📶 Latency', value: `API: \`${apiLatency}ms\`\nRT: \`${roundtripLatency}ms\``, inline: true },
+                            { name: '⏱️ Uptime', value: `\`${uptime}\``, inline: true },
+                            { name: '🧠 Memory', value: `${freeMem}GB / ${totalMem}GB Free`, inline: true },
+                            { name: '⚙️ Processor', value: cpuModel, inline: true },
+                            { name: '🐧 Host OS', value: hostOs, inline: true }
+                        )
+                        .setFooter({ text: 'Jarvis Systems Online' })
+                        .setTimestamp();
+                        
+                    response = { embeds: [embed] };
+                    break;
+                }
                 case 'vibecheck': {
                     telemetryMetadata.category = 'fun';
                     await this.handleVibeCheckCommand(interaction);
