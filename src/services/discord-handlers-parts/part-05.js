@@ -232,6 +232,20 @@
             }
 
             switch (commandName) {
+                case 'quote': {
+                    const quoteModules = require('../../commands/utility/quote');
+                    telemetryMetadata.category = 'utility';
+                    await quoteModules[0].execute(interaction);
+                    response = '__QUOTE_HANDLED__';
+                    break;
+                }
+                case 'Make it a Quote': {
+                    const quoteModules = require('../../commands/utility/quote');
+                    telemetryMetadata.category = 'utility';
+                    await quoteModules[1].execute(interaction);
+                    response = '__QUOTE_HANDLED__';
+                    break;
+                }
                 case 'ping': {
                     telemetryMetadata.category = 'core';
                     const sent = await interaction.editReply({ content: 'Pinging system...', fetchReply: true });
@@ -3330,7 +3344,7 @@
                 }
             }
 
-            if (response === '__RAP_BATTLE_HANDLED__') {
+            if (response === '__RAP_BATTLE_HANDLED__' || response === '__QUOTE_HANDLED__') {
                 // Rap battle handles its own responses, skip normal handling
                 return;
             } else if (response === undefined || response === null) {
