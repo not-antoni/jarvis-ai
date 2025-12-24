@@ -2989,7 +2989,7 @@
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { resolveUser } = require('../../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     if (targetMember && !targetMember.bannable) {
@@ -3037,7 +3037,7 @@
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { resolveUser } = require('../../utils/resolve-user');
                     const { user: targetUser, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     
@@ -3056,7 +3056,7 @@
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { resolveUser } = require('../../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
@@ -3077,7 +3077,7 @@
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { resolveUser } = require('../../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
@@ -3099,7 +3099,7 @@
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { resolveUser } = require('../../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
@@ -3127,7 +3127,7 @@
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../../src/utils/resolve-user');
+                    const { resolveUser } = require('../../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     
