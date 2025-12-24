@@ -31,7 +31,8 @@ const COLLECTION_NAME = 'guildModeration';
 
 // Allowed guilds that CAN enable moderation (whitelist)
 const ALLOWED_GUILDS = [
-    '858444090374881301' // Primary guild
+    '858444090374881301', // Primary guild
+    '1403664986089324606' // Jarvis HQ
 ];
 
 // In-memory cache of enabled guilds
@@ -802,7 +803,7 @@ Server: ${context.guildName}`;
                 try {
                     const jsonResult = JSON.parse(jsonMatch[0]);
                     return { success: true, result: jsonResult, context };
-                } catch {}
+                } catch { }
             }
         }
     } catch (error) {
