@@ -2205,6 +2205,25 @@ const allCommands = [
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
         .setContexts([InteractionContextType.Guild])
         .addStringOption(o => o.setName('duration').setDescription('Slowmode duration (e.g., 5s, 1m, 0 to disable)').setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('lockdown')
+        .setDescription('Lock or unlock a channel')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+        .setContexts([InteractionContextType.Guild])
+        .addStringOption(o => o.setName('action').setDescription('Lock or unlock').setRequired(true).addChoices(
+            { name: 'Lock', value: 'lock' },
+            { name: 'Unlock', value: 'unlock' }
+        ))
+        .addStringOption(o => o.setName('reason').setDescription('Reason for lockdown')),
+    new SlashCommandBuilder()
+        .setName('userinfo')
+        .setDescription('Get detailed information about a user')
+        .setContexts([InteractionContextType.Guild])
+        .addUserOption(o => o.setName('user').setDescription('User to get info about')),
+    new SlashCommandBuilder()
+        .setName('serverinfo')
+        .setDescription('Get detailed information about the server')
+        .setContexts([InteractionContextType.Guild]),
 
     ...musicCommandList.map(command => command.data)
 ];

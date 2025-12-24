@@ -728,6 +728,100 @@ const legacyCommands = {
         }
     },
 
+    lockdown: {
+        description: 'Lock or unlock a channel',
+        usage: '*j lockdown <lock|unlock> [reason]',
+        execute: async (message, args) => {
+            if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+                await message.reply('❌ You lack permissions to manage channels.');
+                return true;
+            }
+
+            const action = args[0]?.toLowerCase();
+            if (!action || !['lock', 'unlock'].includes(action)) {
+                await message.reply('❌ Usage: `*j lockdown <lock|unlock> [reason]`');
+                return true;
+            }
+
+            const reason = args.slice(1).join(' ') || `Channel ${action}ed by ${message.author.tag}`;
+
+            try {
+                const everyone = message.guild.roles.everyone;
+                if (action === 'lock') {
+                    await message.channel.permissionOverwrites.edit(everyone, { SendMessages: false }, { reason });
+                    await message.reply(`🔒 Channel locked.\nReason: ${reason}`);
+                } else {
+                    await message.channel.permissionOverwrites.edit(everyone, { SendMessages: null }, { reason });
+                    await message.reply(`🔓 Channel unlocked.`);
+                }
+            } catch (error) {
+                await message.reply(`❌ Lockdown failed: ${error.message}`);
+            }
+            return true;
+        }
+    },
+
+    userinfo: {
+        description: 'Get user information',
+        usage: '*j userinfo [@user]',
+        execute: async (message, args) => {
+            const targetUser = message.mentions.users.first() || message.author;
+            const member = await message.guild.members.fetch(targetUser.id).catch(() => null);
+
+            const embed = new EmbedBuilder()
+                .setTitle(`👤 ${targetUser.tag}`)
+                .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
+                .setColor(member?.displayHexColor || 0x3498db)
+                .addFields(
+                    { name: 'ID', value: targetUser.id, inline: true },
+                    { name: 'Bot', value: targetUser.bot ? 'Yes' : 'No', inline: true },
+                    { name: 'Created', value: `<t:${Math.floor(targetUser.createdTimestamp / 1000)}:R>`, inline: true }
+                );
+
+            if (member) {
+                embed.addFields(
+                    { name: 'Joined', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
+                    { name: 'Nickname', value: member.nickname || 'None', inline: true },
+                    { name: 'Roles', value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'None', inline: true }
+                );
+            }
+
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
+    serverinfo: {
+        description: 'Get server information',
+        usage: '*j serverinfo',
+        execute: async (message, args) => {
+            const guild = message.guild;
+            const owner = await guild.fetchOwner().catch(() => null);
+
+            const embed = new EmbedBuilder()
+                .setTitle(`🏰 ${guild.name}`)
+                .setThumbnail(guild.iconURL({ size: 256 }))
+                .setColor(0x9b59b6)
+                .addFields(
+                    { name: 'ID', value: guild.id, inline: true },
+                    { name: 'Owner', value: owner ? owner.user.tag : 'Unknown', inline: true },
+                    { name: 'Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
+                    { name: 'Members', value: `${guild.memberCount.toLocaleString()}`, inline: true },
+                    { name: 'Channels', value: `${guild.channels.cache.size}`, inline: true },
+                    { name: 'Roles', value: `${guild.roles.cache.size}`, inline: true },
+                    { name: 'Boost Level', value: `Tier ${guild.premiumTier}`, inline: true },
+                    { name: 'Boosts', value: `${guild.premiumSubscriptionCount || 0}`, inline: true }
+                );
+
+            if (guild.description) {
+                embed.setDescription(guild.description);
+            }
+
+            await message.reply({ embeds: [embed] });
+            return true;
+        }
+    },
+
     // Aatrox
     aatrox: {
         description: 'GYAATROX',
