@@ -786,12 +786,8 @@ Server: ${context.guildName}`;
         );
 
         if (response?.content) {
-            console.log('[Moderation] Image AI response:', response.content.substring(0, 500));
-
             // Try parsing with our format first
             const parsed = parseAIResponse(response.content);
-            console.log('[Moderation] Parsed result:', JSON.stringify(parsed));
-
             if (parsed) {
                 return { success: true, result: parsed, context };
             }
@@ -1056,6 +1052,14 @@ async function handleMessage(message, client) {
                             context,
                             riskData
                         );
+                        // Auto-delete flagged message if enabled
+                        if (settings.autoDelete) {
+                            try {
+                                await message.delete();
+                            } catch (e) {
+                                console.warn('[Moderation] Failed to auto-delete:', e.message);
+                            }
+                        }
                         setAlertCooldown(guildId, userId);
                         pauseTracking(guildId, userId);
                         recordDetection(
@@ -1094,6 +1098,15 @@ async function handleMessage(message, client) {
                                 context,
                                 riskData
                             );
+                            // Auto-delete flagged message if enabled
+                            if (settings.autoDelete) {
+                                try {
+                                    await message.delete();
+                                    console.log(`[Moderation] Auto-deleted image from ${message.author.tag}`);
+                                } catch (e) {
+                                    console.warn('[Moderation] Failed to auto-delete:', e.message);
+                                }
+                            }
                             setAlertCooldown(guildId, userId);
                             pauseTracking(guildId, userId);
                             recordDetection(
