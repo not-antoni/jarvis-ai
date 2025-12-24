@@ -654,6 +654,13 @@ function checkAutoModules(message, settings) {
         // Clean old messages outside window
         userData.messages = userData.messages.filter(t => now - t < settings.antiSpamWindow);
         userData.messages.push(now);
+
+        // Optimization: Cap array size to prevent memory bloat (max needed + buffer)
+        const maxNeeded = (settings.antiSpamMaxMessages || 5) + 5;
+        if (userData.messages.length > maxNeeded) {
+            userData.messages = userData.messages.slice(-maxNeeded);
+        }
+
         spamTracker.set(key, userData);
 
         if (userData.messages.length > settings.antiSpamMaxMessages) {
@@ -778,6 +785,7 @@ async function executeAutoModAction(message, member, action, reason, moduleName,
     }
 
     try {
+        // execute punishment
         switch (action) {
             case 'delete':
                 await message.delete().catch(() => { });
@@ -785,9 +793,6 @@ async function executeAutoModAction(message, member, action, reason, moduleName,
 
             case 'warn':
                 await message.delete().catch(() => { });
-                await message.channel.send(`⚠️ <@${userId}> Warning: ${reason}`).then(m =>
-                    setTimeout(() => m.delete().catch(() => { }), 5000)
-                );
                 break;
 
             case 'mute':
@@ -795,16 +800,12 @@ async function executeAutoModAction(message, member, action, reason, moduleName,
                 if (member?.moderatable) {
                     await member.timeout(10 * 60 * 1000, `[${moduleName}] ${reason}`);
                 }
-                await message.channel.send(`🔇 <@${userId}> Muted (10m): ${reason}`).then(m =>
-                    setTimeout(() => m.delete().catch(() => { }), 5000)
-                );
                 break;
 
             case 'kick':
                 await message.delete().catch(() => { });
                 if (member?.kickable) {
                     await member.kick(`[${moduleName}] ${reason}`);
-                    await message.channel.send(`👢 ${message.author.tag} kicked: ${reason}`);
                 }
                 break;
 
@@ -812,13 +813,23 @@ async function executeAutoModAction(message, member, action, reason, moduleName,
                 await message.delete().catch(() => { });
                 if (member?.bannable) {
                     await member.ban({ reason: `[${moduleName}] ${reason}` });
-                    await message.channel.send(`🔨 ${message.author.tag} banned: ${reason}`);
                 }
                 break;
         }
 
         // Record detection
         recordDetection(guildId, userId, moduleName.toLowerCase(), reason, 'medium');
+
+        // Send Alert using the standard system (respects custom templates & embeds)
+        const fakeResult = {
+            categories: [moduleName.toLowerCase()],
+            severity: 'medium', // Auto-mod is usually medium severity
+            reason: reason,
+            isUnsafe: true
+        };
+
+        // Reuse sendAlert logic
+        await sendAlert(message, fakeResult, 'auto-mod', client, null, null);
 
     } catch (error) {
         console.error(`[AutoMod] Failed to execute ${action}:`, error.message);
@@ -839,6 +850,13 @@ function checkRaidDetection(member, settings) {
     // Clean old joins
     raidData.joins = raidData.joins.filter(t => now - t < settings.antiRaidJoinWindow);
     raidData.joins.push(now);
+
+    // Optimization: Cap array size to prevent memory bloat during massive raids
+    const maxJoins = (settings.antiRaidJoinThreshold || 10) + 10;
+    if (raidData.joins.length > maxJoins) {
+        raidData.joins = raidData.joins.slice(-maxJoins);
+    }
+
     raidTracker.set(guildId, raidData);
 
     if (raidData.joins.length >= settings.antiRaidJoinThreshold && !raidData.inLockdown) {
