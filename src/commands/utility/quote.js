@@ -102,9 +102,9 @@ const quoteContext = {
 
         let text = content || '';
 
-        // If we found an image and the text is just a URL (likely the source of the embed), hide the text
-        if (attachmentUrl && /^https?:\/\/[^\s]+$/.test(text.trim())) {
-            text = '';
+        // Remove attachment URL from text if present
+        if (attachmentUrl) {
+            text = text.replace(attachmentUrl, '').trim();
         }
 
         if (!text && !attachmentUrl) {
