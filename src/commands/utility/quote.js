@@ -1,10 +1,19 @@
-const { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder, ApplicationIntegrationType, InteractionContextType } = require('discord.js');
 const { generateQuoteImage } = require('../../utils/quote-generator');
 
 const quoteSlash = {
     data: new SlashCommandBuilder()
         .setName('quote')
         .setDescription('Generate a fake quote image')
+        .setIntegrationTypes([
+            ApplicationIntegrationType.GuildInstall,
+            ApplicationIntegrationType.UserInstall
+        ])
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ])
         .addUserOption(option =>
             option.setName('user')
                 .setDescription('The user to quote (defaults to you)')
@@ -14,14 +23,16 @@ const quoteSlash = {
                 .setDescription('The text to quote')
                 .setRequired(false)),
     async execute(interaction) {
+        // deferReply removed as handled by main handler or previously removed. 
+        // Wait, main handler only handles Guild interactions properly?
+        // If User Install, interaction might be different.
+        // But main handler checks `isChatInputCommand`.
 
+        // Actually, if User Install, `interaction.guild` might be null.
+        // But `generateQuoteImage` uses `user` and `text`. It doesn't use `guild`.
 
         let targetUser = interaction.options.getUser('user') || interaction.user;
         let text = interaction.options.getString('text');
-
-        // If no text provided, try to fetch last message? No, that's complex.
-        // Just require text if not replying.
-        // But user might want to quote themselves.
 
         if (!text) {
             await interaction.editReply('⚠️ Please provide the text to quote, sir.');
@@ -50,9 +61,18 @@ const quoteSlash = {
 const quoteContext = {
     data: new ContextMenuCommandBuilder()
         .setName('Make it a Quote')
-        .setType(ApplicationCommandType.Message),
+        .setType(ApplicationCommandType.Message)
+        .setIntegrationTypes([
+            ApplicationIntegrationType.GuildInstall,
+            ApplicationIntegrationType.UserInstall
+        ])
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
     async execute(interaction) {
-
+        // execute logic
 
         const message = interaction.targetMessage;
         if (!message) {
