@@ -3053,6 +3053,25 @@
                     }
                     break;
                 }
+                case 'unmute': {
+                    telemetryMetadata.category = 'moderation';
+                    const targetUser = interaction.options.getUser('user', true);
+                    const reason = interaction.options.getString('reason') || `Unmuted by ${interaction.user.tag}`;
+                    
+                    if (!interaction.guild) { response = 'This command only works in servers.'; break; }
+                    
+                    const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+                    if (!targetMember) { response = '❌ User not found in this server.'; break; }
+                    
+                    try {
+                        // Remove timeout
+                        await targetMember.timeout(null, reason);
+                        response = `🔊 **${targetUser.tag}** has been unmuted.`;
+                    } catch (error) {
+                        response = `❌ Unmute failed: ${error.message}`;
+                    }
+                    break;
+                }
                 case 'mute': {
                     telemetryMetadata.category = 'moderation';
                     const targetUser = interaction.options.getUser('user', true);
