@@ -5,6 +5,39 @@ function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+async function resolveMentions(text, interaction) {
+    if (!text) return text;
+
+    // Resolve User Mentions <@ID> or <@!ID>
+    const userRegex = /<@!?(\d+)>/g;
+    const matches = [...text.matchAll(userRegex)];
+
+    for (const match of matches) {
+        const full = match[0];
+        const id = match[1];
+        try {
+            let name = null;
+            if (interaction.guild) {
+                try {
+                    const member = await interaction.guild.members.fetch(id);
+                    name = member.displayName;
+                } catch {
+                    // Member not in guild?
+                }
+            }
+            if (!name) {
+                const user = await interaction.client.users.fetch(id);
+                name = user.displayName || user.username;
+            }
+            // Replace all instances of this mention string
+            text = text.split(full).join(`@${name}`);
+        } catch (e) {
+            // Ignore fetch failures
+        }
+    }
+    return text;
+}
+
 const quoteSlash = {
     data: new SlashCommandBuilder()
         .setName('quote')
@@ -32,7 +65,10 @@ const quoteSlash = {
                 .setRequired(false)),
     async execute(interaction) {
         let targetUser = interaction.options.getUser('user') || interaction.user;
-        let text = interaction.options.getString('text');
+        let rawText = interaction.options.getString('text');
+
+        let text = await resolveMentions(rawText, interaction);
+
         const attachment = interaction.options.getAttachment('image');
 
         let attachmentUrl = attachment ? attachment.url : null;
@@ -82,7 +118,8 @@ const quoteContext = {
             return;
         }
 
-        const content = message.content;
+        // Use cleanContent to resolve mentions automatically
+        const content = message.cleanContent || message.content;
         const author = message.author;
 
         let attachmentUrl = null;
