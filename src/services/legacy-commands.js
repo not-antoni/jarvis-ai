@@ -1890,6 +1890,35 @@ const legacyCommands = {
                 return true;
             }
 
+            // Prevent self-muting
+            if (targetMember.id === message.author.id) {
+                await message.reply("You **cannot** mute yourself, sir.");
+                return true;
+            }
+
+            // Prevent banning server owner
+            if (targetMember.id === message.guild.ownerId) {
+                await message.reply('I cannot mute the server owner, sir.');
+                return true;
+            }
+
+            // Prevent mods from muting other mods (unless they're the server owner)
+            const isOwner = message.guild.ownerId === message.author.id;
+            if (!isOwner && (targetMember.permissions.has(PermissionFlagsBits.ModerateMembers) || targetMember.permissions.has(PermissionFlagsBits.BanMembers))) {
+                await message.reply('🔒 You cannot mute other moderators, sir.');
+                return true;
+            }
+
+            // Check role hierarchy (unless executor is owner)
+            if (!isOwner) {
+                const authorHigher = authorMember.roles?.highest && targetMember.roles?.highest &&
+                    authorMember.roles.highest.comparePositionTo(targetMember.roles.highest) > 0;
+                if (!authorHigher) {
+                    await message.reply('🔒 You cannot mute that member due to role hierarchy, sir.');
+                    return true;
+                }
+            }
+
             // Parse time
             const mentionIndex = args.findIndex(token => /^<@!?\d+>$/.test(token));
             const afterMention = mentionIndex >= 0 ? args.slice(mentionIndex + 1) : args.slice(1);
