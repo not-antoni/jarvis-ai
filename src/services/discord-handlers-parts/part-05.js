@@ -3006,6 +3006,24 @@
                     const { resolveUser } = require('../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
+                    // Self-targeting check
+                    if (targetUser.id === interaction.user.id) {
+                        response = '❌ You cannot ban yourself.';
+                        break;
+                    }
+                    // Server owner check
+                    if (targetUser.id === interaction.guild.ownerId) {
+                        response = '❌ You cannot ban the server owner.';
+                        break;
+                    }
+                    // Role hierarchy check (moderator vs target)
+                    if (targetMember) {
+                        const executor = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                        if (executor && targetMember.roles.highest.position >= executor.roles.highest.position) {
+                            response = '❌ You cannot ban members with equal or higher roles than you.';
+                            break;
+                        }
+                    }
                     if (targetMember && !targetMember.bannable) {
                         response = '❌ I cannot ban that member (role hierarchy issue).';
                         break;
@@ -3078,6 +3096,22 @@
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
+                    // Self-targeting check
+                    if (targetUser.id === interaction.user.id) {
+                        response = '❌ You cannot kick yourself.';
+                        break;
+                    }
+                    // Server owner check
+                    if (targetUser.id === interaction.guild.ownerId) {
+                        response = '❌ You cannot kick the server owner.';
+                        break;
+                    }
+                    // Role hierarchy check (moderator vs target)
+                    const kickExecutor = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                    if (kickExecutor && targetMember.roles.highest.position >= kickExecutor.roles.highest.position) {
+                        response = '❌ You cannot kick members with equal or higher roles than you.';
+                        break;
+                    }
                     if (!targetMember.kickable) { response = '❌ I cannot kick that member.'; break; }
                     
                     try {
@@ -3121,6 +3155,22 @@
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
+                    // Self-targeting check
+                    if (targetUser.id === interaction.user.id) {
+                        response = '❌ You cannot mute yourself.';
+                        break;
+                    }
+                    // Server owner check
+                    if (targetUser.id === interaction.guild.ownerId) {
+                        response = '❌ You cannot mute the server owner.';
+                        break;
+                    }
+                    // Role hierarchy check (moderator vs target)
+                    const muteExecutor = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                    if (muteExecutor && targetMember.roles.highest.position >= muteExecutor.roles.highest.position) {
+                        response = '❌ You cannot mute members with equal or higher roles than you.';
+                        break;
+                    }
                     if (!targetMember.moderatable) { response = '❌ I cannot mute that member.'; break; }
                     
                     // Parse duration using shared utility
