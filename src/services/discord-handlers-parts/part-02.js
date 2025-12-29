@@ -734,34 +734,70 @@
 
         // ============ CLANKER DETECTION (Top Priority) ============
         // Check if user said "clanker" in any variation (case-insensitive)
-        // Inline check to ensure reliability
-        if (rawContent && rawContent.toLowerCase().includes('clanker')) {
+        // Strip Discord formatting to catch attempts to hide it in codeblocks, bold, etc.
+        const stripDiscordFormatting = (text) => {
+            return text
+                // Remove code blocks (```text```)
+                .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ''))
+                // Remove inline code (`text`)
+                .replace(/`([^`]+)`/g, '$1')
+                // Remove bold (**text**)
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                // Remove italic (*text* or _text_)
+                .replace(/\*([^*]+)\*/g, '$1')
+                .replace(/_([^_]+)_/g, '$1')
+                // Remove underline (__text__)
+                .replace(/__([^_]+)__/g, '$1')
+                // Remove strikethrough (~~text~~)
+                .replace(/~~([^~]+)~~/g, '$1')
+                // Remove spoilers (||text||)
+                .replace(/\|\|([^|]+)\|\|/g, '$1');
+        };
+        
+        const strippedContent = stripDiscordFormatting(rawContent);
+        if (strippedContent && strippedContent.toLowerCase().includes('clanker')) {
             const { limited } = this.hitCooldown(userId, messageScope);
             if (limited) return;
 
             try {
                 await message.channel.sendTyping();
                 
-                // Get user's avatar URL (high quality)
-                const avatarUrl = message.author.displayAvatarURL({ 
-                    format: 'png', 
-                    size: 128,
-                    dynamic: false 
-                });
+                // Response variations - randomly choose between GIF and text responses
+                const responseVariations = [
+                    { type: 'gif' },
+                    { type: 'gif' },
+                    { type: 'text', content: "You're having beef with pixels on a screen, sir." },
+                ];
                 
-                // Process the clanker.gif with user's avatar overlay
-                const processedGif = await clankerGif.processClankerGifFast(avatarUrl);
+                const selectedResponse = responseVariations[Math.floor(Math.random() * responseVariations.length)];
                 
-                // Send the processed GIF
-                const attachment = new AttachmentBuilder(processedGif, { name: 'clanker.gif' });
-                await message.reply({ 
-                    files: [attachment],
-                    allowedMentions: { parse: [] }
-                });
+                if (selectedResponse.type === 'text') {
+                    await message.reply({ 
+                        content: selectedResponse.content,
+                        allowedMentions: { parse: [] }
+                    });
+                } else {
+                    // Get user's avatar URL (high quality)
+                    const avatarUrl = message.author.displayAvatarURL({ 
+                        format: 'png', 
+                        size: 128,
+                        dynamic: false 
+                    });
+                    
+                    // Process the clanker.gif with user's avatar overlay
+                    const processedGif = await clankerGif.processClankerGifFast(avatarUrl);
+                    
+                    // Send the processed GIF
+                    const attachment = new AttachmentBuilder(processedGif, { name: 'clanker.gif' });
+                    await message.reply({ 
+                        files: [attachment],
+                        allowedMentions: { parse: [] }
+                    });
+                }
                 
                 return; // Exit early, no AI response
             } catch (clankerError) {
-                console.error('[Clanker] Failed to process clanker GIF:', clankerError);
+                console.error('[Clanker] Failed to process clanker response:', clankerError);
                 // Reply with error so user knows we tried
                 await message.reply('**[System Error]** Clanker protocol malfunctioned. Check logs for details.');
                 return; // Stop execution, do not fall through to AI
