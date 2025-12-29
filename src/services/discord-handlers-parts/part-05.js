@@ -832,11 +832,11 @@
                             break;
                         }
                         const embed = new EmbedBuilder()
-                            .setTitle(`🐾 ${pet.name} (${pet.type.toUpperCase()})`)
-                            .setDescription(`Level: ${pet.level}\nXP: ${pet.xp}/${pet.nextLevelXp}`)
+                            .setTitle(`🐾 ${pet.name || 'Unknown'} (${(pet.type || 'pet').toUpperCase()})`)
+                            .setDescription(`Level: ${pet.level ?? 1}\nXP: ${pet.xp ?? 0}/${pet.nextLevelXp ?? 100}`)
                             .addFields(
-                                { name: 'Hunger', value: `${pet.hunger}%`, inline: true },
-                                { name: 'Happiness', value: `${pet.happiness}%`, inline: true }
+                                { name: 'Hunger', value: `${pet.hunger ?? 100}%`, inline: true },
+                                { name: 'Happiness', value: `${pet.happiness ?? 100}%`, inline: true }
                             )
                             .setColor(0xf1c40f);
                         response = { embeds: [embed] };
@@ -848,7 +848,7 @@
                     } else if (sub === 'feed') {
                         const res = await starkEconomy.feedPet(interaction.user.id);
                         if (!res.success) { response = `❌ ${res.error}`; break; }
-                        response = `🍖 You fed your pet! Hunger is now ${res.pet.hunger}%.`;
+                        response = `🍖 You fed your pet! Hunger is now ${res.pet?.hunger ?? 100}%.`;
                     } else if (sub === 'rename') {
                         const name = interaction.options.getString('name');
                         const res = await starkEconomy.renamePet(interaction.user.id, name);
