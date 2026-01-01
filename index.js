@@ -4106,10 +4106,10 @@ async function startBot() {
 
             // Auto-setup Nginx reverse proxy (selfhost only)
             if (cfConfig.domain && cfConfig.deployTarget !== 'render') {
-                const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain);
+                const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain, true, true);
                 if (nginxResult.success) {
                     if (nginxResult.cached) {
-                        console.log(`[Nginx] Already configured for ${cfConfig.domain}`);
+                        console.log(`[Nginx] Verified configuration for ${cfConfig.domain}`);
                     } else {
                         console.log(`[Nginx] ✅ Configured: ${cfConfig.domain} → localhost:3000`);
                     }
