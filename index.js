@@ -2115,7 +2115,12 @@ const allCommands = [
         .setContexts([InteractionContextType.Guild])
         .addSubcommand(s => s.setName('info').setDescription('View your pet'))
         .addSubcommand(s => s.setName('adopt').setDescription('Adopt a pet').addStringOption(o => o.setName('type').setDescription('Pet type').setRequired(true).addChoices(
-            { name: 'Dog (500)', value: 'dog' }, { name: 'Cat (500)', value: 'cat' }, { name: 'Dragon (50000)', value: 'dragon' }
+            { name: 'Dog (500 SB)', value: 'dog' },
+            { name: 'Cat (500 SB)', value: 'cat' },
+            { name: 'Fish (2000 SB)', value: 'fish' },
+            { name: 'Golden Fish (15000 SB)', value: 'golden_fish' },
+            { name: 'Nemo (8000 SB)', value: 'nemo' },
+            { name: 'Dragon (50000 SB)', value: 'dragon' }
         )))
         .addSubcommand(s => s.setName('feed').setDescription('Feed your pet'))
         .addSubcommand(s => s.setName('rename').setDescription('Rename your pet').addStringOption(o => o.setName('name').setDescription('New name').setRequired(true))),
