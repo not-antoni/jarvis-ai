@@ -4,7 +4,7 @@
  * Targeted for specific guild/channel configuration.
  */
 
-const { EmbedBuilder, AuditLogEvent, Colors } = require('discord.js');
+const { EmbedBuilder, AuditLogEvent, Colors, PermissionFlagsBits } = require('discord.js');
 
 const LOG_CONFIG = {
     // Guild ID -> Log Channel ID mapping
@@ -42,6 +42,11 @@ class ServerLogger {
      */
     async getExecutor(guild, type, targetId) {
         try {
+            // Check permissions first to avoid error spam
+            if (!guild.members.me?.permissions.has(PermissionFlagsBits.ViewAuditLog)) {
+                return null;
+            }
+
             // Wait a moment for audit log to populate
             await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -57,7 +62,10 @@ class ServerLogger {
             }
             return null;
         } catch (e) {
-            console.warn('[ServerLogger] Failed to fetch audit logs:', e.message);
+            // Suppress missing permissions error, log others
+            if (e.code !== 50013 && e.message !== 'Missing Permissions') {
+                console.warn('[ServerLogger] Failed to fetch audit logs:', e.message);
+            }
             return null;
         }
     }
