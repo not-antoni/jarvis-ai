@@ -22,9 +22,14 @@ const { execSync, spawnSync } = require('child_process');
 
 const CLOUDFLARE_API_BASE = 'https://api.cloudflare.com/client/v4';
 const CONFIG_CACHE_FILE = path.join(process.cwd(), 'data', 'cloudflare-config.json');
-const NGINX_CONFIG_FILE = '/etc/nginx/sites-available/jarvis';
 const SSL_CERT_DIR = '/etc/ssl/cloudflare';
 const SSL_CACHE_FILE = path.join(process.cwd(), 'data', 'ssl-config.json');
+
+// Detect OS Type for Nginx Paths
+const isRhel = fs.existsSync('/etc/redhat-release') || fs.existsSync('/etc/amazon-linux-release');
+const NGINX_DIR = isRhel ? '/etc/nginx/conf.d' : '/etc/nginx/sites-available';
+const NGINX_ENABLED_DIR = isRhel ? null : '/etc/nginx/sites-enabled'; // RHEL includes conf.d automatically
+const NGINX_CONFIG_FILE = isRhel ? path.join(NGINX_DIR, 'jarvis.conf') : path.join(NGINX_DIR, 'jarvis');
 
 // ============================================================================
 // NGINX AUTO-SETUP
@@ -324,8 +329,12 @@ async function autoSetupNginx(domain, enableSsl = true) {
         fs.writeFileSync(tempFile, config);
 
         execSync(`sudo cp ${tempFile} ${NGINX_CONFIG_FILE}`, { encoding: 'utf8' });
-        execSync('sudo ln -sf /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/', { encoding: 'utf8' });
-        execSync('sudo rm -f /etc/nginx/sites-enabled/default', { encoding: 'utf8' });
+
+        // Link to sites-enabled only if it exists (Debian/Ubuntu)
+        if (NGINX_ENABLED_DIR) {
+            execSync(`sudo ln -sf ${NGINX_CONFIG_FILE} ${NGINX_ENABLED_DIR}/`, { encoding: 'utf8' });
+            execSync(`sudo rm -f ${NGINX_ENABLED_DIR}/default`, { encoding: 'utf8' });
+        }
 
         // Test and restart
         execSync('sudo nginx -t', { encoding: 'utf8' });
