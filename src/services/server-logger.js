@@ -104,7 +104,7 @@ class ServerLogger {
      * Log Message Edit
      */
     async logMessageUpdate(oldMessage, newMessage) {
-        if (!oldMessage.guild || oldMessage.author.bot) return;
+        if (!oldMessage.guild || !oldMessage.author || oldMessage.author.bot) return;
         if (oldMessage.content === newMessage.content) return; // Ignore embed updates/non-content changes
 
         const embed = new EmbedBuilder()
@@ -297,6 +297,176 @@ class ServerLogger {
 
         await this.sendLog(newRole.guild, embed);
     }
+}
+
+    // ===========================================
+    // EXTENDED LOGGING (Mee6/Sapphire Style)
+    // ===========================================
+
+    /**
+     * Log Channel Create
+     */
+    async logChannelCreate(channel) {
+    if (!channel.guild) return;
+    const executor = await this.getExecutor(channel.guild, AuditLogEvent.ChannelCreate, channel.id);
+    const embed = new EmbedBuilder()
+        .setTitle('📺 Channel Created')
+        .setDescription(`**Name:** ${channel.name} (${channel.toString()})\n**Type:** ${this.getChannelTypeName(channel.type)}\n**Category:** ${channel.parent ? channel.parent.name : 'None'}\n**Created By:** ${executor || 'Unknown'}`)
+        .setColor(Colors.Green)
+        .setFooter({ text: `ID: ${channel.id}` })
+        .setTimestamp();
+    await this.sendLog(channel.guild, embed);
+}
+
+    /**
+     * Log Channel Delete
+     */
+    async logChannelDelete(channel) {
+    if (!channel.guild) return;
+    const executor = await this.getExecutor(channel.guild, AuditLogEvent.ChannelDelete, channel.id);
+    const embed = new EmbedBuilder()
+        .setTitle('🗑️ Channel Deleted')
+        .setDescription(`**Name:** ${channel.name}\n**Type:** ${this.getChannelTypeName(channel.type)}\n**Deleted By:** ${executor || 'Unknown'}`)
+        .setColor(Colors.Red)
+        .setFooter({ text: `ID: ${channel.id}` })
+        .setTimestamp();
+    await this.sendLog(channel.guild, embed);
+}
+
+    /**
+     * Log Channel Update
+     */
+    async logChannelUpdate(oldChannel, newChannel) {
+    if (!newChannel.guild) return;
+    // Ignore permission overwrites for now to reduce spam, or just checking name/topic
+    if (oldChannel.name === newChannel.name && oldChannel.topic === newChannel.topic && oldChannel.nsfw === newChannel.nsfw) return;
+
+    const executor = await this.getExecutor(newChannel.guild, AuditLogEvent.ChannelUpdate, newChannel.id);
+    const embed = new EmbedBuilder()
+        .setTitle('🔧 Channel Updated')
+        .setDescription(`**Channel:** ${newChannel} (${newChannel.name})\n**Updated By:** ${executor || 'Unknown'}`)
+        .setColor(Colors.Yellow)
+        .setTimestamp();
+
+    if (oldChannel.name !== newChannel.name) embed.addFields({ name: 'Name', value: `${oldChannel.name} ➡️ ${newChannel.name}` });
+    if (oldChannel.topic !== newChannel.topic) embed.addFields({ name: 'Topic', value: `Changed (See details in channel)` });
+    if (oldChannel.nsfw !== newChannel.nsfw) embed.addFields({ name: 'NSFW', value: `${oldChannel.nsfw} ➡️ ${newChannel.nsfw}` });
+
+    await this.sendLog(newChannel.guild, embed);
+}
+
+    /**
+     * Log Voice State Update
+     */
+    async logVoiceStateUpdate(oldState, newState) {
+    const member = newState.member || oldState.member;
+    if (!member || !member.guild) return;
+
+    const embed = new EmbedBuilder()
+        .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
+        .setTimestamp();
+
+    // Join
+    if (!oldState.channelId && newState.channelId) {
+        embed.setTitle('🎤 Joined Voice')
+            .setDescription(`${member} joined **${newState.channel.name}**`)
+            .setColor(Colors.Green);
+        await this.sendLog(member.guild, embed);
+    }
+    // Leave
+    else if (oldState.channelId && !newState.channelId) {
+        embed.setTitle('👋 Left Voice')
+            .setDescription(`${member} left **${oldState.channel.name}**`)
+            .setColor(Colors.Red);
+        await this.sendLog(member.guild, embed);
+    }
+    // Move
+    else if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
+        embed.setTitle('↔️ Switched Voice')
+            .setDescription(`${member} moved from **${oldState.channel.name}** to **${newState.channel.name}**`)
+            .setColor(Colors.Blue);
+        await this.sendLog(member.guild, embed);
+    }
+}
+
+    /**
+     * Log Emoji Create
+     */
+    async logEmojiCreate(emoji) {
+    const executor = await this.getExecutor(emoji.guild, AuditLogEvent.EmojiCreate, emoji.id);
+    const embed = new EmbedBuilder()
+        .setTitle('😀 Emoji Created')
+        .setDescription(`**Emoji:** ${emoji} \`:${emoji.name}:\`\n**Created By:** ${executor || 'Unknown'}`)
+        .setThumbnail(emoji.url)
+        .setColor(Colors.Green)
+        .setTimestamp();
+    await this.sendLog(emoji.guild, embed);
+}
+
+    /**
+     * Log Emoji Delete
+     */
+    async logEmojiDelete(emoji) {
+    const executor = await this.getExecutor(emoji.guild, AuditLogEvent.EmojiDelete, emoji.id);
+    const embed = new EmbedBuilder()
+        .setTitle('🗑️ Emoji Deleted')
+        .setDescription(`**Name:** \`:${emoji.name}:\`\n**Deleted By:** ${executor || 'Unknown'}`)
+        .setThumbnail(emoji.url)
+        .setColor(Colors.Red)
+        .setTimestamp();
+    await this.sendLog(emoji.guild, embed);
+}
+
+    /**
+     * Log Emoji Update
+     */
+    async logEmojiUpdate(oldEmoji, newEmoji) {
+    if (oldEmoji.name === newEmoji.name) return;
+    const executor = await this.getExecutor(newEmoji.guild, AuditLogEvent.EmojiUpdate, newEmoji.id);
+    const embed = new EmbedBuilder()
+        .setTitle('📝 Emoji Renamed')
+        .setDescription(`**Emoji:** ${newEmoji}\n**Old Name:** \`:${oldEmoji.name}:\`\n**New Name:** \`:${newEmoji.name}:\`\n**Updated By:** ${executor || 'Unknown'}`)
+        .setThumbnail(newEmoji.url)
+        .setColor(Colors.Yellow)
+        .setTimestamp();
+    await this.sendLog(newEmoji.guild, embed);
+}
+
+    /**
+     * Log Guild Update
+     */
+    async logGuildUpdate(oldGuild, newGuild) {
+    if (oldGuild.name === newGuild.name && oldGuild.icon === newGuild.icon && oldGuild.banner === newGuild.banner) return;
+
+    const executor = await this.getExecutor(newGuild, AuditLogEvent.GuildUpdate, newGuild.id);
+    const embed = new EmbedBuilder()
+        .setTitle('🏰 Server Updated')
+        .setDescription(`Changes detected to server settings.\n**Executor:** ${executor || 'Unknown'}`)
+        .setColor(Colors.Blue)
+        .setTimestamp();
+
+    if (oldGuild.name !== newGuild.name) {
+        embed.addFields({ name: 'Name', value: `${oldGuild.name} ➡️ ${newGuild.name}` });
+    }
+
+    if (oldGuild.icon !== newGuild.icon) {
+        embed.addFields({ name: 'Icon', value: '[Changed] (Check Audit Log)' });
+        embed.setThumbnail(newGuild.iconURL());
+    }
+
+    await this.sendLog(newGuild, embed);
+}
+
+/**
+ * Helper for Channel Types
+ */
+getChannelTypeName(type) {
+    // Simple mapping, can be expanded
+    const types = {
+        0: 'Text', 2: 'Voice', 4: 'Category', 5: 'Announcement', 13: 'Stage', 15: 'Forum'
+    };
+    return types[type] || 'Unknown';
+}
 }
 
 module.exports = new ServerLogger();
