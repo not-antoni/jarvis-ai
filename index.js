@@ -51,6 +51,7 @@ const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics'
 const ytDlpManager = require('./src/services/yt-dlp-manager');
 const starkEconomy = require('./src/services/stark-economy');
 const errorLogger = require('./src/services/error-logger');
+const serverLogger = require('./src/services/server-logger');
 const announcementScheduler = require('./src/services/announcement-scheduler');
 const monitorScheduler = require('./src/services/monitor-scheduler');
 const { printSelfhostStatus } = require('./scripts/selfhost-check');
@@ -3824,14 +3825,45 @@ client.on('messageReactionRemove', async (reaction, user) => {
 
 client.on('messageDelete', async message => {
     await discordHandlers.handleTrackedMessageDelete(message);
+    await serverLogger.logMessageDelete(message);
+});
+
+client.on('messageUpdate', async (oldMessage, newMessage) => {
+    await serverLogger.logMessageUpdate(oldMessage, newMessage);
 });
 
 client.on('guildMemberAdd', async member => {
     await discordHandlers.handleGuildMemberAdd(member, client);
+    await serverLogger.logMemberJoin(member);
 });
 
 client.on('guildMemberRemove', async member => {
     await discordHandlers.handleGuildMemberRemove(member);
+    await serverLogger.logMemberLeave(member);
+});
+
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    await serverLogger.logMemberUpdate(oldMember, newMember);
+});
+
+client.on('guildBanAdd', async ban => {
+    await serverLogger.logBan(ban);
+});
+
+client.on('guildBanRemove', async ban => {
+    await serverLogger.logUnban(ban);
+});
+
+client.on('roleCreate', async role => {
+    await serverLogger.logRoleCreate(role);
+});
+
+client.on('roleDelete', async role => {
+    await serverLogger.logRoleDelete(role);
+});
+
+client.on('roleUpdate', async (oldRole, newRole) => {
+    await serverLogger.logRoleUpdate(oldRole, newRole);
 });
 
 // ------------------------ Cleanup Tasks ------------------------
