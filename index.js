@@ -3866,6 +3866,38 @@ client.on('roleUpdate', async (oldRole, newRole) => {
     await serverLogger.logRoleUpdate(oldRole, newRole);
 });
 
+client.on('channelCreate', async channel => {
+    await serverLogger.logChannelCreate(channel);
+});
+
+client.on('channelDelete', async channel => {
+    await serverLogger.logChannelDelete(channel);
+});
+
+client.on('channelUpdate', async (oldChannel, newChannel) => {
+    await serverLogger.logChannelUpdate(oldChannel, newChannel);
+});
+
+client.on('voiceStateUpdate', async (oldState, newState) => {
+    await serverLogger.logVoiceStateUpdate(oldState, newState);
+});
+
+client.on('emojiCreate', async emoji => {
+    await serverLogger.logEmojiCreate(emoji);
+});
+
+client.on('emojiDelete', async emoji => {
+    await serverLogger.logEmojiDelete(emoji);
+});
+
+client.on('emojiUpdate', async (oldEmoji, newEmoji) => {
+    await serverLogger.logEmojiUpdate(oldEmoji, newEmoji);
+});
+
+client.on('guildUpdate', async (oldGuild, newGuild) => {
+    await serverLogger.logGuildUpdate(oldGuild, newGuild);
+});
+
 // ------------------------ Cleanup Tasks ------------------------
 // Clean up old data periodically
 cron.schedule('0 2 * * *', () => {
