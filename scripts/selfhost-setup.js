@@ -105,7 +105,46 @@ class SelfhostSetup {
      * Generate shell command to create Nginx config file
      */
     generateNginxConfigCommand(domain) {
-        const nginxConfig = `server {
+        const cfDir = path.join(PROJECT_ROOT, 'cloudflare');
+        const hasCert = fs.existsSync(path.join(cfDir, 'cert.pem')) && fs.existsSync(path.join(cfDir, 'key.pem'));
+
+        // Define paths where we will copy the certs to on the system
+        const sysCertPath = `/etc/ssl/certs/${domain}.pem`;
+        const sysKeyPath = `/etc/ssl/private/${domain}.key`;
+
+        let nginxConfig;
+
+        if (hasCert) {
+            nginxConfig = `server {
+    listen 80;
+    server_name ${domain} www.${domain};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ${domain} www.${domain};
+
+    ssl_certificate ${sysCertPath};
+    ssl_certificate_key ${sysKeyPath};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \\$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \\$host;
+        proxy_set_header X-Real-IP \\$remote_addr;
+        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\$scheme;
+        proxy_read_timeout 86400;
+        proxy_buffering off;
+    }
+}`;
+        } else {
+            nginxConfig = `server {
     listen 80;
     server_name ${domain} www.${domain};
 
@@ -122,9 +161,19 @@ class SelfhostSetup {
         proxy_buffering off;
     }
 }`;
+        }
+
         // Escape for shell and write via tee
         const escaped = nginxConfig.replace(/'/g, "'\\''");
-        return `echo '${escaped}' | sudo tee /etc/nginx/sites-available/jarvis > /dev/null`;
+
+        let cmd = `echo '${escaped}' | sudo tee /etc/nginx/sites-available/jarvis > /dev/null`;
+
+        if (hasCert) {
+            // Add commands to copy certs
+            cmd = `sudo cp ${path.join(cfDir, 'cert.pem')} ${sysCertPath} && sudo cp ${path.join(cfDir, 'key.pem')} ${sysKeyPath} && sudo chmod 644 ${sysCertPath} && sudo chmod 600 ${sysKeyPath} && ${cmd}`;
+        }
+
+        return cmd;
     }
 
     detectPublicIP() {
@@ -136,7 +185,7 @@ class SelfhostSetup {
                 'curl -s --max-time 5 api.ipify.org',
                 'hostname -I | awk \'{print $1}\''
             ];
-            
+
             for (const cmd of methods) {
                 try {
                     const ip = execSync(cmd, { encoding: 'utf8', timeout: 6000 }).trim();
@@ -160,22 +209,22 @@ class SelfhostSetup {
         return new Promise(resolve => {
             const socket = new net.Socket();
             socket.setTimeout(2000);
-            
+
             socket.on('connect', () => {
                 socket.destroy();
                 resolve(true);
             });
-            
+
             socket.on('timeout', () => {
                 socket.destroy();
                 resolve(false);
             });
-            
+
             socket.on('error', () => {
                 socket.destroy();
                 resolve(false);
             });
-            
+
             socket.connect(27017, 'localhost');
         });
     }
@@ -183,7 +232,7 @@ class SelfhostSetup {
     async run() {
         console.clear();
         log.header('Jarvis AI - Selfhost Setup Wizard');
-        
+
         // Check if already set up
         if (fs.existsSync(SETUP_COMPLETE_FILE)) {
             log.info('Selfhost setup was already completed.');
@@ -196,10 +245,10 @@ class SelfhostSetup {
         }
 
         this.loadExistingEnv();
-        
+
         // Step 1: Basic Info
         log.step('Step 1: Environment Detection');
-        
+
         const detectedIP = this.detectPublicIP();
         if (detectedIP) {
             log.success(`Detected public IP: ${detectedIP}`);
@@ -208,18 +257,18 @@ class SelfhostSetup {
         }
 
         const isVPS = await this.promptYesNo('Are you running on a VPS/cloud server (not localhost)?', true);
-        
+
         // Step 2: Base URL Configuration
         log.step('Step 2: Base URL Configuration');
-        
+
         let baseUrl = this.existingEnv.PUBLIC_BASE_URL || '';
         if (isVPS) {
             log.info('For OAuth callbacks and webhooks, you need a public URL.');
             log.info('Options: Use your IP (http://1.2.3.4:3000) or a domain (https://jarvis.example.com)');
-            
+
             const suggestedUrl = detectedIP ? `http://${detectedIP}:3000` : '';
             baseUrl = await this.prompt('Enter your public base URL', suggestedUrl || baseUrl);
-            
+
             if (baseUrl && !baseUrl.startsWith('http')) {
                 baseUrl = `http://${baseUrl}`;
             }
@@ -231,7 +280,7 @@ class SelfhostSetup {
 
         // Step 3: Discord Configuration
         log.step('Step 3: Discord Configuration');
-        
+
         let discordToken = this.existingEnv.DISCORD_TOKEN;
         if (discordToken) {
             log.success('Discord token already configured');
@@ -256,10 +305,10 @@ class SelfhostSetup {
             if (setupOAuth) {
                 log.info(`\nIn Discord Developer Portal, add this redirect URL:`);
                 log.info(`${colors.bright}${baseUrl}/auth/discord/callback${colors.reset}\n`);
-                
+
                 const clientId = await this.prompt('Discord Client ID', '');
                 const clientSecret = await this.prompt('Discord Client Secret', '');
-                
+
                 if (clientId) this.envVars.DISCORD_CLIENT_ID = clientId;
                 if (clientSecret) this.envVars.DISCORD_CLIENT_SECRET = clientSecret;
             }
@@ -267,19 +316,19 @@ class SelfhostSetup {
 
         // Step 4: Database Configuration
         log.step('Step 4: Database Configuration');
-        
+
         const hasMongoMain = !!this.existingEnv.MONGO_URI_MAIN;
         const hasMongoVault = !!this.existingEnv.MONGO_URI_VAULT;
-        
+
         if (hasMongoMain && hasMongoVault) {
             log.success('MongoDB URIs already configured');
         } else {
             log.info('MongoDB is required for full functionality.');
             log.info('Options: 1) Local MongoDB, 2) MongoDB Atlas, 3) No database (limited)');
-            
+
             // Check if local MongoDB is running
             const localMongoRunning = await this.checkLocalMongo();
-            
+
             if (localMongoRunning) {
                 log.success('Local MongoDB detected on localhost:27017');
                 const useLocalMongo = await this.promptYesNo('Use local MongoDB?', true);
@@ -296,7 +345,7 @@ class SelfhostSetup {
             } else {
                 log.warn('Local MongoDB not detected on localhost:27017');
                 log.info('Install MongoDB: sudo apt install mongodb-org && sudo systemctl start mongod');
-                
+
                 const useLocalDb = await this.promptYesNo('Continue without MongoDB (LOCAL_DB_MODE)?', false);
                 if (useLocalDb) {
                     this.envVars.LOCAL_DB_MODE = '1';
@@ -313,7 +362,7 @@ class SelfhostSetup {
 
         // Step 5: Security
         log.step('Step 5: Security Configuration');
-        
+
         let masterKey = this.existingEnv.MASTER_KEY_BASE64;
         if (masterKey) {
             log.success('Master key already configured');
@@ -326,16 +375,16 @@ class SelfhostSetup {
 
         // Step 6: Selfhost Mode
         log.step('Step 6: Selfhost Mode Configuration');
-        
+
         this.envVars.DEPLOY_TARGET = 'selfhost';
         this.envVars.SELFHOST_MODE = 'true';
         log.success('Enabled selfhost mode');
 
         // Optional: AI Providers - skip if any are already configured
         log.step('Step 7: AI Provider Configuration (Optional)');
-        
-        const hasAnyAI = this.existingEnv.OPENROUTER_API_KEY || this.existingEnv.GROQ_API_KEY || 
-                         this.existingEnv.GOOGLE_AI_API_KEY || this.existingEnv.OPENAI_API_KEY;
+
+        const hasAnyAI = this.existingEnv.OPENROUTER_API_KEY || this.existingEnv.GROQ_API_KEY ||
+            this.existingEnv.GOOGLE_AI_API_KEY || this.existingEnv.OPENAI_API_KEY;
         if (hasAnyAI) {
             log.success('AI providers already configured');
             // Preserve existing AI keys
@@ -348,49 +397,53 @@ class SelfhostSetup {
             if (configureAI) {
                 const openrouterKey = await this.prompt('OpenRouter API Key (leave empty to skip)', '');
                 if (openrouterKey) this.envVars.OPENROUTER_API_KEY = openrouterKey;
-                
+
                 const groqKey = await this.prompt('Groq API Key (leave empty to skip)', '');
                 if (groqKey) this.envVars.GROQ_API_KEY = groqKey;
-                
+
                 const googleKey = await this.prompt('Google AI API Key (leave empty to skip)', '');
                 if (googleKey) this.envVars.GOOGLE_AI_API_KEY = googleKey;
             }
         }
 
-        // Step 8: System Setup (VPS only)
+        // Step 8: Cloudflare SSL (Optional)
+        log.step('Step 8: Cloudflare SSL Configuration');
+        await this.setupCloudflareSSL();
+
+        // Step 9: System Setup (VPS only)
         if (isVPS) {
-            log.step('Step 8: System Setup');
+            log.step('Step 9: System Setup');
             await this.runSystemSetup();
         }
 
-        // Step 9: Write Configuration
-        log.step(isVPS ? 'Step 9: Saving Configuration' : 'Step 8: Saving Configuration');
-        
+        // Step 10: Write Configuration
+        log.step(isVPS ? 'Step 10: Saving Configuration' : 'Step 9: Saving Configuration');
+
         this.writeEnvFile();
-        
+
         // Mark setup as complete
         fs.mkdirSync(DATA_DIR, { recursive: true });
         fs.writeFileSync(SETUP_COMPLETE_FILE, new Date().toISOString());
-        
+
         // Step 10: Post-Setup Instructions
         log.header('Setup Complete!');
-        
+
         console.log(`${colors.bright}Next Steps:${colors.reset}\n`);
-        
+
         console.log(`1. ${colors.cyan}Update Discord Developer Portal:${colors.reset}`);
         console.log(`   - Go to https://discord.com/developers/applications`);
         console.log(`   - OAuth2 → Redirects → Add: ${colors.bright}${baseUrl}/auth/discord/callback${colors.reset}`);
         console.log(`   - OAuth2 → Redirects → Add: ${colors.bright}${baseUrl}/moderator/callback${colors.reset}\n`);
-        
+
         if (isVPS) {
             console.log(`2. ${colors.cyan}Start the bot with PM2:${colors.reset}`);
             console.log(`   ${colors.dim}pm2 start index.js --name "jarvis" --max-memory-restart 500M${colors.reset}`);
             console.log(`   ${colors.dim}pm2 startup && pm2 save${colors.reset}\n`);
         }
-        
+
         console.log(`${colors.green}Verify setup:${colors.reset} node scripts/selfhost-setup.js --verify`);
         console.log(`${colors.green}Start the bot:${colors.reset} npm start\n`);
-        
+
         this.rl.close();
     }
 
@@ -408,8 +461,8 @@ class SelfhostSetup {
     runCmd(cmd, description) {
         log.info(`Running: ${cmd}`);
         try {
-            const result = execSync(cmd, { 
-                encoding: 'utf8', 
+            const result = execSync(cmd, {
+                encoding: 'utf8',
                 timeout: 120000,
                 stdio: ['pipe', 'pipe', 'pipe']
             });
@@ -428,7 +481,7 @@ class SelfhostSetup {
     async runSystemSetup() {
         log.info('This will install/configure system dependencies.');
         log.info('Some commands require sudo (you may be prompted for password).\n');
-        
+
         const runSetup = await this.promptYesNo('Run automated system setup?', true);
         if (!runSetup) {
             log.info('Skipping system setup. You can run these manually later.');
@@ -542,15 +595,15 @@ class SelfhostSetup {
             for (const task of setupTasks) {
                 log.info(`${task.name}...`);
                 try {
-                    const options = { 
-                        encoding: 'utf8', 
+                    const options = {
+                        encoding: 'utf8',
                         timeout: 300000,
                         stdio: ['pipe', 'pipe', 'pipe']
                     };
                     if (task.cwd) options.cwd = task.cwd;
-                    
+
                     execSync(task.cmd, options);
-                    
+
                     if (task.check && task.check()) {
                         log.success(task.name);
                         if (task.envVar) {
@@ -581,7 +634,7 @@ class SelfhostSetup {
                         timeout: 30000,
                         shell: '/bin/bash'
                     }).trim();
-                    
+
                     if (startupCmd && startupCmd.includes('sudo')) {
                         log.info('Running PM2 startup command...');
                         execSync(startupCmd, { encoding: 'utf8', timeout: 60000, stdio: 'inherit' });
@@ -597,42 +650,142 @@ class SelfhostSetup {
         log.success('System setup complete!');
     }
 
+    async headers() {
+        const token = this.envVars.CLOUDFLARE_API_TOKEN || this.existingEnv.CLOUDFLARE_API_TOKEN;
+        const key = this.envVars.CLOUDFLARE_API_KEY || this.existingEnv.CLOUDFLARE_API_KEY;
+        const email = this.envVars.CLOUDFLARE_EMAIL || this.existingEnv.CLOUDFLARE_EMAIL;
+
+        if (token) {
+            return {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+        } else if (key && email) {
+            return {
+                'X-Auth-Key': key,
+                'X-Auth-Email': email,
+                'Content-Type': 'application/json'
+            };
+        }
+        return null; // Should check before calling
+    }
+
+    async setupCloudflareSSL() {
+        const domain = this.envVars.PUBLIC_DOMAIN || this.existingEnv.PUBLIC_DOMAIN ||
+            (this.envVars.PUBLIC_BASE_URL ? new URL(this.envVars.PUBLIC_BASE_URL).hostname : null);
+
+        if (!domain || domain === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(domain)) {
+            log.info('Skipping Cloudflare SSL: No valid domain name configured.');
+            return;
+        }
+
+        const setupSSL = await this.promptYesNo(`Setup Cloudflare SSL for ${domain}?`, true);
+        if (!setupSSL) return;
+
+        // 1. Get Credentials
+        let headers = await this.headers();
+        if (!headers) {
+            log.info('Cloudflare credentials not found.');
+            const useToken = await this.promptYesNo('Do you have an API Token (Recommended)?', true);
+
+            if (useToken) {
+                const token = await this.promptSecret('Cloudflare API Token');
+                this.envVars.CLOUDFLARE_API_TOKEN = token;
+            } else {
+                const email = await this.prompt('Cloudflare Email');
+                const key = await this.promptSecret('Cloudflare Global API Key');
+                this.envVars.CLOUDFLARE_EMAIL = email;
+                this.envVars.CLOUDFLARE_API_KEY = key;
+            }
+            headers = await this.headers();
+        }
+
+        // 2. Generate Certificate
+        log.info('Generating Origin CA Certificate (15 years)...');
+        try {
+            const response = await fetch('https://api.cloudflare.com/client/v4/certificates', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    hostnames: [domain, `*.${domain}`],
+                    requested_validity: 5475,
+                    request_type: 'origin-rsa',
+                    csr: null // Cloudflare generates key pair
+                })
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(`Cloudflare API Error: ${data.errors ? data.errors.map(e => e.message).join(', ') : 'Unknown error'}`);
+            }
+
+            const cert = data.result.certificate;
+            const key = data.result.private_key;
+
+            // 3. Save Files
+            const cfDir = path.join(PROJECT_ROOT, 'cloudflare');
+            if (!fs.existsSync(cfDir)) fs.mkdirSync(cfDir, { recursive: true });
+
+            fs.writeFileSync(path.join(cfDir, 'cert.pem'), cert);
+            fs.writeFileSync(path.join(cfDir, 'key.pem'), key);
+
+            // Set stricter permissions for private key
+            try {
+                fs.chmodSync(path.join(cfDir, 'key.pem'), 0o600);
+            } catch (e) {
+                // Ignore if cannot chmod (e.g. Windows)
+            }
+
+            log.success('Successfully generated and saved Cloudflare Origin Certificate!');
+            log.info(`Cert: ${path.join(cfDir, 'cert.pem')}`);
+            log.info(`Key:  ${path.join(cfDir, 'key.pem')}`);
+
+            return true; // SSL set up successfully
+
+        } catch (error) {
+            log.error(`Failed to generate certs: ${error.message}`);
+            log.warn('You can manually place cert.pem and key.pem in the cloudflare/ directory.');
+            return false;
+        }
+    }
+
     writeEnvFile() {
         // APPEND-ONLY MODE: Only add/update variables, never remove existing ones
-        
+
         if (!fs.existsSync(ENV_PATH)) {
             // No existing .env - create new one with just our vars
             let content = '# Jarvis AI - Environment Configuration\n';
             content += `# Generated by selfhost-setup.js on ${new Date().toISOString()}\n\n`;
-            
+
             for (const [key, value] of Object.entries(this.envVars)) {
                 const needsQuotes = /[\s#=]/.test(value);
                 content += needsQuotes ? `${key}="${value}"\n` : `${key}=${value}\n`;
             }
-            
+
             fs.writeFileSync(ENV_PATH, content);
             log.success('Created new .env configuration');
             return;
         }
-        
+
         // Read existing .env content
         let existingContent = fs.readFileSync(ENV_PATH, 'utf8');
-        
+
         // Backup existing .env first
         const backupPath = `${ENV_PATH}.backup.${Date.now()}`;
         fs.copyFileSync(ENV_PATH, backupPath);
         log.info(`Backed up existing .env to ${path.basename(backupPath)}`);
-        
+
         // Track what we've updated vs what needs to be appended
         const toAppend = [];
-        
+
         for (const [key, value] of Object.entries(this.envVars)) {
             const needsQuotes = /[\s#=]/.test(value);
             const formattedValue = needsQuotes ? `"${value}"` : value;
-            
+
             // Check if key already exists in file
             const keyRegex = new RegExp(`^${key}=.*$`, 'm');
-            
+
             if (keyRegex.test(existingContent)) {
                 // Update existing key in place
                 existingContent = existingContent.replace(keyRegex, `${key}=${formattedValue}`);
@@ -642,7 +795,7 @@ class SelfhostSetup {
                 toAppend.push({ key, value: formattedValue });
             }
         }
-        
+
         // Append new variables at the end
         if (toAppend.length > 0) {
             existingContent = existingContent.trimEnd();
@@ -652,7 +805,7 @@ class SelfhostSetup {
                 log.info(`Added: ${key}`);
             }
         }
-        
+
         fs.writeFileSync(ENV_PATH, existingContent);
         log.success('Updated .env configuration (append-only mode)');
     }
@@ -758,7 +911,7 @@ class SystemVerifier {
             this.addResult('.env file', 'fail', 'Missing - run setup first');
             return null;
         }
-        
+
         const content = fs.readFileSync(ENV_PATH, 'utf8');
         const env = {};
         for (const line of content.split('\n')) {
@@ -772,7 +925,7 @@ class SystemVerifier {
                 env[match[1].trim()] = value;
             }
         }
-        
+
         this.addResult('.env file', 'pass', 'Found');
         return env;
     }
@@ -855,13 +1008,13 @@ class SystemVerifier {
     // Check disk space
     checkDiskSpace() {
         try {
-            const result = execSync("df -h . | tail -1 | awk '{print $4, $5}'", { 
-                encoding: 'utf8', 
-                timeout: 5000 
+            const result = execSync("df -h . | tail -1 | awk '{print $4, $5}'", {
+                encoding: 'utf8',
+                timeout: 5000
             }).trim();
             const [available, usedPercent] = result.split(' ');
             const usedNum = parseInt(usedPercent.replace('%', ''), 10);
-            
+
             if (usedNum > 90) {
                 this.addResult('Disk Space', 'fail', `${available} available (${usedPercent} used) - critically low!`);
             } else if (usedNum > 80) {
@@ -877,9 +1030,9 @@ class SystemVerifier {
     // Check memory
     checkMemory() {
         try {
-            const result = execSync("free -h | grep Mem | awk '{print $2, $7}'", { 
-                encoding: 'utf8', 
-                timeout: 5000 
+            const result = execSync("free -h | grep Mem | awk '{print $2, $7}'", {
+                encoding: 'utf8',
+                timeout: 5000
             }).trim();
             const [total, available] = result.split(' ');
             this.addResult('Memory', 'pass', `${available} available of ${total}`);
@@ -901,10 +1054,10 @@ class SystemVerifier {
     // Check Discord OAuth configuration
     checkDiscordOAuth(env) {
         if (!env) return;
-        
+
         const hasClientId = env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_ID.length > 10;
         const hasClientSecret = env.DISCORD_CLIENT_SECRET && env.DISCORD_CLIENT_SECRET.length > 10;
-        
+
         if (hasClientId && hasClientSecret) {
             this.addResult('Discord OAuth', 'pass', 'Client ID and Secret configured');
         } else if (hasClientId && !hasClientSecret) {
@@ -918,7 +1071,7 @@ class SystemVerifier {
     checkYtDlp() {
         const ytdlpPath = path.join(PROJECT_ROOT, 'bin', 'yt-dlp');
         const ytdlpPathWin = path.join(PROJECT_ROOT, 'bin', 'yt-dlp.exe');
-        
+
         if (fs.existsSync(ytdlpPath) || fs.existsSync(ytdlpPathWin)) {
             this.addResult('yt-dlp', 'pass', 'Binary exists in bin/');
         } else {
@@ -968,15 +1121,15 @@ class SystemVerifier {
         console.log('\n');
         for (const check of this.results.checks) {
             const icon = check.status === 'pass' ? `${colors.green}✓` :
-                         check.status === 'warn' ? `${colors.yellow}⚠` :
-                         `${colors.red}✗`;
+                check.status === 'warn' ? `${colors.yellow}⚠` :
+                    `${colors.red}✗`;
             console.log(`${icon}${colors.reset} ${colors.bright}${check.name}${colors.reset}: ${check.message}`);
         }
 
         console.log('\n' + '─'.repeat(50));
         console.log(`${colors.green}Passed: ${this.results.passed}${colors.reset} | ` +
-                    `${colors.yellow}Warnings: ${this.results.warnings}${colors.reset} | ` +
-                    `${colors.red}Failed: ${this.results.failed}${colors.reset}`);
+            `${colors.yellow}Warnings: ${this.results.warnings}${colors.reset} | ` +
+            `${colors.red}Failed: ${this.results.failed}${colors.reset}`);
 
         if (this.results.failed > 0) {
             console.log(`\n${colors.red}Fix the failed checks before running the bot.${colors.reset}`);
@@ -1024,7 +1177,7 @@ if (verifyMode) {
             }
             process.exit(1);
         });
-    
+
     // Handle unexpected readline close
     setup.rl.on('close', () => {
         console.error('\n' + colors.yellow + 'Setup interrupted.' + colors.reset);
