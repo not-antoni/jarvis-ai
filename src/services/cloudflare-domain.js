@@ -165,9 +165,10 @@ function saveSslCache(config) {
 async function createOriginCertificate(domain) {
     const config = getConfig();
 
-    if (!config.zoneId) {
-        return { success: false, error: 'CLOUDFLARE_ZONE_ID required for SSL' };
-    }
+    // Origin CA does not strictly require Zone ID for generation
+    // if (!config.zoneId) {
+    //    return { success: false, error: 'CLOUDFLARE_ZONE_ID required for SSL' };
+    // }
 
     try {
         const response = await cfFetch('/certificates', {
@@ -233,9 +234,28 @@ async function autoSetupSsl(domain) {
         return { success: false, error: 'No domain provided' };
     }
 
-    // Check if certs already exist
+    // Check if certs already exist in system path
     if (sslCertsExist(domain)) {
         return { success: true, cached: true, message: 'SSL certificates already exist' };
+    }
+
+    // MIGRATION: Check if certs exist in project folder (from selfhost-setup.js)
+    const projectCertDir = path.join(process.cwd(), 'cloudflare');
+    const projectCert = path.join(projectCertDir, 'cert.pem');
+    const projectKey = path.join(projectCertDir, 'key.pem');
+
+    if (fs.existsSync(projectCert) && fs.existsSync(projectKey)) {
+        console.log('[SSL] Found existing certificates in project folder. Importing...');
+        try {
+            const certContent = fs.readFileSync(projectCert, 'utf8');
+            const keyContent = fs.readFileSync(projectKey, 'utf8');
+            const saveResult = await saveSslCertificates(domain, certContent, keyContent);
+            if (saveResult.success) {
+                return { success: true, message: 'Imported certificates from project folder' };
+            }
+        } catch (err) {
+            console.warn('[SSL] Failed to import project certificates:', err.message);
+        }
     }
 
     // Check cache
