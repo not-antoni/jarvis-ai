@@ -651,23 +651,41 @@ server {
     }
 
     async headers() {
+        // 1. Check for API Token (Best)
         const token = this.envVars.CLOUDFLARE_API_TOKEN || this.existingEnv.CLOUDFLARE_API_TOKEN;
-        const key = this.envVars.CLOUDFLARE_API_KEY || this.existingEnv.CLOUDFLARE_API_KEY;
-        const email = this.envVars.CLOUDFLARE_EMAIL || this.existingEnv.CLOUDFLARE_EMAIL;
-
         if (token) {
             return {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             };
-        } else if (key && email) {
+        }
+
+        // 2. Check for Origin CA Key (Specialized for Certs)
+        const originKey = this.envVars.CLOUDFLARE_ORIGIN_CA_KEY || this.existingEnv.CLOUDFLARE_ORIGIN_CA_KEY ||
+            this.envVars.CLOUDFLARE_ORIGIN_CA_API_KEY || this.existingEnv.CLOUDFLARE_ORIGIN_CA_API_KEY;
+        if (originKey) {
+            return {
+                'X-Auth-User-Service-Key': originKey,
+                'Content-Type': 'application/json'
+            };
+        }
+
+        // 3. Check for Global API Key + Email (Legacy/Standard)
+        // Helper to get from either source
+        const get = (k) => this.envVars[k] || this.existingEnv[k];
+
+        const key = get('CLOUDFLARE_GLOBAL_API_KEY') || get('CLOUDFLARE_API_KEY');
+        const email = get('CLOUDFLARE_EMAIL');
+
+        if (key && email) {
             return {
                 'X-Auth-Key': key,
                 'X-Auth-Email': email,
                 'Content-Type': 'application/json'
             };
         }
-        return null; // Should check before calling
+
+        return null;
     }
 
     async setupCloudflareSSL() {
