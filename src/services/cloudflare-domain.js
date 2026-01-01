@@ -275,7 +275,7 @@ async function autoSetupSsl(domain) {
 /**
  * Auto-setup Nginx reverse proxy (with optional SSL)
  */
-async function autoSetupNginx(domain, enableSsl = true) {
+async function autoSetupNginx(domain, enableSsl = true, force = false) {
     if (!domain) {
         return { success: false, error: 'No domain provided' };
     }
@@ -308,7 +308,7 @@ async function autoSetupNginx(domain, enableSsl = true) {
     const hasSSLConfig = currentConfig && fs.existsSync(NGINX_CONFIG_FILE) &&
         fs.readFileSync(NGINX_CONFIG_FILE, 'utf8').includes('ssl_certificate');
 
-    if (currentConfig && hasSSLConfig === useSSL) {
+    if (!force && currentConfig && hasSSLConfig === useSSL) {
         return { success: true, cached: true, ssl: useSSL, message: 'Nginx already configured' };
     }
 
