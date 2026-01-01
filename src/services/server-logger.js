@@ -78,7 +78,7 @@ class ServerLogger {
      * Log Message Delete
      */
     async logMessageDelete(message) {
-        if (!message.guild || message.author.bot) return; // Ignore bots
+        if (!message.guild || !message.author || message.author.bot) return; // Ignore bots or uncached messages
 
         // Audit Log check for "Message Delete" by generic mod (not author)
         // This is tricky because if author deletes, no audit log entry is typically created for "Self" delete?
