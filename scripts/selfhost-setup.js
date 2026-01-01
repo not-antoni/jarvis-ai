@@ -104,7 +104,7 @@ class SelfhostSetup {
     /**
      * Generate shell command to create Nginx config file
      */
-    generateNginxConfigCommand(domain) {
+    generateNginxConfigCommand(domain, platformType = 'debian') {
         const cfDir = path.join(PROJECT_ROOT, 'cloudflare');
         const hasCert = fs.existsSync(path.join(cfDir, 'cert.pem')) && fs.existsSync(path.join(cfDir, 'key.pem'));
 
@@ -166,7 +166,11 @@ server {
         // Escape for shell and write via tee
         const escaped = nginxConfig.replace(/'/g, "'\\''");
 
-        let cmd = `echo '${escaped}' | sudo tee /etc/nginx/sites-available/jarvis > /dev/null`;
+        const configPath = platformType === 'rhel'
+            ? '/etc/nginx/conf.d/jarvis.conf'
+            : '/etc/nginx/sites-available/jarvis';
+
+        let cmd = `echo '${escaped}' | sudo tee ${configPath} > /dev/null`;
 
         if (hasCert) {
             // Add commands to copy certs
@@ -488,13 +492,17 @@ server {
             return;
         }
 
+        const pm = new PackageManager();
+        await pm.detect();
+        log.info(`Detected Config: ${pm.type} (${pm.manager})`);
+
         const setupTasks = [];
 
         // Check and install ffmpeg
         if (!this.commandExists('ffmpeg')) {
             setupTasks.push({
                 name: 'Install ffmpeg',
-                cmd: 'sudo apt-get update && sudo apt-get install -y ffmpeg',
+                cmd: pm.install('ffmpeg'),
                 check: () => this.commandExists('ffmpeg'),
                 envVar: { key: 'FFMPEG_PATH', value: '/usr/bin/ffmpeg' }
             });
@@ -515,59 +523,56 @@ server {
         }
 
         // Configure firewall
-        const configureFirewall = await this.promptYesNo('Configure UFW firewall (allow SSH + HTTP/HTTPS)?', true);
+        const configureFirewall = await this.promptYesNo('Configure firewall (allow SSH + HTTP/HTTPS)?', true);
         if (configureFirewall) {
-            setupTasks.push({
-                name: 'Allow SSH through firewall',
-                cmd: 'sudo ufw allow ssh',
-                check: () => true
-            });
-            setupTasks.push({
-                name: 'Allow HTTP through firewall',
-                cmd: 'sudo ufw allow 80',
-                check: () => true
-            });
-            setupTasks.push({
-                name: 'Allow HTTPS through firewall',
-                cmd: 'sudo ufw allow 443',
-                check: () => true
-            });
-            setupTasks.push({
-                name: 'Enable firewall',
-                cmd: 'echo "y" | sudo ufw enable',
-                check: () => true
-            });
+            if (pm.type === 'debian') {
+                setupTasks.push({ name: 'Allow SSH', cmd: 'sudo ufw allow ssh', check: () => true });
+                setupTasks.push({ name: 'Allow HTTP', cmd: 'sudo ufw allow 80', check: () => true });
+                setupTasks.push({ name: 'Allow HTTPS', cmd: 'sudo ufw allow 443', check: () => true });
+                setupTasks.push({ name: 'Enable firewall', cmd: 'echo "y" | sudo ufw enable', check: () => true });
+            } else if (pm.type === 'rhel') {
+                // Firewalld
+                setupTasks.push({ name: 'Install firewalld', cmd: pm.install('firewalld'), check: () => true });
+                setupTasks.push({ name: 'Start firewalld', cmd: 'sudo systemctl start firewalld && sudo systemctl enable firewalld', check: () => true });
+                setupTasks.push({ name: 'Allow SSH', cmd: 'sudo firewall-cmd --permanent --add-service=ssh', check: () => true });
+                setupTasks.push({ name: 'Allow HTTP', cmd: 'sudo firewall-cmd --permanent --add-service=http', check: () => true });
+                setupTasks.push({ name: 'Allow HTTPS', cmd: 'sudo firewall-cmd --permanent --add-service=https', check: () => true });
+                setupTasks.push({ name: 'Reload firewall', cmd: 'sudo firewall-cmd --reload', check: () => true });
+            }
         }
 
-        // Setup Nginx reverse proxy (hide :3000 port)
+        // Setup Nginx reverse proxy
         const domain = this.envVars.JARVIS_DOMAIN || this.existingEnv.JARVIS_DOMAIN || '';
         if (domain) {
             const setupNginx = await this.promptYesNo(`Setup Nginx reverse proxy for ${domain}?`, true);
             if (setupNginx) {
                 setupTasks.push({
                     name: 'Install Nginx',
-                    cmd: 'sudo apt-get update && sudo apt-get install -y nginx',
+                    cmd: pm.install('nginx'),
                     check: () => this.commandExists('nginx')
                 });
+
+                // Nginx Config Generation (Platform Specific)
                 setupTasks.push({
-                    name: 'Create Nginx config for Jarvis',
-                    cmd: this.generateNginxConfigCommand(domain),
+                    name: 'Create Nginx config',
+                    cmd: this.generateNginxConfigCommand(domain, pm.type), // Pass pm.type
                     check: () => true
                 });
-                setupTasks.push({
-                    name: 'Enable Jarvis site',
-                    cmd: 'sudo ln -sf /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/ && sudo rm -f /etc/nginx/sites-enabled/default',
-                    check: () => true
-                });
+
+                if (pm.type === 'debian') {
+                    setupTasks.push({
+                        name: 'Enable site',
+                        cmd: 'sudo ln -sf /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/ && sudo rm -f /etc/nginx/sites-enabled/default',
+                        check: () => true
+                    });
+                }
+
                 setupTasks.push({
                     name: 'Restart Nginx',
                     cmd: 'sudo nginx -t && sudo systemctl restart nginx && sudo systemctl enable nginx',
                     check: () => true
                 });
-                log.info('Nginx will proxy jorvis.org → localhost:3000');
             }
-        } else {
-            log.warn('No JARVIS_DOMAIN set - skipping Nginx setup. Set it to auto-configure reverse proxy.');
         }
 
         // Run npm install if node_modules missing
@@ -1200,4 +1205,54 @@ if (verifyMode) {
     setup.rl.on('close', () => {
         console.error('\n' + colors.yellow + 'Setup interrupted.' + colors.reset);
     });
+}
+
+/**
+ * Package manager detection and abstraction
+ */
+class PackageManager {
+    constructor() {
+        this.manager = null;
+        this.type = null; // 'debian' or 'rhel'
+    }
+
+    async detect() {
+        if (this.commandExists('apt-get')) {
+            this.manager = 'apt-get';
+            this.type = 'debian';
+        } else if (this.commandExists('dnf')) {
+            this.manager = 'dnf';
+            this.type = 'rhel';
+        } else if (this.commandExists('yum')) {
+            this.manager = 'yum';
+            this.type = 'rhel';
+        } else {
+            this.manager = 'unknown';
+            this.type = 'unknown';
+        }
+    }
+
+    commandExists(cmd) {
+        try {
+            const result = spawnSync('which', [cmd], { encoding: 'utf8', timeout: 5000 });
+            return result.status === 0 && result.stdout.trim().length > 0;
+        } catch {
+            return false;
+        }
+    }
+
+    install(packageNames) {
+        if (this.type === 'debian') {
+            return `sudo apt-get update && sudo apt-get install -y ${packageNames}`;
+        } else if (this.type === 'rhel') {
+            // RHEL/CentOS/Amazon Linux
+            if (packageNames.includes('ffmpeg')) {
+                // Try install but don't fail hard if missing (user warned in output)
+                return `sudo ${this.manager} install -y ffmpeg || echo "Warning: ffmpeg install failed. Enable RPM Fusion or install static binary."`;
+            }
+            return `sudo ${this.manager} install -y ${packageNames}`;
+        } else {
+            return `echo "Manual install required for: ${packageNames}"`;
+        }
+    }
 }
