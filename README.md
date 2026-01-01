@@ -182,16 +182,45 @@ YTDLP_MAX_FILESIZE_MB=50
 
 #### Step 2: Install Dependencies
 
+**Option A: Ubuntu/Debian**
 ```bash
-# Ubuntu/Debian
 sudo apt update
-sudo apt install -y ffmpeg mongodb
-sudo systemctl start mongodb
-sudo systemctl enable mongodb
-
-# Install PM2
-sudo npm install -g pm2
+sudo apt install -y ffmpeg mongodb git
 ```
+
+**Option B: Amazon Linux/RHEL** (Supported!)
+```bash
+# Core tools
+sudo dnf install -y git ffmpeg
+
+# Fonts (Required for Leaderboard/Rank Cards)
+sudo dnf install -y google-noto-sans-fonts dejavu-sans-fonts google-noto-emoji-fonts
+
+# MongoDB (Manual install usually required, or use Atlas)
+```
+
+---
+
+## Troubleshooting
+
+### 1. Cloudflare 521 Error (Web Server Down)
+If you see Error 521:
+- **Check Nginx**: `sudo systemctl status nginx`
+- **Check Firewall**: Ensure ports 80 and 443 are open (AWS Security Groups AND local firewall).
+- **Check SSL**: Jarvis expects certificates in `/etc/ssl/cloudflare/`.
+    - If you generated them in the project folder (`cloudflare/`), the bot will auto-import them on startup.
+    - **Fix:** `pm2 restart jarvis` (triggers auto-config and certificate import).
+
+### 2. Leaderboard "Squares" (Missing Fonts)
+If the leaderboard GIF shows squares instead of text (especially on Amazon Linux):
+```bash
+sudo dnf install -y google-noto-sans-fonts dejavu-sans-fonts google-noto-emoji-fonts
+pm2 restart jarvis
+```
+
+### 3. Nginx "Already configured" loop
+Jarvis forces Nginx reconfiguration on every startup in Selfhost mode to ensure consistency. If you need to debug, check logs:
+`pm2 logs jarvis | grep Nginx`
 
 #### Step 3: Run with PM2
 
