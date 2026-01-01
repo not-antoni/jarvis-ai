@@ -239,22 +239,28 @@ async function autoSetupSsl(domain) {
         return { success: true, cached: true, message: 'SSL certificates already exist' };
     }
 
-    // MIGRATION: Check if certs exist in project folder (from selfhost-setup.js)
+    // MIGRATION: Check if certs exist in project folder OR sibling folder (user's home)
     const projectCertDir = path.join(process.cwd(), 'cloudflare');
-    const projectCert = path.join(projectCertDir, 'cert.pem');
-    const projectKey = path.join(projectCertDir, 'key.pem');
+    const siblingCertDir = path.join(process.cwd(), '../cloudflare');
 
-    if (fs.existsSync(projectCert) && fs.existsSync(projectKey)) {
-        console.log('[SSL] Found existing certificates in project folder. Importing...');
-        try {
-            const certContent = fs.readFileSync(projectCert, 'utf8');
-            const keyContent = fs.readFileSync(projectKey, 'utf8');
-            const saveResult = await saveSslCertificates(domain, certContent, keyContent);
-            if (saveResult.success) {
-                return { success: true, message: 'Imported certificates from project folder' };
+    const pathsToCheck = [projectCertDir, siblingCertDir];
+
+    for (const dir of pathsToCheck) {
+        const certPath = path.join(dir, 'cert.pem');
+        const keyPath = path.join(dir, 'key.pem');
+
+        if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+            console.log(`[SSL] Found existing certificates in ${dir}. Importing...`);
+            try {
+                const certContent = fs.readFileSync(certPath, 'utf8');
+                const keyContent = fs.readFileSync(keyPath, 'utf8');
+                const saveResult = await saveSslCertificates(domain, certContent, keyContent);
+                if (saveResult.success) {
+                    return { success: true, message: 'Imported certificates from local folder' };
+                }
+            } catch (err) {
+                console.warn('[SSL] Failed to import certificates:', err.message);
             }
-        } catch (err) {
-            console.warn('[SSL] Failed to import project certificates:', err.message);
         }
     }
 
