@@ -2281,7 +2281,10 @@ const PET_TYPES = {
     cat: { emoji: '🐈', name: 'Cat', cost: 5000, bonus: '+5% gambling luck', bonusType: 'gambling', bonusValue: 0.05 },
     dragon: { emoji: '🐉', name: 'Dragon', cost: 25000, bonus: '+10% all earnings', bonusType: 'all', bonusValue: 0.10 },
     phoenix: { emoji: '🔥', name: 'Phoenix', cost: 50000, bonus: '+15% all earnings', bonusType: 'all', bonusValue: 0.15 },
-    unicorn: { emoji: '🦄', name: 'Unicorn', cost: 30000, bonus: '-30% cooldowns', bonusType: 'cooldown', bonusValue: 0.30 }
+    unicorn: { emoji: '🦄', name: 'Unicorn', cost: 30000, bonus: '-30% cooldowns', bonusType: 'cooldown', bonusValue: 0.30 },
+    fish: { emoji: '🐟', name: 'Fish', cost: 2000, bonus: '+10% fishing luck', bonusType: 'fish', bonusValue: 0.10 },
+    golden_fish: { emoji: '🐠', name: 'Golden Fish', cost: 15000, bonus: '+10% all earnings', bonusType: 'all', bonusValue: 0.10 },
+    nemo: { emoji: '🤡', name: 'Nemo', cost: 8000, bonus: '+5% luck', bonusType: 'luck', bonusValue: 0.05 }
 };
 
 // Quest definitions
