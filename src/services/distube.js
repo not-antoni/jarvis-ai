@@ -3,8 +3,14 @@ const { SpotifyPlugin } = require('@distube/spotify');
 const { SoundCloudPlugin } = require('@distube/soundcloud');
 const { YtDlpPlugin } = require('@distube/yt-dlp');
 const { EmbedBuilder } = require('discord.js');
+const path = require('path');
+const fs = require('fs');
 
 let distube = null;
+
+// Check for cookies file
+const cookiesPath = path.join(__dirname, '../../scripts/yt-cookies.txt');
+const hasCookies = fs.existsSync(cookiesPath);
 
 module.exports = {
     init: (client) => {
@@ -15,6 +21,7 @@ module.exports = {
             console.log('[Distube] requiring ffmpeg-static...');
             const ffmpegPath = require('ffmpeg-static');
             console.log('[Distube] ffmpeg path:', ffmpegPath);
+            console.log('[Distube] Cookies file:', hasCookies ? cookiesPath : 'NOT FOUND');
 
             console.log('[Distube] Creating new DisTube instance...');
             distube = new DisTube(client, {
@@ -27,7 +34,8 @@ module.exports = {
                     }),
                     new SoundCloudPlugin(),
                     new YtDlpPlugin({
-                        update: false  // Don't auto-update to avoid GitHub API issues
+                        update: false,
+                        ...(hasCookies && { cookies: cookiesPath })
                     })
                 ]
             });
