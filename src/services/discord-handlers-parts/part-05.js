@@ -232,17 +232,10 @@
             }
 
             switch (commandName) {
-                case 'quote': {
-                    const quoteModules = require('../commands/utility/quote');
-                    telemetryMetadata.category = 'utility';
-                    await quoteModules[0].execute(interaction);
-                    response = '__QUOTE_HANDLED__';
-                    break;
-                }
                 case 'Make it a Quote': {
                     const quoteModules = require('../commands/utility/quote');
                     telemetryMetadata.category = 'utility';
-                    await quoteModules[1].execute(interaction);
+                    await quoteModules[0].execute(interaction);
                     response = '__QUOTE_HANDLED__';
                     break;
                 }
