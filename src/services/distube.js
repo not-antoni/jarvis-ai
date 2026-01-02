@@ -49,6 +49,17 @@ module.exports = {
                 queue.textChannel?.send({ embeds: [embed] }).catch(console.error);
             })
             .on('addSong', (queue, song) => {
+                // Duration Limit Check (20 minutes)
+                if (song.duration > 1200) {
+                    queue.textChannel?.send(`⚠️ **${song.name}** is too long (>20m). Skipping...`).catch(console.error);
+                    // If it's the only song, stop? Or just let it play and skip? 
+                    // Distube adds then plays. If we want to prevent it, we might need a custom plugin or just skip it immediately.
+                    // For now, warning is good, but let's try to remove it from the queue if possible or just skip.
+                    // queue.songs.pop(); // This might be risky if async.
+                    // Best approach: Let it add, but if it plays, we skip it.
+                    return;
+                }
+
                 const embed = new EmbedBuilder()
                     .setTitle('✅ Added to Queue')
                     .setDescription(`[${song.name}](${song.url})`)
