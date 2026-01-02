@@ -20,6 +20,26 @@ const SESSION_PATH = path.join(__dirname, '.chrome-session');
 const YOUTUBE_URL = 'https://www.youtube.com';
 
 async function launchBrowser(headless = true) {
+    // Try to find Chrome/Chromium, or use bundled version
+    const possiblePaths = [
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        process.env.CHROME_PATH
+    ].filter(Boolean);
+
+    const fs = require('fs');
+    let executablePath = possiblePaths.find(p => fs.existsSync(p));
+
+    // If no system Chrome found, use puppeteer's bundled Chromium
+    if (!executablePath) {
+        console.log('[CookieManager] No system Chrome found, using bundled Chromium');
+        executablePath = undefined; // Puppeteer will use bundled version
+    } else {
+        console.log('[CookieManager] Using browser:', executablePath);
+    }
+
     return puppeteer.launch({
         headless: headless ? 'new' : false,
         userDataDir: SESSION_PATH,
@@ -33,7 +53,7 @@ async function launchBrowser(headless = true) {
             '--disable-gpu',
             '--window-size=1280,720'
         ],
-        executablePath: '/usr/bin/google-chrome'
+        ...(executablePath && { executablePath })
     });
 }
 
