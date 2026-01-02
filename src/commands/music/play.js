@@ -99,8 +99,24 @@ module.exports = {
             }
 
             // 3. Generic Errors
+            let errorMessage = e.message;
+
+            // Sanitize "Deprecated Feature" spam
+            if (errorMessage.includes('Deprecated Feature')) {
+                errorMessage = errorMessage.split('Deprecated Feature')[0].trim();
+            }
+
+            // Handle YouTube Blocking
+            if (errorMessage.includes('Sign in to confirm') || errorMessage.includes('429')) {
+                await interaction.editReply({
+                    content: `❌ **YouTube Request Blocked**\nYouTube is blocking requests from this IP (likely due to datacenter usage).\n*Try using Spotify or SoundCloud links instead.*`
+                });
+                return;
+            }
+
+            // Fallback
             await interaction.editReply({
-                content: `❌ **Error:** ${e.message}\n*(If this persists, contact the developer)*`
+                content: `❌ **Error:** ${errorMessage.substring(0, 500)}\n*(If this persists, contact the developer)*`
             });
         }
     }
