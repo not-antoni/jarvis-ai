@@ -67,10 +67,42 @@ module.exports = {
             await interaction.editReply('🔍 Searching and queuing...');
         } catch (e) {
             console.error('Distube Play Error:', e);
-            const report = generateDependencyReport();
+
+            // 1. Handle "No Result" specifically
+            if (e.errorCode === 'NO_RESULT' || e.message.includes('Cannot find any song')) {
+                let response = `❌ **No direct results found for:** \`${query}\``;
+
+                // Try a fallback search to "suggest similar"
+                try {
+                    const results = await distube.search(query, { limit: 5, safeSearch: false });
+                    if (results && results.length > 0) {
+                        response += '\n\n**Did you mean?**\n';
+                        response += results.map((song, i) => `**${i + 1}.** [${song.name}](${song.url}) - \`${song.formattedDuration}\``).join('\n');
+                    }
+                } catch (searchError) {
+                    // Search also failed, just suggest checking spelling
+                    response += '\n*Please check your spelling or try a different search term.*';
+                }
+
+                // Edit reply with the suggestions, NO debug report
+                await interaction.editReply({ content: response, embeds: [] });
+                return;
+            }
+
+            // 2. Handle Connection Errors (show debug info)
+            if (e.errorCode === 'VOICE_CONNECT_FAILED' || e.message.includes('VOICE_CONNECT_FAILED')) {
+                const report = generateDependencyReport();
+                await interaction.editReply({
+                    content: `❌ **Voice Connection Failed**\n\n**Debug Info (Network/Firewall):**\n\`\`\`\n${report}\n\`\`\``
+                });
+                return;
+            }
+
+            // 3. Generic Errors
             await interaction.editReply({
-                content: `❌ Error: ${e.message}\n\n**Debug Info:**\n\`\`\`\n${report}\n\`\`\``
+                content: `❌ **Error:** ${e.message}\n*(If this persists, contact the developer)*`
             });
         }
     }
 };
+```
