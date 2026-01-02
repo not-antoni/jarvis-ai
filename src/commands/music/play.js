@@ -58,7 +58,16 @@ module.exports = {
             // Let's simpler: Play it. If it's 10 hours, they can skip it.
             // Strict 20m check is hard to enforce reliably on playlists/Spotify without metadata first.
 
-            await distube.get().play(voiceChannel, query, {
+            // Check if Distube is ready
+            let distubeInstance;
+            try {
+                distubeInstance = distube.get();
+            } catch (initError) {
+                await interaction.editReply('⚠️ Music system is still starting up. Please try again in a few seconds.');
+                return;
+            }
+
+            await distubeInstance.play(voiceChannel, query, {
                 member: member,
                 textChannel: interaction.channel,
                 metadata: { originalInteraction: interaction } // context
