@@ -7,14 +7,25 @@ module.exports = {
         .setDescription('Stop music and clear queue'),
     async execute(interaction) {
         if (!interaction.guild) return;
-        const queue = distube.get().getQueue(interaction.guild);
+        const distubeInstance = distube.get();
+        const queue = distubeInstance.getQueue(interaction.guild);
 
-        if (!queue) {
-            await interaction.reply({ content: '⚠️ Nothing is playing right now, sir.', ephemeral: true });
+        // 1. If there's a queue, stop it
+        if (queue) {
+            queue.stop();
+            await interaction.reply('⏹️ Stopped music and cleared queue.');
             return;
         }
 
-        queue.stop();
-        await interaction.reply('⏹️ Stopped and cleared queue.');
+        // 2. If no queue, but bot is in voice, leave
+        const voiceConnection = distubeInstance.voices.get(interaction.guild);
+        if (voiceConnection) {
+            voiceConnection.leave();
+            await interaction.reply('👋 Left the voice channel.');
+            return;
+        }
+
+        // 3. Not in voice, nothing playing
+        await interaction.reply({ content: '⚠️ I am not playing anything or connected to a voice channel.', ephemeral: true });
     }
 };
