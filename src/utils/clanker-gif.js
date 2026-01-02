@@ -77,12 +77,12 @@ async function processClankerGif(avatarUrl) {
 
     // For animated GIFs, extract frames, composite, and reassemble
     const frames = [];
-    
+
     for (let i = 0; i < frameCount; i++) {
         // Extract single frame
         const frame = await sharp(CLANKER_GIF_PATH, { animated: true, page: i })
             .toBuffer();
-        
+
         // Composite avatar onto frame
         const composited = await sharp(frame)
             .composite([{
@@ -92,14 +92,14 @@ async function processClankerGif(avatarUrl) {
             }])
             .png()
             .toBuffer();
-        
+
         frames.push(composited);
     }
 
     // Reassemble frames into animated GIF
     // Stack frames vertically for sharp's gif animation
     const stackedHeight = frameHeight * frameCount;
-    
+
     // Create a tall image with all frames stacked
     const stackedFrames = await sharp({
         create: {
@@ -137,12 +137,13 @@ async function processClankerGifFast(avatarUrl) {
     const { execSync } = require('child_process');
     const fs = require('fs');
     const os = require('os');
-    
+    const ffmpegPath = require('ffmpeg-static'); // Use static binary path for reliability
+
     // Create temp files
     const tempDir = os.tmpdir();
     const avatarPath = path.join(tempDir, `avatar-${Date.now()}.png`);
     const outputPath = path.join(tempDir, `clanker-${Date.now()}.gif`);
-    
+
     try {
         // Fetch and save avatar
         const avatarBuffer = await fetchAvatar(avatarUrl);
@@ -151,25 +152,25 @@ async function processClankerGifFast(avatarUrl) {
             .png()
             .toBuffer();
         fs.writeFileSync(avatarPath, resizedAvatar);
-        
+
         // Use ffmpeg to overlay avatar on animated GIF with smooth output
         // fps=15 for smoother playback, split/palettegen for better quality
-        const cmd = `ffmpeg -y -i "${CLANKER_GIF_PATH}" -i "${avatarPath}" -filter_complex "[0:v]fps=15[gif];[gif][1:v]overlay=${AVATAR_X}:${AVATAR_Y}:format=auto,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3" -loop 0 "${outputPath}"`;
-        
+        const cmd = `"${ffmpegPath}" -y -i "${CLANKER_GIF_PATH}" -i "${avatarPath}" -filter_complex "[0:v]fps=15[gif];[gif][1:v]overlay=${AVATAR_X}:${AVATAR_Y}:format=auto,split[s0][s1];[s0]palettegen=max_colors=256:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3" -loop 0 "${outputPath}"`;
+
         execSync(cmd, { stdio: 'pipe', timeout: 30000 });
-        
+
         // Read result
         const result = fs.readFileSync(outputPath);
-        
+
         // Cleanup
         fs.unlinkSync(avatarPath);
         fs.unlinkSync(outputPath);
-        
+
         return result;
     } catch (error) {
         // Cleanup on error
-        try { fs.unlinkSync(avatarPath); } catch (_) {}
-        try { fs.unlinkSync(outputPath); } catch (_) {}
+        try { fs.unlinkSync(avatarPath); } catch (_) { }
+        try { fs.unlinkSync(outputPath); } catch (_) { }
         throw error;
     }
 }
