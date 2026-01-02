@@ -11,6 +11,9 @@ module.exports = {
         if (distube) return distube;
 
         distube = new DisTube(client, {
+            ffmpeg: {
+                path: require('ffmpeg-static')
+            },
             plugins: [
                 new SpotifyPlugin(),
                 new SoundCloudPlugin(),
