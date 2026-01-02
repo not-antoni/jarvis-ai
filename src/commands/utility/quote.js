@@ -201,4 +201,4 @@ const quoteContext = {
     }
 };
 
-module.exports = [quoteSlash, quoteContext];
+module.exports = [quoteContext];
