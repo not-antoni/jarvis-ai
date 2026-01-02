@@ -4,9 +4,9 @@ const distube = require('../../services/distube');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
-        .setDescription('Play a song (Spotify or SoundCloud)')
+        .setDescription('Play a song or playlist')
         .addStringOption(option =>
-            option.setName('query').setDescription('Spotify or SoundCloud URL').setRequired(true)
+            option.setName('query').setDescription('Song name, YouTube/Spotify/SoundCloud URL').setRequired(true)
         )
         .setDMPermission(false)
         .setContexts([InteractionContextType.Guild]),
