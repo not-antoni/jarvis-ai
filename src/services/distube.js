@@ -11,7 +11,6 @@ module.exports = {
         if (distube) return distube;
 
         distube = new DisTube(client, {
-            leaveOnStop: false,
             emitNewSongOnly: true,
             emitAddSongWhenCreatingQueue: false,
             emitAddListWhenCreatingQueue: false,
