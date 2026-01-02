@@ -3768,11 +3768,18 @@ client.once(Events.ClientReady, async () => {
         );
     }
 
-    // Start temp file sweeper regardless of DB
     try {
         tempSweepJob.start();
     } catch (e) {
         console.warn('Failed to start temp sweep job:', e);
+    }
+
+    // Start Daily Meme Scheduler
+    try {
+        const memeSender = require('./src/services/meme-sender');
+        memeSender.start(client);
+    } catch (e) {
+        console.warn('Failed to start meme sender:', e);
     }
 
     console.log('Provider status on startup:', aiManager.getProviderStatus());
