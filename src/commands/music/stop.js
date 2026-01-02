@@ -7,7 +7,15 @@ module.exports = {
         .setDescription('Stop music and clear queue'),
     async execute(interaction) {
         if (!interaction.guild) return;
-        const distubeInstance = distube.get();
+
+        let distubeInstance;
+        try {
+            distubeInstance = distube.get();
+        } catch (e) {
+            await interaction.reply({ content: '⚠️ Music system is still starting up.', ephemeral: true });
+            return;
+        }
+
         const queue = distubeInstance.getQueue(interaction.guild);
 
         // 1. If there's a queue, stop it

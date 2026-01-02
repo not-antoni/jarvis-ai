@@ -92,13 +92,16 @@ module.exports = {
             })
             .on('error', (channel, e) => {
                 console.error('[Distube Error]', e);
-                if (channel) channel.send(`❌ An error encountered: ${e.toString().slice(0, 1974)}`);
+                // channel might be a Queue or a TextChannel - handle both
+                const textChannel = channel?.textChannel || channel;
+                if (textChannel?.send) {
+                    textChannel.send(`❌ Music error: ${e.message?.slice(0, 200) || 'Unknown error'}`).catch(console.error);
+                }
             })
-            .on('empty', channel => channel.send('Voice channel is empty! Leaving...'))
-            .on('searchNoResult', (message, query) =>
-                message.channel.send(`❌ No result found for \`${query}\`!`)
-            )
-            .on('finish', queue => queue.textChannel?.send('🏁 Queue finished!'));
+            .on('empty', queue => {
+                queue.textChannel?.send('Voice channel is empty! Leaving...').catch(console.error);
+            })
+            .on('finish', queue => queue.textChannel?.send('🏁 Queue finished!').catch(console.error));
 
         console.log('[Distube] Music System Initialized 🎵');
         return distube;
