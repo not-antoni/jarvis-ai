@@ -72,11 +72,8 @@ class MemeSender {
                 return; // Retry logic could go here, but keep it simple for now
             }
 
-            // Send as standard message (Title + URL + Credit) to avoid embeds
-            // Discord will auto-embed the image from the URL
-            const content = `**${meme.title}**\n${meme.url}\n\n*r/${meme.subreddit} • u/${meme.author} • 👍 ${meme.ups}*`;
-
-            await channel.send({ content });
+            // Send only the URL so Discord auto-embeds it cleanly
+            await channel.send(meme.url);
             console.log(`[MemeSender] Sent meme "${meme.title}" to #${channel.name}`);
 
         } catch (error) {
