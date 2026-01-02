@@ -25,7 +25,7 @@ module.exports = {
                 plugins: [
                     new SpotifyPlugin(),
                     new SoundCloudPlugin(),
-                    new YtDlpPlugin()
+                    new YtDlpPlugin({ update: false })
                 ]
             });
         } catch (e) {
