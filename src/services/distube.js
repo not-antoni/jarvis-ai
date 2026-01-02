@@ -18,9 +18,6 @@ module.exports = {
             distube = new DisTube(client, {
                 emitNewSongOnly: true,
                 savePreviousSongs: false,
-                leaveOnStop: true,
-                leaveOnEmpty: true,
-                leaveOnFinish: true,
                 ffmpeg: {
                     path: ffmpegPath
                 },
