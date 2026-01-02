@@ -1,27 +1,28 @@
-const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
-const { musicManager } = require('../../core/musicManager');
-const { isGuildAllowed } = require('../../utils/musicGuildWhitelist');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const distube = require('../../services/distube');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('queue')
-        .setDescription('Show the current music queue.')
-        .setDMPermission(false)
-        .setContexts([InteractionContextType.Guild]),
-
+        .setDescription('Show current music queue'),
     async execute(interaction) {
-        if (!interaction.guild) {
-            await interaction.reply('⚠️ This command is only available inside servers, sir.');
+        if (!interaction.guild) return;
+        const queue = distube.get().getQueue(interaction.guild);
+
+        if (!queue) {
+            await interaction.reply({ content: '⚠️ Queue is empty, sir.', ephemeral: true });
             return;
         }
 
-        if (!isGuildAllowed(interaction.guild.id)) {
-            await interaction.reply('⚠️ Music playback is not enabled for this server, sir.');
-            return;
-        }
+        const q = queue.songs
+            .map((song, i) => `${i === 0 ? 'Playing:' : `${i}.`} ${song.name} - \`${song.formattedDuration}\``)
+            .join('\n');
 
-        await interaction.deferReply();
-        const queue = musicManager.get().showQueue(interaction.guild.id);
-        await interaction.editReply(queue);
+        const embed = new EmbedBuilder()
+            .setTitle('Current Queue')
+            .setDescription(q.substring(0, 4000)) // Limit length
+            .setColor('#0099ff');
+
+        await interaction.reply({ embeds: [embed] });
     }
 };

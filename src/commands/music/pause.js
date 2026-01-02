@@ -1,51 +1,25 @@
-const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
-const { musicManager } = require('../../core/musicManager');
-const { isGuildAllowed } = require('../../utils/musicGuildWhitelist');
+const { SlashCommandBuilder } = require('discord.js');
+const distube = require('../../services/distube');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('pause')
-        .setDescription('Pause the current track.')
-        .setDMPermission(false)
-        .setContexts([InteractionContextType.Guild]),
-
+        .setDescription('Pause playback'),
     async execute(interaction) {
-        if (!interaction.guild) {
-            await interaction.reply('⚠️ This command is only available inside servers, sir.');
+        if (!interaction.guild) return;
+        const queue = distube.get().getQueue(interaction.guild);
+
+        if (!queue) {
+            await interaction.reply({ content: '⚠️ Nothing playing.', ephemeral: true });
             return;
         }
 
-        if (!isGuildAllowed(interaction.guild.id)) {
-            await interaction.reply('⚠️ Music playback is not enabled for this server, sir.');
+        if (queue.paused) {
+            await interaction.reply('Already paused.');
             return;
         }
 
-        const member = await interaction.guild.members.fetch(interaction.user.id);
-        const voiceChannel = member.voice?.channel;
-
-        if (!voiceChannel) {
-            await interaction.reply('⚠️ Join a voice channel first, sir.');
-            return;
-        }
-
-        const state = musicManager.get().getState(interaction.guild.id);
-
-        if (!state || !state.currentVideo) {
-            await interaction.reply('⚠️ Nothing is playing right now, sir.');
-            return;
-        }
-
-        if (state.voiceChannelId && state.voiceChannelId !== voiceChannel.id) {
-            await interaction.reply(
-                '⚠️ Join the same voice channel as me to control playback, sir.'
-            );
-            return;
-        }
-
-        state.textChannel = interaction.channel ?? state.textChannel;
-
-        await interaction.deferReply();
-        const message = musicManager.get().pause(interaction.guild.id);
-        await interaction.editReply(message);
+        queue.pause();
+        await interaction.reply('⏸️ Paused.');
     }
 };

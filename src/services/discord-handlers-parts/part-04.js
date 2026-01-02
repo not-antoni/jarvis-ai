@@ -2604,6 +2604,18 @@
             return;
         }
 
+        // Ticket System
+        if (interaction.customId.startsWith('ticket_')) {
+            try {
+                const ticketSystem = require('../ticket-system');
+                await ticketSystem.handleInteraction(interaction);
+            } catch (e) {
+                console.error('Ticket System Error:', e);
+                if (!interaction.replied) await interaction.reply({ content: '❌ Ticket system error.', ephemeral: true });
+            }
+            return;
+        }
+
         // Help menu category buttons
         if (interaction.customId.startsWith('help_')) {
             const categoryKey = interaction.customId.replace('help_', '');

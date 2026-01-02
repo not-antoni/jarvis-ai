@@ -3791,6 +3791,14 @@ client.once(Events.ClientReady, async () => {
         console.warn('Failed to start giveaway manager:', e);
     }
 
+    // Initialize Distube Music
+    try {
+        const distube = require('./src/services/distube');
+        distube.init(client);
+    } catch (e) {
+        console.warn('Failed to start Distube:', e);
+    }
+
     console.log('Provider status on startup:', aiManager.getProviderStatus());
 });
 
