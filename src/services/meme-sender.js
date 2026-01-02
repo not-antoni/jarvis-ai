@@ -72,15 +72,11 @@ class MemeSender {
                 return; // Retry logic could go here, but keep it simple for now
             }
 
-            const embed = new EmbedBuilder()
-                .setTitle(meme.title)
-                .setURL(meme.postLink)
-                .setImage(meme.url)
-                .setFooter({ text: `👍 ${meme.ups} | r/${meme.subreddit} | u/${meme.author}` })
-                .setColor(Math.floor(Math.random() * 16777215))
-                .setTimestamp();
+            // Send as standard message (Title + URL + Credit) to avoid embeds
+            // Discord will auto-embed the image from the URL
+            const content = `**${meme.title}**\n${meme.url}\n\n*r/${meme.subreddit} • u/${meme.author} • 👍 ${meme.ups}*`;
 
-            await channel.send({ embeds: [embed] });
+            await channel.send({ content });
             console.log(`[MemeSender] Sent meme "${meme.title}" to #${channel.name}`);
 
         } catch (error) {
