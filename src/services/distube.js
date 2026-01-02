@@ -1,7 +1,6 @@
 const { DisTube } = require('distube');
 const { SpotifyPlugin } = require('@distube/spotify');
 const { SoundCloudPlugin } = require('@distube/soundcloud');
-const { YtDlpPlugin } = require('@distube/yt-dlp');
 const { EmbedBuilder } = require('discord.js');
 
 let distube = null;
@@ -11,21 +10,19 @@ module.exports = {
         console.log('[Distube] Init called');
         if (distube) return distube;
 
-        // Debug logging for FFMPEG
         try {
             console.log('[Distube] requiring ffmpeg-static...');
             const ffmpegPath = require('ffmpeg-static');
             console.log('[Distube] ffmpeg path:', ffmpegPath);
 
-            console.log('[Distube] Creating new DisTube instance...');
+            console.log('[Distube] Creating new DisTube instance (Spotify + SoundCloud only)...');
             distube = new DisTube(client, {
                 ffmpeg: {
                     path: ffmpegPath
                 },
                 plugins: [
                     new SpotifyPlugin(),
-                    new SoundCloudPlugin(),
-                    new YtDlpPlugin({ update: false })
+                    new SoundCloudPlugin()
                 ]
             });
         } catch (e) {

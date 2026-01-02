@@ -1,14 +1,12 @@
 const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
-const { generateDependencyReport } = require('@discordjs/voice');
 const distube = require('../../services/distube');
-const { isGuildAllowed } = require('../../utils/musicGuildWhitelist');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
-        .setDescription('Play a song (YouTube/Spotify/SoundCloud)')
+        .setDescription('Play a song (Spotify or SoundCloud)')
         .addStringOption(option =>
-            option.setName('query').setDescription('Song name or URL').setRequired(true)
+            option.setName('query').setDescription('Spotify or SoundCloud URL').setRequired(true)
         )
         .setDMPermission(false)
         .setContexts([InteractionContextType.Guild]),
@@ -77,55 +75,26 @@ module.exports = {
         } catch (e) {
             console.error('Distube Play Error:', e);
 
-            // 1. Handle "No Result" specifically
-            if (e.errorCode === 'NO_RESULT' || e.message.includes('Cannot find any song')) {
-                let response = `❌ **No direct results found for:** \`${query}\``;
-
-                // Try a fallback search to "suggest similar"
-                try {
-                    const results = await distube.search(query, { limit: 5, safeSearch: false });
-                    if (results && results.length > 0) {
-                        response += '\n\n**Did you mean?**\n';
-                        response += results.map((song, i) => `**${i + 1}.** [${song.name}](${song.url}) - \`${song.formattedDuration}\``).join('\n');
-                    }
-                } catch (searchError) {
-                    // Search also failed, just suggest checking spelling
-                    response += '\n*Please check your spelling or try a different search term.*';
-                }
-
-                // Edit reply with the suggestions, NO debug report
-                await interaction.editReply({ content: response, embeds: [] });
+            // Handle unsupported sources or no results
+            if (e.errorCode === 'NO_RESULT' || e.message.includes('Cannot find any song') || e.message.includes('not supported')) {
+                await interaction.editReply({
+                    content: `❌ **Could not play that link.**\n\n🎵 **Supported sources:**\n• Spotify links (tracks, albums, playlists)\n• SoundCloud links\n\n*YouTube is not supported due to IP restrictions.*`,
+                    embeds: []
+                });
                 return;
             }
 
-            // 2. Handle Connection Errors (show debug info)
+            // Handle voice connection failures
             if (e.errorCode === 'VOICE_CONNECT_FAILED' || e.message.includes('VOICE_CONNECT_FAILED')) {
-                const report = generateDependencyReport();
                 await interaction.editReply({
-                    content: `❌ **Voice Connection Failed**\n\n**Debug Info (Network/Firewall):**\n\`\`\`\n${report}\n\`\`\``
+                    content: `❌ **Could not connect to voice channel.**\nPlease check that I have permission to join and speak in the channel.`
                 });
                 return;
             }
 
-            // 3. Generic Errors
-            let errorMessage = e.message;
-
-            // Sanitize "Deprecated Feature" spam
-            if (errorMessage.includes('Deprecated Feature')) {
-                errorMessage = errorMessage.split('Deprecated Feature')[0].trim();
-            }
-
-            // Handle YouTube Blocking
-            if (errorMessage.includes('Sign in to confirm') || errorMessage.includes('429')) {
-                await interaction.editReply({
-                    content: `❌ **YouTube Request Blocked**\nYouTube is blocking requests from this IP (likely due to datacenter usage).\n*Try using Spotify or SoundCloud links instead.*`
-                });
-                return;
-            }
-
-            // Fallback
+            // Fallback for any other errors
             await interaction.editReply({
-                content: `❌ **Error:** ${errorMessage.substring(0, 500)}\n*(If this persists, contact the developer)*`
+                content: `❌ **Error:** ${e.message.substring(0, 300)}\n\n🎵 Remember: Only **Spotify** and **SoundCloud** links are supported.`
             });
         }
     }
