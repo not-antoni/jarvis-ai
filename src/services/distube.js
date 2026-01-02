@@ -29,9 +29,7 @@ module.exports = {
                     path: ffmpegPath
                 },
                 plugins: [
-                    new SpotifyPlugin({
-                        emitEventsAfterFetching: true
-                    }),
+                    new SpotifyPlugin(),
                     new SoundCloudPlugin(),
                     new YtDlpPlugin({
                         update: false,
