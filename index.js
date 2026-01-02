@@ -3750,7 +3750,9 @@ client.once(Events.ClientReady, async () => {
     setInterval(updateBotPresence, PRESENCE_ROTATION_INTERVAL_MS);
 
     try {
+        console.log('[Startup] Registering slash commands...');
         await registerSlashCommands();
+        console.log('[Startup] Slash commands registered!');
     } catch (error) {
         console.error('Failed to register slash commands on startup:', error);
     }
