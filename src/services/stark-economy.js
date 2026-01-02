@@ -2855,8 +2855,14 @@ async function joinTournament(guildId, userId) {
 async function listAuction(userId, itemIndex, price) {
     const user = await loadUser(userId);
 
-    if (!user.inventory || itemIndex >= user.inventory.length) {
-        return { success: false, error: 'Invalid item!' };
+    // If itemIndex is a string (name), find the index
+    if (typeof itemIndex === 'string') {
+        const name = itemIndex.toLowerCase();
+        itemIndex = user.inventory.findIndex(i => i.name.toLowerCase() === name);
+    }
+
+    if (!user.inventory || itemIndex === -1 || !user.inventory[itemIndex]) {
+        return { success: false, error: 'Item not found in your inventory!' };
     }
 
     const item = user.inventory[itemIndex];
