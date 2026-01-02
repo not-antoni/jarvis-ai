@@ -77,7 +77,7 @@ class MemeSender {
                 .setURL(meme.postLink)
                 .setImage(meme.url)
                 .setFooter({ text: `👍 ${meme.ups} | r/${meme.subreddit} | u/${meme.author}` })
-                .setColor(Colors.Random)
+                .setColor(Math.floor(Math.random() * 16777215))
                 .setTimestamp();
 
             await channel.send({ embeds: [embed] });
