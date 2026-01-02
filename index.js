@@ -3782,6 +3782,15 @@ client.once(Events.ClientReady, async () => {
         console.warn('Failed to start meme sender:', e);
     }
 
+    // Initialize Giveaways
+    try {
+        const giveawayService = require('./src/services/giveaways');
+        giveawayService.init(client);
+        console.log('[Giveaways] Manager initialized 🎁');
+    } catch (e) {
+        console.warn('Failed to start giveaway manager:', e);
+    }
+
     console.log('Provider status on startup:', aiManager.getProviderStatus());
 });
 
@@ -3825,6 +3834,14 @@ client.on('interactionCreate', async interaction => {
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
     await discordHandlers.handleVoiceStateUpdate(oldState, newState);
+    await serverLogger.logVoiceStateUpdate(oldState, newState);
+
+    try {
+        const voiceMaster = require('./src/services/voice-master');
+        await voiceMaster.handleVoiceStateUpdate(oldState, newState);
+    } catch (e) {
+        console.warn('VoiceMaster Error:', e);
+    }
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {
@@ -3894,9 +3911,7 @@ client.on('channelUpdate', async (oldChannel, newChannel) => {
     await serverLogger.logChannelUpdate(oldChannel, newChannel);
 });
 
-client.on('voiceStateUpdate', async (oldState, newState) => {
-    await serverLogger.logVoiceStateUpdate(oldState, newState);
-});
+
 
 client.on('emojiCreate', async emoji => {
     await serverLogger.logEmojiCreate(emoji);
