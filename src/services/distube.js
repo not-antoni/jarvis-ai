@@ -17,7 +17,7 @@ module.exports = {
             emitAddListWhenCreatingQueue: false,
             plugins: [
                 new SpotifyPlugin({
-                    emitEventsAfterFetching: true
+                    // emitEventsAfterFetching: true // Removed as it caused INVALID_KEY error
                 }),
                 new SoundCloudPlugin(),
                 new YtDlpPlugin()
