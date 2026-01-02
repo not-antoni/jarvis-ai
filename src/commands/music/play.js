@@ -16,11 +16,11 @@ module.exports = {
     async execute(interaction) {
         if (!interaction.guild) return;
 
-        // 1. Whitelist Check
-        if (!isGuildAllowed(interaction.guild.id)) {
-            await interaction.reply('⚠️ Music playback is not enabled for this server, sir.');
-            return;
-        }
+        // 1. Whitelist Check (Removed)
+        // if (!isGuildAllowed(interaction.guild.id)) {
+        //     await interaction.reply('⚠️ Music playback is not enabled for this server, sir.');
+        //     return;
+        // }
 
         const query = interaction.options.getString('query');
         const member = interaction.member;
