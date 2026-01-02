@@ -64,9 +64,12 @@ module.exports = {
             });
 
             await interaction.editReply('🔍 Searching and queuing...');
-        } catch (error) {
-            console.error('Distube Play Error:', error);
-            await interaction.editReply('❌ Failed to play. Ensure I have permissions and the link is valid.');
+        } catch (e) {
+            console.error('Distube Play Error:', e);
+            const report = generateDependencyReport();
+            await interaction.editReply({
+                content: `❌ Error: ${e.message}\n\n**Debug Info:**\n\`\`\`\n${report}\n\`\`\``
+            });
         }
     }
 };
