@@ -22,7 +22,9 @@ module.exports = {
                     path: ffmpegPath
                 },
                 plugins: [
-                    new SoundCloudPlugin()
+                    new SoundCloudPlugin({
+                        clientId: 'dH1Xed1fpITYonugor6sw39jvdq58M3h'
+                    })
                 ]
             });
         } catch (e) {
