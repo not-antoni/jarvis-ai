@@ -16,6 +16,11 @@ module.exports = {
 
             console.log('[Distube] Creating new DisTube instance (SoundCloud only)...');
             distube = new DisTube(client, {
+                emitNewSongOnly: true,
+                savePreviousSongs: false,
+                leaveOnStop: true,
+                leaveOnEmpty: true,
+                leaveOnFinish: true,
                 ffmpeg: {
                     path: ffmpegPath
                 },
