@@ -90,12 +90,15 @@ module.exports = {
                     `✅ Added playlist **${playlist.name}** (${playlist.songs.length} songs) to queue.`
                 ).catch(console.error);
             })
-            .on('error', (channel, e) => {
-                console.error('[Distube Error]', e);
-                // channel might be a Queue or a TextChannel - handle both
-                const textChannel = channel?.textChannel || channel;
-                if (textChannel?.send) {
-                    textChannel.send(`❌ Music error: ${e.message?.slice(0, 200) || 'Unknown error'}`).catch(console.error);
+            .on('error', (error, queue, song) => {
+                console.error('[Distube Error]', error);
+
+                // queue might be a TextChannel, a Queue, or undefined depending on where error originated
+                let channel = queue?.textChannel || (queue?.send ? queue : null);
+
+                if (channel) {
+                    const errorMessage = error.message || error.toString();
+                    channel.send(`❌ Music error: ${errorMessage.slice(0, 200)}`).catch(console.error);
                 }
             })
             .on('empty', queue => {
