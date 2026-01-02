@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
+const { generateDependencyReport } = require('@discordjs/voice');
 const distube = require('../../services/distube');
 const { isGuildAllowed } = require('../../utils/musicGuildWhitelist');
 
