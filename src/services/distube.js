@@ -11,22 +11,27 @@ module.exports = {
         console.log('[Distube] Init called');
         if (distube) return distube;
 
-        // try { // Removed to fix SyntaxError
-        console.log('[Distube] requiring ffmpeg-static...');
-        const ffmpegPath = require('ffmpeg-static');
-        console.log('[Distube] ffmpeg path:', ffmpegPath);
+        // Debug logging for FFMPEG
+        try {
+            console.log('[Distube] requiring ffmpeg-static...');
+            const ffmpegPath = require('ffmpeg-static');
+            console.log('[Distube] ffmpeg path:', ffmpegPath);
 
-        console.log('[Distube] Creating new DisTube instance...');
-        distube = new DisTube(client, {
-            ffmpeg: {
-                path: ffmpegPath
-            },
-            plugins: [
-                new SpotifyPlugin(),
-                new SoundCloudPlugin(),
-                new YtDlpPlugin()
-            ]
-        });
+            console.log('[Distube] Creating new DisTube instance...');
+            distube = new DisTube(client, {
+                ffmpeg: {
+                    path: ffmpegPath
+                },
+                plugins: [
+                    new SpotifyPlugin(),
+                    new SoundCloudPlugin(),
+                    new YtDlpPlugin()
+                ]
+            });
+        } catch (e) {
+            console.error('[Distube] Crash during initialization:', e);
+            throw e; // Re-throw to be caught by index.js
+        }
 
         // Event Listeners
         distube
