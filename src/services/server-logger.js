@@ -475,6 +475,27 @@ class ServerLogger {
         };
         return types[type] || 'Unknown';
     }
+    /**
+     * Log Bulk Message Delete (Purge)
+     */
+    async logBulkDelete(messages, channel) {
+        if (!channel.guild) return;
+        
+        const count = messages.size;
+        const authors = [...new Set(messages.map(m => m.author?.tag || 'Unknown'))].slice(0, 5);
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🗑️ Bulk Message Delete (Purge)')
+            .setDescription(`**${count}** messages deleted in ${channel}`)
+            .addFields(
+                { name: 'Channel', value: `${channel} (${channel.id})`, inline: true },
+                { name: 'Authors', value: authors.join(', ') || 'Unknown', inline: true }
+            )
+            .setColor(Colors.Orange)
+            .setTimestamp();
+        
+        await this.sendLog(channel.guild, embed);
+    }
 }
 
 module.exports = new ServerLogger();

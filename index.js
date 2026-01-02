@@ -3837,6 +3837,10 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
     await serverLogger.logMessageUpdate(oldMessage, newMessage);
 });
 
+client.on('messageDeleteBulk', async (messages, channel) => {
+    await serverLogger.logBulkDelete(messages, channel);
+});
+
 client.on('guildMemberAdd', async member => {
     await discordHandlers.handleGuildMemberAdd(member, client);
     await serverLogger.logMemberJoin(member);
