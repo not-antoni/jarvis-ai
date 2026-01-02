@@ -11,13 +11,8 @@ module.exports = {
         if (distube) return distube;
 
         distube = new DisTube(client, {
-            emitNewSongOnly: true,
-            emitAddSongWhenCreatingQueue: false,
-            emitAddListWhenCreatingQueue: false,
             plugins: [
-                new SpotifyPlugin({
-                    // emitEventsAfterFetching: true // Removed as it caused INVALID_KEY error
-                }),
+                new SpotifyPlugin(),
                 new SoundCloudPlugin(),
                 new YtDlpPlugin()
             ]
