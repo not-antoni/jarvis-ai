@@ -267,7 +267,29 @@
                         }
                     } catch (e) {}
 
-                    const cpuModel = os.cpus()[0].model;
+                    // Robust CPU detection with fallbacks
+                    let cpuModel = 'Unknown CPU';
+                    try {
+                        const cpus = os.cpus();
+                        if (cpus && cpus.length > 0 && cpus[0].model) {
+                            cpuModel = cpus[0].model;
+                        } else if (fs.existsSync('/proc/cpuinfo')) {
+                            // Fallback for ARM/UserLand environments
+                            const cpuinfo = fs.readFileSync('/proc/cpuinfo', 'utf8');
+                            const modelMatch = cpuinfo.match(/model name\s*:\s*(.+)/i) || 
+                                              cpuinfo.match(/Hardware\s*:\s*(.+)/i) ||
+                                              cpuinfo.match(/Processor\s*:\s*(.+)/i);
+                            if (modelMatch) {
+                                cpuModel = modelMatch[1].trim();
+                            } else {
+                                // Count cores as fallback
+                                const coreCount = (cpuinfo.match(/processor\s*:/gi) || []).length;
+                                cpuModel = coreCount > 0 ? `${coreCount}-core ARM` : 'ARM Processor';
+                            }
+                        }
+                    } catch (e) {
+                        cpuModel = 'CPU info unavailable';
+                    }
                     const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
                     const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
                     
