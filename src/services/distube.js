@@ -18,8 +18,14 @@ module.exports = {
             distube = new DisTube(client, {
                 emitNewSongOnly: true,
                 savePreviousSongs: false,
+                nsfw: true, // Don't block age-restricted content
                 ffmpeg: {
-                    path: ffmpegPath
+                    path: ffmpegPath,
+                    args: {
+                        global: {},
+                        input: ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5'],
+                        output: ['-af', 'volume=1.0']
+                    }
                 },
                 plugins: [
                     new YtDlpPlugin({
@@ -27,7 +33,8 @@ module.exports = {
                         // Request best audio quality
                         ytdlpArgs: [
                             '--audio-quality', '0',
-                            '--format', 'bestaudio/best'
+                            '--format', 'bestaudio[ext=webm]/bestaudio/best',
+                            '--no-playlist'
                         ]
                     })
                 ]
