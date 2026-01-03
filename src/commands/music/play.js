@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const distube = require('../../services/distube');
 const youtubeSearch = require('../../services/youtube-search');
+const searchCache = require('../../services/search-cache');
 
 // Check if a string looks like a URL
 function isUrl(str) {
@@ -47,23 +48,34 @@ module.exports = {
                 return;
             }
 
-            // If query is NOT a URL, use YouTube API to search first
+            // If query is NOT a URL, search for it
             if (!isUrl(query)) {
-                try {
-                    console.log(`[Play] Searching YouTube API for: "${query}"`);
-                    const result = await youtubeSearch.searchVideo(query);
-                    if (result && result.url) {
-                        console.log(`[Play] Found via API: ${result.title} -> ${result.url}`);
-                        await interaction.editReply(`🔍 Found: **${result.title}**\n_Queuing..._`);
-                        query = result.url; // Use the YouTube URL for yt-dlp
-                    } else {
-                        await interaction.editReply(`❌ **No results found**\nCouldn't find anything for: \`${query.slice(0, 50)}\``);
-                        return;
+                // Check cache first
+                const cached = searchCache.get(query);
+                if (cached) {
+                    console.log(`[Play] Cache HIT: "${query}" -> ${cached.url}`);
+                    await interaction.editReply(`⚡ **${cached.title}**\n_From cache, queuing..._`);
+                    query = cached.url;
+                } else {
+                    // Cache miss - use YouTube API
+                    try {
+                        console.log(`[Play] Cache MISS, searching API for: "${query}"`);
+                        const result = await youtubeSearch.searchVideo(query);
+                        if (result && result.url) {
+                            console.log(`[Play] Found via API: ${result.title} -> ${result.url}`);
+                            await interaction.editReply(`🔍 Found: **${result.title}**\n_Queuing..._`);
+
+                            // Store in cache for next time
+                            searchCache.set(query, result);
+                            query = result.url;
+                        } else {
+                            await interaction.editReply(`❌ **No results found**\nCouldn't find anything for: \`${query.slice(0, 50)}\``);
+                            return;
+                        }
+                    } catch (searchError) {
+                        console.error('[Play] YouTube API search failed:', searchError.message);
+                        console.log('[Play] Falling back to yt-dlp internal search...');
                     }
-                } catch (searchError) {
-                    console.error('[Play] YouTube API search failed:', searchError.message);
-                    // Fall through to let yt-dlp try its own search as backup
-                    console.log('[Play] Falling back to yt-dlp internal search...');
                 }
             }
 
