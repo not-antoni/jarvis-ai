@@ -19,7 +19,6 @@ module.exports = {
                 emitNewSongOnly: true,
                 savePreviousSongs: false,
                 nsfw: true,
-                autoplay: false, // Don't auto-play related songs
                 ffmpeg: {
                     path: ffmpegPath
                 },
