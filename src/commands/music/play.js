@@ -1,5 +1,11 @@
 const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const distube = require('../../services/distube');
+const youtubeSearch = require('../../services/youtube-search');
+
+// Check if a string looks like a URL
+function isUrl(str) {
+    return /^https?:\/\//i.test(str) || str.includes('youtube.com') || str.includes('youtu.be') || str.includes('soundcloud.com') || str.includes('spotify.com');
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -14,7 +20,7 @@ module.exports = {
     async execute(interaction) {
         if (!interaction.guild) return;
 
-        const query = interaction.options.getString('query');
+        let query = interaction.options.getString('query');
         const member = interaction.member;
         const voiceChannel = member.voice?.channel;
 
@@ -41,13 +47,36 @@ module.exports = {
                 return;
             }
 
+            // If query is NOT a URL, use YouTube API to search first
+            if (!isUrl(query)) {
+                try {
+                    console.log(`[Play] Searching YouTube API for: "${query}"`);
+                    const result = await youtubeSearch.searchVideo(query);
+                    if (result && result.url) {
+                        console.log(`[Play] Found via API: ${result.title} -> ${result.url}`);
+                        await interaction.editReply(`🔍 Found: **${result.title}**\n_Queuing..._`);
+                        query = result.url; // Use the YouTube URL for yt-dlp
+                    } else {
+                        await interaction.editReply(`❌ **No results found**\nCouldn't find anything for: \`${query.slice(0, 50)}\``);
+                        return;
+                    }
+                } catch (searchError) {
+                    console.error('[Play] YouTube API search failed:', searchError.message);
+                    // Fall through to let yt-dlp try its own search as backup
+                    console.log('[Play] Falling back to yt-dlp internal search...');
+                }
+            }
+
             await distubeInstance.play(voiceChannel, query, {
                 member: member,
                 textChannel: interaction.channel,
                 metadata: { originalInteraction: interaction }
             });
 
-            await interaction.editReply('🔍 Searching and queuing...');
+            // Only show this if we haven't already shown "Found: ..."
+            if (isUrl(interaction.options.getString('query'))) {
+                await interaction.editReply('🔍 Queuing...');
+            }
         } catch (e) {
             console.error('Distube Play Error:', e);
             const errorMsg = e.message || e.toString();
