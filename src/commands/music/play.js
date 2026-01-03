@@ -8,6 +8,19 @@ function isUrl(str) {
     return /^https?:\/\//i.test(str) || str.includes('youtube.com') || str.includes('youtu.be') || str.includes('soundcloud.com') || str.includes('spotify.com');
 }
 
+// Strip playlist parameter from YouTube URLs (avoid blocked playlist fetch on datacenter IPs)
+function cleanYouTubeUrl(url) {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        // Remove &list= or ?list= parameters
+        url = url.replace(/[&?]list=[^&]+/g, '');
+        // Remove &index= parameter
+        url = url.replace(/[&?]index=\d+/g, '');
+        // Clean up any leftover ? or & at the end
+        url = url.replace(/[&?]$/, '');
+    }
+    return url;
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
@@ -77,6 +90,11 @@ module.exports = {
                         console.log('[Play] Falling back to yt-dlp internal search...');
                     }
                 }
+            }
+
+            // Clean YouTube URLs to avoid playlist blocking issues
+            if (isUrl(query)) {
+                query = cleanYouTubeUrl(query);
             }
 
             await distubeInstance.play(voiceChannel, query, {
