@@ -116,6 +116,8 @@ module.exports = {
 
             if (e.errorCode === 'NO_RESULT' || errorMsg.includes('Cannot find any song') || errorMsg.includes('Video unavailable')) {
                 userMessage = `❌ **No results found**\nCouldn't find anything for: \`${query.slice(0, 50)}\``;
+            } else if (errorMsg === 'Error: null' || errorMsg.includes(': null')) {
+                userMessage = `❌ **YouTube blocked this video**\nThe VPS IP can't access this video directly.\n\n💡 **Tip:** Try searching by name instead of URL, like:\n\`/play hacknet soundtrack\``;
             } else if (e.errorCode === 'VOICE_CONNECT_FAILED' || errorMsg.includes('VOICE_CONNECT_FAILED')) {
                 userMessage = `❌ **Connection failed**\nCouldn't connect to the voice channel. Check my permissions.`;
             } else if (errorMsg.includes('Sign in to confirm') || errorMsg.includes('bot') || errorMsg.includes('confirm your age')) {
