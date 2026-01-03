@@ -267,7 +267,7 @@
                         }
                     } catch (e) {}
 
-                    // Robust CPU detection with fallbacks
+                    // Robust CPU detection with multiple fallbacks
                     let cpuModel = 'Unknown CPU';
                     try {
                         const cpus = os.cpus();
@@ -278,17 +278,36 @@
                             const cpuinfo = fs.readFileSync('/proc/cpuinfo', 'utf8');
                             const modelMatch = cpuinfo.match(/model name\s*:\s*(.+)/i) || 
                                               cpuinfo.match(/Hardware\s*:\s*(.+)/i) ||
-                                              cpuinfo.match(/Processor\s*:\s*(.+)/i);
+                                              cpuinfo.match(/Processor\s*:\s*(.+)/i) ||
+                                              cpuinfo.match(/CPU part\s*:\s*(.+)/i);
                             if (modelMatch) {
                                 cpuModel = modelMatch[1].trim();
                             } else {
                                 // Count cores as fallback
                                 const coreCount = (cpuinfo.match(/processor\s*:/gi) || []).length;
-                                cpuModel = coreCount > 0 ? `${coreCount}-core ARM` : 'ARM Processor';
+                                cpuModel = coreCount > 0 ? `${coreCount}-core processor` : 'Unknown';
                             }
                         }
+                        
+                        // If still unknown, try lscpu command
+                        if (cpuModel === 'Unknown CPU' || cpuModel === 'Unknown') {
+                            try {
+                                const { execSync } = require('child_process');
+                                const lscpuOutput = execSync('lscpu 2>/dev/null || cat /proc/cpuinfo 2>/dev/null', { encoding: 'utf8', timeout: 2000 });
+                                const nameMatch = lscpuOutput.match(/Model name:\s*(.+)/i) ||
+                                                 lscpuOutput.match(/Architecture:\s*(.+)/i);
+                                if (nameMatch) {
+                                    cpuModel = nameMatch[1].trim();
+                                }
+                            } catch (cmdErr) {}
+                        }
+                        
+                        // Final fallback: just show architecture
+                        if (cpuModel === 'Unknown CPU' || cpuModel === 'Unknown') {
+                            cpuModel = `${os.arch()} processor`;
+                        }
                     } catch (e) {
-                        cpuModel = 'CPU info unavailable';
+                        cpuModel = `${os.arch()} processor`;
                     }
                     const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
                     const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
