@@ -23,7 +23,12 @@ module.exports = {
                 },
                 plugins: [
                     new YtDlpPlugin({
-                        update: false
+                        update: false,
+                        // Request best audio quality
+                        ytdlpArgs: [
+                            '--audio-quality', '0',
+                            '--format', 'bestaudio/best'
+                        ]
                     })
                 ]
             });
