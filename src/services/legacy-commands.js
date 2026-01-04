@@ -4787,6 +4787,58 @@ const legacyCommands = {
                 await message.reply('❌ Failed to update cookies.');
                 return true;
             }
+        } \n
+    },
+
+    // ============ TERF WIKI COMMAND ============
+
+    terf: {
+        description: 'Ask the TERF Wiki',
+        usage: '*j terf <question>',
+        guildLocked: '858444090374881301',
+        async execute(message, args) {
+            // Guild lock - only respond in specific guild
+            const ALLOWED_GUILD = '858444090374881301';
+            if (!message.guild || message.guild.id !== ALLOWED_GUILD) {
+                return true; // Silently ignore
+            }
+
+            const question = args.join(' ').trim();
+            if (!question) {
+                await message.reply('❓ Usage: `*j terf <your question>`\nExample: `*j terf What is STFR?`');
+                return true;
+            }
+
+            try {
+                console.log(`[Terf] Legacy query from ${message.author.tag}: "${question}"`);
+                const terfWiki = require('./terf-wiki');
+                const result = await terfWiki.query(question);
+
+                if (!result.success) {
+                    await message.reply(`❌ ${result.error}`);
+                    return true;
+                }
+
+                let response = `**Answer:**\n${result.answer}`;
+
+                if (result.sources && result.sources.length > 0) {
+                    const sourceLinks = result.sources
+                        .slice(0, 3)
+                        .map(s => `• [${s.title}](${s.url})`)
+                        .join('\n');
+                    response += `\n\n**Sources:**\n${sourceLinks}`;
+                }
+
+                if (response.length > 1900) {
+                    response = response.slice(0, 1900) + '...';
+                }
+
+                await message.reply(response);
+            } catch (error) {
+                console.error('[Terf] Legacy command error:', error);
+                await message.reply('❌ Wiki system error. Please try again.');
+            }
+            return true;
         }
     }
 };

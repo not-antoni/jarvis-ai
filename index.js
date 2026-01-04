@@ -43,6 +43,7 @@ const aiManager = require('./src/services/ai-providers');
 const discordHandlers = require('./src/services/discord-handlers');
 const { gatherHealthSnapshot } = require('./src/services/diagnostics');
 const { commandList: musicCommandList } = require('./src/commands/music');
+const { commandList: terfCommandList } = require('./src/commands/terf');
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 const webhookRouter = require('./routes/webhook');
@@ -2255,6 +2256,7 @@ const allCommands = [
         .setContexts([InteractionContextType.Guild]),
 
     ...musicCommandList.map(command => command.data),
+    ...terfCommandList.map(command => command.data),
     ...require('./src/commands/utility/quote').map(c => c.data)
 ];
 
