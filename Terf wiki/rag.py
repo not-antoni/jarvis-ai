@@ -64,9 +64,28 @@ class WikiRAG:
         
         self.documents = []
         self.index = None
-        self._cache = {}  # Query cache for instant repeat responses
+        self._cache_file = Path(__file__).parent / "data/answer-cache.json"
+        self._cache = self._load_cache()
         self._load_or_build_index()
-        print(f"✅ Ready! {len(self.documents)} documents indexed.")
+        print(f"✅ Ready! {len(self.documents)} documents indexed, {len(self._cache)} cached answers.")
+    
+    def _load_cache(self) -> dict:
+        """Load cache from disk."""
+        if self._cache_file.exists():
+            try:
+                with open(self._cache_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+    
+    def _save_cache(self):
+        """Save cache to disk."""
+        try:
+            with open(self._cache_file, "w", encoding="utf-8") as f:
+                json.dump(self._cache, f, ensure_ascii=False)
+        except Exception as e:
+            print(f"Warning: Failed to save cache: {e}")
     
     def _load_or_build_index(self):
         """Load existing index or build from wiki data."""
@@ -269,26 +288,34 @@ Answer using ONLY the wiki context above (no external knowledge):"""
             return self._call_local(prompt)
     
     def answer(self, question: str) -> tuple:
-        """Full RAG pipeline: retrieve and answer with caching."""
+        """Full RAG pipeline: retrieve and answer with disk caching."""
         # Check cache first (normalize query)
         cache_key = question.lower().strip()
         if cache_key in self._cache:
-            return self._cache[cache_key]
+            cached = self._cache[cache_key]
+            # Reconstruct tuple from cached dict
+            return (cached["answer"], cached["sources"])
         
         # Retrieve and generate
         docs = self.retrieve(question)
         context = "\n\n".join([f"### {d['title']}\n{d['content']}" for d in docs])
         
         answer = self.generate_answer(question, context)
-        result = (answer, docs)
         
-        # Cache result (limit to 100 entries)
-        if len(self._cache) >= 100:
+        # Cache result as dict (JSON-serializable)
+        # Limit to 200 entries
+        if len(self._cache) >= 200:
             # Remove oldest entry
-            self._cache.pop(next(iter(self._cache)))
-        self._cache[cache_key] = result
+            oldest_key = next(iter(self._cache))
+            del self._cache[oldest_key]
         
-        return result
+        self._cache[cache_key] = {
+            "answer": answer,
+            "sources": [{"title": d["title"], "url": d["url"]} for d in docs]
+        }
+        self._save_cache()
+        
+        return (answer, docs)
 
 
 def main():
