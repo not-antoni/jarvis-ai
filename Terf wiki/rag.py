@@ -5,6 +5,7 @@ TERF Wiki RAG - Dual-model system with FunctionGemma + Groq/Local LLM.
 """
 import json
 import os
+import sys
 import re
 import torch
 import faiss
@@ -33,32 +34,32 @@ class WikiRAG:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         dtype = torch.float32
         
-        print("🔧 Loading embedding model...")
+        print("🔧 Loading embedding model...", file=sys.stderr)
         self.embedder = SentenceTransformer(CONFIG["embed_model"])
         
         # Optionally load FunctionGemma
         self.use_function_model = CONFIG.get("use_function_model", True)
         if self.use_function_model:
-            print("🔧 Loading FunctionGemma (tool calling)...")
+            print("🔧 Loading FunctionGemma (tool calling)...", file=sys.stderr)
             self.func_tokenizer = AutoTokenizer.from_pretrained(CONFIG["function_model"])
             self.func_model = AutoModelForCausalLM.from_pretrained(
                 CONFIG["function_model"], torch_dtype=dtype
             ).to(self.device)
         else:
-            print("🔧 FunctionGemma disabled")
+            print("🔧 FunctionGemma disabled", file=sys.stderr)
             self.func_tokenizer = None
             self.func_model = None
         
         # Only load local chat model if not using Groq
         self.use_groq = CONFIG.get("use_groq_api", True)
         if not self.use_groq:
-            print("🔧 Loading local Gemma3 (conversation)...")
+            print("🔧 Loading local Gemma3 (conversation)...", file=sys.stderr)
             self.chat_tokenizer = AutoTokenizer.from_pretrained(CONFIG["local_chat_model"])
             self.chat_model = AutoModelForCausalLM.from_pretrained(
                 CONFIG["local_chat_model"], torch_dtype=dtype
             ).to(self.device)
         else:
-            print(f"🔧 Using Groq API ({CONFIG['groq_model']})")
+            print(f"🔧 Using Groq API ({CONFIG['groq_model']})", file=sys.stderr)
             self.chat_tokenizer = None
             self.chat_model = None
         
@@ -67,7 +68,7 @@ class WikiRAG:
         self._cache_file = Path(__file__).parent / "data/answer-cache.json"
         self._cache = self._load_cache()
         self._load_or_build_index()
-        print(f"✅ Ready! {len(self.documents)} documents indexed, {len(self._cache)} cached answers.")
+        print(f"✅ Ready! {len(self.documents)} documents indexed, {len(self._cache)} cached answers.", file=sys.stderr)
     
     def _load_cache(self) -> dict:
         """Load cache from disk."""
@@ -102,13 +103,13 @@ class WikiRAG:
             self._title_lookup[title.lower()] = i
         
         if Path(INDEX_FILE).exists():
-            self.index = faiss.read_index(INDEX_FILE)
+            self.index = faiss.read_index(str(INDEX_FILE))
         else:
             self._build_index()
     
     def _build_index(self):
         """Build FAISS index from documents."""
-        print("📊 Building vector index...")
+        print("📊 Building vector index...", file=sys.stderr)
         texts = [f"{d['title']}\n{d['content']}" for d in self.documents]
         embeddings = self.embedder.encode(texts, show_progress_bar=True)
         
@@ -117,8 +118,8 @@ class WikiRAG:
         faiss.normalize_L2(embeddings)
         self.index.add(embeddings.astype(np.float32))
         
-        faiss.write_index(self.index, INDEX_FILE)
-        print(f"💾 Index saved to {INDEX_FILE}")
+        faiss.write_index(self.index, str(INDEX_FILE))
+        print(f"💾 Index saved to {INDEX_FILE}", file=sys.stderr)
     
     def _title_match_score(self, query: str, title: str) -> float:
         """Check if query matches title - robust for acronyms and machine names."""
