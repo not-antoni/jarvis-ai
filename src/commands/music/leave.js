@@ -3,8 +3,8 @@ const distube = require('../../services/distube');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('stop')
-        .setDescription('Stop music and clear queue (stays in VC)'),
+        .setName('leave')
+        .setDescription('Disconnect from voice channel'),
     async execute(interaction) {
         if (!interaction.guild) return;
 
@@ -16,27 +16,17 @@ module.exports = {
             return;
         }
 
+        // Check if there's an active queue
         const queue = distubeInstance.getQueue(interaction.guild);
-
-        // If there's a queue, stop playback but stay in VC
         if (queue) {
-            // Clear the queue songs first
-            queue.songs = [];
-            queue.previousSongs = [];
-            // Stop current playback (but don't leave)
-            try {
-                queue.stop();
-            } catch (e) {
-                // Ignore stop errors
-            }
-            await interaction.reply('⏹️ Stopped music and cleared queue. Use `/leave` to disconnect.');
-            return;
+            queue.stop();
         }
 
-        // Not playing anything
+        // Leave voice channel
         const voiceConnection = distubeInstance.voices.get(interaction.guild);
         if (voiceConnection) {
-            await interaction.reply({ content: '⚠️ Nothing is playing. Use `/leave` to disconnect.', flags: 64 });
+            voiceConnection.leave();
+            await interaction.reply('👋 Disconnected from voice channel.');
         } else {
             await interaction.reply({ content: '⚠️ Not in a voice channel.', flags: 64 });
         }
