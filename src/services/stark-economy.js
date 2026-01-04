@@ -13,6 +13,12 @@
 
 const database = require('./database');
 const config = require('../../config');
+const fs = require('fs');
+const path = require('path');
+
+// Disk cache for leaderboard (5 minute TTL)
+const LEADERBOARD_CACHE_PATH = path.join(__dirname, '../../data/leaderboard-cache.json');
+const LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 // Lazy-load starkbucks to avoid circular dependency
 let _starkbucks = null;
@@ -1740,12 +1746,29 @@ async function getInventory(userId) {
 // ============================================================================
 
 /**
- * Get top users by balance
+ * Get top users by balance (with disk caching)
  * @param {number} limit - Number of users to return
  * @param {Object} client - Optional Discord client to fetch current usernames
  */
 async function getLeaderboard(limit = 10, client = null) {
     try {
+        // Check disk cache first
+        if (fs.existsSync(LEADERBOARD_CACHE_PATH)) {
+            try {
+                const cacheData = JSON.parse(fs.readFileSync(LEADERBOARD_CACHE_PATH, 'utf-8'));
+                const cacheAge = Date.now() - (cacheData.cachedAt || 0);
+
+                // Return cached data if fresh and same limit
+                if (cacheAge < LEADERBOARD_CACHE_TTL_MS && cacheData.limit >= limit) {
+                    console.log(`[StarkEconomy] Leaderboard from disk cache (${Math.round(cacheAge / 1000)}s old)`);
+                    return cacheData.entries.slice(0, limit);
+                }
+            } catch (e) {
+                // Cache corrupted, will refresh
+            }
+        }
+
+        // Fetch fresh data from DB
         const col = await getCollection();
         const users = await col.find({}).sort({ balance: -1 }).limit(limit).toArray();
 
@@ -1785,6 +1808,19 @@ async function getLeaderboard(limit = 10, client = null) {
                 };
             })
         );
+
+        // Save to disk cache
+        try {
+            const cacheData = {
+                cachedAt: Date.now(),
+                limit: limit,
+                entries: leaderboardEntries
+            };
+            fs.writeFileSync(LEADERBOARD_CACHE_PATH, JSON.stringify(cacheData));
+            console.log('[StarkEconomy] Leaderboard cached to disk');
+        } catch (e) {
+            console.warn('[StarkEconomy] Failed to cache leaderboard:', e.message);
+        }
 
         return leaderboardEntries;
     } catch (error) {
