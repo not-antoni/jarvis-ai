@@ -34,6 +34,7 @@ const cheerio = require('cheerio');
 const pdfParse = require('pdf-parse');
 const embeddingSystem = require('./embedding-system');
 const { commandMap: musicCommandMap } = require('../commands/music');
+const { commandMap: terfCommandMap } = require('../commands/terf');
 const CooldownManager = require('../core/cooldown-manager');
 const { recordCommandRun } = require('../utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../core/command-registry');

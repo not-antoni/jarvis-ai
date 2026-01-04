@@ -1,0 +1,11 @@
+{
+    "use_groq_api": true,
+    "groq_api_key": "YOUR_GROQ_API_KEY",
+    "groq_model": "llama-3.1-8b-instant",
+    "use_function_model": false,
+    "local_chat_model": "./models/gemma3",
+    "function_model": "./models/functiongemma",
+    "embed_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "top_k": 3,
+    "discord_token": "YOUR_DISCORD_BOT_TOKEN"
+}
