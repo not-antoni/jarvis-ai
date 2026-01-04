@@ -29,7 +29,7 @@ module.exports = {
             } catch (e) {
                 // Ignore stop errors
             }
-            await interaction.reply('⏹️ Stopped music and cleared queue. Use `/leave` to disconnect.');
+            await interaction.reply('⏹️ Stopped music and cleared queue.');
             return;
         }
 
