@@ -21,8 +21,8 @@ with open(_config_path, "r") as f:
     CONFIG = json.load(f)
 
 # Override with environment variables if present
-if os.environ.get("GROQ_API_KEY"):
-    CONFIG["groq_api_key"] = os.environ["GROQ_API_KEY"]
+if os.environ.get("TERF_GROQ_KEY"):
+    CONFIG["groq_api_key"] = os.environ["TERF_GROQ_KEY"]
 
 DATA_FILE = Path(__file__).parent / "data/wiki_pages.json"
 INDEX_FILE = Path(__file__).parent / "data/wiki_index.faiss"
