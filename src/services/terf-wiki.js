@@ -60,13 +60,16 @@ async function query(question) {
             }
 
             try {
-                // Find JSON in stdout (may have other output before it)
-                const jsonMatch = stdout.match(/\{[\s\S]*\}$/);
-                if (!jsonMatch) {
-                    throw new Error('No JSON found in output');
+                // Find potential JSON substring (more robust than regex)
+                const start = stdout.indexOf('{');
+                const end = stdout.lastIndexOf('}');
+
+                if (start === -1 || end === -1 || start >= end) {
+                    throw new Error('No JSON object found in output');
                 }
 
-                const result = JSON.parse(jsonMatch[0]);
+                const jsonStr = stdout.substring(start, end + 1);
+                const result = JSON.parse(jsonStr);
                 console.log(`[TerfWiki] Query completed in ${elapsed}ms`);
                 resolve(result);
             } catch (e) {
