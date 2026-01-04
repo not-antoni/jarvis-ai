@@ -346,13 +346,68 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
     }
 
     const nameY = currentY + 40;
-    let cleanName = username.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
-    if (cleanName.length < 2) cleanName = username;
 
-    ctx.textAlign = 'center';
+    // Process username to support emojis
+    const nameTokens = tokenizeText(username);
+
+    // Load emoji assets for username
+    const nameAssets = [];
+    nameTokens.forEach(t => {
+        if (t.type === 'custom') {
+            nameAssets.push((async () => {
+                try { t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.png`); }
+                catch (e) { t.type = 'text'; t.content = `:${t.name}:`; }
+            })());
+        } else if (t.type === 'unicode') {
+            nameAssets.push((async () => {
+                try {
+                    const cleanEmoji = t.content.replace(/\uFE0F/g, '');
+                    const code = getTwemojiCode(cleanEmoji);
+                    t.image = await loadImage(`https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`);
+                }
+                catch (e) { t.failed = true; }
+            })());
+        }
+    });
+
+    await Promise.all(nameAssets);
+
+    ctx.textAlign = 'left'; // Helper calculates positions, we draw manually
     ctx.fillStyle = '#ffffff';
-    ctx.font = `italic 48px ${fontStack}`;
-    ctx.fillText(`- ${cleanName}`, textCenterX, nameY);
+    // Removed italic to improve unicode support (many fonts lack italic for symbols)
+    ctx.font = `48px ${fontStack}`;
+
+    // Calculate total width of the name block
+    let nameTotalWidth = 0;
+    const nameFontSize = 48;
+    // Prefix width "- "
+    nameTotalWidth += ctx.measureText('- ').width;
+
+    nameTokens.forEach(t => {
+        if (t.type === 'text') nameTotalWidth += ctx.measureText(t.content).width;
+        else nameTotalWidth += nameFontSize * 1.1;
+    });
+
+    let currentNameX = textCenterX - (nameTotalWidth / 2);
+
+    // Draw Prefix
+    ctx.fillText('- ', currentNameX, nameY);
+    currentNameX += ctx.measureText('- ').width;
+
+    // Draw Name Tokens
+    nameTokens.forEach(token => {
+        if (token.type === 'text') {
+            ctx.fillText(token.content, currentNameX, nameY);
+            currentNameX += ctx.measureText(token.content).width;
+        } else if ((token.type === 'custom' || token.type === 'unicode') && token.image) {
+            const size = nameFontSize;
+            ctx.drawImage(token.image, currentNameX, nameY - (size / 2), size, size);
+            currentNameX += size * 1.1;
+        } else {
+            ctx.fillText(token.content || '', currentNameX, nameY);
+            currentNameX += ctx.measureText(token.content || '').width;
+        }
+    });
 
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
