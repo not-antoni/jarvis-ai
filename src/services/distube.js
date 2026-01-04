@@ -1,6 +1,7 @@
 const { DisTube } = require('distube');
 const { YtDlpPlugin } = require('@distube/yt-dlp');
 const { EmbedBuilder } = require('discord.js');
+const soundcloudCache = require('./soundcloud-cache');
 
 let distube = null;
 
@@ -40,6 +41,16 @@ module.exports = {
         // Event Listeners
         distube
             .on('playSong', (queue, song) => {
+                // Cache SoundCloud tracks for faster replay
+                if (song.source === 'soundcloud' && song.url) {
+                    soundcloudCache.set(song.url, {
+                        title: song.name,
+                        duration: song.duration,
+                        thumbnail: song.thumbnail,
+                        uploader: song.uploader
+                    });
+                }
+
                 const source = song.source === 'youtube' ? 'YouTube' :
                     song.source === 'spotify' ? 'Spotify' :
                         song.source === 'soundcloud' ? 'SoundCloud' : song.source;
