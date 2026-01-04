@@ -93,4 +93,30 @@ async function query(question) {
     });
 }
 
-module.exports = { query };
+const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+/**
+ * Run the wiki updater check
+ */
+function runUpdate() {
+    console.log('[TerfWiki] Checking for wiki updates...');
+    const proc = spawn(PYTHON_CMD, ['update.py'], {
+        cwd: TERF_WIKI_DIR,
+        env: process.env
+    });
+
+    proc.stdout.on('data', d => console.log(`[TerfWiki Update] ${d.toString().trim()}`));
+    proc.stderr.on('data', d => console.error(`[TerfWiki Update] ${d.toString().trim()}`));
+
+    proc.on('close', code => {
+        if (code !== 0) console.error(`[TerfWiki Update] Process failed with code ${code}`);
+    });
+}
+
+// Start scheduler
+setInterval(runUpdate, UPDATE_INTERVAL_MS);
+
+// Run initial check on startup (after a slight delay to allow bot startup)
+setTimeout(runUpdate, 60000);
+
+module.exports = { query, runUpdate };

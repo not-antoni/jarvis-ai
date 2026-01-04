@@ -44,12 +44,19 @@ def get_all_page_titles():
 
 
 def clean_content(text):
-    """Clean wiki markup artifacts from content."""
+    """Clean wiki markup artifacts but PRESERVE templates/infoboxes."""
     if not text:
         return ""
     
+    # Simplify links: [[Target|Label]] -> Label, [[Target]] -> Target
+    # We do this carefully to not break other things
+    text = re.sub(r'\[\[(?:[^|\]]*\|)?([^\]]+)\]\]', r'\1', text)
+    
     # Remove == Section == markers but keep section names
-    text = re.sub(r'={2,}\s*(.+?)\s*={2,}', r'\n\1:\n', text)
+    text = re.sub(r'={2,}\s*(.+?)\s*={2,}', r'\n## \1\n', text)
+    
+    # Remove HTML comments <!-- ... -->
+    text = re.sub(r'<!--[\s\S]*?-->', '', text)
     
     # Clean up multiple newlines
     text = re.sub(r'\n{3,}', '\n\n', text)
@@ -136,8 +143,8 @@ def fetch_page_content(title):
     params = {
         "action": "query",
         "format": "json",
-        "prop": "extracts|categories|info",
-        "explaintext": True,
+        "prop": "revisions|categories|info",
+        "rvprop": "content",
         "inprop": "url",
         "titles": title
     }
@@ -147,9 +154,11 @@ def fetch_page_content(title):
         data = response.json()
         page = next(iter(data["query"]["pages"].values()))
         
-        if "extract" in page and page["extract"].strip():
+        if "revisions" in page and page["revisions"]:
             page_id = str(page["pageid"])
-            content = clean_content(page["extract"])
+            # Get raw wikitext
+            raw_content = page["revisions"][0]["*"]
+            content = clean_content(raw_content)
             
             # Get images
             images = get_page_images(title)
