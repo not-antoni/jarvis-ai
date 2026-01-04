@@ -728,7 +728,10 @@
                     isReplyToJarvis = true;
                 }
             } catch (error) {
-                console.error('Failed to inspect replied message for Jarvis mention:', error);
+                // Ignore 10008 (Unknown Message) - message was deleted
+                if (error.code !== 10008) {
+                    console.error('Failed to inspect replied message for Jarvis mention:', error.message);
+                }
             }
         }
 
@@ -853,7 +856,10 @@
                     }
                 }
             } catch (error) {
-                console.warn("Failed to fetch referenced message:", error);
+                // Ignore 10008 (Unknown Message) - message was deleted
+                if (error.code !== 10008) {
+                    console.warn("Failed to fetch referenced message:", error.message);
+                }
             }
         }
 
