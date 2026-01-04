@@ -109,14 +109,27 @@ module.exports = {
                 ).catch(console.error);
             })
             .on('error', (error, queue, song) => {
-                console.error('[Distube Error]', error);
+                // Only log non-ffmpeg errors in full
+                if (error.errorCode !== 'FFMPEG_EXITED') {
+                    console.error('[Distube Error]', error);
+                } else {
+                    console.warn('[Distube] FFMPEG stream error - track may be unavailable');
+                }
 
                 // queue might be a TextChannel, a Queue, or undefined depending on where error originated
                 let channel = queue?.textChannel || (queue?.send ? queue : null);
 
                 if (channel) {
-                    const errorMessage = error.message || error.toString();
-                    channel.send(`❌ Music error: ${errorMessage.slice(0, 200)}`).catch(console.error);
+                    // Provide user-friendly error messages
+                    let userMessage = '❌ Music error';
+                    if (error.errorCode === 'FFMPEG_EXITED') {
+                        userMessage = '❌ Stream error - this track may be unavailable or region-locked. Try another song.';
+                    } else if (error.message?.includes('410')) {
+                        userMessage = '❌ This video is unavailable. It may have been removed or made private.';
+                    } else if (error.message) {
+                        userMessage = `❌ ${error.message.slice(0, 150)}`;
+                    }
+                    channel.send(userMessage).catch(() => { });
                 }
             })
             .on('empty', queue => {
