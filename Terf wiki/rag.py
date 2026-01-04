@@ -268,20 +268,27 @@ class WikiRAG:
     
     def generate_answer(self, question: str, context: str) -> str:
         """Generate answer using Groq API or local model."""
-        prompt = f"""You are a wiki assistant. Your ONLY job is to summarize and quote from the wiki context below.
+        prompt = f"""You are a wiki expert. Answer the question using ONLY the provided wiki source code (wikitext) below.
+
+CONTEXT FORMAT:
+- The context provides raw wikitext.
+- {{Infobox reactor | power = 100MW }} -> This means Power is 100MW.
+- [[Target|Label]] -> This is a link to Target with label Label.
+- == Header == -> This is a section header.
 
 STRICT RULES:
-1. ONLY use information from the wiki context provided
-2. DO NOT make up or infer any information not explicitly stated
-3. If the answer is not in the wiki context, say "This information is not available in the wiki."
-4. Quote specific details like power values, recipes, and instructions exactly as written
+1. ONLY use information from the wiki context provided.
+2. Interpret templates ({{...}}) and tables properly to extract technical data.
+3. If the answer is COMPLETELY missing from the context, state "This information is not available in the wiki."
+4. If you find partial information, share it but mention what is missing.
+5. Quote specific values (power, heat, recipes) exactly found in the source.
 
-Wiki context:
+Wiki Context:
 {context}
 
 Question: {question}
 
-Answer using ONLY the wiki context above (no external knowledge):"""
+Answer using ONLY the wiki context above:"""
         
         if self.use_groq:
             return self._call_groq(prompt)
