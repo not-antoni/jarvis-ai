@@ -4787,7 +4787,7 @@ const legacyCommands = {
                 await message.reply('❌ Failed to update cookies.');
                 return true;
             }
-        } \n
+        }
     },
 
     // ============ TERF WIKI COMMAND ============
