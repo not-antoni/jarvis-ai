@@ -3,6 +3,12 @@ const distube = require('../../services/distube');
 const youtubeSearch = require('../../services/youtube-search');
 const searchCache = require('../../services/search-cache');
 
+// Max file size: 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+// Allowed audio extensions
+const AUDIO_EXTENSIONS = ['.mp3', '.ogg', '.flac', '.wav', '.m4a', '.opus', '.webm', '.aac'];
+
 // Check if a string looks like a URL
 function isUrl(str) {
     return /^https?:\/\//i.test(str) || str.includes('youtube.com') || str.includes('youtu.be') || str.includes('soundcloud.com') || str.includes('spotify.com');
@@ -21,12 +27,21 @@ function cleanYouTubeUrl(url) {
     return url;
 }
 
+// Check if filename has audio extension
+function isAudioFile(filename) {
+    const lower = filename.toLowerCase();
+    return AUDIO_EXTENSIONS.some(ext => lower.endsWith(ext));
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
         .setDescription('Play a song or playlist')
         .addStringOption(option =>
-            option.setName('query').setDescription('Song name, YouTube/SoundCloud URL or playlist').setRequired(true)
+            option.setName('query').setDescription('Song name, YouTube/SoundCloud URL or playlist').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file').setDescription('Upload audio file (MP3/OGG/etc) - 10MB max').setRequired(false)
         )
         .setDMPermission(false)
         .setContexts([InteractionContextType.Guild]),
@@ -34,9 +49,16 @@ module.exports = {
     async execute(interaction) {
         if (!interaction.guild) return;
 
-        let query = interaction.options.getString('query');
+        const queryOption = interaction.options.getString('query');
+        const fileOption = interaction.options.getAttachment('file');
         const member = interaction.member;
         const voiceChannel = member.voice?.channel;
+
+        // Must provide either query OR file
+        if (!queryOption && !fileOption) {
+            await interaction.reply({ content: '⚠️ Provide a song name, URL, or upload a file, sir.', flags: 64 });
+            return;
+        }
 
         // Voice Checks
         if (!voiceChannel) {
@@ -49,6 +71,49 @@ module.exports = {
             return;
         }
 
+        // Handle file upload
+        if (fileOption) {
+            // Check file size (NOT ephemeral - users can see)
+            if (fileOption.size > MAX_FILE_SIZE) {
+                await interaction.reply({ content: "Sir, 10MB max or I'm gonna explode 💥" });
+                return;
+            }
+
+            // Check file type
+            if (!isAudioFile(fileOption.name)) {
+                await interaction.reply({ content: `⚠️ That doesn't look like an audio file, sir. Supported: ${AUDIO_EXTENSIONS.join(', ')}` });
+                return;
+            }
+
+            await interaction.deferReply();
+
+            try {
+                let distubeInstance;
+                try {
+                    distubeInstance = distube.get();
+                } catch (initError) {
+                    await interaction.editReply('⚠️ Music system is still starting up. Please try again in a few seconds.');
+                    return;
+                }
+
+                console.log(`[Play] File upload: ${fileOption.name} (${(fileOption.size / 1024 / 1024).toFixed(2)}MB)`);
+                await interaction.editReply(`📂 Playing uploaded file: **${fileOption.name}**`);
+
+                await distubeInstance.play(voiceChannel, fileOption.url, {
+                    member: member,
+                    textChannel: interaction.channel,
+                    metadata: { originalInteraction: interaction, isUpload: true, filename: fileOption.name }
+                });
+
+            } catch (e) {
+                console.error('Distube Play Error (file):', e);
+                await interaction.editReply({ content: `❌ **Failed to play file**\n${e.message?.slice(0, 100) || 'Unknown error'}` });
+            }
+            return;
+        }
+
+        // Handle query (existing logic)
+        let query = queryOption;
         await interaction.deferReply();
 
         try {
@@ -137,3 +202,4 @@ module.exports = {
         }
     }
 };
+
