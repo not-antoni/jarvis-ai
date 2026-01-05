@@ -7,7 +7,7 @@ const searchCache = require('../../services/search-cache');
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // Allowed audio extensions
-const AUDIO_EXTENSIONS = ['.mp3', '.ogg', '.flac', '.wav', '.m4a', '.opus', '.webm', '.aac'];
+const AUDIO_EXTENSIONS = ['.mp3', '.ogg', '.oga', '.flac', '.wav', '.m4a', '.opus', '.webm', '.aac', '.wma', '.mp4', '.mov', '.mkv'];
 
 // Check if a string looks like a URL
 function isUrl(str) {
@@ -27,10 +27,11 @@ function cleanYouTubeUrl(url) {
     return url;
 }
 
-// Check if filename has audio extension
+// Check if filename has audio extension (strips query params first)
 function isAudioFile(filename) {
-    const lower = filename.toLowerCase();
-    return AUDIO_EXTENSIONS.some(ext => lower.endsWith(ext));
+    // Discord CDN can add query params, strip them
+    const cleanName = filename.split('?')[0].toLowerCase();
+    return AUDIO_EXTENSIONS.some(ext => cleanName.endsWith(ext));
 }
 
 module.exports = {
