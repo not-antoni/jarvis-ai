@@ -85,29 +85,33 @@ module.exports = {
                 return;
             }
 
-            await interaction.deferReply();
-
+            // Check if music system is ready
             try {
-                let distubeInstance;
-                try {
-                    distubeInstance = distube.get();
-                } catch (initError) {
-                    await interaction.editReply('⚠️ Music system is still starting up. Please try again in a few seconds.');
-                    return;
-                }
+                distube.get();
+            } catch (initError) {
+                await interaction.reply({ content: '⚠️ Music system is still starting up. Please try again in a few seconds.', flags: 64 });
+                return;
+            }
 
-                console.log(`[Play] File upload: ${fileOption.name} (${(fileOption.size / 1024 / 1024).toFixed(2)}MB)`);
-                await interaction.editReply(`📂 Playing uploaded file: **${fileOption.name}**`);
+            // Add to upload queue (prevents overload when many users upload at once)
+            const uploadQueue = require('../../services/upload-queue');
+            const position = uploadQueue.add(
+                interaction.guildId,
+                voiceChannel,
+                fileOption.url,
+                fileOption.name,
+                member,
+                interaction.channel,
+                interaction
+            );
 
-                await distubeInstance.play(voiceChannel, fileOption.url, {
-                    member: member,
-                    textChannel: interaction.channel,
-                    metadata: { originalInteraction: interaction, isUpload: true, filename: fileOption.name }
-                });
+            console.log(`[Play] File queued: ${fileOption.name} (${(fileOption.size / 1024 / 1024).toFixed(2)}MB) - Position: ${position}`);
 
-            } catch (e) {
-                console.error('Distube Play Error (file):', e);
-                await interaction.editReply({ content: `❌ **Failed to play file**\n${e.message?.slice(0, 100) || 'Unknown error'}` });
+            // Feedback to user
+            if (position === 1) {
+                await interaction.reply(`📂 Processing upload: **${fileOption.name}**`);
+            } else {
+                await interaction.reply(`📂 Upload queued: **${fileOption.name}** (Position: #${position})`);
             }
             return;
         }
