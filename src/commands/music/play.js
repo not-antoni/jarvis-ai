@@ -42,7 +42,34 @@ module.exports = {
             option.setName('query').setDescription('Song name, YouTube/SoundCloud URL or playlist').setRequired(false)
         )
         .addAttachmentOption(option =>
-            option.setName('file').setDescription('Upload audio file (MP3/OGG/etc) - 10MB max').setRequired(false)
+            option.setName('file1').setDescription('Audio file #1 (10MB max each)').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file2').setDescription('Audio file #2').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file3').setDescription('Audio file #3').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file4').setDescription('Audio file #4').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file5').setDescription('Audio file #5').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file6').setDescription('Audio file #6').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file7').setDescription('Audio file #7').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file8').setDescription('Audio file #8').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file9').setDescription('Audio file #9').setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('file10').setDescription('Audio file #10').setRequired(false)
         )
         .setDMPermission(false)
         .setContexts([InteractionContextType.Guild]),
@@ -51,12 +78,19 @@ module.exports = {
         if (!interaction.guild) return;
 
         const queryOption = interaction.options.getString('query');
-        const fileOption = interaction.options.getAttachment('file');
+
+        // Collect all file attachments
+        const files = [];
+        for (let i = 1; i <= 10; i++) {
+            const file = interaction.options.getAttachment(`file${i}`);
+            if (file) files.push(file);
+        }
+
         const member = interaction.member;
         const voiceChannel = member.voice?.channel;
 
-        // Must provide either query OR file
-        if (!queryOption && !fileOption) {
+        // Must provide either query OR files
+        if (!queryOption && files.length === 0) {
             await interaction.reply({ content: '⚠️ Provide a song name, URL, or upload a file, sir.', flags: 64 });
             return;
         }
@@ -72,18 +106,18 @@ module.exports = {
             return;
         }
 
-        // Handle file upload
-        if (fileOption) {
-            // Check file size (NOT ephemeral - users can see)
-            if (fileOption.size > MAX_FILE_SIZE) {
-                await interaction.reply({ content: "Sir, 10MB max or I'm gonna explode 💥" });
-                return;
-            }
-
-            // Check file type
-            if (!isAudioFile(fileOption.name)) {
-                await interaction.reply({ content: `⚠️ That doesn't look like an audio file, sir. Supported: ${AUDIO_EXTENSIONS.join(', ')}` });
-                return;
+        // Handle file uploads
+        if (files.length > 0) {
+            // Validate all files first
+            for (const file of files) {
+                if (file.size > MAX_FILE_SIZE) {
+                    await interaction.reply({ content: `Sir, **${file.name}** is over 10MB! I'm gonna explode 💥` });
+                    return;
+                }
+                if (!isAudioFile(file.name)) {
+                    await interaction.reply({ content: `⚠️ **${file.name}** doesn't look like an audio file, sir.` });
+                    return;
+                }
             }
 
             // Check if music system is ready
@@ -94,25 +128,34 @@ module.exports = {
                 return;
             }
 
-            // Add to upload queue (prevents overload when many users upload at once)
-            const uploadQueue = require('../../services/upload-queue');
-            const position = uploadQueue.add(
-                interaction.guildId,
-                voiceChannel,
-                fileOption.url,
-                fileOption.name,
-                member,
-                interaction.channel,
-                interaction
-            );
-
-            console.log(`[Play] File queued: ${fileOption.name} (${(fileOption.size / 1024 / 1024).toFixed(2)}MB) - Position: ${position}`);
-
-            // Feedback to user
-            if (position === 1) {
-                await interaction.reply(`📂 Processing upload: **${fileOption.name}**`);
+            // Acknowledge first
+            if (files.length === 1) {
+                await interaction.reply(`📂 Processing upload: **${files[0].name}**`);
             } else {
-                await interaction.reply(`📂 Upload queued: **${fileOption.name}** (Position: #${position})`);
+                await interaction.reply(`📂 Processing **${files.length}** uploads...`);
+            }
+
+            const uploadQueue = require('../../services/upload-queue');
+            let firstPosition = -1;
+
+            // Queue files in order
+            for (const file of files) {
+                const pos = uploadQueue.add(
+                    interaction.guildId,
+                    voiceChannel,
+                    file.url,
+                    file.name,
+                    member,
+                    interaction.channel,
+                    interaction
+                );
+                if (firstPosition === -1) firstPosition = pos;
+                console.log(`[Play] File queued: ${file.name} - Position: ${pos}`);
+            }
+
+            // Follow-up feedback for multiple files
+            if (files.length > 1) {
+                await interaction.followUp({ content: `✅ All **${files.length}** files queued!` });
             }
             return;
         }
