@@ -23,8 +23,82 @@ class EmbeddingSystem {
         this.staticDataPath = path.join(__dirname, 'data.jsonl');
         this.staticKnowledge = null;
         this.staticKnowledgeVectors = null;
+
+        // Disk-backed embedding cache
+        this.embeddingCacheFile = path.join(__dirname, '../../data/embedding-cache.json');
+        this.embeddingCacheMaxEntries = 2000;
+        this.embeddingCacheTTL = 7 * 24 * 60 * 60 * 1000; // 7 days
         this.embeddingCache = new Map();
+        this._loadEmbeddingCache();
     }
+
+    _loadEmbeddingCache() {
+        try {
+            if (fs.existsSync(this.embeddingCacheFile)) {
+                const data = JSON.parse(fs.readFileSync(this.embeddingCacheFile, 'utf8'));
+                const now = Date.now();
+                let loaded = 0;
+                let expired = 0;
+
+                for (const [key, entry] of Object.entries(data)) {
+                    if (now - (entry.cachedAt || 0) < this.embeddingCacheTTL) {
+                        this.embeddingCache.set(key, entry.vector);
+                        loaded++;
+                    } else {
+                        expired++;
+                    }
+                }
+
+                if (expired > 0) {
+                    console.log(`[Embedding] Loaded ${loaded} cached embeddings, cleaned ${expired} expired`);
+                    this._saveEmbeddingCache();
+                } else {
+                    console.log(`[Embedding] Loaded ${loaded} cached embeddings from disk`);
+                }
+            }
+        } catch (e) {
+            console.warn('[Embedding] Failed to load embedding cache:', e.message);
+            this.embeddingCache = new Map();
+        }
+    }
+
+    _saveEmbeddingCache() {
+        try {
+            const dir = path.dirname(this.embeddingCacheFile);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+
+            // Convert Map to object with timestamps
+            const data = {};
+            for (const [key, vector] of this.embeddingCache) {
+                data[key] = { vector, cachedAt: Date.now() };
+            }
+
+            fs.writeFileSync(this.embeddingCacheFile, JSON.stringify(data));
+        } catch (e) {
+            console.warn('[Embedding] Failed to save embedding cache:', e.message);
+        }
+    }
+
+    _cacheEmbedding(key, vector) {
+        // Evict oldest if at capacity
+        if (this.embeddingCache.size >= this.embeddingCacheMaxEntries) {
+            const firstKey = this.embeddingCache.keys().next().value;
+            this.embeddingCache.delete(firstKey);
+        }
+
+        this.embeddingCache.set(key, vector);
+
+        // Debounced save (avoid too frequent disk writes)
+        if (!this._saveTimeout) {
+            this._saveTimeout = setTimeout(() => {
+                this._saveEmbeddingCache();
+                this._saveTimeout = null;
+            }, 5000);
+        }
+    }
+
 
     ensureClient() {
         if (!this.openAiKey) {
@@ -216,7 +290,7 @@ class EmbeddingSystem {
         }
 
         const normalized = this.normalizeVector(vector);
-        this.embeddingCache.set(cacheKey, normalized);
+        this._cacheEmbedding(cacheKey, normalized);
 
         return normalized;
     }
