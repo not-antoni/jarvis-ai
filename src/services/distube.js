@@ -21,7 +21,19 @@ module.exports = {
                 savePreviousSongs: false,
                 nsfw: true,
                 ffmpeg: {
-                    path: ffmpegPath
+                    path: ffmpegPath,
+                    // Fix audio glitches with reconnect and buffering args
+                    args: {
+                        global: {},
+                        input: {
+                            reconnect: '1',
+                            reconnect_streamed: '1',
+                            reconnect_delay_max: '5',
+                            analyzeduration: '0',
+                            probesize: '32'
+                        },
+                        output: {}
+                    }
                 },
                 plugins: [
                     new YtDlpPlugin({
