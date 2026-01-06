@@ -32,7 +32,12 @@ module.exports = {
                             analyzeduration: '0',
                             probesize: '32'
                         },
-                        output: {}
+                        output: {
+                            // Volume normalization to prevent clipping/distortion
+                            af: 'loudnorm=I=-16:TP=-1.5:LRA=11',
+                            // Native Discord sample rate for optimal Opus encoding
+                            ar: '48000'
+                        }
                     }
                 },
                 plugins: [
@@ -40,7 +45,8 @@ module.exports = {
                         update: false,
                         ytdlpArgs: [
                             '--audio-quality', '0',
-                            '--format', 'bestaudio/best'
+                            // Prefer opus/vorbis (less transcoding loss), fallback to best
+                            '--format', 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]/bestaudio/best'
                         ]
                     })
                 ]
