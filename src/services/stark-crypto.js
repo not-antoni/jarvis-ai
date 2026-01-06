@@ -6,6 +6,10 @@
  */
 
 const database = require('./database');
+const fs = require('fs');
+const path = require('path');
+
+const PRICE_CACHE_FILE = path.join(__dirname, '../../data/crypto-prices-cache.json');
 
 // ============================================================================
 // CONFIGURATION
@@ -15,24 +19,24 @@ const SX_CONFIG = {
     // System settings
     tickInterval: 30 * 1000,       // Price updates every 30 seconds
     historyMaxLength: 2880,        // 24 hours at 30s intervals
-    
+
     // Trading settings
     minTrade: 0.01,                // Minimum coins per trade (fractional)
     maxTrade: 10000,               // Maximum coins per trade
     tradeFeePercent: 0.025,        // 2.5% trading fee (goes to owner)
-    
+
     // Market mechanics
     baseVolatility: 0.03,          // 3% base volatility per tick
     momentumDecay: 0.95,           // How fast momentum decays
     volumeImpact: 0.0001,          // Price impact per unit volume
     liquidityDepth: 10000,         // Affects slippage
-    
+
     // Market cycles
     cycleDuration: 60 * 60 * 1000, // 1 hour cycles
     bullProbability: 0.45,         // 45% chance of bull market
     bearProbability: 0.35,         // 35% chance of bear market
     sidewaysProbability: 0.20,     // 20% chance of sideways
-    
+
     // Events
     eventChance: 0.005,            // 0.5% chance per tick for event
     crashChance: 0.001,            // 0.1% chance of flash crash
@@ -304,8 +308,84 @@ let marketState = {
     lastEventTime: 0
 };
 
+// Load prices from disk cache
+function loadPricesFromDisk() {
+    try {
+        if (fs.existsSync(PRICE_CACHE_FILE)) {
+            const data = JSON.parse(fs.readFileSync(PRICE_CACHE_FILE, 'utf8'));
+            const now = Date.now();
+
+            // Only use cache if less than 1 hour old
+            if (data.savedAt && (now - data.savedAt) < 60 * 60 * 1000) {
+                let loaded = 0;
+                for (const [symbol, priceData] of Object.entries(data.prices || {})) {
+                    if (CRYPTO_COINS[symbol]) {
+                        coinPrices.set(symbol, priceData.price);
+                        coinMomentum.set(symbol, priceData.momentum || 0);
+                        priceHistory.set(symbol, priceData.history || [{ price: priceData.price, timestamp: now }]);
+                        tradeVolume.set(symbol, 0);
+                        loaded++;
+                    }
+                }
+
+                // Restore market state
+                if (data.marketState) {
+                    marketState.cycle = data.marketState.cycle || 'sideways';
+                    marketState.sentiment = data.marketState.sentiment || 0;
+                    marketState.cycleStarted = data.marketState.cycleStarted || now;
+                }
+
+                console.log(`[StarkCrypto] Loaded ${loaded} prices from disk cache`);
+                return true;
+            }
+        }
+    } catch (e) {
+        console.warn('[StarkCrypto] Failed to load price cache:', e.message);
+    }
+    return false;
+}
+
+// Save prices to disk cache
+function savePricesToDisk() {
+    try {
+        const dir = path.dirname(PRICE_CACHE_FILE);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        const prices = {};
+        for (const [symbol] of Object.entries(CRYPTO_COINS)) {
+            const history = priceHistory.get(symbol) || [];
+            prices[symbol] = {
+                price: coinPrices.get(symbol),
+                momentum: coinMomentum.get(symbol) || 0,
+                // Only keep last 50 history entries for disk (saves space)
+                history: history.slice(-50)
+            };
+        }
+
+        fs.writeFileSync(PRICE_CACHE_FILE, JSON.stringify({
+            prices,
+            marketState: {
+                cycle: marketState.cycle,
+                sentiment: marketState.sentiment,
+                cycleStarted: marketState.cycleStarted
+            },
+            savedAt: Date.now()
+        }));
+    } catch (e) {
+        console.warn('[StarkCrypto] Failed to save price cache:', e.message);
+    }
+}
+
 // Initialize coin state
 function initializeMarket() {
+    // Try to load from disk cache first
+    if (loadPricesFromDisk()) {
+        return;
+    }
+
+    // Fresh initialization
     const now = Date.now();
     Object.entries(CRYPTO_COINS).forEach(([symbol, coin]) => {
         // Add some initial variance to prices
@@ -315,9 +395,10 @@ function initializeMarket() {
         coinMomentum.set(symbol, 0);
         tradeVolume.set(symbol, 0);
     });
-    
+
     // Set initial market cycle
     determineMarketCycle();
+    console.log('[StarkCrypto] Initialized fresh market');
 }
 
 // Determine market cycle
@@ -400,7 +481,7 @@ async function getPortfolio(userId) {
     try {
         const col = await getCollection('sx_portfolios');
         let portfolio = await col.findOne({ userId });
-        
+
         if (!portfolio) {
             portfolio = {
                 userId,
@@ -413,7 +494,7 @@ async function getPortfolio(userId) {
             };
             await col.insertOne(portfolio);
         }
-        
+
         // Calculate current value and P&L
         let totalValue = 0;
         const holdingsWithPL = {};
@@ -427,14 +508,14 @@ async function getPortfolio(userId) {
         }
         portfolio.totalValue = Math.round(totalValue * 100) / 100;
         portfolio.holdingsDetail = holdingsWithPL;
-        
+
         // Calculate P&L (profit/loss)
         const profitLoss = portfolio.totalValue - (portfolio.totalInvested || 0);
         portfolio.profitLoss = Math.round(profitLoss * 100) / 100;
-        portfolio.profitLossPercent = portfolio.totalInvested > 0 
-            ? Math.round((profitLoss / portfolio.totalInvested) * 10000) / 100 
+        portfolio.profitLossPercent = portfolio.totalInvested > 0
+            ? Math.round((profitLoss / portfolio.totalInvested) * 10000) / 100
             : 0;
-        
+
         return portfolio;
     } catch (error) {
         console.error('[StarkCrypto] Portfolio error:', error);
@@ -448,30 +529,30 @@ async function getPortfolio(userId) {
 async function buyCrypto(userId, symbol, amount) {
     const starkEconomy = require('./stark-economy');
     const coin = CRYPTO_COINS[symbol.toUpperCase()];
-    
+
     if (!coin) {
         return { success: false, error: 'Unknown cryptocurrency' };
     }
-    
+
     if (amount < SX_CONFIG.minTrade) {
         return { success: false, error: `Minimum trade is ${SX_CONFIG.minTrade} coins` };
     }
-    
+
     if (amount > SX_CONFIG.maxTrade) {
         return { success: false, error: `Maximum trade is ${SX_CONFIG.maxTrade} coins per transaction` };
     }
-    
+
     const price = coinPrices.get(symbol.toUpperCase());
     const totalCost = Math.ceil(price * amount);
     const fee = Math.ceil(totalCost * SX_CONFIG.tradeFeePercent);
     const totalWithFee = totalCost + fee;
-    
+
     // Atomically deduct from balance (prevents race conditions)
     const deductResult = await starkEconomy.modifyBalance(userId, -totalWithFee, `Buy ${amount} ${symbol}`);
     if (!deductResult.success) {
         return { success: false, error: `Insufficient funds. Need ${totalWithFee} SB` };
     }
-    
+
     // Add to portfolio
     const col = await getCollection('sx_portfolios');
     await col.updateOne(
@@ -486,19 +567,19 @@ async function buyCrypto(userId, symbol, amount) {
         },
         { upsert: true }
     );
-    
+
     // Fee to owner (TAX TIME!)
     const ownerId = process.env.BOT_OWNER_ID;
     if (fee > 0 && ownerId) {
         await starkEconomy.modifyBalance(ownerId, fee, `SX Tax: Buy ${amount} ${symbol}`);
     }
-    
+
     // Record trade impact on market
     recordTradeImpact(symbol.toUpperCase(), amount, true);
-    
+
     // Log trade history
     await logTrade(userId, 'buy', symbol.toUpperCase(), amount, price, totalWithFee);
-    
+
     return {
         success: true,
         symbol: symbol.toUpperCase(),
@@ -517,32 +598,32 @@ async function buyCrypto(userId, symbol, amount) {
 async function sellCrypto(userId, symbol, amount) {
     const starkEconomy = require('./stark-economy');
     const coin = CRYPTO_COINS[symbol.toUpperCase()];
-    
+
     if (!coin) {
         return { success: false, error: 'Unknown cryptocurrency' };
     }
-    
+
     if (amount < SX_CONFIG.minTrade) {
         return { success: false, error: `Minimum trade is ${SX_CONFIG.minTrade} coins` };
     }
-    
+
     if (amount > SX_CONFIG.maxTrade) {
         return { success: false, error: `Maximum trade is ${SX_CONFIG.maxTrade} coins per transaction` };
     }
-    
+
     // Check holdings
     const portfolio = await getPortfolio(userId);
     const holdings = portfolio.holdings?.[symbol.toUpperCase()] || 0;
-    
+
     if (holdings < amount) {
         return { success: false, error: `Insufficient ${symbol}. You have ${holdings}` };
     }
-    
+
     const price = coinPrices.get(symbol.toUpperCase());
     const totalValue = Math.floor(price * amount);
     const fee = Math.ceil(totalValue * SX_CONFIG.tradeFeePercent);
     const netProceeds = totalValue - fee;
-    
+
     // Atomically remove from portfolio (only if holdings >= amount)
     const col = await getCollection('sx_portfolios');
     const updateResult = await col.findOneAndUpdate(
@@ -556,26 +637,26 @@ async function sellCrypto(userId, symbol, amount) {
         },
         { returnDocument: 'after' }
     );
-    
+
     if (!updateResult) {
         return { success: false, error: `Insufficient ${symbol}. Holdings changed during transaction.` };
     }
-    
+
     // Add to balance (atomic)
     await starkEconomy.modifyBalance(userId, netProceeds, `Sell ${amount} ${symbol}`);
-    
+
     // Fee to owner (TAX TIME!)
     const ownerId = process.env.BOT_OWNER_ID;
     if (fee > 0 && ownerId) {
         await starkEconomy.modifyBalance(ownerId, fee, `SX Tax: Sell ${amount} ${symbol}`);
     }
-    
+
     // Record trade impact on market
     recordTradeImpact(symbol.toUpperCase(), amount, false);
-    
+
     // Log trade history
     await logTrade(userId, 'sell', symbol.toUpperCase(), amount, price, netProceeds);
-    
+
     return {
         success: true,
         symbol: symbol.toUpperCase(),
@@ -593,33 +674,33 @@ async function sellCrypto(userId, symbol, amount) {
  */
 async function transferCrypto(fromUserId, toUserId, symbol, amount) {
     const coin = CRYPTO_COINS[symbol.toUpperCase()];
-    
+
     if (!coin) {
         return { success: false, error: 'Unknown cryptocurrency' };
     }
-    
+
     if (amount < SX_CONFIG.minTrade) {
         return { success: false, error: `Minimum transfer is ${SX_CONFIG.minTrade} coins` };
     }
-    
+
     if (fromUserId === toUserId) {
         return { success: false, error: 'Cannot transfer to yourself' };
     }
-    
+
     // Check sender holdings
     const senderPortfolio = await getPortfolio(fromUserId);
     const holdings = senderPortfolio.holdings?.[symbol.toUpperCase()] || 0;
-    
+
     if (holdings < amount) {
         return { success: false, error: `Insufficient ${symbol}. You have ${holdings}` };
     }
-    
+
     // Calculate transfer fee (1%)
     const fee = Math.ceil(amount * 0.01 * 100) / 100;
     const netAmount = amount - fee;
-    
+
     const col = await getCollection('sx_portfolios');
-    
+
     // Deduct from sender
     await col.updateOne(
         { userId: fromUserId },
@@ -628,7 +709,7 @@ async function transferCrypto(fromUserId, toUserId, symbol, amount) {
             $set: { updatedAt: new Date() }
         }
     );
-    
+
     // Add to receiver (minus fee)
     await col.updateOne(
         { userId: toUserId },
@@ -638,7 +719,7 @@ async function transferCrypto(fromUserId, toUserId, symbol, amount) {
         },
         { upsert: true }
     );
-    
+
     // Fee goes to bot owner
     const ownerId = process.env.BOT_OWNER_ID;
     if (fee > 0 && ownerId) {
@@ -651,7 +732,7 @@ async function transferCrypto(fromUserId, toUserId, symbol, amount) {
             { upsert: true }
         );
     }
-    
+
     return {
         success: true,
         symbol: symbol.toUpperCase(),
@@ -676,45 +757,45 @@ async function updatePrices() {
         return;
     }
     lastPriceTick = now;
-    
+
     // Check if we need a new market cycle
     if (now - marketState.cycleStarted > SX_CONFIG.cycleDuration) {
         determineMarketCycle();
         console.log(`[StarkCrypto] New market cycle: ${marketState.cycle}, sentiment: ${marketState.sentiment.toFixed(2)}`);
     }
-    
+
     // Check for market events
     checkForMarketEvent(now);
-    
+
     // Calculate market-wide factors
     const marketTrend = calculateMarketTrend();
-    
+
     // Update each coin
     for (const [symbol, coin] of Object.entries(CRYPTO_COINS)) {
         const currentPrice = coinPrices.get(symbol);
         const momentum = coinMomentum.get(symbol) || 0;
         const volume = tradeVolume.get(symbol) || 0;
-        
+
         // 1. Base random walk (Geometric Brownian Motion inspired)
         const tierMult = TIER_MULTIPLIERS[coin.tier] || 1.0;
         const effectiveVolatility = coin.volatility * tierMult * SX_CONFIG.baseVolatility;
         const randomWalk = (Math.random() - 0.5) * 2 * effectiveVolatility;
-        
+
         // 2. Market correlation effect
         const correlationEffect = marketTrend * coin.correlation * 0.02;
-        
+
         // 3. Momentum effect (prices tend to continue their direction briefly)
         const momentumEffect = momentum * 0.3;
-        
+
         // 4. Volume impact (high volume = more movement)
         const volumeEffect = Math.min(volume * SX_CONFIG.volumeImpact, 0.05) * Math.sign(momentum || randomWalk);
-        
+
         // 5. Mean reversion (gentle pull toward base price over time)
         const priceRatio = currentPrice / coin.basePrice;
-        const meanReversion = priceRatio > 1 
+        const meanReversion = priceRatio > 1
             ? -0.002 * Math.log(priceRatio)
             : 0.002 * Math.log(1 / priceRatio);
-        
+
         // 6. Event effect
         let eventEffect = 0;
         if (marketState.activeEvent && now < marketState.activeEvent.expiresAt) {
@@ -727,41 +808,41 @@ async function updatePrices() {
                 eventEffect = (marketState.activeEvent.multiplier - 1) * coin.correlation;
             }
         }
-        
+
         // Combine all effects
         const totalChange = randomWalk + correlationEffect + momentumEffect + volumeEffect + meanReversion + eventEffect;
         let newPrice = currentPrice * (1 + totalChange);
-        
+
         // Price bounds (can't go below 1% of base or above 100x base)
         const minPrice = coin.basePrice * 0.01;
         const maxPrice = coin.basePrice * 100;
         newPrice = Math.max(minPrice, Math.min(maxPrice, newPrice));
         newPrice = Math.round(newPrice * 100) / 100;
-        
+
         // Update momentum (decaying average of recent changes)
         const priceChange = (newPrice - currentPrice) / currentPrice;
         const newMomentum = momentum * SX_CONFIG.momentumDecay + priceChange * (1 - SX_CONFIG.momentumDecay);
         coinMomentum.set(symbol, newMomentum);
-        
+
         // Decay trade volume
         tradeVolume.set(symbol, volume * 0.9);
-        
+
         // Update price
         coinPrices.set(symbol, newPrice);
-        
+
         // Store history
         const history = priceHistory.get(symbol) || [];
         history.push({ price: newPrice, timestamp: now });
         if (history.length > SX_CONFIG.historyMaxLength) history.shift();
         priceHistory.set(symbol, history);
     }
-    
+
     // Clear expired event
     if (marketState.activeEvent && now >= marketState.activeEvent.expiresAt) {
         console.log(`[StarkCrypto] Event ended: ${marketState.activeEvent.name}`);
         marketState.activeEvent = null;
     }
-    
+
     // Persist to database periodically (every 10 ticks = 5 minutes)
     if (Math.random() < 0.1) {
         await savePriceSnapshot();
@@ -773,10 +854,10 @@ async function updatePrices() {
  */
 function calculateMarketTrend() {
     let trend = marketState.sentiment;
-    
+
     // Add some noise to the trend
     trend += (Math.random() - 0.5) * 0.1;
-    
+
     // Clamp to [-1, 1]
     return Math.max(-1, Math.min(1, trend));
 }
@@ -788,13 +869,13 @@ function checkForMarketEvent(now) {
     // Don't trigger events too frequently
     if (now - marketState.lastEventTime < 5 * 60 * 1000) return;
     if (marketState.activeEvent) return;
-    
+
     // Roll for event
     if (Math.random() < SX_CONFIG.eventChance) {
         // Pick a random event based on chances
         const totalChance = MARKET_EVENTS.reduce((sum, e) => sum + e.chance, 0);
         let roll = Math.random() * totalChance;
-        
+
         for (const event of MARKET_EVENTS) {
             roll -= event.chance;
             if (roll <= 0) {
@@ -812,9 +893,12 @@ function checkForMarketEvent(now) {
 }
 
 /**
- * Save price snapshot to database
+ * Save price snapshot to database and disk
  */
 async function savePriceSnapshot() {
+    // Always save to disk for fast startup
+    savePricesToDisk();
+
     try {
         const col = await getCollection('sx_price_snapshots');
         const prices = {};
@@ -841,12 +925,12 @@ async function savePriceSnapshot() {
 function recordTradeImpact(symbol, amount, isBuy) {
     const currentVolume = tradeVolume.get(symbol) || 0;
     tradeVolume.set(symbol, currentVolume + Math.abs(amount));
-    
+
     // Trades affect momentum
     const momentum = coinMomentum.get(symbol) || 0;
     const impact = (amount / SX_CONFIG.liquidityDepth) * (isBuy ? 1 : -1);
     coinMomentum.set(symbol, momentum + impact * 0.1);
-    
+
     marketState.totalVolume24h += Math.abs(amount);
 }
 
@@ -861,12 +945,12 @@ function getAllPrices() {
         const oldPrice = history[0]?.price || currentPrice;
         const change24h = ((currentPrice - oldPrice) / oldPrice) * 100;
         const momentum = coinMomentum.get(symbol) || 0;
-        
+
         // Calculate high/low from history
         const prices24h = history.map(h => h.price);
         const high24h = prices24h.length ? Math.max(...prices24h) : currentPrice;
         const low24h = prices24h.length ? Math.min(...prices24h) : currentPrice;
-        
+
         prices[symbol] = {
             ...coin,
             price: currentPrice,
@@ -886,18 +970,18 @@ function getAllPrices() {
 function getCoinPrice(symbol) {
     const coin = CRYPTO_COINS[symbol.toUpperCase()];
     if (!coin) return null;
-    
+
     const currentPrice = coinPrices.get(symbol.toUpperCase());
     const history = priceHistory.get(symbol.toUpperCase()) || [];
     const oldPrice = history[0]?.price || currentPrice;
     const change24h = ((currentPrice - oldPrice) / oldPrice) * 100;
     const momentum = coinMomentum.get(symbol.toUpperCase()) || 0;
-    
+
     // Calculate stats
     const prices24h = history.map(h => h.price);
     const high24h = prices24h.length ? Math.max(...prices24h) : currentPrice;
     const low24h = prices24h.length ? Math.min(...prices24h) : currentPrice;
-    
+
     return {
         ...coin,
         price: currentPrice,
@@ -941,7 +1025,7 @@ async function getLeaderboard(limit = 10) {
             .sort({ totalInvested: -1 })
             .limit(limit)
             .toArray();
-        
+
         // Calculate current values
         return portfolios.map(p => {
             let totalValue = 0;
@@ -970,15 +1054,15 @@ let priceUpdateInterval = null;
 
 function startPriceUpdates() {
     if (priceUpdateInterval) return;
-    
+
     priceUpdateInterval = setInterval(() => {
         updatePrices().catch(err => {
             console.error('[StarkCrypto] Price update error:', err);
         });
     }, SX_CONFIG.tickInterval);
-    
+
     // Initial update
-    updatePrices().catch(() => {});
+    updatePrices().catch(() => { });
 }
 
 function stopPriceUpdates() {
@@ -997,23 +1081,23 @@ module.exports = {
     SX_CONFIG,
     CRYPTO_COINS,
     MARKET_EVENTS,
-    
+
     // Portfolio
     getPortfolio,
     buyCrypto,
     sellCrypto,
     transferCrypto,
     getTradeHistory,
-    
+
     // Prices & Market
     updatePrices,
     getAllPrices,
     getCoinPrice,
     getMarketState,
-    
+
     // Leaderboard
     getLeaderboard,
-    
+
     // Lifecycle
     startPriceUpdates,
     stopPriceUpdates,

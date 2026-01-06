@@ -65,6 +65,7 @@ const guildModeration = require('./GUILDS_FEATURES/moderation');
 const antiScam = require('./GUILDS_FEATURES/anti-scam');
 const achievements = new AchievementsSystem();
 const clankerGif = require('../utils/clanker-gif');
+const guildConfigDiskCache = require('./guild-config-cache');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -1481,19 +1482,38 @@ class DiscordHandlers {
     }
 
     async getGuildConfig(guild) {
-        if (!guild || !database.isConnected) {
+        if (!guild) {
             return null;
         }
 
         const guildId = guild.id;
+        
+        // Layer 1: Check memory cache (fast, 60s TTL)
         const cached = this.guildConfigCache.get(guildId);
         if (cached && (Date.now() - cached.fetchedAt) < this.guildConfigTtlMs) {
             return cached.config;
         }
 
+        // Layer 2: Check disk cache (5min TTL)
+        const diskCached = guildConfigDiskCache.get(guildId);
+        if (diskCached) {
+            // Restore to memory cache
+            this.guildConfigCache.set(guildId, { config: diskCached, fetchedAt: Date.now() });
+            return diskCached;
+        }
+
+        // Layer 3: Fetch from MongoDB
+        if (!database.isConnected) {
+            return null;
+        }
+
         try {
             const guildConfig = await database.getGuildConfig(guild.id, guild.ownerId);
+            
+            // Cache in both layers
             this.guildConfigCache.set(guildId, { config: guildConfig, fetchedAt: Date.now() });
+            guildConfigDiskCache.set(guildId, guildConfig);
+            
             return guildConfig;
         } catch (error) {
             console.error('Failed to fetch guild configuration:', error);

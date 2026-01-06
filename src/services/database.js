@@ -8,6 +8,7 @@ const vaultClient = require('./vault-client');
 const { connectMain, getJarvisDb, mainClient, closeMain, setupConnectionMonitoring, IS_SELFHOST } = require('./db');
 const localdb = require('../localdb');
 const { LRUCache } = require('../utils/lru-cache');
+const guildConfigDiskCache = require('./guild-config-cache');
 
 const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
 const LOCAL_DB_MODE =
@@ -29,16 +30,16 @@ class DatabaseManager {
         // LRU Caches for hot data
         this.guildConfigCache = LRUCache
             ? new LRUCache({
-                  max: GUILD_CONFIG_CACHE_MAX,
-                  ttl: GUILD_CONFIG_CACHE_TTL
-              })
+                max: GUILD_CONFIG_CACHE_MAX,
+                ttl: GUILD_CONFIG_CACHE_TTL
+            })
             : null;
 
         this.conversationCache = LRUCache
             ? new LRUCache({
-                  max: CONVERSATION_CACHE_MAX,
-                  ttl: CONVERSATION_CACHE_TTL
-              })
+                max: CONVERSATION_CACHE_MAX,
+                ttl: CONVERSATION_CACHE_TTL
+            })
             : null;
     }
 
@@ -717,6 +718,8 @@ class DatabaseManager {
         if (this.guildConfigCache) {
             this.guildConfigCache.delete(guildId);
         }
+        // Also invalidate disk cache
+        guildConfigDiskCache.invalidate(guildId);
     }
 
     async setGuildModeratorRoles(guildId, roleIds = [], ownerId = null) {
@@ -1299,10 +1302,10 @@ class DatabaseManager {
 
             return doc
                 ? {
-                      globalHash: doc.globalHash,
-                      lastRegisteredAt: doc.lastRegisteredAt,
-                      guildClears: doc.guildClears || {}
-                  }
+                    globalHash: doc.globalHash,
+                    lastRegisteredAt: doc.lastRegisteredAt,
+                    guildClears: doc.guildClears || {}
+                }
                 : null;
         } catch (error) {
             console.warn('Failed to get command sync state from MongoDB:', error.message);
