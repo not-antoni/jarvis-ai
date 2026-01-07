@@ -22,21 +22,32 @@ module.exports = {
                 nsfw: true,
                 ffmpeg: {
                     path: ffmpegPath,
-                    // Fix audio glitches with reconnect and buffering args
+                    // Fix audio glitches with reconnect, buffering, and real-time mode
                     args: {
-                        global: {},
+                        global: {
+                            // Real-time mode - helps with stream pacing
+                            re: null
+                        },
                         input: {
+                            // Reconnection settings
                             reconnect: '1',
                             reconnect_streamed: '1',
                             reconnect_delay_max: '5',
-                            analyzeduration: '0',
-                            probesize: '32'
+                            // Larger probe/analyze for better stream detection
+                            analyzeduration: '20000000',
+                            probesize: '10000000',
+                            // Buffer settings to prevent underruns
+                            thread_queue_size: '512',
+                            // Fast demuxing flags
+                            fflags: '+discardcorrupt+genpts'
                         },
                         output: {
                             // Volume normalization to prevent clipping/distortion
                             af: 'loudnorm=I=-16:TP=-1.5:LRA=11',
                             // Native Discord sample rate for optimal Opus encoding
-                            ar: '48000'
+                            ar: '48000',
+                            // Use 2 audio channels (stereo)
+                            ac: '2'
                         }
                     }
                 },
