@@ -651,8 +651,78 @@ server {
             }
         }
 
+        // VPS Performance Optimization
+        await this.optimizeVPSPerformance();
+
         console.log('');
         log.success('System setup complete!');
+    }
+
+    // Optimize VPS for audio streaming performance
+    async optimizeVPSPerformance() {
+        log.step('VPS Performance Optimization');
+        log.info('These optimizations improve audio streaming and reduce glitches.');
+
+        const optimize = await this.promptYesNo('Apply VPS performance optimizations?', true);
+        if (!optimize) {
+            log.info('Skipping VPS optimization.');
+            return;
+        }
+
+        const optimizations = [
+            {
+                name: 'Set swappiness to 10 (less aggressive swapping)',
+                cmd: 'echo 10 | sudo tee /proc/sys/vm/swappiness > /dev/null',
+                persist: 'echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.conf > /dev/null 2>&1 || true'
+            },
+            {
+                name: 'Drop memory caches',
+                cmd: 'sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null'
+            },
+            {
+                name: 'Disable transparent hugepages (reduces latency)',
+                cmd: 'echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled > /dev/null 2>&1 || true'
+            },
+            {
+                name: 'Increase max file descriptors',
+                cmd: 'sudo sysctl -w fs.file-max=100000 > /dev/null 2>&1 || true',
+                persist: 'echo "fs.file-max=100000" | sudo tee -a /etc/sysctl.conf > /dev/null 2>&1 || true'
+            },
+            {
+                name: 'Optimize network buffers for streaming',
+                cmd: 'sudo sysctl -w net.core.rmem_max=16777216 > /dev/null 2>&1 && sudo sysctl -w net.core.wmem_max=16777216 > /dev/null 2>&1 || true'
+            }
+        ];
+
+        for (const opt of optimizations) {
+            try {
+                execSync(opt.cmd, { encoding: 'utf8', timeout: 10000, stdio: 'pipe' });
+                if (opt.persist) {
+                    try {
+                        execSync(opt.persist, { encoding: 'utf8', timeout: 5000, stdio: 'pipe' });
+                    } catch { /* ignore persist failures */ }
+                }
+                log.success(opt.name);
+            } catch (error) {
+                log.warn(`${opt.name} - skipped (may require root)`);
+            }
+        }
+
+        // Check available memory
+        try {
+            const memInfo = execSync('free -m | grep Mem', { encoding: 'utf8', timeout: 5000 }).trim();
+            const parts = memInfo.split(/\s+/);
+            const totalMb = parseInt(parts[1], 10);
+            const availMb = parseInt(parts[6] || parts[3], 10);
+
+            log.info(`Memory: ${availMb}MB available / ${totalMb}MB total`);
+
+            if (totalMb < 1024) {
+                log.warn('Low memory VPS detected (<1GB). Consider upgrading for better audio performance.');
+            }
+        } catch { /* ignore */ }
+
+        log.success('VPS optimization complete!');
     }
 
     async headers() {
