@@ -45,6 +45,7 @@ module.exports = {
                     new YtDlpPlugin({
                         update: false,
                         ytdlpArgs: [
+                            '--no-warnings',
                             '--audio-quality', '0',
                             // Prefer opus/vorbis (less transcoding loss), fallback to best
                             '--format', 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]/bestaudio/best'
