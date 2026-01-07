@@ -671,9 +671,9 @@ server {
 
         const optimizations = [
             {
-                name: 'Set swappiness to 10 (less aggressive swapping)',
-                cmd: 'echo 10 | sudo tee /proc/sys/vm/swappiness > /dev/null',
-                persist: 'echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.conf > /dev/null 2>&1 || true'
+                name: 'Set swappiness to 5 (minimal swapping)',
+                cmd: 'echo 5 | sudo tee /proc/sys/vm/swappiness > /dev/null',
+                persist: 'echo "vm.swappiness=5" | sudo tee -a /etc/sysctl.conf > /dev/null 2>&1 || true'
             },
             {
                 name: 'Drop memory caches',
