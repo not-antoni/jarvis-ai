@@ -37,6 +37,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
     "@discordjs/voice": "^0.18.0",
+    "@distube/direct-link": "^1.0.1",
     "@distube/soundcloud": "^2.0.4",
     "@distube/spotify": "^2.0.2",
     "@distube/yt-dlp": "^2.0.1",
