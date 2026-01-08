@@ -13,15 +13,15 @@ const { execSync } = require('child_process');
  */
 function getAudioDuration(url) {
     try {
-        const ffprobePath = require('ffmpeg-static').replace('ffmpeg', 'ffprobe');
+        // Use system ffprobe (installed on VPS)
         const result = execSync(
-            `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
-            { timeout: 10000, encoding: 'utf8' }
+            `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
+            { timeout: 15000, encoding: 'utf8' }
         );
         const duration = parseFloat(result.trim());
         return isNaN(duration) ? 0 : Math.floor(duration);
     } catch (e) {
-        console.warn('[UploadQueue] ffprobe failed:', e.message);
+        console.warn('[UploadQueue] ffprobe failed:', e.message?.slice(0, 100));
         return 0;
     }
 }
