@@ -76,18 +76,23 @@ module.exports = {
 
                 const source = song.source === 'youtube' ? 'YouTube' :
                     song.source === 'spotify' ? 'Spotify' :
-                        song.source === 'soundcloud' ? 'SoundCloud' : song.source;
+                        song.source === 'soundcloud' ? 'SoundCloud' :
+                            song.source === 'direct_link' ? '📁 File' : song.source;
+
+                // For direct links, duration is unknown - show file icon instead
+                const isDirectLink = song.source === 'direct_link';
+                const displayDuration = isDirectLink || song.duration === 0 ? '🎵 Streaming' : song.formattedDuration;
+                const displayName = song.metadata?.filename || song.name;
 
                 const embed = new EmbedBuilder()
                     .setTitle('🎶 Now Playing')
-                    .setDescription(`[${song.name}](${song.url})`)
+                    .setDescription(isDirectLink ? `**${displayName}**` : `[${song.name}](${song.url})`)
                     .addFields(
-                        { name: 'Duration', value: song.formattedDuration, inline: true },
+                        { name: 'Duration', value: displayDuration, inline: true },
                         { name: 'Source', value: source, inline: true },
                         { name: 'Requested By', value: `${song.user}`, inline: true }
                     )
-                    .setThumbnail(song.thumbnail)
-                    .setColor('#FF0000');
+                    .setColor(isDirectLink ? '#3498db' : '#FF0000');
 
                 // If we have the interaction that triggered this, edit it to remove "Searching..."
                 const interaction = song.metadata?.originalInteraction;
@@ -97,24 +102,26 @@ module.exports = {
                         queue.textChannel?.send({ embeds: [embed] }).catch(console.error);
                     });
                     song.metadata.hasReplied = true;
-                } else {
-                    queue.textChannel?.send({ embeds: [embed] }).catch(console.error);
                 }
             })
             .on('addSong', (queue, song) => {
                 const source = song.source === 'youtube' ? 'YouTube' :
                     song.source === 'spotify' ? 'Spotify' :
-                        song.source === 'soundcloud' ? 'SoundCloud' : song.source;
+                        song.source === 'soundcloud' ? 'SoundCloud' :
+                            song.source === 'direct_link' ? '📁 File' : song.source;
+
+                const isDirectLink = song.source === 'direct_link';
+                const displayDuration = isDirectLink || song.duration === 0 ? '🎵 Streaming' : song.formattedDuration;
+                const displayName = song.metadata?.filename || song.name;
 
                 const embed = new EmbedBuilder()
                     .setTitle('✅ Added to Queue')
-                    .setDescription(`[${song.name}](${song.url})`)
+                    .setDescription(isDirectLink ? `**${displayName}**` : `[${song.name}](${song.url})`)
                     .addFields(
-                        { name: 'Duration', value: song.formattedDuration, inline: true },
+                        { name: 'Duration', value: displayDuration, inline: true },
                         { name: 'Source', value: source, inline: true }
                     )
-                    .setThumbnail(song.thumbnail)
-                    .setColor('#00FF00');
+                    .setColor(isDirectLink ? '#3498db' : '#00FF00');
 
                 const interaction = song.metadata?.originalInteraction;
                 if (interaction && !song.metadata.hasReplied) {
