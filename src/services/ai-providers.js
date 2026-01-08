@@ -364,7 +364,8 @@ class AIProviderManager {
                 type: 'ollama',
                 family: 'ollama',
                 costTier: 'free',
-                supportsImages: true
+                supportsImages: true,
+                moderationOnly: true // Ollama reserved for guild moderation only
             });
         });
 
@@ -570,10 +571,21 @@ class AIProviderManager {
         }, this.stateSaveDebounceMs);
     }
 
-    _filterProvidersByType(providers) {
-        if (this.selectedProviderType === 'auto') return providers;
+    _filterProvidersByType(providers, options = {}) {
+        // By default, exclude moderationOnly providers (like Ollama) from casual chat
+        // Set options.allowModerationOnly = true to include them (for guild moderation)
+        const allowModerationOnly = options.allowModerationOnly === true;
 
-        return providers.filter(provider => {
+        let filtered = providers;
+
+        // Filter out moderationOnly providers unless explicitly allowed
+        if (!allowModerationOnly) {
+            filtered = filtered.filter(p => !p.moderationOnly);
+        }
+
+        if (this.selectedProviderType === 'auto') return filtered;
+
+        return filtered.filter(provider => {
             const providerName = provider.name.toLowerCase();
             switch (this.selectedProviderType.toLowerCase()) {
                 case 'openai':
@@ -597,9 +609,9 @@ class AIProviderManager {
         });
     }
 
-    _rankedProviders() {
+    _rankedProviders(options = {}) {
         const now = Date.now();
-        const filteredProviders = this._filterProvidersByType(this.providers);
+        const filteredProviders = this._filterProvidersByType(this.providers, options);
 
         return filteredProviders
             .filter(p => {
@@ -633,9 +645,9 @@ class AIProviderManager {
             });
     }
 
-    _getRandomProvider() {
+    _getRandomProvider(options = {}) {
         const now = Date.now();
-        const filteredProviders = this._filterProvidersByType(this.providers);
+        const filteredProviders = this._filterProvidersByType(this.providers, options);
 
         const availableProviders = filteredProviders.filter(p => {
             const disabledUntil = this.disabledProviders.get(p.name);
