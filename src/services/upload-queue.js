@@ -120,6 +120,10 @@ class UploadQueue {
             const formattedDuration = formatDuration(durationSeconds);
             console.log(`[UploadQueue] Duration: ${formattedDuration} (${durationSeconds}s)`);
 
+            // Pre-buffer: the ffprobe call above already downloads some data
+            // Add small delay to let network stabilize before playback
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             await distubeInstance.play(item.voiceChannel, item.fileUrl, {
                 member: item.member,
                 textChannel: item.textChannel,
