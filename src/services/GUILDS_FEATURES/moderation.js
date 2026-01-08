@@ -22,6 +22,7 @@ const database = require('../database');
 const localdb = require('../../localdb');
 const { safeSend } = require('../../utils/discord-safe-send');
 const crypto = require('crypto');
+const moderationQueue = require('./moderation-queue');
 
 // ============ ENHANCED TRACKING SYSTEMS ============
 
@@ -1965,5 +1966,13 @@ module.exports = {
     loadConfig,
     saveConfig,
     parseAIResponse,
-    buildModerationContext
+    buildModerationContext,
+
+    // Queue & Dashboard APIs
+    getQueueStatus: () => moderationQueue.getQueueStatus(),
+    getPendingMessages: (guildId, limit) => moderationQueue.getPendingMessages(guildId, limit),
+    getAnalysisLogs: (limit) => moderationQueue.getAnalysisLogs(limit),
+    getUserRiskProfile: (userId) => moderationQueue.getUserRiskProfile(userId),
+    getGuildUserProfiles: (guildId, limit) => moderationQueue.getGuildUserProfiles(guildId, limit),
+    triggerBatchAnalysis: () => moderationQueue.triggerBatchAnalysis()
 };

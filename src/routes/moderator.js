@@ -242,6 +242,77 @@ router.post('/api/settings/:guildId', requireAuth, express.json(), async (req, r
     res.json(result);
 });
 
+// ============ QUEUE & ANALYTICS API ENDPOINTS ============
+
+// Get queue status (pending messages count, processing state)
+router.get('/api/queue/status', requireAuth, async (req, res) => {
+    const status = moderation.getQueueStatus();
+    res.json({ success: true, ...status });
+});
+
+// Get pending messages in queue for a guild
+router.get('/api/queue/:guildId/pending', requireAuth, async (req, res) => {
+    const { guildId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+
+    if (!userOwnsGuild(req.session.userId, guildId)) {
+        return res.status(403).json({ success: false, error: 'unauthorized' });
+    }
+
+    const pending = moderation.getPendingMessages(guildId, limit);
+    res.json({ success: true, messages: pending });
+});
+
+// Get analysis logs (recent AI decisions)
+router.get('/api/logs', requireAuth, async (req, res) => {
+    const limit = parseInt(req.query.limit) || 50;
+    const logs = moderation.getAnalysisLogs(limit);
+    res.json({ success: true, logs });
+});
+
+// Get user risk profile
+router.get('/api/user/:userId/risk', requireAuth, async (req, res) => {
+    const { userId } = req.params;
+    const profile = moderation.getUserRiskProfile(userId);
+
+    if (!profile) {
+        return res.json({ success: true, profile: null, message: 'No risk profile found' });
+    }
+
+    // Resolve username if possible
+    let username = null;
+    try {
+        const client = getDiscordClient();
+        const user = await client?.users?.fetch(userId).catch(() => null);
+        username = user?.username || null;
+    } catch { }
+
+    res.json({ success: true, profile: { userId, username, ...profile } });
+});
+
+// Get high-risk users for a guild
+router.get('/api/guild/:guildId/risk-profiles', requireAuth, async (req, res) => {
+    const { guildId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+
+    if (!userOwnsGuild(req.session.userId, guildId)) {
+        return res.status(403).json({ success: false, error: 'unauthorized' });
+    }
+
+    const profiles = moderation.getGuildUserProfiles(guildId, limit);
+    res.json({ success: true, profiles });
+});
+
+// Trigger manual batch analysis
+router.post('/api/queue/analyze', requireAuth, async (req, res) => {
+    try {
+        await moderation.triggerBatchAnalysis();
+        res.json({ success: true, message: 'Batch analysis triggered' });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // ============ GUILD MANAGEMENT PAGES ============
 router.get('/guild/:guildId', requireAuth, async (req, res) => {
     const { guildId } = req.params;
@@ -722,6 +793,158 @@ function getGuildPage(session, guild, status, errorCode = '') {
                 ` : ''}
             </div>
         </div>
+
+        ${isEnabled ? `
+        <!-- NEW: Queue & Analytics Section -->
+        <div class="row" style="margin-top: 20px;">
+            <div class="card">
+                <h2 class="section-title">📬 Message Queue</h2>
+                <div id="queue-status">
+                    <p class="muted">Loading queue status...</p>
+                </div>
+                <button onclick="triggerAnalysis()" class="btn btn-primary" style="width: 100%; margin-top: 15px;">
+                    ⚡ Analyze Queue Now
+                </button>
+                <p class="muted" style="margin-top: 10px; font-size: 11px;">
+                    Messages are batched for AI analysis every 60 seconds or 50 messages. High-risk messages (new accounts, links) are analyzed immediately.
+                </p>
+            </div>
+            
+            <div class="card">
+                <h2 class="section-title">🧠 AI Analysis Logs</h2>
+                <div id="analysis-logs" class="detection-list">
+                    <p class="muted">Loading analysis logs...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card" style="margin-top: 20px;">
+            <h2 class="section-title">⚠️ High-Risk Users</h2>
+            <div id="risk-profiles">
+                <p class="muted">Loading risk profiles...</p>
+            </div>
+        </div>
+        
+        <script>
+        const guildId = '${guild?.id || ''}';
+        
+        async function loadQueueStatus() {
+            try {
+                const res = await fetch('/moderator/api/queue/status');
+                const data = await res.json();
+                document.getElementById('queue-status').innerHTML = \`
+                    <div class="stats-grid" style="margin-bottom: 0;">
+                        <div class="stat-item">
+                            <div class="stat-value">\${data.pendingMessages || 0}</div>
+                            <div class="stat-label">Pending</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">\${data.isProcessing ? '🔄' : '✅'}</div>
+                            <div class="stat-label">\${data.isProcessing ? 'Processing' : 'Idle'}</div>
+                        </div>
+                    </div>
+                \`;
+            } catch (e) {
+                document.getElementById('queue-status').innerHTML = '<p class="muted">Failed to load</p>';
+            }
+        }
+        
+        async function loadAnalysisLogs() {
+            try {
+                const res = await fetch('/moderator/api/logs?limit=10');
+                const data = await res.json();
+                const logs = data.logs || [];
+                
+                if (logs.length === 0) {
+                    document.getElementById('analysis-logs').innerHTML = '<p class="muted">No analysis logs yet</p>';
+                    return;
+                }
+                
+                document.getElementById('analysis-logs').innerHTML = logs.map(log => \`
+                    <div class="detection-item \${log.flaggedCount > 0 ? 'high' : 'low'}">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span>\${log.messageCount} msgs analyzed</span>
+                            <span class="muted" style="font-size: 11px;">\${new Date(log.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div style="font-size: 12px;">
+                            <span class="category-tag">\${log.flaggedCount || 0} flagged</span>
+                            <span class="muted">\${log.result?.summary || log.result || ''}</span>
+                        </div>
+                    </div>
+                \`).join('');
+            } catch (e) {
+                document.getElementById('analysis-logs').innerHTML = '<p class="muted">Failed to load</p>';
+            }
+        }
+        
+        async function loadRiskProfiles() {
+            try {
+                const res = await fetch('/moderator/api/guild/' + guildId + '/risk-profiles?limit=10');
+                const data = await res.json();
+                const profiles = data.profiles || [];
+                
+                if (profiles.length === 0) {
+                    document.getElementById('risk-profiles').innerHTML = '<p class="muted">No user risk data yet</p>';
+                    return;
+                }
+                
+                document.getElementById('risk-profiles').innerHTML = \`
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <th style="padding: 8px;">User ID</th>
+                                <th>Avg Risk</th>
+                                <th>Messages</th>
+                                <th>Flagged</th>
+                                <th>Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            \${profiles.map(p => \`
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                    <td style="padding: 8px; font-family: monospace; font-size: 12px;">\${p.userId}</td>
+                                    <td><span class="category-tag" style="background: rgba(\${p.averageRisk > 50 ? '233,69,96' : p.averageRisk > 25 ? '241,196,15' : '46,204,113'}, 0.2);">\${p.averageRisk}%</span></td>
+                                    <td>\${p.totalMessages}</td>
+                                    <td>\${p.flaggedCount}</td>
+                                    <td class="muted" style="font-size: 11px;">\${p.lastSeen ? new Date(p.lastSeen).toLocaleString() : '-'}</td>
+                                </tr>
+                            \`).join('')}
+                        </tbody>
+                    </table>
+                \`;
+            } catch (e) {
+                document.getElementById('risk-profiles').innerHTML = '<p class="muted">Failed to load</p>';
+            }
+        }
+        
+        async function triggerAnalysis() {
+            try {
+                const btn = event.target;
+                btn.disabled = true;
+                btn.textContent = '⏳ Processing...';
+                
+                await fetch('/moderator/api/queue/analyze', { method: 'POST' });
+                
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '⚡ Analyze Queue Now';
+                    loadQueueStatus();
+                    loadAnalysisLogs();
+                }, 2000);
+            } catch (e) {
+                alert('Failed to trigger analysis');
+            }
+        }
+        
+        // Load data on page load
+        loadQueueStatus();
+        loadAnalysisLogs();
+        loadRiskProfiles();
+        
+        // Refresh every 30 seconds
+        setInterval(loadQueueStatus, 30000);
+        </script>
+        ` : ''}
 
         <div style="text-align: center; color: #666; font-size: 12px; margin-top: 40px;">
             Jarvis Security System • Threat Detection Unit
