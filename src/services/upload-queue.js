@@ -4,6 +4,41 @@
  * When many users upload simultaneously, they get queued and processed sequentially
  */
 const distube = require('./distube');
+const { execSync } = require('child_process');
+
+/**
+ * Get audio duration using ffprobe
+ * @param {string} url - URL to probe
+ * @returns {number} Duration in seconds, or 0 if failed
+ */
+function getAudioDuration(url) {
+    try {
+        const ffprobePath = require('ffmpeg-static').replace('ffmpeg', 'ffprobe');
+        const result = execSync(
+            `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
+            { timeout: 10000, encoding: 'utf8' }
+        );
+        const duration = parseFloat(result.trim());
+        return isNaN(duration) ? 0 : Math.floor(duration);
+    } catch (e) {
+        console.warn('[UploadQueue] ffprobe failed:', e.message);
+        return 0;
+    }
+}
+
+/**
+ * Format seconds to MM:SS or HH:MM:SS
+ */
+function formatDuration(seconds) {
+    if (!seconds || seconds <= 0) return '0:00';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hrs > 0) {
+        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 class UploadQueue {
     constructor() {
@@ -79,13 +114,21 @@ class UploadQueue {
         try {
             const distubeInstance = distube.get();
 
+            // Probe file for duration
+            console.log(`[UploadQueue] Probing duration for: ${item.filename}`);
+            const durationSeconds = getAudioDuration(item.fileUrl);
+            const formattedDuration = formatDuration(durationSeconds);
+            console.log(`[UploadQueue] Duration: ${formattedDuration} (${durationSeconds}s)`);
+
             await distubeInstance.play(item.voiceChannel, item.fileUrl, {
                 member: item.member,
                 textChannel: item.textChannel,
                 metadata: {
                     originalInteraction: item.interaction,
                     isUpload: true,
-                    filename: item.filename
+                    filename: item.filename,
+                    duration: durationSeconds,
+                    formattedDuration: formattedDuration
                 }
             });
 
