@@ -1,5 +1,6 @@
 const { DisTube } = require('distube');
 const { YtDlpPlugin } = require('@distube/yt-dlp');
+const { DirectLinkPlugin } = require('@distube/direct-link');
 const { EmbedBuilder } = require('discord.js');
 const soundcloudCache = require('./soundcloud-cache');
 
@@ -15,7 +16,7 @@ module.exports = {
             const ffmpegPath = require('ffmpeg-static');
             console.log('[Distube] ffmpeg path:', ffmpegPath);
 
-            console.log('[Distube] Creating new DisTube instance (yt-dlp engine)...');
+            console.log('[Distube] Creating new DisTube instance (yt-dlp + direct-link)...');
             distube = new DisTube(client, {
                 emitNewSongOnly: true,
                 savePreviousSongs: false,
@@ -42,6 +43,8 @@ module.exports = {
                     }
                 },
                 plugins: [
+                    // DirectLinkPlugin FIRST - handles Discord CDN and other direct URLs
+                    new DirectLinkPlugin(),
                     new YtDlpPlugin({
                         update: false,
                         ytdlpArgs: [
