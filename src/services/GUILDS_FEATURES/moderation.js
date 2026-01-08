@@ -23,6 +23,7 @@ const localdb = require('../../localdb');
 const { safeSend } = require('../../utils/discord-safe-send');
 const crypto = require('crypto');
 const moderationQueue = require('./moderation-queue');
+const threatDB = require('./threat-database');
 
 // ============ ENHANCED TRACKING SYSTEMS ============
 
@@ -770,6 +771,22 @@ function getDefaultSettings() {
         antiRaidJoinThreshold: 10, // Members joining
         antiRaidJoinWindow: 60000, // Within this time (ms)
         antiRaidAction: 'lockdown', // 'lockdown', 'kick', 'ban'
+
+        // ============ CHANNEL EXCLUSIONS ============
+        excludedChannels: [], // Channel IDs to ignore completely
+
+        // ============ AUTO-ESCALATION ============
+        autoEscalation: false, // Progressive punishment for repeat offenders
+        escalationThreshold: 3, // Offenses before escalating
+        escalationWindow: 24, // Hours to track offenses
+        // Escalation path: warn -> mute -> kick -> ban
+
+        // ============ COOLDOWNS (configurable) ============
+        alertCooldownSeconds: 5, // Seconds between alerts per user
+
+        // ============ DAILY SUMMARY ============
+        dailySummary: false, // Send daily report to log channel
+        dailySummaryTime: '09:00', // Time in HH:MM (UTC)
 
         // Punishment DM templates
         punishmentDMTemplate: '', // Custom DM message when punished
@@ -1732,11 +1749,24 @@ async function handleMessage(message, client) {
 
     const settings = getSettings(guildId);
     const userId = message.author.id;
+    const channelId = message.channel.id;
     const member = message.member || (await message.guild.members.fetch(userId).catch(() => null));
+
+    // Check channel exclusions
+    if (settings.excludedChannels?.includes(channelId)) {
+        return { handled: false, reason: 'Excluded channel' };
+    }
 
     // Check whitelist
     if (member && isWhitelisted(guildId, member)) {
         return { handled: false, reason: 'Whitelisted' };
+    }
+
+    // Check if known cross-guild threat (immediate flag)
+    const knownThreat = threatDB.isKnownThreat(userId);
+    if (knownThreat) {
+        console.log(`[Moderation] Known threat detected: ${userId} (${knownThreat.severity})`);
+        // Could auto-ban known critical threats
     }
 
     // Check if tracking
@@ -1974,5 +2004,14 @@ module.exports = {
     getAnalysisLogs: (limit) => moderationQueue.getAnalysisLogs(limit),
     getUserRiskProfile: (userId) => moderationQueue.getUserRiskProfile(userId),
     getGuildUserProfiles: (guildId, limit) => moderationQueue.getGuildUserProfiles(guildId, limit),
-    triggerBatchAnalysis: () => moderationQueue.triggerBatchAnalysis()
+    triggerBatchAnalysis: () => moderationQueue.triggerBatchAnalysis(),
+
+    // Threat Database APIs
+    reportThreat: (userId, guildId, reason, severity) => threatDB.reportThreat(userId, guildId, reason, severity),
+    isKnownThreat: (userId) => threatDB.isKnownThreat(userId),
+    getAllThreats: (limit) => threatDB.getAllThreats(limit),
+    removeThreat: (userId) => threatDB.removeThreat(userId),
+    getThreatStats: () => threatDB.getThreatStats(),
+    getEscalatedAction: (userId, guildId, baseAction, settings) => threatDB.getEscalatedAction(userId, guildId, baseAction, settings),
+    recordOffense: (userId, guildId, offense, action, severity) => threatDB.recordOffense(userId, guildId, offense, action, severity)
 };
