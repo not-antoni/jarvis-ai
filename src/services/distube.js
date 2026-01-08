@@ -34,14 +34,16 @@ module.exports = {
                             // Larger buffer to prevent underruns and glitches
                             thread_queue_size: '8192',
                             // Allow more time for initial buffering
-                            probesize: '5000000',
-                            analyzeduration: '5000000'
+                            probesize: '10000000',
+                            analyzeduration: '10000000'
                         },
                         output: {
                             // Native Discord sample rate
                             ar: '48000',
                             // Stereo
-                            ac: '2'
+                            ac: '2',
+                            // Fade in over 50ms to eliminate pop at start
+                            af: 'afade=t=in:st=0:d=0.05'
                         }
                     }
                 },
