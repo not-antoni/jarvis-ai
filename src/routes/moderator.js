@@ -313,6 +313,53 @@ router.post('/api/queue/analyze', requireAuth, async (req, res) => {
     }
 });
 
+// ============ THREAT DATABASE API ENDPOINTS ============
+
+// Get all global threats (cross-guild scammer database)
+router.get('/api/threats', requireAuth, async (req, res) => {
+    const limit = parseInt(req.query.limit) || 50;
+    const threats = moderation.getAllThreats(limit);
+    const stats = moderation.getThreatStats();
+    res.json({ success: true, threats, stats });
+});
+
+// Report a threat
+router.post('/api/threats/report', requireAuth, express.json(), async (req, res) => {
+    const { userId, reason, severity } = req.body;
+    if (!userId) {
+        return res.status(400).json({ success: false, error: 'userId required' });
+    }
+
+    // Use first owned guild as the reporting guild
+    const client = getDiscordClient();
+    let guildId = null;
+    if (client?.guilds?.cache) {
+        for (const guild of client.guilds.cache.values()) {
+            if (guild.ownerId === req.session.userId) {
+                guildId = guild.id;
+                break;
+            }
+        }
+    }
+
+    const result = moderation.reportThreat(userId, guildId, reason || 'Manually reported', severity || 'medium');
+    res.json({ success: true, threat: result });
+});
+
+// Remove a threat (false positive)
+router.delete('/api/threats/:userId', requireAuth, async (req, res) => {
+    const { userId } = req.params;
+    const removed = moderation.removeThreat(userId);
+    res.json({ success: removed, message: removed ? 'Threat removed' : 'Threat not found' });
+});
+
+// Check if user is a known threat
+router.get('/api/threats/check/:userId', requireAuth, async (req, res) => {
+    const { userId } = req.params;
+    const threat = moderation.isKnownThreat(userId);
+    res.json({ success: true, isKnown: !!threat, threat });
+});
+
 // ============ GUILD MANAGEMENT PAGES ============
 router.get('/guild/:guildId', requireAuth, async (req, res) => {
     const { guildId } = req.params;
@@ -393,7 +440,18 @@ router.post(
             antiInvites: req.body?.antiInvites === 'on',
             antiRaid: req.body?.antiRaid === 'on',
             antiLinksWhitelist: (req.body?.antiLinksWhitelist || '').split(',').map(s => s.trim()).filter(Boolean),
-            punishmentDMTemplate: req.body?.punishmentDMTemplate || ''
+            punishmentDMTemplate: req.body?.punishmentDMTemplate || '',
+            // Channel exclusions
+            excludedChannels: parseDiscordIdList(req.body?.excludedChannels),
+            // Auto-escalation
+            autoEscalation: req.body?.autoEscalation === 'on',
+            escalationThreshold: parseInt(req.body?.escalationThreshold) || 3,
+            escalationWindow: parseInt(req.body?.escalationWindow) || 24,
+            // Cooldown
+            alertCooldownSeconds: parseInt(req.body?.alertCooldownSeconds) || 5,
+            // Daily summary
+            dailySummary: req.body?.dailySummary === 'on',
+            dailySummaryTime: req.body?.dailySummaryTime || '09:00'
         };
 
         moderation.updateSettings(String(guildId), patch);
@@ -774,6 +832,43 @@ function getGuildPage(session, guild, status, errorCode = '') {
                     <textarea name="punishmentDMTemplate" rows="2" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 14px; margin-bottom: 10px; resize: vertical;" placeholder="You have been {action} in {guild} for: {reason}">${settings.punishmentDMTemplate || ''}</textarea>
                     <p class="muted" style="margin-bottom: 15px;">Variables: <code>{user}</code> <code>{action}</code> <code>{reason}</code> <code>{guild}</code> <code>{module}</code></p>
 
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">🚫 Channel Exclusions</h3>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Excluded Channels (IDs, comma separated)</label>
+                    <input type="text" name="excludedChannels" placeholder="Channel IDs to ignore (e.g., bot-commands, spam-allowed)" value="${(settings.excludedChannels || []).join(', ')}">
+                    <p class="muted" style="margin-bottom: 15px;">💡 Moderation will be completely disabled in these channels.</p>
+
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">📈 Auto-Escalation</h3>
+                    
+                    <div class="toggle-section">
+                        <label class="toggle-switch"><input type="checkbox" name="autoEscalation" ${settings.autoEscalation ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Progressive Punishment (warn → mute → kick → ban)</span>
+                    </div>
+                    
+                    <div style="display: flex; gap: 15px;">
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 5px; color: #aaa;">Offenses Before Escalation</label>
+                            <input type="number" name="escalationThreshold" min="1" max="10" value="${settings.escalationThreshold || 3}" style="width: 100%;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 5px; color: #aaa;">Track Window (hours)</label>
+                            <input type="number" name="escalationWindow" min="1" max="168" value="${settings.escalationWindow || 24}" style="width: 100%;">
+                        </div>
+                    </div>
+
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">⏱️ Cooldowns & Scheduling</h3>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Alert Cooldown (seconds per user)</label>
+                    <input type="number" name="alertCooldownSeconds" min="1" max="300" value="${settings.alertCooldownSeconds || 5}">
+                    
+                    <div class="toggle-section" style="margin-top: 15px;">
+                        <label class="toggle-switch"><input type="checkbox" name="dailySummary" ${settings.dailySummary ? 'checked' : ''}><span class="toggle-slider"></span></label>
+                        <span>Daily Summary Report</span>
+                    </div>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Summary Time (UTC)</label>
+                    <input type="time" name="dailySummaryTime" value="${settings.dailySummaryTime || '09:00'}">
+
                     <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">💾 Save Settings</button>
                 </form>
                 ` : ''}
@@ -836,6 +931,32 @@ function getGuildPage(session, guild, status, errorCode = '') {
             <div id="risk-profiles">
                 <p class="muted">Loading risk profiles...</p>
             </div>
+        </div>
+        
+        <div class="card" style="margin-top: 20px;">
+            <h2 class="section-title">🌐 Global Threat Database</h2>
+            <p class="muted" style="margin-bottom: 15px;">Cross-guild scammer/threat sharing. Threats reported here are shared across all servers using Jarvis.</p>
+            
+            <div id="threat-stats" class="stats-grid" style="margin-bottom: 20px;">
+                <p class="muted">Loading...</p>
+            </div>
+            
+            <div id="threat-list" class="detection-list" style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
+                <p class="muted">Loading threats...</p>
+            </div>
+            
+            <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">Report New Threat</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <input type="text" id="threat-user-id" placeholder="User ID" style="flex: 2;">
+                <select id="threat-severity" style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white;">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                </select>
+            </div>
+            <input type="text" id="threat-reason" placeholder="Reason (e.g., Crypto scam, Phishing links)" style="margin-bottom: 10px;">
+            <button onclick="reportThreat()" class="btn btn-primary" style="width: 100%;">🚨 Report Threat</button>
         </div>
         
         <script>
@@ -953,9 +1074,91 @@ function getGuildPage(session, guild, status, errorCode = '') {
         loadQueueStatus();
         loadAnalysisLogs();
         loadRiskProfiles();
+        loadThreats();
         
         // Refresh every 30 seconds
         setInterval(loadQueueStatus, 30000);
+        
+        async function loadThreats() {
+            try {
+                const res = await fetch('/moderator/api/threats?limit=20');
+                const data = await res.json();
+                
+                // Stats
+                const stats = data.stats || {};
+                document.getElementById('threat-stats').innerHTML = \`
+                    <div class="stat-item">
+                        <div class="stat-value">\${stats.totalThreats || 0}</div>
+                        <div class="stat-label">Total Threats</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">\${stats.bySeverity?.critical || 0}</div>
+                        <div class="stat-label">Critical</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">\${stats.multiGuildThreats || 0}</div>
+                        <div class="stat-label">Multi-Guild</div>
+                    </div>
+                \`;
+                
+                // List
+                const threats = data.threats || [];
+                if (threats.length === 0) {
+                    document.getElementById('threat-list').innerHTML = '<p class="muted">No threats reported yet</p>';
+                    return;
+                }
+                
+                document.getElementById('threat-list').innerHTML = threats.map(t => \`
+                    <div class="detection-item \${t.severity}" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span class="category-tag">\${t.severity}</span>
+                            <span style="font-family: monospace; font-size: 12px;">\${t.userId}</span>
+                            <span class="muted" style="margin-left: 10px;">\${t.reason || 'No reason'}</span>
+                            <span class="muted" style="margin-left: 10px;">(x\${t.reportCount} from \${t.guilds?.length || 1} guilds)</span>
+                        </div>
+                        <button onclick="removeThreat('\${t.userId}')" style="background: rgba(231,76,60,0.2); border: none; color: #e74c3c; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;">Remove</button>
+                    </div>
+                \`).join('');
+            } catch (e) {
+                document.getElementById('threat-list').innerHTML = '<p class="muted">Failed to load threats</p>';
+            }
+        }
+        
+        async function reportThreat() {
+            const userId = document.getElementById('threat-user-id').value.trim();
+            const severity = document.getElementById('threat-severity').value;
+            const reason = document.getElementById('threat-reason').value.trim();
+            
+            if (!userId) {
+                alert('Please enter a User ID');
+                return;
+            }
+            
+            try {
+                await fetch('/moderator/api/threats/report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, severity, reason })
+                });
+                
+                document.getElementById('threat-user-id').value = '';
+                document.getElementById('threat-reason').value = '';
+                loadThreats();
+            } catch (e) {
+                alert('Failed to report threat');
+            }
+        }
+        
+        async function removeThreat(userId) {
+            if (!confirm('Remove this threat? (False positive)')) return;
+            
+            try {
+                await fetch('/moderator/api/threats/' + userId, { method: 'DELETE' });
+                loadThreats();
+            } catch (e) {
+                alert('Failed to remove threat');
+            }
+        }
         </script>
         ` : ''}
 
