@@ -23,7 +23,7 @@ module.exports = {
                 nsfw: true,
                 ffmpeg: {
                     path: ffmpegPath,
-                    // Minimal processing to reduce CPU load and prevent glitches
+                    // Enhanced buffering to prevent glitches at start
                     args: {
                         global: {},
                         input: {
@@ -31,8 +31,11 @@ module.exports = {
                             reconnect: '1',
                             reconnect_streamed: '1',
                             reconnect_delay_max: '5',
-                            // Buffering to prevent underruns
-                            thread_queue_size: '4096'
+                            // Larger buffer to prevent underruns and glitches
+                            thread_queue_size: '8192',
+                            // Allow more time for initial buffering
+                            probesize: '5000000',
+                            analyzeduration: '5000000'
                         },
                         output: {
                             // Native Discord sample rate
