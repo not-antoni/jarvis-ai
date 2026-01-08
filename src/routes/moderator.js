@@ -377,6 +377,9 @@ router.post(
             autoBan: req.body?.autoBan === 'on',
             pingRoles: parseDiscordIdList(req.body?.pingRoles),
             pingUsers: parseDiscordIdList(req.body?.pingUsers),
+            // Whitelist settings
+            whitelistUsers: parseDiscordIdList(req.body?.whitelistUsers),
+            whitelistRoles: parseDiscordIdList(req.body?.whitelistRoles),
             alertChannel: req.body?.alertChannel || null,
             logChannel: req.body?.logChannel || null,
             useEmbeds: req.body?.useEmbeds === 'on',
@@ -704,6 +707,16 @@ function getGuildPage(session, guild, status, errorCode = '') {
                     
                     <label style="display: block; margin-bottom: 5px; color: #aaa;">Ping Users (IDs, comma separated)</label>
                     <input type="text" name="pingUsers" placeholder="User IDs" value="${(settings.pingUsers || []).join(', ')}">
+
+                    <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">✅ Whitelist (Exempt from Moderation)</h3>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Whitelisted Users/Bots (IDs, comma separated)</label>
+                    <input type="text" name="whitelistUsers" placeholder="User or Bot IDs (e.g., Minecraft bot, trusted members)" value="${(settings.whitelistUsers || []).join(', ')}">
+                    <p class="muted" style="margin-bottom: 15px;">💡 Add bot IDs (like Minecraft bots) or trusted user IDs. These accounts will be completely ignored by moderation.</p>
+                    
+                    <label style="display: block; margin-bottom: 5px; color: #aaa;">Whitelisted Roles (IDs, comma separated)</label>
+                    <input type="text" name="whitelistRoles" placeholder="Role IDs (e.g., Admin, Moderator, VIP)" value="${(settings.whitelistRoles || []).join(', ')}">
+                    <p class="muted" style="margin-bottom: 15px;">💡 Members with these roles will be exempt from all moderation checks.</p>
 
                     <h3 style="font-size: 14px; color: #aaa; margin: 20px 0 10px;">✨ Alert Style</h3>
                     
