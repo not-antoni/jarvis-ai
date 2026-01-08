@@ -79,9 +79,11 @@ module.exports = {
                         song.source === 'soundcloud' ? 'SoundCloud' :
                             song.source === 'direct_link' ? '📁 File' : song.source;
 
-                // For direct links, duration is unknown - show file icon instead
+                // For direct links, use probed duration from metadata
                 const isDirectLink = song.source === 'direct_link';
-                const displayDuration = isDirectLink || song.duration === 0 ? '🎵 Streaming' : song.formattedDuration;
+                const displayDuration = isDirectLink
+                    ? (song.metadata?.formattedDuration || song.formattedDuration || '0:00')
+                    : song.formattedDuration;
                 const displayName = song.metadata?.filename || song.name;
 
                 const embed = new EmbedBuilder()
@@ -111,7 +113,9 @@ module.exports = {
                             song.source === 'direct_link' ? '📁 File' : song.source;
 
                 const isDirectLink = song.source === 'direct_link';
-                const displayDuration = isDirectLink || song.duration === 0 ? '🎵 Streaming' : song.formattedDuration;
+                const displayDuration = isDirectLink
+                    ? (song.metadata?.formattedDuration || song.formattedDuration || '0:00')
+                    : song.formattedDuration;
                 const displayName = song.metadata?.filename || song.name;
 
                 const embed = new EmbedBuilder()
