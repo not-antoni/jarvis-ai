@@ -73,3 +73,6 @@ jorvis.org.pem
 *.pem
 vendor/llm-chat-app-template/
 meme-api/
+giveaways.json
+package-lock.json
+package-lock.json
