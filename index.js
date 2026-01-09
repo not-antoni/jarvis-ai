@@ -5,6 +5,9 @@
 
 /* eslint-disable no-console */
 
+// Patch @distube/yt-dlp to ignore stderr warnings (prevents JSON parse errors)
+require('./scripts/patch-ytdlp');
+
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
