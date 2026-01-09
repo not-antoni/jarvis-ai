@@ -308,16 +308,14 @@ pm2 restart jarvis
 3. **Restart the queue**: `/stop` then `/play` again
 
 ### 7. Music Playback - JSON Parse Error
-**Symptom:** `SyntaxError: Unexpected token` when playing YouTube
+**Symptom:** `SyntaxError: Unexpected token` when playing YouTube (often caused by Python DeprecationWarnings).
 
-**Cause:** yt-dlp output contains non-JSON text (warnings, errors)
+**Cause:** `@distube/yt-dlp` library incorrectly mixes `stderr` (warnings) with `stdout` (JSON data).
 
-**Fix:** Update yt-dlp to latest:
-```bash
-cd ~/jarvis-ai
-npm update @distube/yt-dlp
-pm2 restart jarvis
-```
+**Fix:** This project now includes an **auto-patcher** that runs on startup.
+- **Automatic:** The bot runs `scripts/patch-ytdlp.js` on every start to fix this.
+- **Manual:** Run `node scripts/patch-ytdlp.js` if you still see issues.
+
 
 ### 8. Database Connection Failed
 **Symptom:** `MongoNetworkError` or `ECONNREFUSED`
