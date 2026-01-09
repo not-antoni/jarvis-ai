@@ -243,6 +243,7 @@ If you see Error 521:
 If the leaderboard GIF shows squares instead of text (especially on Amazon Linux):
 ```bash
 sudo dnf install -y google-noto-sans-fonts dejavu-sans-fonts google-noto-emoji-fonts
+fc-cache -fv
 pm2 restart jarvis
 ```
 
@@ -250,13 +251,110 @@ pm2 restart jarvis
 Jarvis forces Nginx reconfiguration on every startup in Selfhost mode to ensure consistency. If you need to debug, check logs:
 `pm2 logs jarvis | grep Nginx`
 
-### 4. Music Playback "Python version" Error
-If `/play` shows `ImportError: unsupported version of Python`:
+### 4. Music Playback - Python Version Error
+**Symptom:** `/play` shows `ImportError: unsupported version of Python` or traceback mentioning `runpy.py`
+
+**Cause:** yt-dlp requires Python 3.10+, but Python 3.9 (or older) is the system default.
+
+**Fix (Amazon Linux 2023):**
 ```bash
+# Install Python 3.11
 sudo dnf install -y python3.11
+
+# Set as default
 sudo alternatives --set python3 /usr/bin/python3.11
+
+# Verify
+python3 --version  # Should show 3.11.x
+
+# Restart bot
 pm2 restart jarvis
 ```
+
+**Fix (Ubuntu/Debian):**
+```bash
+sudo apt install -y python3.11
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+sudo update-alternatives --set python3 /usr/bin/python3.11
+python3 --version
+pm2 restart jarvis
+```
+
+### 5. Music Playback - yt-dlp Not Found
+**Symptom:** `Error: spawn yt-dlp ENOENT` or similar
+
+**Fix:** yt-dlp should be installed via npm (`@distube/yt-dlp`). Check it exists:
+```bash
+ls node_modules/@distube/yt-dlp/bin/yt-dlp
+node_modules/@distube/yt-dlp/bin/yt-dlp --version
+```
+
+If missing, reinstall dependencies:
+```bash
+rm -rf node_modules package-lock.json
+npm install
+pm2 restart jarvis
+```
+
+### 6. Music Playback - Audio Glitches/Stuttering
+**Symptom:** Music plays but has crackling, pops, or stutters
+
+**Fixes:**
+1. **Increase buffer size** in `.env`:
+   ```env
+   YTDLP_BUFFER_SIZE=16384
+   ```
+2. **Check network latency** to Discord voice servers
+3. **Restart the queue**: `/stop` then `/play` again
+
+### 7. Music Playback - JSON Parse Error
+**Symptom:** `SyntaxError: Unexpected token` when playing YouTube
+
+**Cause:** yt-dlp output contains non-JSON text (warnings, errors)
+
+**Fix:** Update yt-dlp to latest:
+```bash
+cd ~/jarvis-ai
+npm update @distube/yt-dlp
+pm2 restart jarvis
+```
+
+### 8. Database Connection Failed
+**Symptom:** `MongoNetworkError` or `ECONNREFUSED`
+
+**Fixes:**
+```bash
+# Check MongoDB is running
+sudo systemctl status mongod
+
+# Start if stopped
+sudo systemctl start mongod
+
+# Enable auto-start
+sudo systemctl enable mongod
+```
+
+### 9. Bot Not Responding to Commands
+**Checklist:**
+1. Check bot is online: `pm2 status jarvis`
+2. Check logs for errors: `pm2 logs jarvis --lines 50`
+3. Verify `DISCORD_TOKEN` is correct in `.env`
+4. Ensure bot has proper permissions in server
+5. Slash commands may need re-registration: restart bot
+
+### 10. Direct IP Access to Website
+**Symptom:** Someone can access your site via VPS IP instead of domain
+
+**Fix:** Jarvis blocks this by default. Verify with:
+```bash
+curl -sk https://YOUR_VPS_IP
+# Should get no response (connection dropped)
+```
+
+If still accessible, check:
+1. `CLOUDFLARE_ONLY=true` in `.env` (default)
+2. iptables rules are set (see Cloudflare-Only Access section)
+
 
 #### Step 3: Run with PM2
 
