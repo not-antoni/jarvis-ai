@@ -84,6 +84,13 @@ cp .env.example .env
 npm start
 ```
 
+> [!NOTE]
+> **Python Requirement**: yt-dlp requires **Python 3.10+** for music playback. Amazon Linux users should run:
+> ```bash
+> sudo dnf install -y python3.11
+> sudo alternatives --set python3 /usr/bin/python3.11
+> ```
+
 ### Required Environment Variables
 
 ```env
@@ -242,6 +249,14 @@ pm2 restart jarvis
 ### 3. Nginx "Already configured" loop
 Jarvis forces Nginx reconfiguration on every startup in Selfhost mode to ensure consistency. If you need to debug, check logs:
 `pm2 logs jarvis | grep Nginx`
+
+### 4. Music Playback "Python version" Error
+If `/play` shows `ImportError: unsupported version of Python`:
+```bash
+sudo dnf install -y python3.11
+sudo alternatives --set python3 /usr/bin/python3.11
+pm2 restart jarvis
+```
 
 #### Step 3: Run with PM2
 
@@ -611,7 +626,7 @@ Jarvis includes a full website at your configured domain (or IP:PORT):
 
 | Page | URL | Description |
 |------|-----|-------------|
-| **Home** | `/` | Landing page with Discord invite |
+| **Home** | `/` | Landing page with "All-in-One" comparison table, trust signals, and CTAs |
 | **Status** | `/status` | Live bot status, uptime, health |
 | **Commands** | `/commands` | Searchable command list |
 | **Leaderboard** | `/leaderboard` | Public economy rankings |
@@ -653,6 +668,14 @@ curl -X DELETE https://YOUR_DOMAIN/api/sbx/news \
 
 Other pages: `/changelog` (Version history), `/tos` (Terms), `/policy` (Privacy)
 
+### SEO Files
+
+| File | URL | Description |
+|------|-----|-------------|
+| **robots.txt** | `/robots.txt` | Crawler rules - blocks admin areas |
+| **sitemap.xml** | `/sitemap.xml` | XML sitemap for all public pages |
+| **Stats API** | `/api/stats` | Public endpoint for server count |
+
 ### Discord OAuth (optional)
 
 Enable user login on the website:
@@ -678,7 +701,29 @@ CLOUDFLARE_ZONE_ID=your_zone_id
 PUBLIC_DOMAIN=yourdomain.com
 ```
 
-**Note:** If you lose Cloudflare/domain access, the site remains accessible at your VPS IP:PORT (e.g., `http://123.45.67.89:3000`).
+### Cloudflare-Only Access (Security)
+
+By default, Jarvis blocks direct IP/DNS access and requires traffic through Cloudflare:
+
+```env
+# Enabled by default (set to false to disable)
+CLOUDFLARE_ONLY=true
+```
+
+**What's blocked:**
+- Direct IP access (e.g., `https://123.45.67.89`)
+- AWS DNS hostname (e.g., `https://ec2-x-x-x-x.compute-1.amazonaws.com`)
+- Any non-Cloudflare traffic to non-allowed hosts
+
+**Firewall rules** (iptables) should also be configured to only allow [Cloudflare IP ranges](https://www.cloudflare.com/ips/) on ports 80/443:
+
+```bash
+# Run on VPS to block non-Cloudflare traffic at network level
+sudo dnf install -y iptables-services
+# See /tmp/cf-firewall.sh for full script
+```
+
+**Note:** If you lose Cloudflare/domain access, set `CLOUDFLARE_ONLY=false` to allow direct IP access.
 
 ---
 
