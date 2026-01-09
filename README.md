@@ -52,15 +52,22 @@ Full economy with MongoDB persistence:
 - `/trivia` `/scramble` - Word games
 
 ### Moderation
-Smart filters that catch Unicode bypass attempts (Cyrillic, Armenian, etc.), automod, logging, and reaction roles.
+Advanced AI-powered moderation system with:
+- **Batch Analysis**: Efficiently processes messages in batches to reduce API calls
+- **Auto-Escalation**: Progressive punishments (warn -> mute -> kick -> ban) for repeat offenders
+- **Cross-Guild Threats**: Shares known scammer/spammer IDs across all user guilds (stealthily)
+- **Configurable**: Channel exclusions, user/bot whitelists, cooldowns, and more
+- **Web Dashboard**: Full control panel at `/moderator` to view logs, manage queues, and configure settings
 
 ### Music
 YouTube playback via yt-dlp with auto-updates.
+- **File Uploads**: Drag & drop MP3/FLAC/OGG files directly into chat to play them
+- **Smart Queue**: Mix YouTube links and uploaded files seamlessly
+- **Glitch-Free**: Enhanced buffering and fade-in for smooth playback
 
 ---
 
 ## Quick Start
-
 ```bash
 # Clone
 git clone https://github.com/not-antoni/jarvis-ai.git
@@ -102,6 +109,7 @@ OPENROUTER_API_KEY=...
 GROQ_API_KEY=...
 GOOGLE_AI_API_KEY=...
 OPENAI_API_KEY=...
+GOOGLE_SAFE_BROWSING_API_KEY=... # Real-time malicious link detection
 
 # Cloudflare Workers AI (optional)
 CLOUDFLARE_WORKER_URL=...  # Your deployed worker URL
@@ -180,23 +188,36 @@ YTDLP_MAX_DURATION=900
 YTDLP_MAX_FILESIZE_MB=50
 ```
 
-#### Step 2: Install Dependencies
+#### Step 2: Install System Dependencies
+
+**IMPORTANT**: You must install FFmpeg and fonts to avoid playback errors and "square characters" on leaderboards/quotes.
 
 **Option A: Ubuntu/Debian**
 ```bash
 sudo apt update
-sudo apt install -y ffmpeg mongodb git
+sudo apt install -y ffmpeg mongodb git fonts-noto fonts-noto-cjk fonts-noto-color-emoji
+# Update font cache
+fc-cache -fv
 ```
 
-**Option B: Amazon Linux/RHEL** (Supported!)
+**Option B: Amazon Linux/RHEL** (Verified!)
 ```bash
 # Core tools
 sudo dnf install -y git ffmpeg
 
-# Fonts (Required for Leaderboard/Rank Cards)
-sudo dnf install -y google-noto-sans-fonts dejavu-sans-fonts google-noto-emoji-fonts
+# Fonts (CRITICAL: Fixes "squares" on leaderboards/quotes)
+# Installs Sans, Serif, Emoji, and CJK (Chinese/Japanese/Korean) fonts
+sudo dnf install -y google-noto-sans-fonts google-noto-serif-fonts google-noto-emoji-fonts dejavu-sans-fonts
+sudo dnf install -y google-noto-cjk-fonts google-noto-sans-cjk-ttc-fonts google-noto-serif-cjk-ttc-fonts
 
-# MongoDB (Manual install usually required, or use Atlas)
+# Rebuild font cache and restart app
+fc-cache -fv
+pm2 restart jarvis
+```
+
+**Option C: Arch Linux**
+```bash
+sudo pacman -S ffmpeg mongodb-bin git noto-fonts noto-fonts-cjk noto-fonts-emoji
 ```
 
 ---
