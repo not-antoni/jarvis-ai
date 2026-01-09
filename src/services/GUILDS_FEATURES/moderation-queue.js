@@ -19,10 +19,24 @@ const USER_RISK_PATH = path.join(__dirname, '..', '..', '..', 'data', 'user-risk
 
 // Configuration
 const BATCH_INTERVAL_MS = 60 * 1000; // 60 seconds
-const BATCH_SIZE_TRIGGER = 50; // Trigger batch at 50 messages
+const BASE_BATCH_SIZE = 50; // Base batch size
 const MAX_QUEUE_SIZE = 200; // Max messages in queue
 const MAX_ANALYSIS_LOG = 100; // Keep last 100 analysis results
 const MAX_RISK_HISTORY = 50; // Keep last 50 risk scores per user
+
+/**
+ * Calculate optimal batch size based on queue depth
+ * - Small queues (<10): process all immediately
+ * - Medium queues (10-50): batches of 10
+ * - Large queues (50-100): batches of 20
+ * - Huge queues (100+): batches of 30
+ */
+function getDynamicBatchSize(queueLength) {
+    if (queueLength <= 10) return queueLength;
+    if (queueLength <= 50) return 10;
+    if (queueLength <= 100) return 20;
+    return 30;
+}
 
 // In-memory state
 let messageQueue = []; // [{guildId, channelId, messageId, userId, content, timestamp, context}]
@@ -137,7 +151,7 @@ function queueMessage(message, context) {
     saveQueue();
 
     // Check if batch threshold reached
-    if (messageQueue.length >= BATCH_SIZE_TRIGGER) {
+    if (messageQueue.length >= BASE_BATCH_SIZE) {
         triggerBatchAnalysis();
     }
 
@@ -191,7 +205,8 @@ async function triggerBatchAnalysis() {
     if (isProcessing || messageQueue.length === 0) return;
 
     isProcessing = true;
-    const batch = messageQueue.splice(0, BATCH_SIZE_TRIGGER);
+    const batchSize = getDynamicBatchSize(messageQueue.length);
+    const batch = messageQueue.splice(0, batchSize);
     saveQueue();
 
     console.log(`[ModerationQueue] Processing batch of ${batch.length} messages`);

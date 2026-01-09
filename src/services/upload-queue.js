@@ -6,6 +6,14 @@
 const distube = require('./distube');
 const { execSync } = require('child_process');
 
+// Try to get ffprobe path from npm package, fall back to system
+let ffprobePath = 'ffprobe';
+try {
+    ffprobePath = require('ffprobe-static').path;
+} catch (e) {
+    console.log('[UploadQueue] ffprobe-static not available, using system ffprobe');
+}
+
 /**
  * Get audio duration using ffprobe
  * @param {string} url - URL to probe
@@ -13,9 +21,8 @@ const { execSync } = require('child_process');
  */
 function getAudioDuration(url) {
     try {
-        // Use system ffprobe (installed on VPS)
         const result = execSync(
-            `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
+            `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
             { timeout: 15000, encoding: 'utf8' }
         );
         const duration = parseFloat(result.trim());

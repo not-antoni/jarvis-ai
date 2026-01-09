@@ -1,0 +1,272 @@
+openapi: 3.0.3
+info:
+  title: Jarvis AI API
+  description: |
+    REST API for the Jarvis Discord Bot.
+    
+    ## Authentication
+    Most endpoints require authentication via:
+    - **Dashboard**: Cookie-based session from Discord OAuth
+    - **Moderator**: Discord OAuth with guild admin verification
+    - **Health**: Optional `HEALTH_TOKEN` header
+  version: 1.1.0
+  contact:
+    name: Jarvis Support
+    url: https://discord.gg/ksXzuBtmK5
+
+servers:
+  - url: https://jorvis.org
+    description: Production
+  - url: http://localhost:3000
+    description: Local Development
+
+tags:
+  - name: Dashboard
+    description: Bot owner dashboard endpoints
+  - name: Moderator
+    description: Guild moderator panel endpoints
+  - name: Economy
+    description: Stark Bucks economy endpoints
+  - name: Health
+    description: System health and status
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns bot health status
+      responses:
+        '200':
+          description: Bot is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  uptime: { type: number, example: 3600 }
+                  memory: { type: object }
+
+  /api/dashboard/overview:
+    get:
+      tags: [Dashboard]
+      summary: Dashboard overview
+      security: [cookieAuth: []]
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardOverview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/dashboard/guilds:
+    get:
+      tags: [Dashboard]
+      summary: List bot guilds
+      security: [cookieAuth: []]
+      responses:
+        '200':
+          description: List of guilds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Guild'
+
+  /api/dashboard/providers:
+    get:
+      tags: [Dashboard]
+      summary: AI provider status
+      security: [cookieAuth: []]
+      responses:
+        '200':
+          description: Provider health and latency
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Provider'
+
+  /moderator/api/stats/{guildId}:
+    get:
+      tags: [Moderator]
+      summary: Guild moderation stats
+      security: [oauthAuth: []]
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Moderation statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationStats'
+
+  /moderator/api/settings/{guildId}:
+    post:
+      tags: [Moderator]
+      summary: Update moderation settings
+      security: [oauthAuth: []]
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationSettings'
+      responses:
+        '200':
+          description: Settings updated
+
+  /moderator/api/threats:
+    get:
+      tags: [Moderator]
+      summary: List known threats
+      security: [oauthAuth: []]
+      responses:
+        '200':
+          description: Cross-guild threat database
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Threat'
+
+  /moderator/api/threats/report:
+    post:
+      tags: [Moderator]
+      summary: Report a threat
+      security: [oauthAuth: []]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, reason]
+              properties:
+                userId: { type: string }
+                reason: { type: string }
+                severity: { type: string, enum: [low, medium, high, critical] }
+      responses:
+        '200':
+          description: Threat reported
+
+  /api/economy/leaderboard:
+    get:
+      tags: [Economy]
+      summary: Stark Bucks leaderboard
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 10, maximum: 100 }
+      responses:
+        '200':
+          description: Top players by balance
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaderboardEntry'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+    oauthAuth:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://discord.com/oauth2/authorize
+          tokenUrl: https://discord.com/api/oauth2/token
+          scopes:
+            identify: Read user identity
+            guilds: Read user guilds
+
+  schemas:
+    DashboardOverview:
+      type: object
+      properties:
+        guildCount: { type: integer }
+        userCount: { type: integer }
+        commandsToday: { type: integer }
+        uptime: { type: number }
+        memory: { type: object }
+
+    Guild:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        memberCount: { type: integer }
+        icon: { type: string, nullable: true }
+
+    Provider:
+      type: object
+      properties:
+        name: { type: string }
+        status: { type: string, enum: [online, offline, degraded] }
+        latencyMs: { type: number }
+        requestsToday: { type: integer }
+
+    ModerationStats:
+      type: object
+      properties:
+        messagesAnalyzed: { type: integer }
+        actionsToday: { type: integer }
+        flaggedMessages: { type: integer }
+        queueSize: { type: integer }
+
+    ModerationSettings:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        aiEnabled: { type: boolean }
+        autoEscalation: { type: boolean }
+        excludedChannels: { type: array, items: { type: string } }
+        whitelistUsers: { type: array, items: { type: string } }
+        whitelistRoles: { type: array, items: { type: string } }
+
+    Threat:
+      type: object
+      properties:
+        userId: { type: string }
+        reason: { type: string }
+        severity: { type: string }
+        reportedAt: { type: string, format: date-time }
+        reportedBy: { type: string }
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        userId: { type: string }
+        username: { type: string }
+        balance: { type: integer }
+        rank: { type: integer }
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: Unauthorized }
