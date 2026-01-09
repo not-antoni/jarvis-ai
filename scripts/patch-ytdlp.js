@@ -7,38 +7,41 @@
  * Solution: Comment out the line that appends stderr to the output buffer.
  * 
  * Run manually: node scripts/patch-ytdlp.js
- * Or add to package.json: "postinstall": "node scripts/patch-ytdlp.js"
+ * Or require() from index.js to run on startup.
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const filePath = path.join(__dirname, '..', 'node_modules', '@distube', 'yt-dlp', 'dist', 'index.js');
+(function patchYtDlp() {
+  const filePath = path.join(__dirname, '..', 'node_modules', '@distube', 'yt-dlp', 'dist', 'index.js');
 
-if (!fs.existsSync(filePath)) {
-  console.log('[patch-ytdlp] @distube/yt-dlp not found, skipping.');
-  process.exit(0);
-}
+  if (!fs.existsSync(filePath)) {
+    console.log('[patch-ytdlp] @distube/yt-dlp not found, skipping.');
+    return;
+  }
 
-let content = fs.readFileSync(filePath, 'utf8');
+  let content = fs.readFileSync(filePath, 'utf8');
 
-// Check if already patched
-if (content.includes('// output += chunk;')) {
-  console.log('[patch-ytdlp] Already patched.');
-  process.exit(0);
-}
+  // Check if already patched
+  if (content.includes('// output += chunk;')) {
+    console.log('[patch-ytdlp] Already patched.');
+    return;
+  }
 
-// Replace the 2nd occurrence (stderr handler, not stdout)
-let count = 0;
-content = content.replace(/output \+= chunk;/g, (match) => {
-  count++;
-  return count === 2 ? '// output += chunk;' : match;
-});
+  // Replace the 2nd occurrence (stderr handler, not stdout)
+  let count = 0;
+  content = content.replace(/output \+= chunk;/g, (match) => {
+    count++;
+    return count === 2 ? '// output += chunk;' : match;
+  });
 
-if (count < 2) {
-  console.warn('[patch-ytdlp] Could not find expected pattern. Library may have changed.');
-  process.exit(1);
-}
+  if (count < 2) {
+    console.warn('[patch-ytdlp] Could not find expected pattern. Library may have changed.');
+    return;
+  }
 
-fs.writeFileSync(filePath, content);
-console.log('[patch-ytdlp] Successfully patched @distube/yt-dlp to ignore stderr warnings.');
+  fs.writeFileSync(filePath, content);
+  console.log('[patch-ytdlp] Successfully patched @distube/yt-dlp to ignore stderr warnings.');
+})();
+
