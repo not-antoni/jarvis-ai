@@ -1,6 +1,6 @@
 {
   "name": "jarvis-discord-bot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Jarvis - A sentient Discord bot with AI capabilities",
   "main": "index.js",
   "scripts": {

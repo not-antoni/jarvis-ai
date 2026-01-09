@@ -14,7 +14,7 @@ const commandDefinitions = [
     },
     {
         name: 'filter',
-        description: 'Manage per-guild blocked words and regex filters',
+        description: 'Advanced moderation: blocked words, regex patterns, and link safety.',
         category: 'Moderation',
         usage: '/filter <subcommand>',
         feature: 'moderationFilters',
@@ -750,9 +750,9 @@ const commandDefinitions = [
     },
     {
         name: 'play',
-        description: 'Queue music from YouTube and other sources.',
+        description: 'Queue music from YouTube, SoundCloud, or audio file uploads.',
         category: 'Music',
-        usage: '/play <song>',
+        usage: '/play <song> or <upload file>',
         feature: 'music',
         ephemeral: false
     },
@@ -793,6 +793,14 @@ const commandDefinitions = [
         description: 'Show the current song queue.',
         category: 'Music',
         usage: '/queue',
+        feature: 'music',
+        ephemeral: false
+    },
+    {
+        name: 'loop',
+        description: 'Toggle loop mode (song/queue/off).',
+        category: 'Music',
+        usage: '/loop [mode]',
         feature: 'music',
         ephemeral: false
     },
