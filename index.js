@@ -2437,7 +2437,7 @@ if (helmet) {
 }
 
 // Cloudflare-only access middleware
-// Blocks direct IP access, only allows traffic through Cloudflare (or localhost)
+// Silently drops direct IP/AWS DNS access, only allows traffic through Cloudflare (or localhost)
 const CLOUDFLARE_ONLY = process.env.CLOUDFLARE_ONLY !== 'false'; // Default: enabled
 const ALLOWED_HOSTS = ['jorvis.org', 'www.jorvis.org', 'localhost', '127.0.0.1'];
 
@@ -2458,25 +2458,27 @@ app.use((req, res, next) => {
     const cfConnectingIp = req.headers['cf-connecting-ip'];
     const isFromCloudflare = !!(cfRay || cfConnectingIp);
 
-    // Check if host header is a direct IP (not domain)
-    const hostHeader = req.headers.host || '';
+    // Check host header
+    const hostHeader = (req.headers.host || '').toLowerCase();
+
+    // Block patterns (direct IP or AWS DNS)
     const isDirectIpAccess = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(hostHeader);
+    const isAwsDns = hostHeader.includes('amazonaws.com') || hostHeader.includes('compute-1.amazonaws.com');
     const isAllowedHost = ALLOWED_HOSTS.some(h => hostHeader.startsWith(h));
 
-    // Block direct IP access (accessing via VPS IP)
-    if (isDirectIpAccess && !isFromCloudflare) {
-        console.log(`[Security] Blocked direct IP access from ${clientIp} to ${hostHeader}`);
-        return res.status(403).type('text/plain').send('Direct IP access not allowed. Use https://jorvis.org');
+    // Silently drop connection for direct IP or AWS DNS access (not from Cloudflare)
+    if ((isDirectIpAccess || isAwsDns) && !isFromCloudflare) {
+        console.log(`[Security] Dropping connection: ${clientIp} -> ${hostHeader}`);
+        // Silently destroy the socket - no response, just close
+        req.socket.destroy();
+        return;
     }
 
-    // Block non-Cloudflare traffic to the main domain (but allow allowed hosts like localhost)
+    // Block all non-Cloudflare traffic to non-allowed hosts
     if (!isFromCloudflare && !isAllowedHost && hostHeader) {
-        // Log but don't block - could be health checks or internal requests
-        // Just warn for now, full blocking can be enabled via env var
-        if (process.env.STRICT_CLOUDFLARE === 'true') {
-            console.log(`[Security] Blocked non-CF traffic from ${clientIp} to ${hostHeader}`);
-            return res.status(403).type('text/plain').send('Access denied');
-        }
+        console.log(`[Security] Dropping non-CF connection: ${clientIp} -> ${hostHeader}`);
+        req.socket.destroy();
+        return;
     }
 
     next();
