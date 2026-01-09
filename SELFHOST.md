@@ -258,6 +258,86 @@ crontab -e
 - Make sure you're in a voice channel before using `/lavalink play`
 - Check bot has permissions to join and speak
 
+### Leaderboard/Quote shows "□□□" (Square Characters)
+Missing fonts on your VPS. Install the required fonts:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install -y fonts-noto fonts-noto-cjk fonts-noto-color-emoji
+fc-cache -fv
+pm2 restart jarvis
+```
+
+**Amazon Linux / RHEL:**
+```bash
+sudo dnf install -y google-noto-sans-fonts google-noto-serif-fonts google-noto-emoji-fonts dejavu-sans-fonts
+sudo dnf install -y google-noto-cjk-fonts google-noto-sans-cjk-ttc-fonts google-noto-serif-cjk-ttc-fonts
+fc-cache -fv
+pm2 restart jarvis
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S noto-fonts noto-fonts-cjk noto-fonts-emoji
+```
+
+### Music Playback Glitches/Stuttering
+1. **Check VPS resources**: `htop` - ensure CPU < 80%
+2. **Increase buffering** in `src/services/distube.js`:
+   - `probesize: 10000000`
+   - `analyzeduration: 10000000`
+3. **Check network**: `ping cdn.discordapp.com`
+
+### FFprobe/FFmpeg Not Found
+Install FFmpeg on your system:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install -y ffmpeg
+```
+
+**Amazon Linux:**
+```bash
+# FFmpeg is pre-installed via static build
+# Or: sudo dnf install -y ffmpeg
+```
+
+### MongoDB Connection Timeout
+- Check if MongoDB is running: `sudo systemctl status mongod`
+- Verify connection string format
+- For Atlas: Whitelist your VPS IP in Network Access
+
+### DNF/YUM Broken on Amazon Linux
+If you see `ModuleNotFoundError: No module named 'dnf'`:
+```bash
+sudo alternatives --set python3 /usr/bin/python3.9
+# Or:
+sudo ln -sf /usr/bin/python3.9 /usr/bin/python3
+```
+
+### Bot Crashes on Startup
+1. Check logs: `pm2 logs jarvis --lines 100`
+2. Verify all required env vars are set
+3. Check MongoDB is accessible
+4. Ensure DISCORD_TOKEN is valid
+
+### AI Commands Return "No providers available"
+At least one AI provider must be configured:
+```env
+OPENROUTER_API_KEY=your_key
+# OR
+GROQ_API_KEY=your_key
+# OR
+GOOGLE_AI_API_KEY=your_key
+```
+
+### Dashboard Login Issues
+1. Clear cookies for your domain
+2. Check `DASHBOARD_PASSWORD` env var (not `PASSWORD`)
+3. Try incognito/private window
+4. Verify OAuth redirect URLs match exactly
+
 ---
 
 ## File Structure
