@@ -12,14 +12,19 @@ const LANDING_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis</title>
-    <meta name="description" content="At your service, sir.">
-    <meta property="og:title" content="Jarvis">
-    <meta property="og:description" content="At your service, sir.">
+    <title>Jarvis - The Discord AI with Actual Personality | All-in-One Bot</title>
+    <meta name="description" content="Stop using boring bots. Jarvis brings natural AI chat, powerful moderation, music streaming, and a global economy to your Discord server. Free forever.">
+    <meta property="og:title" content="Jarvis - The Discord AI with Actual Personality">
+    <meta property="og:description" content="Natural AI chat, moderation, music, and economy in one bot. Trusted by thousands of servers.">
     <link rel="icon" type="image/webp" href="/jarvis.webp">
+    <meta property="og:image" content="https://jorvis.org/jarvis.webp">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://jorvis.org">
     <meta name="theme-color" content="#00d4ff">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="keywords" content="discord bot, ai discord bot, music bot, moderation bot, discord economy bot, jarvis">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://jorvis.org">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -138,6 +143,11 @@ const LANDING_PAGE = `
             font-weight: 800;
             margin-bottom: 1rem;
             color: #fff;
+            line-height: 1.1;
+        }
+        
+        .hero h1 .accent {
+            color: #00d4ff;
         }
         
         .hero p {
@@ -155,6 +165,17 @@ const LANDING_PAGE = `
             gap: 1rem;
             justify-content: center;
             flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        
+        .cta-subtext {
+            color: #555;
+            font-size: 0.85rem;
+            margin-top: 0.75rem;
+        }
+        
+        .cta-subtext span {
+            margin: 0 0.5rem;
         }
         
         .btn {
@@ -170,22 +191,27 @@ const LANDING_PAGE = `
         }
         
         .btn-primary {
-            background: #00d4ff;
+            background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%);
             color: #000;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
         }
         
         .btn-primary:hover {
-            background: #00b8e0;
-            transform: translateY(-1px);
+            background: linear-gradient(135deg, #00e5ff 0%, #00b8e0 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 212, 255, 0.4);
         }
         
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
-            color: #fff;
+            background: transparent;
+            color: #888;
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
         
         .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.25);
         }
         
         /* Showcase Section */
@@ -245,8 +271,15 @@ const LANDING_PAGE = `
             text-align: center;
             font-size: 1.75rem;
             font-weight: 700;
-            margin-bottom: 2.5rem;
+            margin-bottom: 0.5rem;
             color: #fff;
+        }
+        
+        .features .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 2.5rem;
+            font-size: 0.95rem;
         }
         
         .features-grid {
@@ -266,6 +299,23 @@ const LANDING_PAGE = `
         .feature-card:hover {
             background: rgba(255, 255, 255, 0.04);
             border-color: rgba(0, 212, 255, 0.2);
+        }
+        
+        .feature-card.highlight {
+            border-color: rgba(0, 212, 255, 0.3);
+            background: rgba(0, 212, 255, 0.05);
+        }
+        
+        .feature-card .badge {
+            display: inline-block;
+            background: #00d4ff;
+            color: #000;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
         }
         
         .feature-card h3 {
@@ -294,7 +344,7 @@ const LANDING_PAGE = `
             justify-content: center;
             gap: 4rem;
             flex-wrap: wrap;
-            max-width: 700px;
+            max-width: 900px;
             margin: 0 auto;
         }
         
@@ -312,6 +362,79 @@ const LANDING_PAGE = `
             color: #666;
             font-size: 0.85rem;
             margin-top: 0.25rem;
+        }
+        
+        /* Comparison Section */
+        .comparison {
+            padding: 4rem 5%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .comparison h2 {
+            text-align: center;
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+        
+        .comparison .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+        
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #16161f;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .comparison-table th,
+        .comparison-table td {
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        
+        .comparison-table th {
+            background: rgba(255,255,255,0.03);
+            color: #888;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        
+        .comparison-table th:first-child,
+        .comparison-table td:first-child {
+            text-align: left;
+            padding-left: 1.5rem;
+        }
+        
+        .comparison-table th.jarvis-col {
+            color: #00d4ff;
+            font-weight: 700;
+        }
+        
+        .comparison-table td {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .comparison-table td:first-child {
+            color: #aaa;
+        }
+        
+        .comparison-table .check {
+            color: #00d4ff;
+            font-size: 1.1rem;
+        }
+        
+        .comparison-table .cross {
+            color: #444;
         }
         
         /* Footer */
@@ -349,6 +472,9 @@ const LANDING_PAGE = `
             .features-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
+            .comparison-table {
+                font-size: 0.85rem;
+            }
         }
         
         @media (max-width: 768px) {
@@ -357,6 +483,7 @@ const LANDING_PAGE = `
             .nav-links { display: none; }
             .stats-grid { gap: 2rem; }
             .features-grid { grid-template-columns: 1fr; }
+            .comparison-table th, .comparison-table td { padding: 0.75rem 0.5rem; font-size: 0.8rem; }
         }
     </style>
 </head>
@@ -367,11 +494,10 @@ const LANDING_PAGE = `
             <li><a href="/commands">Commands</a></li>
             <li><a href="/store">Store</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
-            <li><a href="/sbx">SBX</a></li>
-            <li><a href="/crypto">Crypto</a></li>
+            <li><a href="/sbx">Economy</a></li>
+            <li><a href="/crypto">Trading</a></li>
             <li><a href="/status">Status</a></li>
             <li><a href="/docs">Docs</a></li>
-            <li><a href="/me">Portal</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
             <a href="/auth/login" class="login-btn" id="loginBtn">Login</a>
@@ -379,29 +505,18 @@ const LANDING_PAGE = `
     </nav>
     
     <section class="hero">
-        <img src="/jarvis.gif" alt="Jarvis" class="hero-icon">
-        <h1>Meet Jarvis</h1>
-        <p>An AI assistant for Discord with personality. Chat naturally, get things done, and have fun.</p>
+        <img src="/jarvis.gif" alt="Jarvis AI Discord Bot" class="hero-icon">
+        <h1>The Discord AI with <span class="accent">Actual Personality</span></h1>
+        <p>Stop using boring bots. Jarvis brings natural chat, powerful moderation, music streaming, and a global economy to your server.</p>
         <div class="cta-buttons">
-            <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">Add to Discord</a>
-            <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join Server</a>
+            <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">➕ Add to Discord</a>
+            <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join Support Server</a>
         </div>
-    </section>
-    
-    <section class="showcase">
-        <h2>See Jarvis in Action</h2>
-        <p class="subtitle">Real conversations from Discord</p>
-        <div class="screenshot-grid">
-            <div class="screenshot-item">
-                <img src="/screenshot-1.png?v=2" alt="Jarvis conversation example" loading="lazy">
-            </div>
-            <div class="screenshot-item">
-                <img src="/screenshot-2.png?v=2" alt="Jarvis conversation example" loading="lazy">
-            </div>
-            <div class="screenshot-item">
-                <img src="/screenshot-3.png?v=2" alt="Jarvis conversation example" loading="lazy">
-            </div>
-        </div>
+        <p class="cta-subtext">
+            <span>✓ Free forever</span>
+            <span>✓ No credit card</span>
+            <span>✓ Set up in 2 mins</span>
+        </p>
     </section>
     
     <section class="stats">
@@ -415,38 +530,113 @@ const LANDING_PAGE = `
                 <div class="stat-label">Commands</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">24/7</div>
-                <div class="stat-label">Online</div>
+                <div class="stat-number" id="serverCount">1K+</div>
+                <div class="stat-label">Servers</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">99.9%</div>
+                <div class="stat-label">Uptime</div>
             </div>
         </div>
     </section>
     
     <section class="features" id="features">
-        <h2>What Jarvis Can Do</h2>
+        <h2>Everything Your Server Needs</h2>
+        <p class="subtitle">One bot to replace them all</p>
         <div class="features-grid">
             <div class="feature-card">
-                <h3>AI Chat</h3>
-                <p>Natural conversations with context memory. Multiple AI providers for reliability.</p>
+                <h3>🤖 AI Chat</h3>
+                <p>Natural conversations with context memory. 50+ AI models including GPT-4, Claude, Gemini, and open-source alternatives.</p>
             </div>
             <div class="feature-card">
-                <h3>Moderation</h3>
-                <p>Auto-mod, word filters, anti-spam, and logging to keep your server clean.</p>
+                <h3>🛡️ Moderation</h3>
+                <p>AI-powered auto-mod, word filters, anti-spam, raid protection, and detailed logging to keep your server safe.</p>
             </div>
             <div class="feature-card">
-                <h3>Economy</h3>
-                <p>Virtual currency, daily rewards, gambling, trading, and the SBX exchange.</p>
+                <h3>💰 Economy</h3>
+                <p>Virtual Stark Bucks currency, daily rewards, gambling, trading, pets, crafting, and the simulated SBX exchange. <em>100% virtual, no real money.</em></p>
+            </div>
+            <div class="feature-card highlight">
+                <span class="badge">Popular</span>
+                <h3>🎵 Music</h3>
+                <p>Play from YouTube, Spotify, SoundCloud, and direct file uploads. Advanced audio effects, queues, filters, and 24/7 mode. <strong>Works reliably in 2026!</strong></p>
             </div>
             <div class="feature-card">
-                <h3>Music</h3>
-                <p>Play from YouTube, Spotify, and more. Queues, filters, and 24/7 mode.</p>
+                <h3>📊 Stats & Leaderboards</h3>
+                <p>Track activity, messages, voice time. Server and global leaderboards. Beautiful generated stat cards.</p>
             </div>
             <div class="feature-card">
-                <h3>Stats</h3>
-                <p>Track activity, messages, voice time, and compete on leaderboards.</p>
+                <h3>⚙️ Fully Customizable</h3>
+                <p>Custom AI personalities, per-guild settings, welcome messages, reaction roles, and auto-responses.</p>
             </div>
-            <div class="feature-card">
-                <h3>Customize</h3>
-                <p>Set AI personalities, custom commands, welcome messages, and more.</p>
+        </div>
+    </section>
+    
+    <section class="comparison">
+        <h2>The All-in-One Replacement</h2>
+        <p class="subtitle">Why install 5 bots when one does it all?</p>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th class="jarvis-col">Jarvis</th>
+                    <th>MEE6</th>
+                    <th>Rythm</th>
+                    <th>Dyno</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>AI Chat</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                </tr>
+                <tr>
+                    <td>Music Playback</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                </tr>
+                <tr>
+                    <td>Moderation</td>
+                    <td class="check">✓</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                    <td class="check">✓</td>
+                </tr>
+                <tr>
+                    <td>Economy System</td>
+                    <td class="check">✓</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                </tr>
+                <tr>
+                    <td>100% Free</td>
+                    <td class="check">✓</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    
+    <section class="showcase">
+        <h2>See Jarvis in Action</h2>
+        <p class="subtitle">Real conversations from Discord</p>
+        <div class="screenshot-grid">
+            <div class="screenshot-item">
+                <img src="/screenshot-1.png?v=2" alt="Jarvis AI conversation example" loading="lazy">
+            </div>
+            <div class="screenshot-item">
+                <img src="/screenshot-2.png?v=2" alt="Jarvis music playback example" loading="lazy">
+            </div>
+            <div class="screenshot-item">
+                <img src="/screenshot-3.png?v=2" alt="Jarvis economy system example" loading="lazy">
             </div>
         </div>
     </section>
@@ -456,12 +646,13 @@ const LANDING_PAGE = `
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
             <a href="${DISCORD_INVITE}" target="_blank">Discord</a>
             <a href="/commands">Commands</a>
-            <a href="/changelog">Changelog</a>
+            <a href="/docs">Documentation</a>
+            <a href="/status">Status</a>
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>
             <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
         </div>
-        <p class="footer-copy">© 2025 Jarvis</p>
+        <p class="footer-copy">© 2026 Jarvis • Made with ❤️ for Discord</p>
     </footer>
     
     <script>
@@ -481,12 +672,28 @@ const LANDING_PAGE = `
             } catch (e) {}
         }
         
+        // Fetch real server count
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                if (data.guildCount) {
+                    const count = data.guildCount;
+                    let formatted;
+                    if (count >= 1000) formatted = (count / 1000).toFixed(1) + 'K+';
+                    else formatted = count + '+';
+                    document.getElementById('serverCount').textContent = formatted;
+                }
+            } catch (e) {}
+        }
+        
         const params = new URLSearchParams(window.location.search);
         if (params.get('login') === 'success' || params.get('error')) {
             history.replaceState({}, '', '/');
         }
         
         checkAuth();
+        fetchStats();
     </script>
 </body>
 </html>

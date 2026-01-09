@@ -2538,6 +2538,80 @@ app.get('/screenshot-3.png', (req, res) => {
     res.sendFile(path.join(__dirname, 'screenshot-3.png'));
 });
 
+// Serve robots.txt for SEO crawlers
+app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').send(`# Jarvis Discord Bot - https://jorvis.org
+User-agent: *
+Allow: /
+Allow: /commands
+Allow: /docs
+Allow: /status
+Allow: /store
+Allow: /leaderboard
+Allow: /sbx
+Allow: /crypto
+
+# Disallow admin areas
+Disallow: /dashboard
+Disallow: /dashboard/*
+Disallow: /moderator
+Disallow: /moderator/*
+Disallow: /jarvis
+Disallow: /jarvis/*
+Disallow: /me
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://jorvis.org/sitemap.xml
+
+# LLMs.txt for AI crawlers
+# See: https://llmstxt.org
+`);
+});
+
+// Serve sitemap.xml for SEO
+app.get('/sitemap.xml', (req, res) => {
+    const baseUrl = 'https://jorvis.org';
+    const pages = [
+        { url: '/', priority: '1.0', changefreq: 'weekly' },
+        { url: '/commands', priority: '0.9', changefreq: 'weekly' },
+        { url: '/docs', priority: '0.8', changefreq: 'monthly' },
+        { url: '/store', priority: '0.7', changefreq: 'weekly' },
+        { url: '/leaderboard', priority: '0.6', changefreq: 'daily' },
+        { url: '/sbx', priority: '0.7', changefreq: 'daily' },
+        { url: '/crypto', priority: '0.6', changefreq: 'daily' },
+        { url: '/status', priority: '0.5', changefreq: 'always' },
+        { url: '/tos', priority: '0.3', changefreq: 'yearly' },
+        { url: '/policy', priority: '0.3', changefreq: 'yearly' },
+    ];
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${pages.map(p => `  <url>
+    <loc>${baseUrl}${p.url}</loc>
+    <changefreq>${p.changefreq}</changefreq>
+    <priority>${p.priority}</priority>
+  </url>`).join('\n')}
+</urlset>`;
+
+    res.type('application/xml').send(xml);
+});
+
+// Public stats API for landing page server count
+app.get('/api/stats', async (req, res) => {
+    try {
+        const guildCount = global.discordClient?.guilds?.cache?.size || 0;
+        const userCount = global.discordClient?.guilds?.cache?.reduce((acc, g) => acc + g.memberCount, 0) || 0;
+        res.json({
+            guildCount,
+            userCount,
+            uptime: process.uptime()
+        });
+    } catch (e) {
+        res.json({ guildCount: 0, userCount: 0, uptime: 0 });
+    }
+});
+
 // Mount landing page (must be last to not override other routes)
 const landingRouter = require('./routes/landing');
 app.use('/', landingRouter);
