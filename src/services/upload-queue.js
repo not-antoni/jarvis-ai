@@ -21,14 +21,28 @@ try {
  */
 function getAudioDuration(url) {
     try {
+        // Use network-friendly flags for remote URLs:
+        // -reconnect 1: Reconnect on connection loss
+        // -reconnect_streamed 1: Reconnect for streamed content
+        // -reconnect_delay_max 5: Max 5 second reconnect delay
+        // -timeout 10000000: 10 second timeout in microseconds
+        const isRemote = url.startsWith('http://') || url.startsWith('https://');
+        const networkFlags = isRemote
+            ? '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
+            : '';
+
         const result = execSync(
-            `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
-            { timeout: 15000, encoding: 'utf8' }
+            `"${ffprobePath}" ${networkFlags}-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
+            { timeout: 30000, encoding: 'utf8' }
         );
         const duration = parseFloat(result.trim());
-        return isNaN(duration) ? 0 : Math.floor(duration);
+        if (isNaN(duration) || duration <= 0) {
+            console.warn('[UploadQueue] ffprobe returned invalid duration:', result.trim());
+            return 0;
+        }
+        return Math.floor(duration);
     } catch (e) {
-        console.warn('[UploadQueue] ffprobe failed:', e.message?.slice(0, 100));
+        console.warn('[UploadQueue] ffprobe failed:', e.message?.slice(0, 200));
         return 0;
     }
 }

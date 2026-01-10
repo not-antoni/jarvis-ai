@@ -132,7 +132,7 @@ async function tryPlayDl(videoUrl, streamState) {
         cleanup: () => {
             try {
                 streamResult.stream.destroy();
-            } catch (e) {}
+            } catch (e) { }
             activeStreams.delete(streamState.videoId);
         }
     };
@@ -151,7 +151,8 @@ async function tryYtDlp(videoId, videoUrl, streamState) {
         throw new Error('Stream cancelled');
     }
 
-    const fileStream = fs.createReadStream(ticket.filePath);
+    // Use larger buffer to prevent audio underruns/glitches
+    const fileStream = fs.createReadStream(ticket.filePath, { highWaterMark: 64 * 1024 });
     streamState.stream = fileStream;
     streamState.method = 'yt-dlp';
 
@@ -161,10 +162,10 @@ async function tryYtDlp(videoId, videoUrl, streamState) {
         cleanup: () => {
             try {
                 fileStream.destroy();
-            } catch (e) {}
+            } catch (e) { }
             try {
                 ticket.release();
-            } catch (e) {}
+            } catch (e) { }
             activeStreams.delete(streamState.videoId);
         }
     };
@@ -241,12 +242,12 @@ function cancelStream(videoId) {
         if (state.stream) {
             try {
                 state.stream.destroy();
-            } catch (e) {}
+            } catch (e) { }
         }
         // Also cancel yt-dlp download if in progress
         try {
             cancelDownload(videoId);
-        } catch (e) {}
+        } catch (e) { }
         activeStreams.delete(videoId);
     }
 }

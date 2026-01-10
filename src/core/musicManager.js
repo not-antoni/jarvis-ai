@@ -47,9 +47,9 @@ class MusicManager {
             active: Boolean(state.currentVideo) || Boolean(state.pendingVideoId) || state.queue.length > 0,
             current: state.currentVideo
                 ? {
-                      title: state.currentVideo.title,
-                      url: state.currentVideo.url
-                  }
+                    title: state.currentVideo.title,
+                    url: state.currentVideo.url
+                }
                 : null,
             pendingVideoId: state.pendingVideoId || null,
             queuedCount: Array.isArray(state.queue) ? state.queue.length : 0,
@@ -152,7 +152,7 @@ class MusicManager {
             }
 
             if (announce === 'channel' && state.textChannel) {
-                safeSend(state.textChannel, { content: message }, this.client).catch(() => {});
+                safeSend(state.textChannel, { content: message }, this.client).catch(() => { });
             }
         } catch (error) {
             console.error('Music playback error:', error);
@@ -164,7 +164,7 @@ class MusicManager {
             }
 
             if (state.textChannel) {
-                safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => {});
+                safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => { });
             }
 
             this.cleanup(guildId);
@@ -212,7 +212,7 @@ class MusicManager {
             clearTimeout(state.timeout);
             state.timeout = null;
         }
-        
+
         // Stop the player before cleanup to ensure it actually stops
         try {
             if (state.player) {
@@ -298,7 +298,7 @@ class MusicManager {
                 if (state?.textChannel) {
                     state.textChannel
                         .send('⚠️ Voice connection error, leaving channel.')
-                        .catch(() => {});
+                        .catch(() => { });
                 }
                 this.cleanup(guildId);
             });
@@ -313,7 +313,8 @@ class MusicManager {
     createPlayer(guildId) {
         const player = createAudioPlayer({
             behaviors: {
-                noSubscriber: NoSubscriberBehavior.Pause
+                // Use Play instead of Pause to prevent audio interruptions during brief connection drops
+                noSubscriber: NoSubscriberBehavior.Play
             }
         });
 
@@ -347,7 +348,7 @@ class MusicManager {
                         if (queueState.textChannel) {
                             queueState.textChannel
                                 .send('⌛ Leaving voice channel due to inactivity.')
-                                .catch(() => {});
+                                .catch(() => { });
                         }
                         this.cleanup(guildId);
                     }
@@ -359,7 +360,7 @@ class MusicManager {
             console.error('Audio player error:', error);
             const state = this.queues.get(guildId);
             if (state?.textChannel) {
-                safeSend(state.textChannel, { content: '⚠️ Playback error.' }, this.client).catch(() => {});
+                safeSend(state.textChannel, { content: '⚠️ Playback error.' }, this.client).catch(() => { });
             }
             this.cleanup(guildId);
         });

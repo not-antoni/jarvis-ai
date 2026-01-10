@@ -414,7 +414,7 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
     ctx.font = '24px sans-serif';
     ctx.fillText('Jarvis Quotes', width - 30, canvasHeight - 30);
 
-    return canvas.toBuffer('image/jpeg', { quality: 0.95 });
+    return canvas.toBuffer('image/png');
 }
 
 module.exports = { generateQuoteImage };
