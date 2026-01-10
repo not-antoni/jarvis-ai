@@ -274,9 +274,8 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
     const fontSize = 80;
     ctx.font = `${fontSize}px ${fontStack}`;
 
-    // 1. Normalize Nitro fonts, strip markdown, then tokenize
-    const normalizedText = normalizeNitroFonts(text || '');
-    const cleanText = stripMarkdown(normalizedText);
+    // 1. Strip markdown, then tokenize (keep Nitro fancy fonts as-is)
+    const cleanText = stripMarkdown(text || '');
     const tokens = tokenizeText(cleanText);
 
     const assetsToLoad = [];
@@ -498,17 +497,38 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
     nameTokens.forEach(t => {
         if (t.type === 'custom') {
             nameAssets.push((async () => {
-                try { t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.png`); }
-                catch (e) { t.type = 'text'; t.content = `:${t.name}:`; }
+                // Try multiple formats - animated emojis are .gif, static are .png
+                const formats = ['png', 'gif', 'webp'];
+                for (const format of formats) {
+                    try {
+                        t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.${format}`);
+                        return;
+                    } catch (e) {
+                        // Try next format
+                    }
+                }
+                t.type = 'text';
+                t.content = `:${t.name}:`;
             })());
         } else if (t.type === 'unicode') {
             nameAssets.push((async () => {
-                try {
-                    const cleanEmoji = t.content.replace(/\uFE0F/g, '');
-                    const code = getTwemojiCode(cleanEmoji);
-                    t.image = await loadImage(`https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`);
+                const code = getTwemojiCode(t.content);
+                const urls = [
+                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${code}.png`,
+                    `https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`,
+                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${[...t.content].map(c => c.codePointAt(0).toString(16)).join('-')}.png`
+                ];
+                for (const url of urls) {
+                    try {
+                        t.image = await loadImage(url);
+                        return;
+                    } catch (e) {
+                        // Try next URL
+                    }
                 }
-                catch (e) { t.failed = true; }
+                t.failed = true;
+                t.type = 'text';
+                t.content = t.content;
             })());
         }
     });
