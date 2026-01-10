@@ -139,7 +139,7 @@ class MusicManager {
             const resource = createAudioResource(streamResult.stream, {
                 inputType: streamResult.type,
                 inlineVolume: false,
-                silencePaddingFrames: 5  // Add small silence buffer to prevent glitches
+                silencePaddingFrames: 10  // Increase silence buffer to prevent audio glitches/underruns
             });
 
             this.releaseCurrent(state);
