@@ -262,7 +262,7 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
 /**
  * Generate Quote Image
  */
-async function generateQuoteImage(text, username, avatarUrl, timestamp, attachmentImageUrl) {
+async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attachmentImageUrl, actualUsername = null) {
     const width = 1800;
     const padding = 80;
     const minHeight = 600;
@@ -284,11 +284,11 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
     tokens.forEach(t => {
         if (t.type === 'custom') {
             assetsToLoad.push((async () => {
-                // Try multiple formats - animated emojis are .gif, static are .png
-                const formats = ['png', 'gif', 'webp'];
+                // Try webp first (Discord's preferred format), then gif for animated, then png
+                const formats = ['webp', 'gif', 'png'];
                 for (const format of formats) {
                     try {
-                        t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.${format}`);
+                        t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.${format}?size=96`);
                         return; // Success!
                     } catch (e) {
                         // Try next format
@@ -489,19 +489,19 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
 
     const nameY = currentY + 40;
 
-    // Process username to support emojis
-    const nameTokens = tokenizeText(username);
+    // Process displayName to support emojis
+    const nameTokens = tokenizeText(displayName);
 
-    // Load emoji assets for username
+    // Load emoji assets for displayName
     const nameAssets = [];
     nameTokens.forEach(t => {
         if (t.type === 'custom') {
             nameAssets.push((async () => {
-                // Try multiple formats - animated emojis are .gif, static are .png
-                const formats = ['png', 'gif', 'webp'];
+                // Try webp first, then gif for animated, then png
+                const formats = ['webp', 'gif', 'png'];
                 for (const format of formats) {
                     try {
-                        t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.${format}`);
+                        t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.${format}?size=96`);
                         return;
                     } catch (e) {
                         // Try next format
@@ -571,6 +571,14 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
             currentNameX += ctx.measureText(token.content || '').width;
         }
     });
+
+    // Draw username in grey below displayName (if provided and different)
+    if (actualUsername && actualUsername !== displayName) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = `32px ${fontStack}`;
+        ctx.fillText(`@${actualUsername}`, textCenterX, nameY + 45);
+    }
 
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';

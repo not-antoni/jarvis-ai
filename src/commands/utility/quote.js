@@ -85,7 +85,8 @@ const quoteSlash = {
                 targetUser.displayName || targetUser.username,
                 avatarUrl,
                 new Date(),
-                attachmentUrl
+                attachmentUrl,
+                targetUser.username  // Pass actual username for grey display
             );
 
             const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.gif' });
@@ -190,7 +191,8 @@ const quoteContext = {
                 author.displayName || author.username,
                 avatarUrl,
                 message.createdAt,
-                attachmentUrl
+                attachmentUrl,
+                author.username  // Pass actual username for grey display
             );
 
             const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.gif' });
