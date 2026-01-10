@@ -151,8 +151,8 @@ async function tryYtDlp(videoId, videoUrl, streamState) {
         throw new Error('Stream cancelled');
     }
 
-    // Use larger buffer (256KB) to prevent audio underruns/glitches
-    const fileStream = fs.createReadStream(ticket.filePath, { highWaterMark: 256 * 1024 });
+    // Use large buffer (512KB) for aggressive buffering to prevent audio underruns
+    const fileStream = fs.createReadStream(ticket.filePath, { highWaterMark: 512 * 1024 });
     streamState.stream = fileStream;
     streamState.method = 'yt-dlp';
 
