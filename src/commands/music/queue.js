@@ -15,7 +15,13 @@ module.exports = {
         }
 
         const q = queue.songs
-            .map((song, i) => `${i === 0 ? 'Playing:' : `${i}.`} ${song.name} - \`${song.formattedDuration}\``)
+            .map((song, i) => {
+                // For uploaded files, use the probed duration from metadata
+                const duration = (song.source === 'direct_link' && song.metadata?.formattedDuration)
+                    ? song.metadata.formattedDuration
+                    : song.formattedDuration;
+                return `${i === 0 ? 'Playing:' : `${i}.`} ${song.name} - \`${duration}\``;
+            })
             .join('\n');
 
         const embed = new EmbedBuilder()

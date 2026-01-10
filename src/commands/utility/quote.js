@@ -88,7 +88,7 @@ const quoteSlash = {
                 attachmentUrl
             );
 
-            const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.jpg' });
+            const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.gif' });
             await interaction.editReply({ files: [attachmentFile] });
 
         } catch (error) {
@@ -191,7 +191,7 @@ const quoteContext = {
                 attachmentUrl
             );
 
-            const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.jpg' });
+            const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.gif' });
             await interaction.editReply({ files: [attachmentFile] });
 
         } catch (error) {
