@@ -274,8 +274,9 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     const fontSize = 80;
     ctx.font = `${fontSize}px ${fontStack}`;
 
-    // 1. Strip markdown, then tokenize (keep Nitro fancy fonts as-is)
-    const cleanText = stripMarkdown(text || '');
+    // 1. Normalize Nitro fancy fonts to ASCII, strip markdown, then tokenize
+    const normalizedText = normalizeNitroFonts(text || '');
+    const cleanText = stripMarkdown(normalizedText);
     const tokens = tokenizeText(cleanText);
 
     const assetsToLoad = [];
@@ -489,8 +490,9 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
     const nameY = currentY + 40;
 
-    // Process displayName to support emojis
-    const nameTokens = tokenizeText(displayName);
+    // Process displayName - normalize fancy fonts and support emojis
+    const normalizedDisplayName = normalizeNitroFonts(displayName);
+    const nameTokens = tokenizeText(normalizedDisplayName);
 
     // Load emoji assets for displayName
     const nameAssets = [];

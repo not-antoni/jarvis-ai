@@ -27,23 +27,27 @@ module.exports = {
                     args: {
                         global: {},
                         input: {
-                            // Reconnection settings
+                            // Reconnection settings for network resilience
                             reconnect: '1',
                             reconnect_streamed: '1',
                             reconnect_delay_max: '5',
-                            // Larger buffer to prevent underruns and glitches
-                            thread_queue_size: '8192',
+                            // Much larger buffer to prevent underruns and glitches
+                            thread_queue_size: '16384',
                             // Allow more time for initial buffering
-                            probesize: '10000000',
-                            analyzeduration: '10000000'
+                            probesize: '20000000',
+                            analyzeduration: '20000000',
+                            // Pre-buffer more data before starting
+                            fflags: '+genpts'
                         },
                         output: {
                             // Native Discord sample rate
                             ar: '48000',
                             // Stereo
                             ac: '2',
+                            // Pre-buffer 5 seconds of audio 
+                            bufsize: '5M',
                             // Fade in over 50ms to eliminate pop at start
-                            af: 'afade=t=in:st=0:d=0.05'
+                            af: 'afade=t=in:st=0:d=0.05,aresample=async=1'
                         }
                     }
                 },
