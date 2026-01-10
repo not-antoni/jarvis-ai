@@ -1241,14 +1241,19 @@ class AIProviderManager {
      * @param {string} userPrompt - User message/prompt
      * @param {Array<{url: string, contentType?: string}>} images - Array of image objects with URLs
      * @param {number} maxTokens - Maximum tokens in response
+     * @param {Object} options - Additional options
+     * @param {boolean} options.allowModerationOnly - If true, allow using moderationOnly providers (for guild moderation)
      * @returns {Promise<{content: string, provider: string, tokensIn: number, tokensOut: number}>}
      */
     async generateResponseWithImages(
         systemPrompt,
         userPrompt,
         images = [],
-        maxTokens = config.ai?.maxTokens || 1024
+        maxTokens = config.ai?.maxTokens || 1024,
+        options = {}
     ) {
+        const { allowModerationOnly = false } = options;
+
         // If no images, fall back to regular generateResponse
         if (!images || images.length === 0) {
             return this.generateResponse(systemPrompt, userPrompt, maxTokens);
@@ -1268,13 +1273,14 @@ class AIProviderManager {
         }
 
         // Filter for providers that support images (Ollama with vision models)
+        // Respect moderationOnly flag - only allow if explicitly requested
         const imageCapableProviders = this.providers.filter(
-            p => p.supportsImages && p.type === 'ollama'
+            p => p.supportsImages && p.type === 'ollama' && (allowModerationOnly || !p.moderationOnly)
         );
 
         if (imageCapableProviders.length === 0) {
             console.warn(
-                'No image-capable providers available, falling back to text-only response'
+                'No image-capable providers available (moderationOnly=' + allowModerationOnly + '), falling back to text-only response'
             );
             return this.generateResponse(systemPrompt, userPrompt, maxTokens);
         }
