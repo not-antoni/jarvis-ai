@@ -52,12 +52,42 @@ async function loadGifFrame(url) {
     }
 }
 
+/**
+ * Strip Discord markdown from text for clean display
+ */
+function stripMarkdown(text) {
+    if (!text) return text;
+    return text
+        // Bold/italic combinations
+        .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+        // Bold
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        // Italic (underscore)
+        .replace(/__(.+?)__/g, '$1')
+        // Italic (asterisk)
+        .replace(/\*(.+?)\*/g, '$1')
+        // Italic (single underscore - be careful not to break emoji names)
+        .replace(/(?<![:\w])_([^_]+)_(?![:\w])/g, '$1')
+        // Strikethrough
+        .replace(/~~(.+?)~~/g, '$1')
+        // Inline code
+        .replace(/`(.+?)`/g, '$1')
+        // Spoilers
+        .replace(/\|\|(.+?)\|\|/g, '$1');
+}
 
 /**
  * Convert unicode emoji to Twemoji URL code points
+ * Handles ZWJ sequences (like rainbow flag 🏳️‍🌈) correctly
  */
 function getTwemojiCode(emoji) {
-    return [...emoji].map(c => c.codePointAt(0).toString(16)).join('-');
+    // Convert to codepoints, filtering out VS16 (fe0f) except when needed
+    const codepoints = [...emoji]
+        .map(c => c.codePointAt(0))
+        .filter(cp => cp !== 0xfe0f) // Remove VS16 variant selector
+        .map(cp => cp.toString(16));
+
+    return codepoints.join('-');
 }
 
 /**
@@ -162,8 +192,9 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
     const fontSize = 80;
     ctx.font = `${fontSize}px ${fontStack}`;
 
-    // 1. Tokenize & Asset Load
-    const tokens = tokenizeText(text || '');
+    // 1. Strip markdown and Tokenize & Asset Load
+    const cleanText = stripMarkdown(text || '');
+    const tokens = tokenizeText(cleanText);
 
     const assetsToLoad = [];
 
@@ -176,12 +207,30 @@ async function generateQuoteImage(text, username, avatarUrl, timestamp, attachme
             })());
         } else if (t.type === 'unicode') {
             assetsToLoad.push((async () => {
-                try {
-                    const cleanEmoji = t.content.replace(/\uFE0F/g, '');
-                    const code = getTwemojiCode(cleanEmoji);
-                    t.image = await loadImage(`https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`);
+                // Try multiple URL patterns for Twemoji
+                const code = getTwemojiCode(t.content);
+
+                // Different Twemoji URL patterns to try (they changed hosting)
+                const urls = [
+                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${code}.png`,
+                    `https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`,
+                    // Some ZWJ emojis need the full codepoints including fe0f
+                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${[...t.content].map(c => c.codePointAt(0).toString(16)).join('-')}.png`
+                ];
+
+                for (const url of urls) {
+                    try {
+                        t.image = await loadImage(url);
+                        return; // Success, stop trying
+                    } catch (e) {
+                        // Try next URL
+                    }
                 }
-                catch (e) { t.failed = true; }
+
+                // All URLs failed - mark as text fallback (will render the actual emoji character)
+                t.failed = true;
+                t.type = 'text';
+                t.content = t.content; // Keep original emoji to render as text
             })());
         }
     });
