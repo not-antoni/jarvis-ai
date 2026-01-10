@@ -134,9 +134,12 @@ class MusicManager {
 
         try {
             // Create resource from stream - plays immediately!
+            // Disable inlineVolume for better performance (less CPU overhead)
+            // Add silence padding to prevent cutoffs between tracks
             const resource = createAudioResource(streamResult.stream, {
                 inputType: streamResult.type,
-                inlineVolume: true
+                inlineVolume: false,
+                silencePaddingFrames: 5  // Add small silence buffer to prevent glitches
             });
 
             this.releaseCurrent(state);
