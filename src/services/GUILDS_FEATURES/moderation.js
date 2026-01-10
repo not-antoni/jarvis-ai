@@ -1487,7 +1487,8 @@ Server: ${context.guildName}`;
             OLLAMA_IMAGE_PROMPT,
             contextPrompt,
             [{ url: imageUrl }],
-            200
+            200,
+            { allowModerationOnly: true }  // Allow using moderationOnly providers for guild security
         );
 
         if (response?.content) {
