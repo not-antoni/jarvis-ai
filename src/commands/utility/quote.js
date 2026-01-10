@@ -118,8 +118,9 @@ const quoteContext = {
             return;
         }
 
-        // Use cleanContent to resolve mentions automatically
-        const content = message.cleanContent || message.content;
+        // Use raw content to preserve custom emoji format <:name:id>
+        // cleanContent strips the emoji ID, breaking server emoji rendering
+        const content = message.content;
         const author = message.author;
 
         let attachmentUrl = null;
@@ -146,7 +147,8 @@ const quoteContext = {
             }
         }
 
-        let text = content || '';
+        // Resolve user mentions since we're using raw content (not cleanContent)
+        let text = await resolveMentions(content || '', interaction);
 
         // Remove attachment URL from text if present (Fuzzy match for cdn/media mismatch)
         if (attachmentUrl) {
