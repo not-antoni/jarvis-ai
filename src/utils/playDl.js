@@ -15,6 +15,7 @@ const {
     COOKIE_ENV_KEYS
 } = require('./ytDlp');
 const fs = require('fs');
+const { PassThrough } = require('stream');
 const { StreamType } = require('@discordjs/voice');
 
 // Track active streams for cancellation
@@ -140,6 +141,7 @@ async function tryPlayDl(videoUrl, streamState) {
 
 /**
  * Fallback to yt-dlp (slower but more reliable with cookies)
+ * Uses pre-buffering to prevent audio glitches on long tracks
  */
 async function tryYtDlp(videoId, videoUrl, streamState) {
     console.log(`Falling back to yt-dlp for ${videoId}`);
@@ -151,17 +153,63 @@ async function tryYtDlp(videoId, videoUrl, streamState) {
         throw new Error('Stream cancelled');
     }
 
-    // Use large buffer (512KB) for aggressive buffering to prevent audio underruns
-    const fileStream = fs.createReadStream(ticket.filePath, { highWaterMark: 512 * 1024 });
-    streamState.stream = fileStream;
+    // Create a PassThrough stream with large buffer for sustained playback
+    // This maintains a buffer throughout the track, not just at the start
+    const BUFFER_SIZE = 1024 * 1024; // 1MB sustained buffer
+    const PRE_BUFFER_SIZE = 2 * 1024 * 1024; // Pre-buffer 2MB before starting
+
+    const bufferedStream = new PassThrough({
+        highWaterMark: BUFFER_SIZE,
+        // Allow more data to be buffered before backpressure kicks in
+        readableHighWaterMark: BUFFER_SIZE,
+        writableHighWaterMark: BUFFER_SIZE
+    });
+
+    // Read file with large chunks for efficient I/O
+    const fileStream = fs.createReadStream(ticket.filePath, {
+        highWaterMark: 512 * 1024 // Read in 512KB chunks
+    });
+
+    // Pre-buffer: wait for initial data before returning the stream
+    let preBuffered = 0;
+    let preBufferResolve;
+    const preBufferPromise = new Promise(resolve => { preBufferResolve = resolve; });
+
+    const onData = (chunk) => {
+        preBuffered += chunk.length;
+        if (preBuffered >= PRE_BUFFER_SIZE) {
+            fileStream.off('data', onData);
+            preBufferResolve();
+        }
+    };
+
+    // Start piping file to buffered stream
+    fileStream.pipe(bufferedStream);
+
+    // Listen for pre-buffer completion (but don't block indefinitely for small files)
+    fileStream.on('data', onData);
+    fileStream.once('end', () => preBufferResolve()); // Resolve if file ends before pre-buffer target
+
+    // Wait for pre-buffer (max 5 seconds to prevent hanging)
+    await Promise.race([
+        preBufferPromise,
+        new Promise(resolve => setTimeout(resolve, 5000))
+    ]);
+
+    console.log(`Pre-buffered ${Math.round(preBuffered / 1024)}KB for ${videoId}`);
+
+    streamState.stream = bufferedStream;
     streamState.method = 'yt-dlp';
 
     return {
-        stream: fileStream,
+        stream: bufferedStream,
         type: StreamType.OggOpus,
         cleanup: () => {
             try {
                 fileStream.destroy();
+            } catch (e) { }
+            try {
+                bufferedStream.destroy();
             } catch (e) { }
             try {
                 ticket.release();
