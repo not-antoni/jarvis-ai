@@ -155,8 +155,8 @@ async function tryYtDlp(videoId, videoUrl, streamState) {
 
     // Create a PassThrough stream with large buffer for sustained playback
     // This maintains a buffer throughout the track, not just at the start
-    const BUFFER_SIZE = 1024 * 1024; // 1MB sustained buffer
-    const PRE_BUFFER_SIZE = 2 * 1024 * 1024; // Pre-buffer 2MB before starting
+    const BUFFER_SIZE = 2 * 1024 * 1024; // 2MB sustained buffer
+    const PRE_BUFFER_SIZE = 4 * 1024 * 1024; // Pre-buffer 4MB before starting
 
     const bufferedStream = new PassThrough({
         highWaterMark: BUFFER_SIZE,
