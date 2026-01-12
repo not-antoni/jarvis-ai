@@ -21,11 +21,6 @@ module.exports = {
                 emitNewSongOnly: true,
                 savePreviousSongs: false,
                 nsfw: true,
-                // Optimized buffering for low-RAM VPS (1.2GB total)
-                ytdlOptions: {
-                    highWaterMark: 1 << 24, // 16MB (approx 2-3 mins of audio) - safe for heap
-                    dlChunkSize: 0
-                },
                 ffmpeg: {
                     path: ffmpegPath,
                     args: {
