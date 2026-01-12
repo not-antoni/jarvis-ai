@@ -21,6 +21,11 @@ module.exports = {
                 emitNewSongOnly: true,
                 savePreviousSongs: false,
                 nsfw: true,
+                // Aggressively buffer the download stream (32MB)
+                ytdlOptions: {
+                    highWaterMark: 1 << 25,
+                    dlChunkSize: 0 // Fetch entire file as fast as possible
+                },
                 ffmpeg: {
                     path: ffmpegPath,
                     // Enhanced buffering to prevent glitches at start
@@ -31,21 +36,21 @@ module.exports = {
                             reconnect: '1',
                             reconnect_streamed: '1',
                             reconnect_delay_max: '5',
-                            // Much larger buffer to prevent underruns and glitches
-                            thread_queue_size: '16384',
-                            // Allow more time for initial buffering
-                            probesize: '20000000',
-                            analyzeduration: '20000000',
+                            // Much larger buffer for input decoding
+                            thread_queue_size: '32768',
+                            // Deep probing to handle extensive metadata/formats
+                            probesize: '100000000', // 100MB
+                            analyzeduration: '0',
                             // Pre-buffer more data before starting
-                            fflags: '+genpts'
+                            fflags: '+genpts+discardcorrupt'
                         },
                         output: {
                             // Native Discord sample rate
                             ar: '48000',
                             // Stereo
                             ac: '2',
-                            // Pre-buffer 5 seconds of audio 
-                            bufsize: '5M',
+                            // Pre-buffer 10 seconds of decoded audio 
+                            bufsize: '10M',
                             // Fade in over 50ms to eliminate pop at start
                             af: 'afade=t=in:st=0:d=0.05,aresample=async=1'
                         }
@@ -60,7 +65,10 @@ module.exports = {
                             '--no-warnings',
                             '--audio-quality', '0',
                             // Prefer opus/vorbis (less transcoding loss), fallback to best
-                            '--format', 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]/bestaudio/best'
+                            '--format', 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]/bestaudio/best',
+                            // Network resilience
+                            '--socket-timeout', '10',
+                            '--retries', '10'
                         ]
                     })
                 ]
