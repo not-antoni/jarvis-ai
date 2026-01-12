@@ -630,6 +630,9 @@ class DatabaseManager {
                 ownerId: ownerId || null,
                 moderatorRoleIds: [],
                 moderatorUserIds: [],
+                djRoleIds: [],
+                djUserIds: [],
+                blockedUserIds: [],
                 features: { ...defaultFeatures },
                 createdAt: now,
                 updatedAt: now
@@ -695,6 +698,9 @@ class DatabaseManager {
                         moderatorUserIds: Array.isArray(guildConfig.moderatorUserIds)
                             ? guildConfig.moderatorUserIds
                             : [],
+                        djRoleIds: Array.isArray(guildConfig.djRoleIds) ? guildConfig.djRoleIds : [],
+                        djUserIds: Array.isArray(guildConfig.djUserIds) ? guildConfig.djUserIds : [],
+                        blockedUserIds: Array.isArray(guildConfig.blockedUserIds) ? guildConfig.blockedUserIds : [],
                         updatedAt: guildConfig.updatedAt
                     },
                     $setOnInsert: {
@@ -746,6 +752,66 @@ class DatabaseManager {
 
         this._invalidateGuildConfigCache(guildId);
         return this.getGuildConfig(guildId, ownerId);
+    }
+
+    async setGuildDjRoles(guildId, roleIds = []) {
+        if (!this.isConnected) throw new Error('Database not connected');
+        
+        await this.db.collection(config.database.collections.guildConfigs).updateOne(
+            { guildId },
+            { 
+                $set: { djRoleIds: roleIds, updatedAt: new Date() },
+                $setOnInsert: { createdAt: new Date() }
+            },
+            { upsert: true }
+        );
+        this._invalidateGuildConfigCache(guildId);
+        return this.getGuildConfig(guildId);
+    }
+
+    async setGuildDjUsers(guildId, userIds = []) {
+        if (!this.isConnected) throw new Error('Database not connected');
+        
+        await this.db.collection(config.database.collections.guildConfigs).updateOne(
+            { guildId },
+            { 
+                $set: { djUserIds: userIds, updatedAt: new Date() },
+                $setOnInsert: { createdAt: new Date() }
+            },
+            { upsert: true }
+        );
+        this._invalidateGuildConfigCache(guildId);
+        return this.getGuildConfig(guildId);
+    }
+
+    async addGuildBlockedUser(guildId, userId) {
+        if (!this.isConnected) throw new Error('Database not connected');
+        
+        await this.db.collection(config.database.collections.guildConfigs).updateOne(
+            { guildId },
+            { 
+                $addToSet: { blockedUserIds: userId },
+                $set: { updatedAt: new Date() },
+                $setOnInsert: { createdAt: new Date() }
+            },
+            { upsert: true }
+        );
+        this._invalidateGuildConfigCache(guildId);
+        return this.getGuildConfig(guildId);
+    }
+
+    async removeGuildBlockedUser(guildId, userId) {
+        if (!this.isConnected) throw new Error('Database not connected');
+        
+        await this.db.collection(config.database.collections.guildConfigs).updateOne(
+            { guildId },
+            { 
+                $pull: { blockedUserIds: userId },
+                $set: { updatedAt: new Date() }
+            }
+        );
+        this._invalidateGuildConfigCache(guildId);
+        return this.getGuildConfig(guildId);
     }
 
     async updateGuildFeatures(guildId, features = {}) {

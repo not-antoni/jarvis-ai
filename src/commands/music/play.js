@@ -77,6 +77,10 @@ module.exports = {
     async execute(interaction) {
         if (!interaction.guild) return;
 
+        // DJ / Blocking Check
+        const { canControlMusic } = require('../../utils/dj-system');
+        if (!await canControlMusic(interaction)) return;
+
         const queryOption = interaction.options.getString('query');
 
         // Collect all file attachments
