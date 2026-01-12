@@ -29,20 +29,20 @@ module.exports = {
                             reconnect: '1',
                             reconnect_streamed: '1',
                             reconnect_delay_max: '5',
-                            // Reduce queue size to save CPU cycles (was 32768)
-                            thread_queue_size: '4096',
-                            // Reduce probe size to 2MB (faster start, less CPU wait)
-                            probesize: '2097152',
+                            // Balanced queue size (16k) for network jitter
+                            thread_queue_size: '16384',
+                            // 5MB probe size (good balance for 3min+ files)
+                            probesize: '5242880',
                             analyzeduration: '0',
                             fflags: '+genpts+discardcorrupt'
                         },
                         output: {
                             ar: '48000',
                             ac: '2',
-                            // Keep output buffer reasonable (2MB)
-                            bufsize: '2048k',
-                            // Ensure async resampling to handle drift without glitches
-                            af: 'afade=t=in:st=0:d=0.05,aresample=48000:async=1'
+                            // 4MB Output buffer (more resilience)
+                            bufsize: '4096k',
+                            // Simplified resampling (let FFmpeg allow async)
+                            af: 'aresample=48000:async=1'
                         }
                     }
                 },
