@@ -29,21 +29,20 @@ module.exports = {
                             reconnect: '1',
                             reconnect_streamed: '1',
                             reconnect_delay_max: '5',
-                            thread_queue_size: '32768',
-                            // Reset probesize to 10MB (sufficient for audio, avoids huge RAM spikes)
-                            probesize: '10000000',
+                            // Reduce queue size to save CPU cycles (was 32768)
+                            thread_queue_size: '4096',
+                            // Reduce probe size to 2MB (faster start, less CPU wait)
+                            probesize: '2097152',
                             analyzeduration: '0',
                             fflags: '+genpts+discardcorrupt'
                         },
                         output: {
-                            // Native Discord sample rate
                             ar: '48000',
-                            // Stereo
                             ac: '2',
-                            // Pre-buffer 10 seconds of decoded audio 
-                            bufsize: '10M',
-                            // Fade in over 50ms to eliminate pop at start
-                            af: 'afade=t=in:st=0:d=0.05,aresample=async=1'
+                            // Keep output buffer reasonable (2MB)
+                            bufsize: '2048k',
+                            // Ensure async resampling to handle drift without glitches
+                            af: 'afade=t=in:st=0:d=0.05,aresample=48000:async=1'
                         }
                     }
                 },
