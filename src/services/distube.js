@@ -21,27 +21,23 @@ module.exports = {
                 emitNewSongOnly: true,
                 savePreviousSongs: false,
                 nsfw: true,
-                // Aggressively buffer the download stream (32MB)
+                // Optimized buffering for low-RAM VPS (1.2GB total)
                 ytdlOptions: {
-                    highWaterMark: 1 << 25,
-                    dlChunkSize: 0 // Fetch entire file as fast as possible
+                    highWaterMark: 1 << 24, // 16MB (approx 2-3 mins of audio) - safe for heap
+                    dlChunkSize: 0
                 },
                 ffmpeg: {
                     path: ffmpegPath,
-                    // Enhanced buffering to prevent glitches at start
                     args: {
                         global: {},
                         input: {
-                            // Reconnection settings for network resilience
                             reconnect: '1',
                             reconnect_streamed: '1',
                             reconnect_delay_max: '5',
-                            // Much larger buffer for input decoding
                             thread_queue_size: '32768',
-                            // Deep probing to handle extensive metadata/formats
-                            probesize: '100000000', // 100MB
+                            // Reset probesize to 10MB (sufficient for audio, avoids huge RAM spikes)
+                            probesize: '10000000',
                             analyzeduration: '0',
-                            // Pre-buffer more data before starting
                             fflags: '+genpts+discardcorrupt'
                         },
                         output: {
