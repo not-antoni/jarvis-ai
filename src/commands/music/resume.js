@@ -7,6 +7,11 @@ module.exports = {
         .setDescription('Resume playback'),
     async execute(interaction) {
         if (!interaction.guild) return;
+
+        // DJ / Blocking Check
+        const { canControlMusic } = require('../../utils/dj-system');
+        if (!await canControlMusic(interaction)) return;
+
         const queue = distube.get().getQueue(interaction.guild);
 
         if (!queue) {
