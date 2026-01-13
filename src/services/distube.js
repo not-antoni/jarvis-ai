@@ -6,6 +6,24 @@ const soundcloudCache = require('./soundcloud-cache');
 
 let distube = null;
 
+// Proxy configuration
+const YTDLP_PROXY_ENABLED = String(process.env.YTDLP_PROXY_ENABLED || '').toLowerCase() === 'true';
+const YTDLP_PROXIES = (process.env.YTDLP_PROXIES || '').split(',').filter(Boolean);
+let proxyIndex = 0;
+
+// Get next proxy in rotation (round-robin)
+function getNextProxy() {
+    if (!YTDLP_PROXY_ENABLED || YTDLP_PROXIES.length === 0) return null;
+    const proxy = YTDLP_PROXIES[proxyIndex % YTDLP_PROXIES.length];
+    proxyIndex++;
+    // Format: ip:port:user:pass -> http://user:pass@ip:port
+    const parts = proxy.split(':');
+    if (parts.length === 4) {
+        return `http://${parts[2]}:${parts[3]}@${parts[0]}:${parts[1]}`;
+    }
+    return proxy; // Already formatted
+}
+
 module.exports = {
     init: (client) => {
         console.log('[Distube] Init called');
@@ -15,6 +33,26 @@ module.exports = {
             console.log('[Distube] requiring ffmpeg-static...');
             const ffmpegPath = require('ffmpeg-static');
             console.log('[Distube] ffmpeg path:', ffmpegPath);
+
+            // Build yt-dlp args
+            const ytdlpArgs = [
+                '--no-warnings',
+                '--audio-quality', '0',
+                // Prefer opus/vorbis (less transcoding loss), fallback to best
+                '--format', 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]/bestaudio/best',
+                // Network resilience
+                '--socket-timeout', '10',
+                '--retries', '10'
+            ];
+
+            // Add proxy if enabled
+            const proxy = getNextProxy();
+            if (proxy) {
+                ytdlpArgs.push('--proxy', proxy);
+                console.log(`[Distube] Proxy enabled, using: ${proxy.replace(/:[^:]+@/, ':***@')}`);
+            } else if (YTDLP_PROXY_ENABLED) {
+                console.log('[Distube] Proxy enabled but no proxies configured (YTDLP_PROXIES empty)');
+            }
 
             console.log('[Distube] Creating new DisTube instance (yt-dlp + direct-link)...');
             distube = new DisTube(client, {
@@ -51,15 +89,7 @@ module.exports = {
                     new DirectLinkPlugin(),
                     new YtDlpPlugin({
                         update: false,
-                        ytdlpArgs: [
-                            '--no-warnings',
-                            '--audio-quality', '0',
-                            // Prefer opus/vorbis (less transcoding loss), fallback to best
-                            '--format', 'bestaudio[acodec=opus]/bestaudio[acodec=vorbis]/bestaudio/best',
-                            // Network resilience
-                            '--socket-timeout', '10',
-                            '--retries', '10'
-                        ]
+                        ytdlpArgs
                     })
                 ]
             });
