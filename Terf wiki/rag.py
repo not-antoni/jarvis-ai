@@ -38,6 +38,12 @@ GEMINI_API_KEY = (
     ""
 )
 
+# Cohere API key
+COHERE_API_KEY = os.environ.get("COHERE_API_KEY") or ""
+
+# Embedding provider: "cohere" or "gemini"
+EMBED_PROVIDER = "cohere" if COHERE_API_KEY else "gemini"
+
 DATA_FILE = Path(__file__).parent / "data/wiki_pages.json"
 INDEX_FILE = Path(__file__).parent / "data/wiki_index.faiss"
 CHUNKS_FILE = Path(__file__).parent / "data/wiki_chunks.json"
@@ -51,8 +57,9 @@ CHUNK_OVERLAP = 150  # overlap between chunks
 MAX_CONTEXT_CHARS = 6000  # max context sent to LLM
 TOP_K = 7  # number of chunks to retrieve
 
-# Gemini embedding model (768 dims, high quality)
-GEMINI_EMBED_MODEL = "text-embedding-004"
+# Embedding models
+GEMINI_EMBED_MODEL = "text-embedding-004"  # 768 dims
+COHERE_EMBED_MODEL = "embed-v4.0"  # 1024 dims
 
 
 def chunk_document(doc: dict) -> list:
@@ -117,7 +124,8 @@ def compute_data_hash(documents: list) -> str:
 
 class WikiRAG:
     def __init__(self):
-        print("🔧 Using Gemini embedding API (text-embedding-004)...", file=sys.stderr)
+        provider_name = "Cohere embed-v4" if EMBED_PROVIDER == "cohere" else "Gemini text-embedding-004"
+        print(f"🔧 Using {provider_name} for embeddings...", file=sys.stderr)
         
         self.chunks = []
         self.chunk_embeddings = None
@@ -127,6 +135,80 @@ class WikiRAG:
         
         self._load_or_build_index()
         print(f"✅ Ready! {len(self.chunks)} chunks indexed, {len(self._cache)} cached answers.", file=sys.stderr)
+    
+    def _get_cohere_embeddings(self, texts: list, batch_size: int = 96) -> np.ndarray:
+        """Get embeddings from Cohere API in batches."""
+        if not COHERE_API_KEY:
+            raise ValueError("No Cohere API key found. Set COHERE_API_KEY env var.")
+        
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            
+            url = "https://api.cohere.com/v2/embed"
+            
+            payload = {
+                "model": COHERE_EMBED_MODEL,
+                "input_type": "search_document",
+                "texts": batch,
+                "embedding_types": ["float"]
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {COHERE_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            
+            try:
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                
+                # Cohere returns embeddings in data["embeddings"]["float"]
+                embeddings = data.get("embeddings", {}).get("float", [])
+                all_embeddings.extend(embeddings)
+                    
+            except Exception as e:
+                print(f"⚠️ Cohere embedding batch {i//batch_size + 1} failed: {e}", file=sys.stderr)
+                # Fallback: return zeros for failed batch (1024 dims for embed-v4)
+                for _ in batch:
+                    all_embeddings.append([0.0] * 1024)
+            
+            # Rate limiting
+            if i + batch_size < len(texts):
+                time.sleep(0.1)
+        
+        return np.array(all_embeddings, dtype=np.float32)
+    
+    def _get_cohere_single_embedding(self, text: str) -> np.ndarray:
+        """Get embedding for a single query text from Cohere."""
+        if not COHERE_API_KEY:
+            raise ValueError("No Cohere API key found.")
+        
+        url = "https://api.cohere.com/v2/embed"
+        
+        payload = {
+            "model": COHERE_EMBED_MODEL,
+            "input_type": "search_query",  # Use search_query for queries
+            "texts": [text],
+            "embedding_types": ["float"]
+        }
+        
+        headers = {
+            "Authorization": f"Bearer {COHERE_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            embeddings = data.get("embeddings", {}).get("float", [[]])
+            return np.array(embeddings[0], dtype=np.float32).reshape(1, -1)
+        except Exception as e:
+            print(f"⚠️ Cohere query embedding failed: {e}", file=sys.stderr)
+            return np.zeros((1, 1024), dtype=np.float32)
     
     def _get_gemini_embeddings(self, texts: list, batch_size: int = 100) -> np.ndarray:
         """Get embeddings from Gemini API in batches."""
@@ -167,7 +249,7 @@ class WikiRAG:
         
         return np.array(all_embeddings, dtype=np.float32)
     
-    def _get_single_embedding(self, text: str) -> np.ndarray:
+    def _get_gemini_single_embedding(self, text: str) -> np.ndarray:
         """Get embedding for a single text (for queries)."""
         if not GEMINI_API_KEY:
             raise ValueError("No Gemini API key found.")
@@ -187,6 +269,20 @@ class WikiRAG:
         except Exception as e:
             print(f"⚠️ Gemini query embedding failed: {e}", file=sys.stderr)
             return np.zeros((1, 768), dtype=np.float32)
+    
+    def _get_embeddings(self, texts: list) -> np.ndarray:
+        """Get embeddings using the configured provider."""
+        if EMBED_PROVIDER == "cohere":
+            return self._get_cohere_embeddings(texts)
+        else:
+            return self._get_gemini_embeddings(texts)
+    
+    def _get_single_embedding(self, text: str) -> np.ndarray:
+        """Get embedding for a single query using the configured provider."""
+        if EMBED_PROVIDER == "cohere":
+            return self._get_cohere_single_embedding(text)
+        else:
+            return self._get_gemini_single_embedding(text)
     
     def _load_cache(self) -> dict:
         """Load cache from disk."""
@@ -291,11 +387,12 @@ class WikiRAG:
         DATA_HASH_FILE.write_text(current_hash)
     
     def _build_index(self):
-        """Build embeddings using Gemini API."""
-        print("� Building vector embeddings via Gemini API...", file=sys.stderr)
+        """Build embeddings using configured provider."""
+        provider_name = "Cohere" if EMBED_PROVIDER == "cohere" else "Gemini"
+        print(f"📊 Building vector embeddings via {provider_name} API...", file=sys.stderr)
         texts = [f"{c['title']}\n{c['content']}" for c in self.chunks]
         
-        self.chunk_embeddings = self._get_gemini_embeddings(texts)
+        self.chunk_embeddings = self._get_embeddings(texts)
         
         # Save embeddings
         np.save(str(EMBEDDINGS_FILE), self.chunk_embeddings)
