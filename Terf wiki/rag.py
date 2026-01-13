@@ -41,8 +41,8 @@ CHUNK_OVERLAP = 150  # overlap between chunks
 MAX_CONTEXT_CHARS = 6000  # max context sent to LLM
 TOP_K = 7  # number of chunks to retrieve
 
-# Better embedding model (768 dims vs 384)
-EMBED_MODEL = "sentence-transformers/all-mpnet-base-v2"
+# Use faster embedding model (already cached on VPS, 384 dims)
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 def chunk_document(doc: dict) -> list:
@@ -107,7 +107,7 @@ def compute_data_hash(documents: list) -> str:
 
 class WikiRAG:
     def __init__(self):
-        print("🔧 Loading embedding model (all-mpnet-base-v2)...", file=sys.stderr)
+        print("🔧 Loading embedding model (all-MiniLM-L6-v2)...", file=sys.stderr)
         self.embedder = SentenceTransformer(EMBED_MODEL)
         
         self.chunks = []
