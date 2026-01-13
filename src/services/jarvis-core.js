@@ -1902,9 +1902,11 @@ Respond as ${nameUsed}, maintaining all MCU Jarvis tone and brevity rules.`;
                     console.warn(
                         `[LoopDetection] Detected ${loopCheck.type} for user ${userId}: ${loopCheck.message}`
                     );
-                    // Append recovery prompt to break the loop
+                    // Replace response with recovery prompt (don't show repetitive content)
                     const recovery = loopDetection.getRecoveryPrompt(loopCheck.type);
-                    jarvisResponse = `${recovery}\n\n${jarvisResponse}`;
+                    jarvisResponse = recovery;
+                    // Clear history to break the loop
+                    loopDetection.clearHistory(userId, channelId);
                 }
             } catch (e) {
                 // Loop detection not critical, continue without it

@@ -195,6 +195,9 @@ class AIProviderManager {
         this.openRouterGlobalFailure = false;
         this.openRouterFailureCount = 0;
 
+        // Per-provider failure tracking for exponential backoff
+        this.providerFailureCounts = new Map();
+
         // Persistence (5s debounce to reduce I/O)
         this.stateSaveTimer = null;
         this.stateSaveDebounceMs = 5000;
@@ -1126,6 +1129,11 @@ class AIProviderManager {
                     this.openRouterFailureCount = 0;
                 }
 
+                // Reset failure count on success (for exponential backoff)
+                if (this.providerFailureCounts.has(provider.name)) {
+                    this.providerFailureCounts.delete(provider.name);
+                }
+
                 console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
 
                 // Track tokens from response
@@ -1182,12 +1190,28 @@ class AIProviderManager {
                 lastError = error;
 
                 // Disable logic (circuit breaker) — skip transient errors and GPT-5 Nano
+                // Uses exponential backoff: 5min → 15min → 1hr → 2hr based on consecutive failures
                 const shouldDisable = provider.type !== 'gpt5-nano' && !error.transient;
                 if (shouldDisable) {
-                    const disableDuration = 2 * 60 * 60 * 1000; // 2 hours for all providers
+                    const currentFailures = (this.providerFailureCounts.get(provider.name) || 0) + 1;
+                    this.providerFailureCounts.set(provider.name, currentFailures);
+
+                    // Exponential backoff durations (in ms)
+                    const backoffDurations = [
+                        5 * 60 * 1000,      // 1st failure: 5 minutes
+                        15 * 60 * 1000,     // 2nd failure: 15 minutes
+                        60 * 60 * 1000,     // 3rd failure: 1 hour
+                        2 * 60 * 60 * 1000  // 4th+ failure: 2 hours (max)
+                    ];
+                    const backoffIndex = Math.min(currentFailures - 1, backoffDurations.length - 1);
+                    const disableDuration = backoffDurations[backoffIndex];
+                    const durationLabel = disableDuration >= 60 * 60 * 1000
+                        ? `${disableDuration / (60 * 60 * 1000)}h`
+                        : `${disableDuration / (60 * 1000)}m`;
+
                     this.disabledProviders.set(provider.name, Date.now() + disableDuration);
                     this.scheduleStateSave();
-                    console.log(`${provider.name} disabled for 2 hours due to error`);
+                    console.log(`${provider.name} disabled for ${durationLabel} (failure #${currentFailures})`);
                 }
 
                 // Track OpenRouter consecutive empties to toggle global failure
