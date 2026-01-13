@@ -67,18 +67,18 @@ module.exports = {
                             reconnect: '1',
                             reconnect_streamed: '1',
                             reconnect_delay_max: '5',
-                            // Balanced queue size (16k) for network jitter
-                            thread_queue_size: '16384',
-                            // 5MB probe size (good balance for 3min+ files)
-                            probesize: '5242880',
+                            // Increased queue size (24k) for network jitter
+                            thread_queue_size: '24576',
+                            // 8MB probe size (better for longer tracks)
+                            probesize: '8388608',
                             analyzeduration: '0',
                             fflags: '+genpts+discardcorrupt'
                         },
                         output: {
                             ar: '48000',
                             ac: '2',
-                            // 4MB Output buffer (more resilience)
-                            bufsize: '4096k',
+                            // 6MB Output buffer (more resilience)
+                            bufsize: '6144k',
                             // Simplified resampling (let FFmpeg allow async)
                             af: 'aresample=48000:async=1'
                         }
