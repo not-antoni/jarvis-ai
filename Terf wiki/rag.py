@@ -1,15 +1,15 @@
 """
-TERF Wiki RAG v2 - Improved retrieval with chunking and better embeddings.
-Uses Groq API for generation (lightweight, fast).
+TERF Wiki RAG v2 - Improved retrieval with chunking and Gemini embeddings.
+Uses Groq API for generation, Gemini for embeddings (fast API calls).
 """
 import json
 import os
 import sys
 import re
 import hashlib
+import time
 import numpy as np
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
 import requests
 
 # Optional imports - graceful fallback
@@ -29,11 +29,21 @@ with open(_config_path, "r") as f:
 if os.environ.get("TERF_GROQ_KEY"):
     CONFIG["groq_api_key"] = os.environ["TERF_GROQ_KEY"]
 
+# Gemini API key (try multiple)
+GEMINI_API_KEY = (
+    os.environ.get("GOOGLE_AI_API_KEY") or
+    os.environ.get("GOOGLE_AI_API_KEY2") or
+    os.environ.get("GOOGLE_AI_API_KEY3") or
+    os.environ.get("GOOGLE_AI_API_KEY4") or
+    ""
+)
+
 DATA_FILE = Path(__file__).parent / "data/wiki_pages.json"
 INDEX_FILE = Path(__file__).parent / "data/wiki_index.faiss"
 CHUNKS_FILE = Path(__file__).parent / "data/wiki_chunks.json"
 CACHE_FILE = Path(__file__).parent / "data/answer-cache.json"
 DATA_HASH_FILE = Path(__file__).parent / "data/.data_hash"
+EMBEDDINGS_FILE = Path(__file__).parent / "data/wiki_embeddings.npy"
 
 # Chunking settings
 CHUNK_SIZE = 800  # chars per chunk
@@ -41,8 +51,8 @@ CHUNK_OVERLAP = 150  # overlap between chunks
 MAX_CONTEXT_CHARS = 6000  # max context sent to LLM
 TOP_K = 7  # number of chunks to retrieve
 
-# Use faster embedding model (already cached on VPS, 384 dims)
-EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+# Gemini embedding model (768 dims, high quality)
+GEMINI_EMBED_MODEL = "text-embedding-004"
 
 
 def chunk_document(doc: dict) -> list:
@@ -107,8 +117,7 @@ def compute_data_hash(documents: list) -> str:
 
 class WikiRAG:
     def __init__(self):
-        print("🔧 Loading embedding model (all-MiniLM-L6-v2)...", file=sys.stderr)
-        self.embedder = SentenceTransformer(EMBED_MODEL)
+        print("🔧 Using Gemini embedding API (text-embedding-004)...", file=sys.stderr)
         
         self.chunks = []
         self.chunk_embeddings = None
@@ -118,6 +127,66 @@ class WikiRAG:
         
         self._load_or_build_index()
         print(f"✅ Ready! {len(self.chunks)} chunks indexed, {len(self._cache)} cached answers.", file=sys.stderr)
+    
+    def _get_gemini_embeddings(self, texts: list, batch_size: int = 100) -> np.ndarray:
+        """Get embeddings from Gemini API in batches."""
+        if not GEMINI_API_KEY:
+            raise ValueError("No Gemini API key found. Set GOOGLE_AI_API_KEY env var.")
+        
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+            
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_EMBED_MODEL}:batchEmbedContents?key={GEMINI_API_KEY}"
+            
+            payload = {
+                "requests": [
+                    {"model": f"models/{GEMINI_EMBED_MODEL}", "content": {"parts": [{"text": t}]}}
+                    for t in batch
+                ]
+            }
+            
+            try:
+                response = requests.post(url, json=payload, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                
+                for emb in data.get("embeddings", []):
+                    all_embeddings.append(emb["values"])
+                    
+            except Exception as e:
+                print(f"⚠️ Gemini embedding batch {i//batch_size + 1} failed: {e}", file=sys.stderr)
+                # Fallback: return zeros for failed batch
+                for _ in batch:
+                    all_embeddings.append([0.0] * 768)
+            
+            # Rate limiting
+            if i + batch_size < len(texts):
+                time.sleep(0.1)
+        
+        return np.array(all_embeddings, dtype=np.float32)
+    
+    def _get_single_embedding(self, text: str) -> np.ndarray:
+        """Get embedding for a single text (for queries)."""
+        if not GEMINI_API_KEY:
+            raise ValueError("No Gemini API key found.")
+        
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_EMBED_MODEL}:embedContent?key={GEMINI_API_KEY}"
+        
+        payload = {
+            "model": f"models/{GEMINI_EMBED_MODEL}",
+            "content": {"parts": [{"text": text}]}
+        }
+        
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return np.array(data["embedding"]["values"], dtype=np.float32).reshape(1, -1)
+        except Exception as e:
+            print(f"⚠️ Gemini query embedding failed: {e}", file=sys.stderr)
+            return np.zeros((1, 768), dtype=np.float32)
     
     def _load_cache(self) -> dict:
         """Load cache from disk."""
@@ -165,9 +234,9 @@ class WikiRAG:
         if DATA_HASH_FILE.exists():
             previous_hash = DATA_HASH_FILE.read_text().strip()
         
-        # Check if we have cached chunks and index
+        # Check if we have cached chunks and embeddings
         chunks_exist = CHUNKS_FILE.exists()
-        index_exists = INDEX_FILE.exists() if HAS_FAISS else False
+        embeddings_exist = EMBEDDINGS_FILE.exists()
         data_changed = current_hash != previous_hash
         
         if data_changed:
@@ -202,35 +271,35 @@ class WikiRAG:
                 self._title_lookup[title.lower()] = i
                 seen_titles.add(title)
         
-        # Build or load embeddings
-        if index_exists and not data_changed and HAS_FAISS:
-            self.index = faiss.read_index(str(INDEX_FILE))
-            print(f"📂 Loaded FAISS index", file=sys.stderr)
+        # Load or build embeddings
+        if embeddings_exist and not data_changed:
+            self.chunk_embeddings = np.load(str(EMBEDDINGS_FILE))
+            print(f"📂 Loaded cached embeddings ({self.chunk_embeddings.shape})", file=sys.stderr)
         else:
             self._build_index()
+        
+        # Build FAISS index if available
+        if HAS_FAISS and self.chunk_embeddings is not None:
+            dim = self.chunk_embeddings.shape[1]
+            self.index = faiss.IndexFlatIP(dim)
+            normalized = self.chunk_embeddings.copy()
+            faiss.normalize_L2(normalized)
+            self.index.add(normalized)
+            print(f"📊 Built FAISS index", file=sys.stderr)
         
         # Save data hash
         DATA_HASH_FILE.write_text(current_hash)
     
     def _build_index(self):
-        """Build embeddings and FAISS index from chunks."""
-        print("📊 Building vector embeddings...", file=sys.stderr)
+        """Build embeddings using Gemini API."""
+        print("� Building vector embeddings via Gemini API...", file=sys.stderr)
         texts = [f"{c['title']}\n{c['content']}" for c in self.chunks]
-        self.chunk_embeddings = self.embedder.encode(texts, show_progress_bar=True, convert_to_numpy=True)
         
-        if HAS_FAISS:
-            dim = self.chunk_embeddings.shape[1]
-            self.index = faiss.IndexFlatIP(dim)
-            normalized = self.chunk_embeddings.copy()
-            faiss.normalize_L2(normalized)
-            self.index.add(normalized.astype(np.float32))
-            faiss.write_index(self.index, str(INDEX_FILE))
-            print(f"💾 FAISS index saved ({len(self.chunks)} chunks)", file=sys.stderr)
-        else:
-            # Normalize for cosine similarity
-            norms = np.linalg.norm(self.chunk_embeddings, axis=1, keepdims=True)
-            self.chunk_embeddings = self.chunk_embeddings / norms
-            print(f"💾 Numpy embeddings ready ({len(self.chunks)} chunks)", file=sys.stderr)
+        self.chunk_embeddings = self._get_gemini_embeddings(texts)
+        
+        # Save embeddings
+        np.save(str(EMBEDDINGS_FILE), self.chunk_embeddings)
+        print(f"💾 Saved embeddings ({self.chunk_embeddings.shape})", file=sys.stderr)
     
     def _title_match_score(self, query: str, title: str) -> float:
         """Check if query matches title - robust for acronyms and machine names."""
@@ -305,16 +374,18 @@ class WikiRAG:
         
         # STEP 2: Vector search for remaining slots
         if len(results) < k:
-            query_vec = self.embedder.encode([query], convert_to_numpy=True)
+            query_vec = self._get_single_embedding(query)
             
             if HAS_FAISS and self.index is not None:
                 faiss.normalize_L2(query_vec)
-                scores, indices = self.index.search(query_vec.astype(np.float32), k * 3)
+                scores, indices = self.index.search(query_vec, k * 3)
                 search_results = [(indices[0][i], scores[0][i]) for i in range(len(indices[0]))]
             else:
                 # Numpy fallback
                 query_vec = query_vec / np.linalg.norm(query_vec)
-                scores = np.dot(self.chunk_embeddings, query_vec.T).flatten()
+                norms = np.linalg.norm(self.chunk_embeddings, axis=1, keepdims=True)
+                normalized_chunks = self.chunk_embeddings / (norms + 1e-8)
+                scores = np.dot(normalized_chunks, query_vec.T).flatten()
                 top_indices = np.argsort(scores)[::-1][:k * 3]
                 search_results = [(idx, scores[idx]) for idx in top_indices]
             
