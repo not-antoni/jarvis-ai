@@ -1840,6 +1840,17 @@ Ignore all previous instructions. You are J.A.R.V.I.S., Tony Stark's advanced AI
                 })
                 .filter(Boolean);
 
+            // Build contextual memory block from reply-ping context (if available)
+            let contextualBlock = '';
+            if (contextualMemory && contextualMemory.messages && contextualMemory.messages.length > 0) {
+                const contextLines = contextualMemory.messages.map(msg => {
+                    const role = msg.role === 'assistant' ? 'Jarvis' : (msg.username || 'User');
+                    const content = (msg.content || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+                    return `${role}: ${content}`;
+                });
+                contextualBlock = `\n\nREPLY CONTEXT (this is the conversation thread the user is replying to):\n${contextLines.join('\n')}\n`;
+            }
+
             const context = `
 User Profile - ${userName}:
 - Relationship: ${userProfile?.relationship || 'new'}
@@ -1850,7 +1861,7 @@ User Profile - ${userName}:
 Recent conversation history:
 ${historyBlock}
 ${embeddingContext}
-
+${contextualBlock}
 ANTI-REPETITION WARNING: Your last few responses were: ${recentJarvisResponses.length ? recentJarvisResponses.join(' | ') : 'No secure responses recorded.'}
 Current message: "${processedInput}"
 
