@@ -1097,6 +1097,16 @@ class AIProviderManager {
                         status: 502
                     });
                 }
+
+                // Sanitize response (was missing - could leak prompt injection artifacts)
+                const sanitized = sanitizeAssistantMessage(String(text));
+                if (!sanitized) {
+                    throw Object.assign(
+                        new Error(`Sanitized empty content from ${provider.name}`),
+                        { status: 502 }
+                    );
+                }
+                resp.choices[0].message.content = sanitized;
                 return resp;
             };
 
@@ -1309,6 +1319,13 @@ class AIProviderManager {
 
                 const arrayBuffer = await response.arrayBuffer();
                 let buffer = Buffer.from(arrayBuffer);
+
+                // Prevent OOM from malicious large images (10MB limit)
+                const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+                if (buffer.length > MAX_IMAGE_SIZE_BYTES) {
+                    console.warn(`Image too large (${(buffer.length / 1024 / 1024).toFixed(1)}MB), skipping: ${imageUrl}`);
+                    continue;
+                }
 
                 // Check content type from response or URL extension
                 let mimeType = response.headers.get('content-type') || contentType;
