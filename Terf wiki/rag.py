@@ -1,20 +1,24 @@
 """
-TERF Wiki RAG - Dual-model system with FunctionGemma + Groq/Local LLM.
-- FunctionGemma: Decides when to search the wiki
-- Groq API (llama-3.1-8b) or local Gemma3: Generates answers
+TERF Wiki RAG v2 - Improved retrieval with chunking and better embeddings.
+Uses Groq API for generation (lightweight, fast).
 """
 import json
 import os
 import sys
 import re
-import torch
-import faiss
-import requests
+import hashlib
 import numpy as np
 from pathlib import Path
-from functools import lru_cache
 from sentence_transformers import SentenceTransformer
-from transformers import AutoTokenizer, AutoModelForCausalLM
+import requests
+
+# Optional imports - graceful fallback
+try:
+    import faiss
+    HAS_FAISS = True
+except ImportError:
+    HAS_FAISS = False
+    print("⚠️ FAISS not available, using numpy search", file=sys.stderr)
 
 # Load config with environment variable overrides
 _config_path = Path(__file__).parent / "config.json"
@@ -27,54 +31,99 @@ if os.environ.get("TERF_GROQ_KEY"):
 
 DATA_FILE = Path(__file__).parent / "data/wiki_pages.json"
 INDEX_FILE = Path(__file__).parent / "data/wiki_index.faiss"
+CHUNKS_FILE = Path(__file__).parent / "data/wiki_chunks.json"
+CACHE_FILE = Path(__file__).parent / "data/answer-cache.json"
+DATA_HASH_FILE = Path(__file__).parent / "data/.data_hash"
+
+# Chunking settings
+CHUNK_SIZE = 800  # chars per chunk
+CHUNK_OVERLAP = 150  # overlap between chunks
+MAX_CONTEXT_CHARS = 6000  # max context sent to LLM
+TOP_K = 7  # number of chunks to retrieve
+
+# Better embedding model (768 dims vs 384)
+EMBED_MODEL = "sentence-transformers/all-mpnet-base-v2"
+
+
+def chunk_document(doc: dict) -> list:
+    """Split a document into overlapping chunks for better retrieval."""
+    title = doc["title"]
+    content = doc["content"]
+    url = doc.get("url", "")
+    doc_id = doc.get("id", "")
+    
+    # If content is short, return as single chunk
+    if len(content) <= CHUNK_SIZE:
+        return [{
+            "title": title,
+            "content": content,
+            "url": url,
+            "doc_id": doc_id,
+            "chunk_idx": 0
+        }]
+    
+    chunks = []
+    start = 0
+    chunk_idx = 0
+    
+    while start < len(content):
+        end = start + CHUNK_SIZE
+        
+        # Try to break at paragraph or sentence boundary
+        if end < len(content):
+            # Look for paragraph break
+            para_break = content.rfind('\n\n', start + CHUNK_SIZE // 2, end + 100)
+            if para_break > start:
+                end = para_break
+            else:
+                # Look for sentence break
+                sent_break = content.rfind('. ', start + CHUNK_SIZE // 2, end + 50)
+                if sent_break > start:
+                    end = sent_break + 1
+        
+        chunk_text = content[start:end].strip()
+        if chunk_text:
+            chunks.append({
+                "title": title,
+                "content": chunk_text,
+                "url": url,
+                "doc_id": doc_id,
+                "chunk_idx": chunk_idx
+            })
+            chunk_idx += 1
+        
+        start = end - CHUNK_OVERLAP
+        if start >= len(content) - CHUNK_OVERLAP:
+            break
+    
+    return chunks
+
+
+def compute_data_hash(documents: list) -> str:
+    """Compute hash of document data to detect changes."""
+    content = json.dumps(documents, sort_keys=True)
+    return hashlib.md5(content.encode()).hexdigest()
 
 
 class WikiRAG:
     def __init__(self):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        dtype = torch.float32
+        print("🔧 Loading embedding model (all-mpnet-base-v2)...", file=sys.stderr)
+        self.embedder = SentenceTransformer(EMBED_MODEL)
         
-        print("🔧 Loading embedding model...", file=sys.stderr)
-        self.embedder = SentenceTransformer(CONFIG["embed_model"])
-        
-        # Optionally load FunctionGemma
-        self.use_function_model = CONFIG.get("use_function_model", True)
-        if self.use_function_model:
-            print("🔧 Loading FunctionGemma (tool calling)...", file=sys.stderr)
-            self.func_tokenizer = AutoTokenizer.from_pretrained(CONFIG["function_model"])
-            self.func_model = AutoModelForCausalLM.from_pretrained(
-                CONFIG["function_model"], torch_dtype=dtype
-            ).to(self.device)
-        else:
-            print("🔧 FunctionGemma disabled", file=sys.stderr)
-            self.func_tokenizer = None
-            self.func_model = None
-        
-        # Only load local chat model if not using Groq
-        self.use_groq = CONFIG.get("use_groq_api", True)
-        if not self.use_groq:
-            print("🔧 Loading local Gemma3 (conversation)...", file=sys.stderr)
-            self.chat_tokenizer = AutoTokenizer.from_pretrained(CONFIG["local_chat_model"])
-            self.chat_model = AutoModelForCausalLM.from_pretrained(
-                CONFIG["local_chat_model"], torch_dtype=dtype
-            ).to(self.device)
-        else:
-            print(f"🔧 Using Groq API ({CONFIG['groq_model']})", file=sys.stderr)
-            self.chat_tokenizer = None
-            self.chat_model = None
-        
-        self.documents = []
+        self.chunks = []
+        self.chunk_embeddings = None
         self.index = None
-        self._cache_file = Path(__file__).parent / "data/answer-cache.json"
+        self._title_lookup = {}
         self._cache = self._load_cache()
+        
         self._load_or_build_index()
-        print(f"✅ Ready! {len(self.documents)} documents indexed, {len(self._cache)} cached answers.", file=sys.stderr)
+        print(f"✅ Ready! {len(self.chunks)} chunks indexed, {len(self._cache)} cached answers.", file=sys.stderr)
     
     def _load_cache(self) -> dict:
         """Load cache from disk."""
-        if self._cache_file.exists():
+        if CACHE_FILE.exists():
             try:
-                with open(self._cache_file, "r", encoding="utf-8") as f:
+                with open(CACHE_FILE, "r", encoding="utf-8") as f:
                     return json.load(f)
             except:
                 return {}
@@ -83,54 +132,115 @@ class WikiRAG:
     def _save_cache(self):
         """Save cache to disk."""
         try:
-            with open(self._cache_file, "w", encoding="utf-8") as f:
+            # Limit cache size to 300 entries
+            if len(self._cache) > 300:
+                keys = list(self._cache.keys())
+                for key in keys[:len(keys) - 300]:
+                    del self._cache[key]
+            
+            with open(CACHE_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._cache, f, ensure_ascii=False)
         except Exception as e:
-            print(f"Warning: Failed to save cache: {e}")
+            print(f"Warning: Failed to save cache: {e}", file=sys.stderr)
+    
+    def _clear_cache(self):
+        """Clear answer cache (called when data changes)."""
+        self._cache = {}
+        if CACHE_FILE.exists():
+            CACHE_FILE.unlink()
+        print("🗑️ Answer cache cleared", file=sys.stderr)
     
     def _load_or_build_index(self):
         """Load existing index or build from wiki data."""
+        if not DATA_FILE.exists():
+            print("❌ No wiki data found. Run scraper first.", file=sys.stderr)
+            return
+        
         with open(DATA_FILE, "r", encoding="utf-8") as f:
-            self.documents = json.load(f)
+            documents = json.load(f)
+        
+        # Check if data has changed
+        current_hash = compute_data_hash(documents)
+        previous_hash = None
+        if DATA_HASH_FILE.exists():
+            previous_hash = DATA_HASH_FILE.read_text().strip()
+        
+        # Check if we have cached chunks and index
+        chunks_exist = CHUNKS_FILE.exists()
+        index_exists = INDEX_FILE.exists() if HAS_FAISS else False
+        data_changed = current_hash != previous_hash
+        
+        if data_changed:
+            print("📊 Wiki data changed, rebuilding index...", file=sys.stderr)
+            self._clear_cache()
+        
+        if chunks_exist and not data_changed:
+            # Load cached chunks
+            with open(CHUNKS_FILE, "r", encoding="utf-8") as f:
+                self.chunks = json.load(f)
+            print(f"📂 Loaded {len(self.chunks)} cached chunks", file=sys.stderr)
+        else:
+            # Build chunks from documents
+            print("📊 Building document chunks...", file=sys.stderr)
+            self.chunks = []
+            for doc in documents:
+                self.chunks.extend(chunk_document(doc))
+            
+            # Save chunks
+            with open(CHUNKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.chunks, f, ensure_ascii=False)
+            print(f"💾 Saved {len(self.chunks)} chunks", file=sys.stderr)
         
         # Build title lookup for exact matching
         self._title_lookup = {}
-        for i, doc in enumerate(self.documents):
-            title = doc["title"]
-            # Map normalized versions to document index
-            normalized = re.sub(r'[.\s\-_]', '', title.lower())
-            self._title_lookup[normalized] = i
-            self._title_lookup[title.lower()] = i
+        seen_titles = set()
+        for i, chunk in enumerate(self.chunks):
+            title = chunk["title"]
+            if title not in seen_titles:
+                normalized = re.sub(r'[.\s\-_]', '', title.lower())
+                self._title_lookup[normalized] = i
+                self._title_lookup[title.lower()] = i
+                seen_titles.add(title)
         
-        if Path(INDEX_FILE).exists():
+        # Build or load embeddings
+        if index_exists and not data_changed and HAS_FAISS:
             self.index = faiss.read_index(str(INDEX_FILE))
+            print(f"📂 Loaded FAISS index", file=sys.stderr)
         else:
             self._build_index()
+        
+        # Save data hash
+        DATA_HASH_FILE.write_text(current_hash)
     
     def _build_index(self):
-        """Build FAISS index from documents."""
-        print("📊 Building vector index...", file=sys.stderr)
-        texts = [f"{d['title']}\n{d['content']}" for d in self.documents]
-        embeddings = self.embedder.encode(texts, show_progress_bar=True)
+        """Build embeddings and FAISS index from chunks."""
+        print("📊 Building vector embeddings...", file=sys.stderr)
+        texts = [f"{c['title']}\n{c['content']}" for c in self.chunks]
+        self.chunk_embeddings = self.embedder.encode(texts, show_progress_bar=True, convert_to_numpy=True)
         
-        dim = embeddings.shape[1]
-        self.index = faiss.IndexFlatIP(dim)
-        faiss.normalize_L2(embeddings)
-        self.index.add(embeddings.astype(np.float32))
-        
-        faiss.write_index(self.index, str(INDEX_FILE))
-        print(f"💾 Index saved to {INDEX_FILE}", file=sys.stderr)
+        if HAS_FAISS:
+            dim = self.chunk_embeddings.shape[1]
+            self.index = faiss.IndexFlatIP(dim)
+            normalized = self.chunk_embeddings.copy()
+            faiss.normalize_L2(normalized)
+            self.index.add(normalized.astype(np.float32))
+            faiss.write_index(self.index, str(INDEX_FILE))
+            print(f"💾 FAISS index saved ({len(self.chunks)} chunks)", file=sys.stderr)
+        else:
+            # Normalize for cosine similarity
+            norms = np.linalg.norm(self.chunk_embeddings, axis=1, keepdims=True)
+            self.chunk_embeddings = self.chunk_embeddings / norms
+            print(f"💾 Numpy embeddings ready ({len(self.chunks)} chunks)", file=sys.stderr)
     
     def _title_match_score(self, query: str, title: str) -> float:
         """Check if query matches title - robust for acronyms and machine names."""
-        # Normalize everything: lowercase, remove dots/spaces/punctuation
         def normalize(s):
             return re.sub(r'[.\s\-_\'\":;,!?()]', '', s.lower())
         
         query_norm = normalize(query)
         title_norm = normalize(title)
         
-        # Exact normalized match (stfr == S.T.F.R. == STFR)
+        # Exact normalized match
         if query_norm == title_norm:
             return 1.0
         
@@ -138,185 +248,178 @@ class WikiRAG:
         if query_norm in title_norm or title_norm in query_norm:
             return 0.8
         
-        # Split into words and check for matches
+        # Word overlap
         query_words = set(normalize(w) for w in query.split() if len(w) > 2)
         title_words = set(normalize(w) for w in title.split() if len(w) > 1)
         
-        # Any word from query matches title words
         matches = query_words & title_words
         if matches:
             return 0.5 + (0.3 * len(matches) / max(len(query_words), 1))
-        
-        # Fuzzy: check if any query word is substring of any title word
-        for qw in query_words:
-            for tw in title_words:
-                if len(qw) >= 3 and (qw in tw or tw in qw):
-                    return 0.4
         
         return 0.0
     
     def retrieve(self, query: str, k: int = None) -> list:
         """Hybrid retrieval: direct title match + vector search."""
-        k = k or CONFIG.get("top_k", 3)
+        k = k or TOP_K
         results = []
-        used_titles = set()
+        used_chunks = set()
         
         # STEP 1: Direct title lookup (exact match)
         query_norm = re.sub(r'[.\s\-_]', '', query.lower())
         if query_norm in self._title_lookup:
             idx = self._title_lookup[query_norm]
-            doc = self.documents[idx]
+            chunk = self.chunks[idx]
             results.append({
-                "title": doc["title"],
-                "content": doc["content"][:1200],
-                "url": doc["url"],
-                "score": 2.0  # Highest priority
+                "title": chunk["title"],
+                "content": chunk["content"],
+                "url": chunk["url"],
+                "score": 2.0
             })
-            used_titles.add(doc["title"])
+            used_chunks.add(idx)
+            
+            # Also get other chunks from same document
+            for i, c in enumerate(self.chunks):
+                if c["title"] == chunk["title"] and i not in used_chunks:
+                    results.append({
+                        "title": c["title"],
+                        "content": c["content"],
+                        "url": c["url"],
+                        "score": 1.8
+                    })
+                    used_chunks.add(i)
         
         # Also check each word in query for direct matches
         for word in query.split():
             word_norm = re.sub(r'[.\s\-_]', '', word.lower())
             if len(word_norm) >= 3 and word_norm in self._title_lookup:
                 idx = self._title_lookup[word_norm]
-                doc = self.documents[idx]
-                if doc["title"] not in used_titles:
+                chunk = self.chunks[idx]
+                if idx not in used_chunks:
                     results.append({
-                        "title": doc["title"],
-                        "content": doc["content"][:1200],
-                        "url": doc["url"],
+                        "title": chunk["title"],
+                        "content": chunk["content"],
+                        "url": chunk["url"],
                         "score": 1.5
                     })
-                    used_titles.add(doc["title"])
+                    used_chunks.add(idx)
         
         # STEP 2: Vector search for remaining slots
         if len(results) < k:
-            query_vec = self.embedder.encode([query])
-            faiss.normalize_L2(query_vec)
-            scores, indices = self.index.search(query_vec.astype(np.float32), k * 3)
+            query_vec = self.embedder.encode([query], convert_to_numpy=True)
             
-            for i, idx in enumerate(indices[0]):
-                if idx < len(self.documents) and len(results) < k:
-                    doc = self.documents[idx]
-                    if doc["title"] not in used_titles:
-                        vector_score = float(scores[0][i])
-                        title_boost = self._title_match_score(query, doc["title"])
-                        combined_score = vector_score + (title_boost * 0.5)
-                        
-                        results.append({
-                            "title": doc["title"],
-                            "content": doc["content"][:1200],
-                            "url": doc["url"],
-                            "score": combined_score
-                        })
-                        used_titles.add(doc["title"])
+            if HAS_FAISS and self.index is not None:
+                faiss.normalize_L2(query_vec)
+                scores, indices = self.index.search(query_vec.astype(np.float32), k * 3)
+                search_results = [(indices[0][i], scores[0][i]) for i in range(len(indices[0]))]
+            else:
+                # Numpy fallback
+                query_vec = query_vec / np.linalg.norm(query_vec)
+                scores = np.dot(self.chunk_embeddings, query_vec.T).flatten()
+                top_indices = np.argsort(scores)[::-1][:k * 3]
+                search_results = [(idx, scores[idx]) for idx in top_indices]
+            
+            for idx, score in search_results:
+                if idx < len(self.chunks) and len(results) < k and idx not in used_chunks:
+                    chunk = self.chunks[idx]
+                    title_boost = self._title_match_score(query, chunk["title"])
+                    combined_score = float(score) + (title_boost * 0.5)
+                    
+                    results.append({
+                        "title": chunk["title"],
+                        "content": chunk["content"],
+                        "url": chunk["url"],
+                        "score": combined_score
+                    })
+                    used_chunks.add(idx)
         
-        # Sort by score
+        # Sort by score and limit
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:k]
     
-    def should_search(self, question: str) -> tuple:
-        """Always search for TERF questions - skip function calling overhead."""
-        # Simple keyword check - faster than model inference
-        terf_keywords = ['terf', 'reactor', 'machine', 'multiblock', 'power', 'build', 
-                         'stfr', 's.t.f.r', 'dem', 'd.e.m', 'crr', 'c.r.r', 'mcfr',
-                         'turbine', 'furnace', 'fabricator', 'breaker', 'generator',
-                         'fluid', 'pipe', 'energy', 'startup', 'meltdown', 'coolant']
-        
-        query_lower = question.lower()
-        for kw in terf_keywords:
-            if kw in query_lower:
-                return True, "wiki_search"
-        
-        # Default: search anyway for wiki bot
-        return True, "wiki_search"
-    
     def _call_groq(self, prompt: str) -> str:
         """Call Groq API for chat completion."""
+        api_key = CONFIG.get("groq_api_key") or os.environ.get("TERF_GROQ_KEY")
+        if not api_key:
+            return "Error: No Groq API key configured."
+        
         headers = {
-            "Authorization": f"Bearer {CONFIG['groq_api_key']}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
         data = {
-            "model": CONFIG["groq_model"],
+            "model": CONFIG.get("groq_model", "llama-3.1-8b-instant"),
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
-            "max_tokens": 512
+            "max_tokens": 800
         }
         
-        response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=30
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
-    
-    def _call_local(self, prompt: str) -> str:
-        """Use local Gemma3 model for generation."""
-        inputs = self.chat_tokenizer(prompt, return_tensors="pt").to(self.device)
-        with torch.no_grad():
-            outputs = self.chat_model.generate(
-                **inputs, max_new_tokens=300, temperature=0.7, do_sample=True,
-                pad_token_id=self.chat_tokenizer.eos_token_id
+        try:
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=30
             )
-        response = self.chat_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        if prompt in response:
-            response = response[len(prompt):].strip()
-        return response
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"]
+        except requests.exceptions.Timeout:
+            return "Error: Groq API timed out. Please try again."
+        except Exception as e:
+            return f"Error calling Groq API: {str(e)}"
     
     def generate_answer(self, question: str, context: str) -> str:
-        """Generate answer using Groq API or local model."""
-        prompt = f"""You are a wiki expert. Answer the question using ONLY the provided wiki source code (wikitext) below.
+        """Generate answer using Groq API."""
+        prompt = f"""You are a wiki expert assistant. Answer the question using ONLY the provided wiki context below.
 
 CONTEXT FORMAT:
-- The context provides raw wikitext.
-- {{Infobox reactor | power = 100MW }} -> This means Power is 100MW.
-- [[Target|Label]] -> This is a link to Target with label Label.
-- == Header == -> This is a section header.
+- The context includes raw wikitext with templates like {{{{Infobox | key = value}}}}.
+- Parse these templates to extract data (power, heat, recipes, etc.).
+- [[Link]] means a wiki link to another page.
+- ## Header means a section header.
 
-STRICT RULES:
+RULES:
 1. ONLY use information from the wiki context provided.
-2. Interpret templates ({{...}}) and tables properly to extract technical data.
-3. If the answer is COMPLETELY missing from the context, state "This information is not available in the wiki."
-4. If you find partial information, share it but mention what is missing.
-5. Quote specific values (power, heat, recipes) exactly found in the source.
+2. Extract and quote specific values (power, heat, recipes) exactly as found.
+3. If the information is partially available, share what you found and note what's missing.
+4. If the answer is COMPLETELY missing from context, say "This specific information is not in the wiki pages I found. The wiki may have more details at [relevant page link]."
+5. Be concise but complete.
 
 Wiki Context:
 {context}
 
 Question: {question}
 
-Answer using ONLY the wiki context above:"""
+Answer:"""
         
-        if self.use_groq:
-            return self._call_groq(prompt)
-        else:
-            return self._call_local(prompt)
+        return self._call_groq(prompt)
     
     def answer(self, question: str) -> tuple:
-        """Full RAG pipeline: retrieve and answer with disk caching."""
-        # Check cache first (normalize query)
+        """Full RAG pipeline: retrieve and answer with caching."""
+        # Check cache first
         cache_key = question.lower().strip()
         if cache_key in self._cache:
             cached = self._cache[cache_key]
-            # Reconstruct tuple from cached dict
             return (cached["answer"], cached["sources"])
         
-        # Retrieve and generate
+        # Retrieve relevant chunks
         docs = self.retrieve(question)
-        context = "\n\n".join([f"### {d['title']}\n{d['content']}" for d in docs])
         
+        # Build context with more content
+        context_parts = []
+        total_chars = 0
+        for d in docs:
+            chunk_text = f"### {d['title']}\nURL: {d['url']}\n{d['content']}"
+            if total_chars + len(chunk_text) > MAX_CONTEXT_CHARS:
+                break
+            context_parts.append(chunk_text)
+            total_chars += len(chunk_text)
+        
+        context = "\n\n---\n\n".join(context_parts)
+        
+        # Generate answer
         answer = self.generate_answer(question, context)
         
-        # Cache result as dict (JSON-serializable)
-        # Limit to 200 entries
-        if len(self._cache) >= 200:
-            # Remove oldest entry
-            oldest_key = next(iter(self._cache))
-            del self._cache[oldest_key]
-        
+        # Cache result
         self._cache[cache_key] = {
             "answer": answer,
             "sources": [{"title": d["title"], "url": d["url"]} for d in docs]
@@ -329,8 +432,7 @@ Answer using ONLY the wiki context above:"""
 def main():
     rag = WikiRAG()
     
-    mode = "Groq API" if rag.use_groq else "Local Gemma3"
-    print(f"\n🎮 TERF Wiki RAG - Using {mode}")
+    print(f"\n🎮 TERF Wiki RAG v2 - Using Groq API")
     print("Type 'quit' to exit.\n")
     
     while True:
@@ -343,7 +445,7 @@ def main():
         answer, sources = rag.answer(question)
         print(f"\n🤖 Assistant: {answer}")
         if sources:
-            print(f"📚 Sources: {', '.join(s['title'] for s in sources)}")
+            print(f"📚 Sources: {', '.join(s['title'] for s in sources[:5])}")
         print()
 
 
