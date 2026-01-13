@@ -263,11 +263,12 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
  * Generate Quote Image
  */
 async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attachmentImageUrl, actualUsername = null) {
-    const width = 1800;
-    const padding = 80;
-    const minHeight = 600;
+    // Fixed canvas size - max Discord resolution
+    const width = 1599;
+    const height = 899;
+    const padding = 60;
 
-    const canvas = createCanvas(width, minHeight);
+    const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
     const fontStack = '"Noto Sans", "Noto Sans CJK SC", "Dejavu Sans", "Arial", sans-serif';
@@ -347,35 +348,46 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
     await Promise.all(assetsToLoad);
 
-    // 2. Layout
+    // 2. Layout - fixed canvas, truncate text if too long
     const maxTextWidth = (width / 2) - padding;
-    const lines = wrapTokens(ctx, tokens, maxTextWidth, fontSize);
+    let lines = wrapTokens(ctx, tokens, maxTextWidth, fontSize);
 
-    const lineHeight = fontSize * 1.5;
+    const lineHeight = fontSize * 1.4;
+    const nameHeight = 50;
+    const handleHeight = 35;
+    const footerHeight = 40;
+    const maxLines = Math.floor((height - padding * 2 - nameHeight - handleHeight - footerHeight) / lineHeight);
+    
+    // Truncate lines if too many
+    if (lines.length > maxLines) {
+        lines = lines.slice(0, maxLines);
+        // Add ellipsis to last line
+        const lastLine = lines[lines.length - 1];
+        lastLine.push({ type: 'text', content: '...' });
+    }
+
     const textBlockHeight = lines.length * lineHeight;
 
     let imageDrawWidth = 0;
     let imageDrawHeight = 0;
     if (attachmentImage) {
         const ratio = attachmentImage.width / attachmentImage.height;
-        // User requested large images: Force width to fill column (maxTextWidth)
-        // This will upscale small images, but that's better than tiny specks.
-        imageDrawWidth = maxTextWidth;
+        // Scale image to fit remaining space
+        const availableHeight = height - padding * 2 - textBlockHeight - nameHeight - handleHeight - footerHeight - 30;
+        imageDrawWidth = Math.min(maxTextWidth, availableHeight * ratio);
         imageDrawHeight = imageDrawWidth / ratio;
+        // Cap maximum
+        if (imageDrawHeight > availableHeight) {
+            imageDrawHeight = availableHeight;
+            imageDrawWidth = imageDrawHeight * ratio;
+        }
     }
 
-    const contentSpacing = (lines.length > 0 && attachmentImage) ? 40 : 0;
+    const contentSpacing = (lines.length > 0 && attachmentImage) ? 30 : 0;
     const totalContentHeight = textBlockHeight + imageDrawHeight + contentSpacing;
 
-    const nameHeight = 60;
-    const handleHeight = 40;
-
-    const canvasHeight = Math.max(minHeight, totalContentHeight + nameHeight + handleHeight + (padding * 3));
-
-    // Resize Canvas
-    canvas.width = width;
-    canvas.height = canvasHeight;
-    ctx.font = `${fontSize}px ${fontStack}`;
+    // Canvas is fixed size
+    const canvasHeight = height;
 
     // 3. Backgrounds
     ctx.fillStyle = 'black';
