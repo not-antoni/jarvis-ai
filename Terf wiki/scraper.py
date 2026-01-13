@@ -44,19 +44,34 @@ def get_all_page_titles():
 
 
 def clean_content(text):
-    """Clean wiki markup artifacts but PRESERVE templates/infoboxes."""
+    """Clean wiki markup but PRESERVE templates/infoboxes for LLM parsing.
+    
+    We keep templates ({{...}}) because they contain structured data like:
+    - {{Infobox reactor | power = 100MW }}
+    - {{Recipe | input = ... | output = ... }}
+    The LLM is instructed to parse these.
+    """
     if not text:
         return ""
     
-    # Simplify links: [[Target|Label]] -> Label, [[Target]] -> Target
-    # We do this carefully to not break other things
-    text = re.sub(r'\[\[(?:[^|\]]*\|)?([^\]]+)\]\]', r'\1', text)
-    
-    # Remove == Section == markers but keep section names
-    text = re.sub(r'={2,}\s*(.+?)\s*={2,}', r'\n## \1\n', text)
-    
     # Remove HTML comments <!-- ... -->
     text = re.sub(r'<!--[\s\S]*?-->', '', text)
+    
+    # Simplify links: [[Target|Label]] -> Label, [[Target]] -> Target
+    text = re.sub(r'\[\[(?:[^|\]]*\|)?([^\]]+)\]\]', r'\1', text)
+    
+    # Convert == Section == markers to readable headers
+    text = re.sub(r'={2,}\s*(.+?)\s*={2,}', r'\n## \1\n', text)
+    
+    # Remove <ref>...</ref> citations (noisy for RAG)
+    text = re.sub(r'<ref[^>]*>.*?</ref>', '', text, flags=re.DOTALL)
+    text = re.sub(r'<ref[^/]*/>', '', text)
+    
+    # Remove __NOTOC__, __TOC__, etc.
+    text = re.sub(r'__[A-Z]+__', '', text)
+    
+    # Clean up categories at the bottom
+    text = re.sub(r'\[\[Category:[^\]]+\]\]', '', text)
     
     # Clean up multiple newlines
     text = re.sub(r'\n{3,}', '\n\n', text)

@@ -66,13 +66,19 @@ def check_and_update():
     with open(HASH_FILE, "w") as f:
         f.write(current_hash)
     
-    # Delete FAISS index to force rebuild
-    index_file = "data/wiki_index.faiss"
-    if os.path.exists(index_file):
-        os.remove(index_file)
-        print("🗑️ Cleared vector index (will rebuild on next bot start)")
+    # Clear all cached data to force complete rebuild
+    files_to_clear = [
+        "data/wiki_index.faiss",      # FAISS index
+        "data/wiki_chunks.json",      # Chunked documents
+        "data/answer-cache.json",     # Answer cache
+        "data/.data_hash"             # Data hash (so RAG knows to rebuild)
+    ]
+    for filepath in files_to_clear:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            print(f"🗑️ Cleared {filepath}")
     
-    print("✅ Data updated successfully!")
+    print("✅ Data updated! RAG will rebuild on next query.")
     return True
 
 
