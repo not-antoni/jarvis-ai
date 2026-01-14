@@ -51,7 +51,7 @@ const SBX_CONFIG = {
     symbol: 'SBX',
     name: 'Starkbucks',
     decimals: 2,
-    
+
     // Price fluctuation settings
     basePrice: 1.00,           // Base price in "USD"
     minPrice: 0.01,            // Minimum price (lowered to allow more range)
@@ -60,21 +60,21 @@ const SBX_CONFIG = {
     volatility: 0.03,          // 3% max random change per tick
     maxTickChange: 0.05,       // Maximum 5% change per tick
     tickInterval: 20 * 1000,   // Price updates every 20 seconds
-    
+
     // Recovery mechanics
     recoveryStrength: 0.02,    // 2% pull toward target when far from it
     recoveryThreshold: 0.5,    // Start recovery when price < 50% of target
-    
+
     // Transaction settings
     ownerFeePercent: 0.10,     // 10% fee goes to bot owner
     minTransaction: 1,         // Minimum SBX per transaction
     maxTransaction: 1000000,   // Maximum SBX per transaction
     transactionExpiry: 24 * 60 * 60 * 1000, // 24 hours
-    
+
     // Activity bonuses
     activityMultiplier: 0.001, // Price increase per active user
     volumeMultiplier: 0.0001,  // Price increase per SBX traded
-    
+
     // Market events (random events that affect price) - reduced impact to prevent wild swings
     marketEvents: [
         { name: '📈 Bull Run', priceChange: 0.05, chance: 0.04, duration: 20 * 60 * 1000 },
@@ -138,7 +138,7 @@ const STORE_ITEMS = {
         oneTime: true,
         config: { type: 'text_input', maxLength: 20 }
     },
-    
+
     // === AI FEATURES ===
     extended_memory: {
         id: 'extended_memory',
@@ -176,7 +176,7 @@ const STORE_ITEMS = {
         oneTime: true,
         effect: { tokenMultiplier: 2 }
     },
-    
+
     // === ECONOMY BOOSTS ===
     daily_multiplier: {
         id: 'daily_multiplier',
@@ -214,7 +214,7 @@ const STORE_ITEMS = {
         oneTime: true,
         effect: { cooldownReduction: 0.30 }
     },
-    
+
     // === EXCLUSIVE ACCESS ===
     beta_features: {
         id: 'beta_features',
@@ -243,7 +243,7 @@ const STORE_ITEMS = {
         oneTime: true,
         effect: { vipSupport: true }
     },
-    
+
     // === CONSUMABLES (can buy multiple) ===
     sbx_booster_1h: {
         id: 'sbx_booster_1h',
@@ -307,7 +307,7 @@ const NEWS_SECRET = process.env.SBX_NEWS_SECRET || process.env.BOT_OWNER_ID || '
 async function addNewsItem(headline, priceImpact = 0, secretKey = null, image = null) {
     // Clamp price impact to reasonable bounds (-10% to +10%)
     const clampedImpact = Math.max(-0.10, Math.min(0.10, priceImpact || 0));
-    
+
     const newsItem = {
         id: crypto.randomBytes(8).toString('hex'),
         headline: String(headline).slice(0, 280),
@@ -317,7 +317,7 @@ async function addNewsItem(headline, priceImpact = 0, secretKey = null, image = 
         expiresAt: new Date(Date.now() + NEWS_EXPIRY_MS), // Auto-delete after 24h
         applied: false
     };
-    
+
     // Apply price impact immediately if set
     if (clampedImpact !== 0) {
         const oldPrice = currentPrice;
@@ -328,13 +328,13 @@ async function addNewsItem(headline, priceImpact = 0, secretKey = null, image = 
         newsItem.oldPrice = oldPrice;
         newsItem.newPrice = currentPrice;
     }
-    
+
     // Save to MongoDB
     try {
         const col = await dbGetCollection('sbx_news');
         await col.insertOne(newsItem);
         // Clean up old news (keep only latest N and delete expired)
-        await col.deleteMany({ 
+        await col.deleteMany({
             $or: [
                 { expiresAt: { $lt: new Date() } },
             ]
@@ -350,7 +350,7 @@ async function addNewsItem(headline, priceImpact = 0, secretKey = null, image = 
     } catch (e) {
         console.error('[SBX News] Failed to save news:', e.message);
     }
-    
+
     return { success: true, news: newsItem };
 }
 
@@ -440,9 +440,9 @@ async function getWallet(userId) {
     if (walletCache.has(cacheKey)) {
         return walletCache.get(cacheKey);
     }
-    
+
     let wallet = await dbFindOne('sbx_wallets', { userId });
-    
+
     if (!wallet) {
         wallet = {
             userId,
@@ -458,10 +458,10 @@ async function getWallet(userId) {
         };
         await dbInsertOne('sbx_wallets', wallet);
     }
-    
+
     // Cache the wallet
     walletCache.set(cacheKey, wallet);
-    
+
     return wallet;
 }
 
@@ -472,36 +472,36 @@ async function getWallet(userId) {
 async function updateWallet(userId, amount, reason = 'unknown') {
     // Ensure wallet exists first
     await getWallet(userId);
-    
+
     // Invalidate cache before update
     walletCache.delete(`wallet:${userId}`);
-    
+
     const col = await getCollection('sbx_wallets');
-    
+
     // Use atomic $inc operation
     const update = {
         $inc: { balance: amount },
         $set: { updatedAt: new Date() }
     };
-    
+
     if (amount > 0) {
         update.$inc.totalEarned = amount;
     } else {
         update.$inc.totalSpent = Math.abs(amount);
     }
-    
+
     // Atomic update with balance floor check
     // For withdrawals, ensure balance doesn't go negative
     const query = amount < 0
         ? { userId, balance: { $gte: Math.abs(amount) } }
         : { userId };
-    
+
     const result = await col.findOneAndUpdate(
         query,
         update,
         { returnDocument: 'after' }
     );
-    
+
     if (!result) {
         // If withdrawal failed due to insufficient balance
         if (amount < 0) {
@@ -509,10 +509,10 @@ async function updateWallet(userId, amount, reason = 'unknown') {
         }
         throw new Error('Wallet update failed');
     }
-    
+
     const newBalance = result.balance || 0;
     const oldBalance = newBalance - amount;
-    
+
     return { success: true, oldBalance, newBalance, change: amount, reason };
 }
 
@@ -520,7 +520,7 @@ async function updateWallet(userId, amount, reason = 'unknown') {
  * Get bot owner's wallet (for fees)
  */
 async function _getOwnerWallet() {
-    const ownerId = process.env.BOT_OWNER_ID || 'system_owner';
+    const ownerId = process.env.BOT_OWNER_ID || null;
     return getWallet(ownerId);
 }
 
@@ -534,16 +534,16 @@ async function transfer(fromUserId, toUserId, amount, memo = '') {
     if (amount > SBX_CONFIG.maxTransaction) {
         return { success: false, error: `Maximum transaction is ${SBX_CONFIG.maxTransaction} SBX` };
     }
-    
+
     const fromWallet = await getWallet(fromUserId);
     if (fromWallet.balance < amount) {
         return { success: false, error: 'Insufficient SBX balance' };
     }
-    
+
     // Calculate fee
     const fee = Math.floor(amount * SBX_CONFIG.ownerFeePercent * 100) / 100;
     const netAmount = amount - fee;
-    
+
     // Create transaction record
     const transaction = await createTransaction({
         type: 'transfer',
@@ -555,24 +555,24 @@ async function transfer(fromUserId, toUserId, amount, memo = '') {
         memo,
         status: 'completed'
     });
-    
+
     // Execute transfer
     await updateWallet(fromUserId, -amount, `Transfer to ${toUserId}`);
     await updateWallet(toUserId, netAmount, `Transfer from ${fromUserId}`);
-    
+
     // Fee goes to owner
     if (fee > 0) {
-        const ownerId = process.env.BOT_OWNER_ID || 'system_owner';
+        const ownerId = process.env.BOT_OWNER_ID || null;
         await updateWallet(ownerId, fee, `Fee from transfer ${transaction.id}`);
     }
-    
+
     // Track volume
     dailyVolume += amount;
     activeUsers.add(fromUserId);
     activeUsers.add(toUserId);
-    
-    return { 
-        success: true, 
+
+    return {
+        success: true,
         transaction,
         fee,
         netAmount
@@ -601,10 +601,10 @@ async function createTransaction(data) {
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + SBX_CONFIG.transactionExpiry)
     };
-    
+
     await dbInsertOne('sbx_transactions', transaction);
     pendingTransactions.set(transaction.id, transaction);
-    
+
     return transaction;
 }
 
@@ -616,7 +616,7 @@ async function getTransaction(transactionId) {
     if (pendingTransactions.has(transactionId)) {
         return pendingTransactions.get(transactionId);
     }
-    
+
     return dbFindOne('sbx_transactions', { id: transactionId });
 }
 
@@ -634,11 +634,11 @@ async function createPaymentRequest(requesterId, amount, memo = '', recipientId 
         memo,
         status: 'pending'
     });
-    
+
     // Generate URL path
     const baseUrl = process.env.PUBLIC_BASE_URL || process.env.JARVIS_DOMAIN || 'localhost:3000';
     const url = `https://${baseUrl.replace(/^https?:\/\//, '')}/transaction/${transaction.id}`;
-    
+
     return {
         transaction,
         url,
@@ -651,7 +651,7 @@ async function createPaymentRequest(requesterId, amount, memo = '', recipientId 
  */
 async function completePayment(transactionId, payerId) {
     const transaction = await getTransaction(transactionId);
-    
+
     if (!transaction) {
         return { success: false, error: 'Transaction not found' };
     }
@@ -661,43 +661,43 @@ async function completePayment(transactionId, payerId) {
     if (new Date() > new Date(transaction.expiresAt)) {
         return { success: false, error: 'Transaction expired' };
     }
-    
+
     const payerWallet = await getWallet(payerId);
     if (payerWallet.balance < transaction.amount) {
         return { success: false, error: 'Insufficient SBX balance' };
     }
-    
+
     // Execute payment
     const netAmount = transaction.amount - transaction.fee;
-    
+
     await updateWallet(payerId, -transaction.amount, `Payment ${transactionId}`);
     await updateWallet(transaction.to, netAmount, `Received payment ${transactionId}`);
-    
+
     // Fee to owner
     if (transaction.fee > 0) {
-        const ownerId = process.env.BOT_OWNER_ID || 'system_owner';
+        const ownerId = process.env.BOT_OWNER_ID || null;
         await updateWallet(ownerId, transaction.fee, `Fee from payment ${transactionId}`);
     }
-    
+
     // Update transaction
     await dbUpdateOne('sbx_transactions',
         { id: transactionId },
-        { 
-            $set: { 
-                from: payerId, 
+        {
+            $set: {
+                from: payerId,
                 status: 'completed',
                 completedAt: new Date()
-            } 
+            }
         }
     );
-    
+
     pendingTransactions.delete(transactionId);
-    
+
     // Track activity
     dailyVolume += transaction.amount;
     activeUsers.add(payerId);
     activeUsers.add(transaction.to);
-    
+
     return { success: true, transaction: { ...transaction, from: payerId, status: 'completed' } };
 }
 
@@ -715,17 +715,17 @@ async function updatePrice() {
         return currentPrice;
     }
     lastPriceTick = now;
-    
+
     const oldPrice = currentPrice;
     let newPrice = currentPrice;
     const target = SBX_CONFIG.targetPrice;
-    
+
     // =========================================================================
     // MEAN REVERSION - Price naturally gravitates toward target over time
     // =========================================================================
     const priceRatio = currentPrice / target;
     let meanReversionForce = 0;
-    
+
     if (priceRatio < 0.1) {
         // CRITICAL: Price is extremely low (<10% of target) - strong recovery
         meanReversionForce = 0.08; // 8% upward push
@@ -742,9 +742,9 @@ async function updatePrice() {
         // Price is extremely high - moderate pullback
         meanReversionForce = -0.03;
     }
-    
+
     newPrice *= (1 + meanReversionForce);
-    
+
     // =========================================================================
     // MOMENTUM - Creates natural trends (but balanced)
     // =========================================================================
@@ -753,20 +753,20 @@ async function updatePrice() {
     priceMomentum += (Math.random() - 0.5 + momentumBias) * 0.1;
     priceMomentum = Math.max(-0.3, Math.min(0.3, priceMomentum));
     priceMomentum *= 0.95; // Gradual decay
-    
+
     // =========================================================================
     // RANDOM VOLATILITY - Natural market fluctuation
     // =========================================================================
     const randomChange = ((Math.random() - 0.5) + priceMomentum * 0.2) * SBX_CONFIG.volatility;
     newPrice *= (1 + randomChange);
-    
+
     // =========================================================================
     // ACTIVITY & VOLUME BONUSES - Reward engagement
     // =========================================================================
     const activityBonus = Math.min(activeUsers.size * SBX_CONFIG.activityMultiplier, 0.015);
     const volumeBonus = Math.min(dailyVolume * SBX_CONFIG.volumeMultiplier, 0.02);
     newPrice *= (1 + activityBonus + volumeBonus);
-    
+
     // =========================================================================
     // MARKET EVENTS - Random events with reduced frequency when recovering
     // =========================================================================
@@ -780,7 +780,7 @@ async function updatePrice() {
     } else {
         activeEvent = null;
     }
-    
+
     // Check for new random event (less likely when recovering)
     if (!activeEvent) {
         const eventChanceMultiplier = priceRatio < 0.5 ? 0.3 : 1; // Fewer events during recovery
@@ -799,7 +799,7 @@ async function updatePrice() {
             }
         }
     }
-    
+
     // =========================================================================
     // PRICE CHANGE LIMITS - Prevent extreme swings
     // =========================================================================
@@ -810,11 +810,11 @@ async function updatePrice() {
     } else if (priceChangeRatio < (1 - maxChange)) {
         newPrice = oldPrice * (1 - maxChange);
     }
-    
+
     // Clamp to absolute bounds
     newPrice = Math.max(SBX_CONFIG.minPrice, Math.min(SBX_CONFIG.maxPrice, newPrice));
     newPrice = Math.round(newPrice * 100) / 100;
-    
+
     // =========================================================================
     // HISTORY & PERSISTENCE
     // =========================================================================
@@ -822,7 +822,7 @@ async function updatePrice() {
     if (priceHistory.length > 1440) {
         priceHistory.shift();
     }
-    
+
     // Save to DB periodically
     if (priceHistory.length % 60 === 0) {
         await dbInsertOne('sbx_price_history', {
@@ -833,16 +833,16 @@ async function updatePrice() {
             timestamp: new Date()
         });
     }
-    
+
     currentPrice = newPrice;
-    
+
     // Reset daily stats at midnight
     const hour = new Date().getHours();
     if (hour === 0 && dailyVolume > 0) {
         dailyVolume = 0;
         activeUsers.clear();
     }
-    
+
     return currentPrice;
 }
 
@@ -851,11 +851,11 @@ async function updatePrice() {
  */
 async function getMarketData() {
     await updatePrice();
-    
+
     // Calculate 24h change by finding price ~24 hours ago
     let change24h = 0;
     const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
-    
+
     if (priceHistory.length > 0) {
         // Find the price closest to 24 hours ago
         let price24hAgo = priceHistory[0]?.price || currentPrice;
@@ -865,15 +865,15 @@ async function getMarketData() {
                 break;
             }
         }
-        
+
         // If we don't have 24h of data, use the oldest available
         if (priceHistory[0].timestamp > twentyFourHoursAgo && priceHistory.length > 0) {
             price24hAgo = priceHistory[0].price;
         }
-        
+
         change24h = ((currentPrice - price24hAgo) / price24hAgo) * 100;
     }
-    
+
     return {
         symbol: SBX_CONFIG.symbol,
         name: SBX_CONFIG.name,
@@ -893,32 +893,32 @@ async function getMarketData() {
  */
 async function convertToSBX(userId, starkBucks) {
     const starkEconomy = require('./stark-economy');
-    
+
     const userBalance = await starkEconomy.getBalance(userId);
     if (userBalance < starkBucks) {
         return { success: false, error: 'Insufficient Stark Bucks' };
     }
-    
+
     // Don't update price during conversion to avoid mid-transaction changes
     // Use current price as displayed to user
     const priceAtTime = currentPrice;
-    
+
     // Conversion: Higher price = SBX worth more = get less SBX per SB
     // Base rate: 100 SB = 1 SBX at price 1.00
     // Buy at slight premium (2% spread)
     const buyPrice = priceAtTime * 1.02;
     const sbxAmount = Math.floor((starkBucks / (100 * buyPrice)) * 100) / 100;
-    
+
     // Deduct from economy
     await starkEconomy.modifyBalance(userId, -starkBucks, 'Convert to SBX');
-    
+
     // Add to SBX wallet
     await updateWallet(userId, sbxAmount, 'Converted from Stark Bucks');
-    
+
     // Track
     dailyVolume += sbxAmount;
     activeUsers.add(userId);
-    
+
     return {
         success: true,
         starkBucksSpent: starkBucks,
@@ -935,15 +935,15 @@ async function convertToSBX(userId, starkBucks) {
 async function convertToStarkBucks(userId, sbxAmount) {
     const starkEconomy = require('./stark-economy');
     const wallet = await getWallet(userId);
-    
+
     if (wallet.balance < sbxAmount) {
         return { success: false, error: 'Insufficient SBX balance' };
     }
-    
+
     // Don't update price during conversion to avoid mid-transaction changes
     // Use current price as displayed to user
     const priceAtTime = currentPrice;
-    
+
     // Conversion: Higher price = SBX worth more = get more SB per SBX
     // Base rate: 1 SBX = 100 SB at price 1.00
     // Sell at slight discount (2% spread) + 5% fee
@@ -951,18 +951,18 @@ async function convertToStarkBucks(userId, sbxAmount) {
     const grossStarkBucks = Math.floor(sbxAmount * 100 * sellPrice);
     const fee = Math.floor(grossStarkBucks * 0.05);
     const netStarkBucks = grossStarkBucks - fee;
-    
+
     // Deduct SBX
     await updateWallet(userId, -sbxAmount, 'Convert to Stark Bucks');
-    
+
     // Add to economy
     await starkEconomy.modifyBalance(userId, netStarkBucks, 'Converted from SBX');
-    
+
     // Fee to owner in SBX
     const ownerFee = sbxAmount * 0.05;
-    const ownerId = process.env.BOT_OWNER_ID || 'system_owner';
+    const ownerId = process.env.BOT_OWNER_ID || null;
     await updateWallet(ownerId, ownerFee, 'Conversion fee');
-    
+
     return {
         success: true,
         sbxSpent: sbxAmount,
@@ -996,7 +996,7 @@ async function getUserPurchases(userId) {
     if (purchaseCache.has(cacheKey)) {
         return purchaseCache.get(cacheKey);
     }
-    
+
     const purchases = await dbFind('sbx_store_purchases', { userId });
     purchaseCache.set(cacheKey, purchases);
     return purchases;
@@ -1018,7 +1018,7 @@ async function purchaseItem(userId, itemId) {
     if (!item) {
         return { success: false, error: 'Item not found' };
     }
-    
+
     // Check if one-time purchase and already owned
     if (item.oneTime) {
         const owned = await userOwnsItem(userId, itemId);
@@ -1026,25 +1026,25 @@ async function purchaseItem(userId, itemId) {
             return { success: false, error: 'You already own this item' };
         }
     }
-    
+
     // Check balance
     const wallet = await getWallet(userId);
     if (wallet.balance < item.price) {
         return { success: false, error: `Insufficient SBX. Need ${item.price} SBX, have ${wallet.balance} SBX` };
     }
-    
+
     // Calculate fee
     const fee = Math.floor(item.price * SBX_CONFIG.ownerFeePercent * 100) / 100;
-    
+
     // Deduct price
     await updateWallet(userId, -item.price, `Purchase: ${item.name}`);
-    
+
     // Fee to owner
     if (fee > 0) {
-        const ownerId = process.env.BOT_OWNER_ID || 'system_owner';
+        const ownerId = process.env.BOT_OWNER_ID || null;
         await updateWallet(ownerId, fee, `Store fee: ${item.name}`);
     }
-    
+
     // Record purchase
     const purchase = {
         id: generateTransactionId(),
@@ -1057,19 +1057,19 @@ async function purchaseItem(userId, itemId) {
         expiresAt: item.duration ? new Date(Date.now() + item.duration) : null
     };
     await dbInsertOne('sbx_store_purchases', purchase);
-    
+
     // Invalidate purchase cache
     purchaseCache.delete(`purchases:${userId}`);
-    
+
     // Apply effect if consumable
     if (item.category === 'consumable' && item.effect) {
         await applyPurchaseEffect(userId, item);
     }
-    
+
     // Track
     dailyVolume += item.price;
     activeUsers.add(userId);
-    
+
     return {
         success: true,
         purchase,
@@ -1088,7 +1088,7 @@ async function applyPurchaseEffect(userId, item) {
         await updateWallet(userId, reward, 'Mystery Box reward');
         return { type: 'mystery', reward };
     }
-    
+
     // Other effects are applied when checking user's perks
     return { type: 'effect', effect: item.effect };
 }
@@ -1100,13 +1100,13 @@ async function getUserEffects(userId) {
     const purchases = await getUserPurchases(userId);
     const now = new Date();
     const effects = {};
-    
+
     for (const purchase of purchases) {
         // Skip expired consumables
         if (purchase.expiresAt && new Date(purchase.expiresAt) < now) {
             continue;
         }
-        
+
         const { item } = purchase;
         if (item.effect) {
             for (const [key, value] of Object.entries(item.effect)) {
@@ -1122,7 +1122,7 @@ async function getUserEffects(userId) {
             }
         }
     }
-    
+
     return effects;
 }
 
@@ -1135,14 +1135,14 @@ async function getUserEffects(userId) {
  */
 async function investSBX(userId, amount) {
     const wallet = await getWallet(userId);
-    
+
     if (wallet.balance < amount) {
         return { success: false, error: 'Insufficient SBX balance' };
     }
-    
+
     // Get existing investment
     let investment = await dbFindOne('sbx_investments', { userId });
-    
+
     if (!investment) {
         investment = {
             userId,
@@ -1152,20 +1152,20 @@ async function investSBX(userId, amount) {
             createdAt: new Date()
         };
     }
-    
+
     // Add to principal
     investment.principal += amount;
     investment.updatedAt = new Date();
-    
+
     // Deduct from wallet
     await updateWallet(userId, -amount, 'Investment stake');
-    
+
     await dbUpdateOne('sbx_investments',
         { userId },
         { $set: investment },
         { upsert: true }
     );
-    
+
     return {
         success: true,
         invested: amount,
@@ -1179,34 +1179,34 @@ async function investSBX(userId, amount) {
  */
 async function claimInvestmentEarnings(userId) {
     const investment = await dbFindOne('sbx_investments', { userId });
-    
+
     if (!investment || investment.principal <= 0) {
         return { success: false, error: 'No active investment' };
     }
-    
+
     const now = new Date();
     const lastPayout = new Date(investment.lastPayout);
     const daysPassed = (now - lastPayout) / (24 * 60 * 60 * 1000);
-    
+
     if (daysPassed < 1) {
         const hoursLeft = Math.ceil((1 - daysPassed) * 24);
         return { success: false, error: `Next payout in ${hoursLeft} hours` };
     }
-    
+
     // Calculate earnings (0.5% daily, compounding)
     const dailyRate = 0.005;
     const earnings = Math.floor(investment.principal * dailyRate * Math.floor(daysPassed) * 100) / 100;
-    
+
     // Update investment
     investment.earned += earnings;
     investment.lastPayout = now;
     investment.updatedAt = now;
-    
+
     await dbUpdateOne('sbx_investments', { userId }, { $set: investment });
-    
+
     // Add to wallet
     await updateWallet(userId, earnings, 'Investment earnings');
-    
+
     return {
         success: true,
         earnings,
@@ -1221,31 +1221,31 @@ async function claimInvestmentEarnings(userId) {
  */
 async function withdrawInvestment(userId, amount) {
     const investment = await dbFindOne('sbx_investments', { userId });
-    
+
     if (!investment || investment.principal < amount) {
         return { success: false, error: 'Insufficient investment balance' };
     }
-    
+
     // Apply catastrophic price impact for partial withdrawals too
     await applyWithdrawalImpact(amount);
-    
+
     // 2% early withdrawal fee
     const fee = Math.floor(amount * 0.02 * 100) / 100;
     const netAmount = amount - fee;
-    
+
     // Update investment
     investment.principal -= amount;
     investment.updatedAt = new Date();
-    
+
     await dbUpdateOne('sbx_investments', { userId }, { $set: investment });
-    
+
     // Add to wallet (minus fee)
     await updateWallet(userId, netAmount, 'Investment withdrawal');
-    
+
     // Fee to owner
-    const ownerId = process.env.BOT_OWNER_ID || 'system_owner';
+    const ownerId = process.env.BOT_OWNER_ID || null;
     await updateWallet(ownerId, fee, 'Investment withdrawal fee');
-    
+
     return {
         success: true,
         withdrawn: amount,
@@ -1260,31 +1260,33 @@ async function withdrawInvestment(userId, amount) {
  */
 async function withdrawAllInvestments(userId) {
     const investment = await dbFindOne('sbx_investments', { userId });
-    
+
     if (!investment || (investment.principal <= 0 && investment.earned <= 0)) {
         return { success: false, error: 'No active investments to withdraw' };
     }
-    
+
     const totalPrincipal = investment.principal || 0;
     const totalEarned = investment.earned || 0;
     const totalAmount = totalPrincipal + totalEarned;
-    
+
     // Calculate catastrophic price impact
     await applyWithdrawalImpact(totalAmount);
-    
+
     // No withdrawal fee when withdrawing everything
     const fee = 0;
-    
+
     // Delete investment record
-    await dbUpdateOne('sbx_investments', { userId }, { $set: {
-        principal: 0,
-        earned: 0,
-        updatedAt: new Date()
-    } });
-    
+    await dbUpdateOne('sbx_investments', { userId }, {
+        $set: {
+            principal: 0,
+            earned: 0,
+            updatedAt: new Date()
+        }
+    });
+
     // Add total amount to wallet
     await updateWallet(userId, totalAmount, 'Full investment withdrawal');
-    
+
     return {
         success: true,
         total: totalAmount,
@@ -1304,15 +1306,15 @@ async function applyWithdrawalImpact(withdrawAmount) {
         const totalInvested = await col.aggregate([
             { $group: { _id: null, total: { $sum: '$principal' } } }
         ]).toArray();
-        
+
         const totalPrincipal = totalInvested[0]?.total || 0;
         if (totalPrincipal <= 0) {
             return;
         }
-        
+
         // Calculate percentage of total being withdrawn
         const withdrawPercentage = withdrawAmount / totalPrincipal;
-        
+
         // Apply catastrophic impact based on percentage
         let priceImpact = 0;
         if (withdrawPercentage > 0.5) {
@@ -1328,19 +1330,19 @@ async function applyWithdrawalImpact(withdrawAmount) {
             // Withdrawing >5% moderate impact
             priceImpact = -0.05; // -5% price
         }
-        
+
         if (priceImpact < 0) {
             currentPrice *= (1 + priceImpact);
             currentPrice = Math.max(SBX_CONFIG.minPrice, currentPrice);
             currentPrice = Math.round(currentPrice * 100) / 100;
-            
+
             // Store in history
-            priceHistory.push({ 
-                price: currentPrice, 
+            priceHistory.push({
+                price: currentPrice,
                 timestamp: Date.now(),
                 event: 'Catastrophic withdrawal'
             });
-            
+
             // eslint-disable-next-line no-console
             console.log(`[Starkbucks] Catastrophic withdrawal impact: ${(priceImpact * 100).toFixed(1)}% | New price: ${currentPrice}`);
         }
@@ -1364,7 +1366,7 @@ async function getLeaderboard(limit = 10) {
             .sort({ balance: -1 })
             .limit(limit)
             .toArray();
-        
+
         return wallets.map(w => ({
             userId: w.userId,
             balance: w.balance || 0
@@ -1387,7 +1389,7 @@ let priceUpdateInterval = null;
 async function loadPriceHistory() {
     try {
         const col = await getCollection('sbx_price_history');
-        
+
         // Get the most recent price
         const latest = await col.findOne({}, { sort: { timestamp: -1 } });
         if (latest) {
@@ -1395,19 +1397,19 @@ async function loadPriceHistory() {
             // eslint-disable-next-line no-console
             console.log(`[Starkbucks] Loaded current price: ${currentPrice} from DB`);
         }
-        
+
         // Load last 60 entries (1 hour at 1 min intervals)
-        const history = await col.find({}, { 
+        const history = await col.find({}, {
             sort: { timestamp: -1 },
             limit: 60
         }).toArray();
-        
+
         // Reverse to chronological order and populate priceHistory
         priceHistory.length = 0; // Clear existing
         history.reverse().forEach(entry => {
             priceHistory.push({ price: entry.price, timestamp: entry.timestamp });
         });
-        
+
         // eslint-disable-next-line no-console
         console.log(`[Starkbucks] Loaded ${priceHistory.length} price history entries`);
     } catch (error) {
@@ -1421,18 +1423,18 @@ async function loadPriceHistory() {
 
 async function startPriceUpdates() {
     if (priceUpdateInterval) { return; }
-    
+
     // Load price history from DB on startup
     await loadPriceHistory();
-    
+
     priceUpdateInterval = setInterval(() => {
         updatePrice().catch(err => {
             console.error('[Starkbucks] Price update error:', err);
         });
     }, SBX_CONFIG.tickInterval);
-    
+
     // Initial update
-    updatePrice().catch(() => {});
+    updatePrice().catch(() => { });
 }
 
 function stopPriceUpdates() {
@@ -1457,47 +1459,47 @@ module.exports = {
     // Config
     SBX_CONFIG,
     STORE_ITEMS,
-    
+
     // Wallet
     getWallet,
     updateWallet,
     transfer,
-    
+
     // Transactions
     createTransaction,
     getTransaction,
     createPaymentRequest,
     completePayment,
     generateTransactionId,
-    
+
     // Exchange
     updatePrice,
     getMarketData,
     getCurrentPrice,
     convertToSBX,
     convertToStarkBucks,
-    
+
     // Store
     getStoreItems,
     getUserPurchases,
     userOwnsItem,
     purchaseItem,
     getUserEffects,
-    
+
     // Investments
     investSBX,
     claimInvestmentEarnings,
     withdrawInvestment,
     withdrawAllInvestments,
-    
+
     // Leaderboard
     getLeaderboard,
-    
+
     // News System
     addNewsItem,
     getNews,
     clearNews,
-    
+
     // Lifecycle
     startPriceUpdates,
     stopPriceUpdates

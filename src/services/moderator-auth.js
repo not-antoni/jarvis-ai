@@ -155,14 +155,15 @@ function base64urlDecode(input) {
 }
 
 function getSessionSigningKey() {
+    // SECURITY: Only use dedicated secrets for session signing
+    // Do NOT use DISCORD_TOKEN - it may be exposed in logs and would allow session forgery
     const raw = (
         process.env.MODERATOR_SESSION_SECRET ||
         process.env.MASTER_KEY_BASE64 ||
-        process.env.DISCORD_TOKEN ||
         ''
     ).trim();
     if (!raw) {
-        throw new Error('No session signing secret configured');
+        throw new Error('MODERATOR_SESSION_SECRET or MASTER_KEY_BASE64 is required for session signing');
     }
 
     if (
@@ -463,7 +464,7 @@ function getOAuthUrl(state, redirectPath = '/moderator/callback') {
  */
 function getRedirectUri(redirectPath = '/moderator/callback') {
     const normalizedPath = String(redirectPath || '/moderator/callback');
-    
+
     // Priority: DASHBOARD_DOMAIN > PUBLIC_BASE_URL > RENDER_EXTERNAL_URL > localhost
     if (process.env.DASHBOARD_DOMAIN) {
         return `${process.env.DASHBOARD_DOMAIN.replace(/\/$/, '')}${normalizedPath}`;
