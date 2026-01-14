@@ -1770,12 +1770,42 @@ async function handleMessage(message, client) {
         // Could auto-ban known critical threats
     }
 
-    // Check if tracking
+    // Check if tracking (new member or high-risk)
     if (!isActivelyTracking(guildId, userId)) {
         if (member && shouldMonitorMember(member, settings)) {
             startTracking(guildId, userId);
         } else {
-            return { handled: false };
+            // Non-tracked user: check if message needs real-time analysis or batch queue
+            const context = buildModerationContext(message, member);
+            const riskData = calculateRiskScore(message, member, context);
+            
+            // Build queue context
+            const queueContext = {
+                accountAgeDays: context.accountAgeDays,
+                memberAgeDays: context.memberAgeDays,
+                isNewAccount: context.accountAgeDays < 7,
+                isFirstMessage: isFirstMessageInServer(guildId, userId),
+                hasLinks: extractUrls(context.messageContent).length > 0,
+                hasMassMention: /@(everyone|here)/i.test(context.messageContent),
+                hasAttachments: message.attachments.size > 0,
+                riskScore: riskData.score,
+                riskFactors: riskData.factors
+            };
+            
+            // Record activity for first-message detection
+            recordMemberActivity(guildId, userId);
+            
+            // Check if needs real-time analysis (high-risk indicators)
+            if (moderationQueue.shouldAnalyzeRealtime(queueContext)) {
+                // Real-time analysis needed - continue to full analysis below
+                // Fall through by NOT returning here
+            } else {
+                // Queue for batch analysis (non-urgent messages)
+                if (message.content?.length > 3) {
+                    moderationQueue.queueMessage(message, queueContext);
+                }
+                return { handled: true, reason: 'Queued for batch analysis' };
+            }
         }
     }
 

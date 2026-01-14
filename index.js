@@ -2441,6 +2441,13 @@ if (helmet) {
 
 // Cloudflare-only access middleware
 // Silently drops direct IP/AWS DNS access, only allows traffic through Cloudflare (or localhost)
+// 
+// LIMITATION: This middleware works at the Express level. If nginx is in front of Express,
+// DDoS packets will still reach nginx (and get an error page) before being blocked here.
+// For complete protection, also configure nginx to only accept Cloudflare IPs:
+//   - Use Cloudflare's IP ranges: https://www.cloudflare.com/ips/
+//   - Add: allow <cloudflare-ip>; deny all; in nginx server block
+//   - Or use iptables/firewall rules to block non-Cloudflare traffic at network level
 const CLOUDFLARE_ONLY = process.env.CLOUDFLARE_ONLY !== 'false'; // Default: enabled
 const ALLOWED_HOSTS = ['jorvis.org', 'www.jorvis.org', 'localhost', '127.0.0.1'];
 
