@@ -1,0 +1,9 @@
+[Unit]
+Description=Update Cloudflare IP ranges for nginx
+
+[Service]
+Type=oneshot
+ExecStart=/home/ec2-user/jarvis-ai/scripts/update-cloudflare-ips.sh
+User=root
+StandardOutput=journal
+StandardError=journal
