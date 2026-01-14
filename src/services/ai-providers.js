@@ -53,14 +53,15 @@ function cleanThinkingOutput(text) {
     return text
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
         .replace(/<think>[\s\S]*?<\/think>/gi, '')
-        .replace(/\bfinal\b[:\-]?\s*/gi, '')
+        // Removed: .replace(/\bfinal\b[:\-]?\s*/gi, '') - was cutting responses with "final" word
         .replace(/\s+/g, ' ')
         .trim();
 }
 function extractFinalPayload(text) {
+    // Simplified: just return the text without aggressive "final" extraction
+    // The old pattern /\bfinal\b[:\-]?\s*(.*)$/is was cutting off responses
+    // that contained the word "final" anywhere (e.g., "Finally, here is...")
     if (!text || typeof text !== 'string') return text;
-    const m = text.match(/\bfinal\b[:\-]?\s*(.*)$/is);
-    if (m && m[1]) return m[1].trim();
     return text.trim();
 }
 function stripWrappingQuotes(text) {
