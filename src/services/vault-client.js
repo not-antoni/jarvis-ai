@@ -29,7 +29,8 @@ const CACHE_MAX_ENTRIES = 500;
 const LONG_TERM_MEMORY_LIMIT = 20;
 const SHORT_TERM_MEMORY_LIMIT = 10;
 const TOTAL_MEMORY_LIMIT = LONG_TERM_MEMORY_LIMIT + SHORT_TERM_MEMORY_LIMIT;
-const MAX_MEMORY_SIZE_BYTES = 500 * 1024; // 500KB per user limit
+const MAX_SINGLE_MEMORY_BYTES = 64 * 1024; // 64KB per individual memory payload limit
+const MAX_MEMORY_SIZE_BYTES = 500 * 1024; // 500KB total per user storage limit
 const SHORT_TERM_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
 const USE_LOCAL_DB_MODE = parseBooleanEnv(process.env.LOCAL_DB_MODE, false);
 
@@ -298,8 +299,8 @@ async function encryptMemory(userId, plaintext, options = {}) {
         const { type = 'conversation', isShortTerm = false } = options || {};
         const { buffer, format } = serializePlaintext(plaintext);
 
-        if (buffer.byteLength > 64 * 1024) {
-            throw new Error('Memory payload exceeds 64KB limit');
+        if (buffer.byteLength > MAX_SINGLE_MEMORY_BYTES) {
+            throw new Error(`Single memory payload exceeds ${MAX_SINGLE_MEMORY_BYTES / 1024}KB limit`);
         }
 
         const userKey = await getOrCreateUserKey(userId);
@@ -325,8 +326,8 @@ async function encryptMemory(userId, plaintext, options = {}) {
     const { type = 'conversation', expiresAt = null, isShortTerm = false } = options || {};
     const { buffer, format } = serializePlaintext(plaintext);
 
-    if (buffer.byteLength > 64 * 1024) {
-        throw new Error('Memory payload exceeds 64KB limit');
+    if (buffer.byteLength > MAX_SINGLE_MEMORY_BYTES) {
+        throw new Error(`Single memory payload exceeds ${MAX_SINGLE_MEMORY_BYTES / 1024}KB limit`);
     }
 
     const userKey = await getOrCreateUserKey(userId);

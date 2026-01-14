@@ -156,6 +156,20 @@ const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
 const IS_SELFHOST = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
 const PROVIDER_STATE_COLLECTION = 'provider_state';
 
+// Lazy-loaded dashboard module for token tracking (avoids require in hot path)
+let _dashboard = null;
+function getDashboard() {
+    if (_dashboard === undefined) return null; // Already tried and failed
+    if (_dashboard) return _dashboard;
+    try {
+        _dashboard = require('../../routes/dashboard');
+        return _dashboard;
+    } catch (e) {
+        _dashboard = undefined; // Mark as unavailable
+        return null;
+    }
+}
+
 // MongoDB helper for provider state (lazy loaded)
 let _database = null;
 async function getDatabase() {
@@ -917,40 +931,6 @@ class AIProviderManager {
                     return { choices: [{ message: { content: cleaned } }] };
                 }
 
-                if (provider.type === 'gpt5-nano') {
-                    // (Preserved branch; now actually points to gpt-4o-mini via name only)
-                    // Run as standard OpenAI chat call (no special/unsupported params).
-                    const resp = await provider.client.chat.completions.create({
-                        model: provider.model, // gpt-4o-mini
-                        messages: [
-                            { role: 'system', content: systemPrompt },
-                            { role: 'user', content: userPrompt }
-                        ],
-                        max_tokens: maxTokens,
-                        temperature: config.ai?.temperature ?? 0.7
-                    });
-
-                    let content = resp?.choices?.[0]?.message?.content;
-                    if (!content || !String(content).trim()) {
-                        throw Object.assign(
-                            new Error(`Empty response content from ${provider.name}`),
-                            { status: 502 }
-                        );
-                    }
-
-                    // Final sanitation & thinking-strip
-                    content = sanitizeAssistantMessage(String(content));
-                    if (!content) {
-                        throw Object.assign(
-                            new Error(`Sanitized empty content from ${provider.name}`),
-                            { status: 502 }
-                        );
-                    }
-
-                    resp.choices[0].message.content = content;
-                    return resp;
-                }
-
                 // ---------- Ollama native API handler (with image/vision support) ----------
                 if (provider.type === 'ollama') {
                     const ollamaEndpoint = `${provider.baseURL}/chat`;
@@ -1148,14 +1128,10 @@ class AIProviderManager {
                 }
                 this.scheduleStateSave();
 
-                // Notify dashboard of token usage
-                try {
-                    const dashboard = require('../../routes/dashboard');
-                    if (dashboard.trackTokens) {
-                        dashboard.trackTokens(tokensIn, tokensOut);
-                    }
-                } catch (e) {
-                    /* Dashboard not available */
+                // Notify dashboard of token usage (lazy-loaded at module level)
+                const dashboard = getDashboard();
+                if (dashboard?.trackTokens) {
+                    dashboard.trackTokens(tokensIn, tokensOut);
                 }
 
                 const raw =
@@ -1190,9 +1166,9 @@ class AIProviderManager {
                 );
                 lastError = error;
 
-                // Disable logic (circuit breaker) — skip transient errors and GPT-5 Nano
+                // Disable logic (circuit breaker) — skip transient errors
                 // Uses exponential backoff: 5min → 15min → 1hr → 2hr based on consecutive failures
-                const shouldDisable = provider.type !== 'gpt5-nano' && !error.transient;
+                const shouldDisable = !error.transient;
                 if (shouldDisable) {
                     const currentFailures = (this.providerFailureCounts.get(provider.name) || 0) + 1;
                     this.providerFailureCounts.set(provider.name, currentFailures);
