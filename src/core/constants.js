@@ -52,7 +52,7 @@ module.exports = {
 
     // AI Provider limits
     AI: {
-        DEFAULT_MAX_TOKENS: 1024,
+        DEFAULT_MAX_TOKENS: 500,
         MAX_TOKENS: 4096,
         DEFAULT_TEMPERATURE: 0.7,
         MIN_TEMPERATURE: 0,
