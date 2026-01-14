@@ -10,7 +10,7 @@ const { isFeatureGloballyEnabled } = require('../core/feature-flags');
 const STORAGE_MODE = (process.env.MODERATION_FILTERS_STORAGE || 'mongo').toLowerCase();
 const USE_MONGO = STORAGE_MODE !== 'file';
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 const STATE_PATH = path.join(DATA_DIR, 'moderation-filters.json');
 
 const MEMOIZE_FILTERS_MS = 30 * 1000;
@@ -498,8 +498,9 @@ async function handleMessage(message) {
                 }
                 return;
             }
-        } catch {
-            /* ignore bad regex */
+        } catch (regexError) {
+            // Log regex execution errors for debugging while allowing graceful degradation
+            console.debug(`[ModerationFilters] Regex pattern execution failed: ${regexError.message}`);
         }
     }
 }
