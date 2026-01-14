@@ -7,18 +7,18 @@ const config = require('../../config');
 let _masterKey = null;
 function getMasterKey() {
     if (_masterKey) return _masterKey;
-    
+
     const keyBase64 = config.security.masterKeyBase64;
     if (!keyBase64) {
         throw new Error('MASTER_KEY_BASE64 is required for vault operations');
     }
-    
+
     _masterKey = Buffer.from(keyBase64, 'base64');
     if (_masterKey.length !== 32) {
         _masterKey = null;
         throw new Error('MASTER_KEY_BASE64 must decode to a 32-byte key');
     }
-    
+
     return _masterKey;
 }
 
@@ -29,6 +29,7 @@ const CACHE_MAX_ENTRIES = 500;
 const LONG_TERM_MEMORY_LIMIT = 20;
 const SHORT_TERM_MEMORY_LIMIT = 10;
 const TOTAL_MEMORY_LIMIT = LONG_TERM_MEMORY_LIMIT + SHORT_TERM_MEMORY_LIMIT;
+const MAX_MEMORY_SIZE_BYTES = 500 * 1024; // 500KB per user limit
 const SHORT_TERM_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
 const USE_LOCAL_DB_MODE = parseBooleanEnv(process.env.LOCAL_DB_MODE, false);
 
@@ -357,7 +358,7 @@ async function encryptMemory(userId, plaintext, options = {}) {
 }
 
 /**
- * Enforce memory limits per user (20 long-term + 10 short-term = 30 total)
+ * Enforce memory limits per user (20 long-term + 10 short-term = 30 total, max 500KB)
  * If over limit, delete oldest memories
  */
 async function enforceMemoryLimits(userId, memoriesCollection) {
@@ -384,6 +385,28 @@ async function enforceMemoryLimits(userId, memoriesCollection) {
             const idsToDelete = oldestDocs.map(d => d._id);
             if (idsToDelete.length > 0) {
                 await memoriesCollection.deleteMany({ _id: { $in: idsToDelete } });
+            }
+        }
+
+        // Also enforce size limit (500KB per user)
+        const allMemories = await memoriesCollection.find({ userId }).sort({ createdAt: 1 }).toArray();
+        let totalSize = 0;
+        for (const mem of allMemories) {
+            totalSize += JSON.stringify(mem).length;
+        }
+
+        if (totalSize > MAX_MEMORY_SIZE_BYTES) {
+            // Delete oldest memories until under limit
+            const idsToDelete = [];
+            let currentSize = totalSize;
+            for (const mem of allMemories) {
+                if (currentSize <= MAX_MEMORY_SIZE_BYTES) break;
+                idsToDelete.push(mem._id);
+                currentSize -= JSON.stringify(mem).length;
+            }
+            if (idsToDelete.length > 0) {
+                await memoriesCollection.deleteMany({ _id: { $in: idsToDelete } });
+                console.log(`[VaultClient] Enforced 500KB limit for user ${userId}, deleted ${idsToDelete.length} memories`);
             }
         }
     } catch (error) {
@@ -414,7 +437,7 @@ async function enforceMemoryLimitsLocal(userId) {
         if (validMemories.length > TOTAL_MEMORY_LIMIT) {
             // Memories are already sorted by createdAt desc, so keep first TOTAL_MEMORY_LIMIT
             const memoriesToKeep = validMemories.slice(0, TOTAL_MEMORY_LIMIT);
-            
+
             // Clear all and re-save only the ones to keep
             await localDbOps.clearMemories(userId);
             for (const mem of memoriesToKeep.reverse()) {
