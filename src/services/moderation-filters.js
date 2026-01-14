@@ -79,6 +79,13 @@ const CONFUSABLE_MAP = {
     z: 'z2ʐźżžẑẓẕЗз'
 };
 
+// Pre-compile escaped character sets at module load (performance optimization)
+// This avoids repeated split().map().join() operations on each buildFlexibleRegex call
+const CONFUSABLE_ESCAPED = {};
+for (const [ch, bucket] of Object.entries(CONFUSABLE_MAP)) {
+    CONFUSABLE_ESCAPED[ch] = bucket.split('').map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('');
+}
+
 // Additional full Cyrillic to Latin reverse mapping for edge cases
 const CYRILLIC_TO_LATIN = {
     а: 'a',
@@ -279,7 +286,7 @@ async function loadGuildState(guildId) {
             },
             { upsert: true, returnDocument: 'after' }
         );
-        return sanitizeDoc(result.value || {});
+        return sanitizeDoc(result || {});
     }
 
     const state = loadFileState();
@@ -330,8 +337,8 @@ function buildFlexibleRegex(word) {
     const between = '[^\\p{L}\\p{N}]{0,1}';
     const parts = [];
     for (const ch of word.toLowerCase()) {
-        const bucket = CONFUSABLE_MAP[ch] || ch;
-        const escaped = bucket.split('').map(escapeRegex).join('');
+        // Use pre-compiled escaped character sets for performance
+        const escaped = CONFUSABLE_ESCAPED[ch] || escapeRegex(ch);
         parts.push(`[${escaped}]`);
     }
     const core = parts.join(between);
@@ -390,7 +397,8 @@ async function refreshCache(guildId) {
         .map(p => {
             try {
                 return new RegExp(p, 'iu');
-            } catch {
+            } catch (e) {
+                console.debug(`[ModerationFilters] Failed to compile regex pattern "${p.substring(0, 50)}${p.length > 50 ? '...' : ''}": ${e.message}`);
                 return null;
             }
         })
@@ -407,7 +415,8 @@ async function refreshCache(guildId) {
                         `(?<![\\p{L}\\p{N}])${escapeRegex(w)}(?![\\p{L}\\p{N}])`,
                         'iu'
                     );
-                } catch {
+                } catch (e) {
+                    console.debug(`[ModerationFilters] Failed to compile word regex for "${w}": ${e.message}`);
                     return null;
                 }
             })
@@ -509,7 +518,7 @@ function trackSpam(message, matchedPattern) {
         userData.violations = (userData.violations || 0) + 1;
         userData.arr = [];
         guildMap.set(userId, userData);
-        applyTimeout(message, userData.violations, matchedPattern).catch(() => {});
+        applyTimeout(message, userData.violations, matchedPattern).catch(() => { });
     }
 }
 
@@ -533,7 +542,7 @@ async function applyTimeout(message, violationCount = 1, matchedPattern = null) 
         );
         // ignore permission failures
     }
-    notifyStaff(message, member, violationCount, matchedPattern).catch(() => {});
+    notifyStaff(message, member, violationCount, matchedPattern).catch(() => { });
 }
 
 async function getModerators(guild) {
@@ -603,7 +612,7 @@ async function notifyStaff(message, member, violationCount = 1, matchedPattern =
             const mod =
                 guild.members.cache.get(modId) ||
                 (await guild.members.fetch(modId).catch(() => null));
-            if (mod) await mod.send(summary).catch(() => {});
+            if (mod) await mod.send(summary).catch(() => { });
         } catch {
             /* ignore */
         }
