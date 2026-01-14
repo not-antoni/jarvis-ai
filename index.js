@@ -4282,7 +4282,7 @@ async function startBot() {
 
             // Auto-setup Nginx reverse proxy (selfhost only)
             if (cfConfig.domain && cfConfig.deployTarget !== 'render') {
-                const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain, true, true);
+                const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain, true, false);
                 if (nginxResult.success) {
                     if (nginxResult.cached) {
                         console.log(`[Nginx] Verified configuration for ${cfConfig.domain}`);
