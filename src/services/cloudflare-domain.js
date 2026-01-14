@@ -331,8 +331,16 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
 
     // Check if already configured with correct SSL state
     const currentConfig = isNginxConfigured(domain);
-    const hasSSLConfig = currentConfig && fs.existsSync(NGINX_CONFIG_FILE) &&
-        fs.readFileSync(NGINX_CONFIG_FILE, 'utf8').includes('ssl_certificate');
+    const configContent = currentConfig && fs.existsSync(NGINX_CONFIG_FILE)
+        ? fs.readFileSync(NGINX_CONFIG_FILE, 'utf8')
+        : '';
+    const hasSSLConfig = configContent.includes('ssl_certificate');
+    const hasCloudflareOnly = configContent.includes('default_server') && configContent.includes('return 444');
+
+    // Don't overwrite if Cloudflare-only security config is already in place
+    if (!force && hasCloudflareOnly && hasSSLConfig) {
+        return { success: true, cached: true, ssl: useSSL, message: 'Nginx Cloudflare-only config preserved' };
+    }
 
     if (!force && currentConfig && hasSSLConfig === useSSL) {
         return { success: true, cached: true, ssl: useSSL, message: 'Nginx already configured' };
