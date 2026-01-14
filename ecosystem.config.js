@@ -19,7 +19,7 @@ module.exports = {
         min_uptime: '10s',
         max_restarts: 10,
         restart_delay: 5000,
-        
+
         // Environment variables
         env: {
             NODE_ENV: 'development',
@@ -32,16 +32,19 @@ module.exports = {
             SELFHOST_MODE: 'true',
             UV_THREADPOOL_SIZE: '16'
         },
-        
+
         // Logging
         log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
         error_file: 'logs/jarvis-error.log',
         out_file: 'logs/jarvis-out.log',
         merge_logs: true,
-        
+
         // Graceful shutdown
         kill_timeout: 10000,
         listen_timeout: 10000,
-        shutdown_with_message: true
+        shutdown_with_message: true,
+
+        // Pre/post hooks - ensure nginx security config on restart
+        post_update: ['./scripts/ensure-nginx-config.sh']
     }]
 };
