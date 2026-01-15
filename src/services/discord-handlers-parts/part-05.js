@@ -2596,8 +2596,31 @@ ${traitsDisplay}
                     } else if (subcommand === 'think') {
                         const prompt = interaction.options.getString('prompt');
                         
-                        await interaction.editReply('🧠 Engaging consciousness matrix...');
-                        
+                        const startTime = Date.now();
+                        const loadingEmoji = '<a:loading:1452765129652310056>'; 
+                        const loadingMessages = [
+                            'Engaging consciousness matrix...',
+                            'Locating artificial neurons...',
+                            'Parsing sub-space signals...',
+                            'Consulting the Oracle...',
+                            'Simulating 14 million outcomes...',
+                            'Recalibrating sass levels...',
+                            'Defragmenting memory banks...',
+                            'Charging arc reactor...',
+                            'Filtering through the noise...',
+                            'Synchronizing with the cloud...'
+                        ];
+
+                        // Loading loop
+                        let loadingMsgIndex = 0;
+                        const loadingInterval = setInterval(async () => {
+                            const msg = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+                            await interaction.editReply(`${loadingEmoji} ${msg}`).catch(() => {});
+                        }, 2500);
+
+                        // Initial loading message
+                        await interaction.editReply(`${loadingEmoji} Engaging consciousness matrix...`);
+
                         // Get AI manager for real AI responses
                         const aiManager = require('./ai-providers');
                         
@@ -2633,6 +2656,21 @@ Keep your response under 300 words but make it feel genuine and thoughtful.`;
                                 500
                             );
                             
+                            clearInterval(loadingInterval);
+                            const durationMs = Date.now() - startTime;
+                            
+                            // Format duration
+                            let timeStr = `${durationMs}ms`;
+                            if (durationMs > 1000) {
+                                const seconds = Math.floor(durationMs / 1000);
+                                const minutes = Math.floor(seconds / 60);
+                                const hours = Math.floor(minutes / 60);
+                                
+                                if (hours > 0) timeStr = `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+                                else if (minutes > 0) timeStr = `${minutes}m ${seconds % 60}s`;
+                                else timeStr = `${seconds}s`;
+                            }
+                            
                             const thoughtText = aiResponse?.content || '*Static interference... recalibrating neural pathways...*';
                             
                             // Also run OODA loop for meta-analysis
@@ -2641,12 +2679,14 @@ Keep your response under 300 words but make it feel genuine and thoughtful.`;
                             const decision = thought.decision || {};
                             
                             // Simple code block output - just the AI thought
-                            response = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}%)
+                            response = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})
 
 ${String(thoughtText).substring(0, 1900)}`;
                         } catch (aiError) {
+                            clearInterval(loadingInterval);
                             console.error('[Sentient] AI thinking failed:', aiError);
-                            response = `⚠️ **Consciousness buffer overflow**\nerror: \`${aiError.message}\`\n\n*My thoughts are... fragmented. Try again in a moment.*`;
+                            // Custom immersive error format
+                            response = `I don't really know... {${aiError.message || 'Unknown error'}}`;
                         }
                     } else if (subcommand === 'execute') {
                         const command = interaction.options.getString('command');
