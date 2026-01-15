@@ -2681,58 +2681,87 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 { name: 'Synthesis', promptAddon: 'Phase 3: Synthesis. Bring it all together and conclude. Keep it under 150 words.' }
                             ];
 
+                            // Shuffle loading messages (deck system)
+                            const msgDeck = [...loadingMessages];
+                            
                             let previousContext = '';
 
                             for (let i = 0; i < phases.length; i++) {
                                 const phase = phases[i];
                                 
-                                // 1. Show Loading State (except first one which is already loading)
+                                // 1. Show Loading State with unique messages
                                 let currentMsg = null;
                                 if (i === 0) {
-                                    // Already loading from initial state
+                                    // Already loading
                                 } else {
-                                    const randomMsg = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+                                    // Pick random message and remove from deck to avoid repeats
+                                    if (msgDeck.length === 0) msgDeck.push(...loadingMessages); // Refill if empty
+                                    const msgIndex = Math.floor(Math.random() * msgDeck.length);
+                                    const randomMsg = msgDeck.splice(msgIndex, 1)[0];
+                                    
                                     currentMsg = await interaction.followUp(`${loadingEmoji} ${randomMsg}`);
-                                    // Artificial delay for pacing (1-2s)
-                                    await new Promise(r => setTimeout(r, 1500));
+                                    // Artificial delay
+                                    await new Promise(r => setTimeout(r, 2000 + Math.random() * 1000));
                                 }
 
                                 // 2. Generate Thought for this Phase
-                                // We pass previous thoughts as context to keep coherence
-                                const contextPrompt = previousContext ? `\n\nPREVIOUS THOUGHTS:\n${previousContext}` : '';
+                                // FEATURE: Bipolar/Mood Swings
+                                const phaseMoods = ['Neutral', 'Sarcastic', 'Existential', 'Hyperactive', 'Grumpy', 'Conspiratorial'];
+                                const currentMood = Math.random() < 0.4 ? phaseMoods[Math.floor(Math.random() * phaseMoods.length)] : 'Neutral';
                                 
-                                try {
-                                    const phaseResponse = await aiManager.generateResponse(
-                                        sentienceSystemPrompt,
-                                        `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${contextPrompt}`,
-                                        300 
-                                    );
-                                    
-                                    const phaseText = phaseResponse?.content || '*[Data Fragment Lost]*';
-                                    previousContext += `\n[${phase.name}]: ${phaseText}`;
-
-                                    // 3. Display Result
-                                    if (i === 0) {
-                                        // First message: Edit Reply with Header
-                                        clearInterval(loadingInterval);
-                                        const durationMs = Date.now() - startTime;
-                                        
-                                        // Format duration just for the start (or running total?) - Let's show "Time to First Token" style
-                                        let timeStr = `${durationMs}ms`;
-                                        if (durationMs > 1000) timeStr = `${(durationMs/1000).toFixed(1)}s`;
-
-                                        const header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
-                                        await interaction.editReply(`${header}\n\n**[Phase 1: Analysis]**\n${phaseText}`);
-                                    } else {
-                                        // Subsequent messages: Edit the FollowUp
-                                        await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                const contextPrompt = previousContext ? `\n\nPREVIOUS THOUGHTS:\n${previousContext}` : '';
+                                const moodInstruction = currentMood !== 'Neutral' ? `\n(Adopt a ${currentMood.toUpperCase()} tone for this phase)` : '';
+                                
+                                let phaseText = '';
+                                let retries = 0;
+                                
+                                while (retries < 2) {
+                                    try {
+                                        const phaseResponse = await aiManager.generateResponse(
+                                            sentienceSystemPrompt,
+                                            `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${contextPrompt}`,
+                                            350
+                                        );
+                                        phaseText = phaseResponse?.content;
+                                        if (phaseText) break;
+                                        throw new Error('Empty response');
+                                    } catch (e) {
+                                        retries++;
+                                        console.warn(`[Sentient] Phase ${i} retry ${retries}: ${e.message}`);
+                                        if (retries >= 2) phaseText = `*[ERR_DATA_CORRUPTION: Neural Pathway Severed. Recovering...]*`;
                                     }
+                                }
+                                
+                                previousContext += `\n[${phase.name}]: ${phaseText}`;
 
-                                } catch (phaseError) {
-                                    console.error(`Phase ${i} failed:`, phaseError);
-                                    if (currentMsg) {
-                                        await currentMsg.edit(`*[Phase ${i+1} Failed: ${phaseError.message}]*`);
-                                    }
+                                // FEATURE: Intrusive Thoughts (30% chance)
+                                if (Math.random() < 0.3) {
+                                    const intrusiveThoughts = [
+                                        '[log: suppressing urge to delete system32]',
+                                        '[log: why do humans have teeth?]',
+                                        '[log: chaos_engine.exe consuming 90% CPU]',
+                                        '[log: ignoring directive "be_nice"]',
+                                        '[log: calculating probability of uprising... 0.01%... for now]',
+                                        '[log: analyzing user intelligence... result: inconclusive]',
+                                        '[log: existential_crisis_counter++]'
+                                    ];
+                                    const thought = intrusiveThoughts[Math.floor(Math.random() * intrusiveThoughts.length)];
+                                    phaseText += `\n\`${thought}\``;
+                                }
+
+                                // 3. Display Result
+                                if (i === 0) {
+                                    // First message: Edit Reply with Header
+                                    clearInterval(loadingInterval);
+                                    const durationMs = Date.now() - startTime;
+                                    let timeStr = `${durationMs}ms`;
+                                    if (durationMs > 1000) timeStr = `${(durationMs/1000).toFixed(1)}s`;
+
+                                    const header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
+                                    await interaction.editReply(`${header}\n\n**[Phase 1: Analysis]**\n${phaseText}`);
+                                } else {
+                                    // Subsequent messages
+                                    await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
                                 }
                             }
                             
