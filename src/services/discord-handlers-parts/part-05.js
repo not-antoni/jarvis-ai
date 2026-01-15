@@ -2733,8 +2733,13 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     // If we append, we can't show "loading" easily without modifying the past message, then modifying it again.
                                     // Let's stick to: New message for loading, then deciding where to put the content.
                                     
-                                    currentMsg = await interaction.followUp(`${loadingEmoji} ${randomMsg}`);
-                                    await new Promise(r => setTimeout(r, 2000 + Math.random() * 1500));
+                                    try {
+                                        currentMsg = await interaction.followUp(`${loadingEmoji} ${randomMsg}`);
+                                        await new Promise(r => setTimeout(r, 2000 + Math.random() * 1500));
+                                    } catch (err) {
+                                        console.error('FollowUp failed:', err);
+                                        continue; // Skip this phase if we can't send message
+                                    }
                                 }
 
                                 // 2. Generate Thought for this Phase
@@ -2756,7 +2761,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                         const phaseResponse = await aiManager.generateResponse(
                                             sentienceSystemPrompt,
                                             `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}${contextPrompt}`,
-                                            350
+                                            800 
                                         );
                                         phaseText = phaseResponse?.content;
                                         if (phaseText) break;
@@ -2788,46 +2793,25 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 }
 
                                 // 3. Display Result (Variable Strategy)
-                                if (i === 0) {
-                                    // First message: Edit Reply with Header
-                                    clearInterval(loadingInterval);
-                                    const durationMs = Date.now() - startTime;
-                                    let timeStr = `${durationMs}ms`;
-                                    if (durationMs > 1000) timeStr = `${(durationMs/1000).toFixed(1)}s`;
+                                try {
+                                    if (i === 0) {
+                                        // First message: Edit Reply with Header
+                                        clearInterval(loadingInterval);
+                                        const durationMs = Date.now() - startTime;
+                                        let timeStr = `${durationMs}ms`;
+                                        if (durationMs > 1000) timeStr = `${(durationMs/1000).toFixed(1)}s`;
 
-                                    const header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
-                                    await interaction.editReply(`${header}\n\n**[Phase 1: ${phase.name}]**\n${phaseText}`);
-                                    lastMessageId = interaction.id; // Not quite a message ID, but we act on interaction
-                                } else {
-                                    // Subsequent messages
-                                    // Randomly decide to append to previous reply if length supports it
-                                    // Note: We can't easily append to "previous reply" if it was a followUp, we need the Message object.
-                                    // To keep it simple: We used followUp for loading. We can just edit that followUp (standard)
-                                    // OR delete that followUp and edit the original/previous message.
-                                    
-                                    const shouldAppend = Math.random() < 0.4; // 40% chance to append
-                                    
-                                    if (shouldAppend) {
-                                        // Attempt to append to MAIN interaction reply (Phase 1)
-                                        // But Phase 2 might have been a separate message.
-                                        // Let's simplified version: Just edit the current loading message (Standard)
-                                        // OR if we really want to append, we need to fetch the previous message content.
-                                        // Given Discord limitations, standard flow (separate messages) is cleaner for streaming.
-                                        // But user asked for "sometimes not show 3 different messages".
-                                        
-                                        // Try to Delete loading message and Append to original reply?
-                                        // Only safe if original reply is short.
-                                        // Let's stick to editing the current loading message for now to be safe,
-                                        // BUT we can simulate "append" by editing the PREVIOUS message if we track it.
-                                        // Complexity: High.
-                                        // Result: Let's stick to modifying the current message (standard).
-                                        // Wait, user explicitly asked for "sometimes yes sometimes not".
-                                        // I'll leave it as New Message for now, but maybe randomize the FORMAT of the header?
-                                        
-                                        await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                        const header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
+                                        await interaction.editReply(`${header}\n\n**[Phase 1: ${phase.name}]**\n${phaseText}`);
+                                        lastMessageId = interaction.id; // Not quite a message ID, but we act on interaction
                                     } else {
-                                         await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                        // Subsequent messages
+                                        if (currentMsg) {
+                                             await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                        }
                                     }
+                                } catch (editErr) {
+                                    console.error('Edit failed:', editErr);
                                 }
                             }
                             
