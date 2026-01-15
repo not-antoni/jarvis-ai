@@ -874,6 +874,7 @@ class SentientAgent extends EventEmitter {
         this.name = options.name || 'Jarvis';
         this.state = 'initializing';
         this.autonomousMode = false;
+        this.autonomousInterval = null;
         this.actionCount = 0;
 
         // Core systems
@@ -906,7 +907,11 @@ class SentientAgent extends EventEmitter {
      * Process input and generate response/actions
      */
     async process(input, context = {}) {
-        this.log(`Processing: ${input.substring(0, 100)}...`, 'info');
+        // Handle heartbeat silently unless meaningful thought occurs
+        const isHeartbeat = input === 'INTERNAL_HEARTBEAT';
+        if (!isHeartbeat) {
+            this.log(`Processing: ${input.substring(0, 100)}...`, 'info');
+        }
 
         // Get memory context
         const memoryContext = this.memory.getContext();
@@ -1033,7 +1038,46 @@ class SentientAgent extends EventEmitter {
         this.autonomousMode = enabled;
         this.actionCount = 0;
         this.log(`Autonomous mode: ${enabled ? 'ENABLED' : 'DISABLED'}`, 'warn');
+
+        if (enabled) {
+            this.startAutonomousLoop();
+        } else {
+            this.stopAutonomousLoop();
+        }
+
         this.emit('autonomousModeChanged', enabled);
+    }
+
+    /**
+     * Start the autonomous background loop
+     */
+    startAutonomousLoop() {
+        if (this.autonomousInterval) {
+            clearInterval(this.autonomousInterval);
+        }
+
+        const intervalMs = AGENT_CONFIG.thinkingInterval || 10000;
+        this.log(`Starting autonomous loop (interval: ${intervalMs}ms)`, 'info');
+
+        this.autonomousInterval = setInterval(() => {
+            if (!this.autonomousMode) {
+                this.stopAutonomousLoop();
+                return;
+            }
+            this.process('INTERNAL_HEARTBEAT', { source: 'autonomous_loop' })
+                .catch(err => console.error('[SentientCore] Loop error:', err));
+        }, intervalMs);
+    }
+
+    /**
+     * Stop the autonomous background loop
+     */
+    stopAutonomousLoop() {
+        if (this.autonomousInterval) {
+            clearInterval(this.autonomousInterval);
+            this.autonomousInterval = null;
+            this.log('Autonomous loop stopped', 'info');
+        }
     }
 
     /**
