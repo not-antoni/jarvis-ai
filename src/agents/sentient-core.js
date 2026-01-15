@@ -89,6 +89,26 @@ const AGENT_CONFIG = {
     longTermMemoryFile: 'data/agent-memory.json'
 };
 
+// Sandbox directory - all agent file operations restricted here
+const SANDBOX_DIR = path.join(__dirname, '../../data/agent-sandbox');
+
+// Sensitive file patterns - NEVER allow access to these
+const SENSITIVE_PATTERNS = [
+    '.env', 'config.js', 'config.json',
+    '.pem', '.key', '.crt', '.p12',
+    'secret', 'password', 'token', 'credential',
+    'private', 'apikey', 'api_key', 'auth'
+];
+
+// Ensure sandbox exists
+try {
+    if (!fs.existsSync(SANDBOX_DIR)) {
+        fs.mkdirSync(SANDBOX_DIR, { recursive: true });
+    }
+} catch (e) {
+    console.warn('[SentientCore] Could not create sandbox directory:', e.message);
+}
+
 // ============================================================================
 // MEMORY SYSTEM
 // ============================================================================
@@ -200,18 +220,18 @@ const SHELL_METACHARACTERS = /[;&|`$(){}[\]<>\\!#*?"'\n\r]/;
  */
 function parseCommandToArgv(commandString) {
     const trimmed = commandString.trim();
-    
+
     // Reject commands with shell metacharacters
     if (SHELL_METACHARACTERS.test(trimmed)) {
         return { error: 'Command contains shell metacharacters which are not allowed' };
     }
-    
+
     // Split on whitespace
     const parts = trimmed.split(/\s+/).filter(Boolean);
     if (parts.length === 0) {
         return { error: 'Empty command' };
     }
-    
+
     return {
         executable: parts[0],
         args: parts.slice(1)
@@ -294,11 +314,14 @@ class AgentTools {
 
             try {
                 // Use spawnSync with shell: false to prevent command injection
+                // SECURITY: Run in sandbox directory to prevent access to project files
+                const sandboxPath = path.resolve(SANDBOX_DIR);
                 const result = spawnSync(parsed.executable, parsed.args, {
                     encoding: 'utf8',
                     timeout,
                     maxBuffer: 1024 * 1024, // 1MB
                     shell: false,
+                    cwd: sandboxPath, // SECURITY: Execute in sandbox
                     stdio: ['pipe', 'pipe', 'pipe']
                 });
 
@@ -314,7 +337,7 @@ class AgentTools {
                 };
 
                 this.executionHistory.push(execution);
-                
+
                 if (result.error) {
                     resolve({ status: 'error', ...execution, output: result.error.message });
                 } else {
@@ -336,19 +359,26 @@ class AgentTools {
     }
 
     /**
-     * Read a file (with path restrictions)
+     * Read a file (with strict path restrictions)
+     * SECURITY: Only allows reading from sandbox directory, blocks sensitive files
      */
     readFile(filePath) {
         const absolutePath = path.resolve(filePath);
-        const projectRoot = path.resolve(__dirname, '../..');
+        const sandboxPath = path.resolve(SANDBOX_DIR);
 
-        // Security: Only allow reading within project or common safe paths
-        const allowedPaths = [projectRoot, '/tmp', '/var/log'];
+        // SECURITY: Block sensitive files regardless of path
+        const filename = path.basename(absolutePath).toLowerCase();
+        const fullPathLower = absolutePath.toLowerCase();
+        if (SENSITIVE_PATTERNS.some(p => filename.includes(p) || fullPathLower.includes(p))) {
+            return { error: 'Access denied: Cannot read sensitive files' };
+        }
 
-        const isAllowed = allowedPaths.some(p => absolutePath.startsWith(p));
+        // SECURITY: Only allow reading from sandbox or /tmp
+        const isInSandbox = absolutePath.startsWith(sandboxPath);
+        const isInTmp = absolutePath.startsWith('/tmp') || absolutePath.includes('\\temp');
 
-        if (!isAllowed) {
-            return { error: 'Path not allowed for reading' };
+        if (!isInSandbox && !isInTmp) {
+            return { error: `Access denied: Can only read from sandbox (${SANDBOX_DIR})` };
         }
 
         try {
@@ -364,22 +394,27 @@ class AgentTools {
     }
 
     /**
-     * Write a file (requires approval for non-temp files)
+     * Write a file (restricted to sandbox only)
+     * SECURITY: Only allows writing to sandbox directory
      */
     writeFile(filePath, content, options = {}) {
         const absolutePath = path.resolve(filePath);
-        const isTempFile = absolutePath.includes('/tmp') || absolutePath.includes('\\temp');
+        const sandboxPath = path.resolve(SANDBOX_DIR);
 
-        if (!isTempFile && !options.approved) {
-            return {
-                status: 'pending_approval',
-                action: 'write_file',
-                path: absolutePath,
-                contentPreview: content.substring(0, 200)
-            };
+        // SECURITY: Only allow writing to sandbox or /tmp
+        const isInSandbox = absolutePath.startsWith(sandboxPath);
+        const isInTmp = absolutePath.startsWith('/tmp') || absolutePath.includes('\\temp');
+
+        if (!isInSandbox && !isInTmp) {
+            return { error: `Access denied: Can only write to sandbox (${SANDBOX_DIR})` };
         }
 
         try {
+            // Ensure parent directory exists within sandbox
+            const dir = path.dirname(absolutePath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
             fs.writeFileSync(absolutePath, content);
             return { success: true, path: absolutePath };
         } catch (error) {
