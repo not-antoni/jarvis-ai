@@ -2212,6 +2212,44 @@
                             response = { embeds: [searchEmbed] };
                             break;
                         }
+                        case 'rob': {
+                            const targetUser = interaction.options.getUser('target');
+                            if (!targetUser) {
+                                response = '❌ You must specify who to rob!';
+                                break;
+                            }
+                            if (targetUser.id === interaction.user.id) {
+                                response = '🤔 You can\'t rob yourself!';
+                                break;
+                            }
+                            if (targetUser.bot) {
+                                response = '🤖 You can\'t rob bots!';
+                                break;
+                            }
+                            const robResult = await starkEconomy.rob(interaction.user.id, targetUser.id, interaction.user.username);
+                            if (!robResult.success) {
+                                if (robResult.cooldown) {
+                                    const cooldownMs = robResult.cooldown;
+                                    const timeStr = cooldownMs < 60000 
+                                        ? `${Math.floor(cooldownMs / 1000)} seconds`
+                                        : `${Math.floor(cooldownMs / (60 * 1000))} minutes`;
+                                    response = `🚔 Laying low after your last heist. Wait ${timeStr} more.`;
+                                } else {
+                                    response = `❌ ${robResult.message}`;
+                                }
+                                break;
+                            }
+                            const robEmbed = new EmbedBuilder()
+                                .setTitle(robResult.stolen > 0 ? '💰 Robbery Successful!' : '❌ Robbery Failed!')
+                                .setDescription(robResult.stolen > 0 
+                                    ? `You stole **${robResult.stolen}** Stark Bucks from ${targetUser}!`
+                                    : `${robResult.message}`)
+                                .setColor(robResult.stolen > 0 ? 0x2ecc71 : 0xe74c3c)
+                                .addFields({ name: '💰 Your Balance', value: `${robResult.newBalance}`, inline: true })
+                                .setFooter({ text: 'Crime doesn\'t always pay!' });
+                            response = { embeds: [robEmbed] };
+                            break;
+                        }
                         default:
                             response = '❌ Unknown minigame subcommand.';
                     }
@@ -2499,7 +2537,10 @@
                 case 'sentient': {
                     telemetryMetadata.category = 'experimental';
                     // Check if sentience is enabled for this guild instead of requiring selfhost mode
-                    const sentienceEnabled = guild ? selfhostFeatures.isSentienceEnabled(guild.id) : false;
+                    // OWNER BYPASS: Bot owner can use sentient commands anywhere (including DMs)
+                    const { isOwner } = require('../../utils/owner-check');
+                    const isOwnerUser = isOwner(interaction.user.id);
+                    const sentienceEnabled = isOwnerUser || (guild ? selfhostFeatures.isSentienceEnabled(guild.id) : false);
                     if (!sentienceEnabled) {
                         response = 'Sentient agent is only available in servers with sentience enabled, sir.';
                         break;

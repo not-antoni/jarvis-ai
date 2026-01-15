@@ -362,21 +362,39 @@ class AgentTools {
                     }
                 }
 
-                const result = spawnSync(parsed.executable, parsed.args, {
-                    encoding: 'utf8',
-                    timeout,
-                    maxBuffer: 1024 * 1024, // 1MB
-                    shell: false,
-                    cwd: workingDir, // Owner: persistent cwd, others: sandbox
-                    stdio: ['pipe', 'pipe', 'pipe']
-                });
+                // For owner: use shell mode for full command support (pipes, etc)
+                // For non-owner: keep shell: false for security
+                const result = callerIsOwner
+                    ? require('child_process').execSync(command, {
+                        encoding: 'utf8',
+                        timeout,
+                        maxBuffer: 5 * 1024 * 1024, // 5MB for owner
+                        cwd: workingDir,
+                        stdio: ['pipe', 'pipe', 'pipe']
+                    })
+                    : spawnSync(parsed.executable, parsed.args, {
+                        encoding: 'utf8',
+                        timeout,
+                        maxBuffer: 1024 * 1024, // 1MB
+                        shell: false,
+                        cwd: workingDir,
+                        stdio: ['pipe', 'pipe', 'pipe']
+                    });
 
-                const output = (result.stdout || '') + (result.stderr || '');
-                const exitCode = result.status ?? (result.error ? 1 : 0);
+                // Handle different result formats
+                let output, exitCode;
+                if (callerIsOwner) {
+                    // execSync returns string directly, throws on error
+                    output = result || '';
+                    exitCode = 0;
+                } else {
+                    output = (result.stdout || '') + (result.stderr || '');
+                    exitCode = result.status ?? (result.error ? 1 : 0);
+                }
 
                 const execution = {
                     command,
-                    output: output.substring(0, 2000), // Limit output size
+                    output: output.substring(0, callerIsOwner ? 4000 : 2000), // More output for owner
                     exitCode,
                     duration: Date.now() - startTime,
                     timestamp: Date.now()
