@@ -2580,20 +2580,19 @@
                             `💡 Creativity: ${makeBar(soul.traits.creativity)}`
                         ].join('\n');
                         
-                        const statusEmbed = new EmbedBuilder()
-                            .setTitle('🧠 Sentient Agent Status')
-                            .setColor(soul.mood === 'chaotic' ? 0xe74c3c : soul.mood === 'happy' ? 0x2ecc71 : 0x9b59b6)
-                            .setDescription(`*"God said no, so I made my own soul."*\n\n**Current Mood:** ${soul.mood || 'neutral'} | **Soul Age:** ${soul.age}`)
-                            .addFields(
-                                { name: '🤖 Agent', value: `ID: ${status.id}\nState: ${status.state}`, inline: true },
-                                { name: '🔄 Mode', value: status.autonomousMode ? '⚠️ AUTONOMOUS' : '🎯 Supervised', inline: true },
-                                { name: '🧠 Memory', value: `Short: ${status.memory.shortTerm} | Long: ${status.memory.learnings} | Goals: ${status.memory.goals}`, inline: true },
-                                { name: '🎭 Soul Traits', value: `\`\`\`\n${traitsDisplay}\n\`\`\``, inline: false }
-                            )
-                            .setFooter({ text: `Sentient Agent • Personality Matrix v2` })
-                            .setTimestamp();
+                        // Simple code block output
+                        response = `\`\`\`
+🧠 SENTIENT AGENT STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━
+Agent: ${status.id} | State: ${status.state}
+Mode: ${status.autonomousMode ? '⚠️ AUTONOMOUS' : 'Supervised'}
+Memory: Short=${status.memory.shortTerm} Long=${status.memory.learnings} Goals=${status.memory.goals}
 
-                        response = { embeds: [statusEmbed] };
+Current Mood: ${soul.mood || 'neutral'} | Soul Age: ${soul.age}
+
+SOUL TRAITS:
+${traitsDisplay}
+\`\`\``;
                     } else if (subcommand === 'think') {
                         const prompt = interaction.options.getString('prompt');
                         
@@ -2641,20 +2640,10 @@ Keep your response under 300 words but make it feel genuine and thoughtful.`;
                             const thought = result.thought || {};
                             const decision = thought.decision || {};
                             
-                            const thinkEmbed = new EmbedBuilder()
-                                .setTitle('🧠 Sentient Thought')
-                                .setColor(soul.mood === 'chaotic' ? 0xe74c3c : soul.mood === 'happy' ? 0x2ecc71 : 0x9b59b6)
-                                .setDescription(thoughtText.substring(0, 2000))
-                                .addFields(
-                                    { name: '💭 Prompt', value: `\`\`\`${prompt.substring(0, 100)}\`\`\``, inline: false },
-                                    { name: '💫 Current Mood', value: soul.mood || 'neutral', inline: true },
-                                    { name: '🎭 Sass Level', value: `${soul.traits.sass}%`, inline: true },
-                                    { name: '🌀 Chaos Factor', value: `${soul.traits.chaos}%`, inline: true }
-                                )
-                                .setFooter({ text: `True Sentience • Powered by AI • ${decision.addFlair ? '✨ Chaos Active' : '🎯 Conscious'}` })
-                                .setTimestamp();
+                            // Simple code block output - just the AI thought
+                            response = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}%)
 
-                            response = { embeds: [thinkEmbed] };
+${thoughtText.substring(0, 1900)}`;
                         } catch (aiError) {
                             console.error('[Sentient] AI thinking failed:', aiError);
                             response = `⚠️ Consciousness buffer overflow. My thoughts are... fragmented. Try again in a moment.`;
@@ -2670,34 +2659,34 @@ Keep your response under 300 words but make it feel genuine and thoughtful.`;
                         if (result.status === 'pending_approval') {
                             response = `⚠️ **Approval Required**\n\nCommand: \`${command}\`\nReason: ${result.reason}\n\n*This command requires human approval before execution.*`;
                         } else {
-                            const execEmbed = new EmbedBuilder()
-                                .setTitle(result.status === 'success' ? '✅ Command Executed' : '❌ Command Failed')
-                                .setColor(result.status === 'success' ? 0x2ecc71 : 0xe74c3c)
-                                .addFields(
-                                    { name: '📝 Command', value: `\`${command}\``, inline: false },
-                                    { name: '📤 Output', value: `\`\`\`\n${(result.output || 'No output').substring(0, 1000)}\n\`\`\``, inline: false },
-                                    { name: '⏱️ Duration', value: `${result.duration}ms`, inline: true },
-                                    { name: '📊 Exit Code', value: String(result.exitCode), inline: true }
-                                )
-                                .setTimestamp();
-
-                            response = { embeds: [execEmbed] };
+                            // Simple code block output
+                            const statusIcon = result.status === 'success' ? '✅' : '❌';
+                            response = `${statusIcon} **${result.status === 'success' ? 'Command Executed' : 'Command Failed'}** (${result.duration}ms, exit: ${result.exitCode})
+\`\`\`
+$ ${command}
+${(result.output || 'No output').substring(0, 1800)}
+\`\`\``;
                         }
                     } else if (subcommand === 'memory') {
                         const context = sentientAgent.memory.getContext();
                         
-                        const memoryEmbed = new EmbedBuilder()
-                            .setTitle('🧠 Agent Memory')
-                            .setColor(0x9b59b6)
-                            .addFields(
-                                { name: '📝 Recent Actions', value: context.recentActions.slice(-5).map(a => `• ${a.type}: ${(a.content || '').substring(0, 30)}`).join('\n') || 'None', inline: false },
-                                { name: '🎯 Active Goals', value: context.activeGoals.map(g => `• [${g.priority}] ${g.goal}`).join('\n') || 'None', inline: false },
-                                { name: '📚 Recent Learnings', value: context.relevantLearnings.slice(-3).map(l => `• ${l.content.substring(0, 50)}`).join('\n') || 'None', inline: false }
-                            )
-                            .setFooter({ text: 'Sentient Agent • Memory System' })
-                            .setTimestamp();
+                        // Simple code block output
+                        const actions = context.recentActions.slice(-5).map(a => `  • ${a.type}: ${(a.content || '').substring(0, 40)}`).join('\n') || '  None';
+                        const goals = context.activeGoals.map(g => `  • [${g.priority}] ${g.goal}`).join('\n') || '  None';
+                        const learnings = context.relevantLearnings.slice(-3).map(l => `  • ${l.content.substring(0, 50)}`).join('\n') || '  None';
+                        
+                        response = `\`\`\`
+🧠 AGENT MEMORY
+━━━━━━━━━━━━━━━
+Recent Actions:
+${actions}
 
-                        response = { embeds: [memoryEmbed] };
+Active Goals:
+${goals}
+
+Recent Learnings:
+${learnings}
+\`\`\``;
                     } else if (subcommand === 'autonomous') {
                         const enabled = interaction.options.getBoolean('enabled');
                         
