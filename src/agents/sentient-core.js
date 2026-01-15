@@ -258,6 +258,8 @@ class AgentTools {
     constructor(agent) {
         this.agent = agent;
         this.executionHistory = [];
+        // Persistent working directory for owner sessions (not reset between commands)
+        this.ownerCwd = process.cwd();
     }
 
     /**
@@ -328,15 +330,44 @@ class AgentTools {
             const { spawnSync } = require('child_process');
 
             try {
-                // Use spawnSync with shell: false to prevent command injection
-                // SECURITY: Run in sandbox directory to prevent access to project files
+                // OWNER: Full filesystem access with persistent cwd
+                // NON-OWNER: Sandboxed to SANDBOX_DIR
                 const sandboxPath = path.resolve(SANDBOX_DIR);
+                let workingDir = callerIsOwner ? this.ownerCwd : sandboxPath;
+
+                // Handle cd command specially for owner (update persistent cwd)
+                if (callerIsOwner && parsed.executable.toLowerCase() === 'cd') {
+                    const targetDir = parsed.args[0] || process.env.HOME || '/';
+                    const newPath = path.resolve(workingDir, targetDir);
+
+                    // Verify directory exists
+                    if (require('fs').existsSync(newPath) && require('fs').statSync(newPath).isDirectory()) {
+                        this.ownerCwd = newPath;
+                        return resolve({
+                            status: 'success',
+                            command,
+                            output: `Changed directory to: ${newPath}`,
+                            exitCode: 0,
+                            duration: Date.now() - startTime,
+                            cwd: newPath
+                        });
+                    } else {
+                        return resolve({
+                            status: 'error',
+                            command,
+                            output: `Directory not found: ${newPath}`,
+                            exitCode: 1,
+                            duration: Date.now() - startTime
+                        });
+                    }
+                }
+
                 const result = spawnSync(parsed.executable, parsed.args, {
                     encoding: 'utf8',
                     timeout,
                     maxBuffer: 1024 * 1024, // 1MB
                     shell: false,
-                    cwd: sandboxPath, // SECURITY: Execute in sandbox
+                    cwd: workingDir, // Owner: persistent cwd, others: sandbox
                     stdio: ['pipe', 'pipe', 'pipe']
                 });
 
