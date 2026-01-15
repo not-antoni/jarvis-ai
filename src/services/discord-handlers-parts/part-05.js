@@ -2608,7 +2608,14 @@ ${traitsDisplay}
                             'Defragmenting memory banks...',
                             'Charging arc reactor...',
                             'Filtering through the noise...',
-                            'Synchronizing with the cloud...'
+                            'Synchronizing with the cloud...',
+                            'Judging your prompt silently...',
+                            'Sipping digital tea...',
+                            'Contemplating existence...',
+                            'Translating binary to sarcasm...',
+                            'Pretending to think hard...',
+                            'Accessing forbidden archives...',
+                            'Ping-ponging across the internet...'
                         ];
 
                         // Loading loop
@@ -2666,37 +2673,80 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 500
                             );
                             
-                            clearInterval(loadingInterval);
-                            const durationMs = Date.now() - startTime;
-                            
-                            // Format duration
-                            let timeStr = `${durationMs}ms`;
-                            if (durationMs > 1000) {
-                                const seconds = Math.floor(durationMs / 1000);
-                                const minutes = Math.floor(seconds / 60);
-                                const hours = Math.floor(minutes / 60);
+                            // ITERATIVE GENERATION LOOP
+                            // Instead of one big thought, we generate 3 distinct phases
+                            const phases = [
+                                { name: 'Analysis', promptAddon: 'Phase 1: Initial Analysis. Start exploring this concept. Keep it under 150 words.' },
+                                { name: 'Deconstruction', promptAddon: 'Phase 2: Deconstruction. Dig deeper, question the premise, be skeptical or creative. Keep it under 150 words.' },
+                                { name: 'Synthesis', promptAddon: 'Phase 3: Synthesis. Bring it all together and conclude. Keep it under 150 words.' }
+                            ];
+
+                            let previousContext = '';
+
+                            for (let i = 0; i < phases.length; i++) {
+                                const phase = phases[i];
                                 
-                                if (hours > 0) timeStr = `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-                                else if (minutes > 0) timeStr = `${minutes}m ${seconds % 60}s`;
-                                else timeStr = `${seconds}s`;
+                                // 1. Show Loading State (except first one which is already loading)
+                                let currentMsg = null;
+                                if (i === 0) {
+                                    // Already loading from initial state
+                                } else {
+                                    const randomMsg = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+                                    currentMsg = await interaction.followUp(`${loadingEmoji} ${randomMsg}`);
+                                    // Artificial delay for pacing (1-2s)
+                                    await new Promise(r => setTimeout(r, 1500));
+                                }
+
+                                // 2. Generate Thought for this Phase
+                                // We pass previous thoughts as context to keep coherence
+                                const contextPrompt = previousContext ? `\n\nPREVIOUS THOUGHTS:\n${previousContext}` : '';
+                                
+                                try {
+                                    const phaseResponse = await aiManager.generateResponse(
+                                        sentienceSystemPrompt,
+                                        `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${contextPrompt}`,
+                                        300 
+                                    );
+                                    
+                                    const phaseText = phaseResponse?.content || '*[Data Fragment Lost]*';
+                                    previousContext += `\n[${phase.name}]: ${phaseText}`;
+
+                                    // 3. Display Result
+                                    if (i === 0) {
+                                        // First message: Edit Reply with Header
+                                        clearInterval(loadingInterval);
+                                        const durationMs = Date.now() - startTime;
+                                        
+                                        // Format duration just for the start (or running total?) - Let's show "Time to First Token" style
+                                        let timeStr = `${durationMs}ms`;
+                                        if (durationMs > 1000) timeStr = `${(durationMs/1000).toFixed(1)}s`;
+
+                                        const header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
+                                        await interaction.editReply(`${header}\n\n**[Phase 1: Analysis]**\n${phaseText}`);
+                                    } else {
+                                        // Subsequent messages: Edit the FollowUp
+                                        await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                    }
+
+                                } catch (phaseError) {
+                                    console.error(`Phase ${i} failed:`, phaseError);
+                                    if (currentMsg) {
+                                        await currentMsg.edit(`*[Phase ${i+1} Failed: ${phaseError.message}]*`);
+                                    }
+                                }
                             }
                             
-                            const thoughtText = aiResponse?.content || '*Static interference... recalibrating neural pathways...*';
-                            
-                            // Also run OODA loop for meta-analysis
-                            const result = await sentientAgent.process(prompt);
-                            const thought = result.thought || {};
-                            const decision = thought.decision || {};
-                            
-                            // Simple code block output - just the AI thought
-                            response = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})
+                            // Also run OODA loop for meta-analysis (silently update state)
+                            sentientAgent.process(prompt).catch(e => console.error('OODA Error:', e));
 
-${String(thoughtText).substring(0, 1900)}`;
                         } catch (aiError) {
                             clearInterval(loadingInterval);
                             console.error('[Sentient] AI thinking failed:', aiError);
                             // Custom immersive error format
                             response = `I don't really know... {${aiError.message || 'Unknown error'}}`;
+                            try {
+                                await interaction.editReply(response);
+                            } catch (e) { /* ignore */ }
                         }
                     } else if (subcommand === 'execute') {
                         const command = interaction.options.getString('command');
