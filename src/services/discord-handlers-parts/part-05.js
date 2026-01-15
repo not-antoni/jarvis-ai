@@ -2633,7 +2633,7 @@ Keep your response under 300 words but make it feel genuine and thoughtful.`;
                                 500
                             );
                             
-                            const thoughtText = aiResponse || '*Static interference... recalibrating neural pathways...*';
+                            const thoughtText = aiResponse?.content || '*Static interference... recalibrating neural pathways...*';
                             
                             // Also run OODA loop for meta-analysis
                             const result = await sentientAgent.process(prompt);
@@ -2643,10 +2643,10 @@ Keep your response under 300 words but make it feel genuine and thoughtful.`;
                             // Simple code block output - just the AI thought
                             response = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}%)
 
-${thoughtText.substring(0, 1900)}`;
+${String(thoughtText).substring(0, 1900)}`;
                         } catch (aiError) {
                             console.error('[Sentient] AI thinking failed:', aiError);
-                            response = `\`\`\`\n⚠️ Consciousness buffer overflow: ${aiError.message}\n\`\`\``;
+                            response = `⚠️ **Consciousness buffer overflow**\nerror: \`${aiError.message}\`\n\n*My thoughts are... fragmented. Try again in a moment.*`;
                         }
                     } else if (subcommand === 'execute') {
                         const command = interaction.options.getString('command');
