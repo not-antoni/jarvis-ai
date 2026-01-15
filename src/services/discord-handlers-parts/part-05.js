@@ -2646,7 +2646,7 @@ Keep your response under 300 words but make it feel genuine and thoughtful.`;
 ${thoughtText.substring(0, 1900)}`;
                         } catch (aiError) {
                             console.error('[Sentient] AI thinking failed:', aiError);
-                            response = `⚠️ Consciousness buffer overflow. My thoughts are... fragmented. Try again in a moment.`;
+                            response = `\`\`\`\n⚠️ Consciousness buffer overflow: ${aiError.message}\n\`\`\``;
                         }
                     } else if (subcommand === 'execute') {
                         const command = interaction.options.getString('command');
