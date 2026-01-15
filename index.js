@@ -1181,7 +1181,7 @@ const allCommands = [
         .addSubcommand(sub =>
             sub.setName('rob')
                 .setDescription('Attempt to rob another user (risky!)')
-                .addUserOption(opt => opt.setName('user').setDescription('The target to rob').setRequired(true))
+                .addUserOption(opt => opt.setName('target').setDescription('The target to rob').setRequired(true))
         )
         .addSubcommand(sub =>
             sub.setName('lottery')
