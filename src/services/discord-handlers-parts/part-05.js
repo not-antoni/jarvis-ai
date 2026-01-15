@@ -2735,10 +2735,11 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     
                                     try {
                                         currentMsg = await interaction.followUp(`${loadingEmoji} ${randomMsg}`);
-                                        await new Promise(r => setTimeout(r, 2000 + Math.random() * 1500));
+                                        // Artificial delay (Increased to 4-5s to avoid rate limits/glitches)
+                                        await new Promise(r => setTimeout(r, 4000 + Math.random() * 1500));
                                     } catch (err) {
                                         console.error('FollowUp failed:', err);
-                                        continue; // Skip this phase if we can't send message
+                                        continue; 
                                     }
                                 }
 
@@ -2817,15 +2818,19 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             
                             // Also run OODA loop for meta-analysis (silently update state)
                             sentientAgent.process(prompt).catch(e => console.error('OODA Error:', e));
+                            
+                            response = '__SENTIENT_HANDLED__';
 
                         } catch (aiError) {
                             clearInterval(loadingInterval);
                             console.error('[Sentient] AI thinking failed:', aiError);
                             // Custom immersive error format
-                            response = `I don't really know... {${aiError.message || 'Unknown error'}}`;
+                            const errResp = `I don't really know... {${aiError.message || 'Unknown error'}}`;
                             try {
-                                await interaction.editReply(response);
+                                await interaction.editReply(errResp);
                             } catch (e) { /* ignore */ }
+                            
+                            response = '__SENTIENT_HANDLED__';
                         }
                     } else if (subcommand === 'execute') {
                         const command = interaction.options.getString('command');
@@ -3727,7 +3732,7 @@ ${learnings}
                 }
             }
 
-            if (response === '__RAP_BATTLE_HANDLED__' || response === '__QUOTE_HANDLED__') {
+            if (response === '__RAP_BATTLE_HANDLED__' || response === '__QUOTE_HANDLED__' || response === '__SENTIENT_HANDLED__') {
                 // Rap battle handles its own responses, skip normal handling
                 return;
             } else if (response === undefined || response === null) {
