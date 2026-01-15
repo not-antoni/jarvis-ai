@@ -34,6 +34,36 @@ function getStarkbucks() {
 }
 
 // ============================================================================
+// PER-USER LOCKING (Prevents race conditions from spam)
+// ============================================================================
+const userLocks = new Map(); // userId -> Promise
+
+/**
+ * Acquire a lock for a user - prevents concurrent operations
+ * @param {string} userId - The user ID to lock
+ * @param {Function} operation - Async operation to perform
+ * @returns {Promise} - Result of the operation
+ */
+async function withUserLock(userId, operation) {
+    // Wait for any pending operation for this user
+    while (userLocks.has(userId)) {
+        await userLocks.get(userId).catch(() => { });
+    }
+
+    // Create a new lock
+    const lockPromise = (async () => {
+        try {
+            return await operation();
+        } finally {
+            userLocks.delete(userId);
+        }
+    })();
+
+    userLocks.set(userId, lockPromise);
+    return lockPromise;
+}
+
+// ============================================================================
 // CONFIGURATION
 // ============================================================================
 
@@ -2996,8 +3026,11 @@ async function getSBXMarketData() {
 async function buySBX(userId, amount) {
     const sbx = getStarkbucks();
     if (!sbx) return { success: false, error: 'SBX System offline' };
-    const cost = await sbx.convertToStarkBucks(amount);
-    if (!cost) return { success: false, error: 'Price error' };
+
+    // Calculate cost: amount SBX * 100 * current price * 1.02 (2% buy premium)
+    const price = sbx.getCurrentPrice();
+    const cost = Math.floor(amount * 100 * price * 1.02);
+    if (!cost || cost <= 0) return { success: false, error: 'Price error' };
 
     // Check user balance (Stark Bucks)
     const user = await loadUser(userId);
@@ -3020,18 +3053,14 @@ async function sellSBX(userId, amount) {
     const wallet = await sbx.getWallet(userId);
     if (wallet.balance < amount) return { success: false, error: `Insufficient SBX. Have ${wallet.balance}` };
 
-    const earnings = await sbx.convertToStarkBucks(amount);
-    if (!earnings) return { success: false, error: 'Price error' };
+    // convertToStarkBucks handles: deducting SBX, crediting Stark Bucks, and fees
+    const result = await sbx.convertToStarkBucks(userId, amount);
+    if (!result.success) return { success: false, error: result.error || 'Conversion failed' };
 
-    // Deduct SBX
-    await sbx.updateWallet(userId, -amount, 'Sold for Stark Bucks');
-
-    // Credit Stark Bucks
+    // Get updated balance from economy
     const user = await loadUser(userId);
-    user.balance += earnings;
-    await saveUser(userId, user);
 
-    return { success: true, earnings, amount, newBalance: user.balance };
+    return { success: true, earnings: result.starkBucksReceived, amount, newBalance: user.balance };
 }
 
 async function getSBXBalance(userId) {
