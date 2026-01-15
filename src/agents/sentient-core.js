@@ -29,6 +29,9 @@ try {
     console.warn('[SentientCore] Could not load soul:', e.message);
 }
 
+// Import owner check for bypasses
+const { isOwner } = require('../utils/owner-check');
+
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
@@ -370,31 +373,46 @@ class AgentTools {
     /**
      * Read a file (with strict path restrictions)
      * SECURITY: Only allows reading from sandbox directory, blocks sensitive files
+     * OWNER BYPASS: Owner can read project files (not .env)
      */
-    readFile(filePath) {
+    readFile(filePath, options = {}) {
         const absolutePath = path.resolve(filePath);
         const sandboxPath = path.resolve(SANDBOX_DIR);
+        const projectRoot = path.resolve(__dirname, '../..');
+        const callerIsOwner = options.userId && isOwner(options.userId);
 
-        // SECURITY: Block sensitive files regardless of path
+        // SECURITY: Block .env files ALWAYS (even for owner unless explicit bypass)
         const filename = path.basename(absolutePath).toLowerCase();
-        const fullPathLower = absolutePath.toLowerCase();
-        if (SENSITIVE_PATTERNS.some(p => filename.includes(p) || fullPathLower.includes(p))) {
-            return { error: 'Access denied: Cannot read sensitive files' };
+        if (filename === '.env' && !options.forceOwnerBypass) {
+            return { error: 'Access denied: .env files are always protected' };
         }
 
-        // SECURITY: Only allow reading from sandbox or /tmp
+        // For non-owners: Block sensitive files
+        if (!callerIsOwner) {
+            const fullPathLower = absolutePath.toLowerCase();
+            if (SENSITIVE_PATTERNS.some(p => filename.includes(p) || fullPathLower.includes(p))) {
+                return { error: 'Access denied: Cannot read sensitive files' };
+            }
+        }
+
+        // SECURITY: Path restrictions
         const isInSandbox = absolutePath.startsWith(sandboxPath);
+        const isInProject = absolutePath.startsWith(projectRoot);
         const isInTmp = absolutePath.startsWith('/tmp') || absolutePath.includes('\\temp');
 
-        if (!isInSandbox && !isInTmp) {
+        // Owner can read project files, others only sandbox/tmp
+        if (!callerIsOwner && !isInSandbox && !isInTmp) {
             return { error: `Access denied: Can only read from sandbox (${SANDBOX_DIR})` };
+        }
+        if (callerIsOwner && !isInProject && !isInSandbox && !isInTmp) {
+            return { error: 'Access denied: Owner can only read project, sandbox, or temp files' };
         }
 
         try {
             const content = fs.readFileSync(absolutePath, 'utf8');
             return {
                 success: true,
-                content: content.substring(0, 10000), // Limit size
+                content: content.substring(0, callerIsOwner ? 50000 : 10000), // Owner gets more
                 path: absolutePath
             };
         } catch (error) {
@@ -405,27 +423,41 @@ class AgentTools {
     /**
      * Write a file (restricted to sandbox only)
      * SECURITY: Only allows writing to sandbox directory
+     * OWNER BYPASS: Owner can write to project files
      */
     writeFile(filePath, content, options = {}) {
         const absolutePath = path.resolve(filePath);
         const sandboxPath = path.resolve(SANDBOX_DIR);
+        const projectRoot = path.resolve(__dirname, '../..');
+        const callerIsOwner = options.userId && isOwner(options.userId);
 
-        // SECURITY: Only allow writing to sandbox or /tmp
+        // SECURITY: Never allow writing to .env or sensitive config
+        const filename = path.basename(absolutePath).toLowerCase();
+        if (filename === '.env' || filename === 'config.js') {
+            return { error: 'Access denied: Cannot write to critical config files' };
+        }
+
+        // SECURITY: Path restrictions
         const isInSandbox = absolutePath.startsWith(sandboxPath);
+        const isInProject = absolutePath.startsWith(projectRoot);
         const isInTmp = absolutePath.startsWith('/tmp') || absolutePath.includes('\\temp');
 
-        if (!isInSandbox && !isInTmp) {
+        // Owner can write to project, others only sandbox/tmp
+        if (!callerIsOwner && !isInSandbox && !isInTmp) {
             return { error: `Access denied: Can only write to sandbox (${SANDBOX_DIR})` };
+        }
+        if (callerIsOwner && !isInProject && !isInSandbox && !isInTmp) {
+            return { error: 'Access denied: Owner can only write to project, sandbox, or temp files' };
         }
 
         try {
-            // Ensure parent directory exists within sandbox
+            // Ensure parent directory exists
             const dir = path.dirname(absolutePath);
             if (!fs.existsSync(dir)) {
                 fs.mkdirSync(dir, { recursive: true });
             }
             fs.writeFileSync(absolutePath, content);
-            return { success: true, path: absolutePath };
+            return { success: true, path: absolutePath, ownerBypass: callerIsOwner };
         } catch (error) {
             return { error: error.message };
         }
