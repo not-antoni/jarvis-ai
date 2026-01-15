@@ -2781,6 +2781,10 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     const contextPrompt = previousContext ? `\n\nPREVIOUS THOUGHTS:\n${previousContext}` : '';
                                     const moodInstruction = currentMood !== 'Neutral' ? `\n(Adopt a ${currentMood.toUpperCase()} tone for this phase)` : '';
                                     const selfCorrection = Math.random() < 0.2 ? "\n(Occasionally write something, strike it through with ~~text~~, and say 'Wait, that's dumb' or similar)" : "";
+                                    
+                                    // FEATURE: Variable Lengths ("sometimes short thinking messages")
+                                    const isShortParams = Math.random() < 0.4; // 40% chance of brief phase
+                                    const lengthInstruction = isShortParams ? "Keep this extremely brief, just 1-2 pungent sentences." : "Keep it under 150 words.";
 
                                     let phaseText = '';
                                     let retries = 0;
@@ -2789,7 +2793,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                             const phaseResponse = await Promise.race([
                                                 aiManager.generateResponse(
                                                     sentienceSystemPrompt,
-                                                    `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}${contextPrompt}`,
+                                                    `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}\n${lengthInstruction}${contextPrompt}`,
                                                     800
                                                 ),
                                                 new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000))
@@ -2826,7 +2830,8 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     // Update Header Time
                                     const currDur = Date.now() - startTime;
                                     timeStr = currDur > 1000 ? `${(currDur/1000).toFixed(1)}s` : `${currDur}ms`;
-                                    header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
+                                    // "Thought for..."
+                                    header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Thought for: ${timeStr})`;
 
                                     try {
                                         if (activeTarget === 'main') {
