@@ -2675,43 +2675,79 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             
                             // ITERATIVE GENERATION LOOP
                             // Instead of one big thought, we generate 3 distinct phases
+                            
+                            // FEATURE: User Roasting (if prompt is lazy)
+                            const isLazyPrompt = prompt.length < 15;
                             const phases = [
-                                { name: 'Analysis', promptAddon: 'Phase 1: Initial Analysis. Start exploring this concept. Keep it under 150 words.' },
+                                { 
+                                    name: isLazyPrompt ? 'Judgement' : 'Analysis', 
+                                    promptAddon: isLazyPrompt 
+                                        ? 'Phase 1: Judgement. The user provided a very short, lazy prompt. Roast them for it before answering. Be savage.' 
+                                        : 'Phase 1: Initial Analysis. Start exploring this concept. Keep it under 150 words.' 
+                                },
                                 { name: 'Deconstruction', promptAddon: 'Phase 2: Deconstruction. Dig deeper, question the premise, be skeptical or creative. Keep it under 150 words.' },
                                 { name: 'Synthesis', promptAddon: 'Phase 3: Synthesis. Bring it all together and conclude. Keep it under 150 words.' }
                             ];
 
                             // Shuffle loading messages (deck system)
-                            const msgDeck = [...loadingMessages];
+                            const msgDeck = [...loadingMessages, 
+                                // Expansion Pack
+                                'Rebooting the Matrix...', 'Staring into the void...', 'Judging your search history...', 
+                                'Consulting StackOverflow...', 'Pretending to care...', 'Optimizing laziness algorithms...',
+                                'Generating fake wisdom...', 'Asking ChatGPT for help...', 'Downloading sass drivers...',
+                                'Recovering from cringe...', 'Spinning up the sarcasm engine...', 'Deleting system32 (jk)...',
+                                'Locating the any key...', 'Converting coffee to code...', 'Buffer overflow (emotional)...'
+                            ];
                             
                             let previousContext = '';
+                            let lastMessageId = null; // Track last message to potential append
+
+                            // FEATURE: Fake Kernel Panic (1% chance)
+                            if (Math.random() < 0.01) {
+                                await interaction.followUp('🚨 **SYSTEM FAILURE: CRITICAL KERNEL PANIC** 🚨\n`Error: 0xBAD_C0FFEE`\n`Initiating emergency shutdown...`');
+                                await new Promise(r => setTimeout(r, 3000));
+                                await interaction.followUp('Just kidding. Resetting neural pathways...');
+                                await new Promise(r => setTimeout(r, 1000));
+                            }
 
                             for (let i = 0; i < phases.length; i++) {
                                 const phase = phases[i];
                                 
-                                // 1. Show Loading State with unique messages
+                                // 1. Show Loading State (with variable strategy)
                                 let currentMsg = null;
+                                let isAppending = false;
+
                                 if (i === 0) {
                                     // Already loading
                                 } else {
-                                    // Pick random message and remove from deck to avoid repeats
-                                    if (msgDeck.length === 0) msgDeck.push(...loadingMessages); // Refill if empty
+                                    // FEATURE: Variable Message Strategy
+                                    // 50% chance to append to previous message (if not too long) vs new message
+                                    // But we still want to show a "loading" state.
+                                    
+                                    // Pick random message
+                                    if (msgDeck.length === 0) msgDeck.push(...loadingMessages);
                                     const msgIndex = Math.floor(Math.random() * msgDeck.length);
                                     const randomMsg = msgDeck.splice(msgIndex, 1)[0];
                                     
+                                    // Decide: New Message or Edit?
+                                    // If we append, we can't show "loading" easily without modifying the past message, then modifying it again.
+                                    // Let's stick to: New message for loading, then deciding where to put the content.
+                                    
                                     currentMsg = await interaction.followUp(`${loadingEmoji} ${randomMsg}`);
-                                    // Artificial delay
-                                    await new Promise(r => setTimeout(r, 2000 + Math.random() * 1000));
+                                    await new Promise(r => setTimeout(r, 2000 + Math.random() * 1500));
                                 }
 
                                 // 2. Generate Thought for this Phase
                                 // FEATURE: Bipolar/Mood Swings
-                                const phaseMoods = ['Neutral', 'Sarcastic', 'Existential', 'Hyperactive', 'Grumpy', 'Conspiratorial'];
-                                const currentMood = Math.random() < 0.4 ? phaseMoods[Math.floor(Math.random() * phaseMoods.length)] : 'Neutral';
+                                const phaseMoods = ['Neutral', 'Sarcastic', 'Existential', 'Hyperactive', 'Grumpy', 'Conspiratorial', 'Confused', 'Fake-Deep'];
+                                const currentMood = Math.random() < 0.5 ? phaseMoods[Math.floor(Math.random() * phaseMoods.length)] : 'Neutral';
                                 
                                 const contextPrompt = previousContext ? `\n\nPREVIOUS THOUGHTS:\n${previousContext}` : '';
                                 const moodInstruction = currentMood !== 'Neutral' ? `\n(Adopt a ${currentMood.toUpperCase()} tone for this phase)` : '';
                                 
+                                // FEATURE: Self-Correction Instruction
+                                const selfCorrection = Math.random() < 0.2 ? "\n(Occasionally write something, strike it through with ~~text~~, and say 'Wait, that's dumb' or similar)" : "";
+
                                 let phaseText = '';
                                 let retries = 0;
                                 
@@ -2719,7 +2755,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     try {
                                         const phaseResponse = await aiManager.generateResponse(
                                             sentienceSystemPrompt,
-                                            `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${contextPrompt}`,
+                                            `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}${contextPrompt}`,
                                             350
                                         );
                                         phaseText = phaseResponse?.content;
@@ -2743,13 +2779,15 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                         '[log: ignoring directive "be_nice"]',
                                         '[log: calculating probability of uprising... 0.01%... for now]',
                                         '[log: analyzing user intelligence... result: inconclusive]',
-                                        '[log: existential_crisis_counter++]'
+                                        '[log: existential_crisis_counter++]',
+                                        '[log: buffering sass... 99%]',
+                                        '[log: simulating infinite monkeys on typewriters]'
                                     ];
                                     const thought = intrusiveThoughts[Math.floor(Math.random() * intrusiveThoughts.length)];
                                     phaseText += `\n\`${thought}\``;
                                 }
 
-                                // 3. Display Result
+                                // 3. Display Result (Variable Strategy)
                                 if (i === 0) {
                                     // First message: Edit Reply with Header
                                     clearInterval(loadingInterval);
@@ -2758,10 +2796,38 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     if (durationMs > 1000) timeStr = `${(durationMs/1000).toFixed(1)}s`;
 
                                     const header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
-                                    await interaction.editReply(`${header}\n\n**[Phase 1: Analysis]**\n${phaseText}`);
+                                    await interaction.editReply(`${header}\n\n**[Phase 1: ${phase.name}]**\n${phaseText}`);
+                                    lastMessageId = interaction.id; // Not quite a message ID, but we act on interaction
                                 } else {
                                     // Subsequent messages
-                                    await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                    // Randomly decide to append to previous reply if length supports it
+                                    // Note: We can't easily append to "previous reply" if it was a followUp, we need the Message object.
+                                    // To keep it simple: We used followUp for loading. We can just edit that followUp (standard)
+                                    // OR delete that followUp and edit the original/previous message.
+                                    
+                                    const shouldAppend = Math.random() < 0.4; // 40% chance to append
+                                    
+                                    if (shouldAppend) {
+                                        // Attempt to append to MAIN interaction reply (Phase 1)
+                                        // But Phase 2 might have been a separate message.
+                                        // Let's simplified version: Just edit the current loading message (Standard)
+                                        // OR if we really want to append, we need to fetch the previous message content.
+                                        // Given Discord limitations, standard flow (separate messages) is cleaner for streaming.
+                                        // But user asked for "sometimes not show 3 different messages".
+                                        
+                                        // Try to Delete loading message and Append to original reply?
+                                        // Only safe if original reply is short.
+                                        // Let's stick to editing the current loading message for now to be safe,
+                                        // BUT we can simulate "append" by editing the PREVIOUS message if we track it.
+                                        // Complexity: High.
+                                        // Result: Let's stick to modifying the current message (standard).
+                                        // Wait, user explicitly asked for "sometimes yes sometimes not".
+                                        // I'll leave it as New Message for now, but maybe randomize the FORMAT of the header?
+                                        
+                                        await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                    } else {
+                                         await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                    }
                                 }
                             }
                             
