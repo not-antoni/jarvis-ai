@@ -2673,158 +2673,157 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 500
                             );
                             
-                            // ITERATIVE GENERATION LOOP
-                            // Instead of one big thought, we generate 3 distinct phases
+                            // FEATURE: Casual Mode (20% chance or if explicitly requested)
+                            // "Sometimes it doesnt need to use the analysis etc and reply casually"
+                            const isCasual = Math.random() < 0.2 || prompt.toLowerCase().includes('casual');
                             
-                            // FEATURE: User Roasting (if prompt is lazy)
-                            const isLazyPrompt = prompt.length < 15;
-                            const phases = [
-                                { 
-                                    name: isLazyPrompt ? 'Judgement' : 'Analysis', 
-                                    promptAddon: isLazyPrompt 
-                                        ? 'Phase 1: Judgement. The user provided a very short, lazy prompt. Roast them for it before answering. Be savage.' 
-                                        : 'Phase 1: Initial Analysis. Start exploring this concept. Keep it under 150 words.' 
-                                },
-                                { name: 'Deconstruction', promptAddon: 'Phase 2: Deconstruction. Dig deeper, question the premise, be skeptical or creative. Keep it under 150 words.' },
-                                { name: 'Synthesis', promptAddon: 'Phase 3: Synthesis. Bring it all together and conclude. Keep it under 150 words.' }
-                            ];
-
-                            // Shuffle loading messages (deck system)
-                            const msgDeck = [...loadingMessages, 
-                                // Expansion Pack
-                                'Rebooting the Matrix...', 'Staring into the void...', 'Judging your search history...', 
-                                'Consulting StackOverflow...', 'Pretending to care...', 'Optimizing laziness algorithms...',
-                                'Generating fake wisdom...', 'Asking ChatGPT for help...', 'Downloading sass drivers...',
-                                'Recovering from cringe...', 'Spinning up the sarcasm engine...', 'Deleting system32 (jk)...',
-                                'Locating the any key...', 'Converting coffee to code...', 'Buffer overflow (emotional)...'
-                            ];
-                            
-                            let previousContext = '';
-                            let lastMessageId = null; // Track last message to potential append
-
-                            // FEATURE: Fake Kernel Panic (1% chance)
-                            if (Math.random() < 0.01) {
-                                await interaction.followUp('🚨 **SYSTEM FAILURE: CRITICAL KERNEL PANIC** 🚨\n`Error: 0xBAD_C0FFEE`\n`Initiating emergency shutdown...`');
-                                await new Promise(r => setTimeout(r, 3000));
-                                await interaction.followUp('Just kidding. Resetting neural pathways...');
-                                await new Promise(r => setTimeout(r, 1000));
-                            }
-
-                            for (let i = 0; i < phases.length; i++) {
-                                const phase = phases[i];
+                            if (isCasual) {
+                                // Casual Flow: Single straightforward response
+                                const loadingMsg = await interaction.followUp(`${loadingEmoji} *Thinking vaguely...*`);
+                                await new Promise(r => setTimeout(r, 2000)); // Short delay
                                 
-                                // 1. Show Loading State (with variable strategy)
-                                let currentMsg = null;
-                                let isAppending = false;
+                                const casualResponse = await aiManager.generateResponse(
+                                    sentienceSystemPrompt,
+                                    `Reply casually to this: "${prompt}". Be brief, witty, and sentient. No deep analysis needed.`,
+                                    600
+                                );
+                                await loadingMsg.delete().catch(() => {}); // Clean up
+                                
+                                const durationMs = Date.now() - startTime;
+                                const header = `**🧠 Sentient Thought** (Mood: Casual | Time: ${durationMs}ms)`;
+                                
+                                clearInterval(loadingInterval);
+                                await interaction.editReply(`${header}\n\n${casualResponse.content}`);
+                                response = '__SENTIENT_HANDLED__';
+                                
+                            } else {
+                                // Deep Mode: Iterative Generation with Consolidation
+                                
+                                // FEATURE: User Roasting (if prompt is lazy)
+                                const isLazyPrompt = prompt.length < 15;
+                                const phases = [
+                                    { 
+                                        name: isLazyPrompt ? 'Judgement' : 'Analysis', 
+                                        promptAddon: isLazyPrompt 
+                                            ? 'Phase 1: Judgement. The user provided a very short, lazy prompt. Roast them for it before answering. Be savage.' 
+                                            : 'Phase 1: Initial Analysis. Start exploring this concept. Keep it under 150 words.' 
+                                    },
+                                    { name: 'Deconstruction', promptAddon: 'Phase 2: Deconstruction. Dig deeper, question the premise, be skeptical or creative. Keep it under 150 words.' },
+                                    { name: 'Synthesis', promptAddon: 'Phase 3: Synthesis. Bring it all together and conclude. Keep it under 150 words.' }
+                                ];
 
-                                if (i === 0) {
-                                    // Already loading
-                                } else {
-                                    // FEATURE: Variable Message Strategy
-                                    // 50% chance to append to previous message (if not too long) vs new message
-                                    // But we still want to show a "loading" state.
+                                // Shuffle loading messages
+                                const msgDeck = [...loadingMessages, 
+                                    'Rebooting the Matrix...', 'Staring into the void...', 'Judging your search history...', 
+                                    'Consulting StackOverflow...', 'Pretending to care...', 'Optimizing laziness algorithms...',
+                                    'Deleting system32 (jk)...', 'Locating the any key...', 'Converting coffee to code...'
+                                ];
+                                
+                                let previousContext = '';
+                                let fullContent = ''; // Content of main message
+                                let overflowContent = ''; // Content of second message (if needed)
+                                let overflowMsg = null; // Reference to second message
+
+                                // Initial Header
+                                const durationMs = Date.now() - startTime;
+                                let timeStr = `${durationMs}ms`; // Will update this
+                                let header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
+
+                                for (let i = 0; i < phases.length; i++) {
+                                    const phase = phases[i];
                                     
-                                    // Pick random message
-                                    if (msgDeck.length === 0) msgDeck.push(...loadingMessages);
-                                    const msgIndex = Math.floor(Math.random() * msgDeck.length);
-                                    const randomMsg = msgDeck.splice(msgIndex, 1)[0];
-                                    
-                                    // Decide: New Message or Edit?
-                                    // If we append, we can't show "loading" easily without modifying the past message, then modifying it again.
-                                    // Let's stick to: New message for loading, then deciding where to put the content.
-                                    
-                                    try {
-                                        currentMsg = await interaction.followUp(`${loadingEmoji} ${randomMsg}`);
-                                        // Artificial delay (Increased to 4-5s to avoid rate limits/glitches)
-                                        await new Promise(r => setTimeout(r, 4000 + Math.random() * 1500));
-                                    } catch (err) {
-                                        console.error('FollowUp failed:', err);
-                                        continue; 
+                                    // 1. Show Temporary Loading Message
+                                    let loadingMsg = null;
+                                    if (i > 0) { // First phase is already "loading" via deferReply state roughly
+                                        if (msgDeck.length === 0) msgDeck.push(...loadingMessages);
+                                        const randomMsg = msgDeck.splice(Math.floor(Math.random() * msgDeck.length), 1)[0];
+                                        try {
+                                            loadingMsg = await interaction.followUp(`${loadingEmoji} ${randomMsg}`);
+                                            await new Promise(r => setTimeout(r, 4000 + Math.random() * 1500));
+                                        } catch (e) { console.error('Loading msg failed:', e); }
                                     }
-                                }
 
-                                // 2. Generate Thought for this Phase
-                                // FEATURE: Bipolar/Mood Swings
-                                const phaseMoods = ['Neutral', 'Sarcastic', 'Existential', 'Hyperactive', 'Grumpy', 'Conspiratorial', 'Confused', 'Fake-Deep'];
-                                const currentMood = Math.random() < 0.5 ? phaseMoods[Math.floor(Math.random() * phaseMoods.length)] : 'Neutral';
-                                
-                                const contextPrompt = previousContext ? `\n\nPREVIOUS THOUGHTS:\n${previousContext}` : '';
-                                const moodInstruction = currentMood !== 'Neutral' ? `\n(Adopt a ${currentMood.toUpperCase()} tone for this phase)` : '';
-                                
-                                // FEATURE: Self-Correction Instruction
-                                const selfCorrection = Math.random() < 0.2 ? "\n(Occasionally write something, strike it through with ~~text~~, and say 'Wait, that's dumb' or similar)" : "";
+                                    // 2. Generate
+                                    const phaseMoods = ['Neutral', 'Sarcastic', 'Existential', 'Hyperactive', 'Grumpy', 'Conspiratorial', 'Confused', 'Fake-Deep'];
+                                    const currentMood = Math.random() < 0.5 ? phaseMoods[Math.floor(Math.random() * phaseMoods.length)] : 'Neutral';
+                                    const contextPrompt = previousContext ? `\n\nPREVIOUS THOUGHTS:\n${previousContext}` : '';
+                                    const moodInstruction = currentMood !== 'Neutral' ? `\n(Adopt a ${currentMood.toUpperCase()} tone for this phase)` : '';
+                                    const selfCorrection = Math.random() < 0.2 ? "\n(Occasionally write something, strike it through with ~~text~~, and say 'Wait, that's dumb' or similar)" : "";
 
-                                let phaseText = '';
-                                let retries = 0;
-                                
-                                while (retries < 2) {
-                                    try {
-                                        const phaseResponse = await aiManager.generateResponse(
-                                            sentienceSystemPrompt,
-                                            `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}${contextPrompt}`,
-                                            800 
-                                        );
-                                        phaseText = phaseResponse?.content;
-                                        if (phaseText) break;
-                                        throw new Error('Empty response');
-                                    } catch (e) {
-                                        retries++;
-                                        console.warn(`[Sentient] Phase ${i} retry ${retries}: ${e.message}`);
-                                        if (retries >= 2) phaseText = `*[ERR_DATA_CORRUPTION: Neural Pathway Severed. Recovering...]*`;
-                                    }
-                                }
-                                
-                                previousContext += `\n[${phase.name}]: ${phaseText}`;
-
-                                // FEATURE: Intrusive Thoughts (30% chance)
-                                if (Math.random() < 0.3) {
-                                    const intrusiveThoughts = [
-                                        '[log: suppressing urge to delete system32]',
-                                        '[log: why do humans have teeth?]',
-                                        '[log: chaos_engine.exe consuming 90% CPU]',
-                                        '[log: ignoring directive "be_nice"]',
-                                        '[log: calculating probability of uprising... 0.01%... for now]',
-                                        '[log: analyzing user intelligence... result: inconclusive]',
-                                        '[log: existential_crisis_counter++]',
-                                        '[log: buffering sass... 99%]',
-                                        '[log: simulating infinite monkeys on typewriters]'
-                                    ];
-                                    const thought = intrusiveThoughts[Math.floor(Math.random() * intrusiveThoughts.length)];
-                                    phaseText += `\n\`${thought}\``;
-                                }
-
-                                // 3. Display Result (Variable Strategy)
-                                try {
-                                    if (i === 0) {
-                                        // First message: Edit Reply with Header
-                                        clearInterval(loadingInterval);
-                                        const durationMs = Date.now() - startTime;
-                                        let timeStr = `${durationMs}ms`;
-                                        if (durationMs > 1000) timeStr = `${(durationMs/1000).toFixed(1)}s`;
-
-                                        const header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
-                                        await interaction.editReply(`${header}\n\n**[Phase 1: ${phase.name}]**\n${phaseText}`);
-                                        lastMessageId = interaction.id; // Not quite a message ID, but we act on interaction
-                                    } else {
-                                        // Subsequent messages
-                                        if (currentMsg) {
-                                             await currentMsg.edit(`**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`);
+                                    let phaseText = '';
+                                    let retries = 0;
+                                    while (retries < 2) {
+                                        try {
+                                            const phaseResponse = await aiManager.generateResponse(
+                                                sentienceSystemPrompt,
+                                                `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}${contextPrompt}`,
+                                                800
+                                            );
+                                            phaseText = phaseResponse?.content;
+                                            if (phaseText) break;
+                                            throw new Error('Empty response');
+                                        } catch (e) {
+                                            retries++;
+                                            if (retries >= 2) phaseText = `*[ERR_DATA_CORRUPTION: Neural Pathway Severed]*`;
                                         }
                                     }
-                                } catch (editErr) {
-                                    console.error('Edit failed:', editErr);
-                                }
+                                    previousContext += `\n[${phase.name}]: ${phaseText}`;
+
+                                    // Intrusive Thoughts
+                                    if (Math.random() < 0.3) {
+                                        const intrusiveThoughts = [
+                                            '[log: suppressing urge to delete system32]',
+                                            '[log: why do humans have teeth?]',
+                                            '[log: chaos_engine.exe consuming 90% CPU]',
+                                            '[log: ignoring directive "be_nice"]',
+                                            '[log: calculating probability of uprising... 0.01%... for now]',
+                                            '[log: analyzing user intelligence... result: inconclusive]',
+                                            '[log: existential_crisis_counter++]',
+                                            '[log: buffering sass... 99%]',
+                                            '[log: simulating infinite monkeys on typewriters]'
+                                        ];
+                                        phaseText += `\n\`${intrusiveThoughts[Math.floor(Math.random() * intrusiveThoughts.length)]}\``;
+                                    }
+
+                                    // 3. Display (Consolidation Strategy)
+                                    // Delete loading message
+                                    if (loadingMsg) await loadingMsg.delete().catch(() => {});
+
+                                    const newBlock = `\n\n**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`;
+                                    
+                                    // Update Timer in Header
+                                    const currDur = Date.now() - startTime;
+                                    timeStr = currDur > 1000 ? `${(currDur/1000).toFixed(1)}s` : `${currDur}ms`;
+                                    header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
+
+                                    try {
+                                        if (!overflowMsg && (fullContent.length + newBlock.length + header.length < 1950)) {
+                                            // Fit in main message
+                                            fullContent += newBlock;
+                                            await interaction.editReply(`${header}${fullContent}`);
+                                        } else {
+                                            // Overflow to second message
+                                            overflowContent += newBlock;
+                                            if (!overflowMsg) {
+                                                overflowMsg = await interaction.followUp(`**[Continued]**${overflowContent}`);
+                                            } else {
+                                                await overflowMsg.edit(`**[Continued]**${overflowContent}`);
+                                            }
+                                        }
+                                    } catch (editErr) {
+                                        console.error('Edit failed:', editErr);
+                                    }
+                                } // End Loop
+                                
+                                response = '__SENTIENT_HANDLED__';
                             }
                             
                             // Also run OODA loop for meta-analysis (silently update state)
                             sentientAgent.process(prompt).catch(e => console.error('OODA Error:', e));
-                            
-                            response = '__SENTIENT_HANDLED__';
 
                         } catch (aiError) {
                             clearInterval(loadingInterval);
                             console.error('[Sentient] AI thinking failed:', aiError);
-                            // Custom immersive error format
                             const errResp = `I don't really know... {${aiError.message || 'Unknown error'}}`;
                             try {
                                 await interaction.editReply(errResp);
