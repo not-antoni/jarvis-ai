@@ -2770,7 +2770,7 @@ const STATUS_PAGE = `
         async function fetchStatus() {
             const start = Date.now();
             try {
-                const res = await fetch('/api/public/health');
+                const res = await fetch('/api/dashboard/health');
                 const latency = Date.now() - start;
                 if (res.ok) {
                     healthData = await res.json();
