@@ -310,8 +310,11 @@ class AgentTools {
 
         const isSafe = this.isCommandSafe(command);
 
-        if (!isSafe && requireApproval) {
-            // Queue for human approval
+        // OWNER BYPASS: Owner can run any command without approval
+        const callerIsOwner = options.userId && isOwner(options.userId);
+
+        if (!isSafe && requireApproval && !callerIsOwner) {
+            // Queue for human approval (non-owner only)
             return {
                 status: 'pending_approval',
                 command,

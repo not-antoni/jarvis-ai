@@ -2623,7 +2623,8 @@ Keep your response under 300 words but make it feel genuine and thoughtful.`;
                         
                         await interaction.editReply(`🔧 Executing: \`${command}\`...`);
                         
-                        const result = await sentientAgent.tools.executeCommand(command);
+                        // Pass userId for owner bypass check
+                        const result = await sentientAgent.tools.executeCommand(command, { userId: interaction.user.id });
                         
                         if (result.status === 'pending_approval') {
                             response = `⚠️ **Approval Required**\n\nCommand: \`${command}\`\nReason: ${result.reason}\n\n*This command requires human approval before execution.*`;
