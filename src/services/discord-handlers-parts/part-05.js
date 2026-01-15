@@ -2735,44 +2735,48 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 for (let i = 0; i < phases.length; i++) {
                                     const phase = phases[i];
                                     
-                                    // 1. Determine Target & Show Loading
-                                    // We want to avoid creating new messages ("zombies").
-                                    // Strategy: Append "Thinking..." to the ACTIVE message, then replace it with content.
+                                    // 1. Determine Target & Show Loading (Header Based)
+                                    // Use Header for status to avoid stuck body text.
                                     
                                     let activeTarget = 'main'; // 'main' or 'overflow'
-                                    let currentBaseContent = header + '\n\n' + fullContent;
                                     
-                                    // Check if we should switch to overflow for this phase
-                                    // (Approximation: if main is > 1800 chars, start overflow)
-                                    if (fullContent.length > 1800 || overflowMsg) {
-                                        activeTarget = 'overflow';
-                                        currentBaseContent = `**[Continued]**${overflowContent}`;
-                                        
-                                        // Create overflow msg if not exists
-                                        if (!overflowMsg) {
-                                            try {
-                                                overflowMsg = await interaction.followUp(currentBaseContent || '**[Continued]**');
-                                            } catch (e) { console.error('Overflow creation failed:', e); }
-                                        }
-                                    }
-
-                                    // Pick random loading message
+                                    // Update Header to "Thinking"
+                                    const currDurStart = Date.now() - startTime;
+                                    let timeStrStart = currDurStart > 1000 ? `${(currDurStart/1000).toFixed(1)}s` : `${currDurStart}ms`;
+                                    
+                                    // Pick random loading message for the STATUS slot
                                     if (msgDeck.length === 0) msgDeck.push(...loadingMessages);
                                     const randomMsg = msgDeck.splice(Math.floor(Math.random() * msgDeck.length), 1)[0];
-                                    const loadingString = `\n\n${loadingEmoji} *${randomMsg}*`;
+                                    const shortStatus = randomMsg.length > 30 ? "Processing..." : randomMsg; // Truncate if too long for header
+
+                                    header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | 🟡 ${shortStatus})`;
+                                    let currentBaseContent = header + '\n\n' + fullContent;
                                     
-                                    // DISPLAY LOADING (In-Place)
+                                    // Check Overflow
+                                    if (fullContent.length > 1800 || overflowMsg) {
+                                        activeTarget = 'overflow';
+                                        currentBaseContent = `**[Continued]**${overflowContent}`; // Header doesn't apply to overflow body, but we might edit previous msg header? 
+                                        // Actually: If we are in overflow, the main header doesn't change visually unless we edit main. 
+                                        // Let's just edit MAIN header to show thinking, even if we are writing to overflow.
+                                    }
+
                                     try {
-                                        if (i > 0) { // Phase 0 is already loading
-                                            if (activeTarget === 'main') {
-                                                await interaction.editReply(currentBaseContent + loadingString);
-                                            } else if (overflowMsg) {
-                                                await overflowMsg.edit(currentBaseContent + loadingString);
+                                        if (i > 0) { 
+                                            // Always update MAIN header to show "Thinking"
+                                            // Even if writing to overflow
+                                            if (activeTarget === 'overflow' && overflowMsg) {
+                                                // If overflow exists, maybe just append "..." to it?
+                                                // Or just trust the Main Header update?
+                                                // Let's update Main Header.
+                                                await interaction.editReply(`${header}\n\n${fullContent}`); 
+                                                // Note: If fullContent is huge, this is fine, we just update header.
+                                            } else {
+                                                // Normal Case
+                                                await interaction.editReply(`${header}\n\n${fullContent}`);
                                             }
-                                            // Delay for visual pacing
-                                            await new Promise(r => setTimeout(r, 3000)); 
+                                            await new Promise(r => setTimeout(r, 2000));
                                         }
-                                    } catch (e) { console.error('Loading display failed:', e); }
+                                    } catch (e) { console.error('Loading header failed:', e); }
 
 
                                     // 2. Generate
@@ -2782,8 +2786,8 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     const moodInstruction = currentMood !== 'Neutral' ? `\n(Adopt a ${currentMood.toUpperCase()} tone for this phase)` : '';
                                     const selfCorrection = Math.random() < 0.2 ? "\n(Occasionally write something, strike it through with ~~text~~, and say 'Wait, that's dumb' or similar)" : "";
                                     
-                                    // FEATURE: Variable Lengths ("sometimes short thinking messages")
-                                    const isShortParams = Math.random() < 0.4; // 40% chance of brief phase
+                                    // FEATURE: Variable Lengths
+                                    const isShortParams = Math.random() < 0.4;
                                     const lengthInstruction = isShortParams ? "Keep this extremely brief, just 1-2 pungent sentences." : "Keep it under 150 words.";
 
                                     let phaseText = '';
@@ -2827,35 +2831,32 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     // 3. Display Result (Update Active Target)
                                     const newBlock = `\n\n**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`;
                                     
-                                    // Update Header Time
+                                    // Update Header Time & Reset Status
                                     const currDur = Date.now() - startTime;
                                     timeStr = currDur > 1000 ? `${(currDur/1000).toFixed(1)}s` : `${currDur}ms`;
-                                    // "Thought for..."
+                                    // Reset Header to "Thought for..."
                                     header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Thought for: ${timeStr})`;
 
                                     try {
-                                        if (activeTarget === 'main') {
-                                            // Check fit one last time (header change size)
-                                            if ((header.length + fullContent.length + newBlock.length) < 1980) {
-                                                fullContent += newBlock;
-                                                // REPLACES the loading text implicitly because we edit with (header + fullContent)
-                                                await interaction.editReply(`${header}${fullContent}`);
-                                            } else {
-                                                // Overflow happened MID-phase calculation?
-                                                // We must switch to overflow msg NOW.
-                                                // Clean up main msg first (remove loading text by resetting to strict content)
-                                                await interaction.editReply(`${header}${fullContent}`); 
-                                                
-                                                activeTarget = 'overflow';
-                                                overflowContent += newBlock;
+                                        // Re-Evaluate Overflow just in case size changed
+                                        if (overflowMsg || (fullContent.length + newBlock.length + header.length > 1950)) {
+                                            activeTarget = 'overflow';
+                                            // Ensure overflow exists
+                                            if (!overflowMsg) {
+                                                overflowContent = newBlock; // Start specific overflow content
                                                 overflowMsg = await interaction.followUp(`**[Continued]**${overflowContent}`);
+                                                // Also update main header to "Done"
+                                                await interaction.editReply(`${header}\n\n${fullContent}`); 
+                                            } else {
+                                                overflowContent += newBlock;
+                                                await overflowMsg.edit(`**[Continued]**${overflowContent}`);
+                                                // Update main header to "Done"
+                                                await interaction.editReply(`${header}\n\n${fullContent}`); 
                                             }
                                         } else {
-                                            // Already in overflow
-                                            overflowContent += newBlock;
-                                            if (overflowMsg) {
-                                                await overflowMsg.edit(`**[Continued]**${overflowContent}`);
-                                            }
+                                            // Fit in main
+                                            fullContent += newBlock;
+                                            await interaction.editReply(`${header}${fullContent}`);
                                         }
                                     } catch (editErr) {
                                         console.error('Edit failed:', editErr);
