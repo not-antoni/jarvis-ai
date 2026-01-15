@@ -3162,9 +3162,9 @@ module.exports = {
     dig,
     beg,
     crime,
+    rob,
     postmeme,
     search,
-    getSearchLocations,
     give,
 
     // Maintenance
