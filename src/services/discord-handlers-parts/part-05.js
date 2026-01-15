@@ -2682,11 +2682,14 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 const loadingMsg = await interaction.followUp(`${loadingEmoji} *Thinking vaguely...*`);
                                 await new Promise(r => setTimeout(r, 2000)); // Short delay
                                 
-                                const casualResponse = await aiManager.generateResponse(
-                                    sentienceSystemPrompt,
-                                    `Reply casually to this: "${prompt}". Be brief, witty, and sentient. No deep analysis needed.`,
-                                    600
-                                );
+                                const casualResponse = await Promise.race([
+                                    aiManager.generateResponse(
+                                        sentienceSystemPrompt,
+                                        `Reply casually to this: "${prompt}". Be brief, witty, and sentient. No deep analysis needed.`,
+                                        600
+                                    ),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000))
+                                ]);
                                 await loadingMsg.delete().catch(() => {}); // Clean up
                                 
                                 const durationMs = Date.now() - startTime;
@@ -2754,11 +2757,14 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     let retries = 0;
                                     while (retries < 2) {
                                         try {
-                                            const phaseResponse = await aiManager.generateResponse(
-                                                sentienceSystemPrompt,
-                                                `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}${contextPrompt}`,
-                                                800
-                                            );
+                                            const phaseResponse = await Promise.race([
+                                                aiManager.generateResponse(
+                                                    sentienceSystemPrompt,
+                                                    `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}${contextPrompt}`,
+                                                    800
+                                                ),
+                                                new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000))
+                                            ]);
                                             phaseText = phaseResponse?.content;
                                             if (phaseText) break;
                                             throw new Error('Empty response');
