@@ -20,6 +20,47 @@ const path = require('path');
 const LEADERBOARD_CACHE_PATH = path.join(__dirname, '../../data/leaderboard-cache.json');
 const LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+// ============================================================================
+// NUMBER FORMATTING - Compact display for large numbers
+// ============================================================================
+
+/**
+ * Format large numbers in compact notation (K, M, B, T, Q, Qi, Sx, Sp, Oc)
+ * @param {number} num - Number to format
+ * @param {number} decimals - Decimal places (default 1)
+ * @returns {string} - Formatted string like "71.3Q" or "2.5M"
+ */
+function formatCompact(num, decimals = 1) {
+    if (num == null || isNaN(num)) return '0';
+    num = Number(num);
+    if (!isFinite(num)) return '∞';
+
+    const absNum = Math.abs(num);
+    const sign = num < 0 ? '-' : '';
+
+    // Define suffixes (each step is 1000x)
+    const suffixes = [
+        { threshold: 1e24, suffix: 'Sp' },  // Septillion
+        { threshold: 1e21, suffix: 'Sx' },  // Sextillion  
+        { threshold: 1e18, suffix: 'Qi' },  // Quintillion
+        { threshold: 1e15, suffix: 'Q' },   // Quadrillion
+        { threshold: 1e12, suffix: 'T' },   // Trillion
+        { threshold: 1e9, suffix: 'B' },    // Billion
+        { threshold: 1e6, suffix: 'M' },    // Million
+        { threshold: 1e3, suffix: 'K' },    // Thousand
+    ];
+
+    for (const { threshold, suffix } of suffixes) {
+        if (absNum >= threshold) {
+            const value = num / threshold;
+            return sign + value.toFixed(decimals).replace(/\.0+$/, '') + suffix;
+        }
+    }
+
+    // Small numbers - use locale string with no decimals
+    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
 // Lazy-load starkbucks to avoid circular dependency
 let _starkbucks = null;
 function getStarkbucks() {
@@ -3187,5 +3228,8 @@ module.exports = {
     getSBXMarketData,
     buySBX,
     sellSBX,
-    getSBXBalance
+    getSBXBalance,
+
+    // Utility
+    formatCompact
 };
