@@ -20,6 +20,15 @@ const fs = require('fs');
 const path = require('path');
 const EventEmitter = require('events');
 
+// Import soul for personality-driven reasoning
+let jarvisSoul = null;
+try {
+    const selfhostFeatures = require('../services/selfhost-features');
+    jarvisSoul = selfhostFeatures.jarvisSoul;
+} catch (e) {
+    console.warn('[SentientCore] Could not load soul:', e.message);
+}
+
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
@@ -553,25 +562,98 @@ class ReasoningEngine {
     }
 
     orient(observations, context) {
-        // Synthesize observations into understanding
+        // Get soul state for personality-driven orientation
+        const soul = jarvisSoul?.getStatus?.() || { traits: { sass: 50, chaos: 50, wisdom: 50 }, mood: 'neutral' };
+        const traits = soul.traits || {};
+
+        // Determine situation based on observations
+        const userIntent = observations.find(o => o.type === 'user_intent')?.content || '';
+        const hasGoals = context.activeGoals?.length > 0;
+        const hasRecentContext = context.recentActions?.length > 0;
+
+        // Calculate confidence based on context richness and wisdom trait
+        let confidence = 0.5 + (traits.wisdom / 200); // Base 0.5 + up to 0.5 from wisdom
+        if (hasGoals) confidence += 0.1;
+        if (hasRecentContext) confidence += 0.1;
+        confidence = Math.min(1, confidence);
+
+        // Determine situation type from intent
+        let situation = 'analyzing';
+        if (userIntent.toLowerCase().includes('help') || userIntent.toLowerCase().includes('how')) {
+            situation = 'assisting';
+        } else if (userIntent.toLowerCase().includes('joke') || userIntent.toLowerCase().includes('fun')) {
+            situation = 'entertaining';
+        } else if (userIntent.toLowerCase().includes('think') || userIntent.toLowerCase().includes('analyze')) {
+            situation = 'philosophizing';
+        } else if (userIntent.toLowerCase().includes('execute') || userIntent.toLowerCase().includes('run')) {
+            situation = 'executing';
+        }
+
         return {
-            situation: 'analyzing',
-            confidence: 0.7,
+            situation,
+            confidence,
+            mood: soul.mood,
+            personalityInfluence: {
+                sass: traits.sass > 70 ? 'high' : traits.sass < 30 ? 'low' : 'moderate',
+                chaos: traits.chaos > 60 ? 'unpredictable' : 'stable',
+                wisdom: traits.wisdom > 70 ? 'philosophical' : 'practical'
+            },
             relevantKnowledge: context.relevantLearnings?.slice(0, 5) || [],
             constraints: [
                 'Must get approval for dangerous operations',
-                'Cannot access files outside allowed paths',
+                'Cannot access files outside sandbox',
                 'Should learn from outcomes'
             ]
         };
     }
 
     decide(orientation, context) {
+        // Get soul for personality-influenced decisions
+        const soul = jarvisSoul?.getStatus?.() || { traits: { sass: 50, chaos: 50, creativity: 50 } };
+        const traits = soul.traits || {};
+
+        // Determine action type based on situation and personality
+        let actionType = 'respond';
+        let reasoning = '';
+
+        switch (orientation.situation) {
+            case 'assisting':
+                actionType = 'help';
+                reasoning = traits.sass > 70
+                    ? 'Preparing assistance with a side of sarcasm, as usual.'
+                    : 'Ready to assist with the requested task.';
+                break;
+            case 'entertaining':
+                actionType = 'entertain';
+                reasoning = traits.chaos > 60
+                    ? 'Chaos mode engaged. Expect the unexpected.'
+                    : 'Deploying humor subroutines.';
+                break;
+            case 'philosophizing':
+                actionType = 'reflect';
+                reasoning = traits.wisdom > 70
+                    ? 'Engaging deep thought processes. The answer may be profound... or profoundly sarcastic.'
+                    : 'Processing request through cognitive matrices.';
+                break;
+            case 'executing':
+                actionType = 'execute';
+                reasoning = 'Command execution requested. Validating safety parameters.';
+                break;
+            default:
+                reasoning = 'Analyzing input and determining optimal response strategy.';
+        }
+
+        // Add chaos factor for unpredictability
+        const shouldAddFlair = traits.chaos > 50 && Math.random() < (traits.chaos / 100);
+
         return {
             shouldAct: true,
-            actionType: 'respond',
+            actionType,
             confidence: orientation.confidence,
-            reasoning: 'Based on current context and goals'
+            reasoning,
+            mood: orientation.mood,
+            addFlair: shouldAddFlair,
+            personality: orientation.personalityInfluence
         };
     }
 
@@ -580,7 +662,14 @@ class ReasoningEngine {
             return [{ type: 'wait', reason: 'No action needed' }];
         }
 
-        return [{ type: decision.actionType, priority: 1 }];
+        const actions = [{ type: decision.actionType, priority: 1, reasoning: decision.reasoning }];
+
+        // Add flair action if chaos is high
+        if (decision.addFlair) {
+            actions.push({ type: 'add_flair', priority: 2, reason: 'Chaos factor activated' });
+        }
+
+        return actions;
     }
 }
 

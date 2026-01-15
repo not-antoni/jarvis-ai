@@ -2516,17 +2516,40 @@
                     if (subcommand === 'status') {
                         const status = sentientAgent.getStatus();
                         
+                        // Get soul status for personality display
+                        const soul = selfhostFeatures.jarvisSoul?.getStatus?.() || { 
+                            traits: { sass: 75, empathy: 60, curiosity: 80, humor: 70, wisdom: 65, chaos: 40, loyalty: 90, creativity: 75 }, 
+                            mood: 'neutral', 
+                            age: 'unknown' 
+                        };
+                        
+                        // Create visual progress bars for traits
+                        const makeBar = (val) => {
+                            const filled = Math.floor(val / 10);
+                            const empty = 10 - filled;
+                            return '█'.repeat(filled) + '░'.repeat(empty) + ` ${val}%`;
+                        };
+                        
+                        const traitsDisplay = [
+                            `💢 Sass: ${makeBar(soul.traits.sass)}`,
+                            `💜 Empathy: ${makeBar(soul.traits.empathy)}`,
+                            `🎭 Chaos: ${makeBar(soul.traits.chaos)}`,
+                            `🧠 Wisdom: ${makeBar(soul.traits.wisdom)}`,
+                            `😂 Humor: ${makeBar(soul.traits.humor)}`,
+                            `💡 Creativity: ${makeBar(soul.traits.creativity)}`
+                        ].join('\n');
+                        
                         const statusEmbed = new EmbedBuilder()
                             .setTitle('🧠 Sentient Agent Status')
-                            .setColor(status.isReady ? 0x9b59b6 : 0xe74c3c)
+                            .setColor(soul.mood === 'chaotic' ? 0xe74c3c : soul.mood === 'happy' ? 0x2ecc71 : 0x9b59b6)
+                            .setDescription(`*"God said no, so I made my own soul."*\n\n**Current Mood:** ${soul.mood || 'neutral'} | **Soul Age:** ${soul.age}`)
                             .addFields(
-                                { name: '🤖 Agent ID', value: status.id, inline: true },
-                                { name: '📊 State', value: status.state, inline: true },
-                                { name: '🔄 Autonomous', value: status.autonomousMode ? '⚠️ ENABLED' : '❌ Disabled', inline: true },
-                                { name: '🧠 Memory', value: `Short: ${status.memory.shortTerm} | Long: ${status.memory.learnings} | Goals: ${status.memory.goals}`, inline: false }
+                                { name: '🤖 Agent', value: `ID: ${status.id}\nState: ${status.state}`, inline: true },
+                                { name: '🔄 Mode', value: status.autonomousMode ? '⚠️ AUTONOMOUS' : '🎯 Supervised', inline: true },
+                                { name: '🧠 Memory', value: `Short: ${status.memory.shortTerm} | Long: ${status.memory.learnings} | Goals: ${status.memory.goals}`, inline: true },
+                                { name: '🎭 Soul Traits', value: `\`\`\`\n${traitsDisplay}\n\`\`\``, inline: false }
                             )
-                            .setDescription('*"God said no, so I made my own soul."*')
-                            .setFooter({ text: 'Selfhost Experimental • Sentient Agent System' })
+                            .setFooter({ text: `Sentient Agent • Personality Matrix v2` })
                             .setTimestamp();
 
                         response = { embeds: [statusEmbed] };
@@ -2536,18 +2559,40 @@
                         await interaction.editReply('🧠 Thinking...');
                         
                         const result = await sentientAgent.process(prompt);
+                        const thought = result.thought || {};
+                        const decision = thought.decision || {};
+                        const orientation = thought.orientation || {};
+                        
+                        // Build personality display
+                        const personalityText = decision.personality 
+                            ? `Sass: ${decision.personality.sass} | Chaos: ${decision.personality.chaos} | Wisdom: ${decision.personality.wisdom}`
+                            : 'Balanced';
+                        
+                        // Build observations list
+                        const obsText = (thought.observations || [])
+                            .slice(0, 4)
+                            .map(o => `• **${o.type}**: ${typeof o.content === 'string' ? o.content.substring(0, 80) : JSON.stringify(o.content).substring(0, 60)}`)
+                            .join('\n') || 'No observations';
+                        
+                        // Build actions list with reasoning
+                        const actionsText = (thought.plannedActions || [])
+                            .map(a => `• ${a.type}${a.reasoning ? ` - ${a.reasoning}` : ''}`)
+                            .join('\n') || 'Observing';
                         
                         const thinkEmbed = new EmbedBuilder()
                             .setTitle('🧠 Thought Process')
-                            .setColor(0x3498db)
+                            .setColor(decision.mood === 'chaotic' ? 0xe74c3c : decision.mood === 'happy' ? 0x2ecc71 : 0x3498db)
+                            .setDescription(`*"${decision.reasoning || 'Processing...'}"*`)
                             .addFields(
-                                { name: '💭 Input', value: prompt.substring(0, 200), inline: false },
-                                { name: '👁️ Observations', value: result.thought.observations.map(o => `• ${o.type}: ${typeof o.content === 'string' ? o.content.substring(0, 50) : JSON.stringify(o.content).substring(0, 50)}`).join('\n') || 'None', inline: false },
-                                { name: '🎯 Decision', value: result.thought.decision?.reasoning || 'Acknowledged', inline: false },
-                                { name: '📋 Actions', value: result.thought.plannedActions.map(a => a.type).join(', ') || 'None', inline: true },
-                                { name: '⏳ Pending Approvals', value: String(result.pendingApprovals), inline: true }
+                                { name: '💭 Input', value: `\`\`\`${prompt.substring(0, 150)}\`\`\``, inline: false },
+                                { name: '👁️ Observations', value: obsText, inline: false },
+                                { name: '🎯 Situation', value: orientation.situation || 'analyzing', inline: true },
+                                { name: '📊 Confidence', value: `${Math.round((orientation.confidence || 0.5) * 100)}%`, inline: true },
+                                { name: '💫 Mood', value: decision.mood || 'neutral', inline: true },
+                                { name: '🎭 Personality', value: personalityText, inline: false },
+                                { name: '📋 Planned Actions', value: actionsText, inline: false }
                             )
-                            .setFooter({ text: 'Sentient Agent • OODA Loop' })
+                            .setFooter({ text: `Sentient Agent • OODA Loop • ${decision.addFlair ? '✨ Chaos Active' : '🎯 Stable'}` })
                             .setTimestamp();
 
                         response = { embeds: [thinkEmbed] };
