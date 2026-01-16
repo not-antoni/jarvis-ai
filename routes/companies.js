@@ -83,7 +83,7 @@ router.get('/:id/image', async (req, res) => {
         const company = await companies.getCompany(req.params.id);
 
         if (!company || !company.imageUrl) {
-            return res.redirect('/assets/company-placeholder.png');
+            return res.redirect('/assets/company-placeholder.svg');
         }
 
         const img = company.imageUrl;
@@ -111,10 +111,10 @@ router.get('/:id/image', async (req, res) => {
             return res.redirect(img);
         }
 
-        res.redirect('/assets/company-placeholder.png');
+        res.redirect('/assets/company-placeholder.svg');
     } catch (error) {
         console.error('[Companies] Image load error:', error);
-        res.redirect('/assets/company-placeholder.png');
+        res.redirect('/assets/company-placeholder.svg');
     }
 });
 
@@ -139,10 +139,10 @@ function renderCompanyListPage(tiers, companies) {
 
         const companyCards = tierCompanies.map(c => {
             const profit = companies.calculateCurrentProfit(c);
-            const image = c.imageUrl || '/assets/company-placeholder.png';
+            const image = c.imageUrl || '/assets/company-placeholder.svg';
             return `
                 <a href="/companies/${encodeURIComponent(c.id)}" class="company-card">
-                    <img src="/companies/${encodeURIComponent(c.id)}/image" alt="${escapeHtml(c.displayName)}" loading="lazy" onerror="this.src='/assets/company-placeholder.png'">
+                    <img src="/companies/${encodeURIComponent(c.id)}/image" alt="${escapeHtml(c.displayName)}" loading="lazy" onerror="this.src='/assets/company-placeholder.svg'">
                     <div class="info">
                         <h3>${escapeHtml(c.displayName)}</h3>
                         <p>Owner: ${escapeHtml(c.ownerName)}</p>
@@ -253,7 +253,7 @@ function renderCompanyPage(company, profit, typeData, companies) {
         basic: '#95a5a6'
     };
     const tierColor = tierColors[company.tier] || '#888';
-    const image = company.imageUrl || '/assets/company-placeholder.png';
+    const image = company.imageUrl || '/assets/company-placeholder.svg';
     const description = company.description || 'No description set.';
 
     return `
@@ -359,7 +359,7 @@ function renderCompanyPage(company, profit, typeData, companies) {
         <a href="/companies" class="back-link">← All Companies</a>
         
         <div class="company-header">
-            <img src="${escapeHtml(image)}" alt="${escapeHtml(company.displayName)}" class="company-image" onerror="this.src='/assets/company-placeholder.png'">
+            <img src="${escapeHtml(image)}" alt="${escapeHtml(company.displayName)}" class="company-image" onerror="this.src='/assets/company-placeholder.svg'">
             <div class="company-info">
                 <h1>${escapeHtml(company.displayName)}</h1>
                 <span class="tier-badge">${company.tier}</span>
