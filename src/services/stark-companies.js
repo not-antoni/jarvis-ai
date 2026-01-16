@@ -471,7 +471,7 @@ function calculateCurrentProfit(company) {
     if (!typeData) return 0;
 
     let profit = typeData.defaultProfit;
-    
+
     // Apply base profit percentage
     profit *= (company.currentProfitPercent / 100);
 
@@ -493,7 +493,7 @@ function calculateCurrentProfit(company) {
  */
 async function calculateTaxRate(userId) {
     const companies = await getUserCompanies(userId);
-    
+
     if (companies.length === 0) {
         return TAX.BASE_RATE;
     }
@@ -550,13 +550,13 @@ async function rushCompany(userId, companyId) {
     const col = await getCollection();
     await col.updateOne(
         { id: companyId },
-        { 
-            $set: { 
-                risk: newRisk, 
+        {
+            $set: {
+                risk: newRisk,
                 rushUsedThisPeriod: true,
                 lastRush: new Date(),
                 ...(paidNow ? { lastProfit: new Date() } : {})
-            } 
+            }
         }
     );
 
@@ -568,9 +568,9 @@ async function rushCompany(userId, companyId) {
         await starkEconomy.modifyBalance(userId, profitPaid, 'company_rush_profit');
     }
 
-    return { 
-        success: true, 
-        paidNow, 
+    return {
+        success: true,
+        paidNow,
         profitPaid,
         riskIncrease: typeData.rushRisk,
         newRisk
@@ -587,7 +587,7 @@ async function slowCompany(userId, companyId) {
     if (company.slowUsedThisPeriod) return { success: false, error: 'Slow already used this profit period' };
 
     const typeData = COMPANY_TYPES[company.type];
-    
+
     // Skip next payment by setting lastProfit forward
     const newLastProfit = new Date(new Date(company.lastProfit).getTime() + TIMING.PROFIT_INTERVAL);
     const newRisk = Math.max(0, company.risk + typeData.slowRisk);
@@ -595,18 +595,18 @@ async function slowCompany(userId, companyId) {
     const col = await getCollection();
     await col.updateOne(
         { id: companyId },
-        { 
-            $set: { 
-                risk: newRisk, 
+        {
+            $set: {
+                risk: newRisk,
                 slowUsedThisPeriod: true,
                 lastSlow: new Date(),
                 lastProfit: newLastProfit
-            } 
+            }
         }
     );
 
-    return { 
-        success: true, 
+    return {
+        success: true,
         riskDecrease: Math.abs(typeData.slowRisk),
         newRisk
     };
@@ -649,7 +649,7 @@ async function toggleSabotage(userId, companyId) {
     if (company.ownerId !== userId) return { success: false, error: 'You don\'t own this company' };
 
     const col = await getCollection();
-    
+
     if (company.sabotageEnabled) {
         // Disable sabotage
         await col.updateOne(
@@ -663,10 +663,10 @@ async function toggleSabotage(userId, companyId) {
             { id: companyId },
             { $set: { sabotageEnabled: true, sabotageEnabledAt: new Date() } }
         );
-        return { 
-            success: true, 
-            enabled: true, 
-            message: 'Sabotage mode enabled! You can sabotage others in 30 minutes. Your company can be sabotaged in 2.5 minutes.' 
+        return {
+            success: true,
+            enabled: true,
+            message: 'Sabotage mode enabled! You can sabotage others in 30 minutes. Your company can be sabotaged in 2.5 minutes.'
         };
     }
 }
@@ -735,8 +735,8 @@ async function spreadDirt(userId, username, targetCompanyId) {
         );
     }
 
-    return { 
-        success: true, 
+    return {
+        success: true,
         targetCompany: targetCompany.displayName,
         targetOwner: targetCompany.ownerName,
         riskIncrease: 5,
@@ -801,6 +801,172 @@ function formatCompact(num) {
 }
 
 // ============================================================================
+// SCHEDULER - Profit payouts, maintenance, risk events
+// ============================================================================
+
+let schedulerRunning = false;
+let schedulerInterval = null;
+
+/**
+ * Process all companies - called every minute
+ */
+async function processAllCompanies() {
+    if (schedulerRunning) return; // Prevent overlapping runs
+    schedulerRunning = true;
+
+    try {
+        const col = await getCollection();
+        const allCompanies = await col.find({}).toArray();
+        const now = Date.now();
+        const starkEconomy = require('./stark-economy');
+
+        for (const company of allCompanies) {
+            try {
+                await processCompany(company, now, col, starkEconomy);
+            } catch (err) {
+                console.error(`[Companies] Error processing ${company.id}:`, err);
+            }
+        }
+    } catch (err) {
+        console.error('[Companies] Scheduler error:', err);
+    } finally {
+        schedulerRunning = false;
+    }
+}
+
+/**
+ * Process a single company
+ */
+async function processCompany(company, now, col, starkEconomy) {
+    const updates = {};
+    const typeData = COMPANY_TYPES[company.type];
+    if (!typeData) return;
+
+    const lastProfitTime = new Date(company.lastProfit).getTime();
+    const lastMaintenanceTime = new Date(company.lastMaintenance).getTime();
+
+    // === PROFIT PAYOUT (every hour) ===
+    if (now - lastProfitTime >= TIMING.PROFIT_INTERVAL) {
+        const profit = calculateCurrentProfit(company);
+
+        if (profit > 0) {
+            await starkEconomy.modifyBalance(company.ownerId, profit, 'company_profit');
+        }
+
+        updates.lastProfit = new Date();
+        updates.rushUsedThisPeriod = false;
+        updates.slowUsedThisPeriod = false;
+
+        // Check for risk events
+        const eventResult = await checkRiskEvent(company, typeData);
+        if (eventResult) {
+            if (!updates.profitEffects) {
+                updates.profitEffects = [...(company.profitEffects || [])];
+            }
+            updates.profitEffects.push(eventResult);
+        }
+    }
+
+    // === MAINTENANCE (every 6 hours) ===
+    if (now - lastMaintenanceTime >= TIMING.MAINTENANCE_INTERVAL) {
+        const userBalance = await starkEconomy.getBalance(company.ownerId);
+
+        if (userBalance >= company.maintenanceCost) {
+            // Pay maintenance
+            await starkEconomy.modifyBalance(company.ownerId, -company.maintenanceCost, 'company_maintenance');
+            updates.lastMaintenance = new Date();
+        } else {
+            // Can't pay - profit decays
+            const newProfit = Math.max(0, (company.currentProfitPercent || 100) - TIMING.PROFIT_DECAY_PER_CYCLE);
+            updates.currentProfitPercent = newProfit;
+            updates.lastMaintenance = new Date();
+
+            // Track when hit 0%
+            if (newProfit === 0 && !company.zeroSince) {
+                updates.zeroSince = new Date();
+            }
+        }
+    }
+
+    // Clean up expired effects
+    if (company.profitEffects && company.profitEffects.length > 0) {
+        const activeEffects = company.profitEffects.filter(e => {
+            if (e.duration === 0) return true; // Permanent effects
+            return new Date(e.expiresAt).getTime() > now;
+        });
+        if (activeEffects.length !== company.profitEffects.length) {
+            updates.profitEffects = activeEffects;
+        }
+    }
+
+    // Apply updates
+    if (Object.keys(updates).length > 0) {
+        updates.updatedAt = new Date();
+        await col.updateOne({ id: company.id }, { $set: updates });
+    }
+}
+
+/**
+ * Check if a risk event should occur
+ * Returns event effect object if event triggers, null otherwise
+ */
+async function checkRiskEvent(company, typeData) {
+    const risk = company.risk;
+
+    // Risk determines event probability:
+    // - Risk 0-30: High chance of bad events
+    // - Risk 30-50: Some chance of bad events
+    // - Risk 50-70: Some chance of good events
+    // - Risk 70-100: High chance of good events
+
+    // Base chance of any event is 15%
+    if (Math.random() > 0.15) return null;
+
+    // Determine if good or bad based on risk
+    const isGoodEvent = Math.random() * 100 < risk;
+    const events = isGoodEvent ? typeData.events.good : typeData.events.bad;
+
+    if (!events || events.length === 0) return null;
+
+    // Pick random event
+    const event = events[Math.floor(Math.random() * events.length)];
+
+    return {
+        name: event.name,
+        modifier: event.profitMod,
+        duration: event.duration,
+        expiresAt: event.duration > 0 ? new Date(Date.now() + event.duration) : new Date(Date.now() + 24 * 60 * 60 * 1000),
+        createdAt: new Date()
+    };
+}
+
+/**
+ * Start the company scheduler
+ */
+function startScheduler() {
+    if (schedulerInterval) return;
+
+    console.log('[Companies] Starting scheduler (runs every 60s)');
+
+    // Run every minute
+    schedulerInterval = setInterval(processAllCompanies, 60 * 1000);
+
+    // Run once on startup after a delay
+    setTimeout(processAllCompanies, 10 * 1000);
+}
+
+/**
+ * Stop the company scheduler
+ */
+function stopScheduler() {
+    if (schedulerInterval) {
+        clearInterval(schedulerInterval);
+        schedulerInterval = null;
+        console.log('[Companies] Scheduler stopped');
+    }
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -828,9 +994,14 @@ module.exports = {
 
     // Lookup
     lookupByUsername,
-    
+
     // Helpers
     generateCompanyId,
     parseCompanyId,
-    formatCompact
+    formatCompact,
+
+    // Scheduler
+    startScheduler,
+    stopScheduler,
+    processAllCompanies
 };
