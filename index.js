@@ -3796,6 +3796,14 @@ client.once(Events.ClientReady, async () => {
     // Start Stark Bucks multiplier event scheduler (250% bonus every 3 hours)
     starkEconomy.startMultiplierScheduler();
 
+    // Start Company profit/maintenance scheduler
+    try {
+        const starkCompanies = require('./src/services/stark-companies');
+        starkCompanies.startScheduler();
+    } catch (e) {
+        console.warn('[Companies] Failed to start scheduler:', e.message);
+    }
+
     // Initialize diagnostics router now that discordHandlers is ready
     diagnosticsRouter = createAgentDiagnosticsRouter(discordHandlers);
 
@@ -4138,6 +4146,7 @@ async function gracefulShutdown(signal) {
         try { announcementScheduler.stop(); } catch (_) { }
         try { monitorScheduler.stop(); } catch (_) { }
         try { starkEconomy.stopMultiplierScheduler(); } catch (_) { }
+        try { require('./src/services/stark-companies').stopScheduler(); } catch (_) { }
         try { tempSweepJob.stop(); } catch (_) { }
         await database.disconnect();
         // Flush logger before exit to ensure all logs are written
