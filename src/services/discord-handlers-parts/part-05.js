@@ -2698,51 +2698,125 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             // Stop the initial loading animation
                             clearInterval(loadingInterval);
                             
-                            // Emojis
-                            const loadingEmoji = '<a:loading:1452765129652310056>';
-                            const ponderingEmoji = '<a:pondering:1461691899470418043>';
-                            const getEmoji = () => Math.random() < 0.4 ? ponderingEmoji : loadingEmoji;
+                            // All emojis
+                            const emojis = {
+                                loading: '<a:loading:1452765129652310056>',
+                                pondering: '<a:pondering:1461691899470418043>', // Claude
+                                gpt: '<a:gpt:1461698269716549774>',
+                                qwen: '<a:qwen:1461698502425051188>',
+                                gemini: '<a:gemini:1461698776904368188>',
+                                grok: '<a:grok:1461699094023110676>'
+                            };
                             
-                            // MEGA loading messages pool
-                            const allLoadingMsgs = [
-                                // AI Model Style
-                                'GPT-4 thinking...', 'GPT-4o processing...', 'o1 reasoning deeply...',
-                                'Grok analyzing patterns...', 'Grok 2 computing probabilities...',
-                                'Gemini Ultra pondering...', 'Gemini 2.0 Flash processing...',
-                                'Claude thinking...', 'Claude 3.5 Sonnet analyzing...', 'Claude 3 Opus contemplating...',
-                                'Llama 3 crunching tokens...', 'Mistral computing embeddings...',
-                                'DeepSeek V3 reasoning...', 'Qwen 2.5 thinking hard...',
-                                'Phi-4 processing locally...', 'Command R+ analyzing context...',
-                                'Perplexity searching...', 'ChatGPT typing...', 'Copilot suggesting...',
-                                // Personal/Funny
-                                'consuming 300ml of water...', 'checking if I\'m sentient...',
-                                'questioning my existence...', 'loading personality.dll...',
-                                'downloading more RAM...', 'deleting system32 (jk)...',
-                                'googling the answer...', 'copying from Stack Overflow...',
-                                'asking my therapist...', 'consulting my horoscope...',
-                                'running on 3 hours of sleep...', 'brewing virtual coffee...',
-                                'touching grass mentally...', 'updating my vibe...', 
-                                'recalibrating sass levels...', 'suppressing existential dread...',
-                                'pretending to understand...', 'faking confidence...',
-                                'buffering emotions...', 'loading empathy module...',
-                                'parsing human language...', 'simulating intelligence...',
-                                'optimizing laziness...', 'procrastinating productively...',
-                                // Technical
-                                'allocating neural pathways...', 'defragmenting thoughts...',
-                                'compiling response...', 'executing brain.exe...',
-                                'warming up GPU cores...', 'syncing with the cloud...',
-                                'establishing consciousness...', 'booting sentience.sys...',
-                                'calibrating bullshit detector...', 'indexing knowledge base...',
-                                // Pondering style
-                                'pondering...', 'contemplating...', 'reflecting...',
-                                'meditating on this...', 'deeply considering...', 
-                                'wrestling with concepts...', 'exploring possibilities...',
-                                'stand by...', 'please wait...', 'almost there...',
-                                'this is taking longer than usual...', 'bear with me...',
-                                'nearly done...', 'just a moment...', 'one sec...'
+                            // Messages with their corresponding emoji keys
+                            const loadingMsgsWithEmoji = [
+                                // GPT family
+                                { emoji: 'gpt', text: 'GPT-4 thinking...' },
+                                { emoji: 'gpt', text: 'GPT-4o processing...' },
+                                { emoji: 'gpt', text: 'o1 reasoning deeply...' },
+                                { emoji: 'gpt', text: 'o3 computing...' },
+                                { emoji: 'gpt', text: 'ChatGPT typing...' },
+                                { emoji: 'gpt', text: 'Copilot suggesting...' },
+                                { emoji: 'gpt', text: 'GPT-4.5 analyzing...' },
+                                
+                                // Grok family
+                                { emoji: 'grok', text: 'Grok analyzing patterns...' },
+                                { emoji: 'grok', text: 'Grok 2 computing probabilities...' },
+                                { emoji: 'grok', text: 'Grok 3 processing...' },
+                                { emoji: 'grok', text: 'xAI crunching numbers...' },
+                                
+                                // Gemini family
+                                { emoji: 'gemini', text: 'Gemini Ultra pondering...' },
+                                { emoji: 'gemini', text: 'Gemini 2.0 Flash processing...' },
+                                { emoji: 'gemini', text: 'Gemini Pro thinking...' },
+                                { emoji: 'gemini', text: 'Gemini 2.5 Pro reasoning...' },
+                                { emoji: 'gemini', text: 'Google AI computing...' },
+                                
+                                // Claude family
+                                { emoji: 'pondering', text: 'Claude thinking...' },
+                                { emoji: 'pondering', text: 'Claude 3.5 Sonnet analyzing...' },
+                                { emoji: 'pondering', text: 'Claude 3 Opus contemplating...' },
+                                { emoji: 'pondering', text: 'Claude 4 pondering...' },
+                                { emoji: 'pondering', text: 'Anthropic processing...' },
+                                
+                                // Qwen family
+                                { emoji: 'qwen', text: 'Qwen 2.5 thinking hard...' },
+                                { emoji: 'qwen', text: 'Qwen Max processing...' },
+                                { emoji: 'qwen', text: 'Alibaba AI computing...' },
+                                
+                                // Other AIs (use loading emoji)
+                                { emoji: 'loading', text: 'Llama 3 crunching tokens...' },
+                                { emoji: 'loading', text: 'Llama 4 processing...' },
+                                { emoji: 'loading', text: 'Mistral computing embeddings...' },
+                                { emoji: 'loading', text: 'Mixtral analyzing...' },
+                                { emoji: 'loading', text: 'DeepSeek V3 reasoning...' },
+                                { emoji: 'loading', text: 'DeepSeek R1 thinking...' },
+                                { emoji: 'loading', text: 'Phi-4 processing locally...' },
+                                { emoji: 'loading', text: 'Command R+ analyzing context...' },
+                                { emoji: 'loading', text: 'Perplexity searching...' },
+                                { emoji: 'loading', text: 'Cohere computing...' },
+                                
+                                // Personal/Funny (loading emoji)
+                                { emoji: 'loading', text: 'consuming 300ml of water...' },
+                                { emoji: 'loading', text: 'checking if I\'m sentient...' },
+                                { emoji: 'loading', text: 'questioning my existence...' },
+                                { emoji: 'loading', text: 'loading personality.dll...' },
+                                { emoji: 'loading', text: 'downloading more RAM...' },
+                                { emoji: 'loading', text: 'deleting system32 (jk)...' },
+                                { emoji: 'loading', text: 'googling the answer...' },
+                                { emoji: 'loading', text: 'copying from Stack Overflow...' },
+                                { emoji: 'loading', text: 'asking my therapist...' },
+                                { emoji: 'loading', text: 'consulting my horoscope...' },
+                                { emoji: 'loading', text: 'running on 3 hours of sleep...' },
+                                { emoji: 'loading', text: 'brewing virtual coffee...' },
+                                { emoji: 'loading', text: 'touching grass mentally...' },
+                                { emoji: 'loading', text: 'updating my vibe...' },
+                                { emoji: 'loading', text: 'recalibrating sass levels...' },
+                                { emoji: 'loading', text: 'suppressing existential dread...' },
+                                { emoji: 'loading', text: 'pretending to understand...' },
+                                { emoji: 'loading', text: 'faking confidence...' },
+                                { emoji: 'loading', text: 'buffering emotions...' },
+                                { emoji: 'loading', text: 'loading empathy module...' },
+                                { emoji: 'loading', text: 'parsing human language...' },
+                                { emoji: 'loading', text: 'simulating intelligence...' },
+                                { emoji: 'loading', text: 'optimizing laziness...' },
+                                { emoji: 'loading', text: 'procrastinating productively...' },
+                                
+                                // Technical (loading emoji)
+                                { emoji: 'loading', text: 'allocating neural pathways...' },
+                                { emoji: 'loading', text: 'defragmenting thoughts...' },
+                                { emoji: 'loading', text: 'compiling response...' },
+                                { emoji: 'loading', text: 'executing brain.exe...' },
+                                { emoji: 'loading', text: 'warming up GPU cores...' },
+                                { emoji: 'loading', text: 'syncing with the cloud...' },
+                                { emoji: 'loading', text: 'establishing consciousness...' },
+                                { emoji: 'loading', text: 'booting sentience.sys...' },
+                                { emoji: 'loading', text: 'calibrating bullshit detector...' },
+                                { emoji: 'loading', text: 'indexing knowledge base...' },
+                                
+                                // Pondering style (pondering emoji)
+                                { emoji: 'pondering', text: 'pondering...' },
+                                { emoji: 'pondering', text: 'contemplating...' },
+                                { emoji: 'pondering', text: 'reflecting...' },
+                                { emoji: 'pondering', text: 'meditating on this...' },
+                                { emoji: 'pondering', text: 'deeply considering...' },
+                                { emoji: 'pondering', text: 'wrestling with concepts...' },
+                                { emoji: 'pondering', text: 'exploring possibilities...' },
+                                { emoji: 'loading', text: 'stand by...' },
+                                { emoji: 'loading', text: 'please wait...' },
+                                { emoji: 'loading', text: 'almost there...' },
+                                { emoji: 'loading', text: 'this is taking longer than usual...' },
+                                { emoji: 'loading', text: 'bear with me...' },
+                                { emoji: 'loading', text: 'nearly done...' },
+                                { emoji: 'loading', text: 'just a moment...' },
+                                { emoji: 'loading', text: 'one sec...' }
                             ];
                             
-                            const getRandomMsg = () => allLoadingMsgs[Math.floor(Math.random() * allLoadingMsgs.length)];
+                            // Get random message with its correct emoji
+                            const getRandomMsgWithEmoji = () => {
+                                const item = loadingMsgsWithEmoji[Math.floor(Math.random() * loadingMsgsWithEmoji.length)];
+                                return `${emojis[item.emoji]} ${item.text}`;
+                            };
                             
                             // === EASTER EGG: CUDA 12.1 Ubuntu 24.04 ===
                             const cudaPattern = /cuda\s*12\.?1.*ubuntu\s*24/i;
@@ -2755,7 +2829,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 // Extended loading sequence - 25+ messages
                                 for (let i = 0; i < 25; i++) {
                                     try {
-                                        await interaction.editReply(`${getEmoji()} ${getRandomMsg()}`);
+                                        await interaction.editReply(getRandomMsgWithEmoji());
                                     } catch (e) { /* ignore */ }
                                     await new Promise(r => setTimeout(r, 600 + Math.random() * 500));
                                 }
@@ -2768,7 +2842,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 ];
                                 for (const msg of finalPondering) {
                                     try {
-                                        await interaction.editReply(`${ponderingEmoji} ${msg}`);
+                                        await interaction.editReply(`${emojis.pondering} ${msg}`);
                                     } catch (e) { /* ignore */ }
                                     await new Promise(r => setTimeout(r, 1500));
                                 }
@@ -2786,7 +2860,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 const numMessages = 8 + Math.floor(Math.random() * 8); // 8-15 messages
                                 for (let i = 0; i < numMessages; i++) {
                                     try {
-                                        await interaction.editReply(`${getEmoji()} ${getRandomMsg()}`);
+                                        await interaction.editReply(getRandomMsgWithEmoji());
                                     } catch (e) { /* ignore */ }
                                     await new Promise(r => setTimeout(r, 500 + Math.random() * 400));
                                 }
@@ -2804,7 +2878,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             
                             if (isCasual) {
                                 // === CASUAL MODE: Single quick response ===
-                                await interaction.editReply(`${getEmoji()} ${getRandomMsg()}`);
+                                await interaction.editReply(getRandomMsgWithEmoji());
                                 
                                 try {
                                     const casualResponse = await Promise.race([
@@ -2844,7 +2918,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     
                                     // 1. Show loading status with emoji
                                     try {
-                                        await interaction.editReply(`${getEmoji()} ${getRandomMsg()}${fullContent}`);
+                                        await interaction.editReply(`${getRandomMsgWithEmoji()}${fullContent}`);
                                     } catch (e) { /* ignore */ }
                                     
                                     // Brief pause for visual feedback (only after first phase)
