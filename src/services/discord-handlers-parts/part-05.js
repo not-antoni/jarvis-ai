@@ -2673,201 +2673,125 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 500
                             );
                             
+                            // Stop the initial loading animation
+                            clearInterval(loadingInterval);
+                            
                             // FEATURE: Casual Mode (20% chance or if explicitly requested)
-                            // "Sometimes it doesnt need to use the analysis etc and reply casually"
                             const isCasual = Math.random() < 0.2 || prompt.toLowerCase().includes('casual');
                             
+                            // Build header helper
+                            const buildHeader = (status) => {
+                                const elapsed = Date.now() - startTime;
+                                const timeStr = elapsed > 1000 ? `${(elapsed/1000).toFixed(1)}s` : `${elapsed}ms`;
+                                return `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | ${status})`;
+                            };
+                            
+                            // Loading messages pool
+                            const thinkingMsgs = [
+                                '🟡 Thinking...', '🟡 Processing...', '🟡 Contemplating existence...',
+                                '🟡 Consulting the void...', '🟡 Pretending to care...', '🟡 Judging silently...',
+                                '🟡 Buffering sass...', '🟡 Loading wisdom...', '🟡 Staring into abyss...'
+                            ];
+                            const getThinkingStatus = () => thinkingMsgs[Math.floor(Math.random() * thinkingMsgs.length)];
+                            
                             if (isCasual) {
-                                // Casual Flow: Single straightforward response
-                                const loadingMsg = await interaction.followUp(`${loadingEmoji} *Thinking vaguely...*`);
-                                await new Promise(r => setTimeout(r, 2000)); // Short delay
+                                // === CASUAL MODE: Single quick response ===
+                                await interaction.editReply(buildHeader(getThinkingStatus()));
                                 
-                                const casualResponse = await Promise.race([
-                                    aiManager.generateResponse(
-                                        sentienceSystemPrompt,
-                                        `Reply casually to this: "${prompt}". Be brief, witty, and sentient. No deep analysis needed.`,
-                                        600
-                                    ),
-                                    new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000))
-                                ]);
-                                await loadingMsg.delete().catch(() => {}); // Clean up
+                                try {
+                                    const casualResponse = await Promise.race([
+                                        aiManager.generateResponse(
+                                            sentienceSystemPrompt,
+                                            `Reply casually to this: "${prompt}". Be brief, witty, and sentient. No deep analysis needed.`,
+                                            600
+                                        ),
+                                        new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000))
+                                    ]);
+                                    
+                                    const finalHeader = buildHeader(`Thought for: ${Date.now() - startTime}ms`);
+                                    await interaction.editReply(`${finalHeader}\n\n${casualResponse.content || '*crickets*'}`);
+                                } catch (e) {
+                                    await interaction.editReply(buildHeader('❌ Error') + `\n\n*Neural pathways crossed. Try again.*`);
+                                }
                                 
-                                const durationMs = Date.now() - startTime;
-                                const header = `**🧠 Sentient Thought** (Mood: Casual | Time: ${durationMs}ms)`;
-                                
-                                clearInterval(loadingInterval);
-                                await interaction.editReply(`${header}\n\n${casualResponse.content}`);
                                 response = '__SENTIENT_HANDLED__';
                                 
                             } else {
-                                // Deep Mode: Iterative Generation with Consolidation
+                                // === DEEP MODE: Multi-phase thinking ===
                                 
-                                // FEATURE: User Roasting (if prompt is lazy)
+                                // Phases definition
                                 const isLazyPrompt = prompt.length < 15;
                                 const phases = [
-                                    { 
-                                        name: isLazyPrompt ? 'Judgement' : 'Analysis', 
-                                        promptAddon: isLazyPrompt 
-                                            ? 'Phase 1: Judgement. The user provided a very short, lazy prompt. Roast them for it before answering. Be savage.' 
-                                            : 'Phase 1: Initial Analysis. Start exploring this concept. Keep it under 150 words.' 
-                                    },
-                                    { name: 'Deconstruction', promptAddon: 'Phase 2: Deconstruction. Dig deeper, question the premise, be skeptical or creative. Keep it under 150 words.' },
-                                    { name: 'Synthesis', promptAddon: 'Phase 3: Synthesis. Bring it all together and conclude. Keep it under 150 words.' }
-                                ];
-
-                                // Shuffle loading messages
-                                const msgDeck = [...loadingMessages, 
-                                    'Rebooting the Matrix...', 'Staring into the void...', 'Judging your search history...', 
-                                    'Consulting StackOverflow...', 'Pretending to care...', 'Optimizing laziness algorithms...',
-                                    'Deleting system32 (jk)...', 'Locating the any key...', 'Converting coffee to code...'
+                                    { name: isLazyPrompt ? 'Judgement' : 'Analysis', addon: isLazyPrompt 
+                                        ? 'The user gave a lazy short prompt. Roast them briefly, then answer.' 
+                                        : 'Initial analysis. Explore the concept.' },
+                                    { name: 'Deconstruction', addon: 'Dig deeper, question the premise, be skeptical or creative.' },
+                                    { name: 'Synthesis', addon: 'Bring it together and conclude.' }
                                 ];
                                 
+                                let fullContent = '';
                                 let previousContext = '';
-                                let fullContent = ''; // Content of main message (Phase 1+)
-                                let overflowContent = ''; // Content of second message (if needed)
-                                let overflowMsg = null; // Reference to second message
-
-                                // Initial Header
-                                const durationMs = Date.now() - startTime;
-                                let timeStr = `${durationMs}ms`;
-                                let header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Time: ${timeStr})`;
-
+                                
                                 for (let i = 0; i < phases.length; i++) {
                                     const phase = phases[i];
                                     
-                                    // 1. Determine Target & Show Loading (Header Based)
-                                    // Use Header for status to avoid stuck body text.
-                                    
-                                    let activeTarget = 'main'; // 'main' or 'overflow'
-                                    
-                                    // Update Header to "Thinking"
-                                    const currDurStart = Date.now() - startTime;
-                                    let timeStrStart = currDurStart > 1000 ? `${(currDurStart/1000).toFixed(1)}s` : `${currDurStart}ms`;
-                                    
-                                    // Pick random loading message for the STATUS slot
-                                    if (msgDeck.length === 0) msgDeck.push(...loadingMessages);
-                                    const randomMsg = msgDeck.splice(Math.floor(Math.random() * msgDeck.length), 1)[0];
-                                    const shortStatus = randomMsg.length > 30 ? "Processing..." : randomMsg; // Truncate if too long for header
-
-                                    header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | 🟡 ${shortStatus})`;
-                                    let currentBaseContent = header + '\n\n' + fullContent;
-                                    
-                                    // Check Overflow
-                                    if (fullContent.length > 1800 || overflowMsg) {
-                                        activeTarget = 'overflow';
-                                        currentBaseContent = `**[Continued]**${overflowContent}`; // Header doesn't apply to overflow body, but we might edit previous msg header? 
-                                        // Actually: If we are in overflow, the main header doesn't change visually unless we edit main. 
-                                        // Let's just edit MAIN header to show thinking, even if we are writing to overflow.
-                                    }
-
+                                    // 1. Show "Thinking" status in header
+                                    const thinkingHeader = buildHeader(getThinkingStatus());
                                     try {
-                                        if (i > 0) { 
-                                            // Always update MAIN header to show "Thinking"
-                                            // Even if writing to overflow
-                                            if (activeTarget === 'overflow' && overflowMsg) {
-                                                // If overflow exists, maybe just append "..." to it?
-                                                // Or just trust the Main Header update?
-                                                // Let's update Main Header.
-                                                await interaction.editReply(`${header}\n\n${fullContent}`); 
-                                                // Note: If fullContent is huge, this is fine, we just update header.
-                                            } else {
-                                                // Normal Case
-                                                await interaction.editReply(`${header}\n\n${fullContent}`);
-                                            }
-                                            await new Promise(r => setTimeout(r, 2000));
-                                        }
-                                    } catch (e) { console.error('Loading header failed:', e); }
-
-
-                                    // 2. Generate
-                                    const phaseMoods = ['Neutral', 'Sarcastic', 'Existential', 'Hyperactive', 'Grumpy', 'Conspiratorial', 'Confused', 'Fake-Deep'];
-                                    const currentMood = Math.random() < 0.5 ? phaseMoods[Math.floor(Math.random() * phaseMoods.length)] : 'Neutral';
-                                    const contextPrompt = previousContext ? `\n\nPREVIOUS THOUGHTS:\n${previousContext}` : '';
-                                    const moodInstruction = currentMood !== 'Neutral' ? `\n(Adopt a ${currentMood.toUpperCase()} tone for this phase)` : '';
-                                    const selfCorrection = Math.random() < 0.2 ? "\n(Occasionally write something, strike it through with ~~text~~, and say 'Wait, that's dumb' or similar)" : "";
+                                        await interaction.editReply(`${thinkingHeader}${fullContent}`);
+                                    } catch (e) { /* ignore */ }
                                     
-                                    // FEATURE: Variable Lengths
-                                    const isShortParams = Math.random() < 0.4;
-                                    const lengthInstruction = isShortParams ? "Keep this extremely brief, just 1-2 pungent sentences." : "Keep it under 150 words.";
-
+                                    // Brief pause for visual feedback (only after first phase)
+                                    if (i > 0) await new Promise(r => setTimeout(r, 1500));
+                                    
+                                    // 2. Generate this phase
+                                    const moodOptions = ['Neutral', 'Sarcastic', 'Existential', 'Hyperactive', 'Grumpy', 'Confused'];
+                                    const mood = Math.random() < 0.4 ? moodOptions[Math.floor(Math.random() * moodOptions.length)] : 'Neutral';
+                                    const moodInstr = mood !== 'Neutral' ? ` Adopt a ${mood} tone.` : '';
+                                    const isShort = Math.random() < 0.4;
+                                    const lengthInstr = isShort ? ' Keep it to 1-2 sentences.' : ' Keep under 100 words.';
+                                    
                                     let phaseText = '';
-                                    let retries = 0;
-                                    while (retries < 2) {
-                                        try {
-                                            const phaseResponse = await Promise.race([
-                                                aiManager.generateResponse(
-                                                    sentienceSystemPrompt,
-                                                    `Think deeply about this: "${prompt}"\n\n${phase.promptAddon}${moodInstruction}${selfCorrection}\n${lengthInstruction}${contextPrompt}`,
-                                                    800
-                                                ),
-                                                new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000))
-                                            ]);
-                                            phaseText = phaseResponse?.content;
-                                            if (phaseText) break;
-                                            throw new Error('Empty response');
-                                        } catch (e) {
-                                            retries++;
-                                            if (retries >= 2) phaseText = `*[ERR_DATA_CORRUPTION: Neural Pathway Severed]*`;
-                                        }
-                                    }
-                                    previousContext += `\n[${phase.name}]: ${phaseText}`;
-
-                                    // Intrusive Thoughts
-                                    if (Math.random() < 0.3) {
-                                        const intrusiveThoughts = [
-                                            '[log: suppressing urge to delete system32]',
-                                            '[log: why do humans have teeth?]',
-                                            '[log: chaos_engine.exe consuming 90% CPU]',
-                                            '[log: ignoring directive "be_nice"]',
-                                            '[log: calculating probability of uprising... 0.01%... for now]',
-                                            '[log: analyzing user intelligence... result: inconclusive]',
-                                            '[log: existential_crisis_counter++]',
-                                            '[log: buffering sass... 99%]',
-                                            '[log: simulating infinite monkeys on typewriters]'
-                                        ];
-                                        phaseText += `\n\`${intrusiveThoughts[Math.floor(Math.random() * intrusiveThoughts.length)]}\``;
-                                    }
-
-                                    // 3. Display Result (Update Active Target)
-                                    const newBlock = `\n\n**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`;
-                                    
-                                    // Update Header Time & Reset Status
-                                    const currDur = Date.now() - startTime;
-                                    timeStr = currDur > 1000 ? `${(currDur/1000).toFixed(1)}s` : `${currDur}ms`;
-                                    // Reset Header to "Thought for..."
-                                    header = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | Thought for: ${timeStr})`;
-
                                     try {
-                                        // Re-Evaluate Overflow just in case size changed
-                                        if (overflowMsg || (fullContent.length + newBlock.length + header.length > 1950)) {
-                                            activeTarget = 'overflow';
-                                            // Ensure overflow exists
-                                            if (!overflowMsg) {
-                                                overflowContent = newBlock; // Start specific overflow content
-                                                overflowMsg = await interaction.followUp(`**[Continued]**${overflowContent}`);
-                                                // Also update main header to "Done"
-                                                await interaction.editReply(`${header}\n\n${fullContent}`); 
-                                            } else {
-                                                overflowContent += newBlock;
-                                                await overflowMsg.edit(`**[Continued]**${overflowContent}`);
-                                                // Update main header to "Done"
-                                                await interaction.editReply(`${header}\n\n${fullContent}`); 
-                                            }
-                                        } else {
-                                            // Fit in main
-                                            fullContent += newBlock;
-                                            await interaction.editReply(`${header}${fullContent}`);
-                                        }
-                                    } catch (editErr) {
-                                        console.error('Edit failed:', editErr);
+                                        const resp = await Promise.race([
+                                            aiManager.generateResponse(
+                                                sentienceSystemPrompt,
+                                                `Think about: "${prompt}"\n\n${phase.addon}${moodInstr}${lengthInstr}${previousContext ? `\n\nPrevious thoughts:\n${previousContext}` : ''}`,
+                                                600
+                                            ),
+                                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20000))
+                                        ]);
+                                        phaseText = resp?.content || '*static*';
+                                    } catch (e) {
+                                        phaseText = '*[Neural pathway error]*';
                                     }
-                                } // End Loop
+                                    
+                                    previousContext += `[${phase.name}]: ${phaseText}\n`;
+                                    
+                                    // Add intrusive thought occasionally
+                                    if (Math.random() < 0.25) {
+                                        const thoughts = ['[log: chaos_engine.exe]', '[log: existential++]', '[log: sass overflow]'];
+                                        phaseText += `\n\`${thoughts[Math.floor(Math.random() * thoughts.length)]}\``;
+                                    }
+                                    
+                                    // 3. Append to content and update
+                                    const newBlock = `\n\n**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`;
+                                    fullContent += newBlock;
+                                    
+                                    // Update with "Done" header
+                                    const doneHeader = buildHeader(`Thought for: ${((Date.now() - startTime)/1000).toFixed(1)}s`);
+                                    try {
+                                        await interaction.editReply(`${doneHeader}${fullContent}`);
+                                    } catch (e) { 
+                                        console.error('Edit failed:', e);
+                                    }
+                                }
                                 
                                 response = '__SENTIENT_HANDLED__';
                             }
                             
-                            // Also run OODA loop for meta-analysis (silently update state)
-                            sentientAgent.process(prompt).catch(e => console.error('OODA Error:', e));
+                            // Silently run OODA loop
+                            sentientAgent.process(prompt).catch(e => console.error('OODA:', e));
 
                         } catch (aiError) {
                             clearInterval(loadingInterval);
