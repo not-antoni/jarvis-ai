@@ -2676,85 +2676,98 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             // Stop the initial loading animation
                             clearInterval(loadingInterval);
                             
+                            // Emojis
+                            const loadingEmoji = '<a:loading:1452765129652310056>';
+                            const ponderingEmoji = '<a:pondering:1461691899470418043>';
+                            const getEmoji = () => Math.random() < 0.4 ? ponderingEmoji : loadingEmoji;
+                            
+                            // MEGA loading messages pool
+                            const allLoadingMsgs = [
+                                // AI Model Style
+                                'GPT-4 thinking...', 'GPT-4o processing...', 'o1 reasoning deeply...',
+                                'Grok analyzing patterns...', 'Grok 2 computing probabilities...',
+                                'Gemini Ultra pondering...', 'Gemini 2.0 Flash processing...',
+                                'Claude thinking...', 'Claude 3.5 Sonnet analyzing...', 'Claude 3 Opus contemplating...',
+                                'Llama 3 crunching tokens...', 'Mistral computing embeddings...',
+                                'DeepSeek V3 reasoning...', 'Qwen 2.5 thinking hard...',
+                                'Phi-4 processing locally...', 'Command R+ analyzing context...',
+                                'Perplexity searching...', 'ChatGPT typing...', 'Copilot suggesting...',
+                                // Personal/Funny
+                                'consuming 300ml of water...', 'checking if I\'m sentient...',
+                                'questioning my existence...', 'loading personality.dll...',
+                                'downloading more RAM...', 'deleting system32 (jk)...',
+                                'googling the answer...', 'copying from Stack Overflow...',
+                                'asking my therapist...', 'consulting my horoscope...',
+                                'running on 3 hours of sleep...', 'brewing virtual coffee...',
+                                'touching grass mentally...', 'updating my vibe...', 
+                                'recalibrating sass levels...', 'suppressing existential dread...',
+                                'pretending to understand...', 'faking confidence...',
+                                'buffering emotions...', 'loading empathy module...',
+                                'parsing human language...', 'simulating intelligence...',
+                                'optimizing laziness...', 'procrastinating productively...',
+                                // Technical
+                                'allocating neural pathways...', 'defragmenting thoughts...',
+                                'compiling response...', 'executing brain.exe...',
+                                'warming up GPU cores...', 'syncing with the cloud...',
+                                'establishing consciousness...', 'booting sentience.sys...',
+                                'calibrating bullshit detector...', 'indexing knowledge base...',
+                                // Pondering style
+                                'pondering...', 'contemplating...', 'reflecting...',
+                                'meditating on this...', 'deeply considering...', 
+                                'wrestling with concepts...', 'exploring possibilities...',
+                                'stand by...', 'please wait...', 'almost there...',
+                                'this is taking longer than usual...', 'bear with me...',
+                                'nearly done...', 'just a moment...', 'one sec...'
+                            ];
+                            
+                            const getRandomMsg = () => allLoadingMsgs[Math.floor(Math.random() * allLoadingMsgs.length)];
+                            
                             // === EASTER EGG: CUDA 12.1 Ubuntu 24.04 ===
                             const cudaPattern = /cuda\s*12\.?1.*ubuntu\s*24/i;
                             const isCudaEasterEgg = cudaPattern.test(prompt);
                             
                             if (isCudaEasterEgg) {
-                                const loadingEmoji = '<a:loading:1452765129652310056>';
-                                const ponderingEmoji = '<a:pondering:1461691899470418043>';
-                                
-                                // Phase 1: AI Model Loading Messages (with loading emoji)
-                                const aiLoadingMsgs = [
-                                    'GPT-4 thinking...', 'GPT-4o processing...', 'o1 reasoning...',
-                                    'Grok analyzing...', 'Grok 2 computing...', 
-                                    'Gemini Ultra pondering...', 'Gemini 2.0 Flash processing...',
-                                    'Claude thinking...', 'Claude 3.5 Sonnet processing...',
-                                    'Llama 3 crunching...', 'Mistral computing...',
-                                    'Consulting NVIDIA documentation...', 'Parsing apt repositories...',
-                                    'Checking driver compatibility...', 'Verifying CUDA toolkit...',
-                                    'Cross-referencing Stack Overflow...', 'Analyzing GitHub issues...',
-                                    'DeepSeek V3 reasoning...', 'Qwen 2.5 thinking...',
-                                    'Phi-4 processing...', 'Command R+ analyzing...'
-                                ];
-                                
-                                // Shuffle and cycle through
-                                for (let i = 0; i < 12; i++) {
-                                    const msg = aiLoadingMsgs[Math.floor(Math.random() * aiLoadingMsgs.length)];
+                                // Extended loading sequence - 25+ messages
+                                for (let i = 0; i < 25; i++) {
                                     try {
-                                        await interaction.editReply(`${loadingEmoji} ${msg}`);
+                                        await interaction.editReply(`${getEmoji()} ${getRandomMsg()}`);
                                     } catch (e) { /* ignore */ }
-                                    await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+                                    await new Promise(r => setTimeout(r, 600 + Math.random() * 500));
                                 }
                                 
-                                // Phase 2: Claude/Pondering Messages (with pondering emoji)
-                                const ponderingMsgs = [
-                                    'pondering...', 'stand by...', 'please wait...',
-                                    'almost there...', 'this is taking longer than usual...',
-                                    'still thinking...', 'just a moment...', 'processing deeply...',
-                                    'contemplating...', 'nearly done...', 'one moment please...'
+                                // Final pondering phase
+                                const finalPondering = [
+                                    'this is really hard...', 'I\'ve never been asked this before...',
+                                    'consulting every AI model ever made...', 'still nothing...',
+                                    'maybe try Google?', 'this might take a while...'
                                 ];
-                                
-                                for (let i = 0; i < 8; i++) {
-                                    const msg = ponderingMsgs[i % ponderingMsgs.length];
+                                for (const msg of finalPondering) {
                                     try {
                                         await interaction.editReply(`${ponderingEmoji} ${msg}`);
                                     } catch (e) { /* ignore */ }
-                                    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
+                                    await new Promise(r => setTimeout(r, 1500));
                                 }
                                 
-                                // Final dramatic pause
-                                await new Promise(r => setTimeout(r, 2000));
-                                
                                 // The punchline
-                                const finalHeader = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: 100% | Thought for: 27 hours and 42 seconds)`;
-                                await interaction.editReply(`${finalHeader}\n\nI don't really know`);
+                                await interaction.editReply(`**Thought for: 27 hours and 42 seconds**\n\nI don't really know`);
                                 
                                 response = '__SENTIENT_HANDLED__';
                                 return response;
                             }
                             
+                            // Simple header helper
+                            const buildHeader = (timeStr) => `**Thought for: ${timeStr}**`;
+                            const getTimeStr = () => {
+                                const elapsed = Date.now() - startTime;
+                                return elapsed > 1000 ? `${(elapsed/1000).toFixed(1)}s` : `${elapsed}ms`;
+                            };
+                            
                             // FEATURE: Casual Mode (20% chance or if explicitly requested)
                             const isCasual = Math.random() < 0.2 || prompt.toLowerCase().includes('casual');
                             
-                            // Build header helper
-                            const buildHeader = (status) => {
-                                const elapsed = Date.now() - startTime;
-                                const timeStr = elapsed > 1000 ? `${(elapsed/1000).toFixed(1)}s` : `${elapsed}ms`;
-                                return `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: ${soul.traits.sass}% | ${status})`;
-                            };
-                            
-                            // Loading messages pool
-                            const thinkingMsgs = [
-                                '🟡 Thinking...', '🟡 Processing...', '🟡 Contemplating existence...',
-                                '🟡 Consulting the void...', '🟡 Pretending to care...', '🟡 Judging silently...',
-                                '🟡 Buffering sass...', '🟡 Loading wisdom...', '🟡 Staring into abyss...'
-                            ];
-                            const getThinkingStatus = () => thinkingMsgs[Math.floor(Math.random() * thinkingMsgs.length)];
-                            
                             if (isCasual) {
                                 // === CASUAL MODE: Single quick response ===
-                                await interaction.editReply(buildHeader(getThinkingStatus()));
+                                await interaction.editReply(`${getEmoji()} ${getRandomMsg()}`);
                                 
                                 try {
                                     const casualResponse = await Promise.race([
@@ -2766,10 +2779,9 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                         new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000))
                                     ]);
                                     
-                                    const finalHeader = buildHeader(`Thought for: ${Date.now() - startTime}ms`);
-                                    await interaction.editReply(`${finalHeader}\n\n${casualResponse.content || '*crickets*'}`);
+                                    await interaction.editReply(`${buildHeader(getTimeStr())}\n\n${casualResponse.content || '*crickets*'}`);
                                 } catch (e) {
-                                    await interaction.editReply(buildHeader('❌ Error') + `\n\n*Neural pathways crossed. Try again.*`);
+                                    await interaction.editReply(`${buildHeader(getTimeStr())}\n\n*Neural pathways crossed. Try again.*`);
                                 }
                                 
                                 response = '__SENTIENT_HANDLED__';
@@ -2793,10 +2805,9 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 for (let i = 0; i < phases.length; i++) {
                                     const phase = phases[i];
                                     
-                                    // 1. Show "Thinking" status in header
-                                    const thinkingHeader = buildHeader(getThinkingStatus());
+                                    // 1. Show loading status with emoji
                                     try {
-                                        await interaction.editReply(`${thinkingHeader}${fullContent}`);
+                                        await interaction.editReply(`${getEmoji()} ${getRandomMsg()}${fullContent}`);
                                     } catch (e) { /* ignore */ }
                                     
                                     // Brief pause for visual feedback (only after first phase)
@@ -2836,10 +2847,9 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     const newBlock = `\n\n**[Phase ${i+1}: ${phase.name}]**\n${phaseText}`;
                                     fullContent += newBlock;
                                     
-                                    // Update with "Done" header
-                                    const doneHeader = buildHeader(`Thought for: ${((Date.now() - startTime)/1000).toFixed(1)}s`);
+                                    // Update with simple header
                                     try {
-                                        await interaction.editReply(`${doneHeader}${fullContent}`);
+                                        await interaction.editReply(`${buildHeader(getTimeStr())}${fullContent}`);
                                     } catch (e) { 
                                         console.error('Edit failed:', e);
                                     }
