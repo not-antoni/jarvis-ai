@@ -7,7 +7,9 @@
         const cooldownScope = `slash:${commandName}`;
         const startedAt = Date.now();
 
-        const starkCompanies = require('../stark-companies');
+        // When compiled in discord-handlers.js, the context is src/services/
+        // So we need to require sibling files with ./
+        const starkCompanies = require(require('path').join(__dirname, 'stark-companies'));
         const fs = require('fs');
         const path = require('path');
         const fetch = require('node-fetch');
