@@ -877,6 +877,271 @@
                     }
                     break;
                 }
+                // ============ COMPANY SYSTEM ============
+                case 'company': {
+                    telemetryMetadata.category = 'economy';
+                    const starkCompanies = require('./stark-companies');
+                    const companySubcommand = interaction.options.getSubcommand();
+
+                    switch (companySubcommand) {
+                        case 'buy': {
+                            const companyType = interaction.options.getString('type');
+                            const companyId = interaction.options.getString('id');
+
+                            // Validate company type
+                            if (!starkCompanies.COMPANY_TYPES[companyType]) {
+                                const types = Object.keys(starkCompanies.COMPANY_TYPES).join(', ');
+                                response = `❌ Unknown company type: \`${companyType}\`\n\nAvailable: ${types}`;
+                                break;
+                            }
+
+                            const result = await starkCompanies.buyCompany(
+                                interaction.user.id,
+                                interaction.user.username,
+                                companyType,
+                                companyId
+                            );
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            const typeData = starkCompanies.COMPANY_TYPES[companyType];
+                            const embed = new EmbedBuilder()
+                                .setTitle('🏢 Company Purchased!')
+                                .setDescription(`You now own **${typeData.name}**!`)
+                                .setColor(0x2ecc71)
+                                .addFields(
+                                    { name: 'ID', value: `\`${result.company.id}\``, inline: true },
+                                    { name: 'Tier', value: typeData.tier.toUpperCase(), inline: true },
+                                    { name: 'Cost', value: `${starkCompanies.formatCompact(result.cost)} SB`, inline: true },
+                                    { name: '💰 Profit/Hour', value: `${starkCompanies.formatCompact(typeData.defaultProfit)} SB`, inline: true },
+                                    { name: '🔧 Maintenance/6h', value: `${starkCompanies.formatCompact(typeData.maintenance)} SB`, inline: true },
+                                    { name: '⚠️ Risk', value: `${typeData.defaultRisk}%`, inline: true }
+                                )
+                                .setFooter({ text: 'Use /company list to see all your companies' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
+                        case 'list': {
+                            const companies = await starkCompanies.getUserCompanies(interaction.user.id);
+                            
+                            if (companies.length === 0) {
+                                response = '🏢 You don\'t own any companies yet!\n\nUse `/company buy <type> <4-digit-id>` to start.';
+                                break;
+                            }
+
+                            const taxRate = await starkCompanies.calculateTaxRate(interaction.user.id);
+                            
+                            const companyList = companies.map(c => {
+                                const profit = starkCompanies.calculateCurrentProfit(c);
+                                return `**${c.displayName}** [\`${c.id.split('_').pop()}\`]\n` +
+                                    `> Profit: ${starkCompanies.formatCompact(profit)}/h | Risk: ${c.risk}% | Tier: ${c.tier}`;
+                            }).join('\n\n');
+
+                            const embed = new EmbedBuilder()
+                                .setTitle(`🏢 ${interaction.user.username}'s Companies`)
+                                .setDescription(companyList)
+                                .setColor(0x3498db)
+                                .addFields(
+                                    { name: '📉 Tax Rate', value: `${taxRate}%`, inline: true },
+                                    { name: '🏢 Total Companies', value: `${companies.length}`, inline: true }
+                                )
+                                .setFooter({ text: 'Tax reduction from company ownership!' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
+                        case 'types': {
+                            const types = Object.values(starkCompanies.COMPANY_TYPES);
+                            const grouped = {};
+                            for (const t of types) {
+                                if (!grouped[t.tier]) grouped[t.tier] = [];
+                                grouped[t.tier].push(t);
+                            }
+
+                            let desc = '';
+                            for (const tier of ['basic', 'small', 'large', 'mega']) {
+                                const tierData = starkCompanies.COMPANY_TIERS[tier];
+                                desc += `\n**${tier.toUpperCase()}** (Max: ${tierData.maxOwned}, Tax: -${tierData.taxReduction}%)\n`;
+                                for (const t of grouped[tier] || []) {
+                                    desc += `> ${t.name} \`${t.id}\` - ${starkCompanies.formatCompact(t.price)} | ${starkCompanies.formatCompact(t.defaultProfit)}/h\n`;
+                                }
+                            }
+
+                            const embed = new EmbedBuilder()
+                                .setTitle('🏢 Available Company Types')
+                                .setDescription(desc.trim())
+                                .setColor(0x9b59b6)
+                                .setFooter({ text: 'Use /company buy <type> <4-digit-id>' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
+                        case 'lookup': {
+                            const username = interaction.options.getString('username');
+                            const companies = await starkCompanies.lookupByUsername(username);
+
+                            if (companies.length === 0) {
+                                response = `🏢 No companies found for user "${username}".`;
+                                break;
+                            }
+
+                            const companyList = companies.map(c => 
+                                `**${c.displayName}**\n> ID: \`${c.id}\` | Tier: ${c.tier}`
+                            ).join('\n\n');
+
+                            const embed = new EmbedBuilder()
+                                .setTitle(`🔍 Companies owned by ${username}`)
+                                .setDescription(companyList)
+                                .setColor(0x3498db)
+                                .setFooter({ text: 'Use /company lookupcomp <id> for details' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
+                        case 'lookupcomp': {
+                            const companyId = interaction.options.getString('id');
+                            const company = await starkCompanies.getCompany(companyId);
+
+                            if (!company) {
+                                response = `❌ Company not found: \`${companyId}\``;
+                                break;
+                            }
+
+                            const typeData = starkCompanies.COMPANY_TYPES[company.type];
+                            const profit = starkCompanies.calculateCurrentProfit(company);
+                            
+                            // Build effects list
+                            let effectsStr = 'None';
+                            if (company.profitEffects && company.profitEffects.length > 0) {
+                                const now = Date.now();
+                                const activeEffects = company.profitEffects.filter(e => 
+                                    new Date(e.expiresAt).getTime() > now || e.duration === 0
+                                );
+                                if (activeEffects.length > 0) {
+                                    effectsStr = activeEffects.map(e => 
+                                        `${e.modifier > 0 ? '+' : ''}${e.modifier}% (${e.name || 'event'})`
+                                    ).join(', ');
+                                }
+                            }
+
+                            const embed = new EmbedBuilder()
+                                .setTitle(`🏢 ${company.displayName}`)
+                                .setDescription(`Owner: **${company.ownerName}**`)
+                                .setColor(company.risk > 50 ? 0xe74c3c : company.risk < 50 ? 0x2ecc71 : 0xf1c40f)
+                                .addFields(
+                                    { name: 'ID', value: `\`${company.id}\``, inline: false },
+                                    { name: 'Tier', value: company.tier.toUpperCase(), inline: true },
+                                    { name: '💰 Profit/Hour', value: `${starkCompanies.formatCompact(profit)} SB`, inline: true },
+                                    { name: 'Profit %', value: `${company.currentProfitPercent}%`, inline: true },
+                                    { name: '⚠️ Risk', value: `${company.risk}%`, inline: true },
+                                    { name: '🔧 Maintenance', value: `${starkCompanies.formatCompact(company.maintenanceCost)}/6h`, inline: true },
+                                    { name: '⚔️ Sabotage', value: company.sabotageEnabled ? '✅ Enabled' : '❌ Disabled', inline: true },
+                                    { name: '📊 Effects', value: effectsStr, inline: false }
+                                )
+                                .setFooter({ text: `Risk: <50 = bad events likely, >50 = good events likely` });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
+                        case 'rush': {
+                            const companyId = interaction.options.getString('id');
+                            const result = await starkCompanies.rushCompany(interaction.user.id, companyId);
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            if (result.paidNow) {
+                                response = `⚡ **RUSH!** Profit paid immediately: **${starkCompanies.formatCompact(result.profitPaid)} SB**\n\n⚠️ Risk increased by ${result.riskIncrease}% → Now ${result.newRisk}%`;
+                            } else {
+                                response = `⚡ **RUSH!** Next profit will be 30 minutes earlier.\n\n⚠️ Risk increased by ${result.riskIncrease}% → Now ${result.newRisk}%`;
+                            }
+                            break;
+                        }
+
+                        case 'slow': {
+                            const companyId = interaction.options.getString('id');
+                            const result = await starkCompanies.slowCompany(interaction.user.id, companyId);
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            response = `🐢 **SLOW!** Next profit payment will be skipped (stability mode).\n\n✅ Risk decreased by ${result.riskDecrease}% → Now ${result.newRisk}%`;
+                            break;
+                        }
+
+                        case 'clean': {
+                            const companyId = interaction.options.getString('id');
+                            const result = await starkCompanies.cleanCompany(interaction.user.id, companyId);
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            response = `🧹 **CLEAN!** Company reputation improved.\n\n✅ Risk decreased by ${result.riskDecrease}% → Now ${result.newRisk}%`;
+                            break;
+                        }
+
+                        case 'togglesabotage': {
+                            const companyId = interaction.options.getString('id');
+                            const result = await starkCompanies.toggleSabotage(interaction.user.id, companyId);
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            response = result.message;
+                            break;
+                        }
+
+                        case 'spreaddirt': {
+                            const companyId = interaction.options.getString('id');
+                            const result = await starkCompanies.spreadDirt(
+                                interaction.user.id,
+                                interaction.user.username,
+                                companyId
+                            );
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            if (result.isOwnCompany) {
+                                response = `💩 You spread dirt on your own company **${result.targetCompany}**.\n\n⚠️ Risk increased by ${result.riskIncrease}% → Now ${result.newRisk}%`;
+                            } else {
+                                response = `💩 **SABOTAGE!** You spread dirt on **${result.targetOwner}**'s **${result.targetCompany}**!\n\n⚠️ Their risk increased by ${result.riskIncrease}% → Now ${result.newRisk}%`;
+                            }
+                            break;
+                        }
+
+                        case 'resetprofit': {
+                            const companyId = interaction.options.getString('id');
+                            const result = await starkCompanies.resetProfit(interaction.user.id, companyId);
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            response = `💰 **PROFIT RESET!** Paid ${starkCompanies.formatCompact(result.cost)} SB to restore profit to ${result.newProfit}%.`;
+                            break;
+                        }
+
+                        default:
+                            response = '❌ Unknown company subcommand.';
+                    }
+                    break;
+                }
                 // ============ PET SYSTEM ============
                 case 'pet': {
                     telemetryMetadata.category = 'economy';
