@@ -2180,6 +2180,47 @@ const allCommands = [
         .addSubcommand(s => s.setName('buy').setDescription('Bid/Buy on an auction').addStringOption(o => o.setName('id').setDescription('Auction ID').setRequired(true)))
         .addSubcommand(s => s.setName('create').setDescription('Create an auction').addStringOption(o => o.setName('item').setDescription('Item ID').setRequired(true)).addIntegerOption(o => o.setName('price').setDescription('Starting price').setRequired(true))),
 
+    // Company System
+    new SlashCommandBuilder()
+        .setName('company')
+        .setDescription('Manage your companies in the Stark Economy')
+        .setContexts([InteractionContextType.Guild])
+        .addSubcommand(s => s.setName('buy').setDescription('Purchase a new company')
+            .addStringOption(o => o.setName('type').setDescription('Type of company').setRequired(true)
+                .addChoices(
+                    { name: '🍔 Fast Food Place (Basic)', value: 'fastfood' },
+                    { name: '☕ Coffee Shop (Basic)', value: 'coffeeshop' },
+                    { name: '🍕 Pizzeria (Basic)', value: 'pizzeria' },
+                    { name: '💻 Tech Startup (Small)', value: 'techstartup' },
+                    { name: '👗 Boutique Store (Small)', value: 'boutique' },
+                    { name: '💪 Fitness Gym (Small)', value: 'gym' },
+                    { name: '🏭 Manufacturing Factory (Large)', value: 'factory' },
+                    { name: '🏨 Hotel Chain (Large)', value: 'hotel' },
+                    { name: '🛒 Shopping Mall (Large)', value: 'shoppingmall' },
+                    { name: '📺 Media Empire (Mega)', value: 'mediaempire' },
+                    { name: '🚀 Space Corporation (Mega)', value: 'spacecorp' },
+                    { name: '🎰 Casino Resort (Mega)', value: 'casino' }
+                ))
+            .addStringOption(o => o.setName('id').setDescription('4-digit ID (0000-9999)').setRequired(true).setMinLength(4).setMaxLength(4)))
+        .addSubcommand(s => s.setName('list').setDescription('View all your companies'))
+        .addSubcommand(s => s.setName('types').setDescription('View all available company types'))
+        .addSubcommand(s => s.setName('lookup').setDescription('Lookup companies by username')
+            .addStringOption(o => o.setName('username').setDescription('Username to search').setRequired(true)))
+        .addSubcommand(s => s.setName('lookupcomp').setDescription('View detailed company stats')
+            .addStringOption(o => o.setName('id').setDescription('Full company ID').setRequired(true)))
+        .addSubcommand(s => s.setName('rush').setDescription('Rush profit (30min earlier, +risk)')
+            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
+        .addSubcommand(s => s.setName('slow').setDescription('Skip next profit (-risk)')
+            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
+        .addSubcommand(s => s.setName('clean').setDescription('Clean reputation (-5% risk)')
+            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
+        .addSubcommand(s => s.setName('togglesabotage').setDescription('Enable/disable sabotage mode')
+            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
+        .addSubcommand(s => s.setName('spreaddirt').setDescription('Sabotage a company (+5% risk)')
+            .addStringOption(o => o.setName('id').setDescription('Target company ID').setRequired(true)))
+        .addSubcommand(s => s.setName('resetprofit').setDescription('Reset profit % (when under 5%)')
+            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true))),
+
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()
         .setName('ban')
