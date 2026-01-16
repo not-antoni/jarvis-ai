@@ -583,7 +583,7 @@ async function rushCompany(userId, companyId) {
 
     // Increase risk
     const currentRisk = company.risk || 50;
-    const riskToAdd = typeData.rushRisk || 10;
+    const riskToAdd = (typeData && typeData.rushRisk) ? typeData.rushRisk : 10;
     const newRisk = Math.min(100, currentRisk + riskToAdd);
 
     const col = await getCollection();
@@ -1372,10 +1372,8 @@ async function moderateName(name) {
         const aiManager = require('./ai-providers');
         const prompt = `You are a content moderator. Check if this company name is appropriate for a family-friendly Discord bot economy game. Name: "${name}". Respond with ONLY "ALLOWED" or "BLOCKED: [reason]". No other text.`;
 
-        const result = await aiManager.getResponse(prompt, {
-            maxTokens: 50,
-            systemPrompt: 'You are a strict content moderator. Block anything inappropriate, offensive, sexual, violent, or discriminatory.'
-        });
+        const systemPrompt = 'You are a strict content moderator. Block anything inappropriate, offensive, sexual, violent, or discriminatory.';
+        const result = await aiManager.generateResponse(systemPrompt, prompt, 50);
 
         if (result && result.toUpperCase().startsWith('BLOCKED')) {
             return { allowed: false, reason: result.substring(8).trim() || 'AI flagged as inappropriate' };
