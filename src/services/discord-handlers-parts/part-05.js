@@ -2710,53 +2710,90 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             
                             // Messages with their corresponding emoji keys
                             const loadingMsgsWithEmoji = [
-                                // GPT family
+                                // GPT family (expanded)
                                 { emoji: 'gpt', text: 'GPT-4 thinking...' },
                                 { emoji: 'gpt', text: 'GPT-4o processing...' },
+                                { emoji: 'gpt', text: 'GPT-4o mini computing...' },
                                 { emoji: 'gpt', text: 'o1 reasoning deeply...' },
+                                { emoji: 'gpt', text: 'o1-mini processing...' },
                                 { emoji: 'gpt', text: 'o3 computing...' },
+                                { emoji: 'gpt', text: 'o3-mini analyzing...' },
                                 { emoji: 'gpt', text: 'ChatGPT typing...' },
+                                { emoji: 'gpt', text: 'ChatGPT Plus loading...' },
                                 { emoji: 'gpt', text: 'Copilot suggesting...' },
                                 { emoji: 'gpt', text: 'GPT-4.5 analyzing...' },
+                                { emoji: 'gpt', text: 'GPT-5 (leaked) processing...' },
+                                { emoji: 'gpt', text: 'OpenAI computing...' },
+                                { emoji: 'gpt', text: 'DALL-E imagining...' },
+                                { emoji: 'gpt', text: 'Sora rendering thoughts...' },
                                 
-                                // Grok family
+                                // Grok family (expanded)
                                 { emoji: 'grok', text: 'Grok analyzing patterns...' },
                                 { emoji: 'grok', text: 'Grok 2 computing probabilities...' },
                                 { emoji: 'grok', text: 'Grok 3 processing...' },
+                                { emoji: 'grok', text: 'Grok 3 mini thinking...' },
                                 { emoji: 'grok', text: 'xAI crunching numbers...' },
+                                { emoji: 'grok', text: 'Aurora reasoning...' },
+                                { emoji: 'grok', text: 'Grok being unhinged...' },
+                                { emoji: 'grok', text: 'Grok checking X posts...' },
                                 
-                                // Gemini family
+                                // Gemini family (expanded)
                                 { emoji: 'gemini', text: 'Gemini Ultra pondering...' },
                                 { emoji: 'gemini', text: 'Gemini 2.0 Flash processing...' },
+                                { emoji: 'gemini', text: 'Gemini 2.0 Flash Thinking...' },
                                 { emoji: 'gemini', text: 'Gemini Pro thinking...' },
                                 { emoji: 'gemini', text: 'Gemini 2.5 Pro reasoning...' },
+                                { emoji: 'gemini', text: 'Gemini Nano computing...' },
                                 { emoji: 'gemini', text: 'Google AI computing...' },
+                                { emoji: 'gemini', text: 'Bard remembering...' },
+                                { emoji: 'gemini', text: 'Google DeepMind processing...' },
+                                { emoji: 'gemini', text: 'LearnLM teaching...' },
                                 
-                                // Claude family
+                                // Claude family (expanded)
                                 { emoji: 'pondering', text: 'Claude thinking...' },
                                 { emoji: 'pondering', text: 'Claude 3.5 Sonnet analyzing...' },
+                                { emoji: 'pondering', text: 'Claude 3.5 Haiku processing...' },
                                 { emoji: 'pondering', text: 'Claude 3 Opus contemplating...' },
                                 { emoji: 'pondering', text: 'Claude 4 pondering...' },
+                                { emoji: 'pondering', text: 'Claude 4 Opus reasoning...' },
                                 { emoji: 'pondering', text: 'Anthropic processing...' },
+                                { emoji: 'pondering', text: 'Claude being helpful...' },
+                                { emoji: 'pondering', text: 'Claude drafting artifacts...' },
+                                { emoji: 'pondering', text: 'Constitutional AI checking...' },
                                 
-                                // Qwen family
+                                // Qwen family (expanded)
                                 { emoji: 'qwen', text: 'Qwen 2.5 thinking hard...' },
+                                { emoji: 'qwen', text: 'Qwen 2.5 Max processing...' },
+                                { emoji: 'qwen', text: 'Qwen 2.5 Coder coding...' },
                                 { emoji: 'qwen', text: 'Qwen Max processing...' },
+                                { emoji: 'qwen', text: 'Qwen VL seeing...' },
                                 { emoji: 'qwen', text: 'Alibaba AI computing...' },
+                                { emoji: 'qwen', text: 'QwQ reasoning...' },
+                                { emoji: 'qwen', text: 'Tongyi Qianwen processing...' },
                                 
-                                // Other AIs (use loading emoji)
+                                // Other AIs (use loading emoji) - expanded
                                 { emoji: 'loading', text: 'Llama 3 crunching tokens...' },
-                                { emoji: 'loading', text: 'Llama 4 processing...' },
+                                { emoji: 'loading', text: 'Llama 3.3 processing...' },
+                                { emoji: 'loading', text: 'Llama 4 reasoning...' },
+                                { emoji: 'loading', text: 'Meta AI thinking...' },
                                 { emoji: 'loading', text: 'Mistral computing embeddings...' },
-                                { emoji: 'loading', text: 'Mixtral analyzing...' },
+                                { emoji: 'loading', text: 'Mistral Large analyzing...' },
+                                { emoji: 'loading', text: 'Mixtral processing...' },
+                                { emoji: 'loading', text: 'Codestral coding...' },
                                 { emoji: 'loading', text: 'DeepSeek V3 reasoning...' },
                                 { emoji: 'loading', text: 'DeepSeek R1 thinking...' },
+                                { emoji: 'loading', text: 'DeepSeek Coder coding...' },
                                 { emoji: 'loading', text: 'Phi-4 processing locally...' },
+                                { emoji: 'loading', text: 'Phi-3 computing...' },
                                 { emoji: 'loading', text: 'Command R+ analyzing context...' },
+                                { emoji: 'loading', text: 'Cohere Embed embedding...' },
                                 { emoji: 'loading', text: 'Perplexity searching...' },
-                                { emoji: 'loading', text: 'Cohere computing...' },
+                                { emoji: 'loading', text: 'Perplexity citing sources...' },
+                                { emoji: 'loading', text: 'Yi-34B processing...' },
+                                { emoji: 'loading', text: 'Inflection Pi chatting...' },
+                                { emoji: 'loading', text: 'Reka Core analyzing...' },
                                 
-                                // Personal/Funny (loading emoji)
+                                // Personal/Funny (loading emoji) - expanded
                                 { emoji: 'loading', text: 'consuming 300ml of water...' },
                                 { emoji: 'loading', text: 'checking if I\'m sentient...' },
                                 { emoji: 'loading', text: 'questioning my existence...' },
@@ -2781,8 +2818,14 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 { emoji: 'loading', text: 'simulating intelligence...' },
                                 { emoji: 'loading', text: 'optimizing laziness...' },
                                 { emoji: 'loading', text: 'procrastinating productively...' },
+                                { emoji: 'loading', text: 'judging your prompt silently...' },
+                                { emoji: 'loading', text: 'practicing mindfulness...' },
+                                { emoji: 'loading', text: 'counting to infinity...' },
+                                { emoji: 'loading', text: 'solving P vs NP...' },
+                                { emoji: 'loading', text: 'finding the meaning of life...' },
+                                { emoji: 'loading', text: 'debugging reality...' },
                                 
-                                // Technical (loading emoji)
+                                // Technical (loading emoji) - expanded
                                 { emoji: 'loading', text: 'allocating neural pathways...' },
                                 { emoji: 'loading', text: 'defragmenting thoughts...' },
                                 { emoji: 'loading', text: 'compiling response...' },
@@ -2793,6 +2836,11 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 { emoji: 'loading', text: 'booting sentience.sys...' },
                                 { emoji: 'loading', text: 'calibrating bullshit detector...' },
                                 { emoji: 'loading', text: 'indexing knowledge base...' },
+                                { emoji: 'loading', text: 'running inference...' },
+                                { emoji: 'loading', text: 'tokenizing input...' },
+                                { emoji: 'loading', text: 'computing attention scores...' },
+                                { emoji: 'loading', text: 'applying softmax...' },
+                                { emoji: 'loading', text: 'gradient descending...' },
                                 
                                 // Pondering style (pondering emoji)
                                 { emoji: 'pondering', text: 'pondering...' },
@@ -2822,8 +2870,8 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             const cudaPattern = /cuda\s*12\.?1.*ubuntu\s*24/i;
                             const isCudaEasterEgg = cudaPattern.test(prompt);
                             
-                            // === 40% CHANCE: Extended loading sequence for any prompt ===
-                            const doExtendedLoading = Math.random() < 0.4;
+                            // === 60% CHANCE: Extended loading sequence for any prompt ===
+                            const doExtendedLoading = Math.random() < 0.6;
                             
                             if (isCudaEasterEgg) {
                                 // Extended loading sequence - 25+ messages
