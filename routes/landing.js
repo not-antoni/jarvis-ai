@@ -492,6 +492,7 @@ const LANDING_PAGE = `
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
+            <li><a href="/companies">Companies</a></li>
             <li><a href="/store">Store</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
             <li><a href="/sbx">Economy</a></li>
@@ -646,6 +647,7 @@ const LANDING_PAGE = `
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
             <a href="${DISCORD_INVITE}" target="_blank">Discord</a>
             <a href="/commands">Commands</a>
+            <a href="/companies">Companies</a>
             <a href="/docs">Documentation</a>
             <a href="/status">Status</a>
             <a href="/tos">Terms</a>
