@@ -1470,19 +1470,9 @@ async function playSlots(userId, bet) {
     if (normalizedBet < 10) return { success: false, error: 'Minimum bet is 10 Stark Bucks' };
     if (normalizedBet > user.balance) return { success: false, error: 'Insufficient funds' };
 
-    // Spin the slots (bot owner always gets jackpot)
+    // Spin the slots - 50% base win rate for regular users
+    // Bot owner always gets jackpot
     let results;
-    if (isBotOwner(userId)) {
-        results = ['💎', '💎', '💎']; // Guaranteed jackpot
-    } else {
-        results = [
-            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
-            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
-            SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]
-        ];
-    }
-
-    // Calculate winnings
     let multiplier = 0;
     let resultType = 'loss';
 
@@ -1491,21 +1481,54 @@ async function playSlots(userId, bet) {
             ? ECONOMY_CONFIG.slotsMultipliers
             : { double: 2, triple: 3, jackpot: 10 };
 
-    if (results[0] === results[1] && results[1] === results[2]) {
-        if (results[0] === '💎') {
-            multiplier = slotsMultipliers.jackpot;
-            resultType = 'jackpot';
+    if (isBotOwner(userId)) {
+        results = ['💎', '💎', '💎']; // Guaranteed jackpot
+        multiplier = slotsMultipliers.jackpot;
+        resultType = 'jackpot';
+    } else {
+        // 50% chance to win something
+        const winRoll = Math.random();
+
+        if (winRoll < 0.50) {
+            // Won! Determine tier
+            const tierRoll = Math.random();
+
+            if (tierRoll < 0.02) {
+                // 2% jackpot (1% overall)
+                const symbol = '💎';
+                results = [symbol, symbol, symbol];
+                multiplier = slotsMultipliers.jackpot;
+                resultType = 'jackpot';
+            } else if (tierRoll < 0.18) {
+                // 16% triple (8% overall)
+                const symbol = SLOT_SYMBOLS[Math.floor(Math.random() * (SLOT_SYMBOLS.length - 1))]; // Exclude 💎
+                results = [symbol, symbol, symbol];
+                multiplier = slotsMultipliers.triple;
+                resultType = 'triple';
+            } else {
+                // 82% double (41% overall)
+                const symbol = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+                const other = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+                // Two matching, one different
+                results = [symbol, symbol, other === symbol ? SLOT_SYMBOLS[(SLOT_SYMBOLS.indexOf(other) + 1) % SLOT_SYMBOLS.length] : other];
+                // Shuffle
+                results.sort(() => Math.random() - 0.5);
+                multiplier = slotsMultipliers.double;
+                resultType = 'double';
+            }
         } else {
-            multiplier = slotsMultipliers.triple;
-            resultType = 'triple';
+            // Lost - generate random non-matching results
+            results = [
+                SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
+                SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)],
+                SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]
+            ];
+            // Make sure no two match
+            while (results[0] === results[1] || results[1] === results[2] || results[0] === results[2]) {
+                results[2] = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
+                if (results[0] === results[1]) results[1] = SLOT_SYMBOLS[(SLOT_SYMBOLS.indexOf(results[1]) + 1) % SLOT_SYMBOLS.length];
+            }
         }
-    } else if (
-        results[0] === results[1] ||
-        results[1] === results[2] ||
-        results[0] === results[2]
-    ) {
-        multiplier = slotsMultipliers.double;
-        resultType = 'double';
     }
 
     if (!Number.isFinite(multiplier) || multiplier < 0) {

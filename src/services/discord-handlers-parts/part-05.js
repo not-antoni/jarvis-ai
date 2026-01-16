@@ -1228,6 +1228,64 @@
                             break;
                         }
 
+                        case 'hire': {
+                            const companySearch = interaction.options.getString('id');
+                            const count = interaction.options.getInteger('count') || 1;
+
+                            const result = await starkCompanies.hireWorkers(
+                                interaction.user.id,
+                                companySearch,
+                                count
+                            );
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            const embed = new EmbedBuilder()
+                                .setTitle('👷 Workers Hired!')
+                                .setDescription(`Hired **${result.hired}** workers!`)
+                                .setColor(0x2ecc71)
+                                .addFields(
+                                    { name: '💰 Cost', value: `${starkCompanies.formatCompact(result.cost)} SB`, inline: true },
+                                    { name: '👥 Total Workers', value: `${result.totalWorkers}/${starkCompanies.WORKERS.MAX_PER_COMPANY}`, inline: true },
+                                    { name: '📈 Profit Boost', value: `+${result.profitBoost}%`, inline: true }
+                                )
+                                .setFooter({ text: 'Workers increase profits but cost maintenance every 2h!' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
+                        case 'partner': {
+                            const myCompanySearch = interaction.options.getString('mycompany');
+                            const partnerCompanyId = interaction.options.getString('partnercompany');
+
+                            const result = await starkCompanies.createPartnership(
+                                interaction.user.id,
+                                myCompanySearch,
+                                partnerCompanyId
+                            );
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            const embed = new EmbedBuilder()
+                                .setTitle('🤝 Partnership Created!')
+                                .setDescription(`**${result.myCompany}** partnered with **${result.partnerCompany}**!`)
+                                .setColor(0x9b59b6)
+                                .addFields(
+                                    { name: '👤 Partner Owner', value: result.partnerOwner, inline: true },
+                                    { name: '💰 Cost', value: `${starkCompanies.formatCompact(result.cost)} SB`, inline: true },
+                                    { name: '📈 Profit Boost', value: `+${result.profitBoost}%`, inline: true }
+                                )
+                                .setFooter({ text: 'Both companies benefit from this partnership!' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
                         default:
                             response = '❌ Unknown company subcommand.';
                     }

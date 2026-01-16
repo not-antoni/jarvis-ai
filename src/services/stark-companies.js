@@ -35,10 +35,10 @@ const COMPANY_TYPES = {
         id: 'fastfood',
         name: '🍔 Fast Food Place',
         tier: 'basic',
-        price: 50000,           // 50K to buy
-        maintenance: 250,       // 250 every 6h
+        price: 500000,          // 500K to buy
+        maintenance: 5000,      // 5K every 2h
         defaultRisk: 45,        // Slightly risky
-        defaultProfit: 2500,    // 2.5K per hour
+        defaultProfit: 15000,   // 15K per hour
         rushRisk: 8,            // +8% risk on rush
         slowRisk: -4,           // -4% risk on slow
         events: {
@@ -56,10 +56,10 @@ const COMPANY_TYPES = {
         id: 'coffeeshop',
         name: '☕ Coffee Shop',
         tier: 'basic',
-        price: 45000,
-        maintenance: 200,
+        price: 650000,          // 650K to buy
+        maintenance: 6000,      // 6K every 2h
         defaultRisk: 50,
-        defaultProfit: 2000,
+        defaultProfit: 18000,   // 18K per hour
         rushRisk: 6,
         slowRisk: -3,
         events: {
@@ -77,10 +77,10 @@ const COMPANY_TYPES = {
         id: 'pizzeria',
         name: '🍕 Pizzeria',
         tier: 'basic',
-        price: 55000,
-        maintenance: 300,
+        price: 750000,          // 750K to buy
+        maintenance: 7000,      // 7K every 2h
         defaultRisk: 48,
-        defaultProfit: 2800,
+        defaultProfit: 20000,   // 20K per hour
         rushRisk: 7,
         slowRisk: -4,
         events: {
@@ -100,10 +100,10 @@ const COMPANY_TYPES = {
         id: 'techstartup',
         name: '💻 Tech Startup',
         tier: 'small',
-        price: 150000,
-        maintenance: 1000,
+        price: 2500000,         // 2.5M to buy
+        maintenance: 25000,     // 25K every 2h
         defaultRisk: 40,        // Higher risk = more volatile
-        defaultProfit: 8000,
+        defaultProfit: 80000,   // 80K per hour
         rushRisk: 10,
         slowRisk: -5,
         events: {
@@ -121,10 +121,10 @@ const COMPANY_TYPES = {
         id: 'boutique',
         name: '👗 Boutique Store',
         tier: 'small',
-        price: 120000,
-        maintenance: 800,
+        price: 2000000,         // 2M to buy
+        maintenance: 20000,     // 20K every 2h
         defaultRisk: 52,
-        defaultProfit: 6500,
+        defaultProfit: 65000,   // 65K per hour
         rushRisk: 8,
         slowRisk: -4,
         events: {
@@ -142,10 +142,10 @@ const COMPANY_TYPES = {
         id: 'gym',
         name: '💪 Fitness Gym',
         tier: 'small',
-        price: 180000,
-        maintenance: 1200,
+        price: 3000000,         // 3M to buy
+        maintenance: 30000,     // 30K every 2h
         defaultRisk: 55,
-        defaultProfit: 9000,
+        defaultProfit: 90000,   // 90K per hour
         rushRisk: 9,
         slowRisk: -5,
         events: {
@@ -165,10 +165,10 @@ const COMPANY_TYPES = {
         id: 'factory',
         name: '🏭 Manufacturing Factory',
         tier: 'large',
-        price: 500000,
-        maintenance: 5000,
+        price: 15000000,        // 15M to buy
+        maintenance: 150000,    // 150K every 2h
         defaultRisk: 45,
-        defaultProfit: 25000,
+        defaultProfit: 500000,  // 500K per hour
         rushRisk: 12,
         slowRisk: -6,
         events: {
@@ -186,10 +186,10 @@ const COMPANY_TYPES = {
         id: 'hotel',
         name: '🏨 Hotel Chain',
         tier: 'large',
-        price: 750000,
-        maintenance: 8000,
+        price: 20000000,        // 20M to buy
+        maintenance: 200000,    // 200K every 2h
         defaultRisk: 50,
-        defaultProfit: 35000,
+        defaultProfit: 700000,  // 700K per hour
         rushRisk: 10,
         slowRisk: -5,
         events: {
@@ -207,10 +207,10 @@ const COMPANY_TYPES = {
         id: 'shoppingmall',
         name: '🛒 Shopping Mall',
         tier: 'large',
-        price: 1000000,
-        maintenance: 10000,
+        price: 25000000,        // 25M to buy
+        maintenance: 250000,    // 250K every 2h
         defaultRisk: 48,
-        defaultProfit: 45000,
+        defaultProfit: 900000,  // 900K per hour
         rushRisk: 11,
         slowRisk: -6,
         events: {
@@ -230,10 +230,10 @@ const COMPANY_TYPES = {
         id: 'mediaempire',
         name: '📺 Media Empire',
         tier: 'mega',
-        price: 5000000,
-        maintenance: 50000,
+        price: 100000000,       // 100M to buy
+        maintenance: 1000000,   // 1M every 2h
         defaultRisk: 42,
-        defaultProfit: 200000,
+        defaultProfit: 5000000, // 5M per hour
         rushRisk: 15,
         slowRisk: -8,
         events: {
@@ -251,10 +251,10 @@ const COMPANY_TYPES = {
         id: 'spacecorp',
         name: '🚀 Space Corporation',
         tier: 'mega',
-        price: 10000000,
-        maintenance: 100000,
+        price: 200000000,       // 200M to buy
+        maintenance: 2000000,   // 2M every 2h
         defaultRisk: 35,        // Very risky
-        defaultProfit: 500000,
+        defaultProfit: 10000000, // 10M per hour
         rushRisk: 18,
         slowRisk: -10,
         events: {
@@ -272,10 +272,10 @@ const COMPANY_TYPES = {
         id: 'casino',
         name: '🎰 Casino Resort',
         tier: 'mega',
-        price: 8000000,
-        maintenance: 80000,
+        price: 150000000,       // 150M to buy
+        maintenance: 1500000,   // 1.5M every 2h
         defaultRisk: 50,
-        defaultProfit: 350000,
+        defaultProfit: 7000000, // 7M per hour
         rushRisk: 14,
         slowRisk: -7,
         events: {
@@ -297,8 +297,8 @@ const COMPANY_TYPES = {
 
 const TIMING = {
     PROFIT_INTERVAL: 60 * 60 * 1000,        // 1 hour
-    MAINTENANCE_INTERVAL: 6 * 60 * 60 * 1000, // 6 hours
-    TAX_INTERVAL: 12 * 60 * 60 * 1000,      // 12 hours
+    MAINTENANCE_INTERVAL: 2 * 60 * 60 * 1000, // 2 hours (changed from 6h)
+    TAX_INTERVAL: 2 * 60 * 60 * 1000,       // 2 hours (user request)
     RUSH_ADVANCE: 30 * 60 * 1000,           // 30 minutes
     SABOTAGE_ENABLE_DELAY: 30 * 60 * 1000,  // 30 minutes to enable
     SABOTAGE_VULNERABILITY_DELAY: 2.5 * 60 * 1000, // 2.5 minutes after enable
@@ -306,12 +306,37 @@ const TIMING = {
     SPREADDIRT_COOLDOWN: 5 * 60 * 1000,     // 5 minutes
     LOW_PROFIT_THRESHOLD: 5,                // 5% profit = low
     BANKRUPTCY_HOURS: 24,                   // 24 hours at 0% = bankruptcy
-    PROFIT_DECAY_PER_CYCLE: 5               // -5% per 6h cycle if can't pay maintenance
+    PROFIT_DECAY_PER_CYCLE: 5               // -5% per cycle if can't pay maintenance
 };
 
 const TAX = {
     BASE_RATE: 75,
-    MIN_RATE: 25
+    MIN_RATE: 25,
+    // Balance tax tiers (additional tax based on SB balance)
+    BALANCE_TIERS: [
+        { min: 0, rate: 0 },           // 0-100K: 0%
+        { min: 100000, rate: 5 },      // 100K-1M: +5%
+        { min: 1000000, rate: 10 },    // 1M-10M: +10%
+        { min: 10000000, rate: 15 },   // 10M-100M: +15%
+        { min: 100000000, rate: 20 },  // 100M-1B: +20%
+        { min: 1000000000, rate: 30 }  // 1B+: +30%
+    ],
+    // Company tax tiers (based on total company value)
+    COMPANY_TIERS: [
+        { min: 0, rate: 0 },
+        { min: 1000000, rate: 5 },     // 1M+: +5%
+        { min: 10000000, rate: 10 },   // 10M+: +10%
+        { min: 100000000, rate: 15 },  // 100M+: +15%
+        { min: 500000000, rate: 25 }   // 500M+: +25%
+    ]
+};
+
+// Worker efficiency: more workers = more profit but more cost
+const WORKERS = {
+    MAX_PER_COMPANY: 100,
+    COST_PER_WORKER: 10000,     // 10K per worker per 2h
+    PROFIT_BOOST_PER_WORKER: 1, // +1% profit per worker
+    MAX_PROFIT_BOOST: 50        // Max +50% from workers
 };
 
 // ============================================================================
@@ -878,6 +903,141 @@ async function calculateBalanceTax(userId) {
 }
 
 /**
+ * Calculate company tax based on total company value
+ */
+async function calculateCompanyTax(userId) {
+    const companies = await getUserCompanies(userId);
+    if (companies.length === 0) return 0;
+
+    // Sum up total company value
+    let totalValue = 0;
+    for (const company of companies) {
+        const typeData = COMPANY_TYPES[company.type];
+        if (typeData) {
+            totalValue += typeData.price;
+        } else if (company.isCustom) {
+            totalValue += 50000000; // Ultra tier value
+        }
+    }
+
+    // Find applicable tier
+    let tax = 0;
+    for (const tier of TAX.COMPANY_TIERS) {
+        if (totalValue >= tier.min) {
+            tax = tier.rate;
+        }
+    }
+    return tax;
+}
+
+/**
+ * Hire workers for a company
+ * More workers = more profit but higher costs
+ */
+async function hireWorkers(userId, companyIdOrSearch, count) {
+    const company = await findCompanyFlexible(userId, companyIdOrSearch);
+    if (!company) return { success: false, error: 'Company not found.' };
+    if (company.ownerId !== userId) return { success: false, error: 'You don\'t own this company' };
+
+    const currentWorkers = company.workers || 0;
+    const newTotal = currentWorkers + count;
+
+    if (count < 1 || count > 50) {
+        return { success: false, error: 'You can hire 1-50 workers at a time' };
+    }
+
+    if (newTotal > WORKERS.MAX_PER_COMPANY) {
+        return { success: false, error: `Max ${WORKERS.MAX_PER_COMPANY} workers per company. You have ${currentWorkers}.` };
+    }
+
+    // Calculate hiring cost (one-time cost)
+    const hiringCost = count * WORKERS.COST_PER_WORKER * 10; // 10x per-cycle cost for hiring
+
+    const starkEconomy = require('./stark-economy');
+    const balance = await starkEconomy.getBalance(userId);
+    if (balance < hiringCost) {
+        return { success: false, error: `Need ${formatCompact(hiringCost)} SB to hire ${count} workers` };
+    }
+
+    await starkEconomy.modifyBalance(userId, -hiringCost, 'hire_workers');
+
+    const col = await getCollection();
+    await col.updateOne(
+        { id: company.id },
+        { $set: { workers: newTotal, updatedAt: new Date() } }
+    );
+
+    const profitBoost = Math.min(newTotal * WORKERS.PROFIT_BOOST_PER_WORKER, WORKERS.MAX_PROFIT_BOOST);
+
+    return {
+        success: true,
+        hired: count,
+        totalWorkers: newTotal,
+        cost: hiringCost,
+        profitBoost
+    };
+}
+
+/**
+ * Create partnership between two companies
+ */
+async function createPartnership(userId, myCompanySearch, partnerCompanyId) {
+    const myCompany = await findCompanyFlexible(userId, myCompanySearch);
+    if (!myCompany) return { success: false, error: 'Your company not found.' };
+    if (myCompany.ownerId !== userId) return { success: false, error: 'You don\'t own this company' };
+
+    const partnerCompany = await getCompany(partnerCompanyId);
+    if (!partnerCompany) return { success: false, error: 'Partner company not found.' };
+    if (partnerCompany.ownerId === userId) return { success: false, error: 'Cannot partner with your own company' };
+
+    // Check if already partnered
+    const partnerships = myCompany.partnerships || [];
+    if (partnerships.includes(partnerCompanyId)) {
+        return { success: false, error: 'Already partnered with this company' };
+    }
+
+    // Max 5 partnerships per company
+    if (partnerships.length >= 5) {
+        return { success: false, error: 'Max 5 partnerships per company' };
+    }
+
+    // Partnership cost based on both company values
+    const myTypeData = COMPANY_TYPES[myCompany.type];
+    const partnerTypeData = COMPANY_TYPES[partnerCompany.type];
+    const myValue = myTypeData?.price || 50000000;
+    const partnerValue = partnerTypeData?.price || 50000000;
+    const partnershipCost = Math.floor((myValue + partnerValue) * 0.05); // 5% of combined value
+
+    const starkEconomy = require('./stark-economy');
+    const balance = await starkEconomy.getBalance(userId);
+    if (balance < partnershipCost) {
+        return { success: false, error: `Need ${formatCompact(partnershipCost)} SB for partnership` };
+    }
+
+    await starkEconomy.modifyBalance(userId, -partnershipCost, 'create_partnership');
+
+    // Add partnership to both companies
+    const col = await getCollection();
+    await col.updateOne(
+        { id: myCompany.id },
+        { $push: { partnerships: partnerCompanyId }, $set: { updatedAt: new Date() } }
+    );
+    await col.updateOne(
+        { id: partnerCompany.id },
+        { $push: { partnerships: myCompany.id }, $set: { updatedAt: new Date() } }
+    );
+
+    return {
+        success: true,
+        myCompany: myCompany.displayName,
+        partnerCompany: partnerCompany.displayName,
+        partnerOwner: partnerCompany.ownerName,
+        cost: partnershipCost,
+        profitBoost: 10 // +10% profit boost from partnership
+    };
+}
+
+/**
  * Update company properties (description, image, display name)
  * Available for all companies, not just custom
  */
@@ -1318,6 +1478,12 @@ module.exports = {
     resetProfit,
     deleteCompany,
     updateCompany,
+
+    // Workers & Partnerships
+    hireWorkers,
+    createPartnership,
+    calculateCompanyTax,
+    WORKERS,
 
     // Lookup
     lookupByUsername,

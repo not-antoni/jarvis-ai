@@ -2230,7 +2230,13 @@ const allCommands = [
             .addStringOption(o => o.setName('id').setDescription('Company ID, 4-digit code, or name').setRequired(true))
             .addStringOption(o => o.setName('description').setDescription('Company description (max 500 chars)').setRequired(false))
             .addStringOption(o => o.setName('image').setDescription('Image URL (.png, .jpg, .gif, .webp)').setRequired(false))
-            .addStringOption(o => o.setName('name').setDescription('New name (custom companies only)').setRequired(false))),
+            .addStringOption(o => o.setName('name').setDescription('New name (custom companies only)').setRequired(false)))
+        .addSubcommand(s => s.setName('hire').setDescription('Hire workers (+1% profit per worker)')
+            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true))
+            .addIntegerOption(o => o.setName('count').setDescription('Number of workers (1-50)').setRequired(false).setMinValue(1).setMaxValue(50)))
+        .addSubcommand(s => s.setName('partner').setDescription('Create partnership with another company')
+            .addStringOption(o => o.setName('mycompany').setDescription('Your company ID').setRequired(true))
+            .addStringOption(o => o.setName('partnercompany').setDescription('Partner company full ID').setRequired(true))),
 
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()
