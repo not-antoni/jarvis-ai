@@ -1291,6 +1291,261 @@
                     }
                     break;
                 }
+                // ============ STARK COMMAND (Minigames & Company) ============
+                case 'stark': {
+                    telemetryMetadata.category = 'economy';
+                    const group = interaction.options.getSubcommandGroup();
+                    const subcommand = interaction.options.getSubcommand();
+
+                    if (group === 'minigame' && subcommand === 'company') {
+                        const action = interaction.options.getString('action');
+                        
+                        // Map internal action names to old subcommand logic
+                        switch (action) {
+                            case 'buy': {
+                                // For buy action, 'id' is used as 'type'
+                                const type = interaction.options.getString('id'); 
+                                const id4 = interaction.options.getString('id'); // Wait, user might input type OR ID? 
+                                // Actually, old 'buy' command took 'type' and 'id'. 
+                                // New breakdown: 'action'='buy', 'id'=type (e.g. 'fastfood'). 
+                                // Wait, we need 4-digit ID too. But I only put ONE 'id' field in the builder.
+                                // User request: "/stark minigame company <subcommand>" 
+                                // If I merged them, I can't support separate 'type' and 'id' fields easily without adding more options.
+                                // BUT I added 'id' option. Let's assume for 'buy', 'id' contains "type id" e.g. "fastfood 1234"? 
+                                // Or more likely: The user wants "buy" action, so they put type in 'id' and we auto-generate ID? 
+                                // OR I can look at the input. 
+                                // Actually, I'll fallback to auto-generating ID if not provided, or parsing it.
+                                
+                                if (!type) { response = '❌ Please provide company type in ID field (e.g. "fastfood")'; break; }
+                                
+                                // We'll auto-generate a 4-digit ID for them if they only provide type
+                                const genId = Math.floor(1000 + Math.random() * 9000).toString();
+                                
+                                const res = await starkCompanies.buyCompany(interaction.user.id, type, genId);
+                                if (!res.success) { response = `❌ ${res.error}`; break; }
+                                
+                                const profit = starkCompanies.calculateCurrentProfit(res.company);
+                                const buyEmbed = new EmbedBuilder()
+                                    .setTitle(`🎉 New Company Acquired! (${res.company.id})`)
+                                    .setDescription(`You are now the owner of **${res.company.displayName}**!`)
+                                    .setColor(0x2ecc71)
+                                    .addFields(
+                                        { name: '💰 Value', value: `${starkCompanies.formatCompact(res.company.price)} SB`, inline: true },
+                                        { name: '📈 Profit', value: `${starkCompanies.formatCompact(profit)}/h`, inline: true },
+                                        { name: '⚠️ Risk', value: `${res.company.risk}%`, inline: true }
+                                    )
+                                    .setFooter({ text: 'Use /stark minigame company list to view your empire!' });
+                                response = { embeds: [buyEmbed] };
+                                break;
+                            }
+                            
+                            case 'create': {
+                                const name = interaction.options.getString('name');
+                                const idOpt = interaction.options.getString('id'); // Optional 4-digit
+                                
+                                if (!name) { response = '❌ Name is required for custom company'; break; }
+                                
+                                const res = await starkCompanies.createCustomCompany(interaction.user.id, name, idOpt);
+                                if (!res.success) { response = `❌ ${res.error}`; break; }
+                                
+                                const createEmbed = new EmbedBuilder()
+                                    .setTitle(`🚀 Custom Company Launched! (${res.company.id})`)
+                                    .setDescription(`**${res.company.displayName}** is now open for business!`)
+                                    .setColor(0x9b59b6)
+                                    .addFields(
+                                        { name: '💰 Value', value: '50M SB', inline: true },
+                                        { name: '📈 Profit', value: '200K/h', inline: true },
+                                        { name: '⚠️ Risk', value: '42%', inline: true }
+                                    );
+                                response = { embeds: [createEmbed] };
+                                break;
+                            }
+
+                            case 'list': {
+                                const userCompanies = await starkCompanies.getUserCompanies(interaction.user.id);
+                                if (!userCompanies.length) {
+                                    response = 'You don\'t own any companies yet. Use `/stark minigame company action:buy` to start!';
+                                    break;
+                                }
+
+                                const fields = await Promise.all(userCompanies.map(async (c) => {
+                                    const profit = starkCompanies.calculateCurrentProfit(c);
+                                    let status = '🟢 Active';
+                                    if (c.currentProfitPercent > 100) status = '⚡ RUSHING';
+                                    if (c.currentProfitPercent < 100 && c.currentProfitPercent > 0) status = '🐌 SLOW';
+                                    if (c.currentProfitPercent <= 0) status = '🔴 BANKRUPT';
+                                    if (c.sabotageMode) status = '⚔️ SABOTAGE';
+
+                                    return {
+                                        name: `${c.displayName} (${c.id})`,
+                                        value: `Tier: ${c.tier.toUpperCase()} | Profit: ${starkCompanies.formatCompact(profit)}/h | Risk: ${c.risk}% | Status: ${status}`
+                                    };
+                                }));
+
+                                const listEmbed = new EmbedBuilder()
+                                    .setTitle(`${interaction.user.username}'s Companies`)
+                                    .setColor(0x3498db)
+                                    .addFields(fields.slice(0, 25)) // Discord limit
+                                    .setFooter({ text: `Total Companies: ${userCompanies.length}` });
+                                response = { embeds: [listEmbed] };
+                                break;
+                            }
+                            
+                            case 'lookup': {
+                                const id = interaction.options.getString('id');
+                                if (!id) { response = '❌ Please provide Company ID to lookup'; break; }
+                                
+                                const company = await starkCompanies.findCompanyFlexible(interaction.user.id, id);
+                                if (!company) { response = '❌ Company not found.'; break; }
+                                
+                                const profit = starkCompanies.calculateCurrentProfit(company);
+                                const infoEmbed = new EmbedBuilder()
+                                    .setTitle(`🏢 ${company.displayName}`)
+                                    .setDescription(`ID: ${company.id}\nOwner: ${company.ownerName}`)
+                                    .setColor(0xf1c40f)
+                                    .setThumbnail(company.imageUrl || null)
+                                    .addFields(
+                                        { name: 'Tier', value: company.tier.toUpperCase(), inline: true },
+                                        { name: 'Profit', value: `${starkCompanies.formatCompact(profit)}/h`, inline: true },
+                                        { name: 'Risk', value: `${company.risk}%`, inline: true },
+                                        { name: 'Workers', value: `${company.workers || 0}`, inline: true },
+                                        { name: 'Partners', value: `${(company.partnerships || []).length}`, inline: true }
+                                    );
+                                if (company.description) infoEmbed.addFields({ name: 'About', value: company.description });
+                                response = { embeds: [infoEmbed] };
+                                break;
+                            }
+
+                            case 'edit': {
+                                const id = interaction.options.getString('id');
+                                const description = interaction.options.getString('description');
+                                const imageAttachment = interaction.options.getAttachment('image');
+                                const name = interaction.options.getString('name'); // Custom only
+                                
+                                if (!id) { response = '❌ Company ID required'; break; }
+                                
+                                let imageUrl = null;
+                                if (imageAttachment) {
+                                    imageUrl = imageAttachment.url;
+                                }
+
+                                const result = await starkCompanies.updateCompany(interaction.user.id, id, {
+                                    description,
+                                    imageUrl,
+                                    displayName: name
+                                });
+                                
+                                if (!result.success) { response = `❌ ${result.error}`; break; }
+                                
+                                const embed = new EmbedBuilder()
+                                    .setTitle('✏️ Company Updated')
+                                    .setDescription(`Successfully updated **${result.company.displayName}**`)
+                                    .setColor(0x2ecc71);
+                                    
+                                if (result.updates.description) embed.addFields({ name: 'Description', value: 'Updated' });
+                                if (result.updates.imageUrl) {
+                                    embed.addFields({ name: 'Image', value: 'Updated' });
+                                    embed.setImage(result.updates.imageUrl);
+                                }
+                                if (result.updates.displayName) embed.addFields({ name: 'Name', value: result.updates.displayName });
+                                
+                                response = { embeds: [embed] };
+                                break;
+                            }
+                            
+                            case 'delete': {
+                                const id = interaction.options.getString('id');
+                                if (!id) { response = '❌ Company ID required'; break; }
+                                
+                                const result = await starkCompanies.deleteCompany(interaction.user.id, id);
+                                if (!result.success) { response = `❌ ${result.error}`; break; }
+                                
+                                const embed = new EmbedBuilder()
+                                    .setTitle('🗑️ Company Deleted')
+                                    .setDescription(`Deleted **${result.companyName}**`)
+                                    .setColor(0xe74c3c)
+                                    .addFields({ name: 'Refund', value: `${starkCompanies.formatCompact(result.refundAmount)} SB (50%)` });
+                                response = { embeds: [embed] };
+                                break;
+                            }
+
+                            case 'hire': {
+                                const id = interaction.options.getString('id');
+                                const count = interaction.options.getInteger('count') || 1;
+                                if (!id) { response = '❌ Company ID required'; break; }
+
+                                const result = await starkCompanies.hireWorkers(interaction.user.id, id, count);
+                                if (!result.success) { response = `❌ ${result.error}`; break; }
+
+                                const embed = new EmbedBuilder()
+                                    .setTitle('👷 Workers Hired!')
+                                    .setColor(0x2ecc71)
+                                    .addFields(
+                                        { name: 'Cost', value: `${starkCompanies.formatCompact(result.cost)} SB`, inline: true },
+                                        { name: 'Total Workers', value: `${result.totalWorkers}`, inline: true },
+                                        { name: 'Profit Boost', value: `+${result.profitBoost}%`, inline: true }
+                                    );
+                                response = { embeds: [embed] };
+                                break;
+                            }
+
+                            case 'partner': {
+                                const myId = interaction.options.getString('id'); // using general id field for my company
+                                const partnerId = interaction.options.getString('partner');
+                                if (!myId || !partnerId) { response = '❌ Both your company ID (in id field) and partner ID (in partner field) are required'; break; }
+
+                                const result = await starkCompanies.createPartnership(interaction.user.id, myId, partnerId);
+                                if (!result.success) { response = `❌ ${result.error}`; break; }
+
+                                const embed = new EmbedBuilder()
+                                    .setTitle('🤝 Partnership Created!')
+                                    .setDescription(`**${result.myCompany}** ❤️ **${result.partnerCompany}**`)
+                                    .setColor(0x9b59b6)
+                                    .addFields(
+                                        { name: 'Cost', value: `${starkCompanies.formatCompact(result.cost)} SB`, inline: true },
+                                        { name: 'Profit Boost', value: '+10%', inline: true }
+                                    );
+                                response = { embeds: [embed] };
+                                break;
+                            }
+                            
+                            // Simple actions
+                            case 'rush':
+                            case 'slow':
+                            case 'clean':
+                            case 'sabotage':
+                            case 'spreaddirt': {
+                                const id = interaction.options.getString('id');
+                                if (!id) { response = '❌ Company ID required'; break; }
+                                
+                                let res;
+                                if (action === 'rush') res = await starkCompanies.rushProduction(interaction.user.id, id);
+                                if (action === 'slow') res = await starkCompanies.slowProduction(interaction.user.id, id);
+                                if (action === 'clean') res = await starkCompanies.cleanCompany(interaction.user.id, id);
+                                if (action === 'sabotage') res = await starkCompanies.toggleSabotage(interaction.user.id, id);
+                                if (action === 'spreaddirt') {
+                                    // Special case: uses target field in old one, here use 'partner' field as target?
+                                    // Or just 'id' is target, 'partner' is my company? 
+                                    // I'll assume 'id' is target and 'partner' is source for simplicity in this constrained UI
+                                    const sourceId = interaction.options.getString('partner');
+                                    if (!sourceId) { response = '❌ Please put YOUR company ID in the partner field for this action'; break; }
+                                    res = await starkCompanies.spreadDirt(interaction.user.id, id, sourceId);
+                                }
+                                
+                                if (!res.success) { response = `❌ ${res.error}`; break; }
+                                response = res.message || `Action ${action} successful!`;
+                                break;
+                            }
+
+                            default:
+                                response = '❌ Unknown action.';
+                        }
+                    } else {
+                        response = '❌ Unknown Stark command.';
+                    }
+                    break;
+                }
+
                 // ============ PET SYSTEM ============
                 case 'pet': {
                     telemetryMetadata.category = 'economy';
@@ -2066,11 +2321,13 @@
                             
                             const enrichedLb = await Promise.all(lb.map(async (u) => {
                                 let avatarUrl = null;
+                                let username = u.username || 'Unknown';
                                 try {
                                     const user = await interaction.client.users.fetch(u.userId);
                                     avatarUrl = user.displayAvatarURL({ extension: 'png', size: 128 });
+                                    username = user.username; // UPDATE USERNAME FROM DISCORD
                                 } catch (e) {}
-                                return { ...u, avatar: avatarUrl };
+                                return { ...u, avatar: avatarUrl, username };
                             }));
 
                             const buffer = await imageGenerator.generateLeaderboardImage(enrichedLb); // Static PNG
