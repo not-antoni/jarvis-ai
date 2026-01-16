@@ -1134,7 +1134,7 @@ async function updateCompany(userId, companyIdOrSearch, updates) {
     }
 
     // Update display name (only for custom companies)
-    if (updates.displayName !== undefined && company.isCustom) {
+    if (updates.displayName && company.isCustom) {
         if (!updates.displayName || updates.displayName.length < 3 || updates.displayName.length > 30) {
             return { success: false, error: 'Display name must be 3-30 characters' };
         }
