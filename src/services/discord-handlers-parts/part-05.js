@@ -1435,21 +1435,15 @@
                                         const response = await fetch(imageAttachment.url);
                                         if (!response.ok) throw new Error('Failed to fetch image');
                                         const buffer = await response.buffer();
-                                        const ext = path.extname(imageAttachment.name) || '.png';
-                                        // Sanitize filename
-                                        const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
-                                        const filename = `${safeId}_${Date.now()}${ext}`;
-                                        
-                                        const uploadDir = path.join(process.cwd(), 'uploads', 'companies');
-                                        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-                                        
-                                        fs.writeFileSync(path.join(uploadDir, filename), buffer);
-                                        imageUrl = `/uploads/companies/${filename}`;
+                                        const mimeType = response.headers.get('content-type') || 'image/png';
+                                        const base64 = buffer.toString('base64');
+                                        imageUrl = `data:${mimeType};base64,${base64}`;
                                     } catch (err) {
-                                        console.error('Failed to download company image:', err);
+                                        console.error('Failed to process image attachment:', err);
                                         response = '❌ Failed to process image attachment.'; 
                                         break;
                                     }
+                                }
                                 }
 
                                 const result = await starkCompanies.updateCompany(interaction.user.id, id, {
