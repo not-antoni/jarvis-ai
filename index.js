@@ -2702,6 +2702,9 @@ app.get('/api/stats', async (req, res) => {
     }
 });
 
+// Mount companies router
+app.use('/companies', require('./routes/companies'));
+
 // Mount landing page (must be last to not override other routes)
 const landingRouter = require('./routes/landing');
 app.use('/', landingRouter);
