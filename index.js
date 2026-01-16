@@ -2613,6 +2613,8 @@ app.get('/jarvis.webp', (req, res) => {
 
 // Serve uploaded news images
 app.use('/uploads/news', express.static(path.join(__dirname, 'uploads/news')));
+// Serve uploaded company images
+app.use('/uploads/companies', express.static(path.join(__dirname, 'uploads/companies')));
 
 // Serve screenshots for landing page
 app.get('/screenshot-1.png', (req, res) => {
