@@ -2676,6 +2676,64 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             // Stop the initial loading animation
                             clearInterval(loadingInterval);
                             
+                            // === EASTER EGG: CUDA 12.1 Ubuntu 24.04 ===
+                            const cudaPattern = /cuda\s*12\.?1.*ubuntu\s*24/i;
+                            const isCudaEasterEgg = cudaPattern.test(prompt);
+                            
+                            if (isCudaEasterEgg) {
+                                const loadingEmoji = '<a:loading:1452765129652310056>';
+                                const ponderingEmoji = '<a:pondering:1461691899470418043>';
+                                
+                                // Phase 1: AI Model Loading Messages (with loading emoji)
+                                const aiLoadingMsgs = [
+                                    'GPT-4 thinking...', 'GPT-4o processing...', 'o1 reasoning...',
+                                    'Grok analyzing...', 'Grok 2 computing...', 
+                                    'Gemini Ultra pondering...', 'Gemini 2.0 Flash processing...',
+                                    'Claude thinking...', 'Claude 3.5 Sonnet processing...',
+                                    'Llama 3 crunching...', 'Mistral computing...',
+                                    'Consulting NVIDIA documentation...', 'Parsing apt repositories...',
+                                    'Checking driver compatibility...', 'Verifying CUDA toolkit...',
+                                    'Cross-referencing Stack Overflow...', 'Analyzing GitHub issues...',
+                                    'DeepSeek V3 reasoning...', 'Qwen 2.5 thinking...',
+                                    'Phi-4 processing...', 'Command R+ analyzing...'
+                                ];
+                                
+                                // Shuffle and cycle through
+                                for (let i = 0; i < 12; i++) {
+                                    const msg = aiLoadingMsgs[Math.floor(Math.random() * aiLoadingMsgs.length)];
+                                    try {
+                                        await interaction.editReply(`${loadingEmoji} ${msg}`);
+                                    } catch (e) { /* ignore */ }
+                                    await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+                                }
+                                
+                                // Phase 2: Claude/Pondering Messages (with pondering emoji)
+                                const ponderingMsgs = [
+                                    'pondering...', 'stand by...', 'please wait...',
+                                    'almost there...', 'this is taking longer than usual...',
+                                    'still thinking...', 'just a moment...', 'processing deeply...',
+                                    'contemplating...', 'nearly done...', 'one moment please...'
+                                ];
+                                
+                                for (let i = 0; i < 8; i++) {
+                                    const msg = ponderingMsgs[i % ponderingMsgs.length];
+                                    try {
+                                        await interaction.editReply(`${ponderingEmoji} ${msg}`);
+                                    } catch (e) { /* ignore */ }
+                                    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
+                                }
+                                
+                                // Final dramatic pause
+                                await new Promise(r => setTimeout(r, 2000));
+                                
+                                // The punchline
+                                const finalHeader = `**🧠 Sentient Thought** (Mood: ${soul.mood || 'neutral'} | Sass: 100% | Thought for: 27 hours and 42 seconds)`;
+                                await interaction.editReply(`${finalHeader}\n\nI don't really know`);
+                                
+                                response = '__SENTIENT_HANDLED__';
+                                return response;
+                            }
+                            
                             // FEATURE: Casual Mode (20% chance or if explicitly requested)
                             const isCasual = Math.random() < 0.2 || prompt.toLowerCase().includes('casual');
                             
