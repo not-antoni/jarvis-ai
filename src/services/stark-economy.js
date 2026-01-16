@@ -1429,6 +1429,10 @@ async function gamble(userId, amount) {
     // Arc Reactor gambling bonus (+5%)
     winRate += arcPerks.gamblingBonus;
 
+    // Cap win rate at 60% max for regular users (bot owner bypasses)
+    const MAX_WIN_RATE = 0.60;
+    winRate = Math.min(winRate, MAX_WIN_RATE);
+
     // Bot owner always wins
     const won = isBotOwner(userId) ? true : Math.random() < winRate;
     const change = won ? amount : -amount;
