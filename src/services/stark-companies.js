@@ -967,6 +967,160 @@ function stopScheduler() {
 }
 
 // ============================================================================
+// CUSTOM COMPANY CREATION (Ultra Tier)
+// ============================================================================
+
+// Basic profanity list for quick filter
+const BLOCKED_WORDS = [
+    'fuck', 'shit', 'ass', 'bitch', 'damn', 'cunt', 'dick', 'cock', 'pussy',
+    'nigger', 'faggot', 'retard', 'nazi', 'hitler', 'kill', 'rape', 'porn',
+    'sex', 'nude', 'naked', 'terrorist', 'bomb', 'suicide'
+];
+
+/**
+ * Check if a company name is appropriate using basic filter + AI
+ */
+async function moderateName(name) {
+    const lowerName = name.toLowerCase();
+
+    // Quick basic filter
+    for (const word of BLOCKED_WORDS) {
+        if (lowerName.includes(word)) {
+            return { allowed: false, reason: 'Name contains inappropriate content' };
+        }
+    }
+
+    // AI moderation as secondary check
+    try {
+        const aiManager = require('./ai-providers');
+        const prompt = `You are a content moderator. Check if this company name is appropriate for a family-friendly Discord bot economy game. Name: "${name}". Respond with ONLY "ALLOWED" or "BLOCKED: [reason]". No other text.`;
+
+        const result = await aiManager.getResponse(prompt, {
+            maxTokens: 50,
+            systemPrompt: 'You are a strict content moderator. Block anything inappropriate, offensive, sexual, violent, or discriminatory.'
+        });
+
+        if (result && result.toUpperCase().startsWith('BLOCKED')) {
+            return { allowed: false, reason: result.substring(8).trim() || 'AI flagged as inappropriate' };
+        }
+    } catch (err) {
+        console.warn('[Companies] AI moderation failed, using basic filter only:', err.message);
+        // Fall through - basic filter passed
+    }
+
+    return { allowed: true };
+}
+
+/**
+ * Create a custom Ultra-tier company
+ */
+async function createCustomCompany(userId, username, customName, fourDigitId) {
+    // Validate name length
+    if (!customName || customName.length < 3 || customName.length > 30) {
+        return { success: false, error: 'Company name must be 3-30 characters' };
+    }
+
+    // Validate characters (alphanumeric, spaces, some punctuation)
+    if (!/^[a-zA-Z0-9\s\-'&.,!]+$/.test(customName)) {
+        return { success: false, error: 'Name can only contain letters, numbers, spaces, and basic punctuation' };
+    }
+
+    // Validate 4-digit ID
+    if (!/^\d{4}$/.test(fourDigitId)) {
+        return { success: false, error: 'ID must be exactly 4 digits (0000-9999)' };
+    }
+
+    // Check tier limit (only 1 Ultra allowed)
+    const ownedUltra = await countUserCompaniesByTier(userId, 'ultra');
+    if (ownedUltra >= COMPANY_TIERS.ultra.maxOwned) {
+        return { success: false, error: 'You can only own 1 Ultra (custom) company' };
+    }
+
+    // Moderate the name
+    const moderation = await moderateName(customName);
+    if (!moderation.allowed) {
+        return { success: false, error: `Name not allowed: ${moderation.reason}` };
+    }
+
+    // Generate ID and check if exists
+    const sanitizedName = username.toLowerCase().replace(/[^a-z0-9_]/g, '').substring(0, 20);
+    const companyId = `${sanitizedName}_custom_${fourDigitId}`;
+
+    const existing = await getCompany(companyId);
+    if (existing) {
+        return { success: false, error: `You already have a custom company with ID ${fourDigitId}` };
+    }
+
+    // Check affordability (50M for Ultra)
+    const ULTRA_PRICE = 50000000;
+    const ULTRA_MAINTENANCE = 500000;
+    const ULTRA_PROFIT = 2000000;
+
+    const starkEconomy = require('./stark-economy');
+    const userBalance = await starkEconomy.getBalance(userId);
+    if (userBalance < ULTRA_PRICE) {
+        return { success: false, error: `Not enough! Need ${formatCompact(ULTRA_PRICE)}, have ${formatCompact(userBalance)}` };
+    }
+
+    // Deduct cost
+    await starkEconomy.modifyBalance(userId, -ULTRA_PRICE, 'custom_company_purchase');
+
+    // Create company
+    const now = new Date();
+    const company = {
+        id: companyId,
+        ownerId: userId,
+        ownerName: username,
+        type: 'custom',
+        tier: 'ultra',
+        displayName: `✨ ${customName}`,
+        customName: customName,
+        isCustom: true,
+
+        // Economics
+        baseProfit: ULTRA_PROFIT,
+        currentProfitPercent: 100,
+        risk: 50,
+        lastProfit: now,
+        lastMaintenance: now,
+        maintenanceCost: ULTRA_MAINTENANCE,
+
+        // State
+        sabotageEnabled: false,
+        sabotageEnabledAt: null,
+        lastRush: null,
+        rushUsedThisPeriod: false,
+        lastSlow: null,
+        slowUsedThisPeriod: false,
+        lastClean: null,
+        lastSpreadDirt: null,
+
+        // Temporary effects
+        profitEffects: [],
+
+        // Custom fields
+        logoUrl: null,
+        pageContent: null,
+        stockPrice: 1000,
+        stockHistory: [{ price: 1000, date: now }],
+
+        // Metadata
+        createdAt: now,
+        updatedAt: now
+    };
+
+    const col = await getCollection();
+    await col.insertOne(company);
+
+    return {
+        success: true,
+        company,
+        cost: ULTRA_PRICE,
+        message: `Created custom company: ${customName} (ID: ${fourDigitId})`
+    };
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 
@@ -981,6 +1135,7 @@ module.exports = {
     getUserCompanies,
     getCompany,
     buyCompany,
+    createCustomCompany,
     calculateCurrentProfit,
     calculateTaxRate,
 
@@ -999,6 +1154,7 @@ module.exports = {
     generateCompanyId,
     parseCompanyId,
     formatCompact,
+    moderateName,
 
     // Scheduler
     startScheduler,

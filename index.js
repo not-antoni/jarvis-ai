@@ -2219,7 +2219,10 @@ const allCommands = [
         .addSubcommand(s => s.setName('spreaddirt').setDescription('Sabotage a company (+5% risk)')
             .addStringOption(o => o.setName('id').setDescription('Target company ID').setRequired(true)))
         .addSubcommand(s => s.setName('resetprofit').setDescription('Reset profit % (when under 5%)')
-            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true))),
+            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
+        .addSubcommand(s => s.setName('create').setDescription('Create custom Ultra company (50M)')
+            .addStringOption(o => o.setName('name').setDescription('Custom company name (3-30 chars)').setRequired(true))
+            .addStringOption(o => o.setName('id').setDescription('4-digit ID (0000-9999)').setRequired(true).setMinLength(4).setMaxLength(4))),
 
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()
