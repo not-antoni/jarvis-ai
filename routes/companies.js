@@ -76,6 +76,48 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+// GET /companies/:id/image - Serve company image
+router.get('/:id/image', async (req, res) => {
+    try {
+        const companies = getCompanies();
+        const company = await companies.getCompany(req.params.id);
+
+        if (!company || !company.imageUrl) {
+            return res.redirect('/assets/company-placeholder.png');
+        }
+
+        const img = company.imageUrl;
+
+        // Handle Base64 images
+        if (img.startsWith('data:')) {
+            const matches = img.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches.length === 3) {
+                const mimeType = matches[1];
+                const buffer = Buffer.from(matches[2], 'base64');
+
+                res.setHeader('Content-Type', mimeType);
+                res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+                return res.send(buffer);
+            }
+        }
+
+        // Handle external URLs (redirect to them)
+        if (img.startsWith('http')) {
+            return res.redirect(img);
+        }
+
+        // Fallback for local paths (though we moved to Base64)
+        if (img.startsWith('/')) {
+            return res.redirect(img);
+        }
+
+        res.redirect('/assets/company-placeholder.png');
+    } catch (error) {
+        console.error('[Companies] Image load error:', error);
+        res.redirect('/assets/company-placeholder.png');
+    }
+});
+
 // ============================================================================
 // RENDER FUNCTIONS
 // ============================================================================
@@ -100,7 +142,7 @@ function renderCompanyListPage(tiers, companies) {
             const image = c.imageUrl || '/assets/company-placeholder.png';
             return `
                 <a href="/companies/${encodeURIComponent(c.id)}" class="company-card">
-                    <img src="${escapeHtml(image)}" alt="${escapeHtml(c.displayName)}" onerror="this.src='/assets/company-placeholder.png'">
+                    <img src="/companies/${encodeURIComponent(c.id)}/image" alt="${escapeHtml(c.displayName)}" loading="lazy" onerror="this.src='/assets/company-placeholder.png'">
                     <div class="info">
                         <h3>${escapeHtml(c.displayName)}</h3>
                         <p>Owner: ${escapeHtml(c.ownerName)}</p>
