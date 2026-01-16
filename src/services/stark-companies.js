@@ -552,7 +552,19 @@ async function rushCompany(userId, companyId) {
     if (company.ownerId !== userId) return { success: false, error: 'You don\'t own this company' };
     if (company.rushUsedThisPeriod) return { success: false, error: 'Rush already used this profit period' };
 
-    const typeData = COMPANY_TYPES[company.type];
+    let typeData = COMPANY_TYPES[company.type];
+
+    // Handle custom companies (ultra tier fallback)
+    if (!typeData && company.isCustom) {
+        typeData = {
+            rushRisk: 15, // Ultra tier rush risk
+            price: 50000000
+        };
+    } else if (!typeData) {
+        // Fallback for unknown types
+        typeData = { rushRisk: 10 };
+    }
+
     const now = Date.now();
     const nextProfit = new Date(company.lastProfit).getTime() + TIMING.PROFIT_INTERVAL;
     const timeSinceProfit = now - new Date(company.lastProfit).getTime();
@@ -570,7 +582,9 @@ async function rushCompany(userId, companyId) {
     }
 
     // Increase risk
-    const newRisk = Math.min(100, company.risk + typeData.rushRisk);
+    const currentRisk = company.risk || 50;
+    const riskToAdd = typeData.rushRisk || 10;
+    const newRisk = Math.min(100, currentRisk + riskToAdd);
 
     const col = await getCollection();
     await col.updateOne(
@@ -597,9 +611,47 @@ async function rushCompany(userId, companyId) {
         success: true,
         paidNow,
         profitPaid,
-        riskIncrease: typeData.rushRisk,
+        riskIncrease: riskToAdd,
         newRisk
     };
+}
+
+/**
+ * Calculate progressive tax based on user's balance
+ * Higher balance = higher tax rate (rich pay more)
+ * Returns additional tax percentage to add
+ */
+async function calculateBalanceTax(userId) {
+    const starkEconomy = require('./stark-economy');
+    const balance = await starkEconomy.getBalance(userId);
+
+    // Aggressive Progressive Tax Tiers
+    // 100K+: +5%
+    // 1M+: +10%
+    // 10M+: +15%
+    // 100M+: +20%
+    // 1B+: +25%
+    // 10B+: +30%
+    // 100B+: +35%
+    // 1T+: +40%
+    // 10T+: +50%
+    // 100T+: +60%
+    // 1Qa (Quad): +75%
+    // 1Qi (Quint)+: +90%
+
+    if (balance >= 1000000000000000000) return 90; // 1Qi+
+    if (balance >= 1000000000000000) return 75;    // 1Qa+
+    if (balance >= 100000000000000) return 60;     // 100T+
+    if (balance >= 10000000000000) return 50;      // 10T+
+    if (balance >= 1000000000000) return 40;       // 1T+
+    if (balance >= 100000000000) return 35;        // 100B+
+    if (balance >= 10000000000) return 30;         // 10B+
+    if (balance >= 1000000000) return 25;          // 1B+
+    if (balance >= 100000000) return 20;           // 100M+
+    if (balance >= 10000000) return 15;            // 10M+
+    if (balance >= 1000000) return 10;             // 1M+
+    if (balance >= 100000) return 5;               // 100K+
+    return 0;
 }
 
 /**
