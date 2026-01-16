@@ -7,6 +7,11 @@
         const cooldownScope = `slash:${commandName}`;
         const startedAt = Date.now();
 
+        const starkCompanies = require('../stark-companies');
+        const fs = require('fs');
+        const path = require('path');
+        const fetch = require('node-fetch');
+
         let telemetryStatus = 'ok';
         let telemetryError = null;
         let telemetryMetadata = {};
@@ -1426,7 +1431,25 @@
                                 
                                 let imageUrl = null;
                                 if (imageAttachment) {
-                                    imageUrl = imageAttachment.url;
+                                    try {
+                                        const response = await fetch(imageAttachment.url);
+                                        if (!response.ok) throw new Error('Failed to fetch image');
+                                        const buffer = await response.buffer();
+                                        const ext = path.extname(imageAttachment.name) || '.png';
+                                        // Sanitize filename
+                                        const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
+                                        const filename = `${safeId}_${Date.now()}${ext}`;
+                                        
+                                        const uploadDir = path.join(process.cwd(), 'uploads', 'companies');
+                                        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+                                        
+                                        fs.writeFileSync(path.join(uploadDir, filename), buffer);
+                                        imageUrl = `/uploads/companies/${filename}`;
+                                    } catch (err) {
+                                        console.error('Failed to download company image:', err);
+                                        response = '❌ Failed to process image attachment.'; 
+                                        break;
+                                    }
                                 }
 
                                 const result = await starkCompanies.updateCompany(interaction.user.id, id, {
