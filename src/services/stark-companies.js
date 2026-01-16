@@ -787,6 +787,96 @@ async function resetProfit(userId, companyId) {
     return { success: true, cost, newProfit: 100 };
 }
 
+/**
+ * Find a company by flexible ID (full ID, 4-digit code, or display name)
+ * For a specific user
+ */
+async function findCompanyFlexible(userId, partialId) {
+    const companies = await getUserCompanies(userId);
+    const search = partialId.toLowerCase().trim();
+
+    // Try exact full ID match first
+    let found = companies.find(c => c.id.toLowerCase() === search);
+    if (found) return found;
+
+    // Try 4-digit ID match (at end of id)
+    found = companies.find(c => c.id.endsWith(`_${search}`) || c.id.split('_').pop() === search);
+    if (found) return found;
+
+    // Try display name match (partial)
+    found = companies.find(c => c.displayName.toLowerCase().includes(search) ||
+        (c.customName && c.customName.toLowerCase().includes(search)));
+    if (found) return found;
+
+    // Try type match
+    found = companies.find(c => c.type.toLowerCase() === search);
+    if (found) return found;
+
+    return null;
+}
+
+/**
+ * Delete a company (with tax penalty - only get 50% value back)
+ */
+async function deleteCompany(userId, companyIdOrSearch) {
+    // Find the company flexibly
+    const company = await findCompanyFlexible(userId, companyIdOrSearch);
+    if (!company) return { success: false, error: 'Company not found. Use full ID, 4-digit code, or company name.' };
+    if (company.ownerId !== userId) return { success: false, error: 'You don\'t own this company' };
+
+    // Calculate refund (50% of original price as penalty)
+    const typeData = COMPANY_TYPES[company.type];
+    let originalPrice;
+    if (company.isCustom) {
+        originalPrice = 50000000; // Ultra tier price
+    } else if (typeData) {
+        originalPrice = typeData.price;
+    } else {
+        originalPrice = 10000; // Fallback
+    }
+
+    const refund = Math.floor(originalPrice * 0.50); // 50% refund (50% penalty)
+
+    // Give refund
+    const starkEconomy = require('./stark-economy');
+    await starkEconomy.modifyBalance(userId, refund, 'company_delete_refund');
+
+    // Delete company
+    const col = await getCollection();
+    await col.deleteOne({ id: company.id });
+
+    return {
+        success: true,
+        deletedCompany: company.displayName,
+        companyId: company.id,
+        refund,
+        penalty: originalPrice - refund
+    };
+}
+
+/**
+ * Calculate progressive tax based on user's balance
+ * Higher balance = higher tax rate (rich pay more)
+ * Returns additional tax percentage to add
+ */
+async function calculateBalanceTax(userId) {
+    const starkEconomy = require('./stark-economy');
+    const balance = await starkEconomy.getBalance(userId);
+
+    // Progressive tax tiers based on balance
+    // 0-100K: 0%
+    // 100K-1M: +5%
+    // 1M-10M: +10%
+    // 10M-100M: +15%
+    // 100M+: +20%
+
+    if (balance >= 100000000) return 20; // 100M+
+    if (balance >= 10000000) return 15;  // 10M+
+    if (balance >= 1000000) return 10;   // 1M+
+    if (balance >= 100000) return 5;     // 100K+
+    return 0;
+}
+
 // ============================================================================
 // FORMATTING HELPER
 // ============================================================================
@@ -1138,6 +1228,7 @@ module.exports = {
     createCustomCompany,
     calculateCurrentProfit,
     calculateTaxRate,
+    calculateBalanceTax,
 
     // Actions
     rushCompany,
@@ -1146,9 +1237,11 @@ module.exports = {
     toggleSabotage,
     spreadDirt,
     resetProfit,
+    deleteCompany,
 
     // Lookup
     lookupByUsername,
+    findCompanyFlexible,
 
     // Helpers
     generateCompanyId,

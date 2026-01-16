@@ -2222,7 +2222,9 @@ const allCommands = [
             .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
         .addSubcommand(s => s.setName('create').setDescription('Create custom Ultra company (50M)')
             .addStringOption(o => o.setName('name').setDescription('Custom company name (3-30 chars)').setRequired(true))
-            .addStringOption(o => o.setName('id').setDescription('4-digit ID (0000-9999)').setRequired(true).setMinLength(4).setMaxLength(4))),
+            .addStringOption(o => o.setName('id').setDescription('4-digit ID (0000-9999)').setRequired(true).setMinLength(4).setMaxLength(4)))
+        .addSubcommand(s => s.setName('delete').setDescription('Delete a company (50% refund penalty)')
+            .addStringOption(o => o.setName('id').setDescription('Company ID, 4-digit code, or name').setRequired(true))),
 
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()

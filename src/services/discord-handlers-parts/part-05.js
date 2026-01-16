@@ -937,7 +937,8 @@
                             
                             const companyList = companies.map(c => {
                                 const profit = starkCompanies.calculateCurrentProfit(c);
-                                return `**${c.displayName}** [\`${c.id.split('_').pop()}\`]\n` +
+                                return `**${c.displayName}**\n` +
+                                    `> ID: \`${c.id}\`\n` +
                                     `> Profit: ${starkCompanies.formatCompact(profit)}/h | Risk: ${c.risk}% | Tier: ${c.tier}`;
                             }).join('\n\n');
 
@@ -1166,6 +1167,28 @@
                                     { name: '📈 Tax Reduction', value: '-25%', inline: true }
                                 )
                                 .setFooter({ text: 'Ultra companies have the highest profit and tax reduction!' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
+                        case 'delete': {
+                            const companySearch = interaction.options.getString('id');
+                            const result = await starkCompanies.deleteCompany(interaction.user.id, companySearch);
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            const embed = new EmbedBuilder()
+                                .setTitle('🗑️ Company Deleted')
+                                .setDescription(`**${result.deletedCompany}** has been sold.`)
+                                .setColor(0xe74c3c)
+                                .addFields(
+                                    { name: '💰 Refund', value: `${starkCompanies.formatCompact(result.refund)} SB`, inline: true },
+                                    { name: '📉 Penalty', value: `${starkCompanies.formatCompact(result.penalty)} SB (50%)`, inline: true }
+                                )
+                                .setFooter({ text: 'Tax reduction from this company has been removed.' });
                             response = { embeds: [embed] };
                             break;
                         }
