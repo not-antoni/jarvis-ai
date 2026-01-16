@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
     try {
         const companies = getCompanies();
         const database = require('../src/services/database');
-        const col = await database.getCollection('companies');
+        const col = await database.getCollection('starkCompanies');
 
         // Get all companies, sorted by profit
         const allCompanies = await col.find({}).sort({ baseProfit: -1 }).limit(100).toArray();
