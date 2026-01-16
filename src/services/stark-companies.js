@@ -1158,9 +1158,10 @@ async function updateCompany(userId, companyIdOrSearch, updates) {
 
     return {
         success: true,
-        company: company.displayName,
+        company: { ...company, ...updateFields },
         companyId: company.id,
-        changes
+        changes,
+        updates: updates // Pass original updates for message formatting
     };
 }
 
