@@ -50,6 +50,7 @@ const { commandList: terfCommandList } = require('./src/commands/terf');
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 const webhookRouter = require('./routes/webhook');
+const companiesRouter = require('./routes/companies');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
@@ -2224,7 +2225,12 @@ const allCommands = [
             .addStringOption(o => o.setName('name').setDescription('Custom company name (3-30 chars)').setRequired(true))
             .addStringOption(o => o.setName('id').setDescription('4-digit ID (0000-9999)').setRequired(true).setMinLength(4).setMaxLength(4)))
         .addSubcommand(s => s.setName('delete').setDescription('Delete a company (50% refund penalty)')
-            .addStringOption(o => o.setName('id').setDescription('Company ID, 4-digit code, or name').setRequired(true))),
+            .addStringOption(o => o.setName('id').setDescription('Company ID, 4-digit code, or name').setRequired(true)))
+        .addSubcommand(s => s.setName('edit').setDescription('Edit company description, image, or name')
+            .addStringOption(o => o.setName('id').setDescription('Company ID, 4-digit code, or name').setRequired(true))
+            .addStringOption(o => o.setName('description').setDescription('Company description (max 500 chars)').setRequired(false))
+            .addStringOption(o => o.setName('image').setDescription('Image URL (.png, .jpg, .gif, .webp)').setRequired(false))
+            .addStringOption(o => o.setName('name').setDescription('New name (custom companies only)').setRequired(false))),
 
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()
@@ -3478,6 +3484,9 @@ app.get('/metrics/commands', async (req, res) => {
         res.status(500).json({ error: 'Unable to load command metrics summary' });
     }
 });
+
+// Company pages
+app.use('/companies', companiesRouter);
 
 app.get('/dashboard', async (req, res) => {
     if (!isDashboardAuthed(req)) {

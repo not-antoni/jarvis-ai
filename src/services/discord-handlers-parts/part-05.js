@@ -1193,6 +1193,41 @@
                             break;
                         }
 
+                        case 'edit': {
+                            const companySearch = interaction.options.getString('id');
+                            const description = interaction.options.getString('description');
+                            const imageUrl = interaction.options.getString('image');
+                            const newName = interaction.options.getString('name');
+
+                            const updates = {};
+                            if (description !== null) updates.description = description;
+                            if (imageUrl !== null) updates.imageUrl = imageUrl;
+                            if (newName !== null) updates.displayName = newName;
+
+                            const result = await starkCompanies.updateCompany(
+                                interaction.user.id,
+                                companySearch,
+                                updates
+                            );
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            const embed = new EmbedBuilder()
+                                .setTitle('✏️ Company Updated')
+                                .setDescription(`**${result.company}** has been updated.`)
+                                .setColor(0x3498db)
+                                .addFields(
+                                    { name: '📝 Updated', value: result.changes.join(', '), inline: true },
+                                    { name: '🆔 ID', value: `\`${result.companyId}\``, inline: true }
+                                )
+                                .setFooter({ text: 'View your company with /company lookupcomp' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
                         default:
                             response = '❌ Unknown company subcommand.';
                     }
