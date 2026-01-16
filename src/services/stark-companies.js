@@ -1066,17 +1066,13 @@ async function updateCompany(userId, companyIdOrSearch, updates) {
         changes.push('description');
     }
 
-    // Update image URL (must be valid URL ending in image extension)
+    // Update image URL (must be valid URL)
     if (updates.imageUrl !== undefined) {
         if (updates.imageUrl && updates.imageUrl.length > 0) {
             // Validate URL format
             try {
-                const url = new URL(updates.imageUrl);
-                const validExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
-                const hasValidExt = validExtensions.some(ext => url.pathname.toLowerCase().endsWith(ext));
-                if (!hasValidExt) {
-                    return { success: false, error: 'Image URL must end with .png, .jpg, .jpeg, .gif, or .webp' };
-                }
+                // Just check if it's a valid URL string
+                new URL(updates.imageUrl);
             } catch (e) {
                 return { success: false, error: 'Invalid image URL format' };
             }

@@ -2183,60 +2183,33 @@ const allCommands = [
 
     // Company System
     new SlashCommandBuilder()
-        .setName('company')
-        .setDescription('Manage your companies in the Stark Economy')
-        .setContexts([InteractionContextType.Guild])
-        .addSubcommand(s => s.setName('buy').setDescription('Purchase a new company')
-            .addStringOption(o => o.setName('type').setDescription('Type of company').setRequired(true)
-                .addChoices(
-                    { name: '🍔 Fast Food Place (Basic)', value: 'fastfood' },
-                    { name: '☕ Coffee Shop (Basic)', value: 'coffeeshop' },
-                    { name: '🍕 Pizzeria (Basic)', value: 'pizzeria' },
-                    { name: '💻 Tech Startup (Small)', value: 'techstartup' },
-                    { name: '👗 Boutique Store (Small)', value: 'boutique' },
-                    { name: '💪 Fitness Gym (Small)', value: 'gym' },
-                    { name: '🏭 Manufacturing Factory (Large)', value: 'factory' },
-                    { name: '🏨 Hotel Chain (Large)', value: 'hotel' },
-                    { name: '🛒 Shopping Mall (Large)', value: 'shoppingmall' },
-                    { name: '📺 Media Empire (Mega)', value: 'mediaempire' },
-                    { name: '🚀 Space Corporation (Mega)', value: 'spacecorp' },
-                    { name: '🎰 Casino Resort (Mega)', value: 'casino' }
-                ))
-            .addStringOption(o => o.setName('id').setDescription('4-digit ID (0000-9999)').setRequired(true).setMinLength(4).setMaxLength(4)))
-        .addSubcommand(s => s.setName('list').setDescription('View all your companies'))
-        .addSubcommand(s => s.setName('types').setDescription('View all available company types'))
-        .addSubcommand(s => s.setName('lookup').setDescription('Lookup companies by username')
-            .addStringOption(o => o.setName('username').setDescription('Username to search').setRequired(true)))
-        .addSubcommand(s => s.setName('lookupcomp').setDescription('View detailed company stats')
-            .addStringOption(o => o.setName('id').setDescription('Full company ID').setRequired(true)))
-        .addSubcommand(s => s.setName('rush').setDescription('Rush profit (30min earlier, +risk)')
-            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
-        .addSubcommand(s => s.setName('slow').setDescription('Skip next profit (-risk)')
-            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
-        .addSubcommand(s => s.setName('clean').setDescription('Clean reputation (-5% risk)')
-            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
-        .addSubcommand(s => s.setName('togglesabotage').setDescription('Enable/disable sabotage mode')
-            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
-        .addSubcommand(s => s.setName('spreaddirt').setDescription('Sabotage a company (+5% risk)')
-            .addStringOption(o => o.setName('id').setDescription('Target company ID').setRequired(true)))
-        .addSubcommand(s => s.setName('resetprofit').setDescription('Reset profit % (when under 5%)')
-            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true)))
-        .addSubcommand(s => s.setName('create').setDescription('Create custom Ultra company (50M)')
-            .addStringOption(o => o.setName('name').setDescription('Custom company name (3-30 chars)').setRequired(true))
-            .addStringOption(o => o.setName('id').setDescription('4-digit ID (0000-9999)').setRequired(true).setMinLength(4).setMaxLength(4)))
-        .addSubcommand(s => s.setName('delete').setDescription('Delete a company (50% refund penalty)')
-            .addStringOption(o => o.setName('id').setDescription('Company ID, 4-digit code, or name').setRequired(true)))
-        .addSubcommand(s => s.setName('edit').setDescription('Edit company description, image, or name')
-            .addStringOption(o => o.setName('id').setDescription('Company ID, 4-digit code, or name').setRequired(true))
-            .addStringOption(o => o.setName('description').setDescription('Company description (max 500 chars)').setRequired(false))
-            .addStringOption(o => o.setName('image').setDescription('Image URL (.png, .jpg, .gif, .webp)').setRequired(false))
-            .addStringOption(o => o.setName('name').setDescription('New name (custom companies only)').setRequired(false)))
-        .addSubcommand(s => s.setName('hire').setDescription('Hire workers (+1% profit per worker)')
-            .addStringOption(o => o.setName('id').setDescription('Company ID').setRequired(true))
-            .addIntegerOption(o => o.setName('count').setDescription('Number of workers (1-50)').setRequired(false).setMinValue(1).setMaxValue(50)))
-        .addSubcommand(s => s.setName('partner').setDescription('Create partnership with another company')
-            .addStringOption(o => o.setName('mycompany').setDescription('Your company ID').setRequired(true))
-            .addStringOption(o => o.setName('partnercompany').setDescription('Partner company full ID').setRequired(true))),
+        .setName('stark')
+        .setDescription('Stark Industries Main Command')
+        .addSubcommandGroup(g => g.setName('minigame').setDescription('Minigame commands')
+            .addSubcommand(s => s.setName('company').setDescription('Manage your company')
+                .addStringOption(o => o.setName('action').setDescription('Action to perform').setRequired(true)
+                    .addChoices(
+                        { name: 'Buy Company', value: 'buy' },
+                        { name: 'Create Custom (Ultra)', value: 'create' },
+                        { name: 'Edit Company', value: 'edit' },
+                        { name: 'Manage Workers (Hire)', value: 'hire' },
+                        { name: 'Create Partnership', value: 'partner' },
+                        { name: 'List Companies', value: 'list' },
+                        { name: 'Company Info', value: 'lookup' },
+                        { name: 'Delete Company', value: 'delete' },
+                        { name: 'Use Rush', value: 'rush' },
+                        { name: 'Use Slow', value: 'slow' },
+                        { name: 'Clean', value: 'clean' },
+                        { name: 'Sabotage', value: 'sabotage' },
+                        { name: 'Spread Dirt', value: 'spreaddirt' }
+                    ))
+                .addStringOption(o => o.setName('id').setDescription('Company ID/Name (for buy, edit, etc)').setRequired(false))
+                .addStringOption(o => o.setName('description').setDescription('For edit: New description').setRequired(false))
+                .addAttachmentOption(o => o.setName('image').setDescription('For edit/create: Upload company image').setRequired(false))
+                .addStringOption(o => o.setName('name').setDescription('For edit/create: Custom name').setRequired(false))
+                .addIntegerOption(o => o.setName('count').setDescription('For hire: Number of workers').setRequired(false))
+                .addStringOption(o => o.setName('partner').setDescription('For partner: Partner company ID').setRequired(false))
+            )),
 
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()
@@ -3339,6 +3312,7 @@ app.get('/status', async (req, res) => {
         <a href="/" class="logo">⚡ Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
+            <li><a href="/companies">Companies</a></li>
             <li><a href="/store">Store</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
             <li><a href="/sbx">SBX</a></li>
