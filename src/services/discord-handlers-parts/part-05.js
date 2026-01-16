@@ -1137,6 +1137,39 @@
                             break;
                         }
 
+                        case 'create': {
+                            const customName = interaction.options.getString('name');
+                            const customId = interaction.options.getString('id');
+
+                            const result = await starkCompanies.createCustomCompany(
+                                interaction.user.id,
+                                interaction.user.username,
+                                customName,
+                                customId
+                            );
+
+                            if (!result.success) {
+                                response = `❌ ${result.error}`;
+                                break;
+                            }
+
+                            const embed = new EmbedBuilder()
+                                .setTitle('✨ Custom Company Created!')
+                                .setDescription(`Welcome to the Ultra tier! You now own **${result.company.displayName}**!`)
+                                .setColor(0xf1c40f)
+                                .addFields(
+                                    { name: 'ID', value: `\`${result.company.id}\``, inline: true },
+                                    { name: 'Tier', value: 'ULTRA', inline: true },
+                                    { name: 'Cost', value: `${starkCompanies.formatCompact(result.cost)} SB`, inline: true },
+                                    { name: '💰 Profit/Hour', value: `${starkCompanies.formatCompact(result.company.baseProfit)} SB`, inline: true },
+                                    { name: '🔧 Maintenance/6h', value: `${starkCompanies.formatCompact(result.company.maintenanceCost)} SB`, inline: true },
+                                    { name: '📈 Tax Reduction', value: '-25%', inline: true }
+                                )
+                                .setFooter({ text: 'Ultra companies have the highest profit and tax reduction!' });
+                            response = { embeds: [embed] };
+                            break;
+                        }
+
                         default:
                             response = '❌ Unknown company subcommand.';
                     }
