@@ -1444,7 +1444,7 @@
                                         break;
                                     }
                                 }
-                                }
+
 
                                 const result = await starkCompanies.updateCompany(interaction.user.id, id, {
                                     description,
