@@ -877,6 +877,85 @@ async function calculateBalanceTax(userId) {
     return 0;
 }
 
+/**
+ * Update company properties (description, image, display name)
+ * Available for all companies, not just custom
+ */
+async function updateCompany(userId, companyIdOrSearch, updates) {
+    // Find the company flexibly
+    const company = await findCompanyFlexible(userId, companyIdOrSearch);
+    if (!company) return { success: false, error: 'Company not found. Use full ID, 4-digit code, or company name.' };
+    if (company.ownerId !== userId) return { success: false, error: 'You don\'t own this company' };
+
+    const updateFields = {};
+    const changes = [];
+
+    // Update description (max 500 chars, AI moderated)
+    if (updates.description !== undefined) {
+        if (updates.description.length > 500) {
+            return { success: false, error: 'Description must be under 500 characters' };
+        }
+        if (updates.description.length > 0) {
+            // Moderate description
+            const modResult = await moderateName(updates.description);
+            if (!modResult.allowed) {
+                return { success: false, error: `Description not allowed: ${modResult.reason}` };
+            }
+        }
+        updateFields.description = updates.description;
+        changes.push('description');
+    }
+
+    // Update image URL (must be valid URL ending in image extension)
+    if (updates.imageUrl !== undefined) {
+        if (updates.imageUrl && updates.imageUrl.length > 0) {
+            // Validate URL format
+            try {
+                const url = new URL(updates.imageUrl);
+                const validExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+                const hasValidExt = validExtensions.some(ext => url.pathname.toLowerCase().endsWith(ext));
+                if (!hasValidExt) {
+                    return { success: false, error: 'Image URL must end with .png, .jpg, .jpeg, .gif, or .webp' };
+                }
+            } catch (e) {
+                return { success: false, error: 'Invalid image URL format' };
+            }
+        }
+        updateFields.imageUrl = updates.imageUrl || null;
+        changes.push('image');
+    }
+
+    // Update display name (only for custom companies)
+    if (updates.displayName !== undefined && company.isCustom) {
+        if (updates.displayName.length < 3 || updates.displayName.length > 30) {
+            return { success: false, error: 'Display name must be 3-30 characters' };
+        }
+        const modResult = await moderateName(updates.displayName);
+        if (!modResult.allowed) {
+            return { success: false, error: `Name not allowed: ${modResult.reason}` };
+        }
+        updateFields.displayName = `✨ ${updates.displayName}`;
+        updateFields.customName = updates.displayName;
+        changes.push('name');
+    }
+
+    if (changes.length === 0) {
+        return { success: false, error: 'No valid updates provided' };
+    }
+
+    updateFields.updatedAt = new Date();
+
+    const col = await getCollection();
+    await col.updateOne({ id: company.id }, { $set: updateFields });
+
+    return {
+        success: true,
+        company: company.displayName,
+        companyId: company.id,
+        changes
+    };
+}
+
 // ============================================================================
 // FORMATTING HELPER
 // ============================================================================
@@ -1238,6 +1317,7 @@ module.exports = {
     spreadDirt,
     resetProfit,
     deleteCompany,
+    updateCompany,
 
     // Lookup
     lookupByUsername,
