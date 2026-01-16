@@ -1464,7 +1464,12 @@
                                 if (result.updates.description) embed.addFields({ name: 'Description', value: 'Updated' });
                                 if (result.updates.imageUrl) {
                                     embed.addFields({ name: 'Image', value: 'Updated' });
-                                    embed.setImage(result.updates.imageUrl);
+                                    // Don't set base64 as image, use original attachment url if available for preview
+                                    if (imageAttachment && imageAttachment.url) {
+                                        embed.setImage(imageAttachment.url);
+                                    } else if (!result.updates.imageUrl.startsWith('data:')) {
+                                        embed.setImage(result.updates.imageUrl);
+                                    }
                                 }
                                 if (result.updates.displayName) embed.addFields({ name: 'Name', value: result.updates.displayName });
                                 
