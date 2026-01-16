@@ -2596,6 +2596,28 @@ ${traitsDisplay}
                     } else if (subcommand === 'think') {
                         const prompt = interaction.options.getString('prompt');
                         
+                        // === QUEUE SYSTEM: Max 2 concurrent thinking per guild ===
+                        if (!global.sentientThinkQueue) global.sentientThinkQueue = new Map();
+                        const guildQueue = global.sentientThinkQueue;
+                        const gId = guildId || 'dm';
+                        const currentCount = guildQueue.get(gId) || 0;
+                        
+                        if (currentCount >= 2) {
+                            response = `⏳ **Queue Full!** There are already 2 thinking sessions in progress. Please wait...`;
+                            await interaction.editReply(response);
+                            return response;
+                        }
+                        
+                        // Add to queue
+                        guildQueue.set(gId, currentCount + 1);
+                        
+                        // Cleanup helper
+                        const releaseQueue = () => {
+                            const curr = guildQueue.get(gId) || 0;
+                            if (curr > 0) guildQueue.set(gId, curr - 1);
+                        };
+                        
+                        try {
                         const startTime = Date.now();
                         const loadingEmoji = '<a:loading:1452765129652310056>'; 
                         const loadingMessages = [
@@ -2726,6 +2748,9 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             const cudaPattern = /cuda\s*12\.?1.*ubuntu\s*24/i;
                             const isCudaEasterEgg = cudaPattern.test(prompt);
                             
+                            // === 40% CHANCE: Extended loading sequence for any prompt ===
+                            const doExtendedLoading = Math.random() < 0.4;
+                            
                             if (isCudaEasterEgg) {
                                 // Extended loading sequence - 25+ messages
                                 for (let i = 0; i < 25; i++) {
@@ -2751,8 +2776,20 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 // The punchline
                                 await interaction.editReply(`**Thought for: 27 hours and 42 seconds**\n\nI don't really know`);
                                 
+                                releaseQueue();
                                 response = '__SENTIENT_HANDLED__';
                                 return response;
+                            }
+                            
+                            // Extended loading for regular prompts (40% chance)
+                            if (doExtendedLoading) {
+                                const numMessages = 8 + Math.floor(Math.random() * 8); // 8-15 messages
+                                for (let i = 0; i < numMessages; i++) {
+                                    try {
+                                        await interaction.editReply(`${getEmoji()} ${getRandomMsg()}`);
+                                    } catch (e) { /* ignore */ }
+                                    await new Promise(r => setTimeout(r, 500 + Math.random() * 400));
+                                }
                             }
                             
                             // Simple header helper
@@ -2870,6 +2907,14 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             } catch (e) { /* ignore */ }
                             
                             response = '__SENTIENT_HANDLED__';
+                        } finally {
+                            // Always release queue
+                            releaseQueue();
+                        }
+                        } catch (outerError) {
+                            // Catch any uncaught errors and release queue
+                            releaseQueue();
+                            throw outerError;
                         }
                     } else if (subcommand === 'execute') {
                         const command = interaction.options.getString('command');
