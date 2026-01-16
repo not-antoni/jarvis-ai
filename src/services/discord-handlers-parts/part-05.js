@@ -2705,7 +2705,10 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 gpt: '<a:gpt:1461698269716549774>',
                                 qwen: '<a:qwen:1461698502425051188>',
                                 gemini: '<a:gemini:1461698776904368188>',
-                                grok: '<a:grok:1461699094023110676>'
+                                grok: '<a:grok:1461699094023110676>',
+                                mixtral: '<a:mixtral:1461702138097963112>',
+                                deepseek: '<a:deepseek:1461702197380251678>',
+                                meta: '<a:meta:1461702276400808118>'
                             };
                             
                             // Messages with their corresponding emoji keys
@@ -2771,19 +2774,27 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 { emoji: 'qwen', text: 'QwQ reasoning...' },
                                 { emoji: 'qwen', text: 'Tongyi Qianwen processing...' },
                                 
-                                // Other AIs (use loading emoji) - expanded
-                                { emoji: 'loading', text: 'Llama 3 crunching tokens...' },
-                                { emoji: 'loading', text: 'Llama 3.3 processing...' },
-                                { emoji: 'loading', text: 'Llama 4 reasoning...' },
-                                { emoji: 'loading', text: 'Meta AI thinking...' },
-                                { emoji: 'loading', text: 'Mistral computing embeddings...' },
-                                { emoji: 'loading', text: 'Mistral Large analyzing...' },
-                                { emoji: 'loading', text: 'Mixtral processing...' },
-                                { emoji: 'loading', text: 'Codestral coding...' },
-                                { emoji: 'loading', text: 'DeepSeek V3 reasoning...' },
-                                { emoji: 'loading', text: 'DeepSeek R1 thinking...' },
-                                { emoji: 'loading', text: 'DeepSeek Coder coding...' },
-                                { emoji: 'loading', text: 'Phi-4 processing locally...' },
+                                // Meta/Llama family
+                                { emoji: 'meta', text: 'Llama 3 crunching tokens...' },
+                                { emoji: 'meta', text: 'Llama 3.3 processing...' },
+                                { emoji: 'meta', text: 'Llama 4 reasoning...' },
+                                { emoji: 'meta', text: 'Meta AI thinking...' },
+                                
+                                // Mistral/Mixtral family
+                                { emoji: 'mixtral', text: 'Mistral computing embeddings...' },
+                                { emoji: 'mixtral', text: 'Mistral Large analyzing...' },
+                                { emoji: 'mixtral', text: 'Mixtral processing...' },
+                                { emoji: 'mixtral', text: 'Mixtral 8x22B computing...' },
+                                { emoji: 'mixtral', text: 'Codestral coding...' },
+                                { emoji: 'mixtral', text: 'Mistral Small thinking...' },
+                                
+                                // DeepSeek family
+                                { emoji: 'deepseek', text: 'DeepSeek V3 reasoning...' },
+                                { emoji: 'deepseek', text: 'DeepSeek R1 thinking...' },
+                                { emoji: 'deepseek', text: 'DeepSeek Coder coding...' },
+                                { emoji: 'deepseek', text: 'DeepSeek R1 Lite processing...' },
+                                
+                                // Other AIs (use loading emoji)
                                 { emoji: 'loading', text: 'Phi-3 computing...' },
                                 { emoji: 'loading', text: 'Command R+ analyzing context...' },
                                 { emoji: 'loading', text: 'Cohere Embed embedding...' },
@@ -2896,7 +2907,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 }
                                 
                                 // The punchline
-                                await interaction.editReply(`**Thought for: 27 hours and 42 seconds**\n\nI don't really know`);
+                                await interaction.editReply(`**Thought for: 27 hours and 42 seconds**\n\nI don't really know.`);
                                 
                                 releaseQueue();
                                 response = '__SENTIENT_HANDLED__';
