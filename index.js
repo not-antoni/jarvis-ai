@@ -2291,7 +2291,8 @@ const allCommands = [
 
     ...musicCommandList.map(command => command.data),
     ...terfCommandList.map(command => command.data),
-    ...require('./src/commands/utility/quote').map(c => c.data)
+    ...require('./src/commands/utility/quote').map(c => c.data),
+    require('./src/commands/utility/company').data
 ];
 
 const commands = allCommands.filter(builder => {
