@@ -92,7 +92,46 @@ module.exports = {
                 .addStringOption(opt =>
                     opt.setName('id')
                         .setDescription('Company ID')
-                        .setRequired(true))),
+                        .setRequired(true)))
+        .addSubcommand(sub =>
+            sub.setName('edit')
+                .setDescription('Edit your company details')
+                .addStringOption(opt =>
+                    opt.setName('id')
+                        .setDescription('Company ID')
+                        .setRequired(true))
+                .addStringOption(opt =>
+                    opt.setName('description')
+                        .setDescription('New description for the company')
+                        .setRequired(false))
+                .addStringOption(opt =>
+                    opt.setName('name')
+                        .setDescription('New display name (custom companies only)')
+                        .setRequired(false))
+                .addAttachmentOption(opt =>
+                    opt.setName('image')
+                        .setDescription('New company image')
+                        .setRequired(false)))
+        .addSubcommand(sub =>
+            sub.setName('delete')
+                .setDescription('Delete one of your companies')
+                .addStringOption(opt =>
+                    opt.setName('id')
+                        .setDescription('Company ID to delete')
+                        .setRequired(true)))
+        .addSubcommand(sub =>
+            sub.setName('create')
+                .setDescription('Create a custom Ultra-tier company')
+                .addStringOption(opt =>
+                    opt.setName('name')
+                        .setDescription('Custom company name (3-30 characters)')
+                        .setRequired(true))
+                .addStringOption(opt =>
+                    opt.setName('id')
+                        .setDescription('4-digit ID for your company (0000-9999)')
+                        .setRequired(true)
+                        .setMinLength(4)
+                        .setMaxLength(4))),
 
     async execute(interaction) {
         // Handler is in part-05.js

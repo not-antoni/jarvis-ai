@@ -1203,13 +1203,28 @@
                         case 'edit': {
                             const companySearch = interaction.options.getString('id');
                             const description = interaction.options.getString('description');
-                            const imageUrl = interaction.options.getString('image');
+                            const imageAttachment = interaction.options.getAttachment('image');
                             const newName = interaction.options.getString('name');
 
                             const updates = {};
                             if (description !== null) updates.description = description;
-                            if (imageUrl !== null) updates.imageUrl = imageUrl;
                             if (newName !== null) updates.displayName = newName;
+                            
+                            // Handle image attachment - convert to Base64 for storage
+                            if (imageAttachment) {
+                                try {
+                                    const imgResponse = await fetch(imageAttachment.url);
+                                    if (!imgResponse.ok) throw new Error('Failed to fetch image');
+                                    const buffer = await imgResponse.buffer();
+                                    const mimeType = imgResponse.headers.get('content-type') || 'image/png';
+                                    const base64 = buffer.toString('base64');
+                                    updates.imageUrl = `data:${mimeType};base64,${base64}`;
+                                } catch (err) {
+                                    console.error('Failed to process image attachment:', err);
+                                    response = '❌ Failed to process image attachment.';
+                                    break;
+                                }
+                            }
 
                             const result = await starkCompanies.updateCompany(
                                 interaction.user.id,
@@ -1224,13 +1239,19 @@
 
                             const embed = new EmbedBuilder()
                                 .setTitle('✏️ Company Updated')
-                                .setDescription(`**${result.company}** has been updated.`)
+                                .setDescription(`**${result.company.displayName || result.companyId}** has been updated.`)
                                 .setColor(0x3498db)
                                 .addFields(
                                     { name: '📝 Updated', value: result.changes.join(', '), inline: true },
                                     { name: '🆔 ID', value: `\`${result.companyId}\``, inline: true }
-                                )
-                                .setFooter({ text: 'View your company with /company lookupcomp' });
+                                );
+                            
+                            // Show image preview if an image was updated
+                            if (imageAttachment && imageAttachment.url) {
+                                embed.setImage(imageAttachment.url);
+                            }
+                            
+                            embed.setFooter({ text: 'View your company with /company lookupcomp' });
                             response = { embeds: [embed] };
                             break;
                         }
