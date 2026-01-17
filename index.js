@@ -4347,18 +4347,23 @@ async function startBot() {
                 }
             }
 
-            // Auto-configure Cloudflare DNS
+            // Auto-configure Cloudflare DNS (optional - don't warn if credentials missing/invalid)
             if (cfConfig.zoneId || cfConfig.domain) {
-                console.log('[Cloudflare] Checking domain configuration...');
-                const result = await cloudflareDomain.autoConfigure();
-                if (result.success) {
-                    if (result.cached) {
-                        console.log(`[Cloudflare] Already configured: ${result.domain} → ${result.target}`);
-                    } else {
-                        console.log(`[Cloudflare] ✅ Domain configured: ${result.domain} → ${result.target}`);
+                try {
+                    const result = await cloudflareDomain.autoConfigure();
+                    if (result.success) {
+                        if (result.cached) {
+                            console.log(`[Cloudflare] Already configured: ${result.domain} → ${result.target}`);
+                        } else {
+                            console.log(`[Cloudflare] ✅ Domain configured: ${result.domain} → ${result.target}`);
+                        }
                     }
-                } else if (result.error) {
-                    console.log(`[Cloudflare] ⚠️ ${result.error}`);
+                    // Silently skip auth errors - credentials may not be configured
+                } catch (cfAutoErr) {
+                    // Only log in debug mode - don't spam console for missing credentials
+                    if (process.env.CLOUDFLARE_DEBUG === 'true') {
+                        console.log(`[Cloudflare] Auto-config skipped: ${cfAutoErr.message}`);
+                    }
                 }
             }
         } catch (cfErr) {
