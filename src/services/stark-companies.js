@@ -663,11 +663,19 @@ async function slowCompany(userId, companyId) {
     if (company.ownerId !== userId) return { success: false, error: 'You don\'t own this company' };
     if (company.slowUsedThisPeriod) return { success: false, error: 'Slow already used this profit period' };
 
-    const typeData = COMPANY_TYPES[company.type];
+    let typeData = COMPANY_TYPES[company.type];
+
+    // Handle custom companies (ultra tier fallback)
+    if (!typeData && company.isCustom) {
+        typeData = { slowRisk: -10 }; // Ultra tier slow risk
+    } else if (!typeData) {
+        typeData = { slowRisk: -5 }; // Default fallback
+    }
 
     // Skip next payment by setting lastProfit forward
     const newLastProfit = new Date(new Date(company.lastProfit).getTime() + TIMING.PROFIT_INTERVAL);
-    const newRisk = Math.max(0, company.risk + typeData.slowRisk);
+    const slowRisk = typeData.slowRisk || -5;
+    const newRisk = Math.max(0, company.risk + slowRisk);
 
     const col = await getCollection();
     await col.updateOne(
