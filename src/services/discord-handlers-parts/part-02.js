@@ -807,6 +807,26 @@
             }
         }
 
+        // ============ FUH NAW SIR DETECTION ============
+        // Detect "is this tuff?" variations
+        if (strippedContent && /\bis\s+this\s+tuff\b/i.test(strippedContent)) {
+             const { limited } = this.hitCooldown(userId, messageScope);
+             if (limited) return;
+
+             try {
+                 // Use specific bot emoji
+                 const emojiString = '<:wilted_rose:1462415423327703260>';
+
+                 await message.reply({ 
+                     content: `Fuh naw, sir 💔 ${emojiString}`, 
+                     allowedMentions: { parse: [] } 
+                 });
+                 return; // Exit early
+             } catch (error) {
+                 console.error('[FuhNaw] Failed to send response:', error);
+             }
+        }
+
         if (!isMentioned && !isRoleMentioned && !isReplyToJarvis && !containsWakeWord) {
             return;
         }
