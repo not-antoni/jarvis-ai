@@ -86,7 +86,12 @@
             // Check if sentience is enabled for this guild - if so, bypass feature flag check for sentience-related commands
             const SENTIENCE_COMMANDS = ['soul', 'roast', 'sentient'];
             const isSentienceCommand = SENTIENCE_COMMANDS.includes(commandName);
-            const sentienceEnabled = guild && isSentienceCommand ? selfhostFeatures.isSentienceEnabled(guild.id) : false;
+            
+            // Allow owner to bypass sentience whitelist
+            const { isOwner } = require('../utils/owner-check');
+            const isOwnerUser = isOwner(interaction.user.id);
+            
+            const sentienceEnabled = isOwnerUser || (guild && isSentienceCommand ? selfhostFeatures.isSentienceEnabled(guild.id) : false);
             
             // Debug logging for sentience check
             if (isSentienceCommand && guild) {
@@ -3254,9 +3259,8 @@
                     telemetryMetadata.category = 'experimental';
                     // Check if sentience is enabled for this guild instead of requiring selfhost mode
                     // OWNER BYPASS: Bot owner can use sentient commands anywhere (including DMs)
-                    const { isOwner, getOwnerId } = require('../utils/owner-check');
+                    const { isOwner } = require('../utils/owner-check');
                     const isOwnerUser = isOwner(interaction.user.id);
-                    console.log(`[Sentient] Owner Check Details: UserID=${interaction.user.id}, IsOwner=${isOwnerUser}, StoredOwnerID=${getOwnerId()}`);
                     const sentienceEnabled = isOwnerUser || (guild ? selfhostFeatures.isSentienceEnabled(guild.id) : false);
                     if (!sentienceEnabled) {
                         response = 'Sentient agent is only available in servers with sentience enabled, sir.';
