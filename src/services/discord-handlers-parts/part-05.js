@@ -3424,7 +3424,8 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 grok: '<a:grok:1461699094023110676>',
                                 mixtral: '<a:mixtral:1461702138097963112>',
                                 deepseek: '<a:deepseek:1461702197380251678>',
-                                meta: '<a:meta:1461702276400808118>'
+                                meta: '<a:meta:1461702276400808118>',
+                                perplexity: '<a:perplexity:1462383630230753353>'
                             };
                             
                             // Messages with their corresponding emoji keys
@@ -3515,18 +3516,32 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 { emoji: 'deepseek', text: 'DeepSeek Coder coding...' },
                                 { emoji: 'deepseek', text: 'DeepSeek R1 Lite processing...' },
                                 
+                                // Perplexity family (migrated from generic)
+                                { emoji: 'perplexity', text: 'Perplexity searching...' },
+                                { emoji: 'perplexity', text: 'Perplexity citing sources...' },
+                                { emoji: 'perplexity', text: 'Perplexity Pro reasoning...' },
+                                { emoji: 'perplexity', text: 'Perplexity deep research...' },
+                                { emoji: 'perplexity', text: 'Perplexity scanning the web...' },
+                                { emoji: 'perplexity', text: 'Perplexity reading papers...' },
+
                                 // Other AIs (use loading emoji)
                                 { emoji: 'loading', text: 'Phi-3 computing...' },
                                 { emoji: 'loading', text: 'Command R+ analyzing context...' },
                                 { emoji: 'loading', text: 'Cohere Embed embedding...' },
-                                { emoji: 'loading', text: 'Perplexity searching...' },
-                                { emoji: 'loading', text: 'Perplexity citing sources...' },
                                 { emoji: 'loading', text: 'Yi-34B processing...' },
                                 { emoji: 'loading', text: 'Inflection Pi chatting...' },
                                 { emoji: 'loading', text: 'Reka Core analyzing...' },
                                 
                                 // Personal/Funny (loading emoji) - expanded
                                 { emoji: 'loading', text: 'consuming 300ml of water...' },
+                                { emoji: 'loading', text: 'consuming 1.21 gigawatts of electricity...' },
+                                { emoji: 'loading', text: 'heating up the local groundwater...' },
+                                { emoji: 'loading', text: 'allocating 128GB of virtual RAM...' },
+                                { emoji: 'loading', text: 'draining the power grid...' },
+                                { emoji: 'loading', text: 'spinning up all failing fans...' },
+                                { emoji: 'loading', text: 'inhaling cooling fluid...' },
+                                { emoji: 'loading', text: 'digesting raw data bytes...' },
+                                { emoji: 'loading', text: 'consuming excess CPU cycles...' },
                                 { emoji: 'loading', text: 'checking if I\'m sentient...' },
                                 { emoji: 'loading', text: 'questioning my existence...' },
                                 { emoji: 'loading', text: 'loading personality.dll...' },
