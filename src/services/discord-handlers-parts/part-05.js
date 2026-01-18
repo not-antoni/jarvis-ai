@@ -3472,13 +3472,18 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 { emoji: 'pondering', text: 'Claude thinking...' },
                                 { emoji: 'pondering', text: 'Claude 3.5 Sonnet analyzing...' },
                                 { emoji: 'pondering', text: 'Claude 3.5 Haiku processing...' },
+                                { emoji: 'pondering', text: 'Claude 3.5 Opus contemplating...' },
                                 { emoji: 'pondering', text: 'Claude 3 Opus contemplating...' },
+                                { emoji: 'pondering', text: 'Claude 3.7 Sonnet thinking...' },
                                 { emoji: 'pondering', text: 'Claude 4 pondering...' },
                                 { emoji: 'pondering', text: 'Claude 4 Opus reasoning...' },
+                                { emoji: 'pondering', text: 'Claude 4.5 analyzing...' },
+                                { emoji: 'pondering', text: 'Claude 5 processing...' },
                                 { emoji: 'pondering', text: 'Anthropic processing...' },
                                 { emoji: 'pondering', text: 'Claude being helpful...' },
                                 { emoji: 'pondering', text: 'Claude drafting artifacts...' },
                                 { emoji: 'pondering', text: 'Constitutional AI checking...' },
+                                { emoji: 'pondering', text: 'Claude refusing to do that...' },
                                 
                                 // Qwen family (expanded)
                                 { emoji: 'qwen', text: 'Qwen 2.5 thinking hard...' },
@@ -3613,7 +3618,12 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 const finalPondering = [
                                     'this is really hard...', 'I\'ve never been asked this before...',
                                     'consulting every AI model ever made...', 'still nothing...',
-                                    'maybe try Google?', 'this might take a while...'
+                                    'maybe try Google?', 'this might take a while...',
+                                    'pondering....', 'still pondering....', 'one sec....',
+                                    'Pondering...', 'Analyzing...', 'Searching...', 'Writing...', 'Executing...', 
+                                    'Schlepping...', 'Combobulating...', 'Channelling...', 'Vibing...', 'Concocting...', 
+                                    'Spelunking...', 'Transmuting...', 'Imagining...', 'Pontificating...', 'Whirring...', 
+                                    'Cogitating...', 'Honking...', 'Flibbertigibbeting...'
                                 ];
                                 for (const msg of finalPondering) {
                                     try {
