@@ -200,22 +200,14 @@ const rawConfig = {
     sentience: {
         enabled: parseBooleanEnv(process.env.SENTIENCE_ENABLED, true),
         whitelistedGuilds: (() => {
-            const defaultGuilds = ['1403664986089324606', '858444090374881301'];
             const envGuilds = process.env.SENTIENCE_GUILDS;
             if (!envGuilds) {
-                return defaultGuilds;
+                return [];
             }
-            const guilds = envGuilds
+            return envGuilds
                 .split(',')
                 .map(s => s.trim())
                 .filter(Boolean);
-            // Always include default guilds if not already present
-            for (const dg of defaultGuilds) {
-                if (!guilds.includes(dg)) {
-                    guilds.push(dg);
-                }
-            }
-            return guilds;
         })()
     },
 
