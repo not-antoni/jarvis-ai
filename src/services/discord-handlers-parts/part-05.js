@@ -3760,10 +3760,26 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                     
                                     // Update with simple header
                                     try {
-                                        await interaction.editReply(`${buildHeader(getTimeStr())}${fullContent}`);
+                                        // content limit safety 
+                                        let msgContent = `${buildHeader(getTimeStr())}${fullContent}`;
+                                        if (msgContent.length > 1950) {
+                                            msgContent = msgContent.substring(0, 1950) + '...\n\n*[System note: Thought stream truncated due to neural limitations]*';
+                                        }
+                                        await interaction.editReply(msgContent);
                                     } catch (e) { 
                                         console.error('Edit failed:', e);
                                     }
+                                }
+                                
+                                // Final update to ensure loading emoji is gone
+                                try {
+                                    let finalMsg = `${buildHeader(getTimeStr())}${fullContent}`;
+                                    if (finalMsg.length > 1900) {
+                                         finalMsg = finalMsg.substring(0, 1900) + '...\n\n*[System note: Final thought stream truncated]*';
+                                    }
+                                    await interaction.editReply(finalMsg);
+                                } catch (e) {
+                                    console.error('Final edit failed:', e);
                                 }
                                 
                                 response = '__SENTIENT_HANDLED__';
