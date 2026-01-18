@@ -1233,10 +1233,17 @@ async function processCompany(company, now, col, starkEconomy) {
 
     // === PROFIT PAYOUT (every hour) ===
     if (now - lastProfitTime >= TIMING.PROFIT_INTERVAL) {
-        const profit = calculateCurrentProfit(company);
+        const grossProfit = calculateCurrentProfit(company);
 
-        if (profit > 0) {
-            await starkEconomy.modifyBalance(company.ownerId, profit, 'company_profit');
+        if (grossProfit > 0) {
+            // Apply Progressive Tax based on owner's total wealth
+            const taxRate = await calculateBalanceTax(company.ownerId);
+            const taxAmount = Math.floor(grossProfit * (taxRate / 100));
+            const netProfit = grossProfit - taxAmount;
+
+            if (netProfit > 0) {
+                await starkEconomy.modifyBalance(company.ownerId, netProfit, 'company_profit');
+            }
         }
 
         updates.lastProfit = new Date();
@@ -1250,6 +1257,31 @@ async function processCompany(company, now, col, starkEconomy) {
                 updates.profitEffects = [...(company.profitEffects || [])];
             }
             updates.profitEffects.push(eventResult);
+        }
+    }
+
+    // === WEALTH TAX (every 2 hours) ===
+    // Check if owner needs to pay wealth tax on their total balance
+    const user = await starkEconomy.loadUser(company.ownerId); // Load full user object to check lastTax
+    const lastTaxTime = new Date(user.lastTax || 0).getTime();
+
+    if (now - lastTaxTime >= TIMING.TAX_INTERVAL) {
+        const balance = await starkEconomy.getBalance(company.ownerId);
+
+        // Only tax if balance > 100k (min tier)
+        if (balance >= 100000) {
+            const taxRate = await calculateBalanceTax(company.ownerId);
+            const taxAmount = Math.floor(balance * (taxRate / 100));
+
+            if (taxAmount > 0) {
+                await starkEconomy.modifyBalance(company.ownerId, -taxAmount, 'wealth_tax');
+                // Update user's lastTax timestamp directly to avoid race conditions with other companies
+                const userCol = await starkEconomy.getCollection();
+                await userCol.updateOne(
+                    { userId: company.ownerId },
+                    { $set: { lastTax: new Date() } }
+                );
+            }
         }
     }
 

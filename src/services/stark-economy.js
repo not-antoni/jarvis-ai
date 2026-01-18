@@ -40,6 +40,30 @@ function formatCompact(num, decimals = 1) {
 
     // Define suffixes (each step is 1000x)
     const suffixes = [
+        { threshold: 1e100, suffix: 'Go' }, // Googol
+        { threshold: 1e90, suffix: 'Nv' }, // Novemvigintillion
+        { threshold: 1e87, suffix: 'Ov' }, // Octovigintillion
+        { threshold: 1e84, suffix: 'Sv' }, // Septenvigintillion
+        { threshold: 1e81, suffix: 'SxV' }, // Sexvigintillion
+        { threshold: 1e78, suffix: 'QnV' }, // Quindecillion (Vigintillion range) -> using standard names
+        // Okay let's stick to standard Naming
+        { threshold: 1e75, suffix: 'Qv' },  // Quattuorvigintillion
+        { threshold: 1e72, suffix: 'Tv' },  // Trevigintillion
+        { threshold: 1e69, suffix: 'Dv' },  // Duovigintillion
+        { threshold: 1e66, suffix: 'Uv' },  // Unvigintillion
+        { threshold: 1e63, suffix: 'Vg' },  // Vigintillion
+        { threshold: 1e60, suffix: 'Nd' },  // Novemdecillion
+        { threshold: 1e57, suffix: 'Od' },  // Octodecillion
+        { threshold: 1e54, suffix: 'Sd' },  // Septendecillion
+        { threshold: 1e51, suffix: 'SxD' }, // Sexdecillion
+        { threshold: 1e48, suffix: 'QiD' }, // Quindecillion
+        { threshold: 1e45, suffix: 'QaD' }, // Quattuordecillion
+        { threshold: 1e42, suffix: 'Td' },  // Tredecillion
+        { threshold: 1e39, suffix: 'Dd' },  // Duodecillion
+        { threshold: 1e36, suffix: 'Ud' },  // Undecillion
+        { threshold: 1e33, suffix: 'Dc' },  // Decillion
+        { threshold: 1e30, suffix: 'No' },  // Nonillion
+        { threshold: 1e27, suffix: 'Oc' },  // Octillion
         { threshold: 1e24, suffix: 'Sp' },  // Septillion
         { threshold: 1e21, suffix: 'Sx' },  // Sextillion  
         { threshold: 1e18, suffix: 'Qi' },  // Quintillion
