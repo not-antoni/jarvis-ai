@@ -4001,7 +4001,6 @@ ${learnings}
                     if (prompt && /\bis\s+this\s+tuff\b/i.test(prompt)) {
                          const emojiString = '<:wilted_rose:1462415423327703260>';
                          response = `Fuh naw, sir 💔 ${emojiString}`;
-                         await interaction.editReply(response);
                          break;
                     }
 
