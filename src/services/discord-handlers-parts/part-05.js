@@ -3603,7 +3603,7 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             const isCudaEasterEgg = cudaPattern.test(prompt);
                             
                             // === 60% CHANCE: Extended loading sequence for any prompt ===
-                            const doExtendedLoading = Math.random() < 0.6;
+                            const doExtendedLoading = Math.random() < 0.8;
                             
                             if (isCudaEasterEgg) {
                                 // Extended loading sequence - 25+ messages
