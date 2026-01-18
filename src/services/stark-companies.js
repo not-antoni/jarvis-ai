@@ -1276,7 +1276,8 @@ async function processCompany(company, now, col, starkEconomy) {
             if (taxAmount > 0) {
                 await starkEconomy.modifyBalance(company.ownerId, -taxAmount, 'wealth_tax');
                 // Update user's lastTax timestamp directly to avoid race conditions with other companies
-                const userCol = await starkEconomy.getCollection();
+                await database.connect();
+                const userCol = database.db.collection('starkEconomy');
                 await userCol.updateOne(
                     { userId: company.ownerId },
                     { $set: { lastTax: new Date() } }
