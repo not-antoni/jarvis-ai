@@ -273,9 +273,14 @@ async function getOrCreateUserKey(userId) {
         // Delete corrupted key
         if (USE_LOCAL_DB_MODE && localDbOps) {
             // Local DB delete not implemented in this snippet, but we can overwrite
-            // For now, just let it fall through to generation logic if we delete from cache/db
+            // Local DB logic handled by clearMemories below if implemented
         } else {
             await userKeys.deleteOne({ userId });
+            // CRITICAL: Delete old memories that are now unreadable
+            if (memoriesCol) {
+                await memoriesCol.deleteMany({ userId });
+                console.log(`[Vault] Purged unreadable memories for user ${userId}`);
+            }
         }
 
         keyCache.delete(userId);
@@ -553,7 +558,9 @@ async function decryptMemories(userId, options = {}) {
                 isShortTerm: doc.isShortTerm || false
             });
         } catch (error) {
-            console.error('Failed to decrypt vault memory for user', userId, error);
+            // Self-healing: Delete memory if it can't be decrypted
+            console.warn(`[Vault] Failed to decrypt memory ${doc._id} for user ${userId}. Deleting corrupted record. Error: ${error.message}`);
+            await memories.deleteOne({ _id: doc._id });
         }
     }
 
