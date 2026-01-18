@@ -3254,8 +3254,9 @@
                     telemetryMetadata.category = 'experimental';
                     // Check if sentience is enabled for this guild instead of requiring selfhost mode
                     // OWNER BYPASS: Bot owner can use sentient commands anywhere (including DMs)
-                    const { isOwner } = require('../utils/owner-check');
+                    const { isOwner, getOwnerId } = require('../utils/owner-check');
                     const isOwnerUser = isOwner(interaction.user.id);
+                    console.log(`[Sentient] Owner Check Details: UserID=${interaction.user.id}, IsOwner=${isOwnerUser}, StoredOwnerID=${getOwnerId()}`);
                     const sentienceEnabled = isOwnerUser || (guild ? selfhostFeatures.isSentienceEnabled(guild.id) : false);
                     if (!sentienceEnabled) {
                         response = 'Sentient agent is only available in servers with sentience enabled, sir.';
