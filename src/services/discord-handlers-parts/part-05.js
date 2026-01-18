@@ -3997,6 +3997,14 @@ ${learnings}
                 case 'jarvis': {
                     let prompt = interaction.options.getString('prompt') || '';
 
+                    // Fuh Naw bypass
+                    if (prompt && /\bis\s+this\s+tuff\b/i.test(prompt)) {
+                         const emojiString = '<:wilted_rose:1462415423327703260>';
+                         response = `Fuh naw, sir 💔 ${emojiString}`;
+                         await interaction.editReply(response);
+                         break;
+                    }
+
                     try {
                         const guild = interaction.guild || (interaction.guildId
                             ? await interaction.client.guilds.fetch(interaction.guildId).catch(() => null)
