@@ -3316,6 +3316,14 @@ ${traitsDisplay}
 \`\`\``;
                     } else if (subcommand === 'think') {
                         const prompt = interaction.options.getString('prompt');
+
+                        // Fuh Naw bypass
+                        if (prompt && /\bis\s+this\s+tuff\b/i.test(prompt)) {
+                             const emojiString = '<:wilted_rose:1462415423327703260>';
+                             response = `Fuh naw, sir 💔 ${emojiString}`;
+                             await interaction.editReply(response);
+                             return response;
+                        }
                         
                         // === QUEUE SYSTEM: Max 2 concurrent thinking per guild ===
                         if (!global.sentientThinkQueue) global.sentientThinkQueue = new Map();
