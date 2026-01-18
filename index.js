@@ -2313,9 +2313,12 @@ function buildCommandData() {
     // This ensures commands appear on bot profile in Discord
     return unique.map(command => {
         const json = command.toJSON();
-        // Default to GuildInstall if not specified
+        // Default to GuildInstall + UserInstall if not specified
         if (!json.integration_types) {
-            json.integration_types = [ApplicationIntegrationType.GuildInstall];
+            json.integration_types = [
+                ApplicationIntegrationType.GuildInstall,
+                ApplicationIntegrationType.UserInstall
+            ];
         }
         // Default contexts if not specified (Guild only for safety)
         if (!json.contexts) {
