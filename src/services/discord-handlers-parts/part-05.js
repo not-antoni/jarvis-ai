@@ -265,6 +265,44 @@
                 return;
             }
 
+            // Delegate moderation commands to specialized handler
+            const { handleModerationCommand, MODERATION_COMMANDS } = require('./handlers/moderation-handler');
+            if (MODERATION_COMMANDS.includes(commandName)) {
+                const result = await handleModerationCommand(commandName, interaction, telemetryMetadata);
+                if (result.handled && result.response !== null) {
+                    response = result.response;
+                    // Skip to response handling section
+                    if (response === undefined || response === null) {
+                        console.warn('[/jarvis] Empty response from moderation handler; commandName=' + commandName);
+                        try {
+                            await interaction.editReply("Response circuits tangled, sir. Try again?");
+                        } catch (e) {
+                            await interaction.followUp("Response circuits tangled, sir. Try again?");
+                        }
+                    } else if (typeof response === 'string') {
+                        const trimmed = response.trim();
+                        const safe = this.sanitizePings(trimmed);
+                        const msg = safe.length > 2000 ? safe.slice(0, 1997) + '...' : (safe.length ? safe : "Response circuits tangled, sir. Try again?");
+                        try {
+                            await interaction.editReply({ content: msg, allowedMentions: { parse: [] } });
+                        } catch (e) {
+                            try { await interaction.followUp({ content: msg, allowedMentions: { parse: [] } }); } catch {}
+                        }
+                    } else {
+                        // Object response (embeds, etc.)
+                        try {
+                            const payload = { ...response };
+                            payload.allowedMentions = payload.allowedMentions || { parse: [] };
+                            await interaction.editReply(payload);
+                        } catch (e) {
+                            try { await interaction.followUp(response); } catch {}
+                        }
+                    }
+                    finalizeTelemetry();
+                    return;
+                }
+            }
+
             switch (commandName) {
                 case 'Make it a Quote': {
                     const quoteModules = require('../commands/utility/quote');

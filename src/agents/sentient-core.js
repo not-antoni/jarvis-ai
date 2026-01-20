@@ -294,12 +294,16 @@ class AgentTools {
     /**
      * Execute a shell command (with safety checks)
      * Uses spawnSync with shell: false to prevent command injection
+     * OWNER BYPASS: Owner can use shell metacharacters
      */
     async executeCommand(command, options = {}) {
         const { requireApproval = true, timeout = 30000 } = options;
 
-        // Parse command into safe argv format
-        const parsed = parseCommandToArgv(command);
+        // OWNER BYPASS: Check owner status FIRST before metacharacter check
+        const callerIsOwner = options.userId && isOwner(options.userId);
+
+        // Parse command into safe argv format (skip for owner - they get full shell)
+        const parsed = callerIsOwner ? { executable: command, args: [] } : parseCommandToArgv(command);
         if (parsed.error) {
             return {
                 status: 'error',
@@ -311,9 +315,6 @@ class AgentTools {
         }
 
         const isSafe = this.isCommandSafe(command);
-
-        // OWNER BYPASS: Owner can run any command without approval
-        const callerIsOwner = options.userId && isOwner(options.userId);
 
         if (!isSafe && requireApproval && !callerIsOwner) {
             // Queue for human approval (non-owner only)
