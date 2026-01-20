@@ -2165,11 +2165,11 @@
                 try {
                     const isRender = (config?.deployment?.target || 'render').toLowerCase() === 'render';
                     if (isRender) {
-                        const { captionToMp4 } = require('../../utils/video-caption');
+                        const { captionToMp4 } = require('../utils/video-caption');
                         const out = await captionToMp4({ inputBuffer: buffer, captionText: text });
                         await this.sendBufferOrLink(interaction, out, 'caption.mp4');
                     } else {
-                        const { captionAnimated } = require('../../utils/gif-caption');
+                        const { captionAnimated } = require('../utils/gif-caption');
                         const out = await captionAnimated({ inputBuffer: buffer, captionText: text });
                         await this.sendBufferOrLink(interaction, out, 'caption.gif');
                     }

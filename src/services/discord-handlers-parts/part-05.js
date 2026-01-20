@@ -88,7 +88,7 @@
             const isSentienceCommand = SENTIENCE_COMMANDS.includes(commandName);
             
             // Allow owner to bypass sentience whitelist
-            const { isOwner } = require('../../utils/owner-check');
+            const { isOwner } = require('../utils/owner-check');
             const isOwnerUser = isOwner(interaction.user.id);
             
             const sentienceEnabled = isOwnerUser || (guild && isSentienceCommand ? selfhostFeatures.isSentienceEnabled(guild.id) : false);
@@ -305,7 +305,7 @@
 
             switch (commandName) {
                 case 'Make it a Quote': {
-                    const quoteModules = require('../../commands/utility/quote');
+                    const quoteModules = require('../commands/utility/quote');
                     telemetryMetadata.category = 'utility';
                     await quoteModules[0].execute(interaction);
                     response = '__QUOTE_HANDLED__';
@@ -405,46 +405,6 @@
                     response = { embeds: [embed] };
                     break;
                 }
-                case 'vibecheck': {
-                    telemetryMetadata.category = 'fun';
-                    await this.handleVibeCheckCommand(interaction);
-                    return;
-                }
-                case 'bonk': {
-                    telemetryMetadata.category = 'fun';
-                    await this.handleBonkCommand(interaction);
-                    return;
-                }
-                case 'caption': {
-                    telemetryMetadata.category = 'memes';
-                    await this.handleCaptionCommand(interaction);
-                    return;
-                }
-                case 'meme': {
-                    telemetryMetadata.category = 'memes';
-                    await this.handleMemeCommand(interaction);
-                    return;
-                }
-                case 'banter': {
-                    telemetryMetadata.category = 'fun';
-                    await this.handleBanterCommand(interaction);
-                    return;
-                }
-                case 'roast': {
-                    telemetryMetadata.category = 'fun';
-                    await this.handleRoastCommand(interaction);
-                    return;
-                }
-                case 'flatter': {
-                    telemetryMetadata.category = 'fun';
-                    await this.handleFlatterCommand(interaction);
-                    return;
-                }
-                case 'toast': {
-                    telemetryMetadata.category = 'fun';
-                    await this.handleToastCommand(interaction);
-                    return;
-                }
                 case 'trivia': {
                     telemetryMetadata.category = 'fun';
                     await this.handleTriviaCommand(interaction);
@@ -531,34 +491,7 @@
                     return;
                 }
                 // ============ FUN COMMANDS (Available Everywhere) ============
-                case 'roast': {
-                    telemetryMetadata.category = 'fun';
-                    const target = interaction.options.getUser('target');
-                    
-                    if (!target) {
-                        response = 'Please specify a target for the roast, sir.';
-                        break;
-                    }
-                    
-                    if (target.id === interaction.client.user.id) {
-                        response = 'I appreciate the ambition, sir, but self-deprecation is beneath my programming.';
-                        break;
-                    }
-                    
-                    const roast = legacyCommands.generateRoast(target.displayName || target.username, interaction.user.username);
-                    
-                    const roastEmbed = new EmbedBuilder()
-                        .setTitle('🔥 Roast Protocol Engaged')
-                        .setDescription(roast)
-                        .setColor(0xe74c3c)
-                        .setThumbnail(target.displayAvatarURL({ dynamic: true, size: 128 }))
-                        .setFooter({ text: `Requested by ${interaction.user.username}` })
-                        .setTimestamp();
-                    
-                    selfhostFeatures.jarvisSoul.evolve('roast', 'positive');
-                    response = { embeds: [roastEmbed] };
-                    break;
-                }
+
 
                 case 'soul': {
                     telemetryMetadata.category = 'fun';
@@ -3297,7 +3230,7 @@
                     telemetryMetadata.category = 'experimental';
                     // Check if sentience is enabled for this guild instead of requiring selfhost mode
                     // OWNER BYPASS: Bot owner can use sentient commands anywhere (including DMs)
-                    const { isOwner } = require('../../utils/owner-check');
+                    const { isOwner } = require('../utils/owner-check');
                     const isOwnerUser = isOwner(interaction.user.id);
                     const sentienceEnabled = isOwnerUser || (guild ? selfhostFeatures.isSentienceEnabled(guild.id) : false);
                     if (!sentienceEnabled) {
@@ -4373,7 +4306,7 @@ ${learnings}
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../utils/resolve-user');
+                    const { resolveUser } = require('../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     // Self-targeting check
@@ -4400,7 +4333,7 @@ ${learnings}
                     }
                     
                     // Parse duration using shared utility
-                    const { parseDuration, formatDuration } = require('../../utils/parse-duration');
+                    const { parseDuration, formatDuration } = require('../utils/parse-duration');
                     let banDuration = null;
                     if (duration) {
                         banDuration = parseDuration(duration);
@@ -4443,7 +4376,7 @@ ${learnings}
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../utils/resolve-user');
+                    const { resolveUser } = require('../utils/resolve-user');
                     const { user: targetUser, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     
@@ -4462,7 +4395,7 @@ ${learnings}
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../utils/resolve-user');
+                    const { resolveUser } = require('../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
@@ -4499,7 +4432,7 @@ ${learnings}
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../utils/resolve-user');
+                    const { resolveUser } = require('../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
@@ -4521,7 +4454,7 @@ ${learnings}
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../utils/resolve-user');
+                    const { resolveUser } = require('../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
                     if (!targetMember) { response = '❌ User not found in this server.'; break; }
@@ -4544,7 +4477,7 @@ ${learnings}
                     if (!targetMember.moderatable) { response = '❌ I cannot mute that member.'; break; }
                     
                     // Parse duration using shared utility
-                    const { parseDuration, MAX_TIMEOUT_MS } = require('../../utils/parse-duration');
+                    const { parseDuration, MAX_TIMEOUT_MS } = require('../utils/parse-duration');
                     const durationMs = parseDuration(duration);
                     if (!durationMs) { response = '❌ Invalid duration. Use format like 10m, 1h, 1d'; break; }
                     
@@ -4565,7 +4498,7 @@ ${learnings}
                     
                     if (!interaction.guild) { response = 'This command only works in servers.'; break; }
                     
-                    const { resolveUser } = require('../../utils/resolve-user');
+                    const { resolveUser } = require('../utils/resolve-user');
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     
@@ -4637,7 +4570,7 @@ ${learnings}
                     // Parse duration (0 to disable)
                     let seconds = 0;
                     if (durationStr !== '0' && durationStr !== 'off') {
-                        const { parseDuration } = require('../../utils/parse-duration');
+                        const { parseDuration } = require('../utils/parse-duration');
                         const ms = parseDuration(durationStr);
                         if (!ms) {
                             response = '❌ Invalid duration. Use format like `5s`, `1m`, `0` to disable.';
