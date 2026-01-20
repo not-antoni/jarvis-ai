@@ -348,22 +348,47 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
     await Promise.all(assetsToLoad);
 
-    // 2. Layout - fixed canvas, truncate text if too long
+    // 2. Layout - fixed canvas, dynamically scale font if text is too long
     const maxTextWidth = (width / 2) - padding;
-    let lines = wrapTokens(ctx, tokens, maxTextWidth, fontSize);
-
-    const lineHeight = fontSize * 1.4;
     const nameHeight = 50;
     const handleHeight = 35;
     const footerHeight = 40;
-    const maxLines = Math.floor((height - padding * 2 - nameHeight - handleHeight - footerHeight) / lineHeight);
-    
-    // Truncate lines if too many
+    const minFontSize = 32; // Minimum readable font size
+
+    // Try to fit text by reducing font size if needed
+    let currentFontSize = fontSize;
+    let lines;
+    let lineHeight;
+    let maxLines;
+
+    while (currentFontSize >= minFontSize) {
+        ctx.font = `${currentFontSize}px ${fontStack}`;
+        lines = wrapTokens(ctx, tokens, maxTextWidth, currentFontSize);
+        lineHeight = currentFontSize * 1.4;
+        maxLines = Math.floor((height - padding * 2 - nameHeight - handleHeight - footerHeight) / lineHeight);
+
+        // If text fits, we're done
+        if (lines.length <= maxLines) {
+            break;
+        }
+
+        // Reduce font size and try again
+        currentFontSize -= 4;
+    }
+
+    // Use final calculated values
+    const finalFontSize = currentFontSize;
+    lineHeight = finalFontSize * 1.4;
+    ctx.font = `${finalFontSize}px ${fontStack}`;
+
+    // Truncate if still too long even at minimum font
     if (lines.length > maxLines) {
         lines = lines.slice(0, maxLines);
-        // Add ellipsis to last line
-        const lastLine = lines[lines.length - 1];
-        lastLine.push({ type: 'text', content: '...' });
+        // Add ellipsis to last line (guard against empty)
+        if (lines.length > 0) {
+            const lastLine = lines[lines.length - 1];
+            lastLine.push({ type: 'text', content: '...' });
+        }
     }
 
     const textBlockHeight = lines.length * lineHeight;
@@ -442,7 +467,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
         let lineWidth = 0;
         line.forEach(t => {
             if (t.type === 'text') lineWidth += ctx.measureText(t.content).width;
-            else lineWidth += fontSize * 1.1;
+            else lineWidth += finalFontSize * 1.1;
         });
 
         let currentX = textCenterX - (lineWidth / 2);
@@ -453,7 +478,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
                 ctx.fillText(token.content, currentX, baselineY);
                 currentX += ctx.measureText(token.content).width;
             } else if ((token.type === 'custom' || token.type === 'unicode') && token.image) {
-                const size = fontSize;
+                const size = finalFontSize;
                 ctx.drawImage(token.image, currentX, baselineY - (size / 2), size, size);
                 currentX += size * 1.1;
             } else {
