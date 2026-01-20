@@ -26,7 +26,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 
             if (!interaction.guild) { response = 'This command only works in servers.'; break; }
 
-            const { resolveUser } = require('../utils/resolve-user');
+            const { resolveUser } = require('../../utils/resolve-user');
             const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
             if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
 
@@ -54,7 +54,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
             }
 
             // Parse duration using shared utility
-            const { parseDuration } = require('../utils/parse-duration');
+            const { parseDuration } = require('../../utils/parse-duration');
             let banDuration = null;
             if (duration) {
                 banDuration = parseDuration(duration);
@@ -98,7 +98,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 
             if (!interaction.guild) { response = 'This command only works in servers.'; break; }
 
-            const { resolveUser } = require('../utils/resolve-user');
+            const { resolveUser } = require('../../utils/resolve-user');
             const { user: targetUser, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
             if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
 
@@ -118,7 +118,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 
             if (!interaction.guild) { response = 'This command only works in servers.'; break; }
 
-            const { resolveUser } = require('../utils/resolve-user');
+            const { resolveUser } = require('../../utils/resolve-user');
             const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
             if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
             if (!targetMember) { response = '❌ User not found in this server.'; break; }
@@ -157,7 +157,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 
             if (!interaction.guild) { response = 'This command only works in servers.'; break; }
 
-            const { resolveUser } = require('../utils/resolve-user');
+            const { resolveUser } = require('../../utils/resolve-user');
             const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
             if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
 
@@ -178,7 +178,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 
             if (!interaction.guild) { response = 'This command only works in servers.'; break; }
 
-            const { resolveUser } = require('../utils/resolve-user');
+            const { resolveUser } = require('../../utils/resolve-user');
             const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
             if (!targetUser || !targetMember) { response = `❌ ${resolveError || 'User not found in this server.'}`; break; }
 
@@ -201,7 +201,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
             if (!targetMember.moderatable) { response = '❌ I cannot mute that member.'; break; }
 
             // Parse duration using shared utility
-            const { parseDuration } = require('../utils/parse-duration');
+            const { parseDuration } = require('../../utils/parse-duration');
             const durationMs = parseDuration(duration);
             if (!durationMs) { response = '❌ Invalid duration. Use format like 10m, 1h, 1d'; break; }
 
@@ -223,7 +223,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 
             if (!interaction.guild) { response = 'This command only works in servers.'; break; }
 
-            const { resolveUser } = require('../utils/resolve-user');
+            const { resolveUser } = require('../../utils/resolve-user');
             const { user: targetUser } = await resolveUser(interaction.client, interaction.guild, userInput);
             if (!targetUser) { response = `❌ User not found.`; break; }
 
@@ -296,7 +296,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
             // Parse duration (0 to disable)
             let seconds = 0;
             if (durationStr !== '0' && durationStr !== 'off') {
-                const { parseDuration } = require('../utils/parse-duration');
+                const { parseDuration } = require('../../utils/parse-duration');
                 const ms = parseDuration(durationStr);
                 if (!ms) {
                     response = '❌ Invalid duration. Use format like `5s`, `1m`, `0` to disable.';
