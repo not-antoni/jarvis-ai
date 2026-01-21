@@ -284,8 +284,9 @@ const SHOP_ITEMS = {
 const SLOT_SYMBOLS = ['💎', '7️⃣', '🍒', '🍋', '⭐', '🔔'];
 
 // Hunt/Fish/Dig rewards
-// NOTE: The 'chance' field in outcomes is vestigial - selection uses uniform random distribution.
-// All outcomes have equal probability regardless of the chance value.
+// TECH DEBT: The 'chance' field in outcomes is vestigial and never used.
+// Selection uses uniform random distribution - all outcomes have equal probability.
+// Consider removing 'chance' fields in a future cleanup pass.
 const MINIGAME_REWARDS = {
     hunt: {
         cooldown: 60 * 1000, // 1 minute
@@ -331,7 +332,6 @@ const MINIGAME_REWARDS = {
             { name: '🦉 Owl', reward: 68, chance: 0.02 },
             { name: '🐓 Rooster', reward: 14, chance: 0.02 },
             { name: '🐔 Chicken', reward: 11, chance: 0.02 },
-            { name: '🦃 Turkey', reward: 33, chance: 0.02 },
             { name: '🐄 Cow', reward: 85, chance: 0.02 },
             { name: '🐃 Water Buffalo', reward: 95, chance: 0.02 },
             { name: '🐂 Ox', reward: 88, chance: 0.02 },
