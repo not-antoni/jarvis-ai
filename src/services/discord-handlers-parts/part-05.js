@@ -1606,6 +1606,11 @@
                 // ============ HEIST SYSTEM ============
                 case 'heist': {
                     telemetryMetadata.category = 'economy';
+                    // Heists require a guild context
+                    if (!interaction.guild) {
+                        response = '❌ Heists can only be done in a server, not DMs!';
+                        break;
+                    }
                     let sub;
                     try {
                         sub = interaction.options.getSubcommand();
@@ -1632,6 +1637,11 @@
                 // ============ BOSS BATTLE ============
                 case 'boss': {
                     telemetryMetadata.category = 'game';
+                    // Boss battles require a guild context
+                    if (!interaction.guild) {
+                        response = '❌ Boss battles can only be done in a server, not DMs!';
+                        break;
+                    }
                     const sub = interaction.options.getSubcommand();
                     if (sub === 'status') {
                         const boss = await starkEconomy.getBossData(interaction.guild.id);
