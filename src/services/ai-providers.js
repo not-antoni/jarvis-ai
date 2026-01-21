@@ -40,8 +40,11 @@ function sanitizeModelOutput(text) {
         '$1'
     );
 
-    // 5) Collapse multiple whitespace/newlines into single space, then trim
-    out = out.replace(/\s+/g, ' ').trim();
+    // 5) Collapse multiple spaces on same line, but preserve single newlines
+    // (Was collapsing ALL whitespace including newlines - this was too aggressive)
+    out = out.replace(/[^\S\n]+/g, ' ');  // Collapse spaces/tabs but not newlines
+    out = out.replace(/\n{3,}/g, '\n\n'); // Collapse 3+ newlines to 2
+    out = out.trim();
 
     return out;
 }
@@ -101,7 +104,9 @@ function stripJarvisSpeakerPrefix(text) {
 function stripTrailingChannelArtifacts(text) {
     if (!text || typeof text !== 'string') return text;
     let trimmed = text.trim();
-    const pattern = /(?:[\s,.;:!?\-]*[\(\[\{"]?\s*channel\s*[\)\]\}"]?[\s,.;:!?\-]*)$/i;
+    // FIXED: Only match actual markup artifacts with brackets, not normal text like "Discord channel!"
+    // Must have at least one bracket/quote wrapper to be considered an artifact
+    const pattern = /(?:[\s,.;:!?\-]*[\(\[\{"]+\s*channel\s*[\)\]\}"]+[\s,.;:!?\-]*)$/i;
     while (pattern.test(trimmed)) {
         trimmed = trimmed.replace(pattern, '').trim();
     }
@@ -115,8 +120,9 @@ function stripLeadingPromptLeaks(text) {
     if (channelPattern.test(trimmed)) {
         trimmed = trimmed.replace(channelPattern, '').trimStart();
     }
-    // Strip "commentary" or "commentary:" prefix (system prompt leak)
-    const commentaryPattern = /^commentary\s*:?\s*/i;
+    // Strip "commentary:" prefix (system prompt leak)
+    // FIXED: Require colon - don't strip normal text starting with "commentary on..." etc.
+    const commentaryPattern = /^commentary\s*:\s*/i;
     if (commentaryPattern.test(trimmed)) {
         trimmed = trimmed.replace(commentaryPattern, '').trimStart();
     }
