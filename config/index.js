@@ -164,9 +164,9 @@ const rawConfig = {
     // AI Provider Configuration
     ai: {
         cooldownMs: 3000,
-        maxTokens: 500,
-        maxInputLength: 500,  // Increased to allow longer user input
-        maxSlashInputLength: 500,
+        maxTokens: 2000,
+        maxInputLength: 2000,  // Increased to allow longer user input
+        maxSlashInputLength: 2000,
         temperature: 1,
         retryAttempts: 0,
         fallbackChance: 0.12,

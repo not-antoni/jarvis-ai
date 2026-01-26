@@ -57,7 +57,9 @@ function cleanThinkingOutput(text) {
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
         .replace(/<think>[\s\S]*?<\/think>/gi, '')
         // Removed: .replace(/\bfinal\b[:\-]?\s*/gi, '') - was cutting responses with "final" word
-        .replace(/\s+/g, ' ')
+        // Only collapse horizontal whitespace, preserve newlines for paragraph structure
+        .replace(/[^\S\n]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n') // Collapse 3+ newlines to 2
         .trim();
 }
 function extractFinalPayload(text) {
