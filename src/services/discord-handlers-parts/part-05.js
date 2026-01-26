@@ -1747,7 +1747,11 @@
                         case 'ship': {
                             const person1 = interaction.options.getUser('person1');
                             const person2 = interaction.options.getUser('person2') || interaction.user;
-                            const compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
+                            let compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
+                            // Hardcode 101% for specific user
+                            if (interaction.user.id === '849355767122231336') {
+                                compatibility = 101;
+                            }
                             const shipName = funFeatures.generateShipName(
                                 person1.displayName || person1.username,
                                 person2.displayName || person2.username
@@ -1871,7 +1875,11 @@
                     const person1 = interaction.options.getUser('person1');
                     const person2 = interaction.options.getUser('person2') || interaction.user;
                     
-                    const compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
+                    let compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
+                    // Hardcode 101% for specific user
+                    if (interaction.user.id === '849355767122231336') {
+                        compatibility = 101;
+                    }
                     const shipName = funFeatures.generateShipName(
                         person1.displayName || person1.username,
                         person2.displayName || person2.username
