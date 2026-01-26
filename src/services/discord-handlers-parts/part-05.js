@@ -1748,9 +1748,13 @@
                             const person1 = interaction.options.getUser('person1');
                             const person2 = interaction.options.getUser('person2') || interaction.user;
                             let compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
-                            // Hardcode 101% for specific user
-                            if (interaction.user.id === '849355767122231336') {
-                                compatibility = 101;
+                            // Hardcode 101% for specific user pair
+                            const herId = '849355767122231336';
+                            const himId = '333991175251951617';
+                            if (interaction.user.id === herId) {
+                                const isTheShip = (person1.id === herId && person2.id === himId) || 
+                                                  (person1.id === himId && person2.id === herId);
+                                if (isTheShip) compatibility = 101;
                             }
                             const shipName = funFeatures.generateShipName(
                                 person1.displayName || person1.username,
@@ -1876,9 +1880,13 @@
                     const person2 = interaction.options.getUser('person2') || interaction.user;
                     
                     let compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
-                    // Hardcode 101% for specific user
-                    if (interaction.user.id === '849355767122231336') {
-                        compatibility = 101;
+                    // Hardcode 101% for specific user pair (Her + Him) when run by Her
+                    const herId = '849355767122231336';
+                    const himId = '333991175251951617';
+                    if (interaction.user.id === herId) {
+                        const isTheShip = (person1.id === herId && person2.id === himId) || 
+                                          (person1.id === himId && person2.id === herId);
+                        if (isTheShip) compatibility = 101;
                     }
                     const shipName = funFeatures.generateShipName(
                         person1.displayName || person1.username,
