@@ -42,10 +42,18 @@ function sanitizeModelOutput(text) {
 
     // 5) Transliterate common Unicode punctuation to ASCII equivalents
     out = out
-        .replace(/[\u2018\u2019]/g, "'") // Smart single quotes
-        .replace(/[\u201C\u201D]/g, '"') // Smart double quotes
-        .replace(/[\u2013\u2014]/g, '-') // En/Em dashes
-        .replace(/\u2026/g, '...');      // Ellipsis
+        .replace(/[\u2018\u2019]/g, "'")  // Smart single quotes
+        .replace(/[\u201C\u201D]/g, '"')  // Smart double quotes
+        .replace(/[\u2013\u2014]/g, '-')  // En/Em dashes
+        .replace(/\u2026/g, '...')        // Ellipsis
+        .replace(/[\u2022\u25CF\u25AA\u25B6]/g, '-') // Bullets (•, ●, ▪, ▶)
+        .replace(/\u00A0/g, ' ')          // Non-breaking space
+        .replace(/\u00A9/g, '(c)')        // Copyright
+        .replace(/\u00AE/g, '(r)')        // Registered
+        .replace(/\u2122/g, '(tm)')       // Trademark
+        .replace(/\u2260/g, '!=')         // Not equal
+        .replace(/\u2264/g, '<=')         // Less or equal
+        .replace(/\u2265/g, '>=');        // Greater or equal
 
     // 6) Strip ALL remaining non-ASCII characters (Unicode/Emojis/etc)
     out = out.replace(/[^\x00-\x7F]/g, '');
