@@ -40,8 +40,17 @@ function sanitizeModelOutput(text) {
         '$1'
     );
 
-    // 5) Collapse multiple spaces on same line, but preserve single newlines
-    // (Was collapsing ALL whitespace including newlines - this was too aggressive)
+    // 5) Transliterate common Unicode punctuation to ASCII equivalents
+    out = out
+        .replace(/[\u2018\u2019]/g, "'") // Smart single quotes
+        .replace(/[\u201C\u201D]/g, '"') // Smart double quotes
+        .replace(/[\u2013\u2014]/g, '-') // En/Em dashes
+        .replace(/\u2026/g, '...');      // Ellipsis
+
+    // 6) Strip ALL remaining non-ASCII characters (Unicode/Emojis/etc)
+    out = out.replace(/[^\x00-\x7F]/g, '');
+
+    // 7) Collapse multiple spaces on same line, but preserve single newlines
     out = out.replace(/[^\S\n]+/g, ' ');  // Collapse spaces/tabs but not newlines
     out = out.replace(/\n{3,}/g, '\n\n'); // Collapse 3+ newlines to 2
     out = out.trim();
