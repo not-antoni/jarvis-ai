@@ -3817,24 +3817,33 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             throw outerError;
                         }
                     } else if (subcommand === 'execute') {
-                        const command = interaction.options.getString('command');
-                        
-                        await interaction.editReply(`🔧 Executing: \`${command}\`...`);
-                        
-                        // Pass userId for owner bypass check
-                        const result = await sentientAgent.tools.executeCommand(command, { userId: interaction.user.id });
-                        
-                        if (result.status === 'pending_approval') {
-                            response = `⚠️ **Approval Required**\n\nCommand: \`${command}\`\nReason: ${result.reason}\n\n*This command requires human approval before execution.*`;
-                        } else {
-                            // Simple code block output
-                            const statusIcon = result.status === 'success' ? '✅' : '❌';
-                            response = `${statusIcon} **${result.status === 'success' ? 'Command Executed' : 'Command Failed'}** (${result.duration}ms, exit: ${result.exitCode})
+    // 1. Immediate Owner Check
+    const { isOwner } = require('../utils/owner-check');
+    if (!isOwner(interaction.user.id)) {
+        response = '⛔ This command is restricted, sir.';
+        await interaction.editReply(response); 
+        return; // Stop execution here
+    }
+
+    // 2. Authorized logic
+    const command = interaction.options.getString('command');
+    await interaction.editReply(`🔧 Executing: \`${command}\`...`);
+
+    const result = await sentientAgent.tools.executeCommand(command, { userId: interaction.user.id });
+
+    if (result.status === 'pending_approval') {
+        response = `⚠️ **Approval Required**\n\nCommand: \`${command}\`\nReason: ${result.reason}\n\n*This command requires human approval before execution.*`;
+    } else {
+        const statusIcon = result.status === 'success' ? '✅' : '❌';
+        response = `${statusIcon} **${result.status === 'success' ? 'Command Executed' : 'Command Failed'}** (${result.duration}ms, exit: ${result.exitCode})
 \`\`\`
 $ ${command}
 ${(result.output || 'No output').substring(0, 1800)}
 \`\`\``;
-                        }
+    }
+    
+    // Final update with the actual result or approval message
+    await interaction.editReply(response);
                     } else if (subcommand === 'memory') {
                         const context = sentientAgent.memory.getContext();
                         
