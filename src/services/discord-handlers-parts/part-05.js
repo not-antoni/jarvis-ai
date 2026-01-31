@@ -3321,6 +3321,13 @@ ${traitsDisplay}
                              await interaction.editReply(response);
                              return response;
                         }
+
+                        // Peak bypass
+                        if (prompt && /\bis\s+this\s+peak\b/i.test(prompt)) {
+                             response = `Indubitably peak, sir. 🏔️🔥`;
+                             await interaction.editReply(response);
+                             return response;
+                        }
                         
                         // === QUEUE SYSTEM: Max 2 concurrent thinking per guild ===
                         if (!global.sentientThinkQueue) global.sentientThinkQueue = new Map();
@@ -4007,6 +4014,12 @@ ${learnings}
                     if (prompt && /\bis\s+this\s+tuff\b/i.test(prompt)) {
                          const emojiString = '<:wilted_rose:1462415423327703260>';
                          response = `Fuh naw, sir 💔 ${emojiString}`;
+                         break;
+                    }
+
+                    // Peak bypass
+                    if (prompt && /\bis\s+this\s+peak\b/i.test(prompt)) {
+                         response = `Indubitably peak, sir. 🏔️🔥`;
                          break;
                     }
 
