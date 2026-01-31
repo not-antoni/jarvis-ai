@@ -827,6 +827,22 @@
              }
         }
 
+        // ============ IS THIS PEAK DETECTION ============
+        if (strippedContent && /\bis\s+this\s+peak\b/i.test(strippedContent)) {
+             const { limited } = this.hitCooldown(userId, messageScope);
+             if (limited) return;
+
+             try {
+                 await message.reply({ 
+                     content: `Indubitably peak, sir. 🏔️🔥`, 
+                     allowedMentions: { parse: [] } 
+                 });
+                 return; // Exit early
+             } catch (error) {
+                 console.error('[IsPeak] Failed to send response:', error);
+             }
+        }
+
         if (!isMentioned && !isRoleMentioned && !isReplyToJarvis && !containsWakeWord) {
             return;
         }
