@@ -44,7 +44,19 @@ Edit `guild-features.js` to add or modify guild configurations:
         flagThisYearAccounts: true
     }
 }
+
 ```
+
+### Environment Configuration
+
+You can also whitelist guilds for moderation/anti-scam features using the `.env` file:
+
+```env
+MODERATION_GUILD_IDS=1234567890,0987654321
+```
+
+These guilds will automatically be configured with default settings.
+
 
 ## Status
 
