@@ -30,6 +30,36 @@ const GUILD_CONFIGS = {
     }
 };
 
+// Load additional guilds from .env
+const envGuilds = (process.env.MODERATION_GUILD_IDS || '')
+    .split(',')
+    .map(id => id.trim())
+    .filter(id => id.length > 0);
+
+const DEFAULT_CONFIG = {
+    features: {
+        antiScam: true,
+        altDetection: true,
+        newAccountWarnings: true
+    },
+    notifyRoles: [],
+    notifyUsers: [],
+    settings: {
+        newAccountThresholdDays: 30,
+        flagSameDayAccounts: true,
+        flagThisYearAccounts: true
+    }
+};
+
+envGuilds.forEach(guildId => {
+    if (!GUILD_CONFIGS[guildId]) {
+        GUILD_CONFIGS[guildId] = {
+            name: 'Whitelisted Guild',
+            ...DEFAULT_CONFIG
+        };
+    }
+});
+
 /**
  * Check if a feature is enabled for a guild
  * @param {string} guildId - Discord guild ID

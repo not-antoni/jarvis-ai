@@ -55,10 +55,11 @@ const SELFHOST_MODE = String(process.env.SELFHOST_MODE || '').toLowerCase() === 
 const COLLECTION_NAME = 'guildModeration';
 
 // Allowed guilds that CAN enable moderation (whitelist)
-const ALLOWED_GUILDS = [
-    '858444090374881301', // Primary guild
-    '1403664986089324606' // Jarvis HQ
-];
+// Allowed guilds that CAN enable moderation (whitelist)
+const ALLOWED_GUILDS = (process.env.MODERATION_GUILD_IDS || '')
+    .split(',')
+    .map(id => id.trim())
+    .filter(id => id.length > 0);
 
 // In-memory cache of enabled guilds
 let enabledGuilds = new Map();
