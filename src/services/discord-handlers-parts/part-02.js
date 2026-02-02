@@ -626,7 +626,10 @@
     }
 
     async handleMessage(message, client) {
-        const allowedBotIds = ['984734399310467112', '1391010888915484672'];
+const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,1391010888915484672')
+            .split(',')
+            .map(id => id.trim())
+            .filter(id => id.length > 0);
         if (message.author.id === client.user.id) return;
         if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
