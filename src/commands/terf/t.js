@@ -1,8 +1,8 @@
 const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const terfWiki = require('../../services/terf-wiki');
 
-// Guild lock - only respond in this server
-const ALLOWED_GUILD = '858444090374881301';
+// Guild lock - only respond in the configured server
+const ALLOWED_GUILD = process.env.TERF_GUILD_ID || '';
 
 module.exports = {
     data: new SlashCommandBuilder()

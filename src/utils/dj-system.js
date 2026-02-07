@@ -1,7 +1,8 @@
 const { PermissionFlagsBits } = require('discord.js');
 const database = require('../services/database');
+const { isOwner: isOwnerCheck } = require('./owner-check');
 
-const BOT_OWNER_ID = process.env.BOT_OWNER_ID || '809010595545874432'; // Fallback to provided owner ID
+const BOT_OWNER_ID = (process.env.BOT_OWNER_ID || process.env.ADMIN_USER_ID || '').trim();
 
 /**
  * Check if a user matches "True Moderator" criteria
@@ -21,8 +22,8 @@ function hasTrueModPerms(member) {
 function isDjAdmin(member, guildConfig) {
     if (!member) return false;
 
-    // 1. Bot Owner override
-    if (member.id === BOT_OWNER_ID) return true;
+    // 1. Bot Owner override (uses centralized owner check)
+    if (isOwnerCheck(member.id)) return true;
 
     // 2. Guild Owner override
     if (member.guild.ownerId === member.id) return true;
@@ -45,7 +46,7 @@ function isDjAdmin(member, guildConfig) {
  */
 function isDj(member, guildConfig) {
     if (!member) return false;
-    if (!guildConfig) return true; // Fail safe: if no config, allow (or maybe deny? default permissive)
+    if (!guildConfig) return false; // Secure default: deny if config unavailable
 
     // Admins are always DJs
     if (isDjAdmin(member, guildConfig)) return true;
@@ -85,7 +86,7 @@ async function canControlMusic(interactionOrMessage, guildConfig = null) {
     }
 
     // 1. Check Blocklist (Except Bot Owner)
-    if (userId !== BOT_OWNER_ID && isBlocked(userId, guildConfig)) {
+    if (!isOwnerCheck(userId) && isBlocked(userId, guildConfig)) {
         const reply = { content: '🚫 You are blocked from using music commands.', ephemeral: true };
         if (interactionOrMessage.reply) await interactionOrMessage.reply(reply);
         else interactionOrMessage.channel.send(reply);

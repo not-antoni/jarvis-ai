@@ -465,7 +465,19 @@ const allCommands = [
         ]),
     new SlashCommandBuilder()
         .setName('features')
-        .setDescription('Show which Jarvis modules are enabled globally and within this server')
+        .setDescription('Show or toggle Jarvis modules for this server')
+        .addStringOption(opt =>
+            opt
+                .setName('toggle')
+                .setDescription('Feature name to toggle on/off for this server (admin only)')
+                .setRequired(false)
+        )
+        .addBooleanOption(opt =>
+            opt
+                .setName('enabled')
+                .setDescription('Enable or disable the feature (used with toggle)')
+                .setRequired(false)
+        )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
@@ -1298,6 +1310,17 @@ const allCommands = [
                         .setRequired(true)
                 )
         )
+        .addSubcommand(sub =>
+            sub
+                .setName('agis')
+                .setDescription('A.G.I.S. — Plan and decompose a goal into steps')
+                .addStringOption(option =>
+                    option
+                        .setName('goal')
+                        .setDescription('High-level goal for AGIS to plan')
+                        .setRequired(false)
+                )
+        )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
@@ -2092,11 +2115,27 @@ const allCommands = [
         ]),
     new SlashCommandBuilder()
         .setName('wakeword')
-        .setDescription('Set a custom wake word that triggers Jarvis for you')
+        .setDescription('Set a custom wake word that triggers Jarvis for you or your server')
         .addStringOption(opt =>
             opt
                 .setName('word')
                 .setDescription('Your custom wake word (2-20 characters, alphanumeric)')
+                .setRequired(false)
+        )
+        .addStringOption(opt =>
+            opt
+                .setName('scope')
+                .setDescription('Apply to yourself or the whole server (server requires admin)')
+                .setRequired(false)
+                .addChoices(
+                    { name: 'Personal (just you)', value: 'personal' },
+                    { name: 'Server (everyone in this server)', value: 'server' }
+                )
+        )
+        .addBooleanOption(opt =>
+            opt
+                .setName('clear')
+                .setDescription('Remove your (or server) wake word')
                 .setRequired(false)
         )
         .setContexts([
@@ -2107,6 +2146,20 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('mystats')
         .setDescription('View your Jarvis interaction statistics')
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
+    new SlashCommandBuilder()
+        .setName('run')
+        .setDescription('Execute a JavaScript code snippet in a sandboxed environment')
+        .addStringOption(opt =>
+            opt
+                .setName('code')
+                .setDescription('JavaScript code to execute')
+                .setRequired(true)
+        )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,

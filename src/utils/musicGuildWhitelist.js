@@ -1,4 +1,4 @@
-const DEFAULT_WHITELIST = ['1403664986089324606', '858444090374881301', '833376882896142393'];
+const DEFAULT_WHITELIST = []; // Populate via MUSIC_GUILD_WHITELIST env var
 
 function parseEnvList(raw) {
     if (!raw || typeof raw !== 'string') {

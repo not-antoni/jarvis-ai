@@ -55,8 +55,8 @@ function sanitizeModelOutput(text) {
         .replace(/\u2264/g, '<=')         // Less or equal
         .replace(/\u2265/g, '>=');        // Greater or equal
 
-    // 6) Strip ALL remaining non-ASCII characters (Unicode/Emojis/etc)
-    out = out.replace(/[^\x00-\x7F]/g, '');
+    // 6) Strip control characters but keep Unicode text and emojis
+    out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
     // 7) Collapse multiple spaces on same line, but preserve single newlines
     out = out.replace(/[^\S\n]+/g, ' ');  // Collapse spaces/tabs but not newlines
@@ -249,6 +249,15 @@ class AIProviderManager {
         this.totalRequests = 0;
         this.successfulRequests = 0;
         this.failedRequests = 0;
+
+        // Dynamic load tracking
+        this.activeRequests = 0;
+        this.activeRequestsPeak = 0;
+        this.loadConfig = {
+            maxConcurrent: Number(process.env.AI_MAX_CONCURRENT) || 20,
+            softCap: Number(process.env.AI_SOFT_CAP) || 10,
+            rejectThreshold: Number(process.env.AI_REJECT_THRESHOLD) || 30
+        };
 
         this.setupProviders();
         this.loadState();
@@ -811,11 +820,65 @@ class AIProviderManager {
         throw lastError;
     }
 
-    async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai?.maxTokens || 1024) {
+    /**
+     * Get current load factor (0.0 = idle, 1.0 = at soft cap, >1.0 = overloaded)
+     */
+    getLoadFactor() {
+        return this.activeRequests / Math.max(1, this.loadConfig.softCap);
+    }
+
+    /**
+     * Get load-adjusted max tokens. Reduces output under high load to keep things responsive.
+     */
+    getLoadAdjustedTokens(requestedTokens) {
+        const load = this.getLoadFactor();
+        if (load <= 1.0) return requestedTokens;
+        // Linearly reduce tokens from 100% at softCap to 50% at maxConcurrent
+        const reduction = Math.min(0.5, (load - 1.0) * 0.25);
+        return Math.max(512, Math.floor(requestedTokens * (1 - reduction)));
+    }
+
+    /**
+     * Get load stats for diagnostics/monitoring
+     */
+    getLoadStats() {
+        return {
+            activeRequests: this.activeRequests,
+            peakRequests: this.activeRequestsPeak,
+            loadFactor: Math.round(this.getLoadFactor() * 100) / 100,
+            softCap: this.loadConfig.softCap,
+            maxConcurrent: this.loadConfig.maxConcurrent,
+            rejectThreshold: this.loadConfig.rejectThreshold
+        };
+    }
+
+    async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai?.maxTokens || 4096) {
         // Ensure prompts are strings (required by some providers like Groq)
         systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
         userPrompt = userPrompt != null ? String(userPrompt) : '';
 
+        // Load management: reject if over hard limit
+        if (this.activeRequests >= this.loadConfig.rejectThreshold) {
+            throw new Error('System under heavy load — please try again in a moment, sir.');
+        }
+
+        // Track active requests
+        this.activeRequests++;
+        if (this.activeRequests > this.activeRequestsPeak) {
+            this.activeRequestsPeak = this.activeRequests;
+        }
+
+        // Adjust tokens based on current load
+        maxTokens = this.getLoadAdjustedTokens(maxTokens);
+
+        try {
+            return await this._executeGeneration(systemPrompt, userPrompt, maxTokens);
+        } finally {
+            this.activeRequests = Math.max(0, this.activeRequests - 1);
+        }
+    }
+
+    async _executeGeneration(systemPrompt, userPrompt, maxTokens) {
         // Safety check: reinitialize providers if somehow empty (handles rare edge cases)
         if (this.providers.length === 0) {
             console.warn('Provider list was empty - reinitializing providers...');
@@ -1168,11 +1231,20 @@ class AIProviderManager {
                         ? String(resp.choices[0].message.content)
                         : '';
                 const cleaned = sanitizeAssistantMessage(raw);
+
+                // Detect truncated responses (hit max_tokens limit)
+                const finishReason = resp?.choices?.[0]?.finish_reason;
+                const wasTruncated = finishReason === 'length';
+                if (wasTruncated) {
+                    console.warn(`[AIProviderManager] Response from ${provider.name} was truncated (finish_reason=length)`);
+                }
+
                 return {
                     content: cleaned,
                     provider: provider.name,
                     tokensIn: resp?.usage?.prompt_tokens || 0,
-                    tokensOut: resp?.usage?.completion_tokens || 0
+                    tokensOut: resp?.usage?.completion_tokens || 0,
+                    truncated: wasTruncated
                 };
             } catch (error) {
                 const latency = Date.now() - started;
@@ -1285,7 +1357,7 @@ class AIProviderManager {
         systemPrompt,
         userPrompt,
         images = [],
-        maxTokens = config.ai?.maxTokens || 1024,
+        maxTokens = config.ai?.maxTokens || 4096,
         options = {}
     ) {
         const { allowModerationOnly = false } = options;

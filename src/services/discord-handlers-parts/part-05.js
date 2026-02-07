@@ -286,7 +286,7 @@
                         try {
                             await interaction.editReply({ content: msg, allowedMentions: { parse: [] } });
                         } catch (e) {
-                            try { await interaction.followUp({ content: msg, allowedMentions: { parse: [] } }); } catch {}
+                            try { await interaction.followUp({ content: msg, allowedMentions: { parse: [] } }); } catch (_fe) { console.warn('[slash] followUp fallback failed:', _fe.message); }
                         }
                     } else {
                         // Object response (embeds, etc.)
@@ -295,7 +295,7 @@
                             payload.allowedMentions = payload.allowedMentions || { parse: [] };
                             await interaction.editReply(payload);
                         } catch (e) {
-                            try { await interaction.followUp(response); } catch {}
+                            try { await interaction.followUp(response); } catch (_fe) { console.warn('[slash] followUp fallback failed:', _fe.message); }
                         }
                     }
                     finalizeTelemetry();
@@ -1748,9 +1748,9 @@
                             const person1 = interaction.options.getUser('person1');
                             const person2 = interaction.options.getUser('person2') || interaction.user;
                             let compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
-                            // Hardcode 101% for specific user pair
-                            const herId = '849355767122231336';
-                            const himId = '333991175251951617';
+                            // Easter egg ship pair (configured via env)
+                            const herId = process.env.SHIP_EASTER_EGG_1 || '';
+                            const himId = process.env.SHIP_EASTER_EGG_2 || '';
                             if (interaction.user.id === herId) {
                                 const isTheShip = (person1.id === herId && person2.id === himId) || 
                                                   (person1.id === himId && person2.id === herId);
@@ -1880,9 +1880,9 @@
                     const person2 = interaction.options.getUser('person2') || interaction.user;
                     
                     let compatibility = funFeatures.calculateCompatibility(person1.id, person2.id);
-                    // Hardcode 101% for specific user pair (Her + Him) when run by Her
-                    const herId = '849355767122231336';
-                    const himId = '333991175251951617';
+                    // Easter egg ship pair (configured via env)
+                    const herId = process.env.SHIP_EASTER_EGG_1 || '';
+                    const himId = process.env.SHIP_EASTER_EGG_2 || '';
                     if (interaction.user.id === herId) {
                         const isTheShip = (person1.id === herId && person2.id === himId) || 
                                           (person1.id === himId && person2.id === herId);
@@ -3331,6 +3331,12 @@ ${traitsDisplay}
                         
                         // === QUEUE SYSTEM: Max 2 concurrent thinking per guild ===
                         if (!global.sentientThinkQueue) global.sentientThinkQueue = new Map();
+                        // Prune stale zero-count entries periodically
+                        if (global.sentientThinkQueue.size > 100) {
+                            for (const [k, v] of global.sentientThinkQueue) {
+                                if (v <= 0) global.sentientThinkQueue.delete(k);
+                            }
+                        }
                         const guildQueue = global.sentientThinkQueue;
                         const gId = guildId || 'dm';
                         const currentCount = guildQueue.get(gId) || 0;
@@ -3801,9 +3807,14 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                                 
                                 response = '__SENTIENT_HANDLED__';
                             }
-                            
-                            // Silently run OODA loop
+
+                            // Silently run OODA loop and record success in soul
                             sentientAgent.process(prompt).catch(e => console.error('OODA:', e));
+                            try {
+                                selfhostFeatures.jarvisSoul?.evolve?.('success');
+                                selfhostFeatures.jarvisSoul?.updateMoodFromOutcome?.(true, 'think');
+                                selfhostFeatures.jarvisSoul?.addMemory?.(`Thought about: ${prompt.substring(0, 80)}`, 'deep_thought');
+                            } catch (_e) { /* soul ops non-critical */ }
 
                         } catch (aiError) {
                             clearInterval(loadingInterval);
@@ -3812,7 +3823,11 @@ Keep your response under 300 words but make it feel genuine, thoughtful, and com
                             try {
                                 await interaction.editReply(errResp);
                             } catch (e) { /* ignore */ }
-                            
+                            try {
+                                selfhostFeatures.jarvisSoul?.evolve?.('failure');
+                                selfhostFeatures.jarvisSoul?.updateMoodFromOutcome?.(false, 'think');
+                            } catch (_e) { /* soul ops non-critical */ }
+
                             response = '__SENTIENT_HANDLED__';
                         } finally {
                             // Always release queue
@@ -3849,6 +3864,18 @@ ${(result.output || 'No output').substring(0, 1800)}
 \`\`\``;
     }
     
+    // Record outcome in soul
+    try {
+        const ok = result.status === 'success';
+        selfhostFeatures.jarvisSoul?.evolve?.(ok ? 'success' : 'failure');
+        selfhostFeatures.jarvisSoul?.updateMoodFromOutcome?.(ok, 'execute');
+        sentientAgent.selfImprovement.learnFromOutcome(
+            command.substring(0, 100),
+            (result.output || '').substring(0, 100),
+            ok
+        );
+    } catch (_e) { /* non-critical */ }
+
     // Final update with the actual result or approval message
     await interaction.editReply(response);
                     } else if (subcommand === 'memory') {
@@ -3873,20 +3900,89 @@ ${learnings}
 \`\`\``;
                     } else if (subcommand === 'autonomous') {
                         const enabled = interaction.options.getBoolean('enabled');
-                        
+
                         // Only allow admin to enable autonomous mode (check both config and env)
                         const adminId = config.admin?.userId || process.env.ADMIN_USER_ID;
                         if (enabled && adminId && interaction.user.id !== adminId) {
                             response = `⚠️ Only the bot administrator can enable autonomous mode, sir. (Your ID: ${interaction.user.id})`;
                             break;
                         }
-                        
+
                         sentientAgent.setAutonomousMode(enabled);
-                        
+
                         if (enabled) {
                             response = `⚠️ **AUTONOMOUS MODE ENABLED**\n\n*Jarvis can now perform up to 10 safe actions independently.*\n*Dangerous operations still require approval.*\n\n🔴 **Use with caution on isolated systems only!**`;
                         } else {
                             response = `✅ Autonomous mode disabled. All actions now require explicit commands.`;
+                        }
+                    } else if (subcommand === 'agis') {
+                        const { getAGIS } = require('../core/agis');
+                        const agis = getAGIS({ aiManager });
+                        const goal = interaction.options.getString('goal');
+
+                        if (!agis.enabled) {
+                            response = 'A.G.I.S. is only available in selfhost mode, sir.';
+                            break;
+                        }
+
+                        if (!goal) {
+                            // Show AGIS status
+                            const status = agis.getStatus();
+                            const activePlans = Array.from(agis.plans.values())
+                                .filter(p => p.status !== 'completed')
+                                .slice(0, 3);
+
+                            let planList = 'No active plans.';
+                            if (activePlans.length > 0) {
+                                planList = activePlans.map(p => {
+                                    const done = p.steps.filter(s => s.status === 'completed').length;
+                                    return `**${p.id}** — ${p.goal.substring(0, 60)}\n  ${done}/${p.steps.length} steps complete (${p.status})`;
+                                }).join('\n\n');
+                            }
+
+                            const statusEmbed = new EmbedBuilder()
+                                .setTitle('🧠 A.G.I.S. — System Status')
+                                .setColor(status.activePlans > 0 ? 0x00bfff : 0x555555)
+                                .addFields(
+                                    { name: 'Status', value: status.enabled ? '🟢 Online' : '🔴 Offline', inline: true },
+                                    { name: 'Active Plans', value: String(status.activePlans), inline: true },
+                                    { name: 'Completed Plans', value: String(status.completedPlans), inline: true },
+                                    { name: 'Active Goals', value: String(status.activeGoals), inline: true },
+                                    { name: 'Uptime', value: `${status.uptime}s`, inline: true },
+                                    { name: 'Recent Actions', value: String(status.context.recentActions), inline: true },
+                                    { name: 'Plans', value: planList.substring(0, 1024) }
+                                )
+                                .setFooter({ text: 'Artificial General Intelligent System' })
+                                .setTimestamp();
+
+                            response = { embeds: [statusEmbed] };
+                        } else {
+                            // Decompose a goal into a plan
+                            const plan = await agis.decompose(goal);
+
+                            if (plan.error) {
+                                response = `⚠️ ${plan.error}`;
+                                break;
+                            }
+
+                            const stepsText = plan.steps.map((s, i) =>
+                                `${i + 1}. ${s.description}`
+                            ).join('\n');
+
+                            const planEmbed = new EmbedBuilder()
+                                .setTitle('🧠 A.G.I.S. — Plan Created')
+                                .setColor(0x00bfff)
+                                .setDescription(`**Goal:** ${goal}`)
+                                .addFields(
+                                    { name: 'Plan ID', value: `\`${plan.id}\``, inline: true },
+                                    { name: 'Steps', value: String(plan.steps.length), inline: true },
+                                    { name: 'Status', value: plan.status, inline: true },
+                                    { name: 'Action Plan', value: stepsText.substring(0, 1024) }
+                                )
+                                .setFooter({ text: 'Use /sentient agis (no goal) to check plan progress' })
+                                .setTimestamp();
+
+                            response = { embeds: [planEmbed] };
                         }
                     }
                     break;
@@ -4004,6 +4100,42 @@ ${learnings}
                         telemetryError = error;
                         console.error('Math command failed:', error);
                         response = 'Mathematics subsystem encountered an error, sir. Please verify the expression.';
+                    }
+                    break;
+                }
+                case 'run': {
+                    telemetryMetadata.category = 'utilities';
+                    const codeInput = (interaction.options.getString('code') || '').trim();
+                    if (!codeInput.length) {
+                        telemetryStatus = 'error';
+                        response = 'Please provide some code to execute, sir.';
+                        break;
+                    }
+
+                    try {
+                        const { executeCode } = require('../services/code-executor');
+                        const output = await executeCode(codeInput, 'javascript', 5000);
+                        const { EmbedBuilder } = require('discord.js');
+                        const embed = new EmbedBuilder()
+                            .setColor(0x2ecc71)
+                            .setTitle('Code Execution')
+                            .addFields(
+                                { name: 'Input', value: `\`\`\`js\n${codeInput.slice(0, 1000)}\n\`\`\`` },
+                                { name: 'Output', value: `\`\`\`\n${(output || '(no output)').slice(0, 1000)}\n\`\`\`` }
+                            )
+                            .setFooter({ text: 'Sandboxed JS — no Node.js APIs available' });
+                        response = { embeds: [embed] };
+                    } catch (error) {
+                        const { EmbedBuilder } = require('discord.js');
+                        const embed = new EmbedBuilder()
+                            .setColor(0xe74c3c)
+                            .setTitle('Execution Error')
+                            .addFields(
+                                { name: 'Input', value: `\`\`\`js\n${codeInput.slice(0, 1000)}\n\`\`\`` },
+                                { name: 'Error', value: `\`\`\`\n${(error.message || 'Unknown error').slice(0, 1000)}\n\`\`\`` }
+                            )
+                            .setFooter({ text: 'Sandboxed JS — no Node.js APIs available' });
+                        response = { embeds: [embed] };
                     }
                     break;
                 }
@@ -4283,7 +4415,7 @@ ${learnings}
                                     command: 'pwdgen'
                                 }
                             });
-                        } catch {}
+                        } catch (_logErr) { /* error logger failed */ }
                         response = 'Password generator failed, sir.';
                     }
                     break;
@@ -4340,7 +4472,7 @@ ${learnings}
                                     command: 'qrcode'
                                 }
                             });
-                        } catch {}
+                        } catch (_logErr) { /* error logger failed */ }
                         response = 'QR code generation failed, sir.';
                     }
                     break;
@@ -4403,7 +4535,7 @@ ${learnings}
                             setTimeout(async () => {
                                 try {
                                     await interaction.guild.members.unban(targetUser.id, 'Temporary ban expired');
-                                } catch {}
+                                } catch (_e) { console.warn('[ban] Auto-unban failed:', _e.message); }
                             }, banDuration);
                         }
                         
@@ -4550,17 +4682,28 @@ ${learnings}
                     const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
                     if (!targetUser) { response = `❌ ${resolveError || 'User not found.'}`; break; }
                     
-                    // Store warning
+                    // Store warning in database
                     const guildId = interaction.guild.id;
                     const userId = targetUser.id;
-                    
-                    if (!global.jarvisWarnings) global.jarvisWarnings = new Map();
-                    if (!global.jarvisWarnings.has(guildId)) global.jarvisWarnings.set(guildId, new Map());
-                    
-                    const guildWarnings = global.jarvisWarnings.get(guildId);
-                    const userWarnings = guildWarnings.get(userId) || [];
-                    userWarnings.push({ reason, warnedBy: interaction.user.id, timestamp: Date.now() });
-                    guildWarnings.set(userId, userWarnings);
+
+                    let warningCount = 1;
+                    try {
+                        const warningDoc = {
+                            guildId,
+                            userId,
+                            reason,
+                            warnedBy: interaction.user.id,
+                            timestamp: new Date()
+                        };
+                        if (database.isConnected) {
+                            const col = database.db.collection('warnings');
+                            await col.insertOne(warningDoc);
+                            warningCount = await col.countDocuments({ guildId, userId });
+                        }
+                    } catch (dbErr) {
+                        console.warn('[warn] Failed to persist warning:', dbErr.message);
+                    }
+                    const userWarnings = { length: warningCount };
                     
                     const { EmbedBuilder } = require('discord.js');
                     const embed = new EmbedBuilder()
@@ -4574,8 +4717,8 @@ ${learnings}
                         .setFooter({ text: `Warned by ${interaction.user.tag}` })
                         .setTimestamp();
                     
-                    // Try to DM user
-                    try { await targetUser.send(`⚠️ You have been warned in **${interaction.guild.name}**\nReason: ${reason}`); } catch {}
+                    // Try to DM user (may fail if DMs are closed)
+                    try { await targetUser.send(`⚠️ You have been warned in **${interaction.guild.name}**\nReason: ${reason}`); } catch (_e) { /* DMs disabled */ }
                     
                     response = { embeds: [embed] };
                     break;
@@ -4760,19 +4903,25 @@ ${learnings}
             } else if (typeof response === 'string') {
                 const trimmed = response.trim();
                 const safe = this.sanitizePings(trimmed);
-                const msg = safe.length > 2000 ? safe.slice(0, 1997) + '...' : (safe.length ? safe : "Response circuits tangled, sir. Try again?");
-                try {
-                    const payload = { content: msg, allowedMentions: { parse: [] } };
-                    const sendPromise = interaction.editReply(payload);
-                    await Promise.race([
-                        sendPromise,
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('editReply timeout')), 5000))
-                    ]);
-                } catch (e) {
+                if (!safe.length) {
+                    await interaction.editReply("Response circuits tangled, sir. Try again?");
+                } else {
+                    const chunks = splitMessage(safe);
                     try {
-                        await interaction.followUp({ content: msg, allowedMentions: { parse: [] } });
-                    } catch (followUpError) {
-                        console.error('[/jarvis] Response send failed:', e.message, followUpError.message);
+                        const sendPromise = interaction.editReply({ content: chunks[0], allowedMentions: { parse: [] } });
+                        await Promise.race([
+                            sendPromise,
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('editReply timeout')), 5000))
+                        ]);
+                        for (let i = 1; i < chunks.length; i++) {
+                            await interaction.followUp({ content: chunks[i], allowedMentions: { parse: [] } });
+                        }
+                    } catch (e) {
+                        try {
+                            await interaction.followUp({ content: chunks[0], allowedMentions: { parse: [] } });
+                        } catch (followUpError) {
+                            console.error('[/jarvis] Response send failed:', e.message, followUpError.message);
+                        }
                     }
                 }
             } else {

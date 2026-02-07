@@ -633,16 +633,6 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
         if (message.author.id === client.user.id) return;
         if (message.author.bot && !allowedBotIds.includes(message.author.id)) return;
 
-        // ============ LEGACY COMMANDS (.j prefix) ============
-        // Allow in DMs (no intent needed) or if Message Content Intent is enabled
-        if ((config.discord?.messageContent?.enabled || !message.guild) && message.content) {
-            try {
-                const handled = await legacyCommands.handleLegacyCommand(message, client);
-                if (handled) return;
-            } catch (error) {
-                console.error('Legacy command error:', error);
-            }
-        }
 
         if (!message.guild) {
             try {
@@ -654,6 +644,12 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
         }
 
         await moderationFilters.handleMessage(message);
+
+        // Track guild activity
+        try {
+            const activityTracker = require('./GUILDS_FEATURES/activity-tracker');
+            activityTracker.recordMessage(message.guild.id, message.channel.id, message.author.id);
+        } catch (_e) { /* activity tracker not available */ }
 
         // ============ AI CONTENT MODERATION ============
         // Check messages from tracked members for suspicious content
@@ -682,12 +678,15 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
             ? config.wakeWords.some((trigger) => normalizedContent.includes(trigger))
             : false;
         
-        // Check for custom user wake word
+        // Check for custom user wake word or guild wake word
         let customWakeWordTriggered = false;
         if (!containsWakeWord && allowWakeWords && normalizedContent) {
             try {
                 const userFeatures = require('./user-features');
                 customWakeWordTriggered = await userFeatures.matchesWakeWord(userId, normalizedContent);
+                if (!customWakeWordTriggered && message.guild) {
+                    customWakeWordTriggered = await userFeatures.matchesGuildWakeWord(message.guild.id, normalizedContent);
+                }
                 if (customWakeWordTriggered) {
                     containsWakeWord = true;
                 }
@@ -865,9 +864,23 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
     async handleJarvisInteraction(message, client) {
         const isMentioned = message.mentions.has(client.user);
         const isDM = message.channel.type === ChannelType.DM;
-        const containsJarvis = config.wakeWords.some(trigger =>
-            message.content.toLowerCase().includes(trigger)
+        const lowerContent = message.content.toLowerCase();
+        let containsJarvis = config.wakeWords.some(trigger =>
+            lowerContent.includes(trigger)
         );
+        // Also check user/guild custom wake words
+        if (!containsJarvis) {
+            try {
+                const userFeatures = require('./user-features');
+                const userMatch = await userFeatures.matchesWakeWord(message.author.id, lowerContent);
+                const guildMatch = message.guild ? await userFeatures.matchesGuildWakeWord(message.guild.id, lowerContent) : false;
+                if (userMatch || guildMatch) {
+                    containsJarvis = true;
+                }
+            } catch (_e) {
+                // User features not available
+            }
+        }
         const isBot = message.author.bot;
 
         if (isBot) {

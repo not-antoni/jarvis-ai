@@ -69,7 +69,42 @@ async function safeDM(user, options) {
     }
 }
 
+/**
+ * Split a long message into chunks that fit Discord's 2000 char limit.
+ * Splits on newlines first, then on spaces, preserving code blocks.
+ * @param {string} text - The text to split
+ * @param {number} maxLength - Max chars per chunk (default 1900 to leave room for formatting)
+ * @returns {string[]}
+ */
+function splitMessage(text, maxLength = 1900) {
+    if (!text || text.length <= maxLength) return [text];
+
+    const chunks = [];
+    let remaining = text;
+
+    while (remaining.length > 0) {
+        if (remaining.length <= maxLength) {
+            chunks.push(remaining);
+            break;
+        }
+
+        let splitAt = remaining.lastIndexOf('\n', maxLength);
+        if (splitAt < maxLength * 0.3) {
+            splitAt = remaining.lastIndexOf(' ', maxLength);
+        }
+        if (splitAt < maxLength * 0.3) {
+            splitAt = maxLength;
+        }
+
+        chunks.push(remaining.slice(0, splitAt));
+        remaining = remaining.slice(splitAt).trimStart();
+    }
+
+    return chunks;
+}
+
 module.exports = {
     safeSend,
-    safeDM
+    safeDM,
+    splitMessage
 };

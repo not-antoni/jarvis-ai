@@ -299,7 +299,14 @@
 
             if (typeof response === "string" && response.trim()) {
                 const safe = this.sanitizePings(response);
-                await message.reply({ content: safe, allowedMentions: { parse: [] } });
+                const chunks = splitMessage(safe);
+                for (let i = 0; i < chunks.length; i++) {
+                    if (i === 0) {
+                        await message.reply({ content: chunks[i], allowedMentions: { parse: [] } });
+                    } else {
+                        await message.channel.send({ content: chunks[i], allowedMentions: { parse: [] } });
+                    }
+                }
             } else {
                 await message.reply({ content: "Response circuits tangled, sir. Clarify your request?", allowedMentions: { parse: [] } });
             }
@@ -398,6 +405,25 @@
                     `• Channels: ${this.formatServerStatsValue(stats.channelCount)}`,
                     `• Roles: ${this.formatServerStatsValue(stats.roleCount)}`
                 ];
+
+                // Add activity insights if available
+                try {
+                    const activityTracker = require('./GUILDS_FEATURES/activity-tracker');
+                    const activity = activityTracker.getActivitySummary(guild.id);
+                    if (activity && activity.totalMessages > 0) {
+                        summaryLines.push('', '**Activity (since last restart)**');
+                        summaryLines.push(`• Messages tracked: ${activity.totalMessages}`);
+                        summaryLines.push(`• Active users: ${activity.uniqueUsers}`);
+                        summaryLines.push(`• Msgs/min: ${activity.messagesPerMinute}`);
+                        if (activity.peakHour !== undefined) {
+                            summaryLines.push(`• Peak hour: ${activity.peakHour}:00`);
+                        }
+                        if (activity.topChannels.length > 0) {
+                            const topChans = activity.topChannels.slice(0, 3).map(c => `<#${c.channelId}> (${c.count})`).join(', ');
+                            summaryLines.push(`• Top channels: ${topChans}`);
+                        }
+                    }
+                } catch (_e) { /* activity tracker not available */ }
 
                 let chartBuffer = null;
                 try {
