@@ -1740,6 +1740,26 @@ class JarvisAI {
                 // User features not available, continue without mood detection
             }
 
+            // Emoji reaction instruction — let the AI occasionally suggest a reaction
+            try {
+                let emojiInstruction = '\n\n[EMOJI REACTION: Occasionally (~25% of messages), append [REACT:emoji] at the very END of your response with a single emoji that fits the mood/context. Use standard Unicode emojis like \uD83D\uDE02 \uD83D\uDC4D \uD83D\uDD25 \uD83D\uDC80 \uD83E\uDD14 \u2764\uFE0F \uD83D\uDE0E \uD83E\uDEE1 \uD83D\uDCAF etc.';
+                const guildEmojis = interaction?.guild?.emojis?.cache;
+                if (guildEmojis && guildEmojis.size > 0) {
+                    const emojiSample = guildEmojis
+                        .filter(e => e.available)
+                        .map(e => `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`)
+                        .slice(0, 25)
+                        .join(' ');
+                    if (emojiSample) {
+                        emojiInstruction += ` You may also use these server emojis: ${emojiSample}`;
+                    }
+                }
+                emojiInstruction += ' Only one [REACT:...] tag, always at the very end. Do NOT include it in every message — only when it genuinely fits.]';
+                systemPrompt += emojiInstruction;
+            } catch (e) {
+                // Emoji instruction not critical
+            }
+
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
             const allowsLongTermMemory = memoryPreference !== 'opt-out';

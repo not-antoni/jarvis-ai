@@ -669,23 +669,31 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
         }
 
         const userId = message.author.id;
-        
+
         const messageScope = 'message:jarvis';
         const allowWakeWords = Boolean(config.discord?.messageContent?.enabled);
         const rawContent = typeof message.content === 'string' ? message.content : '';
         const normalizedContent = rawContent.toLowerCase();
-        let containsWakeWord = allowWakeWords && normalizedContent
-            ? config.wakeWords.some((trigger) => normalizedContent.includes(trigger))
-            : false;
-        
-        // Check for custom user wake word or guild wake word
+        let containsWakeWord = false;
+
+        // Check for custom guild/user wake words FIRST — if a guild has a custom
+        // wake word, it REPLACES the defaults (jarvis/garmin) for that server.
         let customWakeWordTriggered = false;
-        if (!containsWakeWord && allowWakeWords && normalizedContent) {
+        let guildHasCustomWakeWord = false;
+        if (allowWakeWords && normalizedContent) {
             try {
                 const userFeatures = require('./user-features');
-                customWakeWordTriggered = await userFeatures.matchesWakeWord(userId, normalizedContent);
-                if (!customWakeWordTriggered && message.guild) {
-                    customWakeWordTriggered = await userFeatures.matchesGuildWakeWord(message.guild.id, normalizedContent);
+                // Check guild custom wake word
+                if (message.guild) {
+                    const guildWord = await userFeatures.getGuildWakeWord(message.guild.id);
+                    if (guildWord) {
+                        guildHasCustomWakeWord = true;
+                        customWakeWordTriggered = await userFeatures.matchesGuildWakeWord(message.guild.id, normalizedContent);
+                    }
+                }
+                // Also check personal user wake word
+                if (!customWakeWordTriggered) {
+                    customWakeWordTriggered = await userFeatures.matchesWakeWord(userId, normalizedContent);
                 }
                 if (customWakeWordTriggered) {
                     containsWakeWord = true;
@@ -693,6 +701,11 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
             } catch (e) {
                 // User features not available
             }
+        }
+
+        // Only fall back to default wake words if the guild has NO custom wake word
+        if (!containsWakeWord && !guildHasCustomWakeWord && allowWakeWords && normalizedContent) {
+            containsWakeWord = config.wakeWords.some((trigger) => normalizedContent.includes(trigger));
         }
 
         const braveGuardedEarly = await this.enforceImmediateBraveGuard(message);
@@ -865,21 +878,32 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
         const isMentioned = message.mentions.has(client.user);
         const isDM = message.channel.type === ChannelType.DM;
         const lowerContent = message.content.toLowerCase();
-        let containsJarvis = config.wakeWords.some(trigger =>
-            lowerContent.includes(trigger)
-        );
-        // Also check user/guild custom wake words
-        if (!containsJarvis) {
-            try {
-                const userFeatures = require('./user-features');
-                const userMatch = await userFeatures.matchesWakeWord(message.author.id, lowerContent);
-                const guildMatch = message.guild ? await userFeatures.matchesGuildWakeWord(message.guild.id, lowerContent) : false;
-                if (userMatch || guildMatch) {
-                    containsJarvis = true;
+        let containsJarvis = false;
+
+        // Check custom guild/user wake words first — guild custom wake word replaces defaults
+        let guildHasCustomWord = false;
+        try {
+            const userFeatures = require('./user-features');
+            if (message.guild) {
+                const guildWord = await userFeatures.getGuildWakeWord(message.guild.id);
+                if (guildWord) {
+                    guildHasCustomWord = true;
+                    containsJarvis = await userFeatures.matchesGuildWakeWord(message.guild.id, lowerContent);
                 }
-            } catch (_e) {
-                // User features not available
             }
+            if (!containsJarvis) {
+                const userMatch = await userFeatures.matchesWakeWord(message.author.id, lowerContent);
+                if (userMatch) containsJarvis = true;
+            }
+        } catch (_e) {
+            // User features not available
+        }
+
+        // Only use default wake words if guild has no custom one
+        if (!containsJarvis && !guildHasCustomWord) {
+            containsJarvis = config.wakeWords.some(trigger =>
+                lowerContent.includes(trigger)
+            );
         }
         const isBot = message.author.bot;
 

@@ -297,8 +297,19 @@
 
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
 
-            if (typeof response === "string" && response.trim()) {
-                const safe = this.sanitizePings(response);
+            // Parse optional emoji reaction tag from AI response
+            let reactEmoji = null;
+            let cleanResponse = response;
+            if (typeof response === 'string') {
+                const reactMatch = response.match(/\[REACT:(.+?)\]\s*$/);
+                if (reactMatch) {
+                    reactEmoji = reactMatch[1].trim();
+                    cleanResponse = response.replace(/\s*\[REACT:.+?\]\s*$/, '').trim();
+                }
+            }
+
+            if (typeof cleanResponse === "string" && cleanResponse.trim()) {
+                const safe = this.sanitizePings(cleanResponse);
                 const chunks = splitMessage(safe);
                 for (let i = 0; i < chunks.length; i++) {
                     if (i === 0) {
@@ -309,6 +320,19 @@
                 }
             } else {
                 await message.reply({ content: "Response circuits tangled, sir. Clarify your request?", allowedMentions: { parse: [] } });
+            }
+
+            // Apply emoji reaction if the AI suggested one
+            if (reactEmoji) {
+                try {
+                    await message.react(reactEmoji);
+                } catch (_) {
+                    // Custom emoji format: <:name:id> or <a:name:id> — extract the ID
+                    const customMatch = reactEmoji.match(/<a?:\w+:(\d+)>/);
+                    if (customMatch) {
+                        try { await message.react(customMatch[1]); } catch (_e) { /* emoji unavailable */ }
+                    }
+                }
             }
         } catch (error) {
             // Generate unique error code for debugging
