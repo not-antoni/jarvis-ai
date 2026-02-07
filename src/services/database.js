@@ -827,14 +827,27 @@ class DatabaseManager {
         const collection = this.db.collection(config.database.collections.guildConfigs);
         const now = new Date();
 
-        await collection.updateOne(
-            { guildId },
-            {
-                $set: { customWakeWord: wakeWord || null, updatedAt: now },
-                $setOnInsert: { createdAt: now }
-            },
-            { upsert: true }
-        );
+        if (wakeWord) {
+            await collection.updateOne(
+                { guildId },
+                {
+                    $set: { customWakeWord: wakeWord, updatedAt: now },
+                    $setOnInsert: { createdAt: now }
+                },
+                { upsert: true }
+            );
+        } else {
+            // Use $unset to fully remove the field instead of setting null
+            await collection.updateOne(
+                { guildId },
+                {
+                    $unset: { customWakeWord: 1 },
+                    $set: { updatedAt: now },
+                    $setOnInsert: { createdAt: now }
+                },
+                { upsert: true }
+            );
+        }
         this._invalidateGuildConfigCache(guildId);
         return this.getGuildConfig(guildId);
     }
