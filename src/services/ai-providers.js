@@ -307,18 +307,28 @@ class AIProviderManager {
             .map(key => process.env[key])
             .filter(Boolean);
 
-        groqKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `Groq${index + 1}`,
-                client: new OpenAI({
-                    apiKey: key,
-                    baseURL: 'https://api.groq.com/openai/v1',
-                    fetch: aiFetch
-                }),
-                model: 'moonshotai/kimi-k2-instruct',
-                type: 'openai-chat',
-                family: 'groq',
-                costTier: 'free'
+        // Each Groq key gets multiple model providers — rate limits are per-model
+        const groqModels = [
+            'moonshotai/kimi-k2-instruct',    // Primary — best quality
+            'llama-3.3-70b-versatile',         // Fallback — separate rate limit
+            'llama3-70b-8192'                  // Second fallback — separate rate limit
+        ];
+
+        groqKeys.forEach((key, keyIndex) => {
+            groqModels.forEach((model) => {
+                const shortName = model.includes('/') ? model.split('/').pop() : model;
+                this.providers.push({
+                    name: `Groq${keyIndex + 1}-${shortName}`,
+                    client: new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://api.groq.com/openai/v1',
+                        fetch: aiFetch
+                    }),
+                    model,
+                    type: 'openai-chat',
+                    family: 'groq',
+                    costTier: 'free'
+                });
             });
         });
 
