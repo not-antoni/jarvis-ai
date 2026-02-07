@@ -357,9 +357,13 @@ class AIProviderManager {
 
         // Each Google key gets multiple models — rate limits are per-model
         const googleModels = [
-            'gemini-2.5-flash',        // Primary — best quality
-            'gemini-2.0-flash',        // Fallback — separate rate limit
-            'gemini-2.0-flash-lite'    // Second fallback — highest free limits
+            'gemini-2.5-flash',        // Primary — best quality, 250 RPD
+            'gemini-2.5-flash-lite',   // Lightweight, 1000 RPD
+            'gemini-2.5-pro',          // Most capable, 100 RPD
+            'gemini-2.0-flash',        // Separate rate limit
+            'gemini-2.0-flash-lite',   // Separate rate limit, high throughput
+            'gemini-1.5-flash',        // Older but separate limit
+            'gemini-1.5-pro'           // Older but separate limit
         ];
 
         googleKeys.forEach((key, keyIndex) => {
