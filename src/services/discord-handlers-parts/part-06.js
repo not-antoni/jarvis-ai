@@ -110,7 +110,11 @@
 
                 if (clear) {
                     await userFeatures.removeGuildWakeWord(guildId);
-                    await interaction.editReply('Server wake word removed. I\'ll only respond to the default triggers and personal wake words now.');
+                    // Flush handler-level cache so the change takes effect immediately
+                    this.guildConfigCache.delete(guildId);
+                    const guildConfigDiskCache = require('./guild-config-cache');
+                    guildConfigDiskCache.invalidate(guildId);
+                    await interaction.editReply('Server wake word removed. I\'ll respond to the default triggers ("jarvis" / "garmin") and personal wake words now.');
                     return;
                 }
 
@@ -130,7 +134,12 @@
                     return;
                 }
 
-                await interaction.editReply(`Server wake word set to **"${result.wakeWord}"**\n\nAnyone in this server can now summon me by saying "${result.wakeWord}".`);
+                // Flush handler-level cache so the change takes effect immediately
+                this.guildConfigCache.delete(guildId);
+                const guildConfigDiskCache = require('./guild-config-cache');
+                guildConfigDiskCache.invalidate(guildId);
+
+                await interaction.editReply(`Server wake word set to **"${result.wakeWord}"**\n\nAnyone in this server can now summon me by saying "${result.wakeWord}". Default triggers ("jarvis" / "garmin") are now disabled for this server.`);
                 return;
             }
 
