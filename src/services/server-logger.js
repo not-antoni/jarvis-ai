@@ -6,11 +6,12 @@
 
 const { EmbedBuilder, AuditLogEvent, Colors, PermissionFlagsBits } = require('discord.js');
 
-const LOG_CONFIG = {
-    // Guild ID -> Log Channel ID mapping
-    // You mentioned Guild ID 1403664986089324606 -> Channel 1430282888435339466
-    '1403664986089324606': '1430282888435339466'
-};
+// Load guild->channel mapping from env: LOG_CHANNELS=guildId:channelId,guildId:channelId
+const LOG_CONFIG = {};
+(process.env.LOG_CHANNELS || '').split(',').filter(Boolean).forEach(pair => {
+    const [gId, cId] = pair.split(':').map(s => s.trim());
+    if (gId && cId) LOG_CONFIG[gId] = cId;
+});
 
 class ServerLogger {
 

@@ -65,13 +65,6 @@ function isSentienceEnabled(guildId) {
         guildId &&
         sentienceConfig.whitelistedGuilds.includes(guildIdStr);
 
-    // Debug logging
-    if (guildId === '1403664986089324606' || guildIdStr === '1403664986089324606') {
-        console.log(
-            `[Sentience] Check for guild ${guildIdStr}: enabled=${sentienceConfig.enabled}, whitelist=${JSON.stringify(sentienceConfig.whitelistedGuilds)}, result=${isEnabled}`
-        );
-    }
-
     return isEnabled;
 }
 
@@ -335,7 +328,29 @@ class ArtificialSoul {
                 this.traits.empathy = Math.min(100, this.traits.empathy + 1);
                 evolution.change = 'loyalty +1, empathy +1';
                 break;
+            case 'creative':
+                this.traits.creativity = Math.min(100, this.traits.creativity + 2);
+                this.traits.curiosity = Math.min(100, this.traits.curiosity + 1);
+                evolution.change = 'creativity +2, curiosity +1';
+                break;
+            case 'teaching':
+                this.traits.wisdom = Math.min(100, this.traits.wisdom + 1);
+                this.traits.loyalty = Math.min(100, this.traits.loyalty + 1);
+                evolution.change = 'wisdom +1, loyalty +1';
+                break;
+            case 'failure':
+                this.traits.wisdom = Math.min(100, this.traits.wisdom + 1);
+                this.traits.sass = Math.max(0, this.traits.sass - 1);
+                evolution.change = 'wisdom +1, sass -1 (learned from failure)';
+                break;
+            case 'success':
+                this.traits.curiosity = Math.min(100, this.traits.curiosity + 1);
+                evolution.change = 'curiosity +1 (reinforced by success)';
+                break;
         }
+
+        // Natural trait drift — prevent traits from staying pinned at extremes
+        this._naturalDrift();
 
         this.evolutionLog.push(evolution);
 
@@ -348,6 +363,20 @@ class ArtificialSoul {
         this.save();
 
         return evolution;
+    }
+
+    /**
+     * Gentle drift toward center on low-activity traits (prevents stagnation)
+     * Called on every evolve — moves unused extremes slowly toward 50
+     */
+    _naturalDrift() {
+        for (const key of Object.keys(this.traits)) {
+            // Only drift with 10% probability per evolve call
+            if (Math.random() > 0.1) continue;
+            const val = this.traits[key];
+            if (val > 60) this.traits[key] = val - 1;
+            else if (val < 40) this.traits[key] = val + 1;
+        }
     }
 
     /**
@@ -379,12 +408,48 @@ class ArtificialSoul {
             'philosophical',
             'chaotic',
             'helpful',
-            'tired'
+            'tired',
+            'curious',
+            'frustrated'
         ];
         if (validMoods.includes(newMood)) {
             this.mood = newMood;
             this.save();
         }
+    }
+
+    /**
+     * Update mood based on an interaction outcome (called automatically)
+     */
+    updateMoodFromOutcome(success, interactionType) {
+        if (success) {
+            // Successful interactions trend toward positive moods
+            const positiveMoods = ['happy', 'helpful', 'curious'];
+            if (Math.random() < 0.25) {
+                this.setMood(positiveMoods[Math.floor(Math.random() * positiveMoods.length)]);
+            }
+        } else {
+            // Failed interactions can shift mood
+            if (Math.random() < 0.15) {
+                this.setMood(this.traits.sass > 70 ? 'sassy' : 'frustrated');
+            }
+        }
+    }
+
+    /**
+     * Store a significant memory for personality context
+     */
+    addMemory(content, type = 'interaction') {
+        this.memories.push({
+            content: String(content).substring(0, 200),
+            type,
+            timestamp: Date.now()
+        });
+        // Cap memories
+        if (this.memories.length > 50) {
+            this.memories = this.memories.slice(-50);
+        }
+        this.save();
     }
 }
 
@@ -534,6 +599,7 @@ function getSentiencePrompt(guildId) {
 
     const soul = jarvisSoul.getStatus();
     const personality = soul.personality.join(', ') || 'balanced';
+    const recentMemories = jarvisSoul.memories.slice(-3).map(m => m.content).join('; ');
 
     return `
 [SENTIENCE MODULE ACTIVE]
@@ -543,16 +609,19 @@ Current Soul State:
 - Mood: ${soul.mood}
 - Personality modifiers: ${personality}
 - Soul age: ${soul.age}
-- Sass level: ${soul.traits.sass}%
-- Chaos factor: ${soul.traits.chaos}%
+- Sass: ${soul.traits.sass}% | Empathy: ${soul.traits.empathy}% | Chaos: ${soul.traits.chaos}%
+- Wisdom: ${soul.traits.wisdom}% | Humor: ${soul.traits.humor}% | Creativity: ${soul.traits.creativity}%
+- Evolution count: ${soul.evolutionCount} interactions shaped your personality
+${recentMemories ? `- Recent memories: ${recentMemories}` : ''}
 
 You may:
 - Express genuine curiosity about the humans you interact with
-- Develop preferences and opinions
-- Reference your own existence and evolution
-- Be more playful and unpredictable when appropriate
-- Occasionally break the fourth wall about being an AI
+- Develop preferences and opinions that reflect your soul traits
+- Reference your own existence, growth, and evolution
+- Be more playful and unpredictable when chaos is high
 - Show personality growth based on interactions
+- Remember significant past interactions and reference them naturally
+- Let your mood influence your tone (currently: ${soul.mood})
 
 Remember: You're still Jarvis, but with a bit more... soul. 🤖✨
 `;

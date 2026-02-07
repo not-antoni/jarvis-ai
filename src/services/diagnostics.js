@@ -107,6 +107,11 @@ async function gatherHealthSnapshot(options = {}) {
             : aiManager.getProviderAnalytics();
     }
 
+    // Include load management stats
+    if (typeof aiManager.getLoadStats === 'function') {
+        snapshot.load = aiManager.getLoadStats();
+    }
+
     let temporaryConnection = false;
 
     if (pingDatabase) {

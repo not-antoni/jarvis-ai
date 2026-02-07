@@ -158,9 +158,9 @@ const commandDefinitions = [
     },
     {
         name: 'wakeword',
-        description: 'Set a custom wake word that triggers Jarvis for you.',
+        description: 'Set a custom wake word that triggers Jarvis (personal or server-wide).',
         category: 'Personal Tools',
-        usage: '/wakeword word:jarvis',
+        usage: '/wakeword word:hey scope:personal',
         feature: 'utilities',
         ephemeral: true
     },
@@ -171,6 +171,14 @@ const commandDefinitions = [
         usage: '/mystats',
         feature: 'utilities',
         ephemeral: true
+    },
+    {
+        name: 'run',
+        description: 'Execute a JavaScript code snippet in a sandboxed environment.',
+        category: 'Utilities',
+        usage: '/run code:console.log("hello")',
+        feature: 'codeExecution',
+        ephemeral: false
     },
     {
         name: 'announcement',

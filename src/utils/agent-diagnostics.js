@@ -74,8 +74,12 @@ function createAgentDiagnosticsRouter(discordHandlers) {
      * Manual restart of browser (requires auth token)
      */
     router.post('/health/agent/restart', async (req, res) => {
-        const token = req.headers['x-health-token'] || req.query.token;
-        if (token !== process.env.HEALTH_TOKEN) {
+        const expectedToken = process.env.HEALTH_TOKEN;
+        if (!expectedToken) {
+            return res.status(503).json({ error: 'Health token not configured' });
+        }
+        const token = req.headers['x-health-token'];
+        if (!token || token !== expectedToken) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 

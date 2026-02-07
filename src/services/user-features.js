@@ -674,6 +674,16 @@ class UserFeaturesService {
     }
 
     /**
+     * Remove custom wake word for user
+     */
+    async clearWakeWord(userId) {
+        const prefs = await this.getUserPrefs(userId);
+        prefs.customWakeWord = null;
+        await this.saveUserPrefs(userId, prefs);
+        return { success: true };
+    }
+
+    /**
      * Get user's custom wake word
      */
     async getWakeWord(userId) {
@@ -689,6 +699,57 @@ class UserFeaturesService {
         if (!customWord) return false;
 
         const pattern = new RegExp(`\\b${customWord}\\b`, 'i');
+        return pattern.test(content);
+    }
+
+    // ==================== GUILD WAKE WORDS ====================
+
+    /**
+     * Set a server-level custom wake word (admin only — checked by caller)
+     */
+    async setGuildWakeWord(guildId, wakeWord) {
+        if (!wakeWord || wakeWord.length < 2 || wakeWord.length > 20) {
+            return { success: false, error: 'Wake word must be 2-20 characters.' };
+        }
+
+        const sanitized = wakeWord.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        if (sanitized.length < 2) {
+            return { success: false, error: 'Wake word must contain letters or numbers.' };
+        }
+
+        const database = require('./database');
+        await database.setGuildWakeWord(guildId, sanitized);
+        return { success: true, wakeWord: sanitized };
+    }
+
+    /**
+     * Get guild's custom wake word from guild config
+     */
+    async getGuildWakeWord(guildId) {
+        const database = require('./database');
+        if (!database.isConnected) return null;
+        const guildConfig = await database.getGuildConfig(guildId);
+        return guildConfig?.customWakeWord || null;
+    }
+
+    /**
+     * Remove guild wake word
+     */
+    async removeGuildWakeWord(guildId) {
+        const database = require('./database');
+        await database.setGuildWakeWord(guildId, null);
+        return { success: true };
+    }
+
+    /**
+     * Check if message contains the guild's custom wake word
+     */
+    async matchesGuildWakeWord(guildId, content) {
+        if (!guildId) return false;
+        const guildWord = await this.getGuildWakeWord(guildId);
+        if (!guildWord) return false;
+
+        const pattern = new RegExp(`\\b${guildWord}\\b`, 'i');
         return pattern.test(content);
     }
 

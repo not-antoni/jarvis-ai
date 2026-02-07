@@ -85,26 +85,93 @@
         const userFeatures = require('./user-features');
         const userId = interaction.user.id;
         const word = interaction.options.getString('word');
+        const scope = interaction.options.getString('scope') || 'personal';
+        const clear = interaction.options.getBoolean('clear') || false;
 
         try {
+            // Server scope — requires admin/manage guild
+            if (scope === 'server') {
+                if (!interaction.guild) {
+                    await interaction.editReply('Server wake words can only be set in a server, sir.');
+                    return;
+                }
+
+                const member = interaction.member;
+                const isAdmin = member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
+                    member.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
+                    member.id === interaction.guild.ownerId;
+
+                if (!isAdmin) {
+                    await interaction.editReply('Only server admins can set a server-wide wake word.');
+                    return;
+                }
+
+                const guildId = interaction.guild.id;
+
+                if (clear) {
+                    await userFeatures.removeGuildWakeWord(guildId);
+                    await interaction.editReply('Server wake word removed. I\'ll only respond to the default triggers and personal wake words now.');
+                    return;
+                }
+
+                if (!word) {
+                    const currentGuildWord = await userFeatures.getGuildWakeWord(guildId);
+                    if (currentGuildWord) {
+                        await interaction.editReply(`🏠 **Server Wake Word:** "${currentGuildWord}"\n\nAnyone in this server can say "${currentGuildWord}" to summon me.\nUse \`/wakeword word:newword scope:Server\` to change, or \`/wakeword scope:Server clear:True\` to remove.`);
+                    } else {
+                        await interaction.editReply('No server wake word set.\n\nUse `/wakeword word:yourword scope:Server` to set one for the whole server.');
+                    }
+                    return;
+                }
+
+                const result = await userFeatures.setGuildWakeWord(guildId, word);
+                if (!result.success) {
+                    await interaction.editReply(result.error);
+                    return;
+                }
+
+                await interaction.editReply(`Server wake word set to **"${result.wakeWord}"**\n\nAnyone in this server can now summon me by saying "${result.wakeWord}".`);
+                return;
+            }
+
+            // Personal scope
+            if (clear) {
+                await userFeatures.clearWakeWord(userId);
+                await interaction.editReply('Your personal wake word has been removed.');
+                return;
+            }
+
             if (!word) {
                 const currentWord = await userFeatures.getWakeWord(userId);
+                const lines = [];
                 if (currentWord) {
-                    await interaction.editReply(`🎯 **Your Custom Wake Word:** "${currentWord}"\n\nUse \`/wakeword word:newword\` to change, or say "${currentWord}" to summon me.`);
+                    lines.push(`🎯 **Your Custom Wake Word:** "${currentWord}"`);
+                    lines.push(`\nUse \`/wakeword word:newword\` to change, or say "${currentWord}" to summon me.`);
                 } else {
-                    await interaction.editReply(`No custom wake word set, sir.\n\nUse \`/wakeword word:yourword\` to set one. I'll respond when you say it!`);
+                    lines.push('No personal wake word set, sir.');
+                    lines.push('\nUse `/wakeword word:yourword` to set one. I\'ll respond when you say it!');
                 }
+
+                // Show server wake word too if in a guild
+                if (interaction.guild) {
+                    const guildWord = await userFeatures.getGuildWakeWord(interaction.guild.id);
+                    if (guildWord) {
+                        lines.push(`\n🏠 **Server Wake Word:** "${guildWord}"`);
+                    }
+                }
+
+                await interaction.editReply(lines.join(''));
                 return;
             }
 
             const result = await userFeatures.setWakeWord(userId, word);
-            
+
             if (!result.success) {
                 await interaction.editReply(result.error);
                 return;
             }
 
-            await interaction.editReply(`✅ Custom wake word set to **"${result.wakeWord}"**\n\nNow you can summon me by saying "${result.wakeWord}" in any message!`);
+            await interaction.editReply(`Custom wake word set to **"${result.wakeWord}"**\n\nNow you can summon me by saying "${result.wakeWord}" in any message!`);
         } catch (error) {
             console.error('[/wakeword] Error:', error);
             await interaction.editReply('Failed to update wake word, sir.');

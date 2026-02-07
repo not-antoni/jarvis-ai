@@ -2515,6 +2515,43 @@
             return;
         }
 
+        // Handle toggle mode
+        const toggleKey = interaction.options.getString('toggle');
+        if (toggleKey) {
+            if (!interaction.guild) {
+                await interaction.editReply('Feature toggling is only available in servers, sir.');
+                return;
+            }
+
+            const member = interaction.member;
+            const isAdmin = member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
+                member.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
+                member.id === interaction.guild.ownerId;
+
+            if (!isAdmin) {
+                await interaction.editReply('Only server admins can toggle features.');
+                return;
+            }
+
+            const normalizedKey = toggleKey.trim().toLowerCase();
+            const matchedKey = featureKeys.find(k => k.toLowerCase() === normalizedKey);
+            if (!matchedKey) {
+                await interaction.editReply(`Unknown feature: "${toggleKey}". Use \`/features\` to see all available features.`);
+                return;
+            }
+
+            const explicitValue = interaction.options.getBoolean('enabled');
+            const guildConfig = await this.getGuildConfig(interaction.guild);
+            const currentValue = guildConfig?.features?.[matchedKey];
+            const newValue = explicitValue !== null ? explicitValue : !currentValue;
+
+            await database.updateGuildFeatures(interaction.guild.id, { [matchedKey]: newValue });
+
+            await interaction.editReply(`${newValue ? '✅' : '⛔'} **${matchedKey}** is now **${newValue ? 'enabled' : 'disabled'}** for this server.`);
+            return;
+        }
+
+        // Display mode
         const embed = new EmbedBuilder()
             .setTitle('Jarvis Feature Flags')
             .setColor(0x00bfff);
@@ -2553,6 +2590,8 @@
                 value: `${enabledCount}/${featureKeys.length} modules enabled for ${interaction.guild.name}.`
             });
             addChunkedField('This Server', guildLines);
+
+            embed.setFooter({ text: 'Admins: /features toggle:<feature> to toggle' });
         }
 
         await interaction.editReply({ embeds: [embed] });

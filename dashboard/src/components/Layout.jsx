@@ -1,6 +1,8 @@
 import {
   Activity,
   Bot,
+  Brain,
+  Coins,
   HardDrive,
   LayoutDashboard,
   ScrollText,
@@ -14,6 +16,8 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
   { to: '/providers', icon: Sparkles, label: 'AI Providers' },
   { to: '/agents', icon: Bot, label: 'Agents' },
+  { to: '/soul', icon: Brain, label: 'Soul & A.G.I.S.' },
+  { to: '/economy', icon: Coins, label: 'Economy' },
   { to: '/local-ai', icon: HardDrive, label: 'Local AI', badge: 'GPU' },
   { to: '/logs', icon: ScrollText, label: 'Logs' },
   { to: '/settings', icon: Settings, label: 'Settings' },
@@ -72,7 +76,7 @@ export default function Layout() {
         <div className="p-3 border-t border-[#3c3c3c]">
           <div className="flex items-center gap-2 text-xs text-[#858585]">
             <Activity className="w-3 h-3" />
-            <span>v1.0.0 • Selfhost Mode</span>
+            <span>Jarvis AI • Control Center</span>
           </div>
         </div>
       </aside>

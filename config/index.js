@@ -164,7 +164,7 @@ const rawConfig = {
     // AI Provider Configuration
     ai: {
         cooldownMs: 3000,
-        maxTokens: 2000,
+        maxTokens: 4096,
         maxInputLength: 2000,  // Increased to allow longer user input
         maxSlashInputLength: 2000,
         temperature: 1,
@@ -185,15 +185,15 @@ const rawConfig = {
     // Wake Words
     wakeWords: ['jarvis', 'okay garmin', 'ok garmin', 'garmin'],
 
-    // Admin Configuration
+    // Admin Configuration — MUST be set via env var, no hardcoded fallback
     admin: {
-        userId: (process.env.ADMIN_USER_ID || '809010595545874432').trim() // Hardcoded admin ID
+        userId: (process.env.ADMIN_USER_ID || '').trim() || null
     },
 
-    // Command Restrictions
+    // Command Restrictions — channel IDs loaded from env (comma-separated)
     commands: {
-        // Multiple channel IDs where !t command is allowed
-        whitelistedChannelIds: ['1403664986089324609', '984738858950344714', '1419618537525346324']
+        whitelistedChannelIds: (process.env.WHITELISTED_CHANNEL_IDS || '')
+            .split(',').map(s => s.trim()).filter(Boolean)
     },
 
     // AI Sentience Whitelist - servers where advanced AI features are enabled
@@ -250,6 +250,7 @@ const rawConfig = {
         funUtilities: true,
         crypto: true,
         moderationFilters: true,
+        codeExecution: true,
         // Selfhost-only experimental features
         selfhostExperimental: selfhostMode || deploymentTarget === 'selfhost'
     }

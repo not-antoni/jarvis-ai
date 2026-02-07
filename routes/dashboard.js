@@ -677,6 +677,73 @@ router.get('/settings', async (req, res) => {
     }
 });
 
+/**
+ * GET /soul — Artificial soul state and sentient agent status
+ */
+router.get('/soul', async (req, res) => {
+    try {
+        const selfhostFeatures = require('../src/services/selfhost-features');
+        const soul = selfhostFeatures.jarvisSoul?.getStatus?.() || null;
+        let agentStatus = null;
+        let agisStatus = null;
+
+        try {
+            const { getSentientAgent } = require('../src/agents/sentient-core');
+            const agent = getSentientAgent();
+            agentStatus = agent.getStatus();
+        } catch (_e) { /* not available */ }
+
+        try {
+            const { getAGIS } = require('../src/core/agis');
+            const agis = getAGIS();
+            agisStatus = agis.getStatus();
+        } catch (_e) { /* not available */ }
+
+        res.json({ soul, agent: agentStatus, agis: agisStatus });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /economy — Economy system stats
+ */
+router.get('/economy', async (req, res) => {
+    try {
+        const db = await getDatabase();
+        let stats = { totalUsers: 0, totalBucks: 0, topUsers: [] };
+
+        if (db?.isConnected) {
+            const config = require('../config');
+            const col = db.db.collection(config.database?.collections?.starkEconomy || 'starkEconomy');
+            const totalUsers = await col.countDocuments();
+            const pipeline = [
+                { $group: { _id: null, totalBucks: { $sum: '$balance' } } }
+            ];
+            const agg = await col.aggregate(pipeline).toArray();
+            const topUsers = await col.find({})
+                .sort({ balance: -1 })
+                .limit(10)
+                .project({ username: 1, balance: 1, level: 1 })
+                .toArray();
+
+            stats = {
+                totalUsers,
+                totalBucks: agg[0]?.totalBucks || 0,
+                topUsers: topUsers.map(u => ({
+                    name: u.username || 'Unknown',
+                    balance: u.balance || 0,
+                    level: u.level || 1
+                }))
+            };
+        }
+
+        res.json(stats);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Helper functions
 function formatUptime(ms) {
     const hours = Math.floor(ms / 3600000);
