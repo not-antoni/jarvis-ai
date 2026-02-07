@@ -3917,7 +3917,7 @@ ${learnings}
                         }
                     } else if (subcommand === 'agis') {
                         const { getAGIS } = require('../core/agis');
-                        const agis = getAGIS({ aiManager });
+                        const agis = getAGIS({ aiManager: require('./ai-providers') });
                         const goal = interaction.options.getString('goal');
 
                         if (!agis.enabled) {
