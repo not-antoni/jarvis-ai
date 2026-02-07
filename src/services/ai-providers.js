@@ -276,22 +276,33 @@ class AIProviderManager {
             .map(key => process.env[key])
             .filter(Boolean);
 
-        openRouterKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `OpenRouter${index + 1}`,
-                client: new OpenAI({
-                    apiKey: key,
-                    baseURL: 'https://openrouter.ai/api/v1',
-                    fetch: aiFetch,
-                    defaultHeaders: {
-                        'HTTP-Referer': process.env.APP_URL || process.env.PUBLIC_BASE_URL || 'https://localhost',
-                        'X-Title': process.env.APP_NAME || 'Jarvis AI'
-                    }
-                }),
-                model: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
-                type: 'openai-chat',
-                family: 'openrouter',
-                costTier: 'free'
+        // Each OpenRouter key gets multiple free models — rate limits are per-model
+        const openRouterModels = [
+            'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
+            'meta-llama/llama-3.3-70b-instruct:free',
+            'qwen/qwen3-235b-a22b:free',
+            'google/gemma-3-27b-it:free'
+        ];
+
+        openRouterKeys.forEach((key, keyIndex) => {
+            openRouterModels.forEach((model) => {
+                const shortName = model.split('/').pop().replace(':free', '');
+                this.providers.push({
+                    name: `OpenRouter${keyIndex + 1}-${shortName}`,
+                    client: new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://openrouter.ai/api/v1',
+                        fetch: aiFetch,
+                        defaultHeaders: {
+                            'HTTP-Referer': process.env.APP_URL || process.env.PUBLIC_BASE_URL || 'https://localhost',
+                            'X-Title': process.env.APP_NAME || 'Jarvis AI'
+                        }
+                    }),
+                    model,
+                    type: 'openai-chat',
+                    family: 'openrouter',
+                    costTier: 'free'
+                });
             });
         });
 
@@ -344,14 +355,23 @@ class AIProviderManager {
             .map(key => process.env[key])
             .filter(Boolean);
 
-        googleKeys.forEach((key, index) => {
-            this.providers.push({
-                name: `GoogleAI${index + 1}`,
-                client: new GoogleGenerativeAI(key),
-                model: 'gemini-2.5-flash',
-                type: 'google',
-                family: 'google',
-                costTier: 'free'
+        // Each Google key gets multiple models — rate limits are per-model
+        const googleModels = [
+            'gemini-2.5-flash',        // Primary — best quality
+            'gemini-2.0-flash',        // Fallback — separate rate limit
+            'gemini-2.0-flash-lite'    // Second fallback — highest free limits
+        ];
+
+        googleKeys.forEach((key, keyIndex) => {
+            googleModels.forEach((model) => {
+                this.providers.push({
+                    name: `GoogleAI${keyIndex + 1}-${model}`,
+                    client: new GoogleGenerativeAI(key),
+                    model,
+                    type: 'google',
+                    family: 'google',
+                    costTier: 'free'
+                });
             });
         });
 
