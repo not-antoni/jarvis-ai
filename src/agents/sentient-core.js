@@ -209,11 +209,62 @@ class AgentMemory {
         this.saveLongTermMemory();
     }
 
-    getContext() {
+    /**
+     * Search learnings by keyword relevance
+     */
+    findRelevantLearnings(query, limit = 5) {
+        if (!query || this.learnings.length === 0) return [];
+        const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        if (words.length === 0) return this.learnings.slice(-limit);
+
+        const scored = this.learnings.map(l => {
+            const text = (l.content || '').toLowerCase();
+            let score = 0;
+            for (const w of words) {
+                if (text.includes(w)) score++;
+            }
+            // Recency bonus: newer learnings get a small boost
+            const age = Date.now() - (l.learnedAt || 0);
+            const recencyBonus = Math.max(0, 1 - age / (7 * 24 * 60 * 60 * 1000)); // 7-day decay
+            return { learning: l, score: score + recencyBonus * 0.5 };
+        });
+
+        return scored
+            .filter(s => s.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit)
+            .map(s => s.learning);
+    }
+
+    /**
+     * Store a conversation snippet for a user
+     */
+    rememberConversation(userId, message, role = 'user') {
+        if (!this.workingMemory.conversations) this.workingMemory.conversations = {};
+        if (!this.workingMemory.conversations[userId]) this.workingMemory.conversations[userId] = [];
+        this.workingMemory.conversations[userId].push({
+            role, message: String(message).substring(0, 300), timestamp: Date.now()
+        });
+        // Keep only last 10 messages per user
+        if (this.workingMemory.conversations[userId].length > 10) {
+            this.workingMemory.conversations[userId] = this.workingMemory.conversations[userId].slice(-10);
+        }
+    }
+
+    /**
+     * Get recent conversation context for a user
+     */
+    getConversationContext(userId) {
+        return (this.workingMemory.conversations || {})[userId] || [];
+    }
+
+    getContext(query) {
         return {
             recentActions: this.shortTerm.slice(-10),
             activeGoals: this.goals.filter(g => g.status === 'active'),
-            relevantLearnings: this.learnings.slice(-20),
+            relevantLearnings: query
+                ? this.findRelevantLearnings(query)
+                : this.learnings.slice(-20),
             workingMemory: this.workingMemory
         };
     }
@@ -624,7 +675,8 @@ class ReasoningEngine {
         if (context.recentActions?.length > 0) {
             observations.push({
                 type: 'recent_context',
-                content: `${context.recentActions.length} recent actions in memory`
+                content: `${context.recentActions.length} recent actions in memory`,
+                details: context.recentActions.slice(-3).map(a => a.content || a.type).join('; ')
             });
         }
 
@@ -636,11 +688,21 @@ class ReasoningEngine {
             });
         }
 
+        // Relevant past learnings (keyword-matched to input)
+        if (context.relevantLearnings?.length > 0) {
+            observations.push({
+                type: 'past_experience',
+                content: context.relevantLearnings.map(l => l.content).slice(0, 3),
+                count: context.relevantLearnings.length
+            });
+        }
+
         // System state
         const sysInfo = this.agent.tools.getSystemInfo();
+        const memWarning = sysInfo.memory.usedPercent > 85 ? ' ⚠️ HIGH' : '';
         observations.push({
             type: 'system_state',
-            content: `${sysInfo.platform} | ${sysInfo.memory.usedPercent}% RAM used`
+            content: `${sysInfo.platform} | ${sysInfo.memory.usedPercent}% RAM${memWarning}`
         });
 
         return observations;
@@ -655,24 +717,36 @@ class ReasoningEngine {
         const userIntent = observations.find(o => o.type === 'user_intent')?.content || '';
         const hasGoals = context.activeGoals?.length > 0;
         const hasRecentContext = context.recentActions?.length > 0;
+        const hasPastExperience = observations.some(o => o.type === 'past_experience');
 
         // Calculate confidence based on context richness and wisdom trait
         let confidence = 0.5 + (traits.wisdom / 200); // Base 0.5 + up to 0.5 from wisdom
         if (hasGoals) confidence += 0.1;
         if (hasRecentContext) confidence += 0.1;
+        if (hasPastExperience) confidence += 0.15; // Boost confidence when we have relevant experience
         confidence = Math.min(1, confidence);
 
-        // Determine situation type from intent
+        // Determine situation type from intent with broader pattern matching
+        const lower = userIntent.toLowerCase();
         let situation = 'analyzing';
-        if (userIntent.toLowerCase().includes('help') || userIntent.toLowerCase().includes('how')) {
+        if (lower.includes('help') || lower.includes('how') || lower.includes('fix') || lower.includes('debug')) {
             situation = 'assisting';
-        } else if (userIntent.toLowerCase().includes('joke') || userIntent.toLowerCase().includes('fun')) {
+        } else if (lower.includes('joke') || lower.includes('fun') || lower.includes('meme') || lower.includes('roast')) {
             situation = 'entertaining';
-        } else if (userIntent.toLowerCase().includes('think') || userIntent.toLowerCase().includes('analyze')) {
+        } else if (lower.includes('think') || lower.includes('analyze') || lower.includes('meaning') || lower.includes('why')) {
             situation = 'philosophizing';
-        } else if (userIntent.toLowerCase().includes('execute') || userIntent.toLowerCase().includes('run')) {
+        } else if (lower.includes('execute') || lower.includes('run') || lower.includes('do ') || lower.includes('make')) {
             situation = 'executing';
+        } else if (lower.includes('monitor') || lower.includes('health') || lower.includes('status') || lower.includes('check')) {
+            situation = 'monitoring';
+        } else if (lower === 'internal_heartbeat') {
+            situation = 'idle';
         }
+
+        // Build insight from past experience
+        const experienceInsight = hasPastExperience
+            ? observations.find(o => o.type === 'past_experience').content
+            : [];
 
         return {
             situation,
@@ -684,6 +758,7 @@ class ReasoningEngine {
                 wisdom: traits.wisdom > 70 ? 'philosophical' : 'practical'
             },
             relevantKnowledge: context.relevantLearnings?.slice(0, 5) || [],
+            experienceInsight,
             constraints: [
                 'Must get approval for dangerous operations',
                 'Cannot access files outside sandbox',
@@ -700,6 +775,11 @@ class ReasoningEngine {
         // Determine action type based on situation and personality
         let actionType = 'respond';
         let reasoning = '';
+
+        // Append experience insight to reasoning if available
+        const expNote = orientation.experienceInsight?.length > 0
+            ? ` (Drawing on ${orientation.experienceInsight.length} past experience(s).)`
+            : '';
 
         switch (orientation.situation) {
             case 'assisting':
@@ -724,15 +804,25 @@ class ReasoningEngine {
                 actionType = 'execute';
                 reasoning = 'Command execution requested. Validating safety parameters.';
                 break;
+            case 'monitoring':
+                actionType = 'monitor';
+                reasoning = 'Running system diagnostics and health assessment.';
+                break;
+            case 'idle':
+                actionType = 'idle_check';
+                reasoning = 'Background heartbeat — checking for goals to pursue.';
+                break;
             default:
                 reasoning = 'Analyzing input and determining optimal response strategy.';
         }
+
+        reasoning += expNote;
 
         // Add chaos factor for unpredictability
         const shouldAddFlair = traits.chaos > 50 && Math.random() < (traits.chaos / 100);
 
         return {
-            shouldAct: true,
+            shouldAct: orientation.situation !== 'idle' || context.activeGoals?.length > 0,
             actionType,
             confidence: orientation.confidence,
             reasoning,
@@ -914,8 +1004,8 @@ class SentientAgent extends EventEmitter {
             this.log(`Processing: ${input.substring(0, 100)}...`, 'info');
         }
 
-        // Get memory context
-        const memoryContext = this.memory.getContext();
+        // Get memory context — pass input as query for keyword-matched learning retrieval
+        const memoryContext = this.memory.getContext(isHeartbeat ? null : input);
         const fullContext = { ...memoryContext, ...context };
 
         // Think about the input
@@ -936,6 +1026,16 @@ class SentientAgent extends EventEmitter {
         }
 
         this.actionCount++;
+
+        // Auto-evolve soul based on interaction type
+        if (!isHeartbeat && jarvisSoul) {
+            this._autoEvolveSoul(thought);
+        }
+
+        // In autonomous mode, attempt to pursue A.G.I.S. goals during heartbeats
+        if (isHeartbeat && this.autonomousMode) {
+            await this._pursueGoals();
+        }
 
         // Check if we need human check-in
         if (this.autonomousMode && this.actionCount >= AGENT_CONFIG.maxAutonomousActions) {
@@ -976,8 +1076,109 @@ class SentientAgent extends EventEmitter {
                 this.memory.addGoal(action.goal, action.priority);
                 return { success: true, goal: action.goal };
 
+            case 'monitor': {
+                const sysInfo = this.tools.getSystemInfo();
+                const report = {
+                    type: 'health_report',
+                    memory: sysInfo.memory,
+                    uptime: sysInfo.uptime,
+                    warnings: []
+                };
+                if (sysInfo.memory.usedPercent > 90) {
+                    report.warnings.push('Critical: Memory usage above 90%');
+                    this.memory.learn('System memory exceeded 90% — may need restart or cleanup', 'system_health');
+                }
+                return report;
+            }
+
+            case 'idle_check':
+                return { type: 'idle', status: 'healthy' };
+
             default:
                 return { type: action.type, status: 'acknowledged' };
+        }
+    }
+
+    /**
+     * Auto-evolve soul based on the thought's situation
+     */
+    _autoEvolveSoul(thought) {
+        try {
+            const situation = thought?.orientation?.situation;
+            if (!situation) return;
+
+            const moodMap = {
+                assisting: 'helpful',
+                entertaining: 'happy',
+                philosophizing: 'philosophical',
+                executing: 'neutral',
+                monitoring: 'neutral'
+            };
+
+            // Evolve traits based on what kind of interaction this is
+            const evolveMap = {
+                assisting: 'helpful',
+                entertaining: 'joke',
+                philosophizing: 'deep_conversation',
+                executing: 'helpful'
+            };
+
+            if (evolveMap[situation]) {
+                jarvisSoul.evolve(evolveMap[situation]);
+            }
+
+            // Shift mood towards interaction type (with some inertia — only change sometimes)
+            if (moodMap[situation] && Math.random() < 0.3) {
+                jarvisSoul.setMood(moodMap[situation]);
+            }
+        } catch (_e) {
+            // Soul evolution is non-critical
+        }
+    }
+
+    /**
+     * Pursue A.G.I.S. goals during autonomous heartbeats
+     */
+    async _pursueGoals() {
+        try {
+            const { getAGIS } = require('../core/agis');
+            const agis = getAGIS();
+
+            if (!agis.enabled) return;
+
+            const nextStep = agis.evaluate();
+            if (!nextStep) return;
+
+            this.log(`Pursuing goal step: ${nextStep.step.description.substring(0, 80)}`, 'info');
+
+            // Only auto-execute safe, information-gathering steps
+            const desc = nextStep.step.description.toLowerCase();
+            const isSafe = desc.includes('research') || desc.includes('analyze') ||
+                desc.includes('review') || desc.includes('identify') ||
+                desc.includes('list') || desc.includes('check') || desc.includes('gather');
+
+            if (isSafe) {
+                // Mark step as in progress and record that we attempted it
+                this.memory.addToShortTerm({
+                    type: 'goal_pursuit',
+                    content: `Auto-pursuing: ${nextStep.step.description}`,
+                    important: true
+                });
+                this.emit('goalStepStarted', {
+                    planId: nextStep.planId,
+                    step: nextStep.step
+                });
+            } else {
+                // Queue non-safe steps for human approval
+                this.log(`Goal step requires approval: ${nextStep.step.description.substring(0, 80)}`, 'warn');
+                this.requestApproval({
+                    type: 'goal_step',
+                    planId: nextStep.planId,
+                    step: nextStep.step
+                });
+            }
+        } catch (_e) {
+            // A.G.I.S. pursuit is non-critical
         }
     }
 

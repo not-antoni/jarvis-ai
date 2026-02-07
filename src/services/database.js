@@ -800,6 +800,45 @@ class DatabaseManager {
         return this.getGuildConfig(guildId);
     }
 
+    async setGuildWelcome(guildId, channelId, message) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const collection = this.db.collection(config.database.collections.guildConfigs);
+        const now = new Date();
+
+        await collection.updateOne(
+            { guildId },
+            {
+                $set: {
+                    welcomeChannelId: channelId || null,
+                    welcomeMessage: message || null,
+                    updatedAt: now
+                },
+                $setOnInsert: { createdAt: now }
+            },
+            { upsert: true }
+        );
+        this._invalidateGuildConfigCache(guildId);
+    }
+
+    async setGuildWakeWord(guildId, wakeWord) {
+        if (!this.isConnected) throw new Error('Database not connected');
+
+        const collection = this.db.collection(config.database.collections.guildConfigs);
+        const now = new Date();
+
+        await collection.updateOne(
+            { guildId },
+            {
+                $set: { customWakeWord: wakeWord || null, updatedAt: now },
+                $setOnInsert: { createdAt: now }
+            },
+            { upsert: true }
+        );
+        this._invalidateGuildConfigCache(guildId);
+        return this.getGuildConfig(guildId);
+    }
+
     async removeGuildBlockedUser(guildId, userId) {
         if (!this.isConnected) throw new Error('Database not connected');
         

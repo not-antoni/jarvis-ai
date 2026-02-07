@@ -2,7 +2,7 @@ const { EmbedBuilder, ButtonBuilder, ActionRowBuilder } = require('discord.js');
 const crypto = require('crypto');
 const { LRUCache } = require('lru-cache');
 
-const ERROR_LOG_CHANNEL_ID = process.env.ERROR_LOG_CHANNEL_ID || '1437020146689507449';
+const ERROR_LOG_CHANNEL_ID = process.env.ERROR_LOG_CHANNEL_ID || '';
 const ERROR_LOG_DEDUPE_TTL_MS = process.env.ERROR_LOG_DEDUPE_TTL_MS
     ? Number(process.env.ERROR_LOG_DEDUPE_TTL_MS)
     : 30000;

@@ -8,8 +8,8 @@ class MemeSender {
     constructor() {
         this.interval = null;
         this.client = null;
-        this.targetGuildId = '1403664986089324606';
-        this.targetChannelId = '1434550353575018660';
+        this.targetGuildId = process.env.MEME_GUILD_ID || '';
+        this.targetChannelId = process.env.MEME_CHANNEL_ID || '';
         this.apiUrl = 'https://meme-api.com/gimme';
     }
 

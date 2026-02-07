@@ -53,11 +53,11 @@ const CaptchaHandler = require('../agents/captchaHandler');
 const RobustnessEnhancer = require('../agents/robustnessEnhancer');
 const tempFiles = require('../utils/temp-files');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
+const { splitMessage } = require('../utils/discord-safe-send');
 const funFeatures = require('./fun-features');
 const selfhostFeatures = require('./selfhost-features');
 const ytDlpManager = require('./yt-dlp-manager');
 const { getSentientAgent } = require('../agents/sentient-core');
-const legacyCommands = require('./legacy-commands');
 const starkTinker = require('./stark-tinker');
 const starkEconomy = require('./stark-economy');
 const { AchievementsSystem, ACHIEVEMENTS } = require('./achievements');
@@ -505,6 +505,15 @@ class DiscordHandlers {
         if (!this.cooldowns) {
             return;
         }
+        // Under high load, increase cooldown duration to reduce pressure
+        const aiManager = require('./ai-providers');
+        const loadFactor = typeof aiManager.getLoadFactor === 'function' ? aiManager.getLoadFactor() : 0;
+        if (loadFactor > 1.0) {
+            const extraMs = Math.floor((loadFactor - 1.0) * 3000); // Up to +3s per 1.0 load factor above soft cap
+            const adjustedMs = (config.ai?.cooldownMs || 3000) + extraMs;
+            this.cooldowns.set(scope, userId, adjustedMs);
+            return;
+        }
         this.cooldowns.set(scope, userId);
     }
 
@@ -801,7 +810,7 @@ class DiscordHandlers {
 
     async handleGuildMemberAdd(member, client) {
         await this.sendMemberLogEvent(member, 'join');
-        
+
         // Run guild moderation checks if enabled
         try {
             await guildModeration.handleMemberJoin(member, client);
@@ -814,6 +823,26 @@ class DiscordHandlers {
             await antiScam.handleMemberJoin(member);
         } catch (error) {
             console.error('[AntiScam] Error in handleMemberJoin:', error);
+        }
+
+        // Send welcome message if configured for this guild
+        try {
+            if (database.isConnected && member.guild) {
+                const guildConfig = await this.getGuildConfig(member.guild);
+                if (guildConfig?.welcomeChannelId && guildConfig?.welcomeMessage) {
+                    const channel = await member.guild.channels.fetch(guildConfig.welcomeChannelId).catch(() => null);
+                    if (channel) {
+                        const msg = guildConfig.welcomeMessage
+                            .replace(/\{user\}/g, `<@${member.id}>`)
+                            .replace(/\{username\}/g, member.user.username)
+                            .replace(/\{server\}/g, member.guild.name)
+                            .replace(/\{memberCount\}/g, String(member.guild.memberCount));
+                        await channel.send({ content: msg, allowedMentions: { users: [member.id] } });
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('[Welcome] Failed to send welcome message:', error.message);
         }
     }
 

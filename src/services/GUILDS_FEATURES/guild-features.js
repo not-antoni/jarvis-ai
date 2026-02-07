@@ -5,29 +5,26 @@
  * Add guild IDs and their enabled features here.
  */
 
-// Guild-specific feature configurations
-const GUILD_CONFIGS = {
-    // Guild: 858444090374881301 - Anti-scam and alt detection
-    '858444090374881301': {
+// Guild-specific feature configurations — loaded from env or database at runtime
+// Use GUILD_FEATURES_PRIMARY env var to set the primary guild ID
+const PRIMARY_GUILD_ID = process.env.GUILD_FEATURES_PRIMARY || '';
+const GUILD_CONFIGS = {};
+if (PRIMARY_GUILD_ID) {
+    GUILD_CONFIGS[PRIMARY_GUILD_ID] = {
         name: 'Primary Guild',
         features: {
             antiScam: true,
             altDetection: true,
             newAccountWarnings: true
         },
-        // Role IDs to notify about suspicious activity (admins/moderators)
         notifyRoles: [],
-        // User IDs to notify (server owner, admins)
         notifyUsers: [],
         settings: {
-            // Warn if account was created within this many days
             newAccountThresholdDays: 30,
-            // Flag accounts created today
             flagSameDayAccounts: true,
-            // Flag accounts created within this year
             flagThisYearAccounts: true
         }
-    }
+    };
 };
 
 // Load additional guilds from .env
