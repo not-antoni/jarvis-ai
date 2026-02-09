@@ -2858,22 +2858,6 @@
         await interaction.editReply(`🔨 Bonk delivered to <@${target.id}> with the ${tool}. Order restored, sir.`);
     }
 
-    async handleBanterCommand(interaction) {
-        const target = interaction.options.getUser('target') || interaction.user;
-        const line = this.pickRandom(this.banterLines) || 'Banter processor offline, sir.';
-
-        const embed = new EmbedBuilder()
-            .setTitle('Banter Subroutine')
-            .setColor(0x38bdf8)
-            .setDescription(line)
-            .setFooter({ text: target ? `Delivered to ${target.displayName || target.username}` : 'Delivered on request.' });
-
-        if (target) {
-            embed.addFields({ name: 'Recipient', value: `<@${target.id}>`, inline: true });
-        }
-
-        await interaction.editReply({ embeds: [embed] });
-    }
 
     async handleTemplateCommand(interaction, templates, title, defaultLine, color, optionName = 'target') {
         const target = interaction.options.getUser(optionName) || interaction.user;

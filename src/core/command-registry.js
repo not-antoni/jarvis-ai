@@ -342,14 +342,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'banter',
-        description: 'Trade a Stark-grade banter line.',
-        category: 'Fun',
-        usage: '/banter [user]',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
         name: 'roast',
         description: 'Deploy a refined Jarvis roast.',
         category: 'Fun',
@@ -643,14 +635,6 @@ const commandDefinitions = [
     },
 
     {
-        name: 'choose',
-        description: 'Choose between options',
-        category: 'Fun',
-        usage: '/choose <options>',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
         name: 'afk',
         description: 'Set your AFK status',
         category: 'Fun',
@@ -696,14 +680,6 @@ const commandDefinitions = [
         description: 'Jarvis self-modification analysis.',
         category: 'Experimental',
         usage: '/selfmod analyze',
-        feature: 'selfhostExperimental',
-        ephemeral: true
-    },
-    {
-        name: 'sentient',
-        description: 'Sentient agent system controls.',
-        category: 'Experimental',
-        usage: '/sentient status',
         feature: 'selfhostExperimental',
         ephemeral: true
     },

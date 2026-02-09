@@ -185,14 +185,6 @@ class DiscordHandlers {
         this.clipEmojiRenderSize = 22;
         this.clipEmojiSpacing = 4;
         this.clipLineHeight = 24;
-        this.banterLines = [
-            'I filed that under “impressive improvisation,” sir.',
-            'Telemetry suggests a 92% chance you’re up to mischief, ma’am.',
-            'I’ve adjusted the sarcasm filters to match your current vibe, sir.',
-            'I preheated the lab. Thought you might want to make a mess again, ma’am.',
-            'I sharpened your wits while you were offline. You’re welcome, sir.',
-            'Consider this a friendly systems check: delightful chaos detected.'
-        ];
         this.roastTemplates = [
             'Deploying shade cannons on {target}. Try not to melt, sir.',
             '{target}, even my error logs have more direction.',
