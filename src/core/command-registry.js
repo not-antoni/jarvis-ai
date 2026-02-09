@@ -683,6 +683,14 @@ const commandDefinitions = [
         feature: 'selfhostExperimental',
         ephemeral: true
     },
+    {
+        name: 'sentient',
+        description: 'Sentient agent system controls.',
+        category: 'Experimental',
+        usage: '/sentient status',
+        feature: 'selfhostExperimental',
+        ephemeral: true
+    },
     // ============ END SELFHOST-ONLY COMMANDS ============
     {
         name: 'reactionrole',
