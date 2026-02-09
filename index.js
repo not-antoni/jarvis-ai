@@ -1242,6 +1242,59 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
+    new SlashCommandBuilder()
+        .setName('sentient')
+        .setDescription('Jarvis Sentient Agent System (selfhost only)')
+        .addSubcommand(sub => sub.setName('status').setDescription('View sentient agent status'))
+        .addSubcommand(sub =>
+            sub
+                .setName('think')
+                .setDescription('Have Jarvis think about something')
+                .addStringOption(option =>
+                    option
+                        .setName('prompt')
+                        .setDescription('What should Jarvis think about?')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('execute')
+                .setDescription('Execute a command (with safety checks)')
+                .addStringOption(option =>
+                    option
+                        .setName('command')
+                        .setDescription('Shell command to execute')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('autonomous')
+                .setDescription('Toggle autonomous mode (⚠️ careful!)')
+                .addBooleanOption(option =>
+                    option
+                        .setName('enabled')
+                        .setDescription('Enable autonomous mode?')
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub
+                .setName('agis')
+                .setDescription('A.G.I.S. — Plan and decompose a goal into steps')
+                .addStringOption(option =>
+                    option
+                        .setName('goal')
+                        .setDescription('High-level goal for AGIS to plan')
+                        .setRequired(false)
+                )
+        )
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
     // ============ END SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
         .setName('news')
