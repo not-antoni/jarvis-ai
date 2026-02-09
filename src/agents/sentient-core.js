@@ -159,7 +159,7 @@ class AgentMemory {
                 this.longTermPath,
                 JSON.stringify(
                     {
-                        learnings: this.learnings.slice(-100), // Keep last 100
+                        learnings: this.learnings.slice(-50), // Keep last 50
                         goals: this.goals,
                         savedAt: new Date().toISOString()
                     },
