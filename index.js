@@ -4015,14 +4015,25 @@ async function startBot() {
 
         await refreshPresenceMessages(true);
 
-        // Auto-configure domain (Nginx + Cloudflare)
-        try {
-            const cloudflareDomain = require('./src/services/cloudflare-domain');
-            const cfConfig = cloudflareDomain.getConfig();
+    // Auto-configure domain (Nginx + Cloudflare)
+    try {
+        const cloudflareDomain = require('./src/services/cloudflare-domain');
+        const cfConfig = cloudflareDomain.getConfig();
 
-            // Auto-setup Nginx reverse proxy (selfhost only)
-            if (cfConfig.domain && cfConfig.deployTarget !== 'render') {
-                const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain, true, false);
+        const cloudflareOnly =
+            String(process.env.CLOUDFLARE_ONLY || '').toLowerCase() !== 'false';
+        if (config?.deployment?.target === 'selfhost' && cloudflareOnly) {
+            try {
+                cloudflareDomain.ensureCloudflareIpsConfig?.();
+                cloudflareDomain.ensureCloudflareIpsTimer?.(process.cwd());
+            } catch (error) {
+                console.warn('[Cloudflare] Auto-install timer skipped:', error?.message || error);
+            }
+        }
+
+        // Auto-setup Nginx reverse proxy (selfhost only)
+        if (cfConfig.domain && cfConfig.deployTarget !== 'render') {
+            const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain, true, false);
                 if (nginxResult.success) {
                     if (nginxResult.cached) {
                         console.log(`[Nginx] Verified configuration for ${cfConfig.domain}`);
