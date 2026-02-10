@@ -297,6 +297,45 @@ WantedBy=timers.target
         ].join(' && ');
     }
 
+    generateNginxEnsureTimerCommands() {
+        const serviceContent = `[Unit]
+Description=Ensure Jarvis nginx config remains Cloudflare-only
+
+[Service]
+Type=oneshot
+WorkingDirectory=${PROJECT_ROOT}
+ExecStart=/usr/bin/env node ${PROJECT_ROOT}/scripts/ensure-nginx-config.js
+User=root
+StandardOutput=journal
+StandardError=journal
+`;
+
+        const timerContent = `[Unit]
+Description=Periodic Jarvis nginx config enforcement
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+`;
+
+        const serviceEscaped = serviceContent.replace(/'/g, "'\\''");
+        const timerEscaped = timerContent.replace(/'/g, "'\\''");
+
+        return [
+            `echo '${serviceEscaped}' | sudo tee /etc/systemd/system/jarvis-nginx-ensure.service > /dev/null`,
+            `echo '${timerEscaped}' | sudo tee /etc/systemd/system/jarvis-nginx-ensure.timer > /dev/null`,
+            `sudo chmod 644 /etc/systemd/system/jarvis-nginx-ensure.service /etc/systemd/system/jarvis-nginx-ensure.timer`,
+            `sudo chmod +x ${path.join(PROJECT_ROOT, 'scripts', 'ensure-nginx-config.js')}`,
+            'sudo systemctl daemon-reload',
+            'sudo systemctl enable jarvis-nginx-ensure.timer',
+            'sudo systemctl start jarvis-nginx-ensure.timer',
+            'sudo systemctl start jarvis-nginx-ensure.service'
+        ].join(' && ');
+    }
+
     detectPublicIP() {
         try {
             // Try multiple methods
@@ -723,6 +762,16 @@ WantedBy=timers.target
                             check: () => true
                         });
                         log.info('Cloudflare IPs will auto-update weekly (Sundays 3 AM)');
+                    }
+
+                    const nginxEnsureCmd = this.generateNginxEnsureTimerCommands();
+                    if (nginxEnsureCmd) {
+                        setupTasks.push({
+                            name: 'Setup nginx config watchdog timer',
+                            cmd: nginxEnsureCmd,
+                            check: () => true
+                        });
+                        log.info('Nginx config watchdog will run hourly.');
                     }
                 }
             }
