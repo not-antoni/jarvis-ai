@@ -4026,6 +4026,7 @@ async function startBot() {
             try {
                 cloudflareDomain.ensureCloudflareIpsConfig?.();
                 cloudflareDomain.ensureCloudflareIpsTimer?.(process.cwd());
+                cloudflareDomain.ensureNginxEnsureTimer?.(process.cwd());
             } catch (error) {
                 console.warn('[Cloudflare] Auto-install timer skipped:', error?.message || error);
             }
