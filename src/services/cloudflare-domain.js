@@ -202,6 +202,89 @@ function ensureCloudflareIpsTimer(projectRoot) {
     }
 }
 
+function generateNginxEnsureService(projectRoot) {
+    return `[Unit]
+Description=Ensure Jarvis nginx config remains Cloudflare-only
+
+[Service]
+Type=oneshot
+WorkingDirectory=${projectRoot}
+ExecStart=/usr/bin/env node ${projectRoot}/scripts/ensure-nginx-config.js
+User=root
+StandardOutput=journal
+StandardError=journal
+`;
+}
+
+function generateNginxEnsureTimerUnit() {
+    return `[Unit]
+Description=Periodic Jarvis nginx config enforcement
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+`;
+}
+
+function ensureNginxEnsureTimer(projectRoot) {
+    if (!commandExists('systemctl')) {
+        return false;
+    }
+    if (!canSudo()) {
+        return false;
+    }
+
+    const servicePath = '/etc/systemd/system/jarvis-nginx-ensure.service';
+    const timerPath = '/etc/systemd/system/jarvis-nginx-ensure.timer';
+    const serviceContent = generateNginxEnsureService(projectRoot);
+    const timerContent = generateNginxEnsureTimerUnit();
+
+    const writeUnitFile = (targetPath, content) => {
+        const tempFile = `/tmp/${path.basename(targetPath)}`;
+        fs.writeFileSync(tempFile, content);
+        execSync(`sudo cp ${tempFile} ${targetPath}`, { encoding: 'utf8' });
+        execSync(`sudo chmod 644 ${targetPath}`, { encoding: 'utf8' });
+    };
+
+    let serviceNeedsWrite = true;
+    let timerNeedsWrite = true;
+    try {
+        if (fs.existsSync(servicePath)) {
+            const existing = fs.readFileSync(servicePath, 'utf8');
+            serviceNeedsWrite = existing !== serviceContent;
+        }
+        if (fs.existsSync(timerPath)) {
+            const existing = fs.readFileSync(timerPath, 'utf8');
+            timerNeedsWrite = existing !== timerContent;
+        }
+    } catch {
+        serviceNeedsWrite = true;
+        timerNeedsWrite = true;
+    }
+
+    try {
+        if (serviceNeedsWrite) {
+            writeUnitFile(servicePath, serviceContent);
+        }
+        if (timerNeedsWrite) {
+            writeUnitFile(timerPath, timerContent);
+        }
+
+        execSync(`sudo chmod +x ${projectRoot}/scripts/ensure-nginx-config.js`, { encoding: 'utf8' });
+        execSync('sudo systemctl daemon-reload', { encoding: 'utf8' });
+        execSync('sudo systemctl enable jarvis-nginx-ensure.timer', { encoding: 'utf8' });
+        execSync('sudo systemctl start jarvis-nginx-ensure.timer', { encoding: 'utf8' });
+        execSync('sudo systemctl start jarvis-nginx-ensure.service', { encoding: 'utf8' });
+        return true;
+    } catch (error) {
+        console.warn('[Nginx] Failed to configure nginx ensure timer:', error?.message || error);
+        return false;
+    }
+}
+
 /**
  * Generate Nginx config for domain (with optional SSL)
  */
@@ -1232,6 +1315,7 @@ module.exports = {
     generateNginxConfig,
     ensureCloudflareIpsConfig,
     ensureCloudflareIpsTimer,
+    ensureNginxEnsureTimer,
 
     // SSL auto-setup
     autoSetupSsl,
