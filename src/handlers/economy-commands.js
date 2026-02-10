@@ -273,41 +273,6 @@ async function handleSBX(interaction) {
 }
 
 /**
- * Handle /auction command
- */
-async function handleAuction(interaction) {
-    const economy = getStarkEconomy();
-    const sub = interaction.options.getSubcommand();
-
-    switch (sub) {
-        case 'list': {
-            const auctions = await economy.getAuctions();
-            if (!auctions.length) return 'No active auctions.';
-            const list = auctions.map(a => `**${a.item.name}** - Price: ${a.price} (ID: ${a.id})`).join('\n');
-            return `🏛️ **Auction House**\n${list}`;
-        }
-
-        case 'buy': {
-            const id = interaction.options.getString('id');
-            const res = await economy.buyAuction(interaction.user.id, id);
-            if (!res.success) return `❌ ${res.error}`;
-            return `🔨 You bought **${res.item.name}** for ${res.price}!`;
-        }
-
-        case 'create': {
-            const item = interaction.options.getString('item');
-            const price = interaction.options.getInteger('price');
-            const res = await economy.listAuction(interaction.user.id, item, price);
-            if (!res.success) return `❌ ${res.error}`;
-            return `📢 Auction created for **${res.item.name}** at ${price}! (ID: ${res.auctionId})`;
-        }
-
-        default:
-            return '❌ Unknown auction subcommand.';
-    }
-}
-
-/**
  * Handle /quests command
  */
 async function handleQuests(interaction) {
@@ -345,7 +310,6 @@ module.exports = {
     handleTinker,
     handleBoss,
     handleSBX,
-    handleAuction,
     handleQuests,
 
     // Command to handler mapping
@@ -354,7 +318,6 @@ module.exports = {
         'tinker': handleTinker,
         'boss': handleBoss,
         'sbx': handleSBX,
-        'auction': handleAuction,
         'quests': handleQuests,
     }
 };

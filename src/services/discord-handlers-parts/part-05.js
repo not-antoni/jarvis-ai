@@ -888,29 +888,6 @@
                     }
                     break;
                 }
-                // ============ AUCTION ============
-                case 'auction': {
-                     telemetryMetadata.category = 'economy';
-                     const sub = interaction.options.getSubcommand();
-                     if (sub === 'list') {
-                         const auctions = await starkEconomy.getAuctions();
-                         if (!auctions.length) { response = 'No active auctions.'; break; }
-                         const list = auctions.map(a => `**${a.item.name}** - Price: ${a.price} (ID: ${a.id})`).join('\n');
-                         response = `🏛️ **Auction House**\n${list}`;
-                     } else if (sub === 'buy') {
-                         const id = interaction.options.getString('id');
-                         const res = await starkEconomy.buyAuction(interaction.user.id, id);
-                         if (!res.success) { response = `❌ ${res.error}`; break; }
-                         response = `🔨 You bought **${res.item.name}** for ${res.price}!`;
-                     } else if (sub === 'create') {
-                         const item = interaction.options.getString('item');
-                         const price = interaction.options.getInteger('price');
-                         const res = await starkEconomy.listAuction(interaction.user.id, item, price);
-                         if (!res.success) { response = `❌ ${res.error}`; break; }
-                         response = `📢 Auction created for **${res.item.name}** at ${price}! (ID: ${res.auctionId})`;
-                     }
-                     break;
-                }
                 // ============ QUESTS ============
                 case 'quests': {
                      telemetryMetadata.category = 'game';
