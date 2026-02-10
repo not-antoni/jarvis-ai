@@ -1979,15 +1979,6 @@ const allCommands = [
         .addSubcommand(s => s.setName('list').setDescription('List available quests'))
         .addSubcommand(s => s.setName('start').setDescription('Start a quest').addStringOption(o => o.setName('id').setDescription('Quest ID').setRequired(true))),
 
-    // Auction House
-    new SlashCommandBuilder()
-        .setName('auction')
-        .setDescription('Auction House')
-        .setContexts([InteractionContextType.Guild])
-        .addSubcommand(s => s.setName('list').setDescription('View active auctions'))
-        .addSubcommand(s => s.setName('buy').setDescription('Bid/Buy on an auction').addStringOption(o => o.setName('id').setDescription('Auction ID').setRequired(true)))
-        .addSubcommand(s => s.setName('create').setDescription('Create an auction').addStringOption(o => o.setName('item').setDescription('Item ID').setRequired(true)).addIntegerOption(o => o.setName('price').setDescription('Starting price').setRequired(true))),
-
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()
         .setName('ban')

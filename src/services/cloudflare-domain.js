@@ -119,6 +119,89 @@ function ensureCloudflareIpsConfig() {
     }
 }
 
+function generateCloudflareTimerService(projectRoot) {
+    return `[Unit]
+Description=Update Cloudflare IP ranges for nginx
+
+[Service]
+Type=oneshot
+WorkingDirectory=${projectRoot}
+ExecStart=/usr/bin/env bash ${projectRoot}/scripts/update-cloudflare-ips.sh
+User=root
+StandardOutput=journal
+StandardError=journal
+`;
+}
+
+function generateCloudflareTimerUnit() {
+    return `[Unit]
+Description=Weekly Cloudflare IP update for nginx
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+`;
+}
+
+function ensureCloudflareIpsTimer(projectRoot) {
+    if (!commandExists('systemctl')) {
+        return false;
+    }
+    if (!canSudo()) {
+        return false;
+    }
+
+    const servicePath = '/etc/systemd/system/cloudflare-ips-update.service';
+    const timerPath = '/etc/systemd/system/cloudflare-ips-update.timer';
+    const serviceContent = generateCloudflareTimerService(projectRoot);
+    const timerContent = generateCloudflareTimerUnit();
+
+    const writeUnitFile = (targetPath, content) => {
+        const tempFile = `/tmp/${path.basename(targetPath)}`;
+        fs.writeFileSync(tempFile, content);
+        execSync(`sudo cp ${tempFile} ${targetPath}`, { encoding: 'utf8' });
+        execSync(`sudo chmod 644 ${targetPath}`, { encoding: 'utf8' });
+    };
+
+    let serviceNeedsWrite = true;
+    let timerNeedsWrite = true;
+    try {
+        if (fs.existsSync(servicePath)) {
+            const existing = fs.readFileSync(servicePath, 'utf8');
+            serviceNeedsWrite = existing !== serviceContent;
+        }
+        if (fs.existsSync(timerPath)) {
+            const existing = fs.readFileSync(timerPath, 'utf8');
+            timerNeedsWrite = existing !== timerContent;
+        }
+    } catch {
+        serviceNeedsWrite = true;
+        timerNeedsWrite = true;
+    }
+
+    try {
+        if (serviceNeedsWrite) {
+            writeUnitFile(servicePath, serviceContent);
+        }
+        if (timerNeedsWrite) {
+            writeUnitFile(timerPath, timerContent);
+        }
+
+        execSync(`sudo chmod +x ${projectRoot}/scripts/update-cloudflare-ips.sh`, { encoding: 'utf8' });
+        execSync('sudo systemctl daemon-reload', { encoding: 'utf8' });
+        execSync('sudo systemctl enable cloudflare-ips-update.timer', { encoding: 'utf8' });
+        execSync('sudo systemctl start cloudflare-ips-update.timer', { encoding: 'utf8' });
+        execSync('sudo systemctl start cloudflare-ips-update.service', { encoding: 'utf8' });
+        return true;
+    } catch (error) {
+        console.warn('[Nginx] Failed to configure Cloudflare IP update timer:', error?.message || error);
+        return false;
+    }
+}
+
 /**
  * Generate Nginx config for domain (with optional SSL)
  */
@@ -427,9 +510,14 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
         String(process.env.CLOUDFLARE_ONLY || '').toLowerCase() !== 'false';
     const cloudflareOnlyReady = wantsCloudflareOnly ? ensureCloudflareIpsConfig() : false;
     const enforceCloudflareOnly = wantsCloudflareOnly && cloudflareOnlyReady;
+    const projectRoot = process.cwd();
+    const timerReady = enforceCloudflareOnly ? ensureCloudflareIpsTimer(projectRoot) : false;
 
     if (wantsCloudflareOnly && !cloudflareOnlyReady) {
         console.warn('[Nginx] Cloudflare-only requested but allowlist missing; proceeding without it.');
+    }
+    if (enforceCloudflareOnly && !timerReady) {
+        console.warn('[Nginx] Cloudflare IP update timer not configured; continuing without timer.');
     }
 
     // Check if already configured with correct SSL state

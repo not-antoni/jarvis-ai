@@ -1786,13 +1786,12 @@ async function sellItem(userId, itemIndex) {
 }
 
 // ============================================================================
-// NEW FEATURES: Daily Challenges, Prestige, Boss, Lottery, Quests, Tournaments, Auction
+// NEW FEATURES: Daily Challenges, Prestige, Boss, Lottery, Quests, Tournaments
 // ============================================================================
 
 // In-memory storage for new features (persisted via user document)
 const activeBosses = new Map(); // guildId -> boss data
 const activeTournaments = new Map(); // guildId -> tournament data
-const auctionListings = new Map(); // auctionId -> listing data
 
 // Lottery data
 let lotteryData = {
@@ -2131,94 +2130,6 @@ async function joinTournament(guildId, userId) {
     return { success: true };
 }
 
-/**
- * List auction
- */
-async function listAuction(userId, itemIndex, price) {
-    const user = await loadUser(userId);
-
-    // If itemIndex is a string (name), find the index
-    if (typeof itemIndex === 'string') {
-        const name = itemIndex.toLowerCase();
-        itemIndex = user.inventory.findIndex(i => i.name.toLowerCase() === name);
-    }
-
-    if (!user.inventory || itemIndex === -1 || !user.inventory[itemIndex]) {
-        return { success: false, error: 'Item not found in your inventory!' };
-    }
-
-    const item = user.inventory[itemIndex];
-    if (item.id === 'arc_reactor') {
-        return { success: false, error: 'Cannot sell Arc Reactor!' };
-    }
-
-    const auctionId = `AH${Date.now().toString(36)}`;
-
-    auctionListings.set(auctionId, {
-        id: auctionId,
-        sellerId: userId,
-        sellerName: user.username || 'Unknown',
-        item: item.name,
-        itemData: item,
-        price,
-        listedAt: Date.now()
-    });
-
-    user.inventory.splice(itemIndex, 1);
-    await saveUser(userId, user);
-
-    return { success: true, item: item.name, auctionId };
-}
-
-/**
- * Buy from auction
- */
-async function buyAuction(userId, auctionId) {
-    const listing = auctionListings.get(auctionId);
-
-    if (!listing) {
-        return { success: false, error: 'Listing not found!' };
-    }
-
-    if (listing.sellerId === userId) {
-        return { success: false, error: 'Cannot buy your own listing!' };
-    }
-
-    const buyer = await loadUser(userId);
-
-    if (buyer.balance < listing.price) {
-        return { success: false, error: 'Insufficient funds!' };
-    }
-
-    // Transfer money
-    buyer.balance -= listing.price;
-    buyer.inventory = buyer.inventory || [];
-    buyer.inventory.push(listing.itemData);
-    await saveUser(userId, buyer);
-
-    // Pay seller (minus 5% fee)
-    const sellerPayout = Math.floor(listing.price * 0.95);
-    await modifyBalance(listing.sellerId, sellerPayout, 'auction_sale');
-
-    auctionListings.delete(auctionId);
-
-    return { success: true, item: listing.item, price: listing.price };
-}
-
-/**
- * Get all auctions
- */
-async function getAuctions() {
-    return Array.from(auctionListings.values()).slice(0, 50);
-}
-
-/**
- * Get user's auctions
- */
-async function getUserAuctions(userId) {
-    return Array.from(auctionListings.values()).filter(a => a.sellerId === userId);
-}
-
 // ============ SBX WRAPPERS ============
 
 async function investSBX(userId, amount) {
@@ -2378,12 +2289,6 @@ module.exports = {
     // NEW: Tournaments
     getTournamentData,
     joinTournament,
-
-    // NEW: Auction House
-    listAuction,
-    buyAuction,
-    getAuctions,
-    getUserAuctions,
 
     // SBX Wrappers
     investSBX,

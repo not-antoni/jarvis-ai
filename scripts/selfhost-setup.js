@@ -259,23 +259,42 @@ ${enableCloudflareOnly ? `
      * Generate commands to set up systemd timer for Cloudflare IP updates
      */
     generateSystemdTimerCommands() {
-        const servicePath = path.join(PROJECT_ROOT, 'systemd', 'cloudflare-ips-update.service');
-        const timerPath = path.join(PROJECT_ROOT, 'systemd', 'cloudflare-ips-update.timer');
+        const serviceContent = `[Unit]
+Description=Update Cloudflare IP ranges for nginx
 
-        // Check if systemd files exist in project
-        const hasSystemdFiles = fs.existsSync(servicePath) && fs.existsSync(timerPath);
+[Service]
+Type=oneshot
+WorkingDirectory=${PROJECT_ROOT}
+ExecStart=/usr/bin/env bash ${PROJECT_ROOT}/scripts/update-cloudflare-ips.sh
+User=root
+StandardOutput=journal
+StandardError=journal
+`;
 
-        if (hasSystemdFiles) {
-            return [
-                `sudo cp ${servicePath} /etc/systemd/system/`,
-                `sudo cp ${timerPath} /etc/systemd/system/`,
-                'sudo systemctl daemon-reload',
-                'sudo systemctl enable cloudflare-ips-update.timer',
-                'sudo systemctl start cloudflare-ips-update.timer'
-            ].join(' && ');
-        }
+        const timerContent = `[Unit]
+Description=Weekly Cloudflare IP update for nginx
 
-        return null;
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+`;
+
+        const serviceEscaped = serviceContent.replace(/'/g, "'\\''");
+        const timerEscaped = timerContent.replace(/'/g, "'\\''");
+
+        return [
+            `echo '${serviceEscaped}' | sudo tee /etc/systemd/system/cloudflare-ips-update.service > /dev/null`,
+            `echo '${timerEscaped}' | sudo tee /etc/systemd/system/cloudflare-ips-update.timer > /dev/null`,
+            `sudo chmod 644 /etc/systemd/system/cloudflare-ips-update.service /etc/systemd/system/cloudflare-ips-update.timer`,
+            `sudo chmod +x ${path.join(PROJECT_ROOT, 'scripts', 'update-cloudflare-ips.sh')}`,
+            'sudo systemctl daemon-reload',
+            'sudo systemctl enable cloudflare-ips-update.timer',
+            'sudo systemctl start cloudflare-ips-update.timer',
+            'sudo systemctl start cloudflare-ips-update.service'
+        ].join(' && ');
     }
 
     detectPublicIP() {
