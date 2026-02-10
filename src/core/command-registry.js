@@ -602,14 +602,6 @@ const commandDefinitions = [
     },
 
     {
-        name: 'afk',
-        description: 'Set your AFK status',
-        category: 'Fun',
-        usage: '/afk [reason]',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
         name: 'rate',
         description: 'Rate something or someone',
         category: 'Fun',
