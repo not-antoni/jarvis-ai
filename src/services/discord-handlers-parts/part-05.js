@@ -1124,9 +1124,6 @@
                         )
                         .setFooter({ text: `🏆 Winner: ${fight.winner}` });
                     response = { embeds: [embed] };
-                    // Track fight win achievement
-                    if (fight.winner === interaction.user.username) {
-                    }
                     break;
                 }
                 case 'hug': {
@@ -1178,9 +1175,6 @@
                             { name: 'Total', value: `**${result.total}**`, inline: true }
                         );
                     response = { embeds: [embed] };
-                    // Check for nat 20 or nat 1 on d20
-                    if (diceNotation.includes('d20')) {
-                    }
                     break;
                 }
                 case 'afk': {
@@ -1214,7 +1208,6 @@
                             { name: '🔮 Answer', value: answer, inline: false }
                         );
                     response = { embeds: [embed] };
-                    // Track achievement
                     break;
                 }
                 // ============ STARK BUCKS ECONOMY (Consolidated) ============
