@@ -111,7 +111,6 @@ class DatabaseManager {
             statusMessages: this.db.collection(config.database.collections.statusMessages),
             commandMetrics: this.db.collection(config.database.collections.commandMetrics),
             reminders: this.db.collection(config.database.collections.reminders),
-            announcements: this.db.collection(config.database.collections.announcements),
             subscriptions: this.db.collection(config.database.collections.subscriptions)
         };
 
@@ -253,17 +252,6 @@ class DatabaseManager {
                     { key: { id: 1 }, unique: true },
                     { key: { userId: 1, scheduledFor: 1 } },
                     { key: { scheduledFor: 1 } }
-                ]
-            },
-            {
-                label: 'announcements',
-                collection: collections.announcements,
-                definitions: [
-                    { key: { id: 1 }, unique: true },
-                    { key: { guildId: 1, enabled: 1, nextRunAt: 1 } },
-                    { key: { guildId: 1, channelId: 1, enabled: 1 } },
-                    { key: { createdByUserId: 1, guildId: 1 } },
-                    { key: { lockedUntil: 1 } }
                 ]
             },
             {

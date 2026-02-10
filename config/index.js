@@ -127,7 +127,6 @@ const rawConfig = {
             commandSyncState: 'commandSyncState',
             starkEconomy: 'starkEconomy',
             reminders: 'reminders',
-            announcements: 'announcements',
             subscriptions: 'subscriptions'
         },
         vaultCollections: {

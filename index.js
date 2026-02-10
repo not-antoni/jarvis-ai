@@ -50,14 +50,13 @@ const { commandList: terfCommandList } = require('./src/commands/terf');
 const { commandFeatureMap } = require('./src/core/command-registry');
 const { isFeatureGloballyEnabled } = require('./src/core/feature-flags');
 const webhookRouter = require('./routes/webhook');
-const companiesRouter = require('./routes/companies');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
 const starkEconomy = require('./src/services/stark-economy');
 const errorLogger = require('./src/services/error-logger');
 const serverLogger = require('./src/services/server-logger');
-const announcementScheduler = require('./src/services/announcement-scheduler');
+const wealthTax = require('./src/services/stark-wealth-tax');
 const monitorScheduler = require('./src/services/monitor-scheduler');
 const { printSelfhostStatus } = require('./scripts/selfhost-check');
 const { printRenderStatus } = require('./scripts/render-check');
@@ -548,17 +547,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('conspiracy')
-        .setDescription('Generate a conspiracy theory about someone')
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who is the subject').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('vibecheck')
         .setDescription("Check someone's vibes with detailed stats")
         .addUserOption(option =>
@@ -582,17 +570,6 @@ const allCommands = [
         .setDescription("Receive a prophecy about someone's future")
         .addUserOption(option =>
             option.setName('user').setDescription('Who to prophesy about').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('fakequote')
-        .setDescription('Generate a fake inspirational quote')
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who said it').setRequired(false)
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -705,36 +682,6 @@ const allCommands = [
         .setDescription('Ask the magic 8-ball a question')
         .addStringOption(option =>
             option.setName('question').setDescription('Your question').setRequired(true)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('achievements')
-        .setDescription('View your achievements and progress')
-        .addStringOption(option =>
-            option
-                .setName('category')
-                .setDescription('Filter by category')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Getting Started', value: 'Getting Started' },
-                    { name: 'Rap Battle', value: 'Rap Battle' },
-                    { name: 'Economy', value: 'Economy' },
-                    { name: 'Social', value: 'Social' },
-                    { name: 'Fun', value: 'Fun' },
-                    { name: 'Activity', value: 'Activity' },
-                    { name: 'Special', value: 'Special' },
-                    { name: 'Milestones', value: 'Milestones' }
-                )
-        )
-        .addUserOption(option =>
-            option
-                .setName('user')
-                .setDescription("View someone else's achievements")
-                .setRequired(false)
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -1834,122 +1781,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('announcement')
-        .setDescription('Schedule recurring announcements (DB-backed)')
-        .addSubcommand(sub =>
-            sub
-                .setName('create')
-                .setDescription('Create a new scheduled announcement')
-                .addChannelOption(opt =>
-                    opt
-                        .setName('channel')
-                        .setDescription('Channel to send in')
-                        .setRequired(true)
-                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-                )
-                .addIntegerOption(opt =>
-                    opt
-                        .setName('in')
-                        .setDescription('Send after this many units (e.g. 2)')
-                        .setRequired(true)
-                        .setMinValue(1)
-                        .setMaxValue(525600)
-                )
-                .addStringOption(opt =>
-                    opt
-                        .setName('unit')
-                        .setDescription('Unit for the delay')
-                        .setRequired(true)
-                        .addChoices(
-                            { name: 'Seconds', value: 'seconds' },
-                            { name: 'Minutes', value: 'minutes' },
-                            { name: 'Hours', value: 'hours' },
-                            { name: 'Days', value: 'days' },
-                            { name: 'Weeks', value: 'weeks' },
-                            { name: 'Months', value: 'months' }
-                        )
-                )
-                .addIntegerOption(opt =>
-                    opt
-                        .setName('every')
-                        .setDescription('Repeat every N units (omit for one-time)')
-                        .setRequired(false)
-                        .setMinValue(1)
-                        .setMaxValue(525600)
-                )
-                .addStringOption(opt =>
-                    opt
-                        .setName('every_unit')
-                        .setDescription('Unit for repeat interval (required if every is set)')
-                        .setRequired(false)
-                        .addChoices(
-                            { name: 'Seconds', value: 'seconds' },
-                            { name: 'Minutes', value: 'minutes' },
-                            { name: 'Hours', value: 'hours' },
-                            { name: 'Days', value: 'days' },
-                            { name: 'Weeks', value: 'weeks' },
-                            { name: 'Months', value: 'months' }
-                        )
-                )
-                .addRoleOption(opt =>
-                    opt
-                        .setName('role1')
-                        .setDescription('Role to ping (optional)')
-                        .setRequired(false)
-                )
-                .addRoleOption(opt =>
-                    opt
-                        .setName('role2')
-                        .setDescription('Role to ping (optional)')
-                        .setRequired(false)
-                )
-                .addRoleOption(opt =>
-                    opt
-                        .setName('role3')
-                        .setDescription('Role to ping (optional)')
-                        .setRequired(false)
-                )
-        )
-        .addSubcommand(sub =>
-            sub.setName('list').setDescription('List scheduled announcements for this server')
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('disable')
-                .setDescription('Disable a scheduled announcement')
-                .addStringOption(opt =>
-                    opt.setName('id').setDescription('Announcement ID').setRequired(true)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('enable')
-                .setDescription('Enable a scheduled announcement')
-                .addStringOption(opt =>
-                    opt.setName('id').setDescription('Announcement ID').setRequired(true)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('delete')
-                .setDescription('Delete a scheduled announcement')
-                .addStringOption(opt =>
-                    opt.setName('id').setDescription('Announcement ID').setRequired(true)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('clear')
-                .setDescription('Delete all scheduled announcements for this server')
-                .addBooleanOption(opt =>
-                    opt
-                        .setName('confirm')
-                        .setDescription('Confirm deletion of all announcements')
-                        .setRequired(true)
-                )
-        )
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
         .setName('monitor')
         .setDescription('Monitor websites, feeds, and channels.')
         .addSubcommand(sub =>
@@ -2120,47 +1951,7 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
-    new SlashCommandBuilder()
-        .setName('run')
-        .setDescription('Execute a JavaScript code snippet in a sandboxed environment')
-        .addStringOption(opt =>
-            opt
-                .setName('code')
-                .setDescription('JavaScript code to execute')
-                .setRequired(true)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
     // ============ LEGACY FEATURES ============
-    // Pet System
-    new SlashCommandBuilder()
-        .setName('pet')
-        .setDescription('Manage your virtual pet')
-        .setContexts([InteractionContextType.Guild])
-        .addSubcommand(s => s.setName('info').setDescription('View your pet'))
-        .addSubcommand(s => s.setName('adopt').setDescription('Adopt a pet').addStringOption(o => o.setName('type').setDescription('Pet type').setRequired(true).addChoices(
-            { name: 'Dog (500 SB)', value: 'dog' },
-            { name: 'Cat (500 SB)', value: 'cat' },
-            { name: 'Fish (2000 SB)', value: 'fish' },
-            { name: 'Golden Fish (15000 SB)', value: 'golden_fish' },
-            { name: 'Nemo (8000 SB)', value: 'nemo' },
-            { name: 'Dragon (50000 SB)', value: 'dragon' }
-        )))
-        .addSubcommand(s => s.setName('feed').setDescription('Feed your pet'))
-        .addSubcommand(s => s.setName('rename').setDescription('Rename your pet').addStringOption(o => o.setName('name').setDescription('New name').setRequired(true))),
-
-    // Heist System
-    new SlashCommandBuilder()
-        .setName('heist')
-        .setDescription('Organize a bank heist')
-        .setContexts([InteractionContextType.Guild])
-        .addSubcommand(s => s.setName('start').setDescription('Start a heist').addIntegerOption(o => o.setName('amount').setDescription('Bet amount').setRequired(true)))
-        .addSubcommand(s => s.setName('join').setDescription('Join active heist'))
-        .addSubcommand(s => s.setName('status').setDescription('View heist status')),
-
     // SBX Crypto
     new SlashCommandBuilder()
         .setName('sbx')
@@ -2180,12 +1971,6 @@ const allCommands = [
         .addSubcommand(s => s.setName('status').setDescription('Check boss status'))
         .addSubcommand(s => s.setName('attack').setDescription('Attack the boss')),
 
-    // Achievements
-    new SlashCommandBuilder()
-        .setName('achievements')
-        .setDescription('View your achievements')
-        .setContexts([InteractionContextType.Guild]),
-
     // Quests
     new SlashCommandBuilder()
         .setName('quests')
@@ -2202,36 +1987,6 @@ const allCommands = [
         .addSubcommand(s => s.setName('list').setDescription('View active auctions'))
         .addSubcommand(s => s.setName('buy').setDescription('Bid/Buy on an auction').addStringOption(o => o.setName('id').setDescription('Auction ID').setRequired(true)))
         .addSubcommand(s => s.setName('create').setDescription('Create an auction').addStringOption(o => o.setName('item').setDescription('Item ID').setRequired(true)).addIntegerOption(o => o.setName('price').setDescription('Starting price').setRequired(true))),
-
-    // Company System
-    new SlashCommandBuilder()
-        .setName('stark')
-        .setDescription('Stark Industries Main Command')
-        .addSubcommandGroup(g => g.setName('minigame').setDescription('Minigame commands')
-            .addSubcommand(s => s.setName('company').setDescription('Manage your company')
-                .addStringOption(o => o.setName('action').setDescription('Action to perform').setRequired(true)
-                    .addChoices(
-                        { name: 'Buy Company', value: 'buy' },
-                        { name: 'Create Custom (Ultra)', value: 'create' },
-                        { name: 'Edit Company', value: 'edit' },
-                        { name: 'Manage Workers (Hire)', value: 'hire' },
-                        { name: 'Create Partnership', value: 'partner' },
-                        { name: 'List Companies', value: 'list' },
-                        { name: 'Company Info', value: 'lookup' },
-                        { name: 'Delete Company', value: 'delete' },
-                        { name: 'Use Rush', value: 'rush' },
-                        { name: 'Use Slow', value: 'slow' },
-                        { name: 'Clean', value: 'clean' },
-                        { name: 'Sabotage', value: 'sabotage' },
-                        { name: 'Spread Dirt', value: 'spreaddirt' }
-                    ))
-                .addStringOption(o => o.setName('id').setDescription('Company ID/Name (for buy, edit, etc)').setRequired(false))
-                .addStringOption(o => o.setName('description').setDescription('For edit: New description').setRequired(false))
-                .addAttachmentOption(o => o.setName('image').setDescription('For edit/create: Upload company image').setRequired(false))
-                .addStringOption(o => o.setName('name').setDescription('For edit/create: Custom name').setRequired(false))
-                .addIntegerOption(o => o.setName('count').setDescription('For hire: Number of workers').setRequired(false))
-                .addStringOption(o => o.setName('partner').setDescription('For partner: Partner company ID').setRequired(false))
-            )),
 
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()
@@ -2313,8 +2068,7 @@ const allCommands = [
 
     ...musicCommandList.map(command => command.data),
     ...terfCommandList.map(command => command.data),
-    ...require('./src/commands/utility/quote').map(c => c.data),
-    require('./src/commands/utility/company').data
+    ...require('./src/commands/utility/quote').map(c => c.data)
 ];
 
 const commands = allCommands.filter(builder => {
@@ -2639,8 +2393,6 @@ app.get('/jarvis.webp', (req, res) => {
 
 // Serve uploaded news images
 app.use('/uploads/news', express.static(path.join(__dirname, 'uploads/news')));
-// Serve uploaded company images
-app.use('/uploads/companies', express.static(path.join(__dirname, 'uploads/companies')));
 // Serve assets directory
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
@@ -2731,9 +2483,6 @@ app.get('/api/stats', async (req, res) => {
         res.json({ guildCount: 0, userCount: 0, uptime: 0 });
     }
 });
-
-// Mount companies router
-app.use('/companies', require('./routes/companies'));
 
 // Mount landing page (must be last to not override other routes)
 const landingRouter = require('./routes/landing');
@@ -3345,7 +3094,6 @@ app.get('/status', async (req, res) => {
         <a href="/" class="logo">⚡ Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
-            <li><a href="/companies">Companies</a></li>
             <li><a href="/store">Store</a></li>
             <li><a href="/leaderboard">Leaderboard</a></li>
             <li><a href="/sbx">SBX</a></li>
@@ -3497,9 +3245,6 @@ app.get('/metrics/commands', async (req, res) => {
         res.status(500).json({ error: 'Unable to load command metrics summary' });
     }
 });
-
-// Company pages
-app.use('/companies', companiesRouter);
 
 app.get('/dashboard', async (req, res) => {
     if (!isDashboardAuthed(req)) {
@@ -3791,37 +3536,6 @@ app.get('/health', async (req, res) => {
 client.once(Events.ClientReady, async () => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
 
-    const announcementsRunOnce =
-        String(process.env.ANNOUNCEMENTS_RUN_ONCE || '').toLowerCase() === '1';
-    if (announcementsRunOnce) {
-        try {
-            announcementScheduler.init({ client, database, startInterval: false });
-        } catch (e) {
-            console.warn(
-                '[AnnouncementsRunOnce] Failed to initialize announcement scheduler:',
-                e.message
-            );
-        }
-
-        try {
-            await announcementScheduler.runOnce();
-        } catch (e) {
-            console.warn('[AnnouncementsRunOnce] runOnce failed:', e?.message || e);
-        }
-
-        try {
-            await database.disconnect();
-        } catch (e) {
-            /* ignore */
-        }
-        try {
-            client.destroy();
-        } catch (e) {
-            /* ignore */
-        }
-        process.exit(0);
-    }
-
     // Store client globally for economy DMs
     global.discordClient = client;
     global.discordHandlers = discordHandlers;
@@ -3864,12 +3578,11 @@ client.once(Events.ClientReady, async () => {
     // Start Stark Bucks multiplier event scheduler (250% bonus every 3 hours)
     starkEconomy.startMultiplierScheduler();
 
-    // Start Company profit/maintenance scheduler
+    // Start wealth tax scheduler (SB + SBX)
     try {
-        const starkCompanies = require('./src/services/stark-companies');
-        starkCompanies.startScheduler();
+        wealthTax.startScheduler();
     } catch (e) {
-        console.warn('[Companies] Failed to start scheduler:', e.message);
+        console.warn('[WealthTax] Failed to start scheduler:', e.message);
     }
 
     // Initialize diagnostics router now that discordHandlers is ready
@@ -3936,12 +3649,6 @@ client.once(Events.ClientReady, async () => {
         } catch (e) {
             console.warn('[UserFeatures] Failed to initialize:', e.message);
         }
-    }
-
-    try {
-        announcementScheduler.init({ client, database });
-    } catch (e) {
-        console.warn('[Announcements] Failed to start scheduler:', e.message);
     }
 
     try {
@@ -4033,8 +3740,6 @@ client.on('interactionCreate', async interaction => {
         if (interaction.isChatInputCommand() || interaction.isContextMenuCommand()) {
             dashboardRouter.trackCommand(interaction.commandName, interaction.user.id);
             await discordHandlers.handleSlashCommand(interaction);
-        } else if (interaction.isModalSubmit()) {
-            await discordHandlers.handleModalSubmit(interaction);
         } else if (interaction.isButton()) {
             await discordHandlers.handleComponentInteraction(interaction);
         }
@@ -4211,10 +3916,9 @@ async function gracefulShutdown(signal) {
     console.log(`Jarvis received ${signal}, shutting down gracefully...`);
     try {
         serverStatsRefreshJob.stop();
-        try { announcementScheduler.stop(); } catch (_) { }
         try { monitorScheduler.stop(); } catch (_) { }
         try { starkEconomy.stopMultiplierScheduler(); } catch (_) { }
-        try { require('./src/services/stark-companies').stopScheduler(); } catch (_) { }
+        try { wealthTax.stopScheduler(); } catch (_) { }
         try { tempSweepJob.stop(); } catch (_) { }
         await database.disconnect();
         // Flush logger before exit to ensure all logs are written
@@ -4295,39 +3999,6 @@ app.use((req, res) => {
 // ------------------------ Boot ------------------------
 async function startBot() {
     try {
-        const announcementsRunOnce =
-            String(process.env.ANNOUNCEMENTS_RUN_ONCE || '').toLowerCase() === '1';
-        if (announcementsRunOnce) {
-            let databaseConnected = false;
-            try {
-                await database.connect();
-                databaseConnected = true;
-            } catch (err) {
-                console.warn(
-                    '[AnnouncementsRunOnce] Database connection failed; will still process in-memory jobs only.'
-                );
-            }
-
-            const disableDiscord = String(process.env.DISABLE_DISCORD || '').toLowerCase() === '1';
-            if (disableDiscord) {
-                console.warn(
-                    '[AnnouncementsRunOnce] DISABLE_DISCORD=1 set; skipping Discord login and exiting.'
-                );
-                if (databaseConnected) {
-                    try {
-                        await database.disconnect();
-                    } catch (e) {
-                        /* ignore */
-                    }
-                }
-                process.exit(0);
-            }
-
-            await client.login(config.discord.token);
-            console.log('✅ Logged in for ANNOUNCEMENTS_RUN_ONCE');
-            return;
-        }
-
         // Start uptime server
         app.listen(config.server.port, '0.0.0.0', () => {
             console.log(`Uptime server listening on port ${config.server.port}`);

@@ -40,7 +40,6 @@ function parseFormattedNumber(str) {
 // Lazy-load dependencies to avoid circular imports
 let starkEconomy = null;
 let starkTinker = null;
-let achievements = null;
 
 function getStarkEconomy() {
     if (!starkEconomy) starkEconomy = require('../services/stark-economy');
@@ -52,10 +51,6 @@ function getStarkTinker() {
     return starkTinker;
 }
 
-function getAchievements() {
-    if (!achievements) achievements = require('../services/achievements');
-    return achievements;
-}
 
 /**
  * Handle /inventory command
@@ -195,92 +190,6 @@ async function handleTinker(interaction) {
 
         default:
             return '❌ Unknown tinker subcommand.';
-    }
-}
-
-/**
- * Handle /pet command
- */
-async function handlePet(interaction) {
-    const economy = getStarkEconomy();
-    const sub = interaction.options.getSubcommand();
-
-    switch (sub) {
-        case 'info': {
-            const { pet } = await economy.getPetData(interaction.user.id);
-            if (!pet) {
-                return 'You don\'t have a pet! Use `/pet adopt` to get one.';
-            }
-            const embed = new EmbedBuilder()
-                .setTitle(`🐾 ${pet.name || 'Unknown'} (${(pet.type || 'pet').toUpperCase()})`)
-                .setDescription(`Level: ${pet.level ?? 1}\nXP: ${pet.xp ?? 0}/${pet.nextLevelXp ?? 100}`)
-                .addFields(
-                    { name: 'Hunger', value: `${pet.hunger ?? 100}%`, inline: true },
-                    { name: 'Happiness', value: `${pet.happiness ?? 100}%`, inline: true }
-                )
-                .setColor(0xf1c40f);
-            return { embeds: [embed] };
-        }
-
-        case 'adopt': {
-            const type = interaction.options.getString('type');
-            const res = await economy.buyPet(interaction.user.id, type);
-            if (!res.success) return `❌ ${res.error}`;
-            return `🎉 You adopted a **${type}** named **${res.pet.name}**!`;
-        }
-
-        case 'feed': {
-            const res = await economy.feedPet(interaction.user.id);
-            if (!res.success) return `❌ ${res.error}`;
-            return `🍖 You fed your pet! Hunger is now ${res.pet?.hunger ?? 100}%.`;
-        }
-
-        case 'rename': {
-            const name = interaction.options.getString('name');
-            const res = await economy.renamePet(interaction.user.id, name);
-            if (!res.success) return `❌ ${res.error}`;
-            return `✏️ Pet renamed to **${name}**!`;
-        }
-
-        default:
-            return '❌ Unknown pet subcommand.';
-    }
-}
-
-/**
- * Handle /heist command
- */
-async function handleHeist(interaction) {
-    const economy = getStarkEconomy();
-    let sub;
-    try {
-        sub = interaction.options.getSubcommand();
-    } catch {
-        return '❌ Please specify a subcommand: `/heist start`, `/heist join`, or `/heist status`.';
-    }
-
-    switch (sub) {
-        case 'start': {
-            const amount = interaction.options.getInteger('amount');
-            const res = await economy.startHeist(interaction.guild.id, interaction.user.id, amount);
-            if (!res.success) return `❌ ${res.error}`;
-            return `🚨 **HEIST STARTED!**\nLeader: ${interaction.user.username}\nTarget: ${formatNum(res.targetAmount)}\nRequires: ${res.minPlayers} players\n\nType \`/heist join\` to join!`;
-        }
-
-        case 'join': {
-            const res = await economy.joinHeist(interaction.guild.id, interaction.user.id);
-            if (!res.success) return `❌ ${res.error}`;
-            return `🔫 You joined the heist! (${res.playerCount} crew members ready)`;
-        }
-
-        case 'status': {
-            const status = await economy.getHeistStatus(interaction.guild.id);
-            if (!status.active) return 'No active heist. Start one with `/heist start`!';
-            return `🚨 **Active Heist**\nPlayers: ${status.players.length}\nPot: ${formatNum(status.pot)}\nTime Left: ${status.timeLeft}s`;
-        }
-
-        default:
-            return '❌ Unknown heist subcommand.';
     }
 }
 
@@ -434,8 +343,6 @@ module.exports = {
     // Command handlers
     handleInventory,
     handleTinker,
-    handlePet,
-    handleHeist,
     handleBoss,
     handleSBX,
     handleAuction,
@@ -445,8 +352,6 @@ module.exports = {
     commandMap: {
         'inventory': handleInventory,
         'tinker': handleTinker,
-        'pet': handlePet,
-        'heist': handleHeist,
         'boss': handleBoss,
         'sbx': handleSBX,
         'auction': handleAuction,
