@@ -389,24 +389,34 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
             const guild = interaction.guild;
             const owner = await guild.fetchOwner().catch(() => null);
 
+            const iconUrl = guild.iconURL({ size: 256 });
+            const bannerUrl = guild.bannerURL({ size: 1024 });
+
             const embed = new EmbedBuilder()
-                .setTitle(`🏰 ${guild.name}`)
-                .setThumbnail(guild.iconURL({ size: 256 }))
+                .setAuthor({
+                    name: guild.name,
+                    iconURL: iconUrl || undefined
+                })
+                .setTitle('🏰 Server Overview')
+                .setThumbnail(iconUrl)
                 .setColor(0x9b59b6)
                 .addFields(
-                    { name: 'ID', value: guild.id, inline: true },
-                    { name: 'Owner', value: owner ? owner.user.tag : 'Unknown', inline: true },
-                    { name: 'Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
-                    { name: 'Members', value: `${guild.memberCount.toLocaleString()}`, inline: true },
-                    { name: 'Channels', value: `${guild.channels.cache.size}`, inline: true },
-                    { name: 'Roles', value: `${guild.roles.cache.size}`, inline: true },
-                    { name: 'Boost Level', value: `Tier ${guild.premiumTier}`, inline: true },
-                    { name: 'Boosts', value: `${guild.premiumSubscriptionCount || 0}`, inline: true },
-                    { name: 'Emojis', value: `${guild.emojis.cache.size}`, inline: true }
+                    { name: '🆔 ID', value: guild.id, inline: true },
+                    { name: '👑 Owner', value: owner ? owner.user.tag : 'Unknown', inline: true },
+                    { name: '📅 Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
+                    { name: '👥 Members', value: `${guild.memberCount.toLocaleString()}`, inline: true },
+                    { name: '💬 Channels', value: `${guild.channels.cache.size}`, inline: true },
+                    { name: '🛡️ Roles', value: `${guild.roles.cache.size}`, inline: true },
+                    { name: '🚀 Boost Level', value: `Tier ${guild.premiumTier}`, inline: true },
+                    { name: '💎 Boosts', value: `${guild.premiumSubscriptionCount || 0}`, inline: true },
+                    { name: '😄 Emojis', value: `${guild.emojis.cache.size}`, inline: true }
                 );
 
             if (guild.description) {
                 embed.setDescription(guild.description);
+            }
+            if (bannerUrl) {
+                embed.setImage(bannerUrl);
             }
 
             response = { embeds: [embed] };
