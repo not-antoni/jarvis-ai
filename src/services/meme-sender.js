@@ -1,5 +1,3 @@
-const { EmbedBuilder, Colors } = require('discord.js');
-
 /**
  * Daily Meme Sender Service
  * Fetches memes from meme-api.com and sends them to a specific channel.
@@ -11,6 +9,7 @@ class MemeSender {
         this.targetGuildId = process.env.MEME_GUILD_ID || '';
         this.targetChannelId = process.env.MEME_CHANNEL_ID || '';
         this.apiUrl = 'https://meme-api.com/gimme';
+        this.hasWarnedMissingTarget = false;
     }
 
     /**
@@ -54,20 +53,39 @@ class MemeSender {
      */
     async sendMeme() {
         if (!this.client) return;
+        if (!this.targetGuildId || !this.targetChannelId) {
+            if (!this.hasWarnedMissingTarget) {
+                console.warn('[MemeSender] MEME_GUILD_ID or MEME_CHANNEL_ID is not set; skipping.');
+                this.hasWarnedMissingTarget = true;
+            }
+            return;
+        }
 
         try {
             const guild = await this.client.guilds.fetch(this.targetGuildId).catch(() => null);
             if (!guild) return console.warn(`[MemeSender] Target guild ${this.targetGuildId} not found`);
 
-            const channel = await guild.channels.fetch(this.targetChannelId).catch(() => null);
+            let channel = null;
+            if (guild.channels?.fetch) {
+                channel = await guild.channels.fetch(this.targetChannelId).catch(() => null);
+            }
+            if (!channel) {
+                channel = await this.client.channels.fetch(this.targetChannelId).catch(() => null);
+            }
             if (!channel) return console.warn(`[MemeSender] Target channel ${this.targetChannelId} not found`);
+            if (channel.guildId && channel.guildId !== guild.id) {
+                return console.warn(`[MemeSender] Target channel ${this.targetChannelId} does not belong to guild ${guild.id}`);
+            }
+            if (typeof channel.send !== 'function') {
+                return console.warn(`[MemeSender] Target channel ${this.targetChannelId} is not a text channel`);
+            }
 
             // Fetch meme
             const meme = await this.fetchMeme();
             if (!meme) return;
 
             // NSFW Filter (Auto-skip NSFW if channel isn't NSFW)
-            if (meme.nsfw && !channel.nsfw) {
+            if (meme.nsfw && channel.nsfw === false) {
                 console.log('[MemeSender] Skipped NSFW meme in SFW channel');
                 return; // Retry logic could go here, but keep it simple for now
             }
