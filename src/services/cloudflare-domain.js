@@ -30,6 +30,7 @@ const isRhel = fs.existsSync('/etc/redhat-release') || fs.existsSync('/etc/amazo
 const NGINX_DIR = isRhel ? '/etc/nginx/conf.d' : '/etc/nginx/sites-available';
 const NGINX_ENABLED_DIR = isRhel ? null : '/etc/nginx/sites-enabled'; // RHEL includes conf.d automatically
 const NGINX_CONFIG_FILE = isRhel ? path.join(NGINX_DIR, 'jarvis.conf') : path.join(NGINX_DIR, 'jarvis');
+const CLOUDFLARE_IPS_FILE = '/etc/nginx/cloudflare-ips.conf';
 
 // ============================================================================
 // NGINX AUTO-SETUP
@@ -60,9 +61,68 @@ function canSudo() {
 }
 
 /**
+ * Generate Cloudflare IP allowlist config (fallback list).
+ */
+function generateCloudflareIpsConfig() {
+    const ipv4 = [
+        '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+        '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+        '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+        '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22'
+    ];
+    const ipv6 = [
+        '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+        '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32'
+    ];
+
+    let config = `# Cloudflare IPs - Auto-generated fallback
+# Updated: ${new Date().toISOString()}
+# Run scripts/update-cloudflare-ips.sh to refresh from Cloudflare
+
+# IPv4
+`;
+    ipv4.forEach(ip => { config += `allow ${ip};\n`; });
+    config += `\n# IPv6\n`;
+    ipv6.forEach(ip => { config += `allow ${ip};\n`; });
+    config += `
+# Localhost for local testing
+allow 127.0.0.1;
+allow ::1;
+
+# Deny all other IPs
+deny all;
+`;
+    return config;
+}
+
+/**
+ * Ensure Cloudflare IP allowlist config exists on disk.
+ */
+function ensureCloudflareIpsConfig() {
+    if (fs.existsSync(CLOUDFLARE_IPS_FILE)) {
+        return true;
+    }
+    if (!canSudo()) {
+        return false;
+    }
+
+    try {
+        const config = generateCloudflareIpsConfig();
+        const tempFile = '/tmp/cloudflare-ips.conf';
+        fs.writeFileSync(tempFile, config);
+        execSync(`sudo cp ${tempFile} ${CLOUDFLARE_IPS_FILE}`, { encoding: 'utf8' });
+        execSync(`sudo chmod 644 ${CLOUDFLARE_IPS_FILE}`, { encoding: 'utf8' });
+        return true;
+    } catch (error) {
+        console.warn('[Nginx] Failed to create Cloudflare IP allowlist:', error?.message || error);
+        return false;
+    }
+}
+
+/**
  * Generate Nginx config for domain (with optional SSL)
  */
-function generateNginxConfig(domain, ssl = false) {
+function generateNginxConfig(domain, ssl = false, cloudflareOnly = true) {
     const redirectBlock = ssl ? `
 server {
     listen 80;
@@ -71,7 +131,40 @@ server {
 }
 ` : '';
 
-    return `${redirectBlock}server {
+    const cloudflareDefaultBlock = cloudflareOnly
+        ? ssl
+            ? `server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    http2 on;
+    server_name _;
+
+    ssl_certificate /etc/ssl/cloudflare/${domain}.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/${domain}.key;
+
+    return 444;
+}
+
+`
+            : `server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 444;
+}
+
+`
+        : '';
+
+    const cloudflareAllowList = cloudflareOnly
+        ? `
+    include ${CLOUDFLARE_IPS_FILE};
+`
+        : '';
+
+    return `${cloudflareDefaultBlock}${redirectBlock}server {
     listen ${ssl ? '443 ssl http2' : '80'};
     server_name ${domain} www.${domain};
 ${ssl ? `
@@ -81,6 +174,7 @@ ${ssl ? `
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
     ssl_prefer_server_ciphers off;
 ` : ''}
+${cloudflareAllowList}
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -329,20 +423,30 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
         }
     }
 
+    const wantsCloudflareOnly =
+        String(process.env.CLOUDFLARE_ONLY || '').toLowerCase() !== 'false';
+    const cloudflareOnlyReady = wantsCloudflareOnly ? ensureCloudflareIpsConfig() : false;
+    const enforceCloudflareOnly = wantsCloudflareOnly && cloudflareOnlyReady;
+
+    if (wantsCloudflareOnly && !cloudflareOnlyReady) {
+        console.warn('[Nginx] Cloudflare-only requested but allowlist missing; proceeding without it.');
+    }
+
     // Check if already configured with correct SSL state
     const currentConfig = isNginxConfigured(domain);
     const configContent = currentConfig && fs.existsSync(NGINX_CONFIG_FILE)
         ? fs.readFileSync(NGINX_CONFIG_FILE, 'utf8')
         : '';
     const hasSSLConfig = configContent.includes('ssl_certificate');
-    const hasCloudflareOnly = configContent.includes('default_server') && configContent.includes('return 444');
+    const hasCloudflareOnly =
+        configContent.includes('return 444') || configContent.includes(CLOUDFLARE_IPS_FILE);
 
     // Don't overwrite if Cloudflare-only security config is already in place
-    if (!force && hasCloudflareOnly && hasSSLConfig) {
+    if (!force && enforceCloudflareOnly && hasCloudflareOnly && hasSSLConfig === useSSL) {
         return { success: true, cached: true, ssl: useSSL, message: 'Nginx Cloudflare-only config preserved' };
     }
 
-    if (!force && currentConfig && hasSSLConfig === useSSL) {
+    if (!force && currentConfig && hasSSLConfig === useSSL && (!enforceCloudflareOnly || hasCloudflareOnly)) {
         return { success: true, cached: true, ssl: useSSL, message: 'Nginx already configured' };
     }
 
@@ -358,7 +462,7 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
         }
 
         // Generate and write config
-        const config = generateNginxConfig(domain, useSSL);
+        const config = generateNginxConfig(domain, useSSL, enforceCloudflareOnly);
         const tempFile = '/tmp/jarvis-nginx.conf';
         fs.writeFileSync(tempFile, config);
 
