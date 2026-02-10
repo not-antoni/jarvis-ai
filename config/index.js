@@ -176,6 +176,7 @@ const rawConfig = {
 
     // Server Configuration
     server: {
+        host: process.env.SERVER_BIND_HOST || (selfhostMode ? '127.0.0.1' : '0.0.0.0'),
         port: process.env.PORT || 3000,
         uptimeInterval: 300000, // 5 minutes
         healthToken: process.env.HEALTH_TOKEN || null
