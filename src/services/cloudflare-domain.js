@@ -1230,6 +1230,8 @@ module.exports = {
     autoSetupNginx,
     isNginxConfigured,
     generateNginxConfig,
+    ensureCloudflareIpsConfig,
+    ensureCloudflareIpsTimer,
 
     // SSL auto-setup
     autoSetupSsl,
