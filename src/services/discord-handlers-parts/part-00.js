@@ -11,9 +11,6 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    ModalBuilder,
-    TextInputBuilder,
-    TextInputStyle,
     parseEmoji,
     AutoModerationActionType,
     AutoModerationRuleEventType,
@@ -60,10 +57,8 @@ const ytDlpManager = require('./yt-dlp-manager');
 const { getSentientAgent } = require('../agents/sentient-core');
 const starkTinker = require('./stark-tinker');
 const starkEconomy = require('./stark-economy');
-const { AchievementsSystem, ACHIEVEMENTS } = require('./achievements');
 const guildModeration = require('./GUILDS_FEATURES/moderation');
 const antiScam = require('./GUILDS_FEATURES/anti-scam');
-const achievements = new AchievementsSystem();
 const clankerGif = require('../utils/clanker-gif');
 const guildConfigDiskCache = require('./guild-config-cache');
 
@@ -153,7 +148,6 @@ class DiscordHandlers {
         
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
-        this.pendingAnnouncementCreates = new Map();
         this.autoModRuleName = 'Jarvis Blacklist Filter';
         this.maxAutoModKeywordsPerRule = 1000;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';

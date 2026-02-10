@@ -198,7 +198,6 @@ async function loadUser(userId, username = 'Unknown') {
                 lastRob: 0,
                 inventory: [],
                 activeEffects: [],
-                achievements: [],
                 createdAt: new Date(),
                 updatedAt: new Date()
             };
@@ -1787,11 +1786,10 @@ async function sellItem(userId, itemIndex) {
 }
 
 // ============================================================================
-// NEW FEATURES: Daily Challenges, Prestige, Pets, Heist, Boss, Lottery, Quests, Tournaments, Auction
+// NEW FEATURES: Daily Challenges, Prestige, Boss, Lottery, Quests, Tournaments, Auction
 // ============================================================================
 
 // In-memory storage for new features (persisted via user document)
-const activeHeists = new Map(); // guildId -> heist data
 const activeBosses = new Map(); // guildId -> boss data
 const activeTournaments = new Map(); // guildId -> tournament data
 const auctionListings = new Map(); // auctionId -> listing data
@@ -1816,18 +1814,6 @@ const DAILY_CHALLENGES = [
     { id: 'earn_1000', name: 'Money Maker', task: 'Earn 1000 Stark Bucks', target: 1000, reward: 800 },
     { id: 'craft_item', name: 'Crafter', task: 'Craft an item', target: 1, reward: 700 }
 ];
-
-// Pet definitions
-const PET_TYPES = {
-    dog: { emoji: '🐕', name: 'Dog', cost: 5000, bonus: '+5% work earnings', bonusType: 'work', bonusValue: 0.05 },
-    cat: { emoji: '🐈', name: 'Cat', cost: 5000, bonus: '+5% gambling luck', bonusType: 'gambling', bonusValue: 0.05 },
-    dragon: { emoji: '🐉', name: 'Dragon', cost: 25000, bonus: '+10% all earnings', bonusType: 'all', bonusValue: 0.10 },
-    phoenix: { emoji: '🔥', name: 'Phoenix', cost: 50000, bonus: '+15% all earnings', bonusType: 'all', bonusValue: 0.15 },
-    unicorn: { emoji: '🦄', name: 'Unicorn', cost: 30000, bonus: '-30% cooldowns', bonusType: 'cooldown', bonusValue: 0.30 },
-    fish: { emoji: '🐟', name: 'Fish', cost: 2000, bonus: '+10% fishing luck', bonusType: 'fish', bonusValue: 0.10 },
-    golden_fish: { emoji: '🐠', name: 'Golden Fish', cost: 15000, bonus: '+10% all earnings', bonusType: 'all', bonusValue: 0.10 },
-    nemo: { emoji: '🤡', name: 'Nemo', cost: 8000, bonus: '+5% luck', bonusType: 'luck', bonusValue: 0.05 }
-};
 
 // Quest definitions
 const QUESTS = [
@@ -1919,252 +1905,6 @@ async function prestige(userId) {
         newLevel,
         bonusPercent: newLevel * 5,
         newBalance: user.balance
-    };
-}
-
-/**
- * Get pet data
- */
-async function getPetData(userId) {
-    const user = await loadUser(userId);
-    return {
-        hasPet: !!user.pet,
-        pet: user.pet || null
-    };
-}
-
-/**
- * Buy a pet
- */
-async function buyPet(userId, petType) {
-    const user = await loadUser(userId);
-
-    if (user.pet) {
-        return { success: false, error: 'You already have a pet!' };
-    }
-
-    const type = petType.toLowerCase();
-    const petDef = PET_TYPES[type];
-
-    if (!petDef) {
-        return { success: false, error: `Unknown pet type. Available: ${Object.keys(PET_TYPES).join(', ')}` };
-    }
-
-    if (user.balance < petDef.cost) {
-        return { success: false, error: `Insufficient funds! Need ${petDef.cost} Stark Bucks` };
-    }
-
-    user.balance -= petDef.cost;
-    user.pet = {
-        type: petDef.name,
-        emoji: petDef.emoji,
-        name: petDef.name,
-        level: 1,
-        happiness: 100,
-        bonus: petDef.bonus,
-        bonusType: petDef.bonusType,
-        bonusValue: petDef.bonusValue,
-        lastFed: Date.now(),
-        adoptedAt: Date.now()
-    };
-
-    await saveUser(userId, user);
-
-    return { success: true, pet: user.pet, cost: petDef.cost };
-}
-
-/**
- * Feed pet
- */
-async function feedPet(userId) {
-    const user = await loadUser(userId);
-
-    if (!user.pet) {
-        return { success: false, error: 'You don\'t have a pet!' };
-    }
-
-    const feedCost = 100;
-    if (user.balance < feedCost) {
-        return { success: false, error: 'Not enough money to feed your pet!' };
-    }
-
-    user.balance -= feedCost;
-    const happinessGain = Math.min(100 - user.pet.happiness, 30);
-    user.pet.happiness = Math.min(100, user.pet.happiness + happinessGain);
-    user.pet.lastFed = Date.now();
-
-    // Level up pet occasionally
-    if (Math.random() < 0.1) {
-        user.pet.level++;
-    }
-
-    await saveUser(userId, user);
-
-    return { success: true, newHappiness: user.pet.happiness, happinessGain, cost: feedCost };
-}
-
-/**
- * Rename pet
- */
-async function renamePet(userId, newName) {
-    const user = await loadUser(userId);
-    if (!user.pet) {
-        return { success: false, error: 'You don\'t have a pet!' };
-    }
-
-    // Validate name (basic profanity/length check optional, but for now just length)
-    if (newName.length > 50) {
-        return { success: false, error: 'Name too long (max 50 chars).' };
-    }
-
-    user.pet.name = newName;
-    await saveUser(userId, user);
-    return { success: true, pet: user.pet };
-}
-
-/**
- * Start a heist
- */
-async function startHeist(guildId, userId, bet) {
-    if (activeHeists.has(guildId)) {
-        return { success: false, error: 'A heist is already in progress!' };
-    }
-
-    const user = await loadUser(userId);
-    if (user.balance < bet) {
-        return { success: false, error: 'Insufficient funds!' };
-    }
-
-    user.balance -= bet;
-    await saveUser(userId, user);
-
-    const targetAmount = Math.floor(bet * (5 + Math.random() * 5)); // 5x to 10x multiplier
-    const minPlayers = 2;
-
-    activeHeists.set(guildId, {
-        startedBy: userId,
-        bet,
-        participants: [{ id: userId, bet }],
-        prizePool: bet,
-        targetAmount,
-        minPlayers,
-        startTime: Date.now(),
-        maxParticipants: 8
-    });
-
-    return {
-        success: true,
-        targetAmount,
-        minPlayers
-    };
-}
-
-/**
- * Join a heist
- */
-async function joinHeist(guildId, userId) {
-    const heist = activeHeists.get(guildId);
-
-    if (!heist) {
-        return { success: false, error: 'No active heist!' };
-    }
-
-    if (heist.participants.some(p => p.id === userId)) {
-        return { success: false, error: 'Already in this heist!' };
-    }
-
-    if (heist.participants.length >= heist.maxParticipants) {
-        return { success: false, error: 'Heist is full!' };
-    }
-
-    const user = await loadUser(userId);
-    if (user.balance < heist.bet) {
-        return { success: false, error: 'Insufficient funds!' };
-    }
-
-    user.balance -= heist.bet;
-    await saveUser(userId, user);
-
-    heist.participants.push({ id: userId, bet: heist.bet });
-    heist.prizePool += heist.bet;
-
-    return {
-        success: true,
-        participants: heist.participants.length,
-        playerCount: heist.participants.length, // Alias for handler compatibility
-        maxParticipants: heist.maxParticipants
-    };
-}
-
-/**
- * Execute heist
- */
-async function executeHeist(guildId) {
-    const heist = activeHeists.get(guildId);
-
-    if (!heist) {
-        return { success: false, error: 'No active heist!' };
-    }
-
-    activeHeists.delete(guildId);
-
-    if (heist.participants.length < 3) {
-        // Refund everyone
-        for (const p of heist.participants) {
-            await modifyBalance(p.id, p.bet, 'heist_refund');
-        }
-        return { success: true, won: false, story: 'Not enough participants. Everyone refunded.' };
-    }
-
-    // Calculate success (more participants = better odds)
-    const successChance = 0.3 + (heist.participants.length * 0.08);
-    const won = Math.random() < successChance;
-
-    const stories = won ? [
-        'The team infiltrated the vault undetected!',
-        'Jarvis hacked the security system perfectly!',
-        'A flawless execution worthy of Ocean\'s Eleven!'
-    ] : [
-        'Security caught wind of the plan!',
-        'The vault was empty - it was a trap!',
-        'Iron Man showed up and stopped the heist!'
-    ];
-
-    const story = stories[Math.floor(Math.random() * stories.length)];
-
-    if (won) {
-        const bonus = Math.floor(heist.prizePool * 0.5); // 50% bonus
-        const totalPayout = heist.prizePool + bonus;
-        const perPerson = Math.floor(totalPayout / heist.participants.length);
-
-        const winners = [];
-        for (const p of heist.participants) {
-            await modifyBalance(p.id, perPerson, 'heist_win');
-            winners.push({ id: p.id, winnings: perPerson });
-        }
-
-        return { success: true, won: true, story, winners };
-    }
-
-    return { success: true, won: false, story, winners: [] };
-}
-
-/**
- * Get heist status
- */
-async function getHeistStatus(guildId) {
-    const heist = activeHeists.get(guildId);
-
-    if (!heist) {
-        return { active: false };
-    }
-
-    return {
-        active: true,
-        participants: heist.participants.length,
-        maxParticipants: heist.maxParticipants,
-        prizePool: heist.prizePool,
-        timeLeft: 60000 - (Date.now() - heist.startTime)
     };
 }
 
@@ -2620,18 +2360,6 @@ module.exports = {
     // NEW: Prestige System
     getPrestigeData,
     prestige,
-
-    // NEW: Pet System
-    getPetData,
-    buyPet,
-    feedPet,
-    renamePet,
-
-    // NEW: Heist System
-    startHeist,
-    joinHeist,
-    executeHeist,
-    getHeistStatus,
 
     // NEW: Boss Battles
     getBossData,
