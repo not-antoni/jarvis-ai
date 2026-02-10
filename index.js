@@ -319,11 +319,12 @@ const updateBotPresence = () => {
         return;
     }
 
-    const { message, type } = getNextRotatingStatus();
-    const activity = { name: message };
-    if (typeof type !== 'undefined') {
-        activity.type = type;
-    }
+    const { message } = getNextRotatingStatus();
+    const activity = {
+        name: 'Custom Status',
+        type: ActivityType.Custom,
+        state: message
+    };
 
     try {
         client.user.setPresence({
