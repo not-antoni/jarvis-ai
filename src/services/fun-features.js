@@ -143,7 +143,7 @@ const wikiOccupations = [
     'server hopper'
 ];
 
-const wikiAchievements = [
+const wikiMilestones = [
     'inventing the concept of "just one more game"',
     'setting the world record for most ignored messages',
     'successfully touching grass (once)',
@@ -557,7 +557,7 @@ const fakeCrimes = [
     'Aggravated yapping',
     'Failure to touch grass',
     'Unlawful possession of hot takes',
-    'Conspiracy to ratio',
+    'Plot to ratio',
     'Resisting the urge to be normal',
     'Public indecency (bad takes)',
     "Identity theft (using someone's joke)",
@@ -819,7 +819,7 @@ const pickupLines = [
     'Are you lag? Because you make my heart skip a beat 💓',
     "You must be a new game+, because everything's better with you 🆕",
     "Are you a difficulty setting? Because you're on hard 💪",
-    'You must be an achievement, because unlocking you feels rewarding 🏆',
+    'You must be a milestone, because unlocking you feels rewarding 🏆',
     'Are you a battle pass? Because I want to invest in you 💳',
     // Food pickup lines
     'Are you a banana? Because I find you a-peeling 🍌',
@@ -1294,19 +1294,19 @@ function randomInt(min, max) {
 function generateWikiEntry(username) {
     const adj = randomChoice(wikiAdjectives);
     const occupation = randomChoice(wikiOccupations);
-    const achievement = randomChoice(wikiAchievements);
+    const milestone = randomChoice(wikiMilestones);
     const controversy = randomChoice(wikiControversies);
     const birthYear = randomInt(1847, 2010);
     const followers = randomInt(0, 999999).toLocaleString();
 
     return {
         title: `📚 Wikipedia: ${username}`,
-        description: `**${username}** (born ${birthYear}) is a ${adj} ${occupation} known for ${achievement}.`,
+        description: `**${username}** (born ${birthYear}) is a ${adj} ${occupation} known for ${milestone}.`,
         fields: [
             { name: '🎂 Born', value: `${birthYear}, probably in a Discord server`, inline: true },
             { name: '💼 Occupation', value: occupation, inline: true },
             { name: '👥 Followers', value: followers, inline: true },
-            { name: '🏆 Notable Achievement', value: achievement, inline: false },
+            { name: '🏆 Notable Milestone', value: milestone, inline: false },
             { name: '⚠️ Controversy', value: controversy, inline: false }
         ],
         footer: '⚠️ This article may contain inaccuracies. Actually, it definitely does.'
