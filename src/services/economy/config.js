@@ -405,7 +405,7 @@ const MINIGAME_REWARDS = {
             { name: '🏪 Shoplifted from a convenience store', reward: 75 },
             { name: "📱 Stole someone's phone (they tracked you)", reward: -50 },
             { name: '🚲 Stole a bike (it was a trap bike)', reward: -75 },
-            { name: '🎨 Art heist gone wrong (fake painting)', reward: 10 },
+            { name: '🎨 Art theft gone wrong (fake painting)', reward: 10 },
             { name: '💳 Credit card fraud (got caught immediately)', reward: -200 },
             {
                 name: '🏠 Broke into Avengers Tower (Jarvis called security)',

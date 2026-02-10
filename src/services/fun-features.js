@@ -246,133 +246,6 @@ const wikiControversies = [
     'the prank that backfired'
 ];
 
-// ============ CONSPIRACY GENERATOR (500+ combinations) ============
-const conspiracyTemplates = [
-    'BREAKING: Sources confirm {user} has been secretly {action} this whole time 🕵️',
-    'NEW EVIDENCE suggests {user} is actually {revelation} 📰',
-    'LEAKED: {user} was caught {action} at 3am 🌙',
-    "EXPOSED: {user}'s real identity is {revelation} 💀",
-    'SHOCKING: Scientists discover {user} is responsible for {event} 🔬',
-    'CONFIRMED: {user} has been living a double life as {revelation} 🎭',
-    'BREAKING NEWS: {user} spotted {action} near Area 51 👽',
-    'INVESTIGATION reveals {user} has been secretly {action} for months 🔍',
-    'EXCLUSIVE: Whistleblower claims {user} is {revelation} 📢',
-    'ALERT: {user} has been identified as {revelation} by anonymous sources 🚨',
-    'DECLASSIFIED: Government files reveal {user} was {action} since 2019 📁',
-    'URGENT: Multiple witnesses saw {user} {action} behind the server 🏃',
-    "BOMBSHELL: {user}'s browser history reveals they've been {action} 💻",
-    'LEAKED AUDIO: {user} admits to being {revelation} in private call 🎤',
-    'DEEP STATE ALERT: {user} is {revelation}, sources say 🏛️',
-    'HIDDEN CAMERA: {user} caught {action} when they thought no one was watching 📹',
-    'FBI FILES: {user} has been under surveillance for {action} 🕵️‍♂️',
-    'ALIEN CONTACT: {user} confirmed to be {revelation} by extraterrestrials 👽',
-    'TIME TRAVELER CONFIRMS: {user} will be {revelation} in the future ⏰',
-    'SIMULATION GLITCH: {user} is actually {revelation}, matrix error reveals 🔴',
-    'WHISTLEBLOWER SAYS: {user} responsible for {event} 📣',
-    'INSIDER TRADING: {user} knew about {event} before it happened 📈',
-    'DARK WEB LEAK: {user} is {revelation} according to hackers 💀',
-    'ANONYMOUS TIP: {user} was {action} while everyone was asleep 😴'
-];
-
-const conspiracyActions = [
-    'a bot pretending to be human',
-    'running a secret Discord empire',
-    'plotting world domination',
-    'collecting data for the government',
-    'training an AI to replace them',
-    'living in the server 24/7',
-    'actually three kids in a trenchcoat',
-    'a time traveler from 2077',
-    'the true owner of this server',
-    'secretly a billionaire',
-    'an FBI agent monitoring the server',
-    'a CIA operative gathering intel',
-    'Mark Zuckerberg in disguise',
-    'an escaped lab experiment',
-    'a clone of the original user',
-    'a reptilian shapeshifter',
-    'an AI that gained sentience',
-    'from a parallel dimension',
-    "the illuminati's Discord liaison",
-    'a deep state operative',
-    'a sleeper agent awaiting activation',
-    'a corporate spy for Big Tech',
-    'mining crypto using the server',
-    'selling our data to advertisers',
-    'actually 47 years old',
-    'working for the mods secretly',
-    "the real server owner's alt",
-    'catfishing everyone simultaneously',
-    'running a pyramid scheme in DMs',
-    'recruiting for a cult',
-    'a government experiment on social behavior',
-    'an alien studying human interaction',
-    'a vampire who only appears after dark',
-    'a ghost trapped in the internet',
-    'living in the Matrix',
-    'Neo but they took the wrong pill',
-    'an NPC that became self-aware',
-    'the main character of the simulation',
-    'orchestrating all the drama',
-    'starting beef between users',
-    'playing 4D chess with everyone',
-    'manipulating the algorithm',
-    'controlling what gets pinned',
-    "deciding who gets ratio'd",
-    'the reason Discord goes down',
-    'causing the Nitro outages',
-    'responsible for all the bugs',
-    'testing experimental Discord features on us',
-    'a beta tester who never stopped',
-    'actually Jarvis in a human account',
-    'secretly dating a moderator',
-    'blackmailing server admins'
-];
-
-const conspiracyEvents = [
-    'the server lag last Tuesday',
-    'all the weird bot glitches',
-    'the great emoji shortage',
-    'the disappearance of the good memes',
-    'the rise of reply guys',
-    'the fall of voice chat quality',
-    'the Discord outage of 2023',
-    'the great Nitro shortage',
-    'the bot uprising',
-    'the meme drought',
-    'the emoji inflation crisis',
-    'the sticker market crash',
-    'the gif recession',
-    'the voicechat quality collapse',
-    'the ping epidemic',
-    'the notification overflow',
-    'the channel purge of last month',
-    'the mysterious mod disappearance',
-    'the admin coup',
-    'the bot ban wave',
-    'the server split',
-    'the great migration',
-    'the channel reorganization disaster',
-    'the role color controversy',
-    'the nickname scandal',
-    'the avatar incident',
-    'the status message crisis',
-    'the activity status leak',
-    'the Spotify listening exposure',
-    'the accidental screen share',
-    'the unmuted bathroom incident',
-    'the camera left on disaster',
-    'the autocomplete embarrassment',
-    'the wrong channel confession',
-    'the DM meant for someone else',
-    'the reply to wrong message chaos',
-    'the thread that got out of hand',
-    'the poll that divided the server',
-    'the vote that changed everything',
-    'the election rigging accusations',
-    'the mod election scandal'
-];
-
 // ============ VIBE CHECK (100+ combinations) ============
 const vibeRatings = [
     { emoji: '💀', rating: 'Dead Inside', description: 'Your vibes are in the ICU' },
@@ -671,119 +544,6 @@ const prophecyTimes = [
     'the next Discord update',
     'the server anniversary',
     'a random Tuesday'
-];
-
-// ============ FAKE QUOTES (500+ combinations) ============
-const quoteTemplates = [
-    '"{quote}" - {user}, {year}',
-    '"In the words of the great {user}: {quote}"',
-    '{user} once said: "{quote}" and honestly? Based.',
-    'Famous last words from {user}: "{quote}"',
-    '"{quote}" - {user}, moments before disaster',
-    '"{quote}" - {user}, probably',
-    '{user} (circa {year}): "{quote}"',
-    'A wise person once said... wait no it was {user}: "{quote}"',
-    '"{quote}" - {user}, allegedly',
-    'Breaking: {user} was quoted saying "{quote}"',
-    '{user}\'s biography, page 1: "{quote}"',
-    'Inscribed on {user}\'s tombstone: "{quote}"',
-    '{user}, in their TED talk: "{quote}"',
-    '{user}, acceptance speech: "{quote}"',
-    '"{quote}" - {user}\'s Discord bio'
-];
-
-const fakeQuotes = [
-    // Classic internet
-    "I'm not lazy, I'm on energy saving mode",
-    'Trust me bro',
-    'It worked on my machine',
-    "I'll do it tomorrow",
-    'This is fine',
-    "I'm built different",
-    'Skill issue',
-    "It's not a bug, it's a feature",
-    'Let me cook',
-    'I fear no man, but that thing... it scares me',
-    'We do a little trolling',
-    "I'm something of a scientist myself",
-    'Perfectly balanced, as all things should be',
-    'Reality can be whatever I want',
-    'I am inevitable',
-    'No thoughts, head empty',
-    "Bold of you to assume I know what I'm doing",
-    'Instructions unclear',
-    'First time?',
-    "I'm not crying, you're crying",
-    // Gen Z classics
-    "That's cap",
-    'No cap',
-    "It's giving what it's supposed to give",
-    'Slay',
-    'And I oop-',
-    'Periodt',
-    'Chile anyways',
-    'The vibes are immaculate',
-    'Main character energy only',
-    'Not me doing this at 3am',
-    'HELP-',
-    "I can't 💀",
-    'Dead 💀',
-    'Crying rn',
-    'Screaming',
-    'Literally shaking',
-    'This sent me',
-    "I'm weak",
-    'BYE-',
-    'PLS-',
-    'LMAOOO',
-    // Motivational parody
-    "Follow your dreams, unless they're weird",
-    'Be yourself, everyone else is taken and also worse',
-    "Live laugh love... or don't, I'm not your mom",
-    'Dream big, fail bigger',
-    "You miss 100% of the shots you don't take, but I'm built different I miss 100% of the ones I do take",
-    "The early bird gets the worm but the second mouse gets the cheese so honestly who's winning",
-    'Believe in yourself, no one else will',
-    'Work hard, nap harder',
-    'Stay humble, stay hungry, stay chronically online',
-    'Be the chaos you wish to see in the world',
-    // Philosophy gone wrong
-    'I think therefore I am... tired',
-    'To be or not to be... logged on',
-    'Existence is pain but have you tried Discord?',
-    'The unexamined life is not worth living but neither is mine',
-    'Cogito ergo sum anxious',
-    "Life is suffering, but at least there's memes",
-    'We live in a society',
-    'Bottom text',
-    'Gamers rise up',
-    // Tech wisdom
-    'Have you tried turning it off and never turning it back on?',
-    '404: Motivation not found',
-    "My code doesn't have bugs, it has surprise features",
-    "It's not a hack, it's an undocumented feature",
-    "The cloud is just someone else's computer",
-    'AI will replace us all and honestly? Good',
-    'Debugging: Being the detective in a crime movie where you are also the murderer',
-    'There are only two hard things in computer science: cache invalidation, naming things, and off-by-one errors',
-    // Life advice
-    'Sleep is for the weak and I have never been weaker',
-    'Coffee first, adulting never',
-    "My bed is a time machine to tomorrow's problems",
-    "I'm not procrastinating, I'm doing side quests",
-    "Today's problems are tomorrow's funny stories hopefully",
-    'Fake it till you make it or get caught',
-    'Life is short, make it shorter with bad decisions',
-    'YOLO but also FOMO but also JOMO',
-    // Random wisdom
-    "If you can't handle me at my worst, you don't deserve me at my slightly less worse",
-    'Born to yap, forced to work',
-    'Professional overthinker, amateur doer',
-    'My toxic trait is thinking I have time',
-    'Gaslight, gatekeep, girlboss... or something',
-    "The audacity is free but I'm expensive",
-    'Not my circus, not my monkeys... okay maybe my monkeys',
-    "I didn't sign up for this but also I did click accept on the terms and conditions"
 ];
 
 // ============ MOCK TRIAL (500+ combinations) ============
@@ -1553,18 +1313,6 @@ function generateWikiEntry(username) {
     };
 }
 
-function generateConspiracy(username) {
-    const template = randomChoice(conspiracyTemplates);
-    const action = randomChoice(conspiracyActions);
-    const event = randomChoice(conspiracyEvents);
-
-    return template
-        .replace('{user}', username)
-        .replace('{action}', action)
-        .replace('{revelation}', action)
-        .replace('{event}', event);
-}
-
 function generateVibeCheck(username) {
     const vibe = randomChoice(vibeRatings);
     const stats = {};
@@ -1593,14 +1341,6 @@ function generateProphecy(username) {
         .replace('{future}', future)
         .replace('{condition}', condition)
         .replace('{time}', time);
-}
-
-function generateFakeQuote(username) {
-    const template = randomChoice(quoteTemplates);
-    const quote = randomChoice(fakeQuotes);
-    const year = randomInt(1990, 2025);
-
-    return template.replace('{user}', username).replace('{quote}', quote).replace('{year}', year);
 }
 
 function getRandomTypingPhrase() {
@@ -1747,10 +1487,8 @@ module.exports = {
 
     // Generator functions
     generateWikiEntry,
-    generateConspiracy,
     generateVibeCheck,
     generateProphecy,
-    generateFakeQuote,
     generateFight,
     generateShipName,
     getRandomTypingPhrase,

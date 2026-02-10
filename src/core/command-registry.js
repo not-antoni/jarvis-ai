@@ -173,23 +173,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'run',
-        description: 'Execute a JavaScript code snippet in a sandboxed environment.',
-        category: 'Utilities',
-        usage: '/run code:console.log("hello")',
-        feature: 'codeExecution',
-        ephemeral: false
-    },
-    {
-        name: 'announcement',
-        description:
-            'Schedule announcements to post in a channel at a later time (optionally recurring).',
-        category: 'Utilities',
-        usage: '/announcement create channel:<#> in:<n> unit:<hours> [every:<n> every_unit:<days>] (message entered via modal)',
-        feature: 'utilities',
-        ephemeral: true
-    },
-    {
         name: 'monitor',
         description: 'Monitor websites, feeds, and channels.',
         category: 'Utilities',
@@ -514,14 +497,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'conspiracy',
-        description: 'Generate a conspiracy theory about someone.',
-        category: 'Fun',
-        usage: '/conspiracy [user]',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
         name: 'wyr',
         description: 'Would You Rather - get a random dilemma.',
         category: 'Fun',
@@ -534,14 +509,6 @@ const commandDefinitions = [
         description: "Receive a prophecy about someone's future.",
         category: 'Fun',
         usage: '/prophecy [user]',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
-        name: 'fakequote',
-        description: 'Generate a fake inspirational quote.',
-        category: 'Fun',
-        usage: '/fakequote [user]',
         feature: 'funUtilities',
         ephemeral: false
     },
@@ -655,14 +622,6 @@ const commandDefinitions = [
         description: 'Ask the magic 8-ball',
         category: 'Fun',
         usage: '/8ball <question>',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
-        name: 'achievements',
-        description: 'View your achievements and progress',
-        category: 'Fun',
-        usage: '/achievements [category] [user]',
         feature: 'funUtilities',
         ephemeral: false
     },
