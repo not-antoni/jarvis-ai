@@ -154,28 +154,6 @@
                 return;
             }
 
-            const terfCommand = terfCommandMap.get(commandName);
-            if (terfCommand) {
-                shouldSetCooldown = true;
-                try {
-                    await terfCommand.execute(interaction);
-                } catch (error) {
-                    telemetryStatus = 'error';
-                    telemetryError = error;
-                    console.error(`Error executing /${commandName}:`, error);
-                    try {
-                        if (!interaction.deferred && !interaction.replied) {
-                            await interaction.reply('⚠️ Wiki system error.');
-                        } else if (!interaction.replied) {
-                            await interaction.editReply('⚠️ Wiki system error.');
-                        }
-                    } catch (responseError) {
-                        console.error('Failed to send terf command error response:', responseError);
-                    }
-                }
-                return;
-            }
-
             // Check if sentience is enabled - if so, make sentience commands non-ephemeral
             // Reuse the sentience check variables already declared above
             const shouldBeEphemeral = sentienceEnabled && isSentienceCommand 
@@ -1175,17 +1153,6 @@
                             { name: 'Total', value: `**${result.total}**`, inline: true }
                         );
                     response = { embeds: [embed] };
-                    break;
-                }
-                case 'afk': {
-                    telemetryMetadata.category = 'fun';
-                    const reason = interaction.options.getString('reason') || 'AFK';
-                    // Store AFK status (you can expand this with a proper storage system)
-                    if (!this.afkUsers) {
-                        this.afkUsers = new LRUCache({ max: DISCORD_AFK_USERS_MAX, ttl: DISCORD_AFK_USERS_TTL_MS });
-                    }
-                    this.afkUsers.set(interaction.user.id, { reason, since: Date.now() });
-                    response = `💤 **${interaction.user.username}** is now AFK: ${reason}`;
                     break;
                 }
                 case 'rate': {
