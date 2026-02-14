@@ -676,6 +676,28 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
         const allowWakeWords = Boolean(config.discord?.messageContent?.enabled);
         const rawContent = typeof message.content === 'string' ? message.content : '';
         const normalizedContent = rawContent.toLowerCase();
+
+        // Strip Discord formatting to catch attempts to hide it in codeblocks, bold, etc.
+        const stripDiscordFormatting = (text) => {
+            return text
+                // Remove code blocks (```text```)
+                .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ''))
+                // Remove inline code (`text`)
+                .replace(/`([^`]+)`/g, '$1')
+                // Remove bold (**text**)
+                .replace(/\*\*([^*]+)\*\*/g, '$1')
+                // Remove italic (*text* or _text_)
+                .replace(/\*([^*]+)\*/g, '$1')
+                .replace(/_([^_]+)_/g, '$1')
+                // Remove underline (__text__)
+                .replace(/__([^_]+)__/g, '$1')
+                // Remove strikethrough (~~text~~)
+                .replace(/~~([^~]+)~~/g, '$1')
+                // Remove spoilers (||text||)
+                .replace(/\|\|([^|]+)\|\|/g, '$1');
+        };
+
+        const strippedContent = stripDiscordFormatting(rawContent);
         let containsWakeWord = false;
 
         // Check for custom guild/user wake words FIRST — if a guild has a custom
@@ -755,25 +777,6 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
         // ============ CLANKER DETECTION (Top Priority) ============
         // Check if user said "clanker" in any variation (case-insensitive)
         // Strip Discord formatting to catch attempts to hide it in codeblocks, bold, etc.
-        const stripDiscordFormatting = (text) => {
-            return text
-                // Remove code blocks (```text```)
-                .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ''))
-                // Remove inline code (`text`)
-                .replace(/`([^`]+)`/g, '$1')
-                // Remove bold (**text**)
-                .replace(/\*\*([^*]+)\*\*/g, '$1')
-                // Remove italic (*text* or _text_)
-                .replace(/\*([^*]+)\*/g, '$1')
-                .replace(/_([^_]+)_/g, '$1')
-                // Remove underline (__text__)
-                .replace(/__([^_]+)__/g, '$1')
-                // Remove strikethrough (~~text~~)
-                .replace(/~~([^~]+)~~/g, '$1')
-                // Remove spoilers (||text||)
-                .replace(/\|\|([^|]+)\|\|/g, '$1');
-        };
-        
         const botMentionRegex = new RegExp(`<@!?${client.user.id}>`, 'g');
         const cleanForClanker = rawContent.replace(botMentionRegex, '').trim().toLowerCase();
         const strippedClanker = stripDiscordFormatting(cleanForClanker);
