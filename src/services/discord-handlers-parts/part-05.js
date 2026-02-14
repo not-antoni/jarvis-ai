@@ -510,7 +510,9 @@
                 case 'aatrox': {
                     telemetryMetadata.category = 'fun';
                     // Send the Aatrox gif - available in both guilds and DMs
-                    response = 'https://tenor.com/view/aatrox-gyattrox-gyaatrox-lol-league-of-legends-gif-16706958126825166451';
+                    const gifPath = path.join(process.cwd(), 'aatrox.gif');
+                    const attachment = new AttachmentBuilder(gifPath, { name: 'aatrox.gif' });
+                    response = { files: [attachment] };
                     break;
                 }
                 case 'roast': {

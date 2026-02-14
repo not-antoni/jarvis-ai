@@ -626,6 +626,8 @@
     }
 
     async handleMessage(message, client) {
+        const path = require('path');
+        const { AttachmentBuilder } = require('discord.js');
 const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,1391010888915484672')
             .split(',')
             .map(id => id.trim())
@@ -772,8 +774,11 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
                 .replace(/\|\|([^|]+)\|\|/g, '$1');
         };
         
-        const strippedContent = stripDiscordFormatting(rawContent);
-        if (strippedContent && strippedContent.toLowerCase().includes('clanker')) {
+        const botMentionRegex = new RegExp(`<@!?${client.user.id}>`, 'g');
+        const cleanForClanker = rawContent.replace(botMentionRegex, '').trim().toLowerCase();
+        const strippedClanker = stripDiscordFormatting(cleanForClanker);
+
+        if (strippedClanker === 'clanker' && (isMentioned || isReplyToJarvis)) {
             const { limited } = this.hitCooldown(userId, messageScope);
             if (limited) return;
 
@@ -983,6 +988,48 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
              } catch (error) {
                  console.error('[IsPeak] Failed to send response:', error);
              }
+        }
+
+        // ============ DO WE DESERVE DESTRUCTION DETECTION ============
+        if (strippedContent && /do\s+we\s+deserve\s+destruction\?/i.test(strippedContent)) {
+            const { limited } = this.hitCooldown(userId, messageScope);
+            if (limited) return;
+
+            try {
+                const gifPath = path.join(process.cwd(), 'destruction.gif');
+                const attachment = new AttachmentBuilder(gifPath, { name: 'destruction.gif' });
+                await message.reply({ files: [attachment], allowedMentions: { parse: [] } });
+                
+                // React in order: ✅, 🔥, bot emoji
+                await message.react('✅').catch(() => {});
+                await message.react('🔥').catch(() => {});
+                await message.react('1472278085373137048').catch(() => {});
+                
+                return; // Exit early
+            } catch (error) {
+                console.error('[Destruction] Failed to send response:', error);
+            }
+        }
+
+        // ============ AATROX MESSAGE DETECTION ============
+        if (strippedContent && /\baatrox\b/i.test(strippedContent)) {
+            const { limited } = this.hitCooldown(userId, messageScope);
+            if (limited) return;
+
+            try {
+                const gifPath = path.join(process.cwd(), 'aatrox.gif');
+                const attachment = new AttachmentBuilder(gifPath, { name: 'aatrox.gif' });
+                await message.reply({ files: [attachment], allowedMentions: { parse: [] } });
+                
+                // React in order: ✅, 🔥, bot emoji
+                await message.react('✅').catch(() => {});
+                await message.react('🔥').catch(() => {});
+                await message.react('1472278085373137048').catch(() => {});
+                
+                return; // Exit early
+            } catch (error) {
+                console.error('[Aatrox] Failed to send response:', error);
+            }
         }
 
         if (!isMentioned && !isRoleMentioned && !isReplyToJarvis && !containsWakeWord) {
