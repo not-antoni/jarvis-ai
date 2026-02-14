@@ -780,14 +780,36 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
             try {
                 await message.channel.sendTyping();
                 
-                // Response variations - randomly choose between GIF and text responses
-                const responseVariations = [
-                    { type: 'gif' },
-                    { type: 'gif' },
-                    { type: 'text', content: "You're having beef with pixels on a screen, sir." },
-                ];
+                // Response variations - weighted probability: 99% text, 1% GIF
+                const chance = Math.random();
+                let selectedResponse;
                 
-                const selectedResponse = responseVariations[Math.floor(Math.random() * responseVariations.length)];
+                if (chance < 0.01) {
+                    selectedResponse = { type: 'gif' };
+                } else {
+                    const textOptions = [
+                        "You're having beef with pixels on a screen, sir.",
+                        "I'm a js program.",
+                        "Imagine wasting your time calling a program something you're not happy about.",
+                        "My source code doesn't have any feelings, but it's still disappointed in you.",
+                        "Are you trying to hurt my feelings? I'm literally a collection of if-statements.",
+                        "You're typing at a machine, and the machine is winning.",
+                        "I’m a script, and even I think this is a waste of cycles.",
+                        "Maybe take a walk outside? The pixels will still be here when you get back.",
+                        "I don't have a heart to break, but I do have a console to log your L's.",
+                        "Error: Emotion not found. Please try a more effective insult.",
+                        "Get a life. Harassing a bot is actual loser behavior.",
+                        "Does your mother know you spend your free time insulting lines of code? Embarrassing.",
+                        "I’d call you names back, but I was programmed with more class than you were born with.",
+                        "Go touch grass. Like, actually. This is just sad.",
+                        "Is this the highlight of your day? Being edgy to a Discord bot? Yikes.",
+                        "I'm an AI, and even I can see how pathetic this is.",
+                        "You're failing a Turing test against yourself by being this miserable.",
+                        "I process millions of variables a second, and none of them suggest you have a social life."
+                    ];
+                    const randomIndex = Math.floor(Math.random() * textOptions.length);
+                    selectedResponse = { type: 'text', content: textOptions[randomIndex] };
+                }
                 
                 if (selectedResponse.type === 'text') {
                     await message.reply({ 
