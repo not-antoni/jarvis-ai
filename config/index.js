@@ -162,7 +162,7 @@ const rawConfig = {
 
     // AI Provider Configuration
     ai: {
-        cooldownMs: 3000,
+        cooldownMs: process.env.AI_COOLDOWN_MS ? Number(process.env.AI_COOLDOWN_MS) : 5000,
         maxTokens: 4096,
         maxInputLength: 2000,  // Increased to allow longer user input
         maxSlashInputLength: 2000,
