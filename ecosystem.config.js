@@ -45,6 +45,6 @@ module.exports = {
         shutdown_with_message: true,
 
         // Pre/post hooks - ensure nginx security config on restart
-        post_update: ['./scripts/ensure-nginx-config.sh']
+        post_update: ['node ./scripts/ensure-nginx-config.js']
     }]
 };

@@ -277,7 +277,14 @@ function ensureNginxEnsureTimer(projectRoot) {
         execSync('sudo systemctl daemon-reload', { encoding: 'utf8' });
         execSync('sudo systemctl enable jarvis-nginx-ensure.timer', { encoding: 'utf8' });
         execSync('sudo systemctl start jarvis-nginx-ensure.timer', { encoding: 'utf8' });
-        execSync('sudo systemctl start jarvis-nginx-ensure.service', { encoding: 'utf8' });
+
+        // Run once now, but don't fail the whole setup if it errors
+        try {
+            execSync('sudo systemctl start jarvis-nginx-ensure.service', { encoding: 'utf8' });
+        } catch (runErr) {
+            console.warn('[Nginx] Initial nginx-ensure run failed (timer still active):', runErr?.message || runErr);
+        }
+
         return true;
     } catch (error) {
         console.warn('[Nginx] Failed to configure nginx ensure timer:', error?.message || error);

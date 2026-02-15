@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const config = require('../config');
-const database = require('../database');
+const database = require('../src/services/database');
 
 const dumpRoot = path.resolve(__dirname, '..', 'backups', 'nightly');
 
