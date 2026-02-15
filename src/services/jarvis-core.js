@@ -899,6 +899,40 @@ function formatEncodedOutput(label, output) {
     return lines.join('\n');
 }
 
+/**
+ * Detect garbage/poisoned AI output — token degeneration loops, prompt injection residue.
+ * Returns true if the text looks like garbage that should NOT be saved to history.
+ */
+function isGarbageOutput(text) {
+    if (!text || typeof text !== 'string') return false;
+    if (text.length < 80) return false;
+
+    // 1. Word repetition ratio — garbage loops repeat the same few words endlessly
+    const words = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 1);
+    if (words.length > 20) {
+        const freq = {};
+        for (const w of words) freq[w] = (freq[w] || 0) + 1;
+        const uniqueRatio = Object.keys(freq).length / words.length;
+        // If fewer than 15% of words are unique in a long text, it's degenerate
+        if (uniqueRatio < 0.15 && words.length > 40) return true;
+        // Top 5 words making up >60% of all words
+        const sorted = Object.values(freq).sort((a, b) => b - a);
+        const top5Sum = sorted.slice(0, 5).reduce((s, v) => s + v, 0);
+        if (top5Sum / words.length > 0.6 && words.length > 30) return true;
+    }
+
+    // 2. CJK character density in a supposedly English response (>20% CJK mixed with English = suspicious)
+    const cjkChars = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
+    const latinChars = (text.match(/[a-zA-Z]/g) || []).length;
+    if (latinChars > 20 && cjkChars > 10 && cjkChars / (cjkChars + latinChars) > 0.2) return true;
+
+    // 3. Excessive semicolons/brackets mixed with natural words (JS-like garbage)
+    const syntaxChars = (text.match(/[;(){}\[\]]/g) || []).length;
+    if (syntaxChars > 15 && syntaxChars / text.length > 0.03 && latinChars > 50) return true;
+
+    return false;
+}
+
 class JarvisAI {
     constructor() {
         this.personality = {
@@ -1849,6 +1883,12 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
             const historyBlock = chronologicalEntries.length
                 ? chronologicalEntries
+                    .filter(entry => {
+                        const payload = entry.data || {};
+                        const reply = typeof payload.jarvisResponse === 'string' ? payload.jarvisResponse : '';
+                        const prompt = typeof payload.userMessage === 'string' ? payload.userMessage : '';
+                        return !isGarbageOutput(reply) && !isGarbageOutput(prompt);
+                    })
                     .map(entry => {
                         const timestamp = entry.createdAt.toLocaleString();
                         const payload = entry.data || {};
@@ -1926,6 +1966,15 @@ Current message: "${processedInput}"`;
             }
 
             let jarvisResponse = aiResponse.content?.trim();
+
+            // Garbage/poison detection — catch degenerate token loops before they pollute history
+            if (isGarbageOutput(jarvisResponse)) {
+                console.warn(`[GarbageDetection] Poisoned output detected for user ${userId}, discarding (${jarvisResponse.length} chars)`);
+                jarvisResponse = 'My neural pathways crossed, sir. Could you rephrase that?';
+                // Do NOT save this to history — return early with clean response
+                this.lastActivity = Date.now();
+                return jarvisResponse;
+            }
 
             // Loop detection - check if we're stuck in a repetitive pattern
             try {

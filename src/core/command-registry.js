@@ -181,6 +181,14 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
+        name: 'clear',
+        description: 'Clear your conversation history with Jarvis.',
+        category: 'Core Systems',
+        usage: '/clear',
+        feature: 'reset',
+        ephemeral: false
+    },
+    {
         name: 'reset',
         description: 'Clear your conversation history and profile.',
         category: 'Core Systems',
