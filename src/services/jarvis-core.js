@@ -145,7 +145,7 @@ function buildSupportEmbed(includeGuide = false) {
                     value: [
                         '`/encode` & `/decode` Convert text effortlessly.',
                         '`/providers` Check AI provider status.',
-                        '`/reset` Wipe conversations when needed.'
+                        '`/clear` Wipe conversations when needed.'
                     ].join('\n')
                 }
             )
@@ -907,8 +907,12 @@ function isGarbageOutput(text) {
     if (!text || typeof text !== 'string') return false;
     if (text.length < 80) return false;
 
+    // Strip code blocks before analysis — code legitimately has syntax chars and repetition
+    const stripped = text.replace(/```[\s\S]*?```/g, '').trim();
+    if (stripped.length < 80) return false;
+
     // 1. Word repetition ratio — garbage loops repeat the same few words endlessly
-    const words = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 1);
+    const words = stripped.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 1);
     if (words.length > 20) {
         const freq = {};
         for (const w of words) freq[w] = (freq[w] || 0) + 1;
@@ -921,14 +925,14 @@ function isGarbageOutput(text) {
         if (top5Sum / words.length > 0.6 && words.length > 30) return true;
     }
 
-    // 2. CJK character density in a supposedly English response (>20% CJK mixed with English = suspicious)
-    const cjkChars = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
-    const latinChars = (text.match(/[a-zA-Z]/g) || []).length;
-    if (latinChars > 20 && cjkChars > 10 && cjkChars / (cjkChars + latinChars) > 0.2) return true;
+    // 2. CJK character density in a supposedly English response (>35% CJK mixed with English = suspicious)
+    const cjkChars = (stripped.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
+    const latinChars = (stripped.match(/[a-zA-Z]/g) || []).length;
+    if (latinChars > 20 && cjkChars > 10 && cjkChars / (cjkChars + latinChars) > 0.35) return true;
 
     // 3. Excessive semicolons/brackets mixed with natural words (JS-like garbage)
-    const syntaxChars = (text.match(/[;(){}\[\]]/g) || []).length;
-    if (syntaxChars > 15 && syntaxChars / text.length > 0.03 && latinChars > 50) return true;
+    const syntaxChars = (stripped.match(/[;(){}\[\]]/g) || []).length;
+    if (syntaxChars > 15 && syntaxChars / stripped.length > 0.03 && latinChars > 50) return true;
 
     return false;
 }
@@ -1837,7 +1841,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 const query = userInput.substring(3).trim();
                 if (query) {
                     try {
-                        const guildId = guildIdFromInteraction || interaction?.guildId || null;
+                        const guildId = interaction?.guildId || null;
                         if (!guildId) {
                             throw new Error('Guild context missing');
                         }
@@ -1968,7 +1972,7 @@ Current message: "${processedInput}"`;
             let jarvisResponse = aiResponse.content?.trim();
 
             // Garbage/poison detection — catch degenerate token loops before they pollute history
-            if (isGarbageOutput(jarvisResponse)) {
+            if (jarvisResponse && isGarbageOutput(jarvisResponse)) {
                 console.warn(`[GarbageDetection] Poisoned output detected for user ${userId}, discarding (${jarvisResponse.length} chars)`);
                 jarvisResponse = 'My neural pathways crossed, sir. Could you rephrase that?';
                 // Do NOT save this to history — return early with clean response
