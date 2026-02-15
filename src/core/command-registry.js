@@ -189,14 +189,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'reset',
-        description: 'Clear your conversation history and profile.',
-        category: 'Core Systems',
-        usage: '/reset',
-        feature: 'reset',
-        ephemeral: false
-    },
-    {
         name: 'profile',
         description: 'View or update your saved preferences.',
         category: 'Personal Tools',

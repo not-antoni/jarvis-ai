@@ -3224,17 +3224,6 @@ ${(result.output || 'No output').substring(0, 1800)}
                     );
                     break;
                 }
-                case 'reset': {
-                    response = await this.jarvis.handleUtilityCommand(
-                        'reset',
-                        interaction.user.username,
-                        userId,
-                        true,
-                        interaction,
-                        guildId
-                    );
-                    break;
-                }
                 case 'help': {
                     response = await this.jarvis.handleUtilityCommand(
                         'help',
