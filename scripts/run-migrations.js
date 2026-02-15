@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const config = require('../config');
-const database = require('../database');
+const database = require('../src/services/database');
 
 const migrationsDir = path.resolve(__dirname, '..', 'migrations');
 const migrationCollectionName = config.database.collections.migrations;
