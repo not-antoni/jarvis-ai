@@ -775,14 +775,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('reset')
-        .setDescription('Delete your conversation history and profile with Jarvis')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('help')
         .setDescription('Show Jarvis command overview')
         .setContexts([
