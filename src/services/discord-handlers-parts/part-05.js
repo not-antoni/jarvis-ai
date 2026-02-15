@@ -3213,6 +3213,17 @@ ${(result.output || 'No output').substring(0, 1800)}
                     );
                     break;
                 }
+                case 'clear': {
+                    response = await this.jarvis.handleUtilityCommand(
+                        'reset',
+                        interaction.user.username,
+                        userId,
+                        true,
+                        interaction,
+                        guildId
+                    );
+                    break;
+                }
                 case 'reset': {
                     response = await this.jarvis.handleUtilityCommand(
                         'reset',
