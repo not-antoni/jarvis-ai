@@ -709,7 +709,7 @@
 
                     switch (tinkerSubcommand) {
                         case 'craft': {
-                             const recipeName = interaction.options.getString('recipe').toLowerCase();
+                             const recipeName = interaction.options.getString('recipe')?.toLowerCase();
                              const recipe = starkTinker.getRecipe(recipeName);
                              if (!recipe) {
                                  response = `❌ Unknown recipe: \`${recipeName}\`. Use \`/tinker recipes\` to see all recipes.`;
@@ -779,7 +779,7 @@
                              break;
                         }
                         case 'sell': {
-                             const itemInput = interaction.options.getString('item').toLowerCase();
+                             const itemInput = interaction.options.getString('item')?.toLowerCase();
                              const inventory = await starkEconomy.getInventory(interaction.user.id);
                              
                              // Find index
@@ -1263,7 +1263,7 @@
                         case 'gamble': {
                             const amountInput = interaction.options.getString('amount');
                             let amount = parseFormattedNumber(amountInput);
-                            if (amountInput.toLowerCase() === 'all') {
+                            if (amountInput?.toLowerCase() === 'all') {
                                 const bal = await starkEconomy.getBalance(interaction.user.id);
                                 amount = bal || 0;
                             }
@@ -1291,7 +1291,7 @@
                         case 'slots': {
                             const betInput = interaction.options.getString('bet');
                             let bet = parseFormattedNumber(betInput);
-                            if (betInput.toLowerCase() === 'all') {
+                            if (betInput?.toLowerCase() === 'all') {
                                 const bal = await starkEconomy.getBalance(interaction.user.id);
                                 bet = bal || 0;
                             }
@@ -1326,7 +1326,7 @@
                         case 'coinflip': {
                             const cfBetInput = interaction.options.getString('bet');
                             let cfBet = parseFormattedNumber(cfBetInput);
-                            if (cfBetInput.toLowerCase() === 'all') {
+                            if (cfBetInput?.toLowerCase() === 'all') {
                                 const bal = await starkEconomy.getBalance(interaction.user.id);
                                 cfBet = bal || 0;
                             }
@@ -1646,7 +1646,7 @@
                     telemetryMetadata.category = 'economy';
                     const amountInput = interaction.options.getString('amount');
                     let amount = parseFormattedNumber(amountInput);
-                    if (amountInput.toLowerCase() === 'all') {
+                    if (amountInput?.toLowerCase() === 'all') {
                         const bal = await starkEconomy.getBalance(interaction.user.id);
                         amount = bal || 0;
                     }
@@ -1675,7 +1675,7 @@
                     telemetryMetadata.category = 'economy';
                     const betInput = interaction.options.getString('bet');
                     let bet = parseFormattedNumber(betInput);
-                    if (betInput.toLowerCase() === 'all') {
+                    if (betInput?.toLowerCase() === 'all') {
                         const bal = await starkEconomy.getBalance(interaction.user.id);
                         bet = bal || 0;
                     }
@@ -1711,7 +1711,7 @@
                     telemetryMetadata.category = 'economy';
                     const cfBetInput = interaction.options.getString('bet');
                     let cfBet = parseFormattedNumber(cfBetInput);
-                    if (cfBetInput.toLowerCase() === 'all') {
+                    if (cfBetInput?.toLowerCase() === 'all') {
                         const bal = await starkEconomy.getBalance(interaction.user.id);
                         cfBet = bal || 0;
                     }
