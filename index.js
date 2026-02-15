@@ -197,7 +197,7 @@ const client = new Client({
 });
 let rotatingStatusMessages = [...DEFAULT_STATUS_MESSAGES];
 const PRESENCE_ROTATION_INTERVAL_MS = 20 * 60 * 1000; // 20 minutes
-let _rotatingStatusIndex = rotatingStatusMessages.length
+let rotatingStatusIndex = rotatingStatusMessages.length
     ? Math.floor(Math.random() * rotatingStatusMessages.length)
     : 0;
 

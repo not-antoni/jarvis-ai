@@ -234,7 +234,7 @@ async function getOrCreateUserKey(userId) {
         return userKey;
     }
 
-    const { userKeys } = await getCollections();
+    const { userKeys, memories } = await getCollections();
     let record = await userKeys.findOne({ userId });
 
     if (!record) {
@@ -277,8 +277,8 @@ async function getOrCreateUserKey(userId) {
         } else {
             await userKeys.deleteOne({ userId });
             // CRITICAL: Delete old memories that are now unreadable
-            if (memoriesCol) {
-                await memoriesCol.deleteMany({ userId });
+            if (memories) {
+                await memories.deleteMany({ userId });
                 console.log(`[Vault] Purged unreadable memories for user ${userId}`);
             }
         }
