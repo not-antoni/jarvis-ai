@@ -3833,7 +3833,7 @@ ${(result.output || 'No output').substring(0, 1800)}
                 }
             }
 
-            if (response === '__RAP_BATTLE_HANDLED__' || response === '__QUOTE_HANDLED__' || response === '__SENTIENT_HANDLED__') {
+            if (response === '__RAP_BATTLE_HANDLED__' || response === '__QUOTE_HANDLED__' || response === '__SENTIENT_HANDLED__' || response === '__TYPERACE_HANDLED__') {
                 // Rap battle handles its own responses, skip normal handling
                 return;
             } else if (response === undefined || response === null) {
