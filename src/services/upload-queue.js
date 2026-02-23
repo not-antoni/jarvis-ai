@@ -51,7 +51,7 @@ function getAudioDuration(url) {
  * Format seconds to MM:SS or HH:MM:SS
  */
 function formatDuration(seconds) {
-    if (!seconds || seconds <= 0) return '0:00';
+    if (!seconds || seconds <= 0) {return '0:00';}
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
@@ -126,8 +126,8 @@ class UploadQueue {
         const guildQueue = this.guildQueues.get(item.guildId);
         if (guildQueue) {
             const idx = guildQueue.indexOf(item);
-            if (idx > -1) guildQueue.splice(idx, 1);
-            if (guildQueue.length === 0) this.guildQueues.delete(item.guildId);
+            if (idx > -1) {guildQueue.splice(idx, 1);}
+            if (guildQueue.length === 0) {this.guildQueues.delete(item.guildId);}
         }
 
         console.log(`[UploadQueue] Processing: ${item.filename} (Remaining: ${this.queue.length})`);

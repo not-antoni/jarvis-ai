@@ -53,7 +53,7 @@ async function dumpCollection(db, collectionName, outputDir, timestamp) {
 
 async function runDump() {
     await database.connect();
-    const db = database.db;
+    const { db } = database;
     ensureDirectory(dumpRoot);
 
     const timestamp = formatTimestamp();

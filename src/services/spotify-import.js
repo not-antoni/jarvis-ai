@@ -8,8 +8,8 @@
 const fetch = require('node-fetch');
 
 // Spotify API credentials (optional - works without for public playlists)
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
-const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
+const { SPOTIFY_CLIENT_ID } = process.env;
+const { SPOTIFY_CLIENT_SECRET } = process.env;
 
 let accessToken = null;
 let tokenExpiry = 0;
@@ -33,7 +33,7 @@ async function getAccessToken() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': 'Basic ' + Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64')
+                'Authorization': `Basic ${  Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64')}`
             },
             body: 'grant_type=client_credentials'
         });
@@ -66,7 +66,7 @@ function parseSpotifyUrl(url) {
 
     const patterns = [
         /open\.spotify\.com\/(playlist|track|album)\/([a-zA-Z0-9]+)/,
-        /spotify:(playlist|track|album):([a-zA-Z0-9]+)/,
+        /spotify:(playlist|track|album):([a-zA-Z0-9]+)/
     ];
 
     for (const pattern of patterns) {
@@ -107,7 +107,7 @@ async function fetchPlaylistTracks(playlistId) {
         const data = await response.json();
 
         for (const item of data.items || []) {
-            const track = item.track;
+            const { track } = item;
             if (track && track.name) {
                 tracks.push({
                     title: track.name,
@@ -169,13 +169,13 @@ async function scrapePlaylistFallback(playlistId) {
  */
 async function fetchTrackInfo(trackId) {
     const token = await getAccessToken();
-    if (!token) return null;
+    if (!token) {return null;}
 
     const response = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {return null;}
 
     const track = await response.json();
     return {
@@ -190,7 +190,7 @@ async function fetchTrackInfo(trackId) {
  */
 async function fetchAlbumTracks(albumId) {
     const token = await getAccessToken();
-    if (!token) return [];
+    if (!token) {return [];}
 
     const tracks = [];
     let nextUrl = `https://api.spotify.com/v1/albums/${albumId}/tracks?limit=50`;
@@ -207,7 +207,7 @@ async function fetchAlbumTracks(albumId) {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        if (!response.ok) break;
+        if (!response.ok) {break;}
 
         const data = await response.json();
 
@@ -232,7 +232,7 @@ async function fetchAlbumTracks(albumId) {
  */
 function trackToSearchQuery(track) {
     // Remove common suffixes that hurt search results
-    let title = track.title
+    const title = track.title
         .replace(/\s*\(feat\..*?\)/gi, '')
         .replace(/\s*\(with.*?\)/gi, '')
         .replace(/\s*-\s*Remastered.*$/gi, '')
@@ -262,13 +262,14 @@ async function importFromSpotify(url) {
             name = `Spotify Playlist (${tracks.length} tracks)`;
             break;
 
-        case 'track':
+        case 'track': {
             const trackInfo = await fetchTrackInfo(parsed.id);
             if (trackInfo) {
                 tracks = [trackInfo];
                 name = `${trackInfo.artist} - ${trackInfo.title}`;
             }
             break;
+        }
 
         case 'album':
             tracks = await fetchAlbumTracks(parsed.id);
@@ -298,5 +299,5 @@ module.exports = {
     trackToSearchQuery,
     fetchPlaylistTracks,
     fetchTrackInfo,
-    fetchAlbumTracks,
+    fetchAlbumTracks
 };

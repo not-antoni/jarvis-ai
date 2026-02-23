@@ -73,7 +73,7 @@ async function testProxy(proxyString, videoUrl) {
                 resolve({ success: true, proxy: `${ip}:${port}`, elapsed, title: lines[0] });
             } else {
                 console.log(`   ❌ FAILED in ${elapsed}ms`);
-                if (stderr) console.log(`   Error: ${stderr.slice(0, 100)}`);
+                if (stderr) {console.log(`   Error: ${stderr.slice(0, 100)}`);}
                 resolve({ success: false, proxy: `${ip}:${port}`, elapsed, error: stderr.slice(0, 100) });
             }
         });
@@ -132,11 +132,11 @@ async function testDownload(proxyString, videoUrl) {
                 
                 // Clean up test file
                 fs.unlinkSync(outputPath);
-                console.log(`   🗑️  Cleaned up test file`);
+                console.log('   🗑️  Cleaned up test file');
                 
                 resolve({ success: true, elapsed, size: stats.size });
             } else {
-                console.log(`\n   ❌ DOWNLOAD FAILED`);
+                console.log('\n   ❌ DOWNLOAD FAILED');
                 resolve({ success: false, error: stderr.slice(0, 200) });
             }
         });

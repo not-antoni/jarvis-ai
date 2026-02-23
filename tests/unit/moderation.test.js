@@ -9,11 +9,11 @@ describe('Moderation System', () => {
         it('should detect spam patterns', () => {
             const isSpam = (text) => {
                 // Repeated characters
-                if (/(.)\1{10,}/.test(text)) return true;
+                if (/(.)\1{10,}/.test(text)) {return true;}
                 // All caps (>80% uppercase, min 10 chars)
                 if (text.length >= 10) {
                     const upperCount = (text.match(/[A-Z]/g) || []).length;
-                    if (upperCount / text.length > 0.8) return true;
+                    if (upperCount / text.length > 0.8) {return true;}
                 }
                 return false;
             };
@@ -64,11 +64,11 @@ describe('Moderation System', () => {
         it('should calculate risk score', () => {
             const calculateRisk = (factors) => {
                 let score = 0;
-                if (factors.newAccount) score += 20;
-                if (factors.noAvatar) score += 10;
-                if (factors.suspiciousName) score += 15;
-                if (factors.rapidMessages) score += 25;
-                if (factors.mentionSpam) score += 30;
+                if (factors.newAccount) {score += 20;}
+                if (factors.noAvatar) {score += 10;}
+                if (factors.suspiciousName) {score += 15;}
+                if (factors.rapidMessages) {score += 25;}
+                if (factors.mentionSpam) {score += 30;}
                 return Math.min(score, 100);
             };
 
@@ -86,10 +86,10 @@ describe('Moderation System', () => {
 
         it('should classify threat severity', () => {
             const classifySeverity = (riskScore) => {
-                if (riskScore >= 80) return 'critical';
-                if (riskScore >= 60) return 'high';
-                if (riskScore >= 40) return 'medium';
-                if (riskScore >= 20) return 'low';
+                if (riskScore >= 80) {return 'critical';}
+                if (riskScore >= 60) {return 'high';}
+                if (riskScore >= 40) {return 'medium';}
+                if (riskScore >= 20) {return 'low';}
                 return 'none';
             };
 
@@ -104,10 +104,10 @@ describe('Moderation System', () => {
     describe('Auto-Escalation', () => {
         it('should determine correct action based on offense count', () => {
             const getAction = (offenseCount) => {
-                if (offenseCount >= 4) return 'ban';
-                if (offenseCount >= 3) return 'kick';
-                if (offenseCount >= 2) return 'mute';
-                if (offenseCount >= 1) return 'warn';
+                if (offenseCount >= 4) {return 'ban';}
+                if (offenseCount >= 3) {return 'kick';}
+                if (offenseCount >= 2) {return 'mute';}
+                if (offenseCount >= 1) {return 'warn';}
                 return 'none';
             };
 
@@ -137,9 +137,9 @@ describe('Moderation System', () => {
     describe('Batch Processing', () => {
         it('should calculate optimal batch size', () => {
             const getBatchSize = (queueLength) => {
-                if (queueLength > 100) return 20;
-                if (queueLength > 50) return 10;
-                if (queueLength > 10) return 5;
+                if (queueLength > 100) {return 20;}
+                if (queueLength > 50) {return 10;}
+                if (queueLength > 10) {return 5;}
                 return queueLength; // Process all
             };
 
@@ -153,12 +153,12 @@ describe('Moderation System', () => {
             const messages = [
                 { id: 1, riskScore: 30, timestamp: 1000 },
                 { id: 2, riskScore: 80, timestamp: 2000 },
-                { id: 3, riskScore: 50, timestamp: 500 },
+                { id: 3, riskScore: 50, timestamp: 500 }
             ];
 
             // Sort by risk (descending), then timestamp (ascending)
             const sorted = [...messages].sort((a, b) => {
-                if (b.riskScore !== a.riskScore) return b.riskScore - a.riskScore;
+                if (b.riskScore !== a.riskScore) {return b.riskScore - a.riskScore;}
                 return a.timestamp - b.timestamp;
             });
 
@@ -220,7 +220,7 @@ describe('Moderation System', () => {
                 reports: [
                     { reporterGuild: 'guild1' },
                     { reporterGuild: 'guild2' },
-                    { reporterGuild: 'guild3' },
+                    { reporterGuild: 'guild3' }
                 ]
             });
 

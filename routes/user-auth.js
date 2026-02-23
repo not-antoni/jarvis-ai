@@ -34,7 +34,7 @@ router.get('/auth/login', (req, res) => {
 });
 
 // OAuth callback
-router.get('/auth/callback', async (req, res) => {
+router.get('/auth/callback', async(req, res) => {
     try {
         const { code, state, error: oauthError, error_description } = req.query;
         

@@ -26,8 +26,8 @@ const {
 
 if (!mainUri || !vaultUri) {
     if (!LOCAL_DB_MODE) {
-        if (!mainUri) throw new Error('MONGO_URI_MAIN is not configured');
-        if (!vaultUri) throw new Error('MONGO_URI_VAULT is not configured');
+        if (!mainUri) {throw new Error('MONGO_URI_MAIN is not configured');}
+        if (!vaultUri) {throw new Error('MONGO_URI_VAULT is not configured');}
     }
 }
 
@@ -76,7 +76,7 @@ async function connectMain() {
                 mainConnectPromise = null;
             }
         }
-        if (mainDb) return mainDb;
+        if (mainDb) {return mainDb;}
     }
 
     if (!mainConnectPromise) {
@@ -136,7 +136,7 @@ async function initializeDatabaseClients() {
 }
 
 function getJarvisDb() {
-    if (LOCAL_DB_MODE) return null;
+    if (LOCAL_DB_MODE) {return null;}
     if (!mainDb) {
         throw new Error(
             'Main database not connected. Call connectMain or initializeDatabaseClients first.'
@@ -146,7 +146,7 @@ function getJarvisDb() {
 }
 
 function getVaultDb() {
-    if (LOCAL_DB_MODE) return null;
+    if (LOCAL_DB_MODE) {return null;}
     if (!vaultDb) {
         throw new Error(
             'Vault database not connected. Call connectVault or initializeDatabaseClients first.'
@@ -182,7 +182,7 @@ function setupConnectionMonitoring() {
     
     console.log('[DB] Starting connection monitor for selfhost mode');
     
-    connectionMonitorInterval = setInterval(async () => {
+    connectionMonitorInterval = setInterval(async() => {
         const now = Date.now();
         if (now - lastConnectionCheck < CONNECTION_CHECK_INTERVAL) {
             return;
@@ -198,7 +198,7 @@ function setupConnectionMonitoring() {
                 mainDb = null;
                 mainConnectPromise = null;
                 
-                setTimeout(async () => {
+                setTimeout(async() => {
                     try {
                         await connectMain();
                         console.log('[DB] Main database reconnected successfully');
@@ -218,7 +218,7 @@ function setupConnectionMonitoring() {
                 vaultDb = null;
                 vaultConnectPromise = null;
                 
-                setTimeout(async () => {
+                setTimeout(async() => {
                     try {
                         await connectVault();
                         console.log('[DB] Vault database reconnected successfully');
@@ -248,8 +248,8 @@ function stopConnectionMonitoring() {
  * Check if database is connected and healthy
  */
 async function isConnected() {
-    if (LOCAL_DB_MODE) return false;
-    if (!mainClient || !mainDb) return false;
+    if (LOCAL_DB_MODE) {return false;}
+    if (!mainClient || !mainDb) {return false;}
     
     try {
         await mainClient.db('admin').command({ ping: 1 });

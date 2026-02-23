@@ -9,10 +9,10 @@ const LRUCache =
     typeof LruModule === 'function'
         ? LruModule
         : typeof LruModule?.LRUCache === 'function'
-          ? LruModule.LRUCache
-          : typeof LruModule?.default === 'function'
-            ? LruModule.default
-            : null;
+            ? LruModule.LRUCache
+            : typeof LruModule?.default === 'function'
+                ? LruModule.default
+                : null;
 const {
     ToolHandler,
     ToolOutput,
@@ -43,9 +43,9 @@ class AgentToolRegistry extends EventEmitter {
         // Caching
         this.cache = LRUCache
             ? new LRUCache({
-                  max: Number(this.options.cacheMaxEntries) || 500,
-                  ttl: this.options.cacheTTL
-              })
+                max: Number(this.options.cacheMaxEntries) || 500,
+                ttl: this.options.cacheTTL
+            })
             : new Map();
         this.cacheTimestamps = LRUCache ? null : new Map();
 
@@ -69,7 +69,7 @@ class AgentToolRegistry extends EventEmitter {
             throw new Error('Handler must be an instance of ToolHandler');
         }
 
-        const name = handler.name;
+        const { name } = handler;
         if (this.handlers.has(name)) {
             console.warn(`[AgentToolRegistry] Overwriting handler for tool: ${name}`);
         }
@@ -202,7 +202,7 @@ class AgentToolRegistry extends EventEmitter {
                             oldestKey = key;
                         }
                     }
-                    if (!oldestKey) break;
+                    if (!oldestKey) {break;}
                     this.cache.delete(oldestKey);
                     this.cacheTimestamps.delete(oldestKey);
                 }
@@ -326,7 +326,7 @@ class AgentToolRegistry extends EventEmitter {
      */
     selectTools(query, options = {}) {
         const limit = options.limit || 5;
-        const category = options.category;
+        const { category } = options;
         const keywords = this._extractKeywords(query);
 
         const scored = this.getAllHandlers()
@@ -370,9 +370,9 @@ class AgentToolRegistry extends EventEmitter {
             totalExecutions: this.telemetry.totalCalls,
             successRate:
                 this.telemetry.totalCalls > 0
-                    ? ((this.telemetry.totalSuccesses / this.telemetry.totalCalls) * 100).toFixed(
-                          1
-                      ) + '%'
+                    ? `${((this.telemetry.totalSuccesses / this.telemetry.totalCalls) * 100).toFixed(
+                        1
+                    )  }%`
                     : 'N/A',
             avgDuration:
                 this.telemetry.totalCalls > 0
@@ -436,10 +436,10 @@ class AgentToolRegistry extends EventEmitter {
     }
 
     _getCachedValue(key) {
-        if (!this.cache) return null;
+        if (!this.cache) {return null;}
         const cached = this.cache.get(key);
-        if (cached == null) return null;
-        if (!this.cacheTimestamps) return cached;
+        if (cached == null) {return null;}
+        if (!this.cacheTimestamps) {return cached;}
 
         const timestamp = this.cacheTimestamps.get(key);
         if (timestamp && Date.now() - timestamp < this.options.cacheTTL) {
@@ -464,7 +464,7 @@ class AgentToolRegistry extends EventEmitter {
     }
 
     _extractKeywords(query) {
-        if (!query) return [];
+        if (!query) {return [];}
         return query
             .toLowerCase()
             .replace(/[^\w\s]/g, '')

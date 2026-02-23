@@ -9,8 +9,8 @@ const aiFetch = getAIFetch();
 // Lazy-loaded dashboard module for token tracking (avoids require in hot path)
 let _dashboard = null;
 function getDashboard() {
-    if (_dashboard === undefined) return null; // Already tried and failed
-    if (_dashboard) return _dashboard;
+    if (_dashboard === undefined) {return null;} // Already tried and failed
+    if (_dashboard) {return _dashboard;}
     try {
         _dashboard = require('../../routes/dashboard');
         return _dashboard;
@@ -23,7 +23,7 @@ function getDashboard() {
 // ============ OUTPUT SANITIZATION HELPERS ============
 
 function sanitizeModelOutput(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
 
     // 1) Normalize line endings
     let out = text.replace(/\r\n?/g, '\n');
@@ -74,7 +74,7 @@ function sanitizeModelOutput(text) {
 }
 
 function cleanThinkingOutput(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
     return text
         .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
         .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -84,12 +84,12 @@ function cleanThinkingOutput(text) {
 }
 
 function extractFinalPayload(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
     return text.trim();
 }
 
 function stripWrappingQuotes(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
     let trimmed = text.trim();
     const pairs = [
         ['"', '"'],
@@ -112,7 +112,7 @@ function stripWrappingQuotes(text) {
 }
 
 function stripJarvisSpeakerPrefix(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
     let trimmed = text.trim();
     const patterns = [/^\*\*\s*(jarvis)\s*:\s*\*\*\s*/i, /^(jarvis)\s*:\s*/i];
     for (const pattern of patterns) {
@@ -125,7 +125,7 @@ function stripJarvisSpeakerPrefix(text) {
 }
 
 function stripTrailingChannelArtifacts(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
     let trimmed = text.trim();
     const pattern = /(?:[\s,.;:!?\-]*[\(\[\{"]+\s*channel\s*[\)\]\}"]+[\s,.;:!?\-]*)$/i;
     while (pattern.test(trimmed)) {
@@ -135,7 +135,7 @@ function stripTrailingChannelArtifacts(text) {
 }
 
 function stripLeadingPromptLeaks(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
     let trimmed = text.trim();
     const channelPattern = /^channel\s*:\s*/i;
     if (channelPattern.test(trimmed)) {
@@ -153,7 +153,7 @@ function stripLeadingPromptLeaks(text) {
 }
 
 function sanitizeAssistantMessage(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
     const layered = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(text)));
     const noOuterQuotes = stripWrappingQuotes(layered);
     const withoutPromptLeaks = stripLeadingPromptLeaks(noOuterQuotes);
@@ -204,7 +204,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
             `Attempting AI request with ${provider.name} (${provider.model}) [${selectionType}] ${providerTypeInfo}`
         );
 
-        const callOnce = async () => {
+        const callOnce = async() => {
             if (provider.type === 'google') {
                 const model = provider.client.getGenerativeModel({ model: provider.model });
 
@@ -246,7 +246,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
 
                 const finishReason = response?.candidates?.[0]?.finishReason;
                 if (finishReason === 'SAFETY') {
-                    throw Object.assign(new Error(`Gemini safety filter triggered`), {
+                    throw Object.assign(new Error('Gemini safety filter triggered'), {
                         status: 400
                     });
                 }
@@ -409,7 +409,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         const jsonStr = line.slice(6);
-                        if (jsonStr === '[DONE]') continue;
+                        if (jsonStr === '[DONE]') {continue;}
                         try {
                             const chunk = JSON.parse(jsonStr);
                             if (chunk.response) {
@@ -421,7 +421,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
 
                 if (!fullContent.trim()) {
                     throw Object.assign(
-                        new Error(`Empty response from Cloudflare AI`),
+                        new Error('Empty response from Cloudflare AI'),
                         { status: 502, transient: true }
                     );
                 }
@@ -668,7 +668,7 @@ async function generateResponseWithImages(
 
     if (imageCapableProviders.length === 0) {
         console.warn(
-            'No image-capable providers available (moderationOnly=' + allowModerationOnly + '), falling back to text-only response'
+            `No image-capable providers available (moderationOnly=${  allowModerationOnly  }), falling back to text-only response`
         );
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);
     }
@@ -766,7 +766,7 @@ async function generateResponseWithImages(
     for (const provider of imageCapableProviders) {
         const started = Date.now();
         const disabledUntil = manager.disabledProviders.get(provider.name);
-        if (disabledUntil && disabledUntil > Date.now()) continue;
+        if (disabledUntil && disabledUntil > Date.now()) {continue;}
 
         console.log(
             `Attempting image request with ${provider.name} (${provider.model}) [${base64Images.length} image(s)]`

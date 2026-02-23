@@ -6,11 +6,11 @@ module.exports = {
         .setName('stop')
         .setDescription('Stop music and clear queue (stays in VC)'),
     async execute(interaction) {
-        if (!interaction.guild) return;
+        if (!interaction.guild) {return;}
 
         // DJ / Blocking Check
         const { canControlMusic } = require('../../utils/dj-system');
-        if (!await canControlMusic(interaction)) return;
+        if (!await canControlMusic(interaction)) {return;}
 
         let distubeInstance;
         try {

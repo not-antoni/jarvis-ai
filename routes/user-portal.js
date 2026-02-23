@@ -7,6 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
+const appContext = require('../src/core/app-context');
 const userAuth = require('../src/services/user-auth');
 const apiKeys = require('../src/services/api-keys');
 
@@ -686,15 +687,15 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // Dashboard data API
-router.get('/api/dashboard', requireAuth, async (req, res) => {
+router.get('/api/dashboard', requireAuth, async(req, res) => {
     try {
-        const userId = req.user.userId;
+        const { userId } = req.user;
         
         const [keys, conversations, economy, servers] = await Promise.all([
             apiKeys.getUserKeys(userId),
             getUserConversations(userId),
             getUserEconomy(userId),
-            getUserServers(userId, global.discordClient)
+            getUserServers(userId, appContext.getClient())
         ]);
 
         res.json({
@@ -714,7 +715,7 @@ router.get('/api/dashboard', requireAuth, async (req, res) => {
 });
 
 // Create API key
-router.post('/api/keys', requireAuth, async (req, res) => {
+router.post('/api/keys', requireAuth, async(req, res) => {
     try {
         const { name } = req.body;
         const result = await apiKeys.createKey(req.user.userId, name);
@@ -725,7 +726,7 @@ router.post('/api/keys', requireAuth, async (req, res) => {
 });
 
 // Revoke API key
-router.delete('/api/keys/:keyId', requireAuth, async (req, res) => {
+router.delete('/api/keys/:keyId', requireAuth, async(req, res) => {
     try {
         const success = await apiKeys.revokeKey(req.user.userId, req.params.keyId);
         res.json({ success });

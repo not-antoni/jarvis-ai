@@ -39,7 +39,7 @@ class TicketSystem {
      * Handle interactions (buttons)
      */
     async handleInteraction(interaction) {
-        if (!interaction.isButton()) return;
+        if (!interaction.isButton()) {return;}
 
         const { customId, guild, user, channel } = interaction;
 
@@ -76,16 +76,16 @@ class TicketSystem {
                 permissionOverwrites: [
                     {
                         id: guild.id,
-                        deny: [PermissionFlagsBits.ViewChannel],
+                        deny: [PermissionFlagsBits.ViewChannel]
                     },
                     {
                         id: user.id,
-                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles],
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles]
                     },
                     {
                         // Allow bot
                         id: interaction.client.user.id,
-                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels],
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels]
                     }
                 ]
             });
@@ -122,7 +122,7 @@ class TicketSystem {
         // Save Transcript (Simplified: just messages)
         // ... (Transcript logic would go here, maybe too complex for MVP, skipping text file generation for now)
 
-        setTimeout(async () => {
+        setTimeout(async() => {
             try {
                 await channel.delete();
             } catch (error) {

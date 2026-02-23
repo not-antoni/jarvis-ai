@@ -42,7 +42,7 @@ module.exports = function createAdvanced({
     // In-memory storage for boss/tournament/lottery
     const activeBosses = new Map();
     const activeTournaments = new Map();
-    let lotteryData = {
+    const lotteryData = {
         jackpot: 10000,
         ticketPrice: 100,
         tickets: new Map(),
@@ -72,7 +72,7 @@ module.exports = function createAdvanced({
 
     async function updateChallengeProgress(userId, challengeType, amount = 1) {
         const user = await loadUser(userId);
-        if (!user.dailyChallenges) return;
+        if (!user.dailyChallenges) {return;}
 
         for (const challenge of user.dailyChallenges) {
             if (challenge.id.startsWith(challengeType) && !challenge.completed) {
@@ -317,32 +317,32 @@ module.exports = function createAdvanced({
 
     async function investSBX(userId, amount) {
         const sbx = getStarkbucks();
-        if (!sbx) return { success: false, error: 'SBX System offline' };
+        if (!sbx) {return { success: false, error: 'SBX System offline' };}
         return sbx.investSBX(userId, amount);
     }
 
     async function withdrawInvestment(userId, amount) {
         const sbx = getStarkbucks();
-        if (!sbx) return { success: false, error: 'SBX System offline' };
+        if (!sbx) {return { success: false, error: 'SBX System offline' };}
         return sbx.withdrawInvestment(userId, amount);
     }
 
     async function getSBXMarketData() {
         const sbx = getStarkbucks();
-        if (!sbx) return null;
+        if (!sbx) {return null;}
         return sbx.getMarketData();
     }
 
     async function buySBX(userId, amount) {
         const sbx = getStarkbucks();
-        if (!sbx) return { success: false, error: 'SBX System offline' };
+        if (!sbx) {return { success: false, error: 'SBX System offline' };}
 
         const price = sbx.getCurrentPrice();
         const cost = Math.floor(amount * 100 * price * 1.02);
-        if (!cost || cost <= 0) return { success: false, error: 'Price error' };
+        if (!cost || cost <= 0) {return { success: false, error: 'Price error' };}
 
         const user = await loadUser(userId);
-        if (user.balance < cost) return { success: false, error: `Insufficient Stark Bucks. Need ${cost}, have ${user.balance}` };
+        if (user.balance < cost) {return { success: false, error: `Insufficient Stark Bucks. Need ${cost}, have ${user.balance}` };}
 
         user.balance -= cost;
         await saveUser(userId, user);
@@ -354,13 +354,13 @@ module.exports = function createAdvanced({
 
     async function sellSBX(userId, amount) {
         const sbx = getStarkbucks();
-        if (!sbx) return { success: false, error: 'SBX System offline' };
+        if (!sbx) {return { success: false, error: 'SBX System offline' };}
 
         const wallet = await sbx.getWallet(userId);
-        if (wallet.balance < amount) return { success: false, error: `Insufficient SBX. Have ${wallet.balance}` };
+        if (wallet.balance < amount) {return { success: false, error: `Insufficient SBX. Have ${wallet.balance}` };}
 
         const result = await sbx.convertToStarkBucks(userId, amount);
-        if (!result.success) return { success: false, error: result.error || 'Conversion failed' };
+        if (!result.success) {return { success: false, error: result.error || 'Conversion failed' };}
 
         const user = await loadUser(userId);
 
@@ -369,7 +369,7 @@ module.exports = function createAdvanced({
 
     async function getSBXBalance(userId) {
         const sbx = getStarkbucks();
-        if (!sbx) return 0;
+        if (!sbx) {return 0;}
         const w = await sbx.getWallet(userId);
         return w.balance;
     }

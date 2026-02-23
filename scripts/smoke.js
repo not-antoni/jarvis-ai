@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 
-(async () => {
+(async() => {
     const { sanitizePings } = require('../src/utils/sanitize');
     const tempFiles = require('../src/utils/temp-files');
 

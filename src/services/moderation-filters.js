@@ -212,7 +212,7 @@ const CYRILLIC_TO_LATIN = {
  * This catches bypasses like "nіgga" (with Cyrillic і) → "nigga"
  */
 function normalizeCyrillic(text) {
-    if (!text) return text;
+    if (!text) {return text;}
     let result = '';
     for (const char of text) {
         result += CYRILLIC_TO_LATIN[char] || char;
@@ -236,7 +236,7 @@ function loadFileState() {
     try {
         if (fs.existsSync(STATE_PATH)) {
             const raw = fs.readFileSync(STATE_PATH, 'utf8');
-            if (raw) return JSON.parse(raw);
+            if (raw) {return JSON.parse(raw);}
         }
     } catch (error) {
         console.warn('Failed to load moderation filter state (file):', error);
@@ -254,7 +254,7 @@ function saveFileState(state) {
 }
 
 async function getCollection() {
-    if (!USE_MONGO) return null;
+    if (!USE_MONGO) {return null;}
     await database.connect();
     return database.db.collection(config.database.collections.moderationFilters);
 }
@@ -352,9 +352,9 @@ function normalize(text) {
 }
 
 function formatList(items, label) {
-    if (!items || !items.length) return 'None set';
+    if (!items || !items.length) {return 'None set';}
     const body = items.join('\n');
-    if (body.length <= 1000) return body;
+    if (body.length <= 1000) {return body;}
     return `${body.slice(0, 980)}...\n(+${items.length} total ${label || 'items'})`;
 }
 
@@ -365,7 +365,7 @@ function allowDelete(guildId) {
         deleteRate.set(guildId, { ts: now, count: 0 });
         return true;
     }
-    if (entry.count >= DELETE_LIMIT_PER_MIN) return false;
+    if (entry.count >= DELETE_LIMIT_PER_MIN) {return false;}
     entry.count += 1;
     deleteRate.set(guildId, entry);
     return true;
@@ -446,9 +446,9 @@ async function getFilters(guildId) {
 // ---------- Runtime enforcement ----------
 
 async function handleMessage(message) {
-    if (!message.guild || message.author.bot) return;
-    if (!isFeatureGloballyEnabled('moderationFilters')) return;
-    if (!message.content) return;
+    if (!message.guild || message.author.bot) {return;}
+    if (!isFeatureGloballyEnabled('moderationFilters')) {return;}
+    if (!message.content) {return;}
 
     // Check bot permissions before processing
     const me =
@@ -459,9 +459,9 @@ async function handleMessage(message) {
     }
 
     const filters = await getFilters(message.guild.id);
-    if (!filters.regex.length) return;
+    if (!filters.regex.length) {return;}
 
-    const content = message.content;
+    const { content } = message;
     // Also check normalized content (Cyrillic → Latin) to catch bypasses like "nіgga"
     const normalizedContent = normalizeCyrillic(content);
 
@@ -509,11 +509,11 @@ function trackSpam(message, matchedPattern) {
     const guildId = message.guild.id;
     const userId = message.author.id;
     const now = Date.now();
-    if (!spamTracker.has(guildId)) spamTracker.set(guildId, new Map());
+    if (!spamTracker.has(guildId)) {spamTracker.set(guildId, new Map());}
     const guildMap = spamTracker.get(guildId);
     const userData = guildMap.get(userId) || { arr: [], violations: 0 };
     userData.arr.push(now);
-    while (userData.arr.length && now - userData.arr[0] > SPAM_WINDOW_MS) userData.arr.shift();
+    while (userData.arr.length && now - userData.arr[0] > SPAM_WINDOW_MS) {userData.arr.shift();}
     guildMap.set(userId, userData);
     if (userData.arr.length >= SPAM_THRESHOLD) {
         userData.violations = (userData.violations || 0) + 1;
@@ -524,8 +524,8 @@ function trackSpam(message, matchedPattern) {
 }
 
 async function applyTimeout(message, violationCount = 1, matchedPattern = null) {
-    const member = message.member;
-    if (!member) return;
+    const { member } = message;
+    if (!member) {return;}
 
     // Escalate timeout based on violation count
     const timeoutIndex = Math.min(violationCount - 1, TIMEOUT_ESCALATION.length - 1);
@@ -577,18 +577,18 @@ async function getModerators(guild) {
 }
 
 async function notifyStaff(message, member, violationCount = 1, matchedPattern = null) {
-    const guild = message.guild;
-    if (!guild) return;
+    const { guild } = message;
+    if (!guild) {return;}
     const dmKey = `${guild.id}:${member.id}`;
     const last = dmThrottle.get(dmKey) || 0;
-    if (Date.now() - last < DM_THROTTLE_MS) return;
+    if (Date.now() - last < DM_THROTTLE_MS) {return;}
     dmThrottle.set(dmKey, Date.now());
 
     const timeoutIndex = Math.min(violationCount - 1, TIMEOUT_ESCALATION.length - 1);
     const timeoutDuration = TIMEOUT_ESCALATION[timeoutIndex];
     const messagePreview = message.content
         ? message.content.length > 200
-            ? message.content.substring(0, 200) + '...'
+            ? `${message.content.substring(0, 200)  }...`
             : message.content
         : '[No content]';
     const patternInfo = matchedPattern
@@ -608,12 +608,12 @@ async function notifyStaff(message, member, violationCount = 1, matchedPattern =
 
     const mods = await getModerators(guild);
     for (const modId of mods) {
-        if (modId === member.id) continue;
+        if (modId === member.id) {continue;}
         try {
             const mod =
                 guild.members.cache.get(modId) ||
                 (await guild.members.fetch(modId).catch(() => null));
-            if (mod) await mod.send(summary).catch(() => { });
+            if (mod) {await mod.send(summary).catch(() => { });}
         } catch {
             /* ignore */
         }
@@ -625,14 +625,14 @@ async function notifyStaff(message, member, violationCount = 1, matchedPattern =
 async function upsertWord(guildId, value) {
     const entry = await loadGuildState(guildId);
     const norm = normalize(value);
-    if (!norm) return false;
-    if (entry.words.includes(norm)) return false;
-    if (entry.words.length >= MAX_WORDS_PER_GUILD) return false;
+    if (!norm) {return false;}
+    if (entry.words.includes(norm)) {return false;}
+    if (entry.words.length >= MAX_WORDS_PER_GUILD) {return false;}
 
     entry.words.push(norm);
     if (entry.autoRegexEnabled) {
         const flex = buildFlexibleRegex(norm);
-        if (!entry.regex.includes(flex)) entry.regex.push(flex);
+        if (!entry.regex.includes(flex)) {entry.regex.push(flex);}
     }
     await saveGuildState(guildId, entry);
     await refreshCache(guildId);
@@ -671,7 +671,7 @@ async function setAutoRegex(guildId, enabled, backfill = false) {
     if (enabled && backfill) {
         for (const w of entry.words) {
             const pat = buildFlexibleRegex(w);
-            if (!entry.regex.includes(pat)) entry.regex.push(pat);
+            if (!entry.regex.includes(pat)) {entry.regex.push(pat);}
         }
     }
     await saveGuildState(guildId, entry);
@@ -681,7 +681,7 @@ async function setAutoRegex(guildId, enabled, backfill = false) {
 // ---------- Commands ----------
 
 async function handleCommand(interaction) {
-    const guildId = interaction.guildId;
+    const { guildId } = interaction;
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'add-word') {
@@ -786,7 +786,7 @@ async function handleCommand(interaction) {
         } else {
             const entry = await loadGuildState(guildId);
             for (const line of lines) {
-                if (entry.words.length >= MAX_WORDS_PER_GUILD) break;
+                if (entry.words.length >= MAX_WORDS_PER_GUILD) {break;}
                 const ok = await upsertWord(guildId, line);
                 if (ok) {
                     added += 1;
@@ -805,7 +805,7 @@ async function handleCommand(interaction) {
         if (enabled) {
             const entry = await loadGuildState(guildId);
             for (const word of BASELINE_WORDS) {
-                if (entry.words.length >= MAX_WORDS_PER_GUILD) break;
+                if (entry.words.length >= MAX_WORDS_PER_GUILD) {break;}
                 await upsertWord(guildId, word);
             }
             return interaction.reply({

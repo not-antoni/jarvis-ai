@@ -18,17 +18,17 @@ function measure(width, text) {
     ctx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
     const words = text.split(/\s+/).filter(Boolean);
     const maxWidth = Math.max(10, width - padding * 2);
-    let lines = [];
+    const lines = [];
     let line = '';
     for (const w of words) {
         const c = line ? `${line} ${w}` : w;
-        if (ctx.measureText(c).width <= maxWidth || !line) line = c;
+        if (ctx.measureText(c).width <= maxWidth || !line) {line = c;}
         else {
             lines.push(line);
             line = w;
         }
     }
-    if (line) lines.push(line);
+    if (line) {lines.push(line);}
     const lineHeight = Math.round(fontSize * 1.15);
     const boxHeight = Math.round(lines.length * lineHeight + padding * 2);
     return { fontSize, padding, lines, lineHeight, boxHeight };
@@ -36,7 +36,7 @@ function measure(width, text) {
 
 function renderOverlay(width, text) {
     const t = normalize(text);
-    if (!t) throw new Error('Caption text is required');
+    if (!t) {throw new Error('Caption text is required');}
     const { fontSize, padding, lines, lineHeight, boxHeight } = measure(width, t);
     const canvas = createCanvas(width, boxHeight);
     const ctx = canvas.getContext('2d');
@@ -63,8 +63,8 @@ async function run(cmd, args, options = {}) {
         ps.stderr.on('data', d => (stderr += d.toString()));
         ps.on('error', reject);
         ps.on('close', code => {
-            if (code === 0) resolve();
-            else reject(new Error(stderr || `ffmpeg exited ${code}`));
+            if (code === 0) {resolve();}
+            else {reject(new Error(stderr || `ffmpeg exited ${code}`));}
         });
     });
 }
@@ -78,9 +78,9 @@ async function captionToMp4({ inputBuffer, captionText }) {
     let width = 480;
     try {
         const meta = await sharp(inputBuffer, { pages: 1 }).metadata();
-        if (meta?.width) width = meta.width;
+        if (meta?.width) {width = meta.width;}
     } catch {}
-    if (width > 720) width = 720;
+    if (width > 720) {width = 720;}
     const overlayBuf = renderOverlay(width, captionText);
     const ovPath = path.join(tmp, 'overlay.png');
     fs.writeFileSync(ovPath, overlayBuf);

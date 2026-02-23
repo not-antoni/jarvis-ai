@@ -18,7 +18,7 @@ function createManager() {
     return manager;
 }
 
-test('updateGuildFeatures updates individual flags without clobbering other fields', async () => {
+test('updateGuildFeatures updates individual flags without clobbering other fields', async() => {
     const manager = createManager();
 
     const existingDoc = {
@@ -39,7 +39,7 @@ test('updateGuildFeatures updates individual flags without clobbering other fiel
             assert.deepEqual(filter, { guildId: 'guild-1' });
             return existingDoc;
         },
-        updateOne: async (filter, update) => {
+        updateOne: async(filter, update) => {
             updateCalls.push({ filter, update });
         }
     };
@@ -49,7 +49,7 @@ test('updateGuildFeatures updates individual flags without clobbering other fiel
     };
 
     let returnedConfig = null;
-    manager.getGuildConfig = async () => {
+    manager.getGuildConfig = async() => {
         returnedConfig = { guildId: 'guild-1' };
         return returnedConfig;
     };
@@ -67,12 +67,12 @@ test('updateGuildFeatures updates individual flags without clobbering other fiel
     assert.strictEqual(returnedConfig.guildId, 'guild-1');
 });
 
-test('updateGuildFeatures inserts new guild config with defaults', async () => {
+test('updateGuildFeatures inserts new guild config with defaults', async() => {
     const manager = createManager();
     const inserted = [];
 
     const mockCollection = {
-        findOne: async () => null,
+        findOne: async() => null,
         insertOne: async doc => {
             inserted.push(doc);
             return { insertedId: 'doc-new' };
@@ -82,7 +82,7 @@ test('updateGuildFeatures inserts new guild config with defaults', async () => {
     manager.db = { collection: () => mockCollection };
 
     let returnedConfig = null;
-    manager.getGuildConfig = async () => {
+    manager.getGuildConfig = async() => {
         returnedConfig = { guildId: 'guild-new' };
         return returnedConfig;
     };
@@ -104,7 +104,7 @@ test('updateGuildFeatures inserts new guild config with defaults', async () => {
     assert.strictEqual(returnedConfig.guildId, 'guild-new');
 });
 
-test('clearUserMemories deletes conversations and vault records', async () => {
+test('clearUserMemories deletes conversations and vault records', async() => {
     const manager = createManager();
     const conversationsCollectionName = config.database.collections.conversations;
 

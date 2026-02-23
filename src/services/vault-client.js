@@ -6,7 +6,7 @@ const config = require('../../config');
 // Lazy-loaded master key to avoid crash on startup for selfhosters without vault
 let _masterKey = null;
 function getMasterKey() {
-    if (_masterKey) return _masterKey;
+    if (_masterKey) {return _masterKey;}
 
     const keyBase64 = config.security.masterKeyBase64;
     if (!keyBase64) {
@@ -35,8 +35,8 @@ const SHORT_TERM_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
 const USE_LOCAL_DB_MODE = parseBooleanEnv(process.env.LOCAL_DB_MODE, false);
 
 function parseBooleanEnv(value, fallback) {
-    if (value === undefined || value === null) return fallback;
-    if (typeof value === 'boolean') return value;
+    if (value === undefined || value === null) {return fallback;}
+    if (typeof value === 'boolean') {return value;}
     return !['false', '0', 'no', 'off'].includes(String(value).toLowerCase());
 }
 
@@ -74,7 +74,7 @@ async function getCollections() {
     }
 
     if (!vaultCollectionsPromise) {
-        vaultCollectionsPromise = (async () => {
+        vaultCollectionsPromise = (async() => {
             await connectVault();
             const db = getVaultDb();
 
@@ -206,7 +206,7 @@ async function getOrCreateUserKey(userId) {
     }
 
     if (USE_LOCAL_DB_MODE && localDbOps) {
-        let record = await localDbOps.getUserKey(userId);
+        const record = await localDbOps.getUserKey(userId);
 
         if (!record) {
             const userKey = crypto.randomBytes(32);
@@ -423,7 +423,7 @@ async function enforceMemoryLimits(userId, memoriesCollection) {
             const idsToDelete = [];
             let currentSize = totalSize;
             for (const mem of allMemories) {
-                if (currentSize <= MAX_MEMORY_SIZE_BYTES) break;
+                if (currentSize <= MAX_MEMORY_SIZE_BYTES) {break;}
                 idsToDelete.push(mem._id);
                 currentSize -= JSON.stringify(mem).length;
             }
@@ -441,7 +441,7 @@ async function enforceMemoryLimits(userId, memoriesCollection) {
  * Enforce memory limits for local DB mode
  */
 async function enforceMemoryLimitsLocal(userId) {
-    if (!localDbOps) return;
+    if (!localDbOps) {return;}
 
     try {
         // Get all memories for user

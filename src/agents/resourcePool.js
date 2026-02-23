@@ -45,11 +45,11 @@ class ResourcePool {
                 // Check if browser still connected
                 if (browserData.browser?.connected) {
                     return { browser: browserData.browser, browserId, fromPool: true };
-                } else {
-                    // Remove dead browser
-                    this.activeBrowsers.delete(browserId);
-                    this.metrics.totalDestroyed++;
-                }
+                } 
+                // Remove dead browser
+                this.activeBrowsers.delete(browserId);
+                this.metrics.totalDestroyed++;
+                
             }
         }
 
@@ -120,7 +120,7 @@ class ResourcePool {
      */
     release(browserId) {
         const browserData = this.activeBrowsers.get(browserId);
-        if (!browserData) return;
+        if (!browserData) {return;}
 
         // Check if browser is still valid
         if (!browserData.browser?.connected) {
@@ -153,7 +153,7 @@ class ResourcePool {
      */
     async destroy(browserId) {
         const browserData = this.activeBrowsers.get(browserId);
-        if (!browserData) return;
+        if (!browserData) {return;}
 
         try {
             if (browserData.browser) {

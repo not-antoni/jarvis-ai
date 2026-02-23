@@ -31,7 +31,7 @@ async function exportAllCollections({
     const payload = {};
 
     for (const collName of targetCollections) {
-        if (!collName) continue;
+        if (!collName) {continue;}
         const coll = db.collection(collName);
         const docs = await coll.find({}).toArray();
         payload[collName] = docs;

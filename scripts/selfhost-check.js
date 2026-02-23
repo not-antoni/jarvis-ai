@@ -36,7 +36,7 @@ function isSelfhostMode() {
  * Check if first-time setup is needed
  */
 function needsFirstTimeSetup() {
-    if (!isSelfhostMode()) return false;
+    if (!isSelfhostMode()) {return false;}
     return !fs.existsSync(SETUP_COMPLETE_FILE);
 }
 

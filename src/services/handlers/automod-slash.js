@@ -19,8 +19,8 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    const guild = interaction.guild;
-    const member = interaction.member;
+    const { guild } = interaction;
+    const { member } = interaction;
     const subcommand = interaction.options.getSubcommand();
     const subcommandGroup = interaction.options.getSubcommandGroup(false);
     const guildConfig = await handler.getGuildConfig(guild);
@@ -110,7 +110,7 @@ async function handleAutoModCommand(handler, interaction) {
 
                 const activeFilters = record.extraFilters.filter(filter => filter.enabled).length;
                 await interaction.editReply(
-                    `Additional auto moderation filter deployed, sir. ` +
+                    'Additional auto moderation filter deployed, sir. ' +
                     `You now have ${record.extraFilters.length} filter${record.extraFilters.length === 1 ? '' : 's'} ` +
                     `(${activeFilters} active).`
                 );

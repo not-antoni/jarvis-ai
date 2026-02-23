@@ -22,6 +22,7 @@ const cron = require('node-cron');
 const tempFiles = require('./src/utils/temp-files');
 
 // Import our modules
+const appContext = require('./src/core/app-context');
 const config = require('./config');
 const database = require('./src/services/database');
 const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
@@ -76,8 +77,8 @@ let _commandSyncFromMongo = false; // Track if we loaded from MongoDB
 
 // On Render (not selfhost), we'll load from MongoDB after DB connects
 async function loadCommandSyncStateFromMongo() {
-    if (isSelfHost) return; // Selfhost uses local file
-    if (!database?.isConnected) return;
+    if (isSelfHost) {return;} // Selfhost uses local file
+    if (!database?.isConnected) {return;}
 
     try {
         const mongoState = await database.getCommandSyncState();
@@ -98,7 +99,7 @@ if (initializeDatabaseClients) {
 }
 
 async function maybeExportMongoOnStartup() {
-    if (!isSelfHost) return;
+    if (!isSelfHost) {return;}
 
     try {
         const outDir = config.deployment.exportPath;
@@ -201,7 +202,7 @@ function persistCommandSyncState() {
 
 const serverStatsRefreshJob = cron.schedule(
     '*/10 * * * *',
-    async () => {
+    async() => {
         try {
             await discordHandlers.refreshAllServerStats(client);
         } catch (error) {
@@ -214,7 +215,7 @@ const serverStatsRefreshJob = cron.schedule(
 // Periodic cleanup of expired temp files (every 30 minutes)
 const tempSweepJob = cron.schedule(
     '*/30 * * * *',
-    async () => {
+    async() => {
         try {
             tempFiles.sweepExpired();
         } catch (error) {
@@ -291,10 +292,13 @@ const {
 } = createExpressApp({ webhookRouter, database });
 
 // ------------------------ Event Handlers ------------------------
-client.once(Events.ClientReady, async () => {
+client.once(Events.ClientReady, async() => {
     console.log(`Jarvis++ online. Logged in as ${client.user.tag}`);
 
-    // Store client globally for economy DMs
+    // Store client in shared context for economy DMs, routes, etc.
+    appContext.setClient(client);
+    appContext.setHandlers(discordHandlers);
+    // Keep globals as aliases during migration
     global.discordClient = client;
     global.discordHandlers = discordHandlers;
 
@@ -519,26 +523,26 @@ async function startBot() {
 
         await refreshPresenceMessages(database, true);
 
-    // Auto-configure domain (Nginx + Cloudflare)
-    try {
-        const cloudflareDomain = require('./src/services/cloudflare-domain');
-        const cfConfig = cloudflareDomain.getConfig();
+        // Auto-configure domain (Nginx + Cloudflare)
+        try {
+            const cloudflareDomain = require('./src/services/cloudflare-domain');
+            const cfConfig = cloudflareDomain.getConfig();
 
-        const cloudflareOnly =
+            const cloudflareOnly =
             String(process.env.CLOUDFLARE_ONLY || '').toLowerCase() !== 'false';
-        if (config?.deployment?.target === 'selfhost' && cloudflareOnly) {
-            try {
-                cloudflareDomain.ensureCloudflareIpsConfig?.();
-                cloudflareDomain.ensureCloudflareIpsTimer?.(process.cwd());
-                cloudflareDomain.ensureNginxEnsureTimer?.(process.cwd());
-            } catch (error) {
-                console.warn('[Cloudflare] Auto-install timer skipped:', error?.message || error);
+            if (config?.deployment?.target === 'selfhost' && cloudflareOnly) {
+                try {
+                    cloudflareDomain.ensureCloudflareIpsConfig?.();
+                    cloudflareDomain.ensureCloudflareIpsTimer?.(process.cwd());
+                    cloudflareDomain.ensureNginxEnsureTimer?.(process.cwd());
+                } catch (error) {
+                    console.warn('[Cloudflare] Auto-install timer skipped:', error?.message || error);
+                }
             }
-        }
 
-        // Auto-setup Nginx reverse proxy (selfhost only)
-        if (cfConfig.domain && cfConfig.deployTarget !== 'render') {
-            const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain, true, false);
+            // Auto-setup Nginx reverse proxy (selfhost only)
+            if (cfConfig.domain && cfConfig.deployTarget !== 'render') {
+                const nginxResult = await cloudflareDomain.autoSetupNginx(cfConfig.domain, true, false);
                 if (nginxResult.success) {
                     if (nginxResult.cached) {
                         console.log(`[Nginx] Verified configuration for ${cfConfig.domain}`);
@@ -546,7 +550,7 @@ async function startBot() {
                         console.log(`[Nginx] ✅ Configured: ${cfConfig.domain} → localhost:3000`);
                     }
                 } else if (nginxResult.manual) {
-                    console.log(`[Nginx] ⚠️ Manual setup required (no sudo access)`);
+                    console.log('[Nginx] ⚠️ Manual setup required (no sudo access)');
                 } else if (nginxResult.error) {
                     console.log(`[Nginx] ⚠️ ${nginxResult.error}`);
                 }

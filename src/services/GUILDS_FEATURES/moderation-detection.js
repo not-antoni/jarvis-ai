@@ -187,7 +187,7 @@ const FALLBACK_PATTERNS = [
  * Get message fingerprint hash for copy-paste detection
  */
 function getMessageFingerprint(content) {
-    if (!content || content.length < 20) return null;
+    if (!content || content.length < 20) {return null;}
     const normalized = content.toLowerCase().replace(/\s+/g, ' ').trim();
     return crypto.createHash('md5').update(normalized).digest('hex');
 }
@@ -197,7 +197,7 @@ function getMessageFingerprint(content) {
  */
 function checkCopyPaste(guildId, userId, content) {
     const hash = getMessageFingerprint(content);
-    if (!hash) return { detected: false };
+    if (!hash) {return { detected: false };}
 
     const now = Date.now();
     let guildFingerprints = messageFingerprints.get(guildId) || [];
@@ -233,7 +233,7 @@ function checkCopyPaste(guildId, userId, content) {
  */
 function isFirstMessageInServer(guildId, userId) {
     const guildHistory = memberMessageHistory.get(guildId);
-    if (!guildHistory) return true;
+    if (!guildHistory) {return true;}
     const userHistory = guildHistory.get(userId);
     return !userHistory || userHistory.msgCount === 0;
 }
@@ -243,9 +243,9 @@ function isFirstMessageInServer(guildId, userId) {
  */
 function wasLongInactive(guildId, userId) {
     const guildHistory = memberMessageHistory.get(guildId);
-    if (!guildHistory) return false;
+    if (!guildHistory) {return false;}
     const userHistory = guildHistory.get(userId);
-    if (!userHistory || !userHistory.lastActive) return false;
+    if (!userHistory || !userHistory.lastActive) {return false;}
 
     const daysSinceActive = (Date.now() - userHistory.lastActive) / (1000 * 60 * 60 * 24);
     return daysSinceActive >= RISK_FACTORS.longInactive.days;
@@ -274,7 +274,7 @@ function recordMemberActivity(guildId, userId) {
  * Check if username matches suspicious patterns
  */
 function hasSuspiciousUsername(username) {
-    if (!username) return false;
+    if (!username) {return false;}
     return SUSPICIOUS_USERNAME_PATTERNS.some(pattern => pattern.test(username));
 }
 
@@ -284,14 +284,14 @@ function hasSuspiciousUsername(username) {
  * Check link against known bad domains
  */
 function checkKnownBadDomains(content) {
-    if (!content) return { found: false };
+    if (!content) {return { found: false };}
 
     const urlRegex = /https?:\/\/([^/\s]+)/gi;
     let match;
     while ((match = urlRegex.exec(content)) !== null) {
         const domain = match[1].toLowerCase();
         for (const badDomain of KNOWN_BAD_DOMAINS) {
-            if (domain === badDomain || domain.endsWith('.' + badDomain)) {
+            if (domain === badDomain || domain.endsWith(`.${  badDomain}`)) {
                 return { found: true, domain: badDomain };
             }
         }
@@ -305,7 +305,7 @@ function checkKnownBadDomains(content) {
  */
 async function checkGoogleSafeBrowsing(urls) {
     const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
-    if (!apiKey || urls.length === 0) return { unsafe: false, threats: [] };
+    if (!apiKey || urls.length === 0) {return { unsafe: false, threats: [] };}
 
     // Check cache first
     const now = Date.now();
@@ -373,7 +373,7 @@ async function checkGoogleSafeBrowsing(urls) {
  * Extract all URLs from content
  */
 function extractUrls(content) {
-    if (!content) return [];
+    if (!content) {return [];}
     const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi;
     return content.match(urlRegex) || [];
 }
@@ -529,7 +529,7 @@ function checkAutoModules(message, settings) {
     if (settings.antiSpam) {
         const key = `${guildId}:${userId}`;
         const now = Date.now();
-        let userData = spamTracker.get(key) || { messages: [], lastViolation: 0 };
+        const userData = spamTracker.get(key) || { messages: [], lastViolation: 0 };
 
         // Clean old messages outside window
         userData.messages = userData.messages.filter(t => now - t < settings.antiSpamWindow);
@@ -627,7 +627,7 @@ function checkAutoModules(message, settings) {
             try {
                 const domain = new URL(url).hostname.toLowerCase();
                 const isWhitelisted = whitelist.some(w =>
-                    domain === w.toLowerCase() || domain.endsWith('.' + w.toLowerCase())
+                    domain === w.toLowerCase() || domain.endsWith(`.${  w.toLowerCase()}`)
                 );
                 if (!isWhitelisted) {
                     return {
@@ -637,7 +637,9 @@ function checkAutoModules(message, settings) {
                         reason: `Link detected: ${domain}`
                     };
                 }
-            } catch { }
+            } catch {
+                // Invalid URL — skip
+            }
         }
     }
 
@@ -648,12 +650,12 @@ function checkAutoModules(message, settings) {
  * Check for raid (mass joins)
  */
 function checkRaidDetection(member, settings) {
-    if (!settings.antiRaid) return false;
+    if (!settings.antiRaid) {return false;}
 
     const guildId = member.guild.id;
     const now = Date.now();
 
-    let raidData = raidTracker.get(guildId) || { joins: [], inLockdown: false };
+    const raidData = raidTracker.get(guildId) || { joins: [], inLockdown: false };
 
     // Clean old joins
     raidData.joins = raidData.joins.filter(t => now - t < settings.antiRaidJoinWindow);
@@ -975,7 +977,7 @@ Server: ${context.guildName}`;
 // ============ TRACKING ============
 
 function shouldMonitorMember(member, settings) {
-    if (!settings.monitorNewMembers) return false;
+    if (!settings.monitorNewMembers) {return false;}
     const accountAge = Date.now() - member.user.createdAt.getTime();
     const thresholdMs = settings.newMemberThresholdDays * 24 * 60 * 60 * 1000;
     return accountAge < thresholdMs;
@@ -995,10 +997,10 @@ function startTracking(guildId, userId) {
 
 function isActivelyTracking(guildId, userId) {
     const guildTracked = trackedMembers.get(guildId);
-    if (!guildTracked) return false;
+    if (!guildTracked) {return false;}
 
     const tracking = guildTracked.get(userId);
-    if (!tracking) return false;
+    if (!tracking) {return false;}
 
     if (Date.now() - tracking.joinedAt > MONITORING_DURATION_MS) {
         guildTracked.delete(userId);

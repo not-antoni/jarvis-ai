@@ -98,7 +98,7 @@ async function createKey(userId, keyName = 'Default') {
     const newKey = {
         id: keyId,
         keyHash: hashedKey,
-        keyPreview: plainKey.slice(0, 8) + '...' + plainKey.slice(-4),
+        keyPreview: `${plainKey.slice(0, 8)  }...${  plainKey.slice(-4)}`,
         name: keyName.slice(0, 50),
         createdAt: new Date(),
         lastUsedAt: null,
@@ -369,7 +369,7 @@ async function notifyOwner(userId, keyId, ip, reason) {
 
         const ipInfo = await getIpInfo(ip);
         
-        const message = `🚨 **Suspicious API Activity Detected**\n\n` +
+        const message = '🚨 **Suspicious API Activity Detected**\n\n' +
             `**User ID:** ${userId}\n` +
             `**Key ID:** ${keyId}\n` +
             `**IP:** ${ip}\n` +
@@ -379,7 +379,7 @@ async function notifyOwner(userId, keyId, ip, reason) {
             `**Time:** ${new Date().toISOString()}`;
 
         await owner.send(message);
-        console.log(`[APIKeys] Sent suspicious activity alert to owner`);
+        console.log('[APIKeys] Sent suspicious activity alert to owner');
     } catch (err) {
         console.error('[APIKeys] Failed to notify owner:', err.message);
     }

@@ -77,7 +77,7 @@ async function safeDM(user, options) {
  * @returns {string[]}
  */
 function splitMessage(text, maxLength = 1900) {
-    if (!text || text.length <= maxLength) return [text];
+    if (!text || text.length <= maxLength) {return [text];}
 
     const chunks = [];
     let remaining = text;

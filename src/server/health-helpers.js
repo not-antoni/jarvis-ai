@@ -42,7 +42,7 @@ function extractBearerToken(req) {
 
 function isRenderHealthCheck(req) {
     const ua = String(req.headers?.['user-agent'] || '').toLowerCase();
-    if (ua.includes('render/health')) return true;
+    if (ua.includes('render/health')) {return true;}
 
     const forwardedFor = String(req.headers?.['x-forwarded-for'] || '')
         .split(',')[0]

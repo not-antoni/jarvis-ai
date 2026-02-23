@@ -1,7 +1,7 @@
 'use strict';
 
 function getDiscordAvatarUrl(discordUser) {
-    if (!discordUser || !discordUser.id) return '';
+    if (!discordUser || !discordUser.id) {return '';}
     if (discordUser.avatar) {
         const ext = String(discordUser.avatar).startsWith('a_') ? 'gif' : 'png';
         return `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.${ext}?size=64`;

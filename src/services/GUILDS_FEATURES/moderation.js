@@ -99,7 +99,7 @@ async function loadConfig() {
 async function saveConfig(guildId) {
     try {
         const config = enabledGuilds.get(guildId);
-        if (!config) return;
+        if (!config) {return;}
 
         // Prepare data for storage
         const data = {
@@ -216,7 +216,7 @@ function getDefaultSettings() {
         dailySummaryTime: '09:00', // Time in HH:MM (UTC)
 
         // Punishment DM templates
-        punishmentDMTemplate: '', // Custom DM message when punished
+        punishmentDMTemplate: '' // Custom DM message when punished
         // Variables: {user} {action} {reason} {guild} {duration}
     };
 }
@@ -321,7 +321,7 @@ function isWhitelisted(guildId, member) {
 
 function recordDetection(guildId, userId, category, reason = null, severity = 'medium') {
     const config = enabledGuilds.get(guildId);
-    if (!config) return;
+    if (!config) {return;}
 
     if (!config.stats) {
         config.stats = { total: 0, byCategory: {}, byUser: {} };
@@ -435,10 +435,10 @@ async function executeAutoModAction(message, member, action, reason, moduleName,
 // ============ MESSAGE HANDLER ============
 
 async function handleMessage(message, client) {
-    if (!message.guild || message.author.bot) return { handled: false };
+    if (!message.guild || message.author.bot) {return { handled: false };}
 
     const guildId = message.guild.id;
-    if (!isEnabled(guildId)) return { handled: false };
+    if (!isEnabled(guildId)) {return { handled: false };}
 
     const settings = getSettings(guildId);
     const userId = message.author.id;
@@ -521,14 +521,14 @@ async function handleMessage(message, client) {
     }
 
     // Analyze in background (non-blocking) - AI analysis for scams/threats
-    setImmediate(async () => {
+    setImmediate(async() => {
         try {
             let alertSent = false; // Only send one alert per message
 
             // Text analysis - pass full message and member for rich context
             if (message.content?.length > 3) {
                 const textResult = await detection.analyzeTextContent(message, member, settings);
-                const context = textResult.context;
+                const { context } = textResult;
                 const riskData = context ? detection.calculateRiskScore(message, member, context) : null;
 
                 if (textResult.success && textResult.result?.isUnsafe) {
@@ -572,7 +572,7 @@ async function handleMessage(message, client) {
             // Image analysis - only if no alert sent yet for this message
             if (!alertSent) {
                 for (const attachment of message.attachments.values()) {
-                    if (alertSent) break; // Stop after first alert
+                    if (alertSent) {break;} // Stop after first alert
                     if (attachment.contentType?.startsWith('image/')) {
                         const imageResult = await detection.analyzeImageContent(
                             attachment.url,
@@ -580,7 +580,7 @@ async function handleMessage(message, client) {
                             member,
                             settings
                         );
-                        const context = imageResult.context;
+                        const { context } = imageResult;
                         const riskData = context ? detection.calculateRiskScore(message, member, context) : null;
 
                         if (imageResult.success && imageResult.result?.isUnsafe) {
@@ -632,7 +632,7 @@ async function handleMessage(message, client) {
 
 async function handleMemberJoin(member, client) {
     const guildId = member.guild.id;
-    if (!isEnabled(guildId)) return { handled: false };
+    if (!isEnabled(guildId)) {return { handled: false };}
 
     const settings = getSettings(guildId);
 
@@ -649,8 +649,8 @@ async function handleMemberJoin(member, client) {
 
             if (alertChannel) {
                 const pings = [];
-                if (settings.pingOwner) pings.push(`<@${member.guild.ownerId}>`);
-                for (const roleId of settings.pingRoles || []) pings.push(`<@&${roleId}>`);
+                if (settings.pingOwner) {pings.push(`<@${member.guild.ownerId}>`);}
+                for (const roleId of settings.pingRoles || []) {pings.push(`<@&${roleId}>`);}
 
                 await alertChannel.send(
                     `🚨 **RAID DETECTED** ${pings.join(' ')}\n\n` +

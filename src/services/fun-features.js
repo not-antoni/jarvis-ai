@@ -1414,7 +1414,7 @@ function generateFight(attacker, defender) {
 
         moves.push(`${move}\n${result} (-${damage} HP)`);
 
-        if (attackerHP <= 0 || defenderHP <= 0) break;
+        if (attackerHP <= 0 || defenderHP <= 0) {break;}
     }
 
     const winner = attackerHP > defenderHP ? attacker : defender;
@@ -1428,7 +1428,7 @@ function generateShipName(name1, name2) {
     const shipName = half1 + half2;
 
     const prefix = randomChoice(shipPrefixes);
-    const suffix = Math.random() < 0.3 ? ' ' + randomChoice(shipSuffixes) : '';
+    const suffix = Math.random() < 0.3 ? ` ${  randomChoice(shipSuffixes)}` : '';
 
     return `${prefix} ${shipName}${suffix}`;
 }
@@ -1447,13 +1447,13 @@ function calculateCompatibility(id1, id2) {
 function rollDice(notation) {
     // Parse dice notation like "2d6" or "1d20"
     const match = notation.toLowerCase().match(/^(\d+)?d(\d+)([+-]\d+)?$/);
-    if (!match) return null;
+    if (!match) {return null;}
 
     const count = parseInt(match[1]) || 1;
     const sides = parseInt(match[2]);
     const modifier = parseInt(match[3]) || 0;
 
-    if (count > 100 || sides > 1000) return null;
+    if (count > 100 || sides > 1000) {return null;}
 
     const rolls = [];
     for (let i = 0; i < count; i++) {
@@ -1465,7 +1465,7 @@ function rollDice(notation) {
         rolls,
         total,
         modifier,
-        notation: `${count}d${sides}${modifier >= 0 && modifier !== 0 ? '+' + modifier : modifier !== 0 ? modifier : ''}`
+        notation: `${count}d${sides}${modifier >= 0 && modifier !== 0 ? `+${  modifier}` : modifier !== 0 ? modifier : ''}`
     };
 }
 

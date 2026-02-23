@@ -9,14 +9,14 @@ const path = require('path');
 async function loadGifFrame(url) {
     const tempDir = '/tmp';
     // Ensure temp dir logic is safe? /tmp usually exists.
-    const id = Date.now() + '_' + Math.floor(Math.random() * 10000);
+    const id = `${Date.now()  }_${  Math.floor(Math.random() * 10000)}`;
     const inputPath = path.join(tempDir, `quote_${id}.gif`);
     const outputPath = path.join(tempDir, `quote_${id}.png`);
 
     try {
         // Download
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`Fetch failed: ${res.statusText}`);
+        if (!res.ok) {throw new Error(`Fetch failed: ${res.statusText}`);}
         const buffer = await res.arrayBuffer();
         fs.writeFileSync(inputPath, Buffer.from(buffer));
 
@@ -32,7 +32,7 @@ async function loadGifFrame(url) {
         await exec(cmd);
 
         if (!fs.existsSync(outputPath)) {
-            throw new Error("FFmpeg produced no output");
+            throw new Error('FFmpeg produced no output');
         }
 
         const image = await loadImage(outputPath);
@@ -44,9 +44,9 @@ async function loadGifFrame(url) {
         return image;
 
     } catch (e) {
-        console.warn("GIF processing failed, falling back to direct load", e.message);
-        try { if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath); } catch (err) { }
-        try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch (err) { }
+        console.warn('GIF processing failed, falling back to direct load', e.message);
+        try { if (fs.existsSync(inputPath)) {fs.unlinkSync(inputPath);} } catch (err) { }
+        try { if (fs.existsSync(outputPath)) {fs.unlinkSync(outputPath);} } catch (err) { }
 
         return await loadImage(url);
     }
@@ -56,7 +56,7 @@ async function loadGifFrame(url) {
  * Strip Discord markdown from text for clean display
  */
 function stripMarkdown(text) {
-    if (!text) return text;
+    if (!text) {return text;}
     return text
         // Bold/italic combinations
         .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
@@ -81,7 +81,7 @@ function stripMarkdown(text) {
  * Handles: Bold, Italic, Bold Italic, Script, Fraktur, Double-Struck, Monospace, etc.
  */
 function normalizeNitroFonts(text) {
-    if (!text) return text;
+    if (!text) {return text;}
 
     // Unicode ranges for fancy fonts -> ASCII mappings
     const fontRanges = [
@@ -133,7 +133,7 @@ function normalizeNitroFonts(text) {
         // Mathematical Sans-Serif Bold Digits (𝟬-𝟵)
         { start: 0x1D7EC, end: 0x1D7F5, baseChar: '0' },
         // Mathematical Monospace Digits (𝟶-𝟿)
-        { start: 0x1D7F6, end: 0x1D7FF, baseChar: '0' },
+        { start: 0x1D7F6, end: 0x1D7FF, baseChar: '0' }
     ];
 
     let result = '';
@@ -180,7 +180,7 @@ function tokenizeText(text) {
     const customEmojiRegex = /<a?:(\w+):(\d+)>/g;
     const unicodeEmojiRegex = emojiRegex();
 
-    let currentIndex = 0;
+    const currentIndex = 0;
 
     const customMatches = [...text.matchAll(customEmojiRegex)];
 
@@ -192,7 +192,7 @@ function tokenizeText(text) {
         const addWords = (str) => {
             const words = str.split(/(\s+)/);
             for (const w of words) {
-                if (w.length > 0) subTokens.push({ type: 'text', content: w });
+                if (w.length > 0) {subTokens.push({ type: 'text', content: w });}
             }
         };
 
@@ -255,7 +255,7 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
             currentWidth += tokenWidth;
         }
     }
-    if (currentLine.length > 0) lines.push(currentLine);
+    if (currentLine.length > 0) {lines.push(currentLine);}
     return lines;
 }
 
@@ -285,7 +285,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     // Emojis
     tokens.forEach(t => {
         if (t.type === 'custom') {
-            assetsToLoad.push((async () => {
+            assetsToLoad.push((async() => {
                 // Try webp first (Discord's preferred format), then gif for animated, then png
                 const formats = ['webp', 'gif', 'png'];
                 for (const format of formats) {
@@ -301,7 +301,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
                 t.content = `:${t.name}:`;
             })());
         } else if (t.type === 'unicode') {
-            assetsToLoad.push((async () => {
+            assetsToLoad.push((async() => {
                 // Try multiple URL patterns for Twemoji
                 const code = getTwemojiCode(t.content);
 
@@ -325,7 +325,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
                 // All URLs failed - mark as text fallback (will render the actual emoji character)
                 t.failed = true;
                 t.type = 'text';
-                t.content = t.content; // Keep original emoji to render as text
+                // t.content already holds the original emoji — render as text
             })());
         }
     });
@@ -333,7 +333,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     // Attachment
     let attachmentImage = null;
     if (attachmentImageUrl) {
-        assetsToLoad.push((async () => {
+        assetsToLoad.push((async() => {
             try {
                 const isGif = attachmentImageUrl.split('?')[0].toLowerCase().endsWith('.gif');
                 if (isGif) {
@@ -342,7 +342,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
                     attachmentImage = await loadImage(attachmentImageUrl);
                 }
             }
-            catch (e) { console.warn("Failed to load attachment", e); }
+            catch (e) { console.warn('Failed to load attachment', e); }
         })());
     }
 
@@ -423,7 +423,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
         const bgCanvas = createCanvas(width, canvasHeight);
         const bgCtx = bgCanvas.getContext('2d');
-        if (bgCtx.filter) bgCtx.filter = 'blur(40px) brightness(0.4)';
+        if (bgCtx.filter) {bgCtx.filter = 'blur(40px) brightness(0.4)';}
         bgCtx.drawImage(avatar, 0, 0, width, canvasHeight);
         ctx.drawImage(bgCanvas, 0, 0);
 
@@ -437,7 +437,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
         const avCanvas = createCanvas(drawWidth, drawHeight);
         const avCtx = avCanvas.getContext('2d');
-        if (avCtx.filter) avCtx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';
+        if (avCtx.filter) {avCtx.filter = 'grayscale(100%) contrast(1.2) brightness(0.8)';}
         avCtx.drawImage(avatar, 0, 0, drawWidth, drawHeight);
         ctx.drawImage(avCanvas, 0, (canvasHeight - drawHeight) / 2);
 
@@ -466,8 +466,8 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     lines.forEach((line) => {
         let lineWidth = 0;
         line.forEach(t => {
-            if (t.type === 'text') lineWidth += ctx.measureText(t.content).width;
-            else lineWidth += finalFontSize * 1.1;
+            if (t.type === 'text') {lineWidth += ctx.measureText(t.content).width;}
+            else {lineWidth += finalFontSize * 1.1;}
         });
 
         let currentX = textCenterX - (lineWidth / 2);
@@ -535,7 +535,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     const nameAssets = [];
     nameTokens.forEach(t => {
         if (t.type === 'custom') {
-            nameAssets.push((async () => {
+            nameAssets.push((async() => {
                 // Try webp first, then gif for animated, then png
                 const formats = ['webp', 'gif', 'png'];
                 for (const format of formats) {
@@ -550,7 +550,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
                 t.content = `:${t.name}:`;
             })());
         } else if (t.type === 'unicode') {
-            nameAssets.push((async () => {
+            nameAssets.push((async() => {
                 const code = getTwemojiCode(t.content);
                 const urls = [
                     `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${code}.png`,
@@ -567,7 +567,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
                 }
                 t.failed = true;
                 t.type = 'text';
-                t.content = t.content;
+                // t.content already holds the original emoji — render as text
             })());
         }
     });
@@ -586,8 +586,8 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     nameTotalWidth += ctx.measureText('- ').width;
 
     nameTokens.forEach(t => {
-        if (t.type === 'text') nameTotalWidth += ctx.measureText(t.content).width;
-        else nameTotalWidth += nameFontSize * 1.1;
+        if (t.type === 'text') {nameTotalWidth += ctx.measureText(t.content).width;}
+        else {nameTotalWidth += nameFontSize * 1.1;}
     });
 
     let currentNameX = textCenterX - (nameTotalWidth / 2);

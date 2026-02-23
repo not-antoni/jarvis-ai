@@ -66,7 +66,7 @@ class CaptchaHandler {
             const siteKey = await page.evaluate(() => {
                 // Try to extract site key
                 const script = document.querySelector('[data-sitekey]');
-                if (script) return script.getAttribute('data-sitekey');
+                if (script) {return script.getAttribute('data-sitekey');}
 
                 const elem = document.querySelector('.g-recaptcha, .h-captcha');
                 if (elem) {
@@ -96,7 +96,7 @@ class CaptchaHandler {
                     window.hcaptcha.remove();
                     // Submit form if available
                     const form = document.querySelector('form');
-                    if (form) form.submit();
+                    if (form) {form.submit();}
                 }
             }, token);
 

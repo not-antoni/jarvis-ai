@@ -9,7 +9,7 @@ const BOT_OWNER_ID = (process.env.BOT_OWNER_ID || process.env.ADMIN_USER_ID || '
  * (Ban, Kick, Maintain Members permissions)
  */
 function hasTrueModPerms(member) {
-    if (!member) return false;
+    if (!member) {return false;}
     return member.permissions.has(PermissionFlagsBits.BanMembers) &&
         member.permissions.has(PermissionFlagsBits.KickMembers) &&
         member.permissions.has(PermissionFlagsBits.ModerateMembers);
@@ -20,22 +20,22 @@ function hasTrueModPerms(member) {
  * Criteria: Bot Owner OR Guild Owner OR Administrator OR True Mod
  */
 function isDjAdmin(member, guildConfig) {
-    if (!member) return false;
+    if (!member) {return false;}
 
     // 1. Bot Owner override (uses centralized owner check)
-    if (isOwnerCheck(member.id)) return true;
+    if (isOwnerCheck(member.id)) {return true;}
 
     // 2. Guild Owner override
-    if (member.guild.ownerId === member.id) return true;
+    if (member.guild.ownerId === member.id) {return true;}
 
     // 3. Configured Owner Match
-    if (guildConfig && guildConfig.ownerId === member.id) return true;
+    if (guildConfig && guildConfig.ownerId === member.id) {return true;}
 
     // 4. Administrator Permission
-    if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+    if (member.permissions.has(PermissionFlagsBits.Administrator)) {return true;}
 
     // 5. "True Mod" check
-    if (hasTrueModPerms(member)) return true;
+    if (hasTrueModPerms(member)) {return true;}
 
     return false;
 }
@@ -45,19 +45,19 @@ function isDjAdmin(member, guildConfig) {
  * Criteria: isDjAdmin OR Has DJ Role OR Is Whitelisted DJ User
  */
 function isDj(member, guildConfig) {
-    if (!member) return false;
-    if (!guildConfig) return false; // Secure default: deny if config unavailable
+    if (!member) {return false;}
+    if (!guildConfig) {return false;} // Secure default: deny if config unavailable
 
     // Admins are always DJs
-    if (isDjAdmin(member, guildConfig)) return true;
+    if (isDjAdmin(member, guildConfig)) {return true;}
 
     // Check specific DJ Users list
-    if (guildConfig.djUserIds && guildConfig.djUserIds.includes(member.id)) return true;
+    if (guildConfig.djUserIds && guildConfig.djUserIds.includes(member.id)) {return true;}
 
     // Check DJ Roles
     if (guildConfig.djRoleIds && guildConfig.djRoleIds.length > 0) {
         const hasDjRole = member.roles.cache.some(role => guildConfig.djRoleIds.includes(role.id));
-        if (hasDjRole) return true;
+        if (hasDjRole) {return true;}
     }
 
     return false;
@@ -67,7 +67,7 @@ function isDj(member, guildConfig) {
  * Check if a user is blocked from using music commands
  */
 function isBlocked(userId, guildConfig) {
-    if (!guildConfig) return false;
+    if (!guildConfig) {return false;}
     return guildConfig.blockedUserIds && guildConfig.blockedUserIds.includes(userId);
 }
 
@@ -76,8 +76,8 @@ function isBlocked(userId, guildConfig) {
  * Usage: if (!await canControlMusic(interaction)) return;
  */
 async function canControlMusic(interactionOrMessage, guildConfig = null) {
-    const member = interactionOrMessage.member;
-    const guildId = interactionOrMessage.guildId;
+    const { member } = interactionOrMessage;
+    const { guildId } = interactionOrMessage;
     const userId = member.id;
 
     // Fetch config if not provided
@@ -88,8 +88,8 @@ async function canControlMusic(interactionOrMessage, guildConfig = null) {
     // 1. Check Blocklist (Except Bot Owner)
     if (!isOwnerCheck(userId) && isBlocked(userId, guildConfig)) {
         const reply = { content: '🚫 You are blocked from using music commands.', ephemeral: true };
-        if (interactionOrMessage.reply) await interactionOrMessage.reply(reply);
-        else interactionOrMessage.channel.send(reply);
+        if (interactionOrMessage.reply) {await interactionOrMessage.reply(reply);}
+        else {interactionOrMessage.channel.send(reply);}
         return false;
     }
 
@@ -106,8 +106,8 @@ async function canControlMusic(interactionOrMessage, guildConfig = null) {
                 content: '🔒 **DJ Mode is Active**\nYou need the DJ role or Admin permissions to control music.',
                 ephemeral: true
             };
-            if (interactionOrMessage.reply) await interactionOrMessage.reply(reply);
-            else interactionOrMessage.channel.send(reply);
+            if (interactionOrMessage.reply) {await interactionOrMessage.reply(reply);}
+            else {interactionOrMessage.channel.send(reply);}
             return false;
         }
     }

@@ -145,7 +145,7 @@ function buildFilterChain(effectNames) {
         .map(name => getEffect(name)?.filter)
         .filter(Boolean);
 
-    if (filters.length === 0) return null;
+    if (filters.length === 0) {return null;}
     return filters.join(',');
 }
 
@@ -156,7 +156,7 @@ function buildFilterChain(effectNames) {
  */
 function formatEffectDisplay(effectName) {
     const effect = getEffect(effectName);
-    if (!effect) return '❓ Unknown Effect';
+    if (!effect) {return '❓ Unknown Effect';}
     return `${effect.emoji} ${effect.name}`;
 }
 
@@ -215,5 +215,5 @@ module.exports = {
     buildFilterChain,
     formatEffectDisplay,
     applyEffectToQueue,
-    getOutputArgsWithEffect,
+    getOutputArgsWithEffect
 };

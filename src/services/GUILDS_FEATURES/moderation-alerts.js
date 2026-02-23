@@ -164,7 +164,7 @@ function buildAlertEmbed(message, result, contentType, context, riskData) {
     if (context) {
         embed.addFields({
             name: '🔍 Account Info',
-            value: `Account Age: **${context.accountAgeDays}** days\nMember Since: **${context.memberAgeDays !== null ? context.memberAgeDays + ' days' : 'Unknown'}**\nHas Avatar: ${message.author.avatar ? '✅' : '❌'}`,
+            value: `Account Age: **${context.accountAgeDays}** days\nMember Since: **${context.memberAgeDays !== null ? `${context.memberAgeDays  } days` : 'Unknown'}**\nHas Avatar: ${message.author.avatar ? '✅' : '❌'}`,
             inline: true
         });
     }
@@ -214,9 +214,9 @@ async function sendAlert(message, result, contentType, client, context, riskData
 
     // Build pings
     const pings = [];
-    if (settings.pingOwner) pings.push(`<@${message.guild.ownerId}>`);
-    for (const roleId of settings.pingRoles || []) pings.push(`<@&${roleId}>`);
-    for (const userId of settings.pingUsers || []) pings.push(`<@${userId}>`);
+    if (settings.pingOwner) {pings.push(`<@${message.guild.ownerId}>`);}
+    for (const roleId of settings.pingRoles || []) {pings.push(`<@&${roleId}>`);}
+    for (const userId of settings.pingUsers || []) {pings.push(`<@${userId}>`);}
     const pingString = pings.join(' ');
 
     // Build alert message

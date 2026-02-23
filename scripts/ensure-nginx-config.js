@@ -1,7 +1,7 @@
 require('dotenv').config();
 const cloudflareDomain = require('../src/services/cloudflare-domain');
 
-(async () => {
+(async() => {
     try {
         const config = cloudflareDomain.getConfig();
         const domain = config.domain || '';

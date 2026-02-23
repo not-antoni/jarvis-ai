@@ -109,10 +109,10 @@ async function checkMongoConnection() {
 async function readMongo(collectionName) {
     try {
         const database = require('./database');
-        if (!database?.isConnected) return null;
+        if (!database?.isConnected) {return null;}
 
         const collection = database.getCollection(collectionName);
-        if (!collection) return null;
+        if (!collection) {return null;}
 
         const docs = await collection.find({}).toArray();
         return docs;
@@ -128,10 +128,10 @@ async function readMongo(collectionName) {
 async function writeMongo(collectionName, data) {
     try {
         const database = require('./database');
-        if (!database?.isConnected) return false;
+        if (!database?.isConnected) {return false;}
 
         const collection = database.getCollection(collectionName);
-        if (!collection) return false;
+        if (!collection) {return false;}
 
         // For array of documents
         if (Array.isArray(data)) {
@@ -265,10 +265,10 @@ async function smartWrite(collectionName, data) {
  * Sync all pending changes to MongoDB when connection restored
  */
 async function syncPendingChanges() {
-    if (syncState.pendingChanges.length === 0) return;
+    if (syncState.pendingChanges.length === 0) {return;}
 
     const mongoAvailable = await checkMongoConnection();
-    if (!mongoAvailable) return;
+    if (!mongoAvailable) {return;}
 
     console.log(
         `[DataSync] Syncing ${syncState.pendingChanges.length} pending changes to MongoDB...`
@@ -350,7 +350,7 @@ function getSyncStatus() {
 }
 
 // Check MongoDB connection periodically and sync pending changes
-setInterval(async () => {
+setInterval(async() => {
     const wasAvailable = syncState.mongoAvailable;
     const isAvailable = await checkMongoConnection();
 

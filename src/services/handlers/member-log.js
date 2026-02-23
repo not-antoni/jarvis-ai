@@ -177,7 +177,7 @@ function formatMemberLogMessage(template, member, type) {
         return null;
     }
 
-    const guild = member.guild;
+    const { guild } = member;
     const user = member.user || member;
     const mention = member.id ? `<@${member.id}>` : (user?.username || 'A member');
     const username = user?.username || member.displayName || 'A member';
@@ -231,7 +231,7 @@ async function sendMemberLogEvent(handler, member, type) {
         return;
     }
 
-    const guild = member.guild;
+    const { guild } = member;
     const config = await getCachedMemberLogConfig(handler, guild.id);
     if (!config || !config.enabled || !config.channelId) {
         return;
@@ -321,7 +321,7 @@ async function handleGuildMemberRemove(handler, member) {
 }
 
 async function handleMemberLogCommand(handler, interaction) {
-    const guild = interaction.guild;
+    const { guild } = interaction;
 
     if (!guild) {
         await interaction.editReply('This command may only be used within a server, sir.');

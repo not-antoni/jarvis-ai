@@ -139,8 +139,8 @@ class UserFeaturesService {
         this.loadRemindersFromDatabase();
         this.isInitialized = true;
         console.log(
-            '[UserFeatures] Service initialized' +
-                (discordClient ? ' with Discord client' : ' (no Discord client)')
+            `[UserFeatures] Service initialized${ 
+                discordClient ? ' with Discord client' : ' (no Discord client)'}`
         );
     }
 
@@ -156,7 +156,7 @@ class UserFeaturesService {
      * Load reminders from database on startup
      */
     async loadRemindersFromDatabase() {
-        if (!this.database) return;
+        if (!this.database) {return;}
 
         if (typeof this.database.getActiveReminders !== 'function') {
             if (!this._warned.has('reminders:getActiveReminders')) {
@@ -176,7 +176,7 @@ class UserFeaturesService {
                         rem?.scheduledFor instanceof Date
                             ? rem.scheduledFor.getTime()
                             : Number(rem?.scheduledFor);
-                    if (!Number.isFinite(scheduledFor)) continue;
+                    if (!Number.isFinite(scheduledFor)) {continue;}
 
                     const createdAt =
                         rem?.createdAt instanceof Date
@@ -364,8 +364,8 @@ class UserFeaturesService {
             const minutes = parseInt(atTimeMatch[2] || '0', 10);
             const period = atTimeMatch[3]?.toLowerCase();
 
-            if (period === 'pm' && hours < 12) hours += 12;
-            if (period === 'am' && hours === 12) hours = 0;
+            if (period === 'pm' && hours < 12) {hours += 12;}
+            if (period === 'am' && hours === 12) {hours = 0;}
 
             targetTime = new Date(now);
             targetTime.setHours(hours, minutes, 0, 0);
@@ -385,7 +385,7 @@ class UserFeaturesService {
             if (!atTimeMatch) {
                 targetTime.setHours(9, 0, 0, 0); // Default to 9am
             }
-            humanReadable = 'tomorrow' + (atTimeMatch ? ` ${humanReadable}` : ' at 9:00 AM');
+            humanReadable = `tomorrow${  atTimeMatch ? ` ${humanReadable}` : ' at 9:00 AM'}`;
         }
 
         return targetTime ? { time: targetTime, humanReadable } : null;
@@ -488,7 +488,7 @@ class UserFeaturesService {
      * Start the reminder checker interval
      */
     startReminderChecker() {
-        if (this.reminderCheckInterval) return;
+        if (this.reminderCheckInterval) {return;}
 
         // Check every 15 seconds for better accuracy
         this.reminderCheckInterval = setInterval(() => {
@@ -533,13 +533,13 @@ class UserFeaturesService {
             }
         }
 
-        if (dueIds.length === 0) return;
+        if (dueIds.length === 0) {return;}
 
         console.log(`[UserFeatures] Processing ${dueIds.length} due reminder(s)`);
 
         for (const id of dueIds) {
             const reminder = activeReminders.get(id);
-            if (!reminder) continue;
+            if (!reminder) {continue;}
 
             const ok = await this.deliverReminder(reminder);
             if (ok) {
@@ -586,9 +586,9 @@ class UserFeaturesService {
             timestamp: new Date().toISOString()
         };
 
-        const trySendToChannel = async () => {
-            const channelId = reminder.channelId;
-            if (!channelId) return false;
+        const trySendToChannel = async() => {
+            const { channelId } = reminder;
+            if (!channelId) {return false;}
             const channel = await this.discordClient.channels.fetch(channelId).catch(() => null);
             if (!channel || typeof channel.send !== 'function') {
                 return false;
@@ -637,9 +637,9 @@ class UserFeaturesService {
     formatRelativeTime(timestamp) {
         const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
-        if (seconds < 60) return 'just now';
-        if (seconds < 3600) return `${Math.floor(seconds / 60)} minute(s) ago`;
-        if (seconds < 86400) return `${Math.floor(seconds / 3600)} hour(s) ago`;
+        if (seconds < 60) {return 'just now';}
+        if (seconds < 3600) {return `${Math.floor(seconds / 60)} minute(s) ago`;}
+        if (seconds < 86400) {return `${Math.floor(seconds / 3600)} hour(s) ago`;}
         return `${Math.floor(seconds / 86400)} day(s) ago`;
     }
 
@@ -696,7 +696,7 @@ class UserFeaturesService {
      */
     async matchesWakeWord(userId, content) {
         const customWord = await this.getWakeWord(userId);
-        if (!customWord) return false;
+        if (!customWord) {return false;}
 
         const pattern = new RegExp(`\\b${customWord}\\b`, 'i');
         return pattern.test(content);
@@ -727,7 +727,7 @@ class UserFeaturesService {
      */
     async getGuildWakeWord(guildId) {
         const database = require('./database');
-        if (!database.isConnected) return null;
+        if (!database.isConnected) {return null;}
         const guildConfig = await database.getGuildConfig(guildId);
         return guildConfig?.customWakeWord || null;
     }
@@ -745,9 +745,9 @@ class UserFeaturesService {
      * Check if message contains the guild's custom wake word
      */
     async matchesGuildWakeWord(guildId, content) {
-        if (!guildId) return false;
+        if (!guildId) {return false;}
         const guildWord = await this.getGuildWakeWord(guildId);
-        if (!guildWord) return false;
+        if (!guildWord) {return false;}
 
         const pattern = new RegExp(`\\b${guildWord}\\b`, 'i');
         return pattern.test(content);
@@ -795,7 +795,7 @@ class UserFeaturesService {
      * Persist session stats to database
      */
     async flushStats(userId) {
-        if (!this.database) return;
+        if (!this.database) {return;}
 
         const prefs = await this.getUserPrefs(userId);
         prefs.stats = prefs.stats || {};
@@ -818,7 +818,7 @@ class UserFeaturesService {
      * Detect user mood from message
      */
     detectMood(content) {
-        if (!content || typeof content !== 'string') return 'neutral';
+        if (!content || typeof content !== 'string') {return 'neutral';}
 
         const lower = content.toLowerCase();
         const scores = { frustrated: 0, excited: 0, sad: 0, confused: 0 };
@@ -892,7 +892,7 @@ class UserFeaturesService {
     async getUserPrefs(userId) {
         // Check cache first
         let prefs = userPrefsCache.get(userId);
-        if (prefs) return prefs;
+        if (prefs) {return prefs;}
 
         // Load from database
         if (this.database) {

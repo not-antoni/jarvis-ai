@@ -236,7 +236,7 @@ const commands = {
             log.agent(`Executing tool: ${colors.cyan}${toolName}${colors.reset}`);
             const result = await codex.executeTool(toolName, args);
             if (result.success) {
-                log.success(`Tool executed`);
+                log.success('Tool executed');
                 console.log(JSON.stringify(result.result, null, 2));
             } else {
                 log.error(`Tool failed: ${result.error}`);
@@ -291,7 +291,7 @@ const commands = {
         log.agent(`Getting images for: ${query}`);
         const result = await codex.executeTool('get_images', { query, count: 10 });
         if (result.success) {
-            log.success(`Retrieved image data`);
+            log.success('Retrieved image data');
             console.log(JSON.stringify(result.result, null, 2));
         } else {
             log.error(`Failed: ${result.error}`);
@@ -303,7 +303,7 @@ const commands = {
             log.error('Usage: /analyze <text>');
             return;
         }
-        log.agent(`Analyzing text...`);
+        log.agent('Analyzing text...');
         const result = await codex.executeTool('analyze_text', { text });
         if (result.success) {
             log.success('Analysis complete');
@@ -378,7 +378,7 @@ const commands = {
         log.agent(`Executing ${queryList.length} queries in batch mode...`);
         try {
             const results = await codex.batchExecute(queryList);
-            log.success(`Batch complete`);
+            log.success('Batch complete');
             results.forEach((r, i) => {
                 console.log(`  ${i + 1}. ${r.query}`);
             });
@@ -395,7 +395,7 @@ const commands = {
   Total Executions: ${colors.cyan}${insights.stats.totalExecutions}${colors.reset}
   Success Rate: ${colors.cyan}${(insights.stats.successRate * 100).toFixed(1)}%${colors.reset}
   Cache Hits: ${colors.cyan}${insights.stats.cacheHits}${colors.reset}
-  Cache Hit Rate: ${colors.cyan}${insights.stats.cacheHitRate ? (insights.stats.cacheHitRate * 100).toFixed(1) + '%' : 'N/A'}${colors.reset}
+  Cache Hit Rate: ${colors.cyan}${insights.stats.cacheHitRate ? `${(insights.stats.cacheHitRate * 100).toFixed(1)  }%` : 'N/A'}${colors.reset}
         `);
     },
 
@@ -428,7 +428,7 @@ ${colors.reset}
 
 async function handleCommand(input) {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed) {return;}
 
     if (trimmed.startsWith('/')) {
         const [cmd, ...args] = trimmed.slice(1).split(' ');
@@ -446,7 +446,7 @@ async function handleCommand(input) {
     } else {
         // Natural language query
         log.user(input);
-        log.agent(`Processing natural language query...`);
+        log.agent('Processing natural language query...');
         try {
             const discovered = codex.discoverTools(input, { limit: 3 });
             if (discovered.length === 0) {

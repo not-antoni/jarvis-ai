@@ -68,13 +68,13 @@ parentPort.on('message', ({ code, language, timeoutMs }) => {
             const resultStr = result !== undefined ? String(result) : '';
 
             let combined = '';
-            if (output) combined += output;
+            if (output) {combined += output;}
             if (resultStr && resultStr !== 'undefined') {
-                if (combined) combined += '\n';
+                if (combined) {combined += '\n';}
                 combined += `=> ${resultStr}`;
             }
             if (errorOutput) {
-                if (combined) combined += '\n';
+                if (combined) {combined += '\n';}
                 combined += `[stderr] ${errorOutput}`;
             }
 

@@ -79,7 +79,7 @@ function sanitizeUrl(url) {
  * Get or create shared browser agent
  */
 function getBrowserAgent() {
-    if (!BrowserAgent) return null;
+    if (!BrowserAgent) {return null;}
 
     if (!sharedBrowser) {
         const browserConfig = {
@@ -114,7 +114,7 @@ async function fetchWithBrowser(url) {
             throw new Error('Failed to create browser session');
         }
 
-        const page = session.page;
+        const { page } = session;
         await page.setViewport({ width: 1280, height: 800 });
 
         // Navigate with timeout
@@ -131,7 +131,7 @@ async function fetchWithBrowser(url) {
 
             // Try to find main content
             const main = document.querySelector('article, main, [role="main"]');
-            if (main) return main.innerText;
+            if (main) {return main.innerText;}
 
             return document.body?.innerText || '';
         });
@@ -204,7 +204,7 @@ async function fetchPage(url, { maxBytes = DEFAULT_MAX_BYTES } = {}) {
                 received += chunk.length;
                 if (received > maxBytes) {
                     const keep = maxBytes - (received - chunk.length);
-                    if (keep > 0) chunks.push(chunk.slice(0, keep));
+                    if (keep > 0) {chunks.push(chunk.slice(0, keep));}
                     res.body.destroy();
                     resolve();
                 } else {
@@ -251,7 +251,7 @@ function extractText(html) {
 function getAI() {
     if (FreeAIProvider) {
         const ai = new FreeAIProvider();
-        if (ai.isAvailable()) return ai;
+        if (ai.isAvailable()) {return ai;}
     }
     return aiManager;
 }
@@ -263,7 +263,7 @@ async function summarizeText({ title, text, url, hasScreenshot }) {
     const truncated = text.slice(0, 4000);
     const ai = getAI();
 
-    const systemPrompt = `You are JARVIS, an advanced AI assistant. Provide a concise, informative summary of the web page. Use bullet points for key information. Keep it under 150 words. Be helpful and precise.`;
+    const systemPrompt = 'You are JARVIS, an advanced AI assistant. Provide a concise, informative summary of the web page. Use bullet points for key information. Keep it under 150 words. Be helpful and precise.';
 
     const userPrompt = `URL: ${url}
 Title: ${title || 'N/A'}
@@ -296,7 +296,7 @@ ${truncated}`;
         const fallback = sentences.slice(0, 3).join(' ').trim();
         summary = fallback
             ? `📄 **${title || 'Page'}**\n\n${fallback}...`
-            : `Page loaded but no summary available.`;
+            : 'Page loaded but no summary available.';
     }
 
     return String(summary).trim();
@@ -371,7 +371,7 @@ async function screenshotUrl(url) {
     try {
         await browser.startSession(sessionKey);
         const session = browser.getSession(sessionKey);
-        const page = session.page;
+        const { page } = session;
 
         await page.setViewport({ width: 1280, height: 800 });
         await page.goto(safeUrl, { waitUntil: 'networkidle2', timeout: 15000 });

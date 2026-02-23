@@ -26,8 +26,8 @@ module.exports = function createGames({
         const user = await loadUser(userId);
         const arcPerks = await getArcReactorPerks(userId);
 
-        if (amount < 1) return { success: false, error: 'Minimum bet is 1 Stark Buck' };
-        if (amount > user.balance) return { success: false, error: 'Insufficient funds' };
+        if (amount < 1) {return { success: false, error: 'Minimum bet is 1 Stark Buck' };}
+        if (amount > user.balance) {return { success: false, error: 'Insufficient funds' };}
 
         // Check for lucky charm
         const effects = await getActiveEffects(userId);
@@ -52,9 +52,9 @@ module.exports = function createGames({
         user.balance += change;
         user.totalGambled = (user.totalGambled || 0) + amount;
         user.gamesPlayed = (user.gamesPlayed || 0) + 1;
-        if (won) user.gamesWon = (user.gamesWon || 0) + 1;
-        if (change > 0) user.totalEarned = (user.totalEarned || 0) + change;
-        else user.totalLost = (user.totalLost || 0) + Math.abs(change);
+        if (won) {user.gamesWon = (user.gamesWon || 0) + 1;}
+        if (change > 0) {user.totalEarned = (user.totalEarned || 0) + change;}
+        else {user.totalLost = (user.totalLost || 0) + Math.abs(change);}
 
         await saveUser(userId, user);
 
@@ -79,8 +79,8 @@ module.exports = function createGames({
             return { success: false, error: 'Invalid bet amount' };
         }
 
-        if (normalizedBet < 10) return { success: false, error: 'Minimum bet is 10 Stark Bucks' };
-        if (normalizedBet > user.balance) return { success: false, error: 'Insufficient funds' };
+        if (normalizedBet < 10) {return { success: false, error: 'Minimum bet is 10 Stark Bucks' };}
+        if (normalizedBet > user.balance) {return { success: false, error: 'Insufficient funds' };}
 
         // Spin the slots - 50% base win rate for regular users
         // Bot owner always gets jackpot
@@ -138,7 +138,7 @@ module.exports = function createGames({
                 // Make sure no two match
                 while (results[0] === results[1] || results[1] === results[2] || results[0] === results[2]) {
                     results[2] = SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)];
-                    if (results[0] === results[1]) results[1] = SLOT_SYMBOLS[(SLOT_SYMBOLS.indexOf(results[1]) + 1) % SLOT_SYMBOLS.length];
+                    if (results[0] === results[1]) {results[1] = SLOT_SYMBOLS[(SLOT_SYMBOLS.indexOf(results[1]) + 1) % SLOT_SYMBOLS.length];}
                 }
             }
         }
@@ -181,8 +181,8 @@ module.exports = function createGames({
     async function coinflip(userId, bet, choice) {
         const user = await loadUser(userId);
 
-        if (bet < 1) return { success: false, error: 'Minimum bet is 1 Stark Buck' };
-        if (bet > user.balance) return { success: false, error: 'Insufficient funds' };
+        if (bet < 1) {return { success: false, error: 'Minimum bet is 1 Stark Buck' };}
+        if (bet > user.balance) {return { success: false, error: 'Insufficient funds' };}
 
         // Bot owner always wins (result matches their choice)
         const result = isBotOwner(userId) ? choice.toLowerCase() : (Math.random() < 0.5 ? 'heads' : 'tails');
@@ -192,9 +192,9 @@ module.exports = function createGames({
         user.balance += change;
         user.totalGambled = (user.totalGambled || 0) + bet;
         user.gamesPlayed = (user.gamesPlayed || 0) + 1;
-        if (won) user.gamesWon = (user.gamesWon || 0) + 1;
-        if (change > 0) user.totalEarned = (user.totalEarned || 0) + change;
-        else user.totalLost = (user.totalLost || 0) + Math.abs(change);
+        if (won) {user.gamesWon = (user.gamesWon || 0) + 1;}
+        if (change > 0) {user.totalEarned = (user.totalEarned || 0) + change;}
+        else {user.totalLost = (user.totalLost || 0) + Math.abs(change);}
 
         await saveUser(userId, user);
 
@@ -232,8 +232,8 @@ module.exports = function createGames({
             let aces = 0;
             for (const c of hand) {
                 if (c.card === 'A') { aces++; value += 11; }
-                else if (['K', 'Q', 'J'].includes(c.card)) value += 10;
-                else value += parseInt(c.card);
+                else if (['K', 'Q', 'J'].includes(c.card)) {value += 10;}
+                else {value += parseInt(c.card);}
             }
             while (value > 21 && aces > 0) { value -= 10; aces--; }
             return value;
@@ -310,7 +310,7 @@ module.exports = function createGames({
      * Rob another user
      */
     async function rob(userId, targetId, username) {
-        if (userId === targetId) return { success: false, error: 'Cannot rob yourself' };
+        if (userId === targetId) {return { success: false, error: 'Cannot rob yourself' };}
 
         const cooldown = checkCooldown(userId, 'rob', ECONOMY_CONFIG.robCooldown);
         if (cooldown.onCooldown) {
@@ -371,21 +371,21 @@ module.exports = function createGames({
                 newBalance: user.balance,
                 message: `You stole **${stolen}** Stark Bucks from ${targetPerks.hasReactor ? 'Arc Reactor user' : 'target'}!`
             };
-        } else {
-            // Failed - pay fine
-            const fine = Math.floor(user.balance * 0.1);
-            user.balance -= fine;
-            user.totalLost = (user.totalLost || 0) + fine;
-            await saveUser(userId, user);
+        } 
+        // Failed - pay fine
+        const fine = Math.floor(user.balance * 0.1);
+        user.balance -= fine;
+        user.totalLost = (user.totalLost || 0) + fine;
+        await saveUser(userId, user);
 
-            return {
-                success: true,
-                succeeded: false,
-                fine,
-                message: `**BUSTED!** Police caught you. You paid a fine of **${fine}** Stark Bucks.`,
-                newBalance: user.balance
-            };
-        }
+        return {
+            success: true,
+            succeeded: false,
+            fine,
+            message: `**BUSTED!** Police caught you. You paid a fine of **${fine}** Stark Bucks.`,
+            newBalance: user.balance
+        };
+        
     }
 
     return { gamble, playSlots, coinflip, playBlackjack, rob };

@@ -21,18 +21,18 @@ try {
  */
 function parseBooleanEnv(key, fallback = false) {
     const value = process.env[key];
-    if (value == null) return Boolean(fallback);
+    if (value == null) {return Boolean(fallback);}
 
     const normalized = String(value).trim().toLowerCase();
-    if (!normalized) return Boolean(fallback);
+    if (!normalized) {return Boolean(fallback);}
 
-    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) return true;
-    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) return false;
+    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {return true;}
+    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {return false;}
     return Boolean(fallback);
 }
 
 const localDbMode =
-    !Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL) &&
+    !(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL) &&
     (parseBooleanEnv('LOCAL_DB_MODE', false) || parseBooleanEnv('ALLOW_START_WITHOUT_DB', false));
 
 const REQUIRED_VARS = localDbMode
@@ -45,7 +45,7 @@ const REQUIRED_VARS = localDbMode
 const OPTIONAL_VARS = {
     MONGO_URI_MAIN: {
         validate: value => {
-            if (!value) return { valid: true, message: 'Optional' };
+            if (!value) {return { valid: true, message: 'Optional' };}
             if (!value.startsWith('mongodb://') && !value.startsWith('mongodb+srv://')) {
                 return { valid: false, message: 'Must start with mongodb:// or mongodb+srv://' };
             }
@@ -54,7 +54,7 @@ const OPTIONAL_VARS = {
     },
     MONGO_URI_VAULT: {
         validate: value => {
-            if (!value) return { valid: true, message: 'Optional' };
+            if (!value) {return { valid: true, message: 'Optional' };}
             if (!value.startsWith('mongodb://') && !value.startsWith('mongodb+srv://')) {
                 return { valid: false, message: 'Must start with mongodb:// or mongodb+srv://' };
             }
@@ -63,7 +63,7 @@ const OPTIONAL_VARS = {
     },
     DISCORD_TOKEN: {
         validate: value => {
-            if (!value) return { valid: false, message: 'Required' };
+            if (!value) {return { valid: false, message: 'Required' };}
             if (value.length < 20) {
                 return { valid: false, message: 'Token appears too short' };
             }
@@ -72,7 +72,7 @@ const OPTIONAL_VARS = {
     },
     MASTER_KEY_BASE64: {
         validate: value => {
-            if (!value) return { valid: false, message: 'Required' };
+            if (!value) {return { valid: false, message: 'Required' };}
             try {
                 const decoded = Buffer.from(value, 'base64');
                 if (decoded.length !== 32) {
@@ -86,25 +86,25 @@ const OPTIONAL_VARS = {
     },
     OPENAI: {
         validate: value => {
-            if (!value) return { valid: true, message: 'Optional' };
+            if (!value) {return { valid: true, message: 'Optional' };}
             return { valid: true };
         }
     },
     OPENAI_API_KEY: {
         validate: value => {
-            if (!value) return { valid: true, message: 'Optional' };
+            if (!value) {return { valid: true, message: 'Optional' };}
             return { valid: true };
         }
     },
     PASSWORD: {
         validate: value => {
-            if (!value) return { valid: true, message: 'Optional' };
+            if (!value) {return { valid: true, message: 'Optional' };}
             return { valid: true };
         }
     },
     DISCORD_WEBHOOK_PUBLIC_KEY: {
         validate: value => {
-            if (!value) return { valid: true, message: 'Optional' };
+            if (!value) {return { valid: true, message: 'Optional' };}
             if (value.length !== 64) {
                 return { valid: false, message: 'Public key must be 64 characters (hex)' };
             }
@@ -142,7 +142,7 @@ function validateEnv() {
 
     // Check optional variables (validate format if present)
     for (const [varName, config] of Object.entries(OPTIONAL_VARS)) {
-        if (REQUIRED_VARS.includes(varName)) continue; // Already checked
+        if (REQUIRED_VARS.includes(varName)) {continue;} // Already checked
 
         const value = process.env[varName];
         if (value && config.validate) {

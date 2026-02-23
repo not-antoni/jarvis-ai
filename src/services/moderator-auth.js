@@ -70,7 +70,7 @@ function pruneAuthMaps(force = false) {
         for (const key of sessions.keys()) {
             sessions.delete(key);
             i += 1;
-            if (i >= overflow) break;
+            if (i >= overflow) {break;}
         }
     }
 
@@ -80,7 +80,7 @@ function pruneAuthMaps(force = false) {
         for (const key of pendingSetups.keys()) {
             pendingSetups.delete(key);
             i += 1;
-            if (i >= overflow) break;
+            if (i >= overflow) {break;}
         }
     }
 }
@@ -242,12 +242,12 @@ function generateSetupToken(userId) {
 function verifySetupToken(userId, token) {
     pruneAuthMaps();
     const setup = pendingSetups.get(userId);
-    if (!setup) return false;
+    if (!setup) {return false;}
     if (Date.now() > setup.expires) {
         pendingSetups.delete(userId);
         return false;
     }
-    if (setup.token !== token) return false;
+    if (setup.token !== token) {return false;}
     pendingSetups.delete(userId);
     return true;
 }
@@ -544,7 +544,7 @@ async function isAuthorizedModerator(userId, guildId) {
     const moderation = require('./GUILDS_FEATURES/moderation');
     const status = moderation.getStatus(guildId);
 
-    if (!status.isEnabled) return false;
+    if (!status.isEnabled) {return false;}
 
     // Check if user is in pingUsers
     if (status.settings.pingUsers?.includes(userId)) {
@@ -563,7 +563,7 @@ async function isAuthorizedModerator(userId, guildId) {
 async function sendPasswordSetupDM(client, userId, guildId) {
     try {
         const user = await client.users.fetch(userId);
-        if (!user) return false;
+        if (!user) {return false;}
 
         const token = generateSetupToken(userId);
         const baseUrl = getRedirectUri('/moderator/callback').replace('/moderator/callback', '');

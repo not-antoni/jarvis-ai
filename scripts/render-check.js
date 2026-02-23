@@ -30,8 +30,8 @@ function isRenderEnvironment() {
  */
 function getDeploymentMode() {
     const explicit = (process.env.DEPLOY_TARGET || '').toLowerCase();
-    if (explicit === 'selfhost') return 'selfhost';
-    if (explicit === 'render') return 'render';
+    if (explicit === 'selfhost') {return 'selfhost';}
+    if (explicit === 'render') {return 'render';}
     if (explicit === 'hybrid' || !explicit) {
         return isRenderEnvironment() ? 'render (auto-detected)' : 'selfhost (auto-detected)';
     }

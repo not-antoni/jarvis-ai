@@ -17,7 +17,7 @@ const OVERHEAD_PER_MESSAGE = 4; // Message structure overhead
  * @returns {number} Estimated token count
  */
 function estimateTokens(text) {
-    if (!text || typeof text !== 'string') return 0;
+    if (!text || typeof text !== 'string') {return 0;}
 
     let tokens = 0;
 
@@ -43,7 +43,7 @@ function estimateTokens(text) {
  * @returns {number} Estimated token count
  */
 function estimateMessageTokens(message) {
-    if (!message) return 0;
+    if (!message) {return 0;}
 
     let tokens = OVERHEAD_PER_MESSAGE;
 
@@ -78,7 +78,7 @@ function estimateMessageTokens(message) {
  * @returns {number} Total estimated token count
  */
 function estimateConversationTokens(messages) {
-    if (!Array.isArray(messages)) return 0;
+    if (!Array.isArray(messages)) {return 0;}
 
     let total = 0;
     for (const msg of messages) {
@@ -98,7 +98,7 @@ function estimateConversationTokens(messages) {
  * @returns {number} Index to start slicing from
  */
 function calculateConversationSlice(messages, maxTokens, reserveTokens = 1000) {
-    if (!Array.isArray(messages) || messages.length === 0) return 0;
+    if (!Array.isArray(messages) || messages.length === 0) {return 0;}
 
     const availableTokens = maxTokens - reserveTokens;
     let totalTokens = 0;
@@ -128,15 +128,15 @@ function calculateConversationSlice(messages, maxTokens, reserveTokens = 1000) {
  * @returns {string} Truncated text
  */
 function truncateToTokens(text, maxTokens, suffix = '...') {
-    if (!text || typeof text !== 'string') return '';
+    if (!text || typeof text !== 'string') {return '';}
 
     const currentTokens = estimateTokens(text);
-    if (currentTokens <= maxTokens) return text;
+    if (currentTokens <= maxTokens) {return text;}
 
     const suffixTokens = estimateTokens(suffix);
     const targetTokens = maxTokens - suffixTokens;
 
-    if (targetTokens <= 0) return suffix;
+    if (targetTokens <= 0) {return suffix;}
 
     // Binary search for the right length
     let low = 0;

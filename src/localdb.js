@@ -100,9 +100,9 @@ function syncFromLatestExport() {
         const content = JSON.parse(fs.readFileSync(exportPath, 'utf8'));
 
         const normalizeExtendedJson = value => {
-            if (value === null || value === undefined) return value;
-            if (Array.isArray(value)) return value.map(normalizeExtendedJson);
-            if (typeof value !== 'object') return value;
+            if (value === null || value === undefined) {return value;}
+            if (Array.isArray(value)) {return value.map(normalizeExtendedJson);}
+            if (typeof value !== 'object') {return value;}
 
             if (Object.prototype.hasOwnProperty.call(value, '$date')) {
                 return String(value.$date);
@@ -149,8 +149,8 @@ const vaultOps = {
 
     async saveUserKey(userId, keyData) {
         const db = loadLocalDb();
-        if (!db.vault) db.vault = {};
-        if (!db.vault.userKeys) db.vault.userKeys = [];
+        if (!db.vault) {db.vault = {};}
+        if (!db.vault.userKeys) {db.vault.userKeys = [];}
 
         const idx = db.vault.userKeys.findIndex(k => k.userId === userId);
         if (idx >= 0) {
@@ -172,8 +172,8 @@ const vaultOps = {
 
     async saveMemory(userId, memoryData) {
         const db = loadLocalDb();
-        if (!db.vault) db.vault = {};
-        if (!db.vault.memories) db.vault.memories = [];
+        if (!db.vault) {db.vault = {};}
+        if (!db.vault.memories) {db.vault.memories = [];}
 
         db.vault.memories.push({
             userId,

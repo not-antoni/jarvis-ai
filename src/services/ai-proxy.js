@@ -11,11 +11,11 @@ function parseCsv(value) {
 }
 
 function parseBooleanEnv(value, fallback = false) {
-    if (value == null) return Boolean(fallback);
+    if (value == null) {return Boolean(fallback);}
     const normalized = String(value).trim().toLowerCase();
-    if (!normalized) return Boolean(fallback);
-    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) return true;
-    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) return false;
+    if (!normalized) {return Boolean(fallback);}
+    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {return true;}
+    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {return false;}
     return Boolean(fallback);
 }
 
@@ -266,20 +266,20 @@ function normalizeProxyBase(value) {
 function isLikelyPrivateHostname(hostname) {
     const lowered = String(hostname || '').trim().toLowerCase();
 
-    if (!lowered) return true;
+    if (!lowered) {return true;}
 
-    if (lowered === 'localhost') return true;
-    if (lowered.endsWith('.local')) return true;
+    if (lowered === 'localhost') {return true;}
+    if (lowered.endsWith('.local')) {return true;}
 
     if (/^\d+\.\d+\.\d+\.\d+$/.test(lowered)) {
         const parts = lowered.split('.').map(v => Number(v));
         if (parts.length === 4 && parts.every(n => Number.isFinite(n) && n >= 0 && n <= 255)) {
             const [a, b] = parts;
-            if (a === 10) return true;
-            if (a === 127) return true;
-            if (a === 192 && b === 168) return true;
-            if (a === 172 && b >= 16 && b <= 31) return true;
-            if (a === 169 && b === 254) return true;
+            if (a === 10) {return true;}
+            if (a === 127) {return true;}
+            if (a === 192 && b === 168) {return true;}
+            if (a === 172 && b >= 16 && b <= 31) {return true;}
+            if (a === 169 && b === 254) {return true;}
         }
     }
 
@@ -338,7 +338,7 @@ function mergeHeaders(...inputs) {
     const headers = new Headers();
 
     for (const input of inputs) {
-        if (!input) continue;
+        if (!input) {continue;}
         const h = input instanceof Headers ? input : new Headers(input);
         for (const [key, value] of h.entries()) {
             headers.set(key, value);
@@ -359,14 +359,14 @@ function createProxyingFetch() {
     let autoProvisionAttempted = false;
 
     async function maybeLoadDbConfig() {
-        if (dbConfigLoaded) return;
+        if (dbConfigLoaded) {return;}
         if (proxyUrls.length > 0) {
             dbConfigLoaded = true;
             return;
         }
 
         if (!dbConfigPromise) {
-            dbConfigPromise = (async () => {
+            dbConfigPromise = (async() => {
                 try {
                     const database = require('./database');
                     await database.connect();
@@ -399,9 +399,9 @@ function createProxyingFetch() {
     }
 
     async function maybeAutoProvision() {
-        if (autoProvisionAttempted) return;
-        if (!config.enabled) return;
-        if (proxyUrls.length > 0) return;
+        if (autoProvisionAttempted) {return;}
+        if (!config.enabled) {return;}
+        if (proxyUrls.length > 0) {return;}
 
         const hasAccountId = Boolean(String(process.env.CLOUDFLARE_ACCOUNT_ID || '').trim());
         const hasAuth = Boolean(getCloudflareAuthHeaders());
@@ -421,7 +421,7 @@ function createProxyingFetch() {
         }
 
         if (!autoProvisionPromise) {
-            autoProvisionPromise = (async () => {
+            autoProvisionPromise = (async() => {
                 try {
                     console.warn(
                         '[AIProxy] No proxy URLs found in env/DB. Auto-provisioning Cloudflare Workers...'
@@ -474,7 +474,7 @@ function createProxyingFetch() {
 
     function buildAttemptOrder(startIndex) {
         const total = proxyUrls.length;
-        if (!total) return [];
+        if (!total) {return [];}
 
         if (config.strategy === 'random') {
             const order = Array.from({ length: total }, (_, i) => i);
@@ -504,10 +504,10 @@ function createProxyingFetch() {
             typeof input === 'string'
                 ? input
                 : input instanceof URL
-                  ? input.toString()
-                  : request
-                    ? request.url
-                    : null;
+                    ? input.toString()
+                    : request
+                        ? request.url
+                        : null;
 
         if (!url) {
             return baseFetch(input, init);

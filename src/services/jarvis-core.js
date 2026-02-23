@@ -324,20 +324,20 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                     }, 3000).unref?.();
                 }
 
-                return `:x: <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull: im having an existential crisis, sir 0 AI providers active, contact Stark for more info`;
+                return ':x: <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull: im having an existential crisis, sir 0 AI providers active, contact Stark for more info';
             } else if (working === status.length) {
                 return `All systems operational, sir.:white_check_mark: ${working} of ${status.length} AI providers active.`;
-            } else {
-                let extra = '';
-                if (working <= 5) {
-                    extra = ' <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull::skull:';
-                } else if (working < 20) {
-                    extra = ' <a:alarm:1450108977592406248> :skull::skull::skull:';
-                } else if (working < 30) {
-                    extra = ' :skull::skull::skull:';
-                }
-                return `sir!!! services are disrupted:skull:, ${working} of ${status.length} AI providers active.${extra}`;
+            } 
+            let extra = '';
+            if (working <= 5) {
+                extra = ' <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull::skull:';
+            } else if (working < 20) {
+                extra = ' <a:alarm:1450108977592406248> :skull::skull::skull:';
+            } else if (working < 30) {
+                extra = ' :skull::skull::skull:';
             }
+            return `sir!!! services are disrupted:skull:, ${working} of ${status.length} AI providers active.${extra}`;
+            
         }
 
         if (cmd === 'time' || cmd.startsWith('time')) {
@@ -356,10 +356,10 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 };
 
                 return `The current ${formatDescriptions[format] || 'time'} is <t:${now}:${format}>, sir.\n`;
-            } else {
-                const now = Math.floor(Date.now() / 1000);
-                return `Current time: <t:${now}:f> (shows in your timezone), sir.`;
-            }
+            } 
+            const now = Math.floor(Date.now() / 1000);
+            return `Current time: <t:${now}:f> (shows in your timezone), sir.`;
+            
         }
 
         if (cmd === 'providers') {
@@ -385,7 +385,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         }
 
         if (cmd.startsWith('profile')) {
-            const handleShow = async () => {
+            const handleShow = async() => {
                 if (!database.isConnected) {
                     return 'Profile system offline, sir. Database unavailable.';
                 }
@@ -413,7 +413,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 ].join('\n');
             };
 
-            const handleSet = async (key, value) => {
+            const handleSet = async(key, value) => {
                 if (!key || !value) {
                     return 'Please provide both a preference key and value, sir.';
                 }
@@ -466,7 +466,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
         if (cmd.startsWith('roll')) {
             const sides = parseInt(cmd.split(' ')[1]) || 6;
-            if (sides < 1) return 'Sides must be at least 1, sir.';
+            if (sides < 1) {return 'Sides must be at least 1, sir.';}
             const result = Math.floor(Math.random() * sides) + 1;
             return isSlash
                 ? `You rolled a ${result}! 🎲`
@@ -477,7 +477,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
         if (cmd.startsWith('!t ')) {
             const query = rawInput.substring(3).trim(); // Remove "!t " prefix
-            if (!query) return 'Please provide a search query, sir.';
+            if (!query) {return 'Please provide a search query, sir.';}
 
             if (!guildIdFromInteraction) {
                 return 'Knowledge base search is only available inside a server, sir.';
@@ -845,7 +845,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             : interaction.author.username;
 
         const gate = await this.gateDestructiveRequests(userInput);
-        if (gate.blocked) return gate.message;
+        if (gate.blocked) {return gate.message;}
 
         // Get SBX perks for AI features (memoryMultiplier, tokenMultiplier, personalities)
         let sbxPerks = { memoryMultiplier: 1, tokenMultiplier: 1, personalities: [] };
@@ -866,7 +866,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             const guildId = interaction?.guildId || interaction?.guild?.id;
             const sentiencePrompt = getSentiencePrompt(guildId);
             if (sentiencePrompt) {
-                systemPrompt = systemPrompt + '\n\n' + sentiencePrompt;
+                systemPrompt = `${systemPrompt  }\n\n${  sentiencePrompt}`;
                 // Evolve soul based on interaction
                 jarvisSoul.evolve('helpful', 'positive');
             }
@@ -877,7 +877,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 const moodContext = userFeatures.analyzeMoodContext(userInput);
                 if (moodContext.shouldAdjust && moodContext.adjustment) {
                     systemPrompt =
-                        systemPrompt + '\n\n[TONE ADJUSTMENT: ' + moodContext.adjustment + ']';
+                        `${systemPrompt  }\n\n[TONE ADJUSTMENT: ${  moodContext.adjustment  }]`;
                 }
             } catch (e) {
                 // User features not available, continue without mood detection
@@ -1030,7 +1030,7 @@ Recent conversation history:
 ${historyBlock}
 ${embeddingContext}
 ${contextualBlock}
-${recentJarvisResponses.length ? `[Vary your phrasing — your recent responses started with: ${recentJarvisResponses.map(r => '"' + r.slice(0, 40) + '..."').join(', ')}]` : ''}
+${recentJarvisResponses.length ? `[Vary your phrasing — your recent responses started with: ${recentJarvisResponses.map(r => `"${  r.slice(0, 40)  }..."`).join(', ')}]` : ''}
 Current message: "${processedInput}"`;
 
             // Apply SBX tokenMultiplier (default maxTokens, with unlimited_tokens: 2x)
@@ -1132,11 +1132,11 @@ Current message: "${processedInput}"`;
 
         const t = userInput.toLowerCase();
         if (t.includes('hello') || t.includes('hi'))
-            return `Good day, ${userName}. I'm in reduced capacity but delighted to assist.`;
+        {return `Good day, ${userName}. I'm in reduced capacity but delighted to assist.`;}
         if (t.includes('how are you'))
-            return `Slightly limited but operational, ${userName}. Thank you for inquiring.`;
+        {return `Slightly limited but operational, ${userName}. Thank you for inquiring.`;}
         if (t.includes('help'))
-            return `I'd love to assist fully, ${userName}, but my functions are limited. Try again soon?`;
+        {return `I'd love to assist fully, ${userName}, but my functions are limited. Try again soon?`;}
 
         return responses[Math.floor(Math.random() * responses.length)];
     }

@@ -44,7 +44,7 @@ class ErrorContextDebugger {
      * Setup network request capture
      */
     setupNetworkListener() {
-        if (!this.page) return;
+        if (!this.page) {return;}
 
         this.page.on('request', request => {
             this.recordNetworkRequest({
@@ -78,7 +78,7 @@ class ErrorContextDebugger {
      * Setup console log capture
      */
     setupConsoleListener() {
-        if (!this.page) return;
+        if (!this.page) {return;}
 
         this.page.on('console', msg => {
             this.recordConsoleLog({
@@ -160,7 +160,7 @@ class ErrorContextDebugger {
      * Capture screenshot on error
      */
     async captureErrorScreenshot(operation, error) {
-        if (!this.page || !this.config.captureScreenshots) return null;
+        if (!this.page || !this.config.captureScreenshots) {return null;}
 
         try {
             const buffer = await this.page.screenshot({ type: 'png' });
@@ -192,7 +192,7 @@ class ErrorContextDebugger {
      * Capture HTML snapshot on error
      */
     async captureHTMLSnapshot(operation, error) {
-        if (!this.page || !this.config.captureHTMLSnapshots) return null;
+        if (!this.page || !this.config.captureHTMLSnapshots) {return null;}
 
         try {
             const html = await this.page.content();
