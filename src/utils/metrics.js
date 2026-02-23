@@ -182,10 +182,10 @@ class MetricsCollector {
                 failed: this.metrics.requests.failed,
                 successRate:
                     this.metrics.requests.total > 0
-                        ? (
-                              (this.metrics.requests.successful / this.metrics.requests.total) *
+                        ? `${(
+                            (this.metrics.requests.successful / this.metrics.requests.total) *
                               100
-                          ).toFixed(2) + '%'
+                        ).toFixed(2)  }%`
                         : '0%',
                 byEndpoint: Object.fromEntries(
                     Array.from(this.metrics.requests.byEndpoint.entries()).map(
@@ -195,7 +195,7 @@ class MetricsCollector {
                                 ...stats,
                                 successRate:
                                     stats.total > 0
-                                        ? ((stats.successful / stats.total) * 100).toFixed(2) + '%'
+                                        ? `${((stats.successful / stats.total) * 100).toFixed(2)  }%`
                                         : '0%'
                             }
                         ]
@@ -248,39 +248,39 @@ class MetricsCollector {
         const lines = [];
 
         // Request metrics
-        lines.push(`# HELP jarvis_requests_total Total number of requests`);
-        lines.push(`# TYPE jarvis_requests_total counter`);
+        lines.push('# HELP jarvis_requests_total Total number of requests');
+        lines.push('# TYPE jarvis_requests_total counter');
         lines.push(`jarvis_requests_total ${metrics.requests.total}`);
 
-        lines.push(`# HELP jarvis_requests_successful Total successful requests`);
-        lines.push(`# TYPE jarvis_requests_successful counter`);
+        lines.push('# HELP jarvis_requests_successful Total successful requests');
+        lines.push('# TYPE jarvis_requests_successful counter');
         lines.push(`jarvis_requests_successful ${metrics.requests.successful}`);
 
-        lines.push(`# HELP jarvis_requests_failed Total failed requests`);
-        lines.push(`# TYPE jarvis_requests_failed counter`);
+        lines.push('# HELP jarvis_requests_failed Total failed requests');
+        lines.push('# TYPE jarvis_requests_failed counter');
         lines.push(`jarvis_requests_failed ${metrics.requests.failed}`);
 
         // Performance metrics
-        lines.push(`# HELP jarvis_response_time_ms Average response time in milliseconds`);
-        lines.push(`# TYPE jarvis_response_time_ms gauge`);
+        lines.push('# HELP jarvis_response_time_ms Average response time in milliseconds');
+        lines.push('# TYPE jarvis_response_time_ms gauge');
         lines.push(`jarvis_response_time_ms ${metrics.performance.averageResponseTime.toFixed(2)}`);
 
-        lines.push(`# HELP jarvis_response_time_p95_ms 95th percentile response time`);
-        lines.push(`# TYPE jarvis_response_time_p95_ms gauge`);
+        lines.push('# HELP jarvis_response_time_p95_ms 95th percentile response time');
+        lines.push('# TYPE jarvis_response_time_p95_ms gauge');
         lines.push(`jarvis_response_time_p95_ms ${metrics.performance.p95}`);
 
         // Error metrics
-        lines.push(`# HELP jarvis_errors_total Total number of errors`);
-        lines.push(`# TYPE jarvis_errors_total counter`);
+        lines.push('# HELP jarvis_errors_total Total number of errors');
+        lines.push('# TYPE jarvis_errors_total counter');
         lines.push(`jarvis_errors_total ${metrics.errors.total}`);
 
         // AI metrics
-        lines.push(`# HELP jarvis_ai_tokens_total Total AI tokens used`);
-        lines.push(`# TYPE jarvis_ai_tokens_total counter`);
+        lines.push('# HELP jarvis_ai_tokens_total Total AI tokens used');
+        lines.push('# TYPE jarvis_ai_tokens_total counter');
         lines.push(`jarvis_ai_tokens_total ${metrics.ai.totalTokens}`);
 
-        lines.push(`# HELP jarvis_ai_cost_total Total AI cost`);
-        lines.push(`# TYPE jarvis_ai_cost_total counter`);
+        lines.push('# HELP jarvis_ai_cost_total Total AI cost');
+        lines.push('# TYPE jarvis_ai_cost_total counter');
         lines.push(`jarvis_ai_cost_total ${metrics.ai.totalCost}`);
 
         return lines.join('\n');

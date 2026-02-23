@@ -12,6 +12,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+let _queueCallback = null;
+
 // Queue storage
 const QUEUE_PATH = path.join(__dirname, '..', '..', '..', 'data', 'moderation-queue.json');
 const ANALYSIS_LOG_PATH = path.join(__dirname, '..', '..', '..', 'data', 'moderation-analysis-log.json');
@@ -32,9 +34,9 @@ const MAX_RISK_HISTORY = 50; // Keep last 50 risk scores per user
  * - Huge queues (100+): batches of 30
  */
 function getDynamicBatchSize(queueLength) {
-    if (queueLength <= 10) return queueLength;
-    if (queueLength <= 50) return 10;
-    if (queueLength <= 100) return 20;
+    if (queueLength <= 10) {return queueLength;}
+    if (queueLength <= 50) {return 10;}
+    if (queueLength <= 100) {return 20;}
     return 30;
 }
 
@@ -109,12 +111,12 @@ function saveUserRiskProfiles() {
  */
 function shouldAnalyzeRealtime(context) {
     // Real-time triggers
-    if (context.isNewAccount) return true; // Account < 7 days
-    if (context.isFirstMessage) return true; // First message in server
-    if (context.hasLinks) return true; // Contains URLs
-    if (context.hasMassMention) return true; // @everyone/@here
-    if (context.riskScore >= 50) return true; // High risk score
-    if (context.hasAttachments) return true; // Images to analyze
+    if (context.isNewAccount) {return true;} // Account < 7 days
+    if (context.isFirstMessage) {return true;} // First message in server
+    if (context.hasLinks) {return true;} // Contains URLs
+    if (context.hasMassMention) {return true;} // @everyone/@here
+    if (context.riskScore >= 50) {return true;} // High risk score
+    if (context.hasAttachments) {return true;} // Images to analyze
 
     return false;
 }
@@ -187,7 +189,7 @@ function getPendingMessages(guildId = null, limit = 50) {
  * Start the batch timer
  */
 function startBatchTimer() {
-    if (batchTimer) return;
+    if (batchTimer) {return;}
 
     batchTimer = setInterval(() => {
         if (messageQueue.length > 0 && !isProcessing) {
@@ -202,7 +204,7 @@ function startBatchTimer() {
  * Trigger batch analysis
  */
 async function triggerBatchAnalysis() {
-    if (isProcessing || messageQueue.length === 0) return;
+    if (isProcessing || messageQueue.length === 0) {return;}
 
     isProcessing = true;
     const batchSize = getDynamicBatchSize(messageQueue.length);
@@ -249,7 +251,7 @@ async function triggerBatchAnalysis() {
  * Analyze a batch of messages with AI
  */
 async function analyzeBatch(batch) {
-    if (batch.length === 0) return { flagged: [], summary: 'Empty batch' };
+    if (batch.length === 0) {return { flagged: [], summary: 'Empty batch' };}
 
     try {
         const aiManager = require('../ai-providers');
@@ -280,7 +282,7 @@ SUMMARY: [brief analysis]`;
         }
 
         // Parse response
-        const content = response.content;
+        const { content } = response;
         const flaggedMatch = content.match(/FLAGGED_INDICES:\s*\[?([^\]\n]+)\]?/i);
         const patternMatch = content.match(/PATTERN:\s*(.+)/i);
         const severityMatch = content.match(/SEVERITY:\s*(low|medium|high|critical)/i);
@@ -317,8 +319,8 @@ async function executeQueuedActions(result) {
     console.log(`[ModerationQueue] ${result.flagged.length} messages flagged: ${result.pattern}`);
 
     // Emit event for moderation.js to handle
-    if (typeof global.moderationQueueCallback === 'function') {
-        global.moderationQueueCallback(result);
+    if (typeof _queueCallback === 'function') {
+        _queueCallback(result);
     }
 }
 
@@ -328,7 +330,7 @@ async function executeQueuedActions(result) {
  * Update user's risk profile
  */
 function updateUserRiskProfile(userId, riskScore, wasFlagged) {
-    let profile = userRiskProfiles.get(userId) || {
+    const profile = userRiskProfiles.get(userId) || {
         scores: [],
         lastSeen: null,
         totalMessages: 0,
@@ -343,7 +345,7 @@ function updateUserRiskProfile(userId, riskScore, wasFlagged) {
 
     profile.lastSeen = Date.now();
     profile.totalMessages++;
-    if (wasFlagged) profile.flaggedCount++;
+    if (wasFlagged) {profile.flaggedCount++;}
 
     // Calculate average risk
     profile.averageRisk = Math.round(
@@ -416,5 +418,5 @@ module.exports = {
     getGuildAnalysisLogs,
 
     // For moderation.js to register callback
-    setQueueCallback: (callback) => { global.moderationQueueCallback = callback; }
+    setQueueCallback: (callback) => { _queueCallback = callback; }
 };

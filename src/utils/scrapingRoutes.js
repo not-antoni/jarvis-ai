@@ -18,7 +18,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * GET /scrape/wikipedia/:article
      * Scrape Wikipedia article
      */
-    router.get('/scrape/wikipedia/:article', async (req, res) => {
+    router.get('/scrape/wikipedia/:article', async(req, res) => {
         const { article } = req.params;
         const { images = false, stats = false } = req.query;
 
@@ -84,7 +84,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * GET /scrape/wikipedia/search/:query
      * Search Wikipedia
      */
-    router.get('/scrape/wikipedia/search/:query', async (req, res) => {
+    router.get('/scrape/wikipedia/search/:query', async(req, res) => {
         const { query } = req.params;
         const { limit = 10 } = req.query;
 
@@ -111,7 +111,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * GET /scrape/wikipedia/related/:article
      * Get related Wikipedia articles
      */
-    router.get('/scrape/wikipedia/related/:article', async (req, res) => {
+    router.get('/scrape/wikipedia/related/:article', async(req, res) => {
         const { article } = req.params;
 
         try {
@@ -137,7 +137,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * GET /scrape/images
      * Get all downloaded images
      */
-    router.get('/scrape/images', async (req, res) => {
+    router.get('/scrape/images', async(req, res) => {
         try {
             const images = await imageManager.getDownloadedImages();
             const stats = imageManager.getStats();
@@ -159,7 +159,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * GET /scrape/images/stats
      * Get image download statistics
      */
-    router.get('/scrape/images/stats', async (req, res) => {
+    router.get('/scrape/images/stats', async(req, res) => {
         try {
             const stats = imageManager.getStats();
             res.json({
@@ -178,7 +178,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * POST /scrape/images/clear
      * Clear all downloaded images
      */
-    router.post('/scrape/images/clear', async (req, res) => {
+    router.post('/scrape/images/clear', async(req, res) => {
         try {
             const success = await imageManager.clearAll();
             res.json({
@@ -197,7 +197,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * GET /scrape/images/manifest
      * Export image manifest
      */
-    router.get('/scrape/images/manifest', async (req, res) => {
+    router.get('/scrape/images/manifest', async(req, res) => {
         try {
             const manifestPath = await imageManager.exportManifest();
             res.json({
@@ -216,7 +216,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * POST /scrape/batch
      * Scrape multiple Wikipedia articles
      */
-    router.post('/scrape/batch', async (req, res) => {
+    router.post('/scrape/batch', async(req, res) => {
         const { articles = [] } = req.body;
         const { images = false } = req.query;
 
@@ -300,7 +300,7 @@ function createScrapingRouter(discordHandlers, productionAgent) {
      * POST /scrape/export/:format
      * Export scraped data
      */
-    router.post('/scrape/export/:format', async (req, res) => {
+    router.post('/scrape/export/:format', async(req, res) => {
         const { format } = req.params;
         const { data = [] } = req.body;
 

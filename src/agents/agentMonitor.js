@@ -147,7 +147,7 @@ class AgentMonitor {
         const expired = this.getExpiredSessions();
         for (const key of expired) {
             this.sessionExpiryMap.delete(key);
-            if (onExpire) onExpire(key);
+            if (onExpire) {onExpire(key);}
         }
         return expired;
     }
@@ -178,7 +178,7 @@ class AgentMonitor {
     }
 
     getSessionMetrics(browserAgent) {
-        const sessions = browserAgent.sessions;
+        const { sessions } = browserAgent;
         const now = Date.now();
         const inactiveThreshold = this.config.get('sessions.sessionIdleTimeoutMinutes') * 60 * 1000;
 
@@ -244,8 +244,8 @@ class AgentMonitor {
         const avgLatency =
             recentOps.length > 0
                 ? Math.round(
-                      recentOps.reduce((sum, op) => sum + op.durationMs, 0) / recentOps.length
-                  )
+                    recentOps.reduce((sum, op) => sum + op.durationMs, 0) / recentOps.length
+                )
                 : 0;
 
         const operationCounts = {};
@@ -259,7 +259,7 @@ class AgentMonitor {
             failed,
             successRate:
                 recentOps.length > 0
-                    ? ((succeeded / recentOps.length) * 100).toFixed(1) + '%'
+                    ? `${((succeeded / recentOps.length) * 100).toFixed(1)  }%`
                     : 'N/A',
             avgLatencyMs: avgLatency,
             operationBreakdown: operationCounts
@@ -278,13 +278,13 @@ class AgentMonitor {
             operations:
                 operationStats.succeeded > 0
                     ? Math.min(
-                          100,
-                          Math.round(
-                              (operationStats.succeeded /
+                        100,
+                        Math.round(
+                            (operationStats.succeeded /
                                   (operationStats.succeeded + operationStats.failed)) *
                                   100
-                          )
-                      )
+                        )
+                    )
                     : 100,
             circuitBreaker: browserMetrics.circuitBreakerStatus === 'closed' ? 100 : 0
         };

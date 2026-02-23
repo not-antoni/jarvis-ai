@@ -7,9 +7,9 @@ const assert = require('node:assert');
 // Mock database
 const mockDb = {
     users: new Map(),
-    getUser: async (userId) => mockDb.users.get(userId) || null,
-    setUser: async (userId, data) => mockDb.users.set(userId, data),
-    updateBalance: async (userId, amount) => {
+    getUser: async(userId) => mockDb.users.get(userId) || null,
+    setUser: async(userId, data) => mockDb.users.set(userId, data),
+    updateBalance: async(userId, amount) => {
         const user = mockDb.users.get(userId) || { balance: 0 };
         user.balance = (user.balance || 0) + amount;
         mockDb.users.set(userId, user);
@@ -23,23 +23,23 @@ describe('Stark Economy', () => {
     });
 
     describe('Balance Operations', () => {
-        it('should initialize new user with zero balance', async () => {
+        it('should initialize new user with zero balance', async() => {
             const user = await mockDb.getUser('user123');
             assert.strictEqual(user, null);
         });
 
-        it('should add balance correctly', async () => {
+        it('should add balance correctly', async() => {
             const newBalance = await mockDb.updateBalance('user123', 1000);
             assert.strictEqual(newBalance, 1000);
         });
 
-        it('should subtract balance correctly', async () => {
+        it('should subtract balance correctly', async() => {
             await mockDb.updateBalance('user123', 1000);
             const newBalance = await mockDb.updateBalance('user123', -500);
             assert.strictEqual(newBalance, 500);
         });
 
-        it('should handle multiple balance updates', async () => {
+        it('should handle multiple balance updates', async() => {
             await mockDb.updateBalance('user123', 100);
             await mockDb.updateBalance('user123', 200);
             await mockDb.updateBalance('user123', 300);
@@ -154,9 +154,9 @@ describe('Stark Economy', () => {
     describe('Number Formatting', () => {
         it('should format thousands correctly', () => {
             const formatNum = (n) => {
-                if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-                if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-                if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+                if (n >= 1e9) {return `${(n / 1e9).toFixed(2)  }B`;}
+                if (n >= 1e6) {return `${(n / 1e6).toFixed(2)  }M`;}
+                if (n >= 1e3) {return `${(n / 1e3).toFixed(2)  }K`;}
                 return n.toString();
             };
 
@@ -170,7 +170,7 @@ describe('Stark Economy', () => {
             const parseNum = (str) => {
                 const suffixes = { K: 1e3, M: 1e6, B: 1e9 };
                 const match = str.match(/^([\d.]+)([KMB])?$/i);
-                if (!match) return NaN;
+                if (!match) {return NaN;}
                 const num = parseFloat(match[1]);
                 const suffix = match[2]?.toUpperCase();
                 return suffix ? num * suffixes[suffix] : num;

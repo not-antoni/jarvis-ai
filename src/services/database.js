@@ -81,13 +81,13 @@ class DatabaseManager {
     }
 
     getCollection(collectionName) {
-        if (!this.isConnected || !this.db) return null;
-        if (!collectionName) return null;
+        if (!this.isConnected || !this.db) {return null;}
+        if (!collectionName) {return null;}
         return this.db.collection(String(collectionName));
     }
 
     async createIndexes() {
-        if (!this.db) return;
+        if (!this.db) {return;}
 
         const ninetyDays = 60 * 60 * 24 * 90;
         const sixtyDays = 60 * 60 * 24 * 60;
@@ -289,7 +289,7 @@ class DatabaseManager {
     }
 
     async getUserProfile(userId, userName) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         let profile = await this.db
             .collection(config.database.collections.userProfiles)
@@ -313,13 +313,13 @@ class DatabaseManager {
     }
 
     async getRecentConversations(userId, limit = 20) {
-        if (!this.isConnected) return [];
+        if (!this.isConnected) {return [];}
 
         // Check cache first (only for standard limit)
         const cacheKey = `${userId}:${limit}`;
         if (this.conversationCache && limit === 20) {
             const cached = this.conversationCache.get(cacheKey);
-            if (cached) return cached;
+            if (cached) {return cached;}
         }
 
         const conversations = await this.db
@@ -340,7 +340,7 @@ class DatabaseManager {
     }
 
     async getConversationsSince(userId, since) {
-        if (!this.isConnected) return [];
+        if (!this.isConnected) {return [];}
 
         const conversations = await this.db
             .collection(config.database.collections.conversations)
@@ -358,7 +358,7 @@ class DatabaseManager {
     }
 
     async getGuildConversationsSince(guildId, since, { limit = 200 } = {}) {
-        if (!this.isConnected || !guildId) return [];
+        if (!this.isConnected || !guildId) {return [];}
 
         const query = {
             guildId,
@@ -405,7 +405,7 @@ class DatabaseManager {
     }
 
     async saveConversation(userId, userName, userInput, jarvisResponse, guildId = null) {
-        if (!this.isConnected || !this.db) return;
+        if (!this.isConnected || !this.db) {return;}
 
         const now = new Date();
         const conversation = {
@@ -455,7 +455,7 @@ class DatabaseManager {
     }
 
     async resetUserData(userId) {
-        if (!this.isConnected || !this.db) throw new Error('Database not connected');
+        if (!this.isConnected || !this.db) {throw new Error('Database not connected');}
 
         const convResult = await this.db
             .collection(config.database.collections.conversations)
@@ -483,7 +483,7 @@ class DatabaseManager {
     }
 
     async setUserPreference(userId, key, value) {
-        if (!this.isConnected || !this.db) throw new Error('Database not connected');
+        if (!this.isConnected || !this.db) {throw new Error('Database not connected');}
 
         await this.db.collection(config.database.collections.userProfiles).updateOne(
             { userId },
@@ -498,8 +498,8 @@ class DatabaseManager {
     }
 
     async updateUserProfile(userId, updates = {}) {
-        if (!this.isConnected || !this.db) throw new Error('Database not connected');
-        if (!userId) throw new Error('Missing userId');
+        if (!this.isConnected || !this.db) {throw new Error('Database not connected');}
+        if (!userId) {throw new Error('Missing userId');}
 
         const sanitizedUpdates = updates && typeof updates === 'object' ? { ...updates } : {};
         delete sanitizedUpdates.userId;
@@ -521,8 +521,8 @@ class DatabaseManager {
     }
 
     async saveReminder(reminder) {
-        if (!this.isConnected || !this.db) throw new Error('Database not connected');
-        if (!reminder || !reminder.id) throw new Error('Invalid reminder payload');
+        if (!this.isConnected || !this.db) {throw new Error('Database not connected');}
+        if (!reminder || !reminder.id) {throw new Error('Invalid reminder payload');}
 
         const { createdAt, scheduledFor, ...rest } = reminder;
 
@@ -543,14 +543,14 @@ class DatabaseManager {
     }
 
     async deleteReminder(reminderId) {
-        if (!this.isConnected || !this.db) throw new Error('Database not connected');
+        if (!this.isConnected || !this.db) {throw new Error('Database not connected');}
         await this.db
             .collection(config.database.collections.reminders)
             .deleteOne({ id: reminderId });
     }
 
     async getActiveReminders() {
-        if (!this.isConnected || !this.db) return [];
+        if (!this.isConnected || !this.db) {return [];}
         const now = Date.now();
         const graceMs = 24 * 60 * 60 * 1000;
         return this.db
@@ -562,7 +562,7 @@ class DatabaseManager {
     }
 
     async clearUserMemories(userId) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         try {
             await this.db
@@ -580,7 +580,7 @@ class DatabaseManager {
     }
 
     async clearDatabase() {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const convResult = await this.db
             .collection(config.database.collections.conversations)
@@ -597,12 +597,12 @@ class DatabaseManager {
     }
 
     async getGuildConfig(guildId, ownerId = null) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         // Check cache first (skip if ownerId needs update)
         if (this.guildConfigCache && !ownerId) {
             const cached = this.guildConfigCache.get(guildId);
-            if (cached) return cached;
+            if (cached) {return cached;}
         }
 
         const collection = this.db.collection(config.database.collections.guildConfigs);
@@ -717,7 +717,7 @@ class DatabaseManager {
     }
 
     async setGuildModeratorRoles(guildId, roleIds = [], ownerId = null) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const collection = this.db.collection(config.database.collections.guildConfigs);
         const now = new Date();
@@ -743,7 +743,7 @@ class DatabaseManager {
     }
 
     async setGuildDjRoles(guildId, roleIds = []) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
         
         await this.db.collection(config.database.collections.guildConfigs).updateOne(
             { guildId },
@@ -758,7 +758,7 @@ class DatabaseManager {
     }
 
     async setGuildDjUsers(guildId, userIds = []) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
         
         await this.db.collection(config.database.collections.guildConfigs).updateOne(
             { guildId },
@@ -773,7 +773,7 @@ class DatabaseManager {
     }
 
     async addGuildBlockedUser(guildId, userId) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
         
         await this.db.collection(config.database.collections.guildConfigs).updateOne(
             { guildId },
@@ -789,7 +789,7 @@ class DatabaseManager {
     }
 
     async setGuildWelcome(guildId, channelId, message) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const collection = this.db.collection(config.database.collections.guildConfigs);
         const now = new Date();
@@ -810,7 +810,7 @@ class DatabaseManager {
     }
 
     async setGuildWakeWord(guildId, wakeWord) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const collection = this.db.collection(config.database.collections.guildConfigs);
         const now = new Date();
@@ -841,7 +841,7 @@ class DatabaseManager {
     }
 
     async removeGuildBlockedUser(guildId, userId) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
         
         await this.db.collection(config.database.collections.guildConfigs).updateOne(
             { guildId },
@@ -855,7 +855,7 @@ class DatabaseManager {
     }
 
     async updateGuildFeatures(guildId, features = {}) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const normalized = Object.entries(features || {}).reduce((acc, [key, value]) => {
             acc[key] = Boolean(value);
@@ -908,7 +908,7 @@ class DatabaseManager {
     }
 
     async saveReactionRoleMessage(reactionRole) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const collection = this.db.collection(config.database.collections.reactionRoles);
         const now = new Date();
@@ -930,13 +930,13 @@ class DatabaseManager {
     }
 
     async getReactionRole(messageId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         return this.db.collection(config.database.collections.reactionRoles).findOne({ messageId });
     }
 
     async getReactionRolesForGuild(guildId) {
-        if (!this.isConnected) return [];
+        if (!this.isConnected) {return [];}
 
         return this.db
             .collection(config.database.collections.reactionRoles)
@@ -946,20 +946,20 @@ class DatabaseManager {
     }
 
     async deleteReactionRole(messageId) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         await this.db
             .collection(config.database.collections.reactionRoles)
             .deleteOne({ messageId });
     }
     async getAutoModConfig(guildId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         return this.db.collection(config.database.collections.autoModeration).findOne({ guildId });
     }
 
     async saveAutoModConfig(guildId, data) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const collection = this.db.collection(config.database.collections.autoModeration);
         const now = new Date();
@@ -992,13 +992,13 @@ class DatabaseManager {
     }
 
     async deleteAutoModConfig(guildId) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         await this.db.collection(config.database.collections.autoModeration).deleteOne({ guildId });
     }
 
     async reserveCounter(key) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const result = await this.db
             .collection(config.database.collections.counters)
@@ -1013,7 +1013,7 @@ class DatabaseManager {
     }
 
     async createTicket(ticket) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const now = new Date();
         const payload = {
@@ -1031,7 +1031,7 @@ class DatabaseManager {
     }
 
     async getOpenTicket(guildId, openerId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         return this.db
             .collection(config.database.collections.tickets)
@@ -1039,13 +1039,13 @@ class DatabaseManager {
     }
 
     async getTicketByChannel(channelId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         return this.db.collection(config.database.collections.tickets).findOne({ channelId });
     }
 
     async getTicketByNumber(guildId, ticketNumber) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         return this.db
             .collection(config.database.collections.tickets)
@@ -1053,7 +1053,7 @@ class DatabaseManager {
     }
 
     async getTicketById(ticketId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
 
@@ -1061,7 +1061,7 @@ class DatabaseManager {
     }
 
     async closeTicket(ticketId, updates = {}) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
         const now = new Date();
@@ -1085,7 +1085,7 @@ class DatabaseManager {
     }
 
     async saveTicketTranscript(ticketId, transcript) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
 
@@ -1105,7 +1105,7 @@ class DatabaseManager {
     }
 
     async getTicketTranscript(ticketId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         const id = typeof ticketId === 'string' ? new ObjectId(ticketId) : ticketId;
 
@@ -1115,7 +1115,7 @@ class DatabaseManager {
     }
 
     async saveKnowledgeEntry(entry) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const now = new Date();
         const payload = {
@@ -1132,7 +1132,7 @@ class DatabaseManager {
     }
 
     async getKnowledgeEntriesForGuild(guildId) {
-        if (!this.isConnected) return [];
+        if (!this.isConnected) {return [];}
 
         return this.db
             .collection(config.database.collections.knowledgeBase)
@@ -1142,7 +1142,7 @@ class DatabaseManager {
     }
 
     async getRecentKnowledgeEntries(guildId, limit = 5) {
-        if (!this.isConnected) return [];
+        if (!this.isConnected) {return [];}
 
         const sanitizedLimit = Math.max(1, Math.min(Number(limit) || 5, 25));
 
@@ -1155,7 +1155,7 @@ class DatabaseManager {
     }
 
     async getKnowledgeEntriesByTag(guildId, tag, limit = 10) {
-        if (!this.isConnected || !tag) return [];
+        if (!this.isConnected || !tag) {return [];}
 
         return this.db
             .collection(config.database.collections.knowledgeBase)
@@ -1169,7 +1169,7 @@ class DatabaseManager {
     }
 
     async getKnowledgeEntryById(guildId, entryId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         const id = typeof entryId === 'string' ? new ObjectId(entryId) : entryId;
 
@@ -1179,7 +1179,7 @@ class DatabaseManager {
     }
 
     async deleteKnowledgeEntry(guildId, entryId) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const id = typeof entryId === 'string' ? new ObjectId(entryId) : entryId;
 
@@ -1191,7 +1191,7 @@ class DatabaseManager {
     }
 
     async getNewsDigest(topic) {
-        if (!this.isConnected || !topic) return null;
+        if (!this.isConnected || !topic) {return null;}
 
         return this.db
             .collection(config.database.collections.newsCache)
@@ -1199,7 +1199,7 @@ class DatabaseManager {
     }
 
     async saveNewsDigest(topic, articles, metadata = {}) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const now = new Date();
         const sanitizedArticles = Array.isArray(articles) ? articles.slice(0, 10) : [];
@@ -1220,13 +1220,13 @@ class DatabaseManager {
     }
 
     async getServerStatsConfig(guildId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         return this.db.collection(config.database.collections.serverStats).findOne({ guildId });
     }
 
     async saveServerStatsConfig(guildId, data) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const collection = this.db.collection(config.database.collections.serverStats);
         const now = new Date();
@@ -1259,25 +1259,25 @@ class DatabaseManager {
     }
 
     async deleteServerStatsConfig(guildId) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         await this.db.collection(config.database.collections.serverStats).deleteOne({ guildId });
     }
 
     async getAllServerStatsConfigs() {
-        if (!this.isConnected) return [];
+        if (!this.isConnected) {return [];}
 
         return this.db.collection(config.database.collections.serverStats).find({}).toArray();
     }
 
     async getMemberLogConfig(guildId) {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         return this.db.collection(config.database.collections.memberLogs).findOne({ guildId });
     }
 
     async saveMemberLogConfig(guildId, data) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         const collection = this.db.collection(config.database.collections.memberLogs);
         const now = new Date();
@@ -1308,7 +1308,7 @@ class DatabaseManager {
     }
 
     async deleteMemberLogConfig(guildId) {
-        if (!this.isConnected) throw new Error('Database not connected');
+        if (!this.isConnected) {throw new Error('Database not connected');}
 
         await this.db.collection(config.database.collections.memberLogs).deleteOne({ guildId });
     }
@@ -1399,7 +1399,7 @@ class DatabaseManager {
      * Used on Render where local filesystem is ephemeral
      */
     async getCommandSyncState() {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         try {
             const doc = await this.db
@@ -1424,7 +1424,7 @@ class DatabaseManager {
      * Used on Render where local filesystem is ephemeral
      */
     async saveCommandSyncState(state) {
-        if (!this.isConnected) return false;
+        if (!this.isConnected) {return false;}
 
         try {
             await this.db.collection(config.database.collections.commandSyncState).updateOne(
@@ -1450,14 +1450,14 @@ class DatabaseManager {
     }
 
     async getAiProxyConfig() {
-        if (!this.isConnected) return null;
+        if (!this.isConnected) {return null;}
 
         try {
             const doc = await this.db
                 .collection(config.database.collections.commandSyncState)
                 .findOne({ _id: 'ai_proxy' });
 
-            if (!doc) return null;
+            if (!doc) {return null;}
 
             return {
                 enabled: typeof doc.enabled === 'boolean' ? doc.enabled : true,
@@ -1470,7 +1470,7 @@ class DatabaseManager {
     }
 
     async saveAiProxyConfig({ enabled = true, urls = [] } = {}) {
-        if (!this.isConnected) return false;
+        if (!this.isConnected) {return false;}
 
         const normalizedUrls = Array.isArray(urls) ? urls.map(String).filter(Boolean) : [];
 

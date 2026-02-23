@@ -16,7 +16,7 @@ module.exports = function createMinigames({
 }) {
     async function playMinigame(userId, gameType) {
         const game = MINIGAME_REWARDS[gameType];
-        if (!game) return { success: false, error: 'Unknown game type' };
+        if (!game) {return { success: false, error: 'Unknown game type' };}
 
         // Apply Arc Reactor cooldown reduction
         const arcPerks = await getArcReactorPerks(userId);
@@ -29,7 +29,7 @@ module.exports = function createMinigames({
         const outcome = game.outcomes[Math.floor(Math.random() * game.outcomes.length)];
 
         // Apply Arc Reactor earnings bonus
-        let reward = outcome.reward;
+        let { reward } = outcome;
         if (reward > 0) {
             reward = Math.floor(reward * arcPerks.earningsMultiplier);
         }
@@ -115,7 +115,7 @@ module.exports = function createMinigames({
             }
         }
 
-        let reward = outcome.reward;
+        let { reward } = outcome;
         if (reward > 0 && isMultiplierActive()) {
             reward = Math.floor(reward * ECONOMY_CONFIG.multiplierBonus);
         }

@@ -6,6 +6,7 @@ const path = require('path');
 const cookieParser = require('cookie-parser');
 
 const router = express.Router();
+const appContext = require('../core/app-context');
 const auth = require('../services/moderator-auth');
 const config = require('../../config');
 const database = require('../services/database');
@@ -102,7 +103,7 @@ function getSnapshotCollection() {
 }
 
 async function ensureSnapshotIndexes(collection) {
-    if (jarvisSnapshotIndexesReady) return;
+    if (jarvisSnapshotIndexesReady) {return;}
     jarvisSnapshotIndexesReady = true;
     await collection.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(err => {
         console.warn('[Jarvis] Failed to create TTL index:', err?.message || err);
@@ -114,7 +115,7 @@ async function ensureSnapshotIndexes(collection) {
 
 async function saveJarvisSnapshot(key, payload, opts = {}) {
     const safeKey = String(key || '').trim();
-    if (!safeKey) return false;
+    if (!safeKey) {return false;}
 
     const maxBytes = Math.max(1024, Number(opts.maxBytes || 512 * 1024));
     const ttlMs = Math.max(60 * 1000, Number(opts.ttlMs || 6 * 60 * 60 * 1000));
@@ -131,7 +132,7 @@ async function saveJarvisSnapshot(key, payload, opts = {}) {
     }
 
     const collection = getSnapshotCollection();
-    if (!collection) return false;
+    if (!collection) {return false;}
     await ensureSnapshotIndexes(collection);
 
     const now = Date.now();
@@ -173,7 +174,7 @@ function recordAuditEvent(req, action, data) {
         data: data || null
     };
     jarvisAuditLog.push(entry);
-    if (jarvisAuditLog.length > 500) jarvisAuditLog.splice(0, jarvisAuditLog.length - 500);
+    if (jarvisAuditLog.length > 500) {jarvisAuditLog.splice(0, jarvisAuditLog.length - 500);}
     return entry;
 }
 
@@ -213,9 +214,9 @@ function requireCsrf(req, res, next) {
 }
 
 function shouldUseSecureCookies(req) {
-    if (req?.secure) return true;
-    if (String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase() === 'https') return true;
-    if (process.env.DASHBOARD_DOMAIN && process.env.DASHBOARD_DOMAIN.startsWith('https://')) return true;
+    if (req?.secure) {return true;}
+    if (String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase() === 'https') {return true;}
+    if (process.env.DASHBOARD_DOMAIN && process.env.DASHBOARD_DOMAIN.startsWith('https://')) {return true;}
     return false;
 }
 
@@ -234,11 +235,11 @@ function getOwnerId() {
 }
 
 function getDiscordClient() {
-    return global.discordClient || null;
+    return appContext.getClient();
 }
 
 function getDiscordHandlers() {
-    return global.discordHandlers || null;
+    return appContext.getHandlers();
 }
 
 
@@ -246,13 +247,13 @@ const { getLoginPage, getPanelPage } = require('./jarvis-panel-html');
 
 async function resolveDiscordUserData(userId) {
     const client = getDiscordClient();
-    if (!client?.users?.fetch) return { id: String(userId) };
+    if (!client?.users?.fetch) {return { id: String(userId) };}
 
     const user = await client.users.fetch(String(userId)).catch(err => {
         console.warn('[Jarvis] Failed to fetch user:', userId, err?.message || err);
         return null;
     });
-    if (!user) return { id: String(userId) };
+    if (!user) {return { id: String(userId) };}
 
     return {
         id: user.id,
@@ -322,7 +323,7 @@ async function requireOwner(req, res, next) {
 
 
 
-router.get('/', async (req, res) => {
+router.get('/', async(req, res) => {
     const token = req.cookies?.jarvis_owner_session;
     if (token) {
         const session = auth.validateSession(token);
@@ -331,7 +332,7 @@ router.get('/', async (req, res) => {
         }
     }
 
-    const error = req.query.error;
+    const { error } = req.query;
     const errorMessages = {
         not_authenticated: 'Please log in to access the owner console.',
         session_expired: 'Your session has expired. Please log in again.',
@@ -360,7 +361,7 @@ router.get('/', async (req, res) => {
     res.send(getLoginPage({ oauthUrl, errorMsg }));
 });
 
-router.get('/callback', async (req, res) => {
+router.get('/callback', async(req, res) => {
     const { code, state } = req.query;
     const storedState = req.cookies?.jarvis_oauth_state;
     res.clearCookie('jarvis_oauth_state', { path: '/' });
@@ -405,7 +406,7 @@ router.get('/api/csrf', requireOwner, (req, res) => {
     res.json({ ok: true, csrfToken: req.session.csrfToken });
 });
 
-router.get('/api/cache/:key', requireOwner, async (req, res) => {
+router.get('/api/cache/:key', requireOwner, async(req, res) => {
     const rawKey = String(req.params?.key || '').trim();
     if (!rawKey || rawKey.length > 120 || !/^[a-zA-Z0-9._-]+$/.test(rawKey)) {
         return res.status(400).json({ ok: false, error: 'invalid_key' });
@@ -448,7 +449,7 @@ router.get('/api/stats', requireOwner, (req, res) => {
     const now = Date.now();
     const uptimeMs = process.uptime() * 1000;
 
-    let discordStats = { guilds: 0, users: 0, channels: 0, ready: false, tag: null };
+    const discordStats = { guilds: 0, users: 0, channels: 0, ready: false, tag: null };
     if (client && typeof client.isReady === 'function' && client.isReady()) {
         discordStats.ready = true;
         discordStats.tag = client.user?.tag || null;
@@ -504,7 +505,7 @@ function listLocalCommandFiles() {
     function walk(dir) {
         const entries = fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }) : [];
         for (const entry of entries) {
-            if (entry.name.startsWith('.')) continue;
+            if (entry.name.startsWith('.')) {continue;}
             const full = path.join(dir, entry.name);
             if (entry.isDirectory()) {
                 walk(full);
@@ -521,7 +522,7 @@ function listLocalCommandFiles() {
     return found.sort();
 }
 
-router.get('/api/commands', requireOwner, async (req, res) => {
+router.get('/api/commands', requireOwner, async(req, res) => {
     const client = getDiscordClient();
 
     let registered = [];

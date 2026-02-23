@@ -18,7 +18,7 @@ function storeFunction(name, variable, expression) {
 
 function getFunction(name) {
     const fn = functionStore.get(name.toLowerCase());
-    if (!fn) return null;
+    if (!fn) {return null;}
     // Check if expired
     if (Date.now() - fn.createdAt > FUNCTION_TTL_MS) {
         functionStore.delete(name.toLowerCase());
@@ -96,7 +96,7 @@ class MathSolver {
     solve(rawInput) {
         // Handle random/stats operations before nerdamer parsing
         const randomResult = this.tryRandomOperation(rawInput);
-        if (randomResult !== null) return randomResult;
+        if (randomResult !== null) {return randomResult;}
 
         const parsed = this.parseInput(rawInput);
 
@@ -132,7 +132,7 @@ class MathSolver {
         if (randRange) {
             const min = parseFloat(randRange[1]);
             const max = parseFloat(randRange[2]);
-            if (isNaN(min) || isNaN(max)) return null;
+            if (isNaN(min) || isNaN(max)) {return null;}
             const result = Math.floor(Math.random() * (max - min + 1)) + min;
             return String(result);
         }
@@ -158,7 +158,7 @@ class MathSolver {
         const chooseMatch = trimmed.match(/^choose\s+(.+)$/i);
         if (chooseMatch) {
             const options = chooseMatch[1].split(/[,|]/).map(s => s.trim()).filter(Boolean);
-            if (options.length < 2) return null;
+            if (options.length < 2) {return null;}
             return options[Math.floor(Math.random() * options.length)];
         }
 
@@ -177,7 +177,7 @@ class MathSolver {
         const avgMatch = trimmed.match(/^(?:avg|average|mean)\s+(.+)$/i);
         if (avgMatch) {
             const nums = avgMatch[1].split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-            if (!nums.length) return null;
+            if (!nums.length) {return null;}
             return String(nums.reduce((a, b) => a + b, 0) / nums.length);
         }
 
@@ -185,7 +185,7 @@ class MathSolver {
         const medianMatch = trimmed.match(/^median\s+(.+)$/i);
         if (medianMatch) {
             const nums = medianMatch[1].split(/[\s,]+/).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
-            if (!nums.length) return null;
+            if (!nums.length) {return null;}
             const mid = Math.floor(nums.length / 2);
             return String(nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2);
         }
@@ -194,7 +194,7 @@ class MathSolver {
         const stdMatch = trimmed.match(/^(?:stddev|stdev|sd)\s+(.+)$/i);
         if (stdMatch) {
             const nums = stdMatch[1].split(/[\s,]+/).map(Number).filter(n => !isNaN(n));
-            if (nums.length < 2) return null;
+            if (nums.length < 2) {return null;}
             const mean = nums.reduce((a, b) => a + b, 0) / nums.length;
             const variance = nums.reduce((sum, n) => sum + (n - mean) ** 2, 0) / nums.length;
             return String(Math.sqrt(variance));
@@ -205,10 +205,10 @@ class MathSolver {
         if (baseMatch) {
             const num = parseInt(baseMatch[1]);
             const target = baseMatch[2].toLowerCase();
-            if (target === 'hex') return `0x${num.toString(16).toUpperCase()}`;
-            if (target === 'bin') return `0b${num.toString(2)}`;
-            if (target === 'oct') return `0o${num.toString(8)}`;
-            if (baseMatch[3]) return num.toString(parseInt(baseMatch[3]));
+            if (target === 'hex') {return `0x${num.toString(16).toUpperCase()}`;}
+            if (target === 'bin') {return `0b${num.toString(2)}`;}
+            if (target === 'oct') {return `0o${num.toString(8)}`;}
+            if (baseMatch[3]) {return num.toString(parseInt(baseMatch[3]));}
         }
 
         // percentage: what % of X is Y  or  X % of Y

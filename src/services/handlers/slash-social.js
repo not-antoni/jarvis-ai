@@ -41,7 +41,7 @@ async function handleSoul(interaction) {
         return `\uD83E\uDDE0 Soul evolved with stimulus: **${stimulus}** (context: ${context})\nNew mood: **${newStatus.mood}** | Evolutions: **${newStatus.evolutions}**`;
     } else if (subcommand === 'memory') {
         const memories = selfhostFeatures.jarvisSoul.getMemories?.() || [];
-        if (!memories.length) return 'No soul memories recorded yet.';
+        if (!memories.length) {return 'No soul memories recorded yet.';}
         const display = memories.slice(-10).map((m, i) => `${i + 1}. [${m.type || 'general'}] ${m.content?.substring(0, 80) || 'empty'}`).join('\n');
         return `\uD83E\uDDE0 **Recent Soul Memories** (last ${Math.min(memories.length, 10)}):\n\`\`\`\n${display}\n\`\`\``;
     }
@@ -149,7 +149,7 @@ async function handleTyperace(interaction) {
     const filter = m => m.content.toLowerCase() === phrase.toLowerCase() && !m.author.bot;
     const collector = interaction.channel.createMessageCollector({ filter, time: 30000, max: 1 });
 
-    collector.on('collect', async (msg) => {
+    collector.on('collect', async(msg) => {
         const winEmbed = new EmbedBuilder()
             .setTitle('\uD83C\uDFC6 WINNER! \uD83C\uDFC6')
             .setDescription(`<@${msg.author.id}> typed it first!`)
@@ -213,7 +213,7 @@ async function handleSocial(interaction) {
             if (interaction.user.id === herId) {
                 const isTheShip = (person1.id === herId && person2.id === himId) ||
                                   (person1.id === himId && person2.id === herId);
-                if (isTheShip) compatibility = 101;
+                if (isTheShip) {compatibility = 101;}
             }
             const shipName = funFeatures.generateShipName(
                 person1.displayName || person1.username,
@@ -331,7 +331,7 @@ async function handleShip(interaction) {
     if (interaction.user.id === herId) {
         const isTheShip = (person1.id === herId && person2.id === himId) ||
                           (person1.id === himId && person2.id === herId);
-        if (isTheShip) compatibility = 101;
+        if (isTheShip) {compatibility = 101;}
     }
     const shipName = funFeatures.generateShipName(
         person1.displayName || person1.username,

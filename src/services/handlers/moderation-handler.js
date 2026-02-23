@@ -5,6 +5,7 @@
  */
 
 const { EmbedBuilder } = require('discord.js');
+const appContext = require('../../core/app-context');
 
 /**
  * Handle moderation slash commands
@@ -68,15 +69,17 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
                     const mins = Math.floor(banDuration / 60000);
                     const hours = Math.floor(mins / 60);
                     const days = Math.floor(hours / 24);
-                    if (days > 0) durationText = `for ${days} day(s)`;
-                    else if (hours > 0) durationText = `for ${hours} hour(s)`;
-                    else durationText = `for ${mins} minute(s)`;
+                    if (days > 0) {durationText = `for ${days} day(s)`;}
+                    else if (hours > 0) {durationText = `for ${hours} hour(s)`;}
+                    else {durationText = `for ${mins} minute(s)`;}
 
                     // Schedule unban
-                    setTimeout(async () => {
+                    setTimeout(async() => {
                         try {
                             await interaction.guild.members.unban(targetUser.id, 'Temporary ban expired');
-                        } catch { }
+                        } catch (err) {
+                            console.warn(`[Moderation] Auto-unban failed for ${targetUser.id}:`, err.message);
+                        }
                     }, banDuration);
                 }
 
@@ -225,16 +228,16 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 
             const { resolveUser } = require('../../utils/resolve-user');
             const { user: targetUser } = await resolveUser(interaction.client, interaction.guild, userInput);
-            if (!targetUser) { response = `❌ User not found.`; break; }
+            if (!targetUser) { response = '❌ User not found.'; break; }
 
             // Store warning
             const guildId = interaction.guild.id;
             const userId = targetUser.id;
 
-            if (!global.jarvisWarnings) global.jarvisWarnings = new Map();
-            if (!global.jarvisWarnings.has(guildId)) global.jarvisWarnings.set(guildId, new Map());
+            const warnings = appContext.getWarnings();
+            if (!warnings.has(guildId)) {warnings.set(guildId, new Map());}
 
-            const guildWarnings = global.jarvisWarnings.get(guildId);
+            const guildWarnings = warnings.get(guildId);
             const userWarnings = guildWarnings.get(userId) || [];
             userWarnings.push({ reason, warnedBy: interaction.user.id, timestamp: Date.now() });
             guildWarnings.set(userId, userWarnings);
@@ -334,13 +337,13 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
             }
 
             try {
-                const everyone = interaction.guild.roles.everyone;
+                const { everyone } = interaction.guild.roles;
                 if (action === 'lock') {
                     await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: false }, { reason });
                     response = `🔒 Channel locked.\nReason: ${reason}`;
                 } else {
                     await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: null }, { reason });
-                    response = `🔓 Channel unlocked.`;
+                    response = '🔓 Channel unlocked.';
                 }
             } catch (error) {
                 response = `❌ Lockdown failed: ${error.message}`;
@@ -386,7 +389,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 
             if (!interaction.guild) { response = 'This command only works in servers.'; break; }
 
-            const guild = interaction.guild;
+            const { guild } = interaction;
             const owner = await guild.fetchOwner().catch(() => null);
 
             const iconUrl = guild.iconURL({ size: 256 });

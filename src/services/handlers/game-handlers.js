@@ -174,9 +174,9 @@ async function handleCryptoCommand(handler, interaction) {
                 { name: 'Rank', value: asset.cmc_rank ? `#${asset.cmc_rank}` : '—', inline: true }
             );
 
-    if (asset.slug) {
-        embed.setURL(`https://coinmarketcap.com/currencies/${asset.slug}/`);
-    }
+        if (asset.slug) {
+            embed.setURL(`https://coinmarketcap.com/currencies/${asset.slug}/`);
+        }
 
         if (lastUpdated) {
             embed.setTimestamp(lastUpdated);
@@ -266,7 +266,7 @@ async function handleJokeCommand(handler, interaction) {
     const sources = [
         { name: 'jokeapi', fetcher: fetchJokeApi },
         { name: 'official', fetcher: fetchOfficialJoke },
-        { name: 'ninjas', fetcher: fetchNinjaJoke },
+        { name: 'ninjas', fetcher: fetchNinjaJoke }
     ];
 
     // Shuffle sources so we don't always hit the same one first
@@ -307,7 +307,7 @@ async function handleFeaturesCommand(handler, interaction) {
             return;
         }
 
-        const member = interaction.member;
+        const { member } = interaction;
         const isAdmin = member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
             member.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
             member.id === interaction.guild.ownerId;
@@ -433,7 +433,7 @@ async function handleComponentInteraction(handler, interaction) {
             await ticketSystem.handleInteraction(interaction);
         } catch (e) {
             console.error('Ticket System Error:', e);
-            if (!interaction.replied) await interaction.reply({ content: '\u274C Ticket system error.', ephemeral: true });
+            if (!interaction.replied) {await interaction.reply({ content: '\u274C Ticket system error.', ephemeral: true });}
         }
         return;
     }
@@ -761,7 +761,7 @@ async function handleScrambleCommand(handler, interaction) {
 
 async function handleMissionCommand(handler, interaction) {
     const refresh = interaction.options.getBoolean('refresh') || false;
-    const user = interaction.user;
+    const { user } = interaction;
     const userId = user.id;
     const userName = user.displayName || user.username;
 

@@ -98,7 +98,7 @@ class GracefulShutdownManager {
      * Execute graceful shutdown
      */
     async shutdown() {
-        if (this.shutdownStarted) return;
+        if (this.shutdownStarted) {return;}
 
         this.shutdownStarted = true;
         this.shutdownInProgress = true;

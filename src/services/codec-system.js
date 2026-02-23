@@ -158,7 +158,7 @@ function base58Encode(buffer) {
         buffer = Buffer.from(buffer);
     }
 
-    let num = BigInt('0x' + buffer.toString('hex'));
+    let num = BigInt(`0x${  buffer.toString('hex')}`);
     const base = BigInt(BASE58_ALPHABET.length);
 
     if (num === 0n) {
@@ -205,7 +205,7 @@ function base58Decode(input) {
 
     let hex = num.toString(16);
     if (hex.length % 2 !== 0) {
-        hex = '0' + hex;
+        hex = `0${  hex}`;
     }
 
     let buffer = Buffer.from(hex, 'hex');

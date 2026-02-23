@@ -29,7 +29,7 @@ async function main() {
                 content: null,
                 embeds: [
                     {
-                        title: `Agent preview`,
+                        title: 'Agent preview',
                         url: result.url,
                         description: result.summary.slice(0, 4000),
                         color: 0x1f8b4c,

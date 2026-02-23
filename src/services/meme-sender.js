@@ -30,7 +30,7 @@ class MemeSender {
     }
 
     stop() {
-        if (this.interval) clearInterval(this.interval);
+        if (this.interval) {clearInterval(this.interval);}
     }
 
     /**
@@ -39,7 +39,7 @@ class MemeSender {
     async fetchMeme() {
         try {
             const response = await fetch(this.apiUrl);
-            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            if (!response.ok) {throw new Error(`API Error: ${response.statusText}`);}
             const data = await response.json();
             return data;
         } catch (error) {
@@ -52,7 +52,7 @@ class MemeSender {
      * Send meme to the target channel
      */
     async sendMeme() {
-        if (!this.client) return;
+        if (!this.client) {return;}
         if (!this.targetGuildId || !this.targetChannelId) {
             if (!this.hasWarnedMissingTarget) {
                 console.warn('[MemeSender] MEME_GUILD_ID or MEME_CHANNEL_ID is not set; skipping.');
@@ -63,7 +63,7 @@ class MemeSender {
 
         try {
             const guild = await this.client.guilds.fetch(this.targetGuildId).catch(() => null);
-            if (!guild) return console.warn(`[MemeSender] Target guild ${this.targetGuildId} not found`);
+            if (!guild) {return console.warn(`[MemeSender] Target guild ${this.targetGuildId} not found`);}
 
             let channel = null;
             if (guild.channels?.fetch) {
@@ -72,7 +72,7 @@ class MemeSender {
             if (!channel) {
                 channel = await this.client.channels.fetch(this.targetChannelId).catch(() => null);
             }
-            if (!channel) return console.warn(`[MemeSender] Target channel ${this.targetChannelId} not found`);
+            if (!channel) {return console.warn(`[MemeSender] Target channel ${this.targetChannelId} not found`);}
             if (channel.guildId && channel.guildId !== guild.id) {
                 return console.warn(`[MemeSender] Target channel ${this.targetChannelId} does not belong to guild ${guild.id}`);
             }
@@ -82,7 +82,7 @@ class MemeSender {
 
             // Fetch meme
             const meme = await this.fetchMeme();
-            if (!meme) return;
+            if (!meme) {return;}
 
             // NSFW Filter (Auto-skip NSFW if channel isn't NSFW)
             if (meme.nsfw && channel.nsfw === false) {

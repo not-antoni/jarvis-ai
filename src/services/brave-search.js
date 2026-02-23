@@ -23,7 +23,7 @@ const API_KEY_PATTERN = /\b(?:sk-|pk_|api[_-]?key[=:]\s*)[A-Za-z0-9_-]{20,}\b/gi
  * Redact sensitive information from text (IPs, emails, phones, API keys)
  */
 function redactSensitiveInfo(text) {
-    if (typeof text !== 'string') return text;
+    if (typeof text !== 'string') {return text;}
     return text
         .replace(IPV4_PATTERN, '[IP REDACTED]')
         .replace(IPV6_PATTERN, '[IP REDACTED]')
@@ -275,7 +275,7 @@ const CONFUSABLE_CHAR_MAP = new Map([
 ]);
 
 function replaceConfusableCharacters(text) {
-    if (!text) return text;
+    if (!text) {return text;}
 
     let result = '';
     for (const char of text) {
@@ -834,7 +834,7 @@ class BraveSearch {
     }
 
     truncate(text, maxLength) {
-        if (!text) return '';
+        if (!text) {return '';}
         return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
     }
 
@@ -876,11 +876,11 @@ class BraveSearch {
         const variantsToCheck = (
             allowEducationalContext
                 ? variants.map(variant =>
-                      SAFE_CONTEXT_PATTERNS.reduce((cleaned, pattern) => {
-                          pattern.lastIndex = 0;
-                          return cleaned.replace(pattern, ' ');
-                      }, variant)
-                  )
+                    SAFE_CONTEXT_PATTERNS.reduce((cleaned, pattern) => {
+                        pattern.lastIndex = 0;
+                        return cleaned.replace(pattern, ' ');
+                    }, variant)
+                )
                 : variants
         ).map(variant => variant.replace(/\s+/g, ' ').trim());
 
@@ -918,7 +918,7 @@ class BraveSearch {
     }
 
     isExplicitDomain(hostname) {
-        if (!hostname) return false;
+        if (!hostname) {return false;}
 
         const normalizedHost = hostname.toLowerCase();
         const strippedHost = normalizedHost.startsWith('www.')
@@ -1076,7 +1076,7 @@ class BraveSearch {
             const parsed = new URL(working);
             if (parsed.hostname.includes('duckduckgo.com') && parsed.pathname.startsWith('/l/')) {
                 const uddg = parsed.searchParams.get('uddg');
-                if (uddg) return decodeURIComponent(uddg);
+                if (uddg) {return decodeURIComponent(uddg);}
             }
             [
                 'utm_source',
@@ -1149,9 +1149,9 @@ class BraveSearch {
         }
 
         const metaBits = [];
-        if (result.displayUrl) metaBits.push(result.displayUrl);
-        if (result.profileName) metaBits.push(result.profileName);
-        if (result.age) metaBits.push(result.age);
+        if (result.displayUrl) {metaBits.push(result.displayUrl);}
+        if (result.profileName) {metaBits.push(result.profileName);}
+        if (result.age) {metaBits.push(result.age);}
         if (metaBits.length > 0) {
             snippetParts.push(metaBits.join(' • '));
         }
@@ -1220,10 +1220,10 @@ class BraveSearch {
         const safeResults = results
             .filter(result => {
                 const hasUrl = result && typeof result.url === 'string';
-                if (!hasUrl) return false;
+                if (!hasUrl) {return false;}
 
                 const explicit = this.resultIsExplicit(result);
-                if (explicit) filteredOut += 1;
+                if (explicit) {filteredOut += 1;}
 
                 return !explicit;
             })
@@ -1286,7 +1286,7 @@ class BraveSearch {
             const href = link.attr('href');
             const snippet = $el.find('.result__snippet').text().trim();
 
-            if (!href || !title) return;
+            if (!href || !title) {return;}
 
             const resolvedUrl = this.sanitizeUrl(
                 (() => {
@@ -1298,7 +1298,7 @@ class BraveSearch {
                             parsed.pathname.startsWith('/l/')
                         ) {
                             const uddg = parsed.searchParams.get('uddg');
-                            if (uddg) return decodeURIComponent(uddg);
+                            if (uddg) {return decodeURIComponent(uddg);}
                         }
                         return cleaned;
                     } catch {
@@ -1323,7 +1323,7 @@ class BraveSearch {
 
         const safeResults = results
             .filter(result => {
-                if (!result?.url) return false;
+                if (!result?.url) {return false;}
                 try {
                     const explicit = this.isExplicitQuery(
                         `${result.title} ${result.description || ''}`,
@@ -1443,7 +1443,7 @@ class BraveSearch {
                     parsed.pathname.startsWith('/l/')
                 ) {
                     const uddg = parsed.searchParams.get('uddg');
-                    if (uddg) return decodeURIComponent(uddg);
+                    if (uddg) {return decodeURIComponent(uddg);}
                 }
                 return cleaned;
             } catch {
@@ -1459,7 +1459,7 @@ class BraveSearch {
             const snippet = $el.find('.result__snippet').text().trim();
             const source = $el.find('.result__extras__url').text().trim();
 
-            if (!href || !title) return;
+            if (!href || !title) {return;}
 
             results.push({
                 title: this.truncate(title, 120),

@@ -213,15 +213,15 @@ class AgentMemory {
      * Search learnings by keyword relevance
      */
     findRelevantLearnings(query, limit = 5) {
-        if (!query || this.learnings.length === 0) return [];
+        if (!query || this.learnings.length === 0) {return [];}
         const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-        if (words.length === 0) return this.learnings.slice(-limit);
+        if (words.length === 0) {return this.learnings.slice(-limit);}
 
         const scored = this.learnings.map(l => {
             const text = (l.content || '').toLowerCase();
             let score = 0;
             for (const w of words) {
-                if (text.includes(w)) score++;
+                if (text.includes(w)) {score++;}
             }
             // Recency bonus: newer learnings get a small boost
             const age = Date.now() - (l.learnedAt || 0);
@@ -240,8 +240,8 @@ class AgentMemory {
      * Store a conversation snippet for a user
      */
     rememberConversation(userId, message, role = 'user') {
-        if (!this.workingMemory.conversations) this.workingMemory.conversations = {};
-        if (!this.workingMemory.conversations[userId]) this.workingMemory.conversations[userId] = [];
+        if (!this.workingMemory.conversations) {this.workingMemory.conversations = {};}
+        if (!this.workingMemory.conversations[userId]) {this.workingMemory.conversations[userId] = [];}
         this.workingMemory.conversations[userId].push({
             role, message: String(message).substring(0, 300), timestamp: Date.now()
         });
@@ -385,7 +385,7 @@ class AgentTools {
                 // OWNER: Full filesystem access with persistent cwd
                 // NON-OWNER: Sandboxed to SANDBOX_DIR
                 const sandboxPath = path.resolve(SANDBOX_DIR);
-                let workingDir = callerIsOwner ? this.ownerCwd : sandboxPath;
+                const workingDir = callerIsOwner ? this.ownerCwd : sandboxPath;
 
                 // Handle cd command specially for owner (update persistent cwd)
                 if (callerIsOwner && parsed.executable.toLowerCase() === 'cd') {
@@ -403,15 +403,15 @@ class AgentTools {
                             duration: Date.now() - startTime,
                             cwd: newPath
                         });
-                    } else {
-                        return resolve({
-                            status: 'error',
-                            command,
-                            output: `Directory not found: ${newPath}`,
-                            exitCode: 1,
-                            duration: Date.now() - startTime
-                        });
-                    }
+                    } 
+                    return resolve({
+                        status: 'error',
+                        command,
+                        output: `Directory not found: ${newPath}`,
+                        exitCode: 1,
+                        duration: Date.now() - startTime
+                    });
+                    
                 }
 
                 // For owner: use shell mode for full command support (pipes, etc)
@@ -721,9 +721,9 @@ class ReasoningEngine {
 
         // Calculate confidence based on context richness and wisdom trait
         let confidence = 0.5 + (traits.wisdom / 200); // Base 0.5 + up to 0.5 from wisdom
-        if (hasGoals) confidence += 0.1;
-        if (hasRecentContext) confidence += 0.1;
-        if (hasPastExperience) confidence += 0.15; // Boost confidence when we have relevant experience
+        if (hasGoals) {confidence += 0.1;}
+        if (hasRecentContext) {confidence += 0.1;}
+        if (hasPastExperience) {confidence += 0.15;} // Boost confidence when we have relevant experience
         confidence = Math.min(1, confidence);
 
         // Determine situation type from intent with broader pattern matching
@@ -1105,7 +1105,7 @@ class SentientAgent extends EventEmitter {
     _autoEvolveSoul(thought) {
         try {
             const situation = thought?.orientation?.situation;
-            if (!situation) return;
+            if (!situation) {return;}
 
             const moodMap = {
                 assisting: 'helpful',
@@ -1144,10 +1144,10 @@ class SentientAgent extends EventEmitter {
             const { getAGIS } = require('../core/agis');
             const agis = getAGIS();
 
-            if (!agis.enabled) return;
+            if (!agis.enabled) {return;}
 
             const nextStep = agis.evaluate();
-            if (!nextStep) return;
+            if (!nextStep) {return;}
 
             this.log(`Pursuing goal step: ${nextStep.step.description.substring(0, 80)}`, 'info');
 
@@ -1227,10 +1227,10 @@ class SentientAgent extends EventEmitter {
             );
 
             return { approved: true, result };
-        } else {
-            this.log(`Action denied: ${request.action.type}`, 'warn');
-            return { approved: false, reason: 'Denied by human' };
-        }
+        } 
+        this.log(`Action denied: ${request.action.type}`, 'warn');
+        return { approved: false, reason: 'Denied by human' };
+        
     }
 
     /**

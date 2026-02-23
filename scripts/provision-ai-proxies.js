@@ -7,11 +7,11 @@ const path = require('path');
 const database = require('../src/services/database');
 
 function parseBoolean(value, fallback = false) {
-    if (value == null) return Boolean(fallback);
+    if (value == null) {return Boolean(fallback);}
     const normalized = String(value).trim().toLowerCase();
-    if (!normalized) return Boolean(fallback);
-    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) return true;
-    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) return false;
+    if (!normalized) {return Boolean(fallback);}
+    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {return true;}
+    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {return false;}
     return Boolean(fallback);
 }
 
@@ -258,11 +258,11 @@ async function main() {
     urls.forEach(url => console.log(url));
 
     console.log('\n[ai-proxy] Add this to your .env:');
-    console.log(`AI_PROXY_ENABLED=true`);
+    console.log('AI_PROXY_ENABLED=true');
     console.log(`AI_PROXY_URLS=${urls.join(',')}`);
-    console.log(`AI_PROXY_STRATEGY=round_robin`);
-    console.log(`AI_PROXY_DEBUG=true`);
-    console.log(`AI_PROXY_FALLBACK_DIRECT=true`);
+    console.log('AI_PROXY_STRATEGY=round_robin');
+    console.log('AI_PROXY_DEBUG=true');
+    console.log('AI_PROXY_FALLBACK_DIRECT=true');
 }
 
 main().catch(err => {

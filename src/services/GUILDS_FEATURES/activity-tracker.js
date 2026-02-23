@@ -31,7 +31,7 @@ function getGuildData(guildId) {
  * Record a message for activity tracking
  */
 function recordMessage(guildId, channelId, userId) {
-    if (!guildId) return;
+    if (!guildId) {return;}
 
     const data = getGuildData(guildId);
     data.messages++;
@@ -74,12 +74,12 @@ function getActivitySummary(guildId) {
  * Persist activity data to database (call periodically)
  */
 async function flushToDatabase(database) {
-    if (!database?.isConnected) return;
+    if (!database?.isConnected) {return;}
 
     const flushed = [];
     for (const [guildId] of guildActivity.entries()) {
         const summary = getActivitySummary(guildId);
-        if (!summary || summary.totalMessages === 0) continue;
+        if (!summary || summary.totalMessages === 0) {continue;}
 
         try {
             const col = database.db.collection('guildActivity');

@@ -98,7 +98,7 @@ function getSBX() {
  * GET /transaction/:id
  * Display payment page for a transaction
  */
-router.get('/transaction/:id', async (req, res) => {
+router.get('/transaction/:id', async(req, res) => {
     try {
         const sbx = getSBX();
         const transaction = await sbx.getTransaction(req.params.id);
@@ -128,7 +128,7 @@ router.get('/transaction/:id', async (req, res) => {
  * POST /transaction/:id/pay
  * Complete a payment (API)
  */
-router.post('/transaction/:id/pay', requireSbxAuth, async (req, res) => {
+router.post('/transaction/:id/pay', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         // Use authenticated userId from session, not from body
@@ -150,7 +150,7 @@ router.post('/transaction/:id/pay', requireSbxAuth, async (req, res) => {
  * GET /store
  * Display the online store
  */
-router.get('/store', async (req, res) => {
+router.get('/store', async(req, res) => {
     try {
         const sbx = getSBX();
         const items = sbx.getStoreItems();
@@ -167,7 +167,7 @@ router.get('/store', async (req, res) => {
  * GET /store/:category
  * Display store items by category
  */
-router.get('/store/:category', async (req, res) => {
+router.get('/store/:category', async(req, res) => {
     try {
         const sbx = getSBX();
         const items = sbx.getStoreItems(req.params.category);
@@ -188,7 +188,7 @@ router.get('/store/:category', async (req, res) => {
  * GET /exchange
  * Display the SBX exchange/ticker
  */
-router.get('/exchange', async (req, res) => {
+router.get('/exchange', async(req, res) => {
     try {
         const sbx = getSBX();
         const market = await sbx.getMarketData();
@@ -208,7 +208,7 @@ router.get('/exchange', async (req, res) => {
  * GET /api/sbx/market
  * Get current market data
  */
-router.get('/api/sbx/market', async (req, res) => {
+router.get('/api/sbx/market', async(req, res) => {
     try {
         const sbx = getSBX();
         const market = await sbx.getMarketData();
@@ -222,7 +222,7 @@ router.get('/api/sbx/market', async (req, res) => {
  * GET /api/sbx/ticker
  * Get current price ticker (simplified)
  */
-router.get('/api/sbx/ticker', async (req, res) => {
+router.get('/api/sbx/ticker', async(req, res) => {
     try {
         const sbx = getSBX();
         const market = await sbx.getMarketData();
@@ -242,7 +242,7 @@ router.get('/api/sbx/ticker', async (req, res) => {
  * GET /api/sbx/wallet/:userId
  * Get user's SBX wallet
  */
-router.get('/api/sbx/wallet/:userId', async (req, res) => {
+router.get('/api/sbx/wallet/:userId', async(req, res) => {
     try {
         const sbx = getSBX();
         const wallet = await sbx.getWallet(req.params.userId);
@@ -261,7 +261,7 @@ router.get('/api/sbx/wallet/:userId', async (req, res) => {
  * POST /api/sbx/transfer
  * Transfer SBX between users
  */
-router.post('/api/sbx/transfer', requireSbxAuth, async (req, res) => {
+router.post('/api/sbx/transfer', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         // Use authenticated userId as sender - cannot transfer from other wallets
@@ -288,7 +288,7 @@ router.post('/api/sbx/transfer', requireSbxAuth, async (req, res) => {
  * POST /api/sbx/payment-request
  * Create a new payment request
  */
-router.post('/api/sbx/payment-request', requireSbxAuth, async (req, res) => {
+router.post('/api/sbx/payment-request', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         // Use authenticated userId as requester
@@ -316,7 +316,7 @@ router.post('/api/sbx/payment-request', requireSbxAuth, async (req, res) => {
  * POST /api/sbx/convert/to-sbx
  * Convert Stark Bucks to SBX
  */
-router.post('/api/sbx/convert/to-sbx', requireSbxAuth, async (req, res) => {
+router.post('/api/sbx/convert/to-sbx', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         const userId = req.sbxUserId;
@@ -338,7 +338,7 @@ router.post('/api/sbx/convert/to-sbx', requireSbxAuth, async (req, res) => {
  * POST /api/sbx/convert/to-starkbucks
  * Convert SBX to Stark Bucks
  */
-router.post('/api/sbx/convert/to-starkbucks', requireSbxAuth, async (req, res) => {
+router.post('/api/sbx/convert/to-starkbucks', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         const userId = req.sbxUserId;
@@ -360,7 +360,7 @@ router.post('/api/sbx/convert/to-starkbucks', requireSbxAuth, async (req, res) =
  * GET /api/sbx/store/items
  * Get all store items
  */
-router.get('/api/sbx/store/items', async (req, res) => {
+router.get('/api/sbx/store/items', async(req, res) => {
     try {
         const sbx = getSBX();
         const items = sbx.getStoreItems(req.query.category);
@@ -374,7 +374,7 @@ router.get('/api/sbx/store/items', async (req, res) => {
  * POST /api/sbx/store/purchase
  * Purchase an item from the store
  */
-router.post('/api/sbx/store/purchase', requireSbxAuth, async (req, res) => {
+router.post('/api/sbx/store/purchase', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         const userId = req.sbxUserId;
@@ -395,7 +395,7 @@ router.post('/api/sbx/store/purchase', requireSbxAuth, async (req, res) => {
  * GET /api/sbx/store/purchases/:userId
  * Get user's purchases
  */
-router.get('/api/sbx/store/purchases/:userId', async (req, res) => {
+router.get('/api/sbx/store/purchases/:userId', async(req, res) => {
     try {
         const sbx = getSBX();
         const purchases = await sbx.getUserPurchases(req.params.userId);
@@ -409,7 +409,7 @@ router.get('/api/sbx/store/purchases/:userId', async (req, res) => {
  * POST /api/sbx/invest
  * Invest SBX
  */
-router.post('/api/sbx/invest', requireSbxAuth, async (req, res) => {
+router.post('/api/sbx/invest', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         const userId = req.sbxUserId;
@@ -431,7 +431,7 @@ router.post('/api/sbx/invest', requireSbxAuth, async (req, res) => {
  * POST /api/sbx/invest/claim
  * Claim investment earnings
  */
-router.post('/api/sbx/invest/claim', requireSbxAuth, async (req, res) => {
+router.post('/api/sbx/invest/claim', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         const userId = req.sbxUserId;
@@ -447,7 +447,7 @@ router.post('/api/sbx/invest/claim', requireSbxAuth, async (req, res) => {
  * POST /api/sbx/invest/withdraw
  * Withdraw investment
  */
-router.post('/api/sbx/invest/withdraw', requireSbxAuth, async (req, res) => {
+router.post('/api/sbx/invest/withdraw', requireSbxAuth, async(req, res) => {
     try {
         const sbx = getSBX();
         const userId = req.sbxUserId;
@@ -473,7 +473,7 @@ router.post('/api/sbx/invest/withdraw', requireSbxAuth, async (req, res) => {
  * GET /api/sbx/news
  * Get latest news feed
  */
-router.get('/api/sbx/news', async (req, res) => {
+router.get('/api/sbx/news', async(req, res) => {
     try {
         const sbx = getSBX();
         const limit = Math.min(parseInt(req.query.limit) || 10, 50);
@@ -488,7 +488,7 @@ router.get('/api/sbx/news', async (req, res) => {
  * POST /api/sbx/news
  * Add news item (site owner only - uses OAuth or secret key)
  */
-router.post('/api/sbx/news', async (req, res) => {
+router.post('/api/sbx/news', async(req, res) => {
     try {
         const sbx = getSBX();
         const { headline, priceImpact, secretKey, image } = req.body;
@@ -525,7 +525,7 @@ router.post('/api/sbx/news', async (req, res) => {
  * DELETE /api/sbx/news
  * Clear all news (site owner only - requires secret key)
  */
-router.delete('/api/sbx/news', async (req, res) => {
+router.delete('/api/sbx/news', async(req, res) => {
     try {
         const sbx = getSBX();
         const { secretKey } = req.body;
@@ -555,7 +555,7 @@ const newsImageStorage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        const uniqueName = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + path.extname(file.originalname);
+        const uniqueName = `${Date.now()  }-${  Math.random().toString(36).slice(2, 8)  }${path.extname(file.originalname)}`;
         cb(null, uniqueName);
     }
 });
@@ -573,7 +573,7 @@ const newsImageUpload = multer({
     }
 });
 
-router.post('/api/sbx/news/upload', newsImageUpload.single('image'), async (req, res) => {
+router.post('/api/sbx/news/upload', newsImageUpload.single('image'), async(req, res) => {
     try {
         // Check owner auth
         const session = userAuth.getSessionFromRequest(req);
@@ -585,7 +585,7 @@ router.post('/api/sbx/news/upload', newsImageUpload.single('image'), async (req,
         
         if (session.userId !== botOwnerId) {
             // Delete uploaded file if not authorized
-            if (req.file) fs.unlinkSync(req.file.path);
+            if (req.file) {fs.unlinkSync(req.file.path);}
             return res.status(403).json({ error: 'Owner only' });
         }
         
@@ -594,7 +594,7 @@ router.post('/api/sbx/news/upload', newsImageUpload.single('image'), async (req,
         }
         
         // Return the URL for the uploaded image
-        const imageUrl = '/uploads/news/' + req.file.filename;
+        const imageUrl = `/uploads/news/${  req.file.filename}`;
         res.json({ success: true, url: imageUrl });
     } catch (error) {
         res.status(500).json({ error: error.message || 'Upload failed' });
@@ -1171,7 +1171,7 @@ function renderExchangePage(market) {
         new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ${JSON.stringify(historyPoints.map((_, i) => i + 'm ago').reverse())},
+                labels: ${JSON.stringify(historyPoints.map((_, i) => `${i  }m ago`).reverse())},
                 datasets: [{
                     label: 'SBX Price',
                     data: ${JSON.stringify(historyPoints.map(p => p.price))},

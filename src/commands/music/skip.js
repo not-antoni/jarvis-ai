@@ -12,11 +12,11 @@ module.exports = {
                 .setMinValue(1)
         ),
     async execute(interaction) {
-        if (!interaction.guild) return;
+        if (!interaction.guild) {return;}
 
         // DJ / Blocking Check
         const { canControlMusic } = require('../../utils/dj-system');
-        if (!await canControlMusic(interaction)) return;
+        if (!await canControlMusic(interaction)) {return;}
 
         let distubeInstance;
         try {
@@ -43,7 +43,7 @@ module.exports = {
             }
 
             if (position === 1) {
-                await interaction.reply({ content: `⚠️ Song #1 is already playing! Use \`/skip\` to skip it.`, flags: 64 });
+                await interaction.reply({ content: '⚠️ Song #1 is already playing! Use `/skip` to skip it.', flags: 64 });
                 return;
             }
 

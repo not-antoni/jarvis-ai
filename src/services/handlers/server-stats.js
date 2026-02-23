@@ -145,7 +145,7 @@ async function ensureServerStatsChannels(handler, guild, existingConfig = null, 
         await applyServerStatsPermissions(category, me, everyoneId);
     }
 
-    const ensureVoiceChannel = async (channelId, placeholderName) => {
+    const ensureVoiceChannel = async(channelId, placeholderName) => {
         let channel = null;
         if (channelId) {
             channel = await handler.resolveGuildChannel(guild, channelId);
@@ -228,7 +228,7 @@ async function collectGuildMemberStats(guild) {
     if (shouldFetchMembers) {
         try {
             const members = await guild.members.fetch({ time: 15000 }).catch(() => null);
-            if (!members) throw new Error('Fetch timed out');
+            if (!members) {throw new Error('Fetch timed out');}
             total = members.size;
             botCount = members.filter(member => member.user.bot).size;
             userCount = total - botCount;

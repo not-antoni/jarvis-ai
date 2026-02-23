@@ -6,9 +6,9 @@ const selfhostFeatures = require('../selfhost-features');
 const starkTinker = require('../stark-tinker');
 
 const parseFormattedNumber = (str) => {
-    if (!str) return NaN;
+    if (!str) {return NaN;}
     str = String(str).trim().toUpperCase();
-    if (str === 'ALL') return NaN;
+    if (str === 'ALL') {return NaN;}
     str = str.replace(/,/g, '').replace(/\s/g, '');
     const suffixes = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12, 'Q': 1e15 };
     const lastChar = str.slice(-1);
@@ -21,11 +21,11 @@ const parseFormattedNumber = (str) => {
 
 const formatNum = (n) => {
     n = Math.floor(n);
-    if (n >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
-    if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
-    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-    if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+    if (n >= 1e15) {return `${(n / 1e15).toFixed(2)  }Q`;}
+    if (n >= 1e12) {return `${(n / 1e12).toFixed(2)  }T`;}
+    if (n >= 1e9) {return `${(n / 1e9).toFixed(2)  }B`;}
+    if (n >= 1e6) {return `${(n / 1e6).toFixed(2)  }M`;}
+    if (n >= 1e3) {return `${(n / 1e3).toFixed(2)  }K`;}
     return n.toLocaleString('en-US');
 };
 
@@ -139,10 +139,10 @@ async function handleSlots(interaction) {
     }
     const slotDisplay = result.results.join(' | ');
     let resultText = '';
-    if (result.resultType === 'jackpot') resultText = '\u{1F48E} JACKPOT! \u{1F48E}';
-    else if (result.resultType === 'triple') resultText = '\u{1F389} TRIPLE!';
-    else if (result.resultType === 'double') resultText = '\u2728 Double!';
-    else resultText = '\u{1F622} No match';
+    if (result.resultType === 'jackpot') {resultText = '\u{1F48E} JACKPOT! \u{1F48E}';}
+    else if (result.resultType === 'triple') {resultText = '\u{1F389} TRIPLE!';}
+    else if (result.resultType === 'double') {resultText = '\u2728 Double!';}
+    else {resultText = '\u{1F622} No match';}
     const slotsEmbed = new EmbedBuilder()
         .setTitle('\u{1F3B0} Slot Machine')
         .setDescription(`**[ ${slotDisplay} ]**\n\n${resultText}`)
@@ -215,7 +215,7 @@ async function handleLeaderboard(interaction) {
         return 'No data yet, sir.';
     }
     const imageGenerator = require('./image-generator');
-    const enrichedLb = await Promise.all(lb.map(async (u) => {
+    const enrichedLb = await Promise.all(lb.map(async(u) => {
         let avatarUrl = null;
         let username = u.username || 'Unknown';
         try {
@@ -488,8 +488,8 @@ async function handleTinker(interaction) {
         case 'recipes': {
             const rarity = interaction.options.getString('rarity');
             let recipes = starkTinker.getAllRecipes();
-            if (rarity) recipes = recipes.filter(r => r.rarity === rarity);
-            if (recipes.length > 25) recipes = recipes.slice(0, 25);
+            if (rarity) {recipes = recipes.filter(r => r.rarity === rarity);}
+            if (recipes.length > 25) {recipes = recipes.slice(0, 25);}
             const recipeList = recipes.map(r =>
                 `**${r.name}** (${r.rarity}) [ID: \`${r.id}\`]\n> ${Object.entries(r.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}`
             ).join('\n');
@@ -552,13 +552,13 @@ async function handleBoss(interaction) {
     const sub = interaction.options.getSubcommand();
     if (sub === 'status') {
         const boss = await starkEconomy.getBossData(interaction.guild.id);
-        if (!boss.active) return 'No active boss. Bosses spawn randomly!';
+        if (!boss.active) {return 'No active boss. Bosses spawn randomly!';}
         const hpPercent = Math.floor((boss.hp / boss.maxHp) * 100);
         const bar = '\u{1F7E5}'.repeat(Math.floor(hpPercent / 10)) + '\u2B1C'.repeat(10 - Math.floor(hpPercent / 10));
         return `\u{1F479} **${boss.name}** is attacking!\nHP: ${boss.hp}/${boss.maxHp} (${hpPercent}%)\n${bar}`;
     } else if (sub === 'attack') {
         const res = await starkEconomy.attackBoss(interaction.guild.id, interaction.user.id);
-        if (!res.success) return `\u274C ${res.error}`;
+        if (!res.success) {return `\u274C ${res.error}`;}
         return `\u2694\uFE0F You dealt **${res.damage}** damage to **${res.bossName}**! Reward: ${res.reward} \u{1F4B5}`;
     }
 }
@@ -567,7 +567,7 @@ async function handleSbx(interaction) {
     const sub = interaction.options.getSubcommand();
     if (sub === 'market') {
         const data = await starkEconomy.getSBXMarketData();
-        if (!data) return '\u274C Market offline.';
+        if (!data) {return '\u274C Market offline.';}
         const embed = new EmbedBuilder()
             .setTitle('\u{1F4C8} SBX Market')
             .setDescription(`Price: **${data.price}** Stark Bucks`)
@@ -577,22 +577,22 @@ async function handleSbx(interaction) {
     } else if (sub === 'buy') {
         const amount = interaction.options.getInteger('amount');
         const res = await starkEconomy.buySBX(interaction.user.id, amount);
-        if (!res.success) return `\u274C ${res.error}`;
+        if (!res.success) {return `\u274C ${res.error}`;}
         return `\u2705 Bought **${amount} SBX** for **${res.cost}** Stark Bucks.`;
     } else if (sub === 'sell') {
         const amount = interaction.options.getInteger('amount');
         const res = await starkEconomy.sellSBX(interaction.user.id, amount);
-        if (!res.success) return `\u274C ${res.error}`;
+        if (!res.success) {return `\u274C ${res.error}`;}
         return `\u2705 Sold **${amount} SBX** for **${res.earnings}** Stark Bucks.`;
     } else if (sub === 'invest') {
         const amount = interaction.options.getInteger('amount');
         const res = await starkEconomy.investSBX(interaction.user.id, amount);
-        if (!res.success) return `\u274C ${res.error}`;
+        if (!res.success) {return `\u274C ${res.error}`;}
         return `\u{1F4BC} Invested **${amount} SBX**! Earning 0.5% daily.`;
     } else if (sub === 'withdraw') {
         const amount = interaction.options.getInteger('amount');
         const res = await starkEconomy.withdrawInvestment(interaction.user.id, amount);
-        if (!res.success) return `\u274C ${res.error}`;
+        if (!res.success) {return `\u274C ${res.error}`;}
         return `\u{1F3E7} Withdrew **${res.withdrawn} SBX** from investment.`;
     }
 }
@@ -601,13 +601,13 @@ async function handleQuests(interaction) {
     const sub = interaction.options.getSubcommand();
     if (sub === 'list') {
         const quests = await starkEconomy.getAvailableQuests(interaction.user.id);
-        if (!quests.length) return 'No quests available.';
+        if (!quests.length) {return 'No quests available.';}
         const list = quests.map(q => `**${q.name}** (${q.reward} \u{1F4B5}) [ID: ${q.id}]`).join('\n');
         return `\u{1F4DC} **Quests**\n${list}`;
     } else if (sub === 'start') {
         const id = interaction.options.getString('id');
         const res = await starkEconomy.startQuest(interaction.user.id, id);
-        if (!res.success) return `\u274C ${res.error}`;
+        if (!res.success) {return `\u274C ${res.error}`;}
         return `\u2694\uFE0F Quest **${res.quest.name}** started! Good luck.`;
     }
 }

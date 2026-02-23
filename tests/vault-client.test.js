@@ -18,7 +18,7 @@ test.after(() => {
     __resetCachesForTests();
 });
 
-test('encrypt, store, decrypt flow maintains fidelity and cache reset', async () => {
+test('encrypt, store, decrypt flow maintains fidelity and cache reset', async() => {
     __resetCachesForTests();
     __dangerouslySetCollectionsForTests(createVaultTestCollections());
 
@@ -58,7 +58,7 @@ test('encrypt, store, decrypt flow maintains fidelity and cache reset', async ()
     assert.equal(afterPurge.length, 0);
 });
 
-test('decrypt under concurrent load stays below one second', async () => {
+test('decrypt under concurrent load stays below one second', async() => {
     __resetCachesForTests();
     __dangerouslySetCollectionsForTests(createVaultTestCollections());
 

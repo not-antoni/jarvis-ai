@@ -5,13 +5,13 @@ const crypto = require('crypto');
 const fetch = require('node-fetch');
 
 function inAllowlist(hostname, allowlist = []) {
-    if (!allowlist || !allowlist.length) return true;
+    if (!allowlist || !allowlist.length) {return true;}
     const host = String(hostname || '').toLowerCase();
     return allowlist.some(d => host === d || host.endsWith(`.${d}`));
 }
 
 function inDenylist(hostname, denylist = []) {
-    if (!denylist || !denylist.length) return false;
+    if (!denylist || !denylist.length) {return false;}
     const host = String(hostname || '').toLowerCase();
     return denylist.some(d => host === d || host.endsWith(`.${d}`));
 }
@@ -302,7 +302,7 @@ class BrowserAgent {
         });
 
         return this.withRetry(
-            async () => {
+            async() => {
                 let session = this.getSession(contextKey);
                 if (!session) {
                     session = await this.startSession(contextKey);
@@ -331,16 +331,16 @@ class BrowserAgent {
 
     async screenshot(contextKey, { fullPage = true, selector = null } = {}) {
         return this.withRetry(
-            async () => {
+            async() => {
                 const session = this.getSession(contextKey);
-                if (!session) throw new Error('No active session');
-                const page = session.page;
+                if (!session) {throw new Error('No active session');}
+                const { page } = session;
                 let imageBuffer;
 
                 try {
                     if (selector) {
                         const handle = await page.$(selector);
-                        if (!handle) throw new Error(`Selector not found: ${selector}`);
+                        if (!handle) {throw new Error(`Selector not found: ${selector}`);}
                         imageBuffer = await handle.screenshot({ type: 'png' });
                         await handle.dispose();
                     } else {
@@ -358,9 +358,9 @@ class BrowserAgent {
 
     async click(contextKey, selector) {
         return this.withRetry(
-            async () => {
+            async() => {
                 const session = this.getSession(contextKey);
-                if (!session) throw new Error('No active session');
+                if (!session) {throw new Error('No active session');}
                 await session.page.click(selector, { delay: 10 });
                 return true;
             },
@@ -370,9 +370,9 @@ class BrowserAgent {
 
     async type(contextKey, selector, text) {
         return this.withRetry(
-            async () => {
+            async() => {
                 const session = this.getSession(contextKey);
-                if (!session) throw new Error('No active session');
+                if (!session) {throw new Error('No active session');}
                 await session.page.focus(selector);
                 await session.page.type(selector, text, { delay: 10 });
                 return true;
@@ -383,9 +383,9 @@ class BrowserAgent {
 
     async evaluate(contextKey, script) {
         return this.withRetry(
-            async () => {
+            async() => {
                 const session = this.getSession(contextKey);
-                if (!session) throw new Error('No active session');
+                if (!session) {throw new Error('No active session');}
                 const result = await session.page.evaluate(script);
                 return result;
             },
@@ -400,7 +400,7 @@ class BrowserAgent {
         });
 
         return this.withRetry(
-            async () => {
+            async() => {
                 // HEAD check with timeout
                 try {
                     const headController = new AbortController();
@@ -440,7 +440,7 @@ class BrowserAgent {
                         signal: getController.signal
                     });
 
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    if (!res.ok) {throw new Error(`HTTP ${res.status}`);}
 
                     let received = 0;
                     const chunks = [];

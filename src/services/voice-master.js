@@ -40,15 +40,15 @@ class VoiceMaster {
      * Logic when a user joins a voice channel
      */
     async checkJoin(state) {
-        const channel = state.channel;
-        const member = state.member;
+        const { channel } = state;
+        const { member } = state;
 
         // Check if joined channel is a trigger channel
         if (this.triggerChannelNames.includes(channel.name.toLowerCase())) {
             try {
                 // Create new channel
-                const guild = channel.guild;
-                const parent = channel.parent; // Category
+                const { guild } = channel;
+                const { parent } = channel; // Category
                 const channelName = `${member.user.username}'s Channel`;
 
                 const newChannel = await guild.channels.create({
@@ -58,11 +58,11 @@ class VoiceMaster {
                     permissionOverwrites: [
                         {
                             id: member.id,
-                            allow: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.Connect],
+                            allow: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.MoveMembers, PermissionFlagsBits.Connect]
                         },
                         {
                             id: guild.id,
-                            allow: [PermissionFlagsBits.Connect],
+                            allow: [PermissionFlagsBits.Connect]
                         }
                     ]
                 });
@@ -84,7 +84,7 @@ class VoiceMaster {
      * Logic when a user leaves a voice channel
      */
     async checkLeave(state) {
-        const channel = state.channel;
+        const { channel } = state;
 
         // Check if this was a tracked temp channel
         // OR checks if it "looks like" a temp channel (if bot restarted and lost memory map)
@@ -93,7 +93,7 @@ class VoiceMaster {
             if (this.tempChannels.has(channel.id) || !this.triggerChannelNames.includes(channel.name.toLowerCase())) {
 
                 // Double check it's not a trigger channel before deleting if utilizing the weak check
-                if (this.triggerChannelNames.includes(channel.name.toLowerCase())) return;
+                if (this.triggerChannelNames.includes(channel.name.toLowerCase())) {return;}
 
                 // If strictly tracked or using heuristic for "User's Channel" pattern
                 const isTracked = this.tempChannels.has(channel.id);

@@ -13,7 +13,7 @@ const constants = require('../core/constants');
  */
 function sanitizeString(input, options = {}) {
     if (typeof input !== 'string') {
-        if (input === null || input === undefined) return '';
+        if (input === null || input === undefined) {return '';}
         input = String(input);
     }
 
@@ -76,10 +76,10 @@ function sanitizeDiscordMessage(input) {
  * @returns {string|null} Sanitized URL or null if invalid
  */
 function sanitizeUrl(url) {
-    if (typeof url !== 'string') return null;
+    if (typeof url !== 'string') {return null;}
 
     const trimmed = url.trim();
-    if (!trimmed) return null;
+    if (!trimmed) {return null;}
 
     try {
         const parsed = new URL(trimmed);
@@ -113,10 +113,10 @@ function sanitizeUrl(url) {
  * @returns {string|null} Valid ObjectId or null
  */
 function sanitizeObjectId(id) {
-    if (typeof id !== 'string') return null;
+    if (typeof id !== 'string') {return null;}
 
     const trimmed = id.trim();
-    if (!trimmed) return null;
+    if (!trimmed) {return null;}
 
     // MongoDB ObjectId is 24 hex characters
     if (!/^[0-9a-fA-F]{24}$/.test(trimmed)) {
@@ -132,10 +132,10 @@ function sanitizeObjectId(id) {
  * @returns {string|null} Valid Discord ID or null
  */
 function sanitizeDiscordId(id) {
-    if (typeof id !== 'string') return null;
+    if (typeof id !== 'string') {return null;}
 
     const trimmed = id.trim();
-    if (!trimmed) return null;
+    if (!trimmed) {return null;}
 
     // Discord snowflakes are 17-19 digit numbers
     if (!/^\d{17,19}$/.test(trimmed)) {
@@ -154,12 +154,12 @@ function sanitizeDiscordId(id) {
 function sanitizeInteger(value, options = {}) {
     const { min = -Infinity, max = Infinity, defaultValue = null } = options;
 
-    if (value === null || value === undefined) return defaultValue;
+    if (value === null || value === undefined) {return defaultValue;}
 
     const num = parseInt(value, 10);
-    if (isNaN(num)) return defaultValue;
+    if (isNaN(num)) {return defaultValue;}
 
-    if (num < min || num > max) return defaultValue;
+    if (num < min || num > max) {return defaultValue;}
 
     return num;
 }
@@ -187,7 +187,7 @@ function sanitizeBoolean(value, defaultValue = false) {
  * @returns {Object} Sanitized object
  */
 function sanitizeObject(obj, schema) {
-    if (!obj || typeof obj !== 'object') return {};
+    if (!obj || typeof obj !== 'object') {return {};}
 
     const sanitized = {};
 
@@ -245,7 +245,7 @@ function sanitizeObject(obj, schema) {
  * @returns {string} Sanitized string
  */
 function removeDangerousChars(input) {
-    if (typeof input !== 'string') return '';
+    if (typeof input !== 'string') {return '';}
 
     return input
         .replace(/[<>]/g, '') // Remove HTML brackets
@@ -261,7 +261,7 @@ function removeDangerousChars(input) {
  * @returns {string} Sanitized string with neutralized mentions
  */
 function sanitizePings(input) {
-    if (typeof input !== 'string') return '';
+    if (typeof input !== 'string') {return '';}
 
     return input
         .replace(/@everyone/gi, '@\u200Beveryone') // Zero-width space

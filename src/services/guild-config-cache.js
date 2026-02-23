@@ -46,7 +46,7 @@ function loadCache() {
 // Save cache to disk (debounced)
 let saveTimeout = null;
 function scheduleSave() {
-    if (saveTimeout) return;
+    if (saveTimeout) {return;}
 
     const timeSinceLastSave = Date.now() - lastSaveTime;
     const delay = Math.max(0, SAVE_DEBOUNCE_MS - timeSinceLastSave);
@@ -73,7 +73,7 @@ function saveCache() {
 // Get cached config (returns null if not cached or expired)
 function get(guildId) {
     const entry = cache[guildId];
-    if (!entry) return null;
+    if (!entry) {return null;}
 
     if (Date.now() - entry.cachedAt > CACHE_TTL_MS) {
         delete cache[guildId];

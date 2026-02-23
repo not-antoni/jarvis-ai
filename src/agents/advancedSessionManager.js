@@ -30,7 +30,7 @@ class AdvancedSessionManager {
      * Initialize persistence directory
      */
     async initPersistence() {
-        if (!this.persistState) return;
+        if (!this.persistState) {return;}
 
         try {
             await fs.mkdir(this.persistenceDir, { recursive: true });
@@ -103,7 +103,7 @@ class AdvancedSessionManager {
      */
     async releaseToPool(sessionId) {
         const session = this.sessionStore.get(sessionId);
-        if (!session) return;
+        if (!session) {return;}
 
         // Persist state
         if (this.persistState) {
@@ -142,7 +142,7 @@ class AdvancedSessionManager {
      */
     getSharedData(sessionId, key) {
         const session = this.sessionStore.get(sessionId);
-        if (!session) return null;
+        if (!session) {return null;}
 
         const shared = session.dataSharing.get(key);
         return shared ? shared.value : null;
@@ -155,7 +155,7 @@ class AdvancedSessionManager {
         const fromSession = this.sessionStore.get(fromSessionId);
         const toSession = this.sessionStore.get(toSessionId);
 
-        if (!fromSession || !toSession || !page) return;
+        if (!fromSession || !toSession || !page) {return;}
 
         try {
             // Copy cookies
@@ -177,7 +177,7 @@ class AdvancedSessionManager {
         const fromSession = this.sessionStore.get(fromSessionId);
         const toSession = this.sessionStore.get(toSessionId);
 
-        if (!fromSession || !toSession || !page) return;
+        if (!fromSession || !toSession || !page) {return;}
 
         try {
             await page.evaluate(data => {
@@ -197,7 +197,7 @@ class AdvancedSessionManager {
      */
     async capturePageState(sessionId, page) {
         const session = this.sessionStore.get(sessionId);
-        if (!session || !page) return;
+        if (!session || !page) {return;}
 
         try {
             // Capture cookies
@@ -234,7 +234,7 @@ class AdvancedSessionManager {
      */
     async restorePageState(sessionId, page) {
         const session = this.sessionStore.get(sessionId);
-        if (!session || !page) return;
+        if (!session || !page) {return;}
 
         try {
             // Restore cookies
@@ -261,7 +261,7 @@ class AdvancedSessionManager {
      * Save session state to disk
      */
     async saveSessionState(sessionId, session) {
-        if (!this.persistState) return;
+        if (!this.persistState) {return;}
 
         try {
             const filePath = path.join(this.persistenceDir, `${sessionId}.json`);
@@ -287,7 +287,7 @@ class AdvancedSessionManager {
      * Load session state from disk
      */
     async loadSessionState(sessionId) {
-        if (!this.persistState) return null;
+        if (!this.persistState) {return null;}
 
         try {
             const filePath = path.join(this.persistenceDir, `${sessionId}.json`);
@@ -303,7 +303,7 @@ class AdvancedSessionManager {
      */
     async destroySession(sessionId) {
         const session = this.sessionStore.get(sessionId);
-        if (!session) return;
+        if (!session) {return;}
 
         // Clean up resources
         if (session.page) {

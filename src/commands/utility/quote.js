@@ -6,7 +6,7 @@ function escapeRegExp(string) {
 }
 
 async function resolveMentions(text, interaction) {
-    if (!text) return text;
+    if (!text) {return text;}
 
     // Resolve User Mentions <@ID> or <@!ID>
     const userRegex = /<@!?(\d+)>/g;
@@ -64,14 +64,14 @@ const quoteSlash = {
                 .setDescription('Attach an image or gif')
                 .setRequired(false)),
     async execute(interaction) {
-        let targetUser = interaction.options.getUser('user') || interaction.user;
-        let rawText = interaction.options.getString('text');
+        const targetUser = interaction.options.getUser('user') || interaction.user;
+        const rawText = interaction.options.getString('text');
 
-        let text = await resolveMentions(rawText, interaction);
+        const text = await resolveMentions(rawText, interaction);
 
         const attachment = interaction.options.getAttachment('image');
 
-        let attachmentUrl = attachment ? attachment.url : null;
+        const attachmentUrl = attachment ? attachment.url : null;
 
         if (!text && !attachmentUrl) {
             await interaction.editReply('⚠️ Please provide text or an image to quote, sir.');
@@ -121,11 +121,11 @@ const quoteContext = {
 
         // Use raw content to preserve custom emoji format <:name:id>
         // cleanContent strips the emoji ID, breaking server emoji rendering
-        const content = message.content;
-        const author = message.author;
+        const { content } = message;
+        const { author } = message;
 
         let attachmentUrl = null;
-        let urlsToStrip = [];
+        const urlsToStrip = [];
 
         // 1. Check Attachments
         const attachment = message.attachments.find(a => a.contentType && a.contentType.startsWith('image/'));
@@ -173,7 +173,7 @@ const quoteContext = {
                     text = text.replace(fuzzyRegex, '');
                 }
             } catch (e) {
-                console.warn("Fuzzy strip failed", e);
+                console.warn('Fuzzy strip failed', e);
             }
 
             text = text.trim();

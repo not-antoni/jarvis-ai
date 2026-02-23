@@ -16,7 +16,7 @@ const TTL = {
     RATE_LIMIT: 60 * 1000,          // 1 minute
     MODERATION: 5 * 60 * 1000,      // 5 minutes
     ECONOMY: 30 * 1000,             // 30 seconds (balance changes frequently)
-    SESSION: 24 * 60 * 60 * 1000,   // 24 hours
+    SESSION: 24 * 60 * 60 * 1000   // 24 hours
 };
 
 // Cache instances with size limits
@@ -24,56 +24,56 @@ const guildCache = new LRUCache({
     max: 500,           // Max 500 guilds
     ttl: TTL.GUILD_CONFIG,
     updateAgeOnGet: true,
-    updateAgeOnHas: false,
+    updateAgeOnHas: false
 });
 
 const userCache = new LRUCache({
     max: 10000,         // Max 10k users
     ttl: TTL.USER_PROFILE,
     updateAgeOnGet: true,
-    updateAgeOnHas: false,
+    updateAgeOnHas: false
 });
 
 const providerCache = new LRUCache({
     max: 50,            // Max 50 provider entries
     ttl: TTL.AI_PROVIDER,
     updateAgeOnGet: false,
-    updateAgeOnHas: false,
+    updateAgeOnHas: false
 });
 
 const cooldownCache = new LRUCache({
     max: 50000,         // Max 50k cooldown entries
     ttl: TTL.COMMAND_COOLDOWN,
     updateAgeOnGet: false,
-    updateAgeOnHas: false,
+    updateAgeOnHas: false
 });
 
 const rateLimitCache = new LRUCache({
     max: 10000,         // Max 10k rate limit entries
     ttl: TTL.RATE_LIMIT,
     updateAgeOnGet: false,
-    updateAgeOnHas: false,
+    updateAgeOnHas: false
 });
 
 const moderationCache = new LRUCache({
     max: 1000,          // Max 1k moderation entries
     ttl: TTL.MODERATION,
     updateAgeOnGet: true,
-    updateAgeOnHas: false,
+    updateAgeOnHas: false
 });
 
 const economyCache = new LRUCache({
     max: 5000,          // Max 5k economy entries
     ttl: TTL.ECONOMY,
     updateAgeOnGet: true,
-    updateAgeOnHas: false,
+    updateAgeOnHas: false
 });
 
 const sessionCache = new LRUCache({
     max: 1000,          // Max 1k sessions
     ttl: TTL.SESSION,
     updateAgeOnGet: true,
-    updateAgeOnHas: false,
+    updateAgeOnHas: false
 });
 
 /**
@@ -88,7 +88,7 @@ function getStats() {
         rateLimit: { size: rateLimitCache.size, max: 10000 },
         moderation: { size: moderationCache.size, max: 1000 },
         economy: { size: economyCache.size, max: 5000 },
-        session: { size: sessionCache.size, max: 1000 },
+        session: { size: sessionCache.size, max: 1000 }
     };
 }
 
@@ -190,5 +190,5 @@ module.exports = {
     scopedKey,
     checkRateLimit,
     checkCooldown,
-    setCooldown,
+    setCooldown
 };

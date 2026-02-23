@@ -49,7 +49,7 @@ function wireEventHandlers(ctx) {
         }
     });
 
-    client.on('voiceStateUpdate', async (oldState, newState) => {
+    client.on('voiceStateUpdate', async(oldState, newState) => {
         await discordHandlers.handleVoiceStateUpdate(oldState, newState);
         await serverLogger.logVoiceStateUpdate(oldState, newState);
 
@@ -61,11 +61,11 @@ function wireEventHandlers(ctx) {
         }
     });
 
-    client.on('messageReactionAdd', async (reaction, user) => {
+    client.on('messageReactionAdd', async(reaction, user) => {
         await discordHandlers.handleReactionAdd(reaction, user);
     });
 
-    client.on('messageReactionRemove', async (reaction, user) => {
+    client.on('messageReactionRemove', async(reaction, user) => {
         await discordHandlers.handleReactionRemove(reaction, user);
     });
 
@@ -74,11 +74,11 @@ function wireEventHandlers(ctx) {
         await serverLogger.logMessageDelete(message);
     });
 
-    client.on('messageUpdate', async (oldMessage, newMessage) => {
+    client.on('messageUpdate', async(oldMessage, newMessage) => {
         await serverLogger.logMessageUpdate(oldMessage, newMessage);
     });
 
-    client.on('messageDeleteBulk', async (messages, channel) => {
+    client.on('messageDeleteBulk', async(messages, channel) => {
         await serverLogger.logBulkDelete(messages, channel);
     });
 
@@ -92,7 +92,7 @@ function wireEventHandlers(ctx) {
         await serverLogger.logMemberLeave(member);
     });
 
-    client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    client.on('guildMemberUpdate', async(oldMember, newMember) => {
         await serverLogger.logMemberUpdate(oldMember, newMember);
     });
 
@@ -112,7 +112,7 @@ function wireEventHandlers(ctx) {
         await serverLogger.logRoleDelete(role);
     });
 
-    client.on('roleUpdate', async (oldRole, newRole) => {
+    client.on('roleUpdate', async(oldRole, newRole) => {
         await serverLogger.logRoleUpdate(oldRole, newRole);
     });
 
@@ -124,7 +124,7 @@ function wireEventHandlers(ctx) {
         await serverLogger.logChannelDelete(channel);
     });
 
-    client.on('channelUpdate', async (oldChannel, newChannel) => {
+    client.on('channelUpdate', async(oldChannel, newChannel) => {
         await serverLogger.logChannelUpdate(oldChannel, newChannel);
     });
 
@@ -136,11 +136,11 @@ function wireEventHandlers(ctx) {
         await serverLogger.logEmojiDelete(emoji);
     });
 
-    client.on('emojiUpdate', async (oldEmoji, newEmoji) => {
+    client.on('emojiUpdate', async(oldEmoji, newEmoji) => {
         await serverLogger.logEmojiUpdate(oldEmoji, newEmoji);
     });
 
-    client.on('guildUpdate', async (oldGuild, newGuild) => {
+    client.on('guildUpdate', async(oldGuild, newGuild) => {
         await serverLogger.logGuildUpdate(oldGuild, newGuild);
     });
 

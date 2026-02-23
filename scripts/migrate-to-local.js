@@ -110,7 +110,7 @@ function backupLocalData() {
  * List available backups
  */
 function listBackups() {
-    if (!fs.existsSync(BACKUPS_DIR)) return [];
+    if (!fs.existsSync(BACKUPS_DIR)) {return [];}
 
     return fs
         .readdirSync(BACKUPS_DIR)
@@ -160,7 +160,7 @@ function restoreFromBackup(backupPath) {
  */
 function cleanOldBackups(keepCount = 5) {
     const backups = listBackups();
-    if (backups.length <= keepCount) return;
+    if (backups.length <= keepCount) {return;}
 
     const toDelete = backups.slice(keepCount);
     for (const backup of toDelete) {
@@ -177,7 +177,7 @@ function cleanOldBackups(keepCount = 5) {
  * Deep serialize a document (handle ObjectIds, Dates, etc)
  */
 function serializeDoc(doc) {
-    if (!doc || typeof doc !== 'object') return doc;
+    if (!doc || typeof doc !== 'object') {return doc;}
 
     if (Array.isArray(doc)) {
         return doc.map(serializeDoc);
@@ -207,7 +207,7 @@ function serializeDoc(doc) {
  * Deserialize a document (restore ObjectIds, Dates)
  */
 function deserializeDoc(doc) {
-    if (!doc || typeof doc !== 'object') return doc;
+    if (!doc || typeof doc !== 'object') {return doc;}
 
     if (Array.isArray(doc)) {
         return doc.map(deserializeDoc);
@@ -249,7 +249,7 @@ async function exportFromMongo() {
     }
 
     log.header('Exporting from Render MongoDB');
-    log.info(`Connecting to remote cluster...`);
+    log.info('Connecting to remote cluster...');
 
     const client = new MongoClient(mongoUri, {
         serverSelectionTimeoutMS: 15000
@@ -349,7 +349,7 @@ async function importToLocalMongo(exportData) {
         let totalImported = 0;
 
         for (const [collName, docs] of Object.entries(exportData)) {
-            if (!docs || docs.length === 0) continue;
+            if (!docs || docs.length === 0) {continue;}
 
             const isVaultCollection = collName.startsWith('vault_');
             const targetDb = isVaultCollection ? vaultDb : db;
@@ -412,7 +412,7 @@ async function syncToLocalJsonDb(exportData, skipBackup = false) {
     if (!skipBackup) {
         const backupPath = backupLocalData();
         if (backupPath) {
-            log.info(`Safety backup created - your data is safe!`);
+            log.info('Safety backup created - your data is safe!');
         }
         // Clean old backups (keep last 5)
         cleanOldBackups(5);
@@ -424,8 +424,8 @@ async function syncToLocalJsonDb(exportData, skipBackup = false) {
     const vaultMemories = exportData.vault_vaultMemories || exportData.vaultMemories || [];
 
     for (const [collName, docs] of Object.entries(exportData)) {
-        if (!docs || docs.length === 0) continue;
-        if (collName.startsWith('vault_')) continue; // Vault handled separately
+        if (!docs || docs.length === 0) {continue;}
+        if (collName.startsWith('vault_')) {continue;} // Vault handled separately
 
         log.step(`Writing ${collName}...`);
         localdb.writeCollection(collName, docs);
@@ -436,7 +436,7 @@ async function syncToLocalJsonDb(exportData, skipBackup = false) {
     if (vaultUserKeys.length || vaultMemories.length) {
         try {
             const local = localdb.loadLocalDb();
-            if (!local.vault) local.vault = {};
+            if (!local.vault) {local.vault = {};}
 
             if (vaultUserKeys.length) {
                 local.vault.userKeys = vaultUserKeys.map(deserializeDoc);
@@ -464,7 +464,7 @@ async function importFromExports() {
     const result = localdb.syncFromLatestExport();
 
     if (!result) {
-        log.error('No exports found in ' + localdb.EXPORTS_DIR);
+        log.error(`No exports found in ${  localdb.EXPORTS_DIR}`);
         log.info('Run this script without --import first to export from MongoDB');
         return false;
     }
@@ -592,7 +592,7 @@ async function checkMigrationStatus() {
     log.step(`LOCAL_DB_MODE: ${process.env.LOCAL_DB_MODE || 'not set'}`);
     log.step(`SELFHOST_MODE: ${process.env.SELFHOST_MODE || 'not set'}`);
     log.step(`DEPLOY_TARGET: ${process.env.DEPLOY_TARGET || 'render (default)'}`);
-    log.step(`LOCAL_MONGO_URI: ${process.env.LOCAL_MONGO_URI || LOCAL_MONGO_URI + ' (default)'}`);
+    log.step(`LOCAL_MONGO_URI: ${process.env.LOCAL_MONGO_URI || `${LOCAL_MONGO_URI  } (default)`}`);
 
     log.header('Recommendations');
 

@@ -62,7 +62,7 @@ async function demoArticleWithImages() {
 
             // Show image stats
             const stats = imageManager.getStats();
-            console.log(`\n📊 Image Statistics:`);
+            console.log('\n📊 Image Statistics:');
             console.log(`   Downloaded: ${stats.downloaded}`);
             console.log(`   Cached: ${stats.cached}`);
             console.log(`   Total Size: ${(stats.totalSize / 1024 / 1024).toFixed(2)} MB`);
@@ -210,7 +210,7 @@ async function demoTextStatistics() {
         const scraperStats = scraper.getStats();
 
         console.log(`✓ Article: ${article.title}`);
-        console.log(`\n📊 Text Statistics:`);
+        console.log('\n📊 Text Statistics:');
         console.log(`   Word Count: ${stats.wordCount}`);
         console.log(`   Sentence Count: ${stats.sentenceCount}`);
         console.log(`   Paragraph Count: ${stats.paragraphCount}`);
@@ -219,7 +219,7 @@ async function demoTextStatistics() {
         console.log(`   Reading Time: ~${stats.readingTimeMinutes} minutes`);
         console.log(`   Estimated Lecture Time: ~${stats.lectureTimeMinutes} minutes`);
 
-        console.log(`\n📈 Scraper Statistics:`);
+        console.log('\n📈 Scraper Statistics:');
         console.log(`   Total Pages: ${scraperStats.totalPages}`);
         console.log(`   Successful Scrapes: ${scraperStats.successfulScrapes}`);
         console.log(`   Failed Scrapes: ${scraperStats.failedScrapes}`);

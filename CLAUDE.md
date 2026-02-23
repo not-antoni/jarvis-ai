@@ -33,22 +33,11 @@ cd dashboard && npm run dev
 ### Entry Point & Boot Sequence
 `index.js` is the main entry. It initializes: dotenv, Discord.js Client, Express server, MongoDB connection, AI providers, cron jobs (nightly dump, announcement scheduler, monitor scheduler), then registers Discord event listeners that delegate to `discordHandlers`.
 
-### Handler Concatenation System (Critical)
-`src/services/discord-handlers.js` does NOT export a normal module. It reads all `src/services/discord-handlers-parts/part-*.js` files, concatenates their source code, and compiles the combined string via `module._compile()`. This means:
-- All part files share the same scope (variables, requires, class definition)
-- `part-00.js` contains all `require()` imports and the `DiscordHandlers` class constructor
-- `part-01.js` through `part-06.js` contain class methods that are part of the same class body
-- You cannot add new `require()` statements in part-01 through part-06; add them to part-00.js
-- `EXPECTED_PARTS_COUNT = 7` — update this in discord-handlers.js if adding/removing part files
+### Discord Handlers
+`src/services/discord-handlers.js` re-exports `discord-handlers-impl.js`, a single `DiscordHandlers` class (~5650 lines) containing all Discord event handling, message processing, and slash command routing. The legacy `discord-handlers-parts/` directory contains the original split files (kept for reference but no longer loaded at runtime).
 
-### Part File Responsibilities
-- **part-00.js**: All imports, class constructor, guild config caching (3-layer: LRU memory → disk JSON → MongoDB), utility methods
-- **part-01.js**: `handleMessage()` — main message event handler, attachment processing, URL extraction
-- **part-02.js**: Message routing — wakeword detection, AI response generation, channel/DM handling
-- **part-03.js**: AI response delivery, conversation context building, anti-repetition logic
-- **part-04.js**: Feature command handlers (reaction roles, announcements, monitor, clip, meme, crypto, trivia, jokes, memory, persona) — ~3250 lines
-- **part-05.js**: `handleSlashCommand()` — massive switch statement routing 70+ slash commands — ~4850 lines
-- **part-06.js**: Smaller command handlers (wakeword, remind, timezone, mystats)
+### Shared Application Context
+`src/core/app-context.js` is a lightweight singleton that replaces the old `global.discordClient` / `global.discordHandlers` pattern. Call `appContext.setClient(client)` at boot and `appContext.getClient()` anywhere else.
 
 ### AI Provider System
 `src/services/ai-providers.js` manages multi-provider AI with automatic failover. Supported providers: OpenRouter, Groq, Google Gemini, OpenAI, Cloudflare Workers AI, Ollama, AI proxy (self-hosted Cloudflare Workers). Provider priority and failover are configured in `config/index.js` under `config.ai.providers`.

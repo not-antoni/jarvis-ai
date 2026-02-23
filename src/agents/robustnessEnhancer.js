@@ -11,7 +11,7 @@ class RobustnessEnhancer {
 
     setupDefaultStrategies() {
         // Timeout recovery
-        this.strategies.handleTimeout = async (page, operation, timeoutMs) => {
+        this.strategies.handleTimeout = async(page, operation, timeoutMs) => {
             try {
                 // Try to stop ongoing navigation
                 await Promise.race([
@@ -25,7 +25,7 @@ class RobustnessEnhancer {
         };
 
         // Network error recovery
-        this.strategies.handleNetworkError = async (page, error) => {
+        this.strategies.handleNetworkError = async(page, error) => {
             const isTemporary = /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|ERR_NETWORK/.test(error.message);
             if (isTemporary) {
                 // Wait and retry
@@ -36,12 +36,12 @@ class RobustnessEnhancer {
         };
 
         // Browser crash recovery
-        this.strategies.handleBrowserCrash = async (browser, session) => {
+        this.strategies.handleBrowserCrash = async(browser, session) => {
             return { recovered: false, action: 'restart_browser', requiresRestart: true };
         };
 
         // Rate limit recovery
-        this.strategies.handleRateLimit = async (page, retryAfter) => {
+        this.strategies.handleRateLimit = async(page, retryAfter) => {
             const waitTime = Math.min(retryAfter || 30, 300); // Max 5 minutes
             console.log(`[RobustnessEnhancer] Rate limited, waiting ${waitTime}s...`);
             await new Promise(r => setTimeout(r, waitTime * 1000));
@@ -49,7 +49,7 @@ class RobustnessEnhancer {
         };
 
         // JavaScript error recovery
-        this.strategies.handleJSError = async (page, error) => {
+        this.strategies.handleJSError = async(page, error) => {
             console.log('[RobustnessEnhancer] JS error detected, attempting to continue...');
             try {
                 // Try to navigate to error page or reload
@@ -103,7 +103,7 @@ class RobustnessEnhancer {
                 if (errorMsg.includes('timeout')) {
                     console.log(`[RobustnessEnhancer] Timeout on attempt ${attempt}/${maxRetries}`);
                     const recovery = await this.strategies.handleTimeout(page, 'goto', timeoutMs);
-                    if (!recovery.recovered || attempt === maxRetries) throw error;
+                    if (!recovery.recovered || attempt === maxRetries) {throw error;}
                     continue;
                 }
 
@@ -112,7 +112,7 @@ class RobustnessEnhancer {
                         `[RobustnessEnhancer] Network error on attempt ${attempt}/${maxRetries}`
                     );
                     const recovery = await this.strategies.handleNetworkError(page, error);
-                    if (!recovery.recovered || attempt === maxRetries) throw error;
+                    if (!recovery.recovered || attempt === maxRetries) {throw error;}
                     continue;
                 }
 

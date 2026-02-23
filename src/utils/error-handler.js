@@ -161,10 +161,10 @@ function setupUnhandledRejectionHandler() {
             reason:
                 reason instanceof Error
                     ? {
-                          name: reason.name,
-                          message: reason.message,
-                          stack: reason.stack
-                      }
+                        name: reason.name,
+                        message: reason.message,
+                        stack: reason.stack
+                    }
                     : reason,
             promise
         });

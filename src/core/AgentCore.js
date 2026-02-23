@@ -432,7 +432,7 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
             'get_time',
             'Get the current date and time',
             { type: 'object', properties: {} },
-            async () => new Date().toISOString(),
+            async() => new Date().toISOString(),
             { category: 'utility', parallel: true }
         );
 
@@ -466,7 +466,7 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
             'list_tools',
             'List all available tools and their descriptions',
             { type: 'object', properties: {} },
-            async () => {
+            async() => {
                 const tools = this.registry.getAllSpecs();
                 return tools.map(t => ({
                     name: t.name,
@@ -529,11 +529,11 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
         // Check for balanced parentheses
         let parenCount = 0;
         for (const char of expr) {
-            if (char === '(') parenCount++;
-            if (char === ')') parenCount--;
-            if (parenCount < 0) throw new Error('Unbalanced parentheses');
+            if (char === '(') {parenCount++;}
+            if (char === ')') {parenCount--;}
+            if (parenCount < 0) {throw new Error('Unbalanced parentheses');}
         }
-        if (parenCount !== 0) throw new Error('Unbalanced parentheses');
+        if (parenCount !== 0) {throw new Error('Unbalanced parentheses');}
         
         // Tokenize and evaluate using shunting-yard algorithm
         const tokens = this._tokenizeMath(expr);
@@ -596,14 +596,14 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
                 while (operators.length > 0 && operators[operators.length - 1].value !== '(') {
                     output.push(operators.pop());
                 }
-                if (operators.length === 0) throw new Error('Mismatched parentheses');
+                if (operators.length === 0) {throw new Error('Mismatched parentheses');}
                 operators.pop(); // Remove '('
             }
         }
         
         while (operators.length > 0) {
             const op = operators.pop();
-            if (op.type === 'paren') throw new Error('Mismatched parentheses');
+            if (op.type === 'paren') {throw new Error('Mismatched parentheses');}
             output.push(op);
         }
         
@@ -620,7 +620,7 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
             if (token.type === 'number') {
                 stack.push(token.value);
             } else if (token.type === 'operator') {
-                if (stack.length < 2) throw new Error('Invalid expression');
+                if (stack.length < 2) {throw new Error('Invalid expression');}
                 const b = stack.pop();
                 const a = stack.pop();
                 
@@ -629,7 +629,7 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
                     case '-': stack.push(a - b); break;
                     case '*': stack.push(a * b); break;
                     case '/': 
-                        if (b === 0) throw new Error('Division by zero');
+                        if (b === 0) {throw new Error('Division by zero');}
                         stack.push(a / b); 
                         break;
                     case '%': stack.push(a % b); break;
@@ -638,7 +638,7 @@ Always explain what you're doing and why. Be helpful, accurate, and concise.`;
             }
         }
         
-        if (stack.length !== 1) throw new Error('Invalid expression');
+        if (stack.length !== 1) {throw new Error('Invalid expression');}
         return stack[0];
     }
 }

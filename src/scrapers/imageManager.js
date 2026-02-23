@@ -39,7 +39,7 @@ class ImageManager {
             await fs.mkdir(path.join(this.storageDir, 'originals'), { recursive: true });
             console.log(`[ImageManager] Storage initialized at ${this.storageDir}`);
         } catch (error) {
-            console.error(`[ImageManager] Failed to initialize storage:`, error.message);
+            console.error('[ImageManager] Failed to initialize storage:', error.message);
         }
     }
 
@@ -224,7 +224,7 @@ class ImageManager {
                 modified: stats.mtime
             };
         } catch (error) {
-            console.error(`[ImageManager] Failed to get image info:`, error.message);
+            console.error('[ImageManager] Failed to get image info:', error.message);
             return null;
         }
     }
@@ -264,7 +264,7 @@ class ImageManager {
             console.log(`[ImageManager] Created thumbnail: ${path.basename(thumbnailPath)}`);
             return thumbnailPath;
         } catch (error) {
-            console.warn(`[ImageManager] Failed to create thumbnail:`, error.message);
+            console.warn('[ImageManager] Failed to create thumbnail:', error.message);
             return null;
         }
     }
@@ -288,7 +288,7 @@ class ImageManager {
 
             return images;
         } catch (error) {
-            console.error(`[ImageManager] Failed to get downloaded images:`, error.message);
+            console.error('[ImageManager] Failed to get downloaded images:', error.message);
             return [];
         }
     }
@@ -314,7 +314,7 @@ class ImageManager {
             console.log(`[ImageManager] Deleted image: ${filename}`);
             return true;
         } catch (error) {
-            console.error(`[ImageManager] Failed to delete image:`, error.message);
+            console.error('[ImageManager] Failed to delete image:', error.message);
             return false;
         }
     }
@@ -336,7 +336,7 @@ class ImageManager {
             this.stats = { downloaded: 0, failed: 0, cached: 0, totalSize: 0, skipped: 0 };
             return true;
         } catch (error) {
-            console.error(`[ImageManager] Failed to clear images:`, error.message);
+            console.error('[ImageManager] Failed to clear images:', error.message);
             return false;
         }
     }
@@ -375,7 +375,7 @@ class ImageManager {
             console.log(`[ImageManager] Exported manifest: ${filepath}`);
             return filepath;
         } catch (error) {
-            console.error(`[ImageManager] Failed to export manifest:`, error.message);
+            console.error('[ImageManager] Failed to export manifest:', error.message);
             return null;
         }
     }

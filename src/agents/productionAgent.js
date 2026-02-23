@@ -76,7 +76,7 @@ class ProductionAgent {
             this.rateLimiter.incrementSession(userId);
 
             // Check cache
-            const cacheKey = options.cacheKey;
+            const { cacheKey } = options;
             if (cacheKey && !options.skipCache) {
                 const cached = this.cache.getResponseCache(cacheKey);
                 if (cached) {
@@ -172,7 +172,7 @@ class ProductionAgent {
     setupShutdownHandlers() {
         this.shutdown.registerHandler(
             'drain-sessions',
-            async () => {
+            async() => {
                 console.log('[ProductionAgent] Draining sessions...');
                 await this.shutdown.drainSessions(this.sessionManager);
             },
@@ -181,7 +181,7 @@ class ProductionAgent {
 
         this.shutdown.registerHandler(
             'cache-shutdown',
-            async () => {
+            async() => {
                 console.log('[ProductionAgent] Shutting down cache...');
                 this.cache.shutdown();
             },
@@ -190,7 +190,7 @@ class ProductionAgent {
 
         this.shutdown.registerHandler(
             'resource-pool-drain',
-            async () => {
+            async() => {
                 console.log('[ProductionAgent] Draining resource pool...');
                 await this.resourcePool.drain();
             },
@@ -199,7 +199,7 @@ class ProductionAgent {
 
         this.shutdown.registerHandler(
             'session-manager-shutdown',
-            async () => {
+            async() => {
                 console.log('[ProductionAgent] Saving sessions...');
                 await this.sessionManager.shutdown();
             },
@@ -208,7 +208,7 @@ class ProductionAgent {
 
         this.shutdown.registerHandler(
             'rate-limiter-shutdown',
-            async () => {
+            async() => {
                 console.log('[ProductionAgent] Shutting down rate limiter...');
                 this.rateLimiter.shutdown();
             },
@@ -217,7 +217,7 @@ class ProductionAgent {
 
         this.shutdown.registerHandler(
             'browser-agent-cleanup',
-            async () => {
+            async() => {
                 console.log('[ProductionAgent] Cleaning up browser agent...');
                 await this.browserAgent.close?.();
             },
@@ -307,7 +307,7 @@ async function exampleExpressSetup(app) {
     });
 
     // Execute operation endpoint
-    app.post('/api/execute', async (req, res) => {
+    app.post('/api/execute', async(req, res) => {
         const { userId, operationName, url } = req.body;
 
         try {

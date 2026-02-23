@@ -21,7 +21,7 @@ const AVATAR_SIZE = 80; // Bigger avatar
  * @returns {boolean}
  */
 function containsClanker(content) {
-    if (!content || typeof content !== 'string') return false;
+    if (!content || typeof content !== 'string') {return false;}
     return /clanker/i.test(content);
 }
 

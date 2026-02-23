@@ -141,8 +141,8 @@ class CacheManager {
      * Estimate size of object
      */
     estimateSize(obj) {
-        if (Buffer.isBuffer(obj)) return obj.length;
-        if (typeof obj === 'string') return obj.length * 2;
+        if (Buffer.isBuffer(obj)) {return obj.length;}
+        if (typeof obj === 'string') {return obj.length * 2;}
         if (typeof obj === 'object') {
             let size = 0;
             for (const key in obj) {

@@ -321,7 +321,7 @@ class MusicManager {
             }
         });
 
-        player.on(AudioPlayerStatus.Idle, async () => {
+        player.on(AudioPlayerStatus.Idle, async() => {
             const state = this.queues.get(guildId);
             if (!state) {
                 return;

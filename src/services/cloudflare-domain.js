@@ -82,7 +82,7 @@ function generateCloudflareIpsConfig() {
 # IPv4
 `;
     ipv4.forEach(ip => { config += `allow ${ip};\n`; });
-    config += `\n# IPv6\n`;
+    config += '\n# IPv6\n';
     ipv6.forEach(ip => { config += `allow ${ip};\n`; });
     config += `
 # Localhost for local testing
@@ -882,9 +882,9 @@ async function upsertDnsRecord(name, type, content, options = {}, zoneId = null)
 
     if (existing) {
         return updateDnsRecord(existing.id, record, zoneId);
-    } else {
-        return createDnsRecord(record, zoneId);
-    }
+    } 
+    return createDnsRecord(record, zoneId);
+    
 }
 
 // ============================================================================
@@ -897,7 +897,7 @@ async function upsertDnsRecord(name, type, content, options = {}, zoneId = null)
  */
 async function configureForRender(subdomain = null) {
     const config = getConfig();
-    const domain = config.domain;
+    const { domain } = config;
 
     if (!domain) {
         throw new Error('JARVIS_DOMAIN not configured');
@@ -959,7 +959,7 @@ async function configureForRender(subdomain = null) {
  */
 async function configureForSelfhost(target, subdomain = null) {
     const config = getConfig();
-    const domain = config.domain;
+    const { domain } = config;
 
     if (!domain) {
         throw new Error('JARVIS_DOMAIN not configured');

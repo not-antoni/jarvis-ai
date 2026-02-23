@@ -30,7 +30,7 @@ function measureCaptionBox(width, text) {
             line = w;
         }
     }
-    if (line) lines.push(line);
+    if (line) {lines.push(line);}
 
     const lineHeight = Math.round(fontSize * 1.15);
     const boxHeight = Math.round(lines.length * lineHeight + padding * 2);
@@ -39,7 +39,7 @@ function measureCaptionBox(width, text) {
 
 function renderCaptionOverlay(width, text) {
     const norm = normalize(text);
-    if (!norm) throw new Error('Caption text is required');
+    if (!norm) {throw new Error('Caption text is required');}
     const { fontSize, padding, maxWidth, lines, lineHeight, boxHeight } = measureCaptionBox(
         width,
         norm
@@ -71,14 +71,14 @@ async function run(cmd, args, options = {}) {
         ps.stderr.on('data', d => (stderr += d.toString()));
         ps.on('error', reject);
         ps.on('close', code => {
-            if (code === 0) resolve();
-            else reject(new Error(stderr || `ffmpeg exited with code ${code}`));
+            if (code === 0) {resolve();}
+            else {reject(new Error(stderr || `ffmpeg exited with code ${code}`));}
         });
     });
 }
 
 async function captionAnimated({ inputBuffer, captionText }) {
-    if (!Buffer.isBuffer(inputBuffer)) throw new Error('inputBuffer required');
+    if (!Buffer.isBuffer(inputBuffer)) {throw new Error('inputBuffer required');}
     const { ffmpegPath } = await ensureFfmpeg();
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jarvis-gif-'));
@@ -89,10 +89,10 @@ async function captionAnimated({ inputBuffer, captionText }) {
     let width = 512;
     try {
         const meta = await sharp(inputBuffer, { pages: 1 }).metadata();
-        if (meta?.width) width = meta.width;
+        if (meta?.width) {width = meta.width;}
     } catch {}
     // Cap to 720p width for performance on Render
-    if (width > 720) width = 720;
+    if (width > 720) {width = 720;}
 
     const overlayPng = renderCaptionOverlay(width, captionText);
     const overlayPath = path.join(tmpDir, 'overlay.png');

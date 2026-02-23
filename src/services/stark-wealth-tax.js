@@ -21,18 +21,18 @@ function toNumber(value, fallback = 0) {
 function calculateTaxRate(totalWealth) {
     const balance = toNumber(totalWealth, 0);
 
-    if (balance >= 1000000000000000000) return 90; // 1Qi+
-    if (balance >= 1000000000000000) return 75;    // 1Qa+
-    if (balance >= 100000000000000) return 60;     // 100T+
-    if (balance >= 10000000000000) return 50;      // 10T+
-    if (balance >= 1000000000000) return 40;       // 1T+
-    if (balance >= 100000000000) return 35;        // 100B+
-    if (balance >= 10000000000) return 30;         // 10B+
-    if (balance >= 1000000000) return 25;          // 1B+
-    if (balance >= 100000000) return 20;           // 100M+
-    if (balance >= 10000000) return 15;            // 10M+
-    if (balance >= 1000000) return 10;             // 1M+
-    if (balance >= 100000) return 5;               // 100K+
+    if (balance >= 1000000000000000000) {return 90;} // 1Qi+
+    if (balance >= 1000000000000000) {return 75;}    // 1Qa+
+    if (balance >= 100000000000000) {return 60;}     // 100T+
+    if (balance >= 10000000000000) {return 50;}      // 10T+
+    if (balance >= 1000000000000) {return 40;}       // 1T+
+    if (balance >= 100000000000) {return 35;}        // 100B+
+    if (balance >= 10000000000) {return 30;}         // 10B+
+    if (balance >= 1000000000) {return 25;}          // 1B+
+    if (balance >= 100000000) {return 20;}           // 100M+
+    if (balance >= 10000000) {return 15;}            // 10M+
+    if (balance >= 1000000) {return 10;}             // 1M+
+    if (balance >= 100000) {return 5;}               // 100K+
     return 0;
 }
 
@@ -56,7 +56,7 @@ async function applySbxTax(db, userId, sbxTaxAmount, walletBalance, investmentPr
     let remaining = sbxTaxAmount;
     let deducted = 0;
 
-    if (remaining <= 0) return 0;
+    if (remaining <= 0) {return 0;}
 
     if (walletBalance > 0) {
         const take = Math.min(walletBalance, remaining);
@@ -91,7 +91,7 @@ async function applySbxTax(db, userId, sbxTaxAmount, walletBalance, investmentPr
 
 async function applyWealthTaxForUser(db, user) {
     const userId = user?.userId;
-    if (!userId) return;
+    if (!userId) {return;}
 
     const sbBalance = Math.max(0, toNumber(user.balance, 0));
     const price = Math.max(0, toNumber(sbx.getCurrentPrice?.(), 0));
@@ -134,7 +134,7 @@ async function applyWealthTaxForUser(db, user) {
 }
 
 async function runWealthTax() {
-    if (schedulerRunning) return;
+    if (schedulerRunning) {return;}
     schedulerRunning = true;
 
     try {
@@ -175,7 +175,7 @@ async function runWealthTax() {
 }
 
 function startScheduler() {
-    if (schedulerInterval) return;
+    if (schedulerInterval) {return;}
 
     console.log('[WealthTax] Scheduler started (every 2 hours)');
     schedulerInterval = setInterval(runWealthTax, TAX_INTERVAL_MS);
@@ -183,7 +183,7 @@ function startScheduler() {
 }
 
 function stopScheduler() {
-    if (!schedulerInterval) return;
+    if (!schedulerInterval) {return;}
     clearInterval(schedulerInterval);
     schedulerInterval = null;
     console.log('[WealthTax] Scheduler stopped');

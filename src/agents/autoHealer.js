@@ -19,14 +19,14 @@ class AutoHealer {
      * Start automatic health checks
      */
     startHealthChecks(browserAgent, agentMonitor, callbacks = {}) {
-        if (!this.healingConfig.enabled) return;
+        if (!this.healingConfig.enabled) {return;}
 
         const intervalSeconds = this.healingConfig.healthCheckIntervalSeconds || 30;
         const intervalMs = intervalSeconds * 1000;
 
         console.log(`[AutoHealer] Starting health checks every ${intervalSeconds}s`);
 
-        this.healthCheckInterval = setInterval(async () => {
+        this.healthCheckInterval = setInterval(async() => {
             try {
                 await this.performHealthCheck(browserAgent, agentMonitor, callbacks);
             } catch (error) {
@@ -101,7 +101,7 @@ class AutoHealer {
     async handleOpenCircuitBreaker(browserAgent, agentMonitor, callbacks = {}) {
         const cbConfig = this.circuitBreakerConfig;
         const key = 'circuit_breaker_reset';
-        let attempts = this.cbResetAttempts.get(key) || 0;
+        const attempts = this.cbResetAttempts.get(key) || 0;
 
         // Try to transition to half-open
         if (attempts < cbConfig.halfOpenAttempts) {

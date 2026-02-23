@@ -42,7 +42,7 @@ const query = 'find information';
 console.log(`Query: "${query}"\n`);
 
 // Simulate context analysis
-const contextAnalyzer = codex.registry.contextAnalyzer;
+const { contextAnalyzer } = codex.registry;
 const context = contextAnalyzer.analyze(query, {});
 console.log('Analyzed context:');
 console.log('  Keywords:', context.keywords);
@@ -62,7 +62,7 @@ tools.forEach(tool => {
     // Break down scoring
     let breakdown = 0;
     if (query.toLowerCase().includes(tool.name.toLowerCase())) {
-        console.log(`      + Name match: +10`);
+        console.log('      + Name match: +10');
         breakdown += 10;
     }
     const desc = tool.description.toLowerCase();

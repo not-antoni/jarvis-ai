@@ -182,15 +182,15 @@ class APIResponseStandardizer {
 
         let errorKey = 'INTERNAL_ERROR';
 
-        if (message.includes('TIMEOUT')) errorKey = 'NAVIGATION_TIMEOUT';
+        if (message.includes('TIMEOUT')) {errorKey = 'NAVIGATION_TIMEOUT';}
         if (message.includes('RATE_LIMIT') || message.includes('429'))
-            errorKey = 'RATE_LIMIT_EXCEEDED';
-        if (message.includes('UNAUTHORIZED')) errorKey = 'UNAUTHORIZED';
-        if (message.includes('FORBIDDEN')) errorKey = 'FORBIDDEN';
-        if (message.includes('NOT_FOUND') || message.includes('404')) errorKey = 'NOT_FOUND';
-        if (message.includes('SESSION')) errorKey = 'SESSION_EXPIRED';
-        if (message.includes('BROWSER')) errorKey = 'BROWSER_CRASH';
-        if (message.includes('CRASH')) errorKey = 'BROWSER_CRASH';
+        {errorKey = 'RATE_LIMIT_EXCEEDED';}
+        if (message.includes('UNAUTHORIZED')) {errorKey = 'UNAUTHORIZED';}
+        if (message.includes('FORBIDDEN')) {errorKey = 'FORBIDDEN';}
+        if (message.includes('NOT_FOUND') || message.includes('404')) {errorKey = 'NOT_FOUND';}
+        if (message.includes('SESSION')) {errorKey = 'SESSION_EXPIRED';}
+        if (message.includes('BROWSER')) {errorKey = 'BROWSER_CRASH';}
+        if (message.includes('CRASH')) {errorKey = 'BROWSER_CRASH';}
 
         return this.error(errorKey, {
             message: error.message,
@@ -237,7 +237,7 @@ class APIResponseStandardizer {
             const originalJson = res.json;
 
             // Override json method
-            res.json = function (data) {
+            res.json = function(data) {
                 // If already formatted, send as-is
                 if (data && (data.success === true || data.success === false)) {
                     return originalJson.call(this, data);

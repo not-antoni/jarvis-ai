@@ -61,7 +61,7 @@ function cookiesToNetscape(cookies) {
     const lines = ['# Netscape HTTP Cookie File'];
 
     for (const cookie of cookies) {
-        const domain = cookie.domain.startsWith('.') ? cookie.domain : '.' + cookie.domain;
+        const domain = cookie.domain.startsWith('.') ? cookie.domain : `.${  cookie.domain}`;
         const includeSubdomains = domain.startsWith('.') ? 'TRUE' : 'FALSE';
         const secure = cookie.secure ? 'TRUE' : 'FALSE';
         const expiry = cookie.expires ? Math.floor(cookie.expires) : 0;
@@ -144,7 +144,7 @@ async function daemonMode() {
     console.log('[CookieManager] Starting daemon mode...');
     console.log('[CookieManager] Will refresh cookies every 30 minutes.');
 
-    const refresh = async () => {
+    const refresh = async() => {
         let browser;
         try {
             browser = await launchBrowser(true);
@@ -165,7 +165,7 @@ async function daemonMode() {
         } catch (error) {
             console.error('[CookieManager] Error during refresh:', error.message);
         } finally {
-            if (browser) await browser.close();
+            if (browser) {await browser.close();}
         }
     };
 

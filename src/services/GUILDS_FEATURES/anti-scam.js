@@ -27,14 +27,14 @@ const SCAM_USERNAME_PATTERNS = [
     /nft\s*(?:drop|mint|free)/i,
     /elon\s*musk/i,
     /official\s*bot/i,
-    /verify\s*bot/i,
+    /verify\s*bot/i
 ];
 
 // Suspicious character patterns (homoglyphs, excessive symbols)
 const SUSPICIOUS_CHAR_PATTERNS = [
     /[а-яА-Я].*[a-zA-Z]|[a-zA-Z].*[а-яА-Я]/,  // Mixed Cyrillic and Latin (homoglyph attacks)
     /(.)\1{4,}/,  // Same character repeated 5+ times
-    /[^\w\s]{3,}/,  // 3+ special characters in a row
+    /[^\w\s]{3,}/  // 3+ special characters in a row
 ];
 
 /**
@@ -93,7 +93,7 @@ function checkDefaultAvatar(user) {
     if (!user.avatar) {
         return {
             level: 'low',
-            message: `ℹ️ **LOW RISK**: User has default avatar (potential throwaway account)`,
+            message: 'ℹ️ **LOW RISK**: User has default avatar (potential throwaway account)',
             type: 'default_avatar'
         };
     }
@@ -199,25 +199,25 @@ async function analyzeMember(member) {
  * @returns {string} Formatted warning message
  */
 function formatWarningMessage(analysis, member) {
-    if (!analysis.shouldWarn) return null;
+    if (!analysis.shouldWarn) {return null;}
 
     const lines = [
-        `🚨 **NEW MEMBER ALERT** 🚨`,
-        ``,
+        '🚨 **NEW MEMBER ALERT** 🚨',
+        '',
         `**User**: ${member.user.tag} (<@${member.user.id}>)`,
         `**User ID**: ${member.user.id}`,
         `**Account Created**: ${analysis.accountCreatedAt.toUTCString()}`,
         `**Account Age**: ${analysis.accountAgeDays} days`,
-        ``,
-        `**Warnings**:`
+        '',
+        '**Warnings**:'
     ];
 
     for (const warning of analysis.warnings) {
         lines.push(`• ${warning.message}`);
     }
 
-    lines.push(``);
-    lines.push(`*This is an automated alert. Manual review recommended.*`);
+    lines.push('');
+    lines.push('*This is an automated alert. Manual review recommended.*');
 
     return lines.join('\n');
 }
@@ -229,10 +229,10 @@ function formatWarningMessage(analysis, member) {
  */
 async function sendWarningToAdmins(guild, message) {
     const config = guildFeatures.getGuildConfig(guild.id);
-    if (!config) return;
+    if (!config) {return;}
 
     const settings = config.settings || {};
-    const notifyChannelId = settings.notifyChannelId;
+    const { notifyChannelId } = settings;
     const notifyUsers = config.notifyUsers || [];
 
     // Send to configured notification channel

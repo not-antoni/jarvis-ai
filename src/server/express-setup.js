@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const appContext = require('../core/app-context');
 const tempFiles = require('../utils/temp-files');
 const { gatherHealthSnapshot } = require('../services/diagnostics');
 const {
@@ -35,12 +36,12 @@ function createExpressApp({ webhookRouter, database }) {
             contentSecurityPolicy: {
                 directives: {
                     defaultSrc: ["'self'"],
-                    scriptSrc: ["'self'", "'unsafe-inline'", "https://static.cloudflareinsights.com"],
+                    scriptSrc: ["'self'", "'unsafe-inline'", 'https://static.cloudflareinsights.com'],
                     scriptSrcAttr: ["'self'", "'unsafe-inline'"],
-                    connectSrc: ["'self'", "https://cloudflareinsights.com", "https://www.cloudflarestatus.com"],
-                    imgSrc: ["'self'", "data:", "https:", "*"],
-                },
-            },
+                    connectSrc: ["'self'", 'https://cloudflareinsights.com', 'https://www.cloudflarestatus.com'],
+                    imgSrc: ["'self'", 'data:', 'https:', '*']
+                }
+            }
         }));
     } else {
         app.use((req, res, next) => {
@@ -90,10 +91,10 @@ function createExpressApp({ webhookRouter, database }) {
     // Serve ephemeral temp files at short root paths
     app.get('/:id.:ext', (req, res, next) => {
         const { id, ext } = req.params;
-        if (!/^[a-f0-9]{32}$/.test(id || '')) return next();
-        if (!/^[a-z0-9]{1,8}$/i.test(ext || '')) return next();
+        if (!/^[a-f0-9]{32}$/.test(id || '')) {return next();}
+        if (!/^[a-z0-9]{1,8}$/i.test(ext || '')) {return next();}
         const filePath = path.join(tempFiles.TEMP_DIR, `${id}.${ext}`);
-        if (!fs.existsSync(filePath)) return next();
+        if (!fs.existsSync(filePath)) {return next();}
         const typeMap = {
             png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
             gif: 'image/gif', webp: 'image/webp', mp4: 'video/mp4',
@@ -212,7 +213,7 @@ Sitemap: https://jorvis.org/sitemap.xml
             { url: '/crypto', priority: '0.6', changefreq: 'daily' },
             { url: '/status', priority: '0.5', changefreq: 'always' },
             { url: '/tos', priority: '0.3', changefreq: 'yearly' },
-            { url: '/policy', priority: '0.3', changefreq: 'yearly' },
+            { url: '/policy', priority: '0.3', changefreq: 'yearly' }
         ];
 
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -228,10 +229,10 @@ ${pages.map(p => `  <url>
     });
 
     // ---- Public stats API ----
-    app.get('/api/stats', async (req, res) => {
+    app.get('/api/stats', async(req, res) => {
         try {
-            const guildCount = global.discordClient?.guilds?.cache?.size || 0;
-            const userCount = global.discordClient?.guilds?.cache?.reduce((acc, g) => acc + g.memberCount, 0) || 0;
+            const guildCount = appContext.getClient()?.guilds?.cache?.size || 0;
+            const userCount = appContext.getClient()?.guilds?.cache?.reduce((acc, g) => acc + g.memberCount, 0) || 0;
             res.json({ guildCount, userCount, uptime: process.uptime() });
         } catch (e) {
             res.json({ guildCount: 0, userCount: 0, uptime: 0 });
@@ -246,18 +247,18 @@ ${pages.map(p => `  <url>
     const dashboardRouter = require('../../routes/dashboard');
 
     // Public health endpoint for /status page
-    app.get('/api/public/health', async (req, res) => {
+    app.get('/api/public/health', async(req, res) => {
         try {
             const uptime = Date.now() - (dashboardRouter.getBotStartTime?.() || Date.now());
             const hours = Math.floor(uptime / 3600000);
             const minutes = Math.floor((uptime % 3600000) / 60000);
 
             let discordStats = { guilds: 0, users: 0, channels: 0 };
-            if (global.discordClient && global.discordClient.isReady()) {
+            if (appContext.getClient() && appContext.getClient().isReady()) {
                 discordStats = {
-                    guilds: global.discordClient.guilds.cache.size,
-                    users: global.discordClient.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0),
-                    channels: global.discordClient.channels.cache.size
+                    guilds: appContext.getClient().guilds.cache.size,
+                    users: appContext.getClient().guilds.cache.reduce((acc, g) => acc + g.memberCount, 0),
+                    channels: appContext.getClient().channels.cache.size
                 };
             }
 
@@ -312,7 +313,7 @@ ${pages.map(p => `  <url>
     }
 
     // ---- Status page ----
-    app.get('/status', async (req, res) => {
+    app.get('/status', async(req, res) => {
         if (isRenderHealthUserAgent(req)) {
             return res.status(200).send('OK');
         }
@@ -326,11 +327,11 @@ ${pages.map(p => `  <url>
             const providerStatus = snapshot.providers;
             const workingProviders = providerStatus.filter(p => !p.hasError && !p.isDisabled).length;
             const uptimeSeconds = Math.floor(snapshot.system.uptimeSeconds);
-            const memory = snapshot.system.memory;
+            const { memory } = snapshot.system;
             const envRequiredCount = snapshot.env.required.filter(item => item.present).length;
             const envRequiredTotal = snapshot.env.required.length;
-            const optionalConfigured = snapshot.env.optionalConfigured;
-            const optionalTotal = snapshot.env.optionalTotal;
+            const { optionalConfigured } = snapshot.env;
+            const { optionalTotal } = snapshot.env;
             const missingRequired = snapshot.env.required
                 .filter(item => !item.present)
                 .map(item => item.name);
@@ -393,7 +394,7 @@ ${pages.map(p => `  <url>
     });
 
     // ---- Provider status ----
-    app.get('/providers/status', async (req, res) => {
+    app.get('/providers/status', async(req, res) => {
         if (HEALTH_TOKEN) {
             const providedToken = extractBearerToken(req);
             if (providedToken !== HEALTH_TOKEN) {
@@ -417,7 +418,7 @@ ${pages.map(p => `  <url>
     });
 
     // ---- Command metrics ----
-    app.get('/metrics/commands', async (req, res) => {
+    app.get('/metrics/commands', async(req, res) => {
         if (HEALTH_TOKEN) {
             const providedToken = extractBearerToken(req);
             if (providedToken !== HEALTH_TOKEN) {
@@ -450,7 +451,7 @@ ${pages.map(p => `  <url>
     });
 
     // ---- Legacy dashboard page ----
-    app.get('/dashboard', async (req, res) => {
+    app.get('/dashboard', async(req, res) => {
         if (!isDashboardAuthed(req)) {
             return res.redirect('/dashboard/login');
         }
@@ -479,7 +480,7 @@ ${pages.map(p => `  <url>
     });
 
     // ---- Health check endpoint ----
-    app.get('/health', async (req, res) => {
+    app.get('/health', async(req, res) => {
         if (HEALTH_TOKEN && !isRenderHealthCheck(req)) {
             const providedToken = extractBearerToken(req);
             if (providedToken !== HEALTH_TOKEN) {

@@ -191,8 +191,8 @@ class CostRateLimiter {
      * Decrement concurrent sessions
      */
     decrementSession(userId) {
-        let user = this.users.get(userId);
-        if (!user) return 0;
+        const user = this.users.get(userId);
+        if (!user) {return 0;}
 
         user.usage.concurrentSessions = Math.max(0, user.usage.concurrentSessions - 1);
         return user.usage.concurrentSessions;
@@ -246,7 +246,7 @@ class CostRateLimiter {
      */
     getUserStats(userId) {
         const user = this.users.get(userId);
-        if (!user) return null;
+        if (!user) {return null;}
 
         return {
             userId,
@@ -290,7 +290,7 @@ class CostRateLimiter {
      */
     suspendUser(userId, reason = 'admin_action') {
         const user = this.users.get(userId);
-        if (!user) return false;
+        if (!user) {return false;}
 
         user.usage.status = 'suspended';
         user.suspensionReason = reason;
@@ -305,7 +305,7 @@ class CostRateLimiter {
      */
     unsuspendUser(userId) {
         const user = this.users.get(userId);
-        if (!user) return false;
+        if (!user) {return false;}
 
         user.usage.status = 'active';
         delete user.suspensionReason;

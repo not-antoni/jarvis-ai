@@ -7,6 +7,7 @@
 
 const express = require('express');
 const router = express.Router();
+const appContext = require('../src/core/app-context');
 const userAuth = require('../src/services/user-auth');
 const starkEconomy = require('../src/services/stark-economy');
 const sbx = require('../src/services/starkbucks-exchange');
@@ -40,9 +41,9 @@ function requireAuth(req, res, next) {
 }
 
 // Get user's economy data
-router.get('/api/user/economy', requireAuth, async (req, res) => {
+router.get('/api/user/economy', requireAuth, async(req, res) => {
     try {
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         
         const [balance, stats] = await Promise.all([
             starkEconomy.getBalance(userId),
@@ -60,9 +61,9 @@ router.get('/api/user/economy', requireAuth, async (req, res) => {
 });
 
 // Get user's SBX wallet
-router.get('/api/user/sbx', requireAuth, async (req, res) => {
+router.get('/api/user/sbx', requireAuth, async(req, res) => {
     try {
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         
         const [wallet, price] = await Promise.all([
             sbx.getWallet(userId),
@@ -80,9 +81,9 @@ router.get('/api/user/sbx', requireAuth, async (req, res) => {
 });
 
 // Execute SBX buy (convert Stark Bucks to SBX)
-router.post('/api/user/sbx/buy', requireAuth, async (req, res) => {
+router.post('/api/user/sbx/buy', requireAuth, async(req, res) => {
     try {
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         const { amount } = req.body;
         
         const amountCheck = validateAmount(amount);
@@ -101,9 +102,9 @@ router.post('/api/user/sbx/buy', requireAuth, async (req, res) => {
 });
 
 // Execute SBX sell (convert SBX to Stark Bucks)
-router.post('/api/user/sbx/sell', requireAuth, async (req, res) => {
+router.post('/api/user/sbx/sell', requireAuth, async(req, res) => {
     try {
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         const { amount } = req.body;
         
         const amountCheck = validateAmount(amount);
@@ -122,9 +123,9 @@ router.post('/api/user/sbx/sell', requireAuth, async (req, res) => {
 });
 
 // Execute SBX invest
-router.post('/api/user/sbx/invest', requireAuth, async (req, res) => {
+router.post('/api/user/sbx/invest', requireAuth, async(req, res) => {
     try {
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         const { amount } = req.body;
         
         const amountCheck = validateAmount(amount);
@@ -143,7 +144,7 @@ router.post('/api/user/sbx/invest', requireAuth, async (req, res) => {
 });
 
 // Claim daily reward
-router.post('/api/user/daily', requireAuth, async (req, res) => {
+router.post('/api/user/daily', requireAuth, async(req, res) => {
     try {
         const { userId, username } = req.userSession;
         
@@ -155,7 +156,7 @@ router.post('/api/user/daily', requireAuth, async (req, res) => {
 });
 
 // Execute work command
-router.post('/api/user/work', requireAuth, async (req, res) => {
+router.post('/api/user/work', requireAuth, async(req, res) => {
     try {
         const { userId, username } = req.userSession;
         
@@ -167,7 +168,7 @@ router.post('/api/user/work', requireAuth, async (req, res) => {
 });
 
 // Get store items
-router.get('/api/store/items', async (req, res) => {
+router.get('/api/store/items', async(req, res) => {
     try {
         const items = sbx.getStoreItems();
         res.json({ success: true, items });
@@ -177,7 +178,7 @@ router.get('/api/store/items', async (req, res) => {
 });
 
 // Purchase store item
-router.post('/api/store/purchase', requireAuth, async (req, res) => {
+router.post('/api/store/purchase', requireAuth, async(req, res) => {
     try {
         const { userId } = req.userSession;
         const { itemId } = req.body;
@@ -194,7 +195,7 @@ router.post('/api/store/purchase', requireAuth, async (req, res) => {
 });
 
 // Get user's purchases
-router.get('/api/user/purchases', requireAuth, async (req, res) => {
+router.get('/api/user/purchases', requireAuth, async(req, res) => {
     try {
         const { userId } = req.userSession;
         
@@ -206,7 +207,7 @@ router.get('/api/user/purchases', requireAuth, async (req, res) => {
 });
 
 // Get user balance (combined SB + SBX + investments)
-router.get('/api/user/balance', requireAuth, async (req, res) => {
+router.get('/api/user/balance', requireAuth, async(req, res) => {
     try {
         const { userId } = req.userSession;
         
@@ -238,10 +239,10 @@ router.get('/api/user/balance', requireAuth, async (req, res) => {
 });
 
 // Claim SBX investment earnings
-router.post('/api/user/sbx/claim', requireAuth, async (req, res) => {
+router.post('/api/user/sbx/claim', requireAuth, async(req, res) => {
     try {
         const sbx = require('../src/services/starkbucks-exchange');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         
         const result = await sbx.claimInvestmentEarnings(userId);
         if (!result.success) {
@@ -254,10 +255,10 @@ router.post('/api/user/sbx/claim', requireAuth, async (req, res) => {
 });
 
 // Withdraw all SBX investments
-router.post('/api/user/sbx/withdraw', requireAuth, async (req, res) => {
+router.post('/api/user/sbx/withdraw', requireAuth, async(req, res) => {
     try {
         const sbx = require('../src/services/starkbucks-exchange');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         
         const result = await sbx.withdrawAllInvestments(userId);
         if (!result.success) {
@@ -270,7 +271,7 @@ router.post('/api/user/sbx/withdraw', requireAuth, async (req, res) => {
 });
 
 // Get leaderboard
-router.get('/api/leaderboard/:type', async (req, res) => {
+router.get('/api/leaderboard/:type', async(req, res) => {
     try {
         const starkEconomy = require('../src/services/stark-economy');
         const { type } = req.params;
@@ -282,19 +283,20 @@ router.get('/api/leaderboard/:type', async (req, res) => {
             case 'balance':
                 leaderboard = await starkEconomy.getLeaderboard(limit);
                 break;
-            case 'sbx':
+            case 'sbx': {
                 const sbx = require('../src/services/starkbucks-exchange');
                 leaderboard = await sbx.getLeaderboard(limit);
                 break;
+            }
             default:
                 return res.status(400).json({ error: 'Invalid leaderboard type' });
         }
         
         // Resolve Discord user data if requested
-        if (resolve && leaderboard?.length && global.discordClient) {
-            const client = global.discordClient;
+        if (resolve && leaderboard?.length && appContext.getClient()) {
+            const client = appContext.getClient();
             for (const entry of leaderboard) {
-                if (!entry.userId) continue;
+                if (!entry.userId) {continue;}
                 try {
                     const user = await client.users.fetch(entry.userId).catch(() => null);
                     if (user) {
@@ -319,7 +321,7 @@ router.get('/api/leaderboard/:type', async (req, res) => {
 // ============================================================================
 
 // Get all crypto prices
-router.get('/api/crypto/prices', async (req, res) => {
+router.get('/api/crypto/prices', async(req, res) => {
     try {
         const crypto = require('../src/services/stark-crypto');
         crypto.startPriceUpdates(); // Ensure updates are running
@@ -331,7 +333,7 @@ router.get('/api/crypto/prices', async (req, res) => {
 });
 
 // Get market state (cycle, sentiment, events)
-router.get('/api/crypto/market', async (req, res) => {
+router.get('/api/crypto/market', async(req, res) => {
     try {
         const crypto = require('../src/services/stark-crypto');
         crypto.startPriceUpdates();
@@ -343,7 +345,7 @@ router.get('/api/crypto/market', async (req, res) => {
 });
 
 // Get specific coin price
-router.get('/api/crypto/price/:symbol', async (req, res) => {
+router.get('/api/crypto/price/:symbol', async(req, res) => {
     try {
         const crypto = require('../src/services/stark-crypto');
         const coin = crypto.getCoinPrice(req.params.symbol);
@@ -357,10 +359,10 @@ router.get('/api/crypto/price/:symbol', async (req, res) => {
 });
 
 // Get user's crypto portfolio
-router.get('/api/user/crypto', requireAuth, async (req, res) => {
+router.get('/api/user/crypto', requireAuth, async(req, res) => {
     try {
         const crypto = require('../src/services/stark-crypto');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         const portfolio = await crypto.getPortfolio(userId);
         const prices = crypto.getAllPrices();
         res.json({ success: true, portfolio, prices });
@@ -370,10 +372,10 @@ router.get('/api/user/crypto', requireAuth, async (req, res) => {
 });
 
 // Get user's crypto trade history
-router.get('/api/user/crypto/history', requireAuth, async (req, res) => {
+router.get('/api/user/crypto/history', requireAuth, async(req, res) => {
     try {
         const crypto = require('../src/services/stark-crypto');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         const limit = Math.min(parseInt(req.query.limit) || 20, 100);
         const trades = await crypto.getTradeHistory(userId, limit);
         res.json({ success: true, trades });
@@ -383,10 +385,10 @@ router.get('/api/user/crypto/history', requireAuth, async (req, res) => {
 });
 
 // Buy crypto
-router.post('/api/user/crypto/buy', requireAuth, async (req, res) => {
+router.post('/api/user/crypto/buy', requireAuth, async(req, res) => {
     try {
         const crypto = require('../src/services/stark-crypto');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         const { symbol, amount } = req.body;
         
         if (!symbol || !amount || amount <= 0) {
@@ -404,10 +406,10 @@ router.post('/api/user/crypto/buy', requireAuth, async (req, res) => {
 });
 
 // Sell crypto
-router.post('/api/user/crypto/sell', requireAuth, async (req, res) => {
+router.post('/api/user/crypto/sell', requireAuth, async(req, res) => {
     try {
         const crypto = require('../src/services/stark-crypto');
-        const userId = req.userSession.userId;
+        const { userId } = req.userSession;
         const { symbol, amount } = req.body;
         
         if (!symbol || !amount || amount <= 0) {
@@ -425,7 +427,7 @@ router.post('/api/user/crypto/sell', requireAuth, async (req, res) => {
 });
 
 // Crypto leaderboard
-router.get('/api/crypto/leaderboard', async (req, res) => {
+router.get('/api/crypto/leaderboard', async(req, res) => {
     try {
         const crypto = require('../src/services/stark-crypto');
         const limit = Math.min(parseInt(req.query.limit) || 10, 50);

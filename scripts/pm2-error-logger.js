@@ -313,7 +313,7 @@ function usePm2LogStream() {
 
 // Startup alert
 function sendStartupMessage() {
-    if (!WEBHOOK_URL) return;
+    if (!WEBHOOK_URL) {return;}
 
     const embed = {
         title: '🟢 PM2 Error Logger Started',

@@ -65,7 +65,7 @@ const rateLimiters = {
     website: new RateLimiter(60, 60000) // 60 requests per minute
 };
 
-let twitchTokenState = {
+const twitchTokenState = {
     accessToken: null,
     expiresAtMs: 0
 };
@@ -111,14 +111,14 @@ function extractFirstItem($) {
 function extractAtomLink(node) {
     const alt = node.find('link[rel="alternate"]').first();
     const hrefAlt = alt.attr('href');
-    if (hrefAlt) return String(hrefAlt).trim();
+    if (hrefAlt) {return String(hrefAlt).trim();}
 
     const link = node.find('link').first();
     const href = link.attr('href');
-    if (href) return String(href).trim();
+    if (href) {return String(href).trim();}
 
     const textLink = node.find('link').first().text();
-    if (textLink) return String(textLink).trim();
+    if (textLink) {return String(textLink).trim();}
 
     return null;
 }
@@ -127,9 +127,9 @@ function extractRssLink(node) {
     const link = node.find('link').first();
     if (link && link.length) {
         const href = link.attr('href');
-        if (href) return String(href).trim();
+        if (href) {return String(href).trim();}
         const text = link.text();
-        if (text) return String(text).trim();
+        if (text) {return String(text).trim();}
     }
 
     return null;
@@ -138,31 +138,31 @@ function extractRssLink(node) {
 function extractEntryIdentifier({ kind, node }) {
     if (kind === 'rss') {
         const guid = node.find('guid').first().text();
-        if (guid) return String(guid).trim();
+        if (guid) {return String(guid).trim();}
 
         const id = node.find('id').first().text();
-        if (id) return String(id).trim();
+        if (id) {return String(id).trim();}
 
         const link = extractRssLink(node);
-        if (link) return link;
+        if (link) {return link;}
 
         const title = node.find('title').first().text();
-        if (title) return String(title).trim();
+        if (title) {return String(title).trim();}
 
         return null;
     }
 
     const ytVideoId = node.find('yt\\:videoId').first().text();
-    if (ytVideoId) return String(ytVideoId).trim();
+    if (ytVideoId) {return String(ytVideoId).trim();}
 
     const id = node.find('id').first().text();
-    if (id) return String(id).trim();
+    if (id) {return String(id).trim();}
 
     const link = extractAtomLink(node);
-    if (link) return link;
+    if (link) {return link;}
 
     const title = node.find('title').first().text();
-    if (title) return String(title).trim();
+    if (title) {return String(title).trim();}
 
     return null;
 }
@@ -174,11 +174,11 @@ function extractEntryTitle(node) {
 
 function extractEntryPublished(node) {
     const published = node.find('published').first().text();
-    if (published) return String(published).trim();
+    if (published) {return String(published).trim();}
     const pubDate = node.find('pubDate').first().text();
-    if (pubDate) return String(pubDate).trim();
+    if (pubDate) {return String(pubDate).trim();}
     const updated = node.find('updated').first().text();
-    if (updated) return String(updated).trim();
+    if (updated) {return String(updated).trim();}
     return null;
 }
 
@@ -413,7 +413,7 @@ async function fetchStatusPageStatus(baseUrl) {
         rateLimiters.statuspage.recordRequest();
         
         // Statuspage.io compatible API
-        const apiUrl = baseUrl.replace(/\/$/, '') + '/api/v2/summary.json';
+        const apiUrl = `${baseUrl.replace(/\/$/, '')  }/api/v2/summary.json`;
         
         const res = await fetch(apiUrl, {
             timeout: 15000,

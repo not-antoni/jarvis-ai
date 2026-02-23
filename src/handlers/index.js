@@ -9,7 +9,7 @@ const economyHandlers = require('./economy-commands');
 
 // Aggregate all command handlers
 const allHandlers = {
-    ...economyHandlers.commandMap,
+    ...economyHandlers.commandMap
     // Future handler modules will be added here:
     // ...funHandlers.commandMap,
     // ...utilityHandlers.commandMap,
@@ -64,5 +64,5 @@ module.exports = {
 
     // Re-export helpers
     formatNum: economyHandlers.formatNum,
-    parseFormattedNumber: economyHandlers.parseFormattedNumber,
+    parseFormattedNumber: economyHandlers.parseFormattedNumber
 };

@@ -186,7 +186,7 @@ class YtDlpManager {
 
             for (const alt of alternatives) {
                 const altAsset = assets.find(a => a.name === alt);
-                if (altAsset) return altAsset.browser_download_url;
+                if (altAsset) {return altAsset.browser_download_url;}
             }
 
             throw new Error(`No suitable yt-dlp binary found for ${process.platform}`);
@@ -305,7 +305,7 @@ class YtDlpManager {
             console.log(`[yt-dlp] Downloading from: ${downloadUrl}`);
 
             // Download to temp file first
-            const tempPath = this.executablePath + '.tmp';
+            const tempPath = `${this.executablePath  }.tmp`;
             await this.downloadFile(downloadUrl, tempPath);
 
             // Replace old executable
@@ -361,7 +361,7 @@ class YtDlpManager {
      * Schedule periodic update checks
      */
     scheduleUpdateChecks() {
-        setInterval(async () => {
+        setInterval(async() => {
             if (Date.now() - this.lastUpdateCheck > UPDATE_CHECK_INTERVAL_MS) {
                 await this.checkAndUpdate();
             }
@@ -441,7 +441,7 @@ class YtDlpManager {
                 '-g', // Get URL only
                 '--no-warnings',
                 '--no-playlist',
-                `--max-filesize`, `${MAX_FILESIZE_MB}M`
+                '--max-filesize', `${MAX_FILESIZE_MB}M`
             ];
             
             // Add ffmpeg path if configured (suppresses warnings)

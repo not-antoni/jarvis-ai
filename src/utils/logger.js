@@ -62,9 +62,9 @@ class Logger {
      * Write to file
      */
     writeToFile(level, formatted) {
-        if (!this.enableFileLogging) return;
+        if (!this.enableFileLogging) {return;}
 
-        const line = formatted + '\n';
+        const line = `${formatted  }\n`;
         const logFile = path.join(this.logDir, `${level}.log`);
         const allLogFile = path.join(this.logDir, 'combined.log');
 
@@ -84,7 +84,7 @@ class Logger {
      * Write to console
      */
     writeToConsole(level, message, meta) {
-        if (!this.enableConsoleLogging) return;
+        if (!this.enableConsoleLogging) {return;}
 
         const prefix = `[${new Date().toISOString()}] [${level.toUpperCase()}]`;
         const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
@@ -110,7 +110,7 @@ class Logger {
      * Log error
      */
     error(message, meta = {}) {
-        if (!this.shouldLog('error')) return;
+        if (!this.shouldLog('error')) {return;}
 
         const formatted = this.format('error', message, meta);
         this.writeToFile('error', formatted);
@@ -121,7 +121,7 @@ class Logger {
      * Log warning
      */
     warn(message, meta = {}) {
-        if (!this.shouldLog('warn')) return;
+        if (!this.shouldLog('warn')) {return;}
 
         const formatted = this.format('warn', message, meta);
         this.writeToFile('warn', formatted);
@@ -132,7 +132,7 @@ class Logger {
      * Log info
      */
     info(message, meta = {}) {
-        if (!this.shouldLog('info')) return;
+        if (!this.shouldLog('info')) {return;}
 
         const formatted = this.format('info', message, meta);
         this.writeToFile('info', formatted);
@@ -143,7 +143,7 @@ class Logger {
      * Log debug
      */
     debug(message, meta = {}) {
-        if (!this.shouldLog('debug')) return;
+        if (!this.shouldLog('debug')) {return;}
 
         const formatted = this.format('debug', message, meta);
         this.writeToFile('debug', formatted);
@@ -169,7 +169,7 @@ class Logger {
      * Flush pending file writes - call before shutdown
      */
     async flush() {
-        if (!this.enableFileLogging) return;
+        if (!this.enableFileLogging) {return;}
         await this._fileWriteQueue;
     }
 }

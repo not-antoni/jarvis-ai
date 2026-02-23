@@ -75,11 +75,11 @@ module.exports = {
         .setContexts([InteractionContextType.Guild]),
 
     async execute(interaction) {
-        if (!interaction.guild) return;
+        if (!interaction.guild) {return;}
 
         // DJ / Blocking Check
         const { canControlMusic } = require('../../utils/dj-system');
-        if (!await canControlMusic(interaction)) return;
+        if (!await canControlMusic(interaction)) {return;}
 
         const queryOption = interaction.options.getString('query');
 
@@ -87,10 +87,10 @@ module.exports = {
         const files = [];
         for (let i = 1; i <= 10; i++) {
             const file = interaction.options.getAttachment(`file${i}`);
-            if (file) files.push(file);
+            if (file) {files.push(file);}
         }
 
-        const member = interaction.member;
+        const { member } = interaction;
         const voiceChannel = member.voice?.channel;
 
         // Must provide either query OR files
@@ -153,7 +153,7 @@ module.exports = {
                     interaction.channel,
                     interaction
                 );
-                if (firstPosition === -1) firstPosition = pos;
+                if (firstPosition === -1) {firstPosition = pos;}
                 console.log(`[Play] File queued: ${file.name} - Position: ${pos}`);
             }
 
@@ -234,17 +234,17 @@ module.exports = {
             if (e.errorCode === 'NO_RESULT' || errorMsg.includes('Cannot find any song') || errorMsg.includes('Video unavailable')) {
                 userMessage = `❌ **No results found**\nCouldn't find anything for: \`${query.slice(0, 50)}\``;
             } else if (errorMsg === 'Error: null' || errorMsg.includes(': null')) {
-                userMessage = `❌ **YouTube is blocked**\nUse SoundCloud links instead.`;
+                userMessage = '❌ **YouTube is blocked**\nUse SoundCloud links instead.';
             } else if (e.errorCode === 'VOICE_CONNECT_FAILED' || errorMsg.includes('VOICE_CONNECT_FAILED')) {
-                userMessage = `❌ **Connection failed**\nCouldn't connect to the voice channel. Check my permissions.`;
+                userMessage = '❌ **Connection failed**\nCouldn\'t connect to the voice channel. Check my permissions.';
             } else if (errorMsg.includes('Sign in to confirm') || errorMsg.includes('bot') || errorMsg.includes('confirm your age')) {
-                userMessage = `❌ **YouTube blocked this request**\nThis usually happens on datacenter IPs. Try a different song or use SoundCloud links.`;
+                userMessage = '❌ **YouTube blocked this request**\nThis usually happens on datacenter IPs. Try a different song or use SoundCloud links.';
             } else if (errorMsg.includes('rate limit') || errorMsg.includes('429')) {
-                userMessage = `❌ **Rate limited**\nToo many requests. Please wait a moment and try again.`;
+                userMessage = '❌ **Rate limited**\nToo many requests. Please wait a moment and try again.';
             } else if (errorMsg.includes('private') || errorMsg.includes('members-only')) {
-                userMessage = `❌ **Access denied**\nThis content is private or members-only.`;
+                userMessage = '❌ **Access denied**\nThis content is private or members-only.';
             } else if (errorMsg.includes('copyright') || errorMsg.includes('not available')) {
-                userMessage = `❌ **Unavailable**\nThis content is not available (copyright or region blocked).`;
+                userMessage = '❌ **Unavailable**\nThis content is not available (copyright or region blocked).';
             } else {
                 // Generic error - keep it clean
                 userMessage = `❌ **Playback failed**\n${errorMsg.slice(0, 150)}`;

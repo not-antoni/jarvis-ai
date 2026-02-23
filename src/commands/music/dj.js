@@ -65,7 +65,7 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        const guildId = interaction.guildId;
+        const { guildId } = interaction;
         const guildConfig = await database.getGuildConfig(guildId);
         const subcommand = interaction.options.getSubcommand();
 
@@ -133,14 +133,14 @@ module.exports = {
                 const newUsers = [...currentUsers, target.id];
                 await database.setGuildDjUsers(guildId, newUsers);
                 return interaction.reply(`✅ Added ${target} to the DJ list.`);
-            } else {
-                if (!currentUsers.includes(target.id)) {
-                    return interaction.reply(`ℹ️ ${target} is not in the DJ list.`);
-                }
-                const newUsers = currentUsers.filter(id => id !== target.id);
-                await database.setGuildDjUsers(guildId, newUsers);
-                return interaction.reply(`✅ Removed ${target} from the DJ list.`);
+            } 
+            if (!currentUsers.includes(target.id)) {
+                return interaction.reply(`ℹ️ ${target} is not in the DJ list.`);
             }
+            const newUsers = currentUsers.filter(id => id !== target.id);
+            await database.setGuildDjUsers(guildId, newUsers);
+            return interaction.reply(`✅ Removed ${target} from the DJ list.`);
+            
         }
 
         // MANAGE ROLES
@@ -156,14 +156,14 @@ module.exports = {
                 const newRoles = [...currentRoles, target.id];
                 await database.setGuildDjRoles(guildId, newRoles);
                 return interaction.reply(`✅ Added ${target} to the DJ roles.`);
-            } else {
-                if (!currentRoles.includes(target.id)) {
-                    return interaction.reply(`ℹ️ ${target} is not in the DJ roles list.`);
-                }
-                const newRoles = currentRoles.filter(id => id !== target.id);
-                await database.setGuildDjRoles(guildId, newRoles);
-                return interaction.reply(`✅ Removed ${target} from the DJ roles.`);
+            } 
+            if (!currentRoles.includes(target.id)) {
+                return interaction.reply(`ℹ️ ${target} is not in the DJ roles list.`);
             }
+            const newRoles = currentRoles.filter(id => id !== target.id);
+            await database.setGuildDjRoles(guildId, newRoles);
+            return interaction.reply(`✅ Removed ${target} from the DJ roles.`);
+            
         }
 
         // BLOCK USER

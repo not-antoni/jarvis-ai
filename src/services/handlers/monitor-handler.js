@@ -6,7 +6,7 @@ async function handleMonitorCommand(interaction) {
     const monitorSubscriptions = require('./monitor-subscriptions');
     const monitorUtils = require('./monitor-utils');
 
-    const guildId = interaction.guildId;
+    const { guildId } = interaction;
     const userId = interaction.user.id;
 
     if (!guildId) {
@@ -39,11 +39,11 @@ async function handleMonitorCommand(interaction) {
 
     const resolveAlertChannel = () => {
         const provided = interaction.options.getChannel('channel');
-        if (provided) return provided;
+        if (provided) {return provided;}
         return interaction.channel;
     };
 
-    const ensureSendPermissions = async (channel) => {
+    const ensureSendPermissions = async(channel) => {
         const guildRef = guild || await interaction.client.guilds.fetch(guildId).catch(() => null);
         const botMember = guildRef?.members?.me || await guildRef?.members?.fetchMe?.().catch(() => null);
         const perms = channel?.permissionsFor?.(botMember || guildRef?.client?.user);
@@ -62,7 +62,7 @@ async function handleMonitorCommand(interaction) {
 
     const truncateFieldValue = (value, max = 1024) => {
         const str = value == null ? '' : String(value);
-        if (str.length <= max) return str;
+        if (str.length <= max) {return str;}
         return str.slice(0, Math.max(0, max - 1)).concat('…');
     };
 
@@ -72,9 +72,9 @@ async function handleMonitorCommand(interaction) {
     };
 
     const formatRelativeTime = (iso) => {
-        if (!iso) return null;
+        if (!iso) {return null;}
         const ms = new Date(String(iso)).getTime();
-        if (!Number.isFinite(ms)) return null;
+        if (!Number.isFinite(ms)) {return null;}
         return `<t:${Math.floor(ms / 1000)}:R>`;
     };
 
@@ -83,9 +83,9 @@ async function handleMonitorCommand(interaction) {
         const kept = [];
         let len = 0;
         for (const name of list) {
-            if (kept.length >= maxItems) break;
+            if (kept.length >= maxItems) {break;}
             const chunk = (kept.length ? ', ' : '') + name;
-            if (len + chunk.length > maxLength) break;
+            if (len + chunk.length > maxLength) {break;}
             kept.push(name);
             len += chunk.length;
         }
@@ -108,9 +108,9 @@ async function handleMonitorCommand(interaction) {
             });
             const result2 = source.toLowerCase() !== source
                 ? await monitorSubscriptions.remove_subscription({
-                      guild_id: guildId,
-                      source_id: source.toLowerCase()
-                  })
+                    guild_id: guildId,
+                    source_id: source.toLowerCase()
+                })
                 : { ok: true, removed: 0 };
 
             const removed = (Number(result?.removed) || 0) + (Number(result2?.removed) || 0);
@@ -354,10 +354,10 @@ async function handleMonitorCommand(interaction) {
                             i.impact === 'critical'
                                 ? '🚨'
                                 : i.impact === 'major'
-                                  ? '🔴'
-                                  : i.impact === 'minor'
-                                    ? '⚠️'
-                                    : '📋';
+                                    ? '🔴'
+                                    : i.impact === 'minor'
+                                        ? '⚠️'
+                                        : '📋';
                         const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
                         const when = formatRelativeTime(i.updatedAt || i.createdAt);
                         const updates = Array.isArray(i.updates) ? i.updates : [];
@@ -463,10 +463,10 @@ async function handleMonitorCommand(interaction) {
                             i.impact === 'critical'
                                 ? '🚨'
                                 : i.impact === 'major'
-                                  ? '🔴'
-                                  : i.impact === 'minor'
-                                    ? '⚠️'
-                                    : '📋';
+                                    ? '🔴'
+                                    : i.impact === 'minor'
+                                        ? '⚠️'
+                                        : '📋';
                         const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
                         const when = formatRelativeTime(i.updatedAt || i.createdAt);
                         const updates = Array.isArray(i.updates) ? i.updates : [];
@@ -572,7 +572,7 @@ async function handleMonitorCommand(interaction) {
             const typeEmojis = { rss: '📰', website: '🌐', youtube: '🎬', twitch: '🎮', cloudflare: '☁️', statuspage: '📊' };
             const monitorList = subs.slice(0, 15).map(s => {
                 const emoji = typeEmojis[s.monitor_type] || '📋';
-                const source = s.source_id.length > 40 ? s.source_id.substring(0, 37) + '...' : s.source_id;
+                const source = s.source_id.length > 40 ? `${s.source_id.substring(0, 37)  }...` : s.source_id;
                 return `${emoji} **${s.monitor_type}**: \`${source}\`\n> Channel: <#${s.channel_id}> | ID: \`${s.id}\``;
             }).join('\n\n');
 

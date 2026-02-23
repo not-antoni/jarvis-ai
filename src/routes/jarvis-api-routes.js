@@ -104,7 +104,7 @@ function mountFeatureRoutes(router, ctx) {
         });
     });
 
-    router.get('/api/overview', requireOwner, async (req, res) => {
+    router.get('/api/overview', requireOwner, async(req, res) => {
         const client = getDiscordClient();
         const handlers = getDiscordHandlers();
 
@@ -172,7 +172,7 @@ function mountFeatureRoutes(router, ctx) {
                 };
             }
         } catch {
-            agentSummary = agentSummary;
+            // agentSummary stays as-is on failure
         }
 
         let subsCount = 0;
@@ -315,18 +315,18 @@ function mountFeatureRoutes(router, ctx) {
         rateLimit({ keyPrefix: 'jarvis:providers', max: 60, windowMs: 60 * 1000 }),
         requireCsrf,
         (req, res) => {
-        const mode = String(req.body?.mode || '').toLowerCase();
-        if (mode !== 'random' && mode !== 'ranked') {
-            return res.status(400).json({ ok: false, error: 'invalid_mode' });
-        }
+            const mode = String(req.body?.mode || '').toLowerCase();
+            if (mode !== 'random' && mode !== 'ranked') {
+                return res.status(400).json({ ok: false, error: 'invalid_mode' });
+            }
 
-        try {
-            aiManager.setRandomSelection(mode === 'random');
-            recordAuditEvent(req, 'providers.selectionMode', { mode });
-            return res.json({ ok: true, selectionMode: aiManager.getSelectionMode() });
-        } catch (e) {
-            return res.status(500).json({ ok: false, error: e?.message || 'failed' });
-        }
+            try {
+                aiManager.setRandomSelection(mode === 'random');
+                recordAuditEvent(req, 'providers.selectionMode', { mode });
+                return res.json({ ok: true, selectionMode: aiManager.getSelectionMode() });
+            } catch (e) {
+                return res.status(500).json({ ok: false, error: e?.message || 'failed' });
+            }
         }
     );
 
@@ -336,14 +336,14 @@ function mountFeatureRoutes(router, ctx) {
         rateLimit({ keyPrefix: 'jarvis:providers', max: 60, windowMs: 60 * 1000 }),
         requireCsrf,
         (req, res) => {
-        const type = String(req.body?.type || '').toLowerCase();
-        try {
-            aiManager.setProviderType(type);
-            recordAuditEvent(req, 'providers.type', { type });
-            return res.json({ ok: true, providerType: aiManager.getProviderType() });
-        } catch (e) {
-            return res.status(400).json({ ok: false, error: e?.message || 'invalid_type' });
-        }
+            const type = String(req.body?.type || '').toLowerCase();
+            try {
+                aiManager.setProviderType(type);
+                recordAuditEvent(req, 'providers.type', { type });
+                return res.json({ ok: true, providerType: aiManager.getProviderType() });
+            } catch (e) {
+                return res.status(400).json({ ok: false, error: e?.message || 'invalid_type' });
+            }
         }
     );
 
@@ -364,7 +364,7 @@ function mountFeatureRoutes(router, ctx) {
             saveJarvisSnapshot('agent.health', payload).catch(err => {
                 console.warn('[Jarvis] Failed to save agent health snapshot:', err?.message || err);
             });
-            return;
+            
         } catch (e) {
             return res.status(500).json({ ok: false, error: e?.message || 'failed' });
         }
@@ -404,7 +404,7 @@ function mountFeatureRoutes(router, ctx) {
         });
     });
 
-    router.get('/api/filters', requireOwner, async (req, res) => {
+    router.get('/api/filters', requireOwner, async(req, res) => {
         const client = getDiscordClient();
         if (!client || typeof client.isReady !== 'function' || !client.isReady()) {
             return res.json({ ok: true, ready: false, guilds: [] });
@@ -444,7 +444,7 @@ function mountFeatureRoutes(router, ctx) {
         });
     });
 
-    router.get('/api/monitoring/subscriptions', requireOwner, async (req, res) => {
+    router.get('/api/monitoring/subscriptions', requireOwner, async(req, res) => {
         try {
             const all = await subscriptions.get_all_subscriptions().catch(() => []);
             const subs = Array.isArray(all) ? all : [];
@@ -475,7 +475,7 @@ function mountFeatureRoutes(router, ctx) {
         });
     });
 
-    router.get('/api/economy', requireOwner, async (req, res) => {
+    router.get('/api/economy', requireOwner, async(req, res) => {
         let multiplier = null;
         try {
             multiplier = starkEconomy.getMultiplierStatus();
@@ -593,14 +593,14 @@ function mountFeatureRoutes(router, ctx) {
         requireOwner,
         rateLimit({ keyPrefix: 'jarvis:logs', max: 120, windowMs: 60 * 1000 }),
         (req, res) => {
-        const file = req.query.file ? String(req.query.file) : '';
-        const lines = Math.min(Number(req.query.lines || 200), 2000);
-        try {
-            const out = tailLogFile(file, lines);
-            res.json({ ok: true, file, lines: out.length, data: out.join('\n') });
-        } catch (e) {
-            res.status(400).json({ ok: false, error: e?.message || 'failed' });
-        }
+            const file = req.query.file ? String(req.query.file) : '';
+            const lines = Math.min(Number(req.query.lines || 200), 2000);
+            try {
+                const out = tailLogFile(file, lines);
+                res.json({ ok: true, file, lines: out.length, data: out.join('\n') });
+            } catch (e) {
+                res.status(400).json({ ok: false, error: e?.message || 'failed' });
+            }
         }
     );
 
@@ -663,7 +663,7 @@ function mountFeatureRoutes(router, ctx) {
                     }
 
                     const toRead = Math.min(st.size - lastSize, maxChunkBytes);
-                    if (toRead <= 0) return;
+                    if (toRead <= 0) {return;}
 
                     const fd = fs.openSync(filePath, 'r');
                     try {
@@ -690,7 +690,7 @@ function mountFeatureRoutes(router, ctx) {
 
     // ============ ADMIN API ROUTES ============
 
-    router.get('/api/admin/api-usage', requireOwner, async (req, res) => {
+    router.get('/api/admin/api-usage', requireOwner, async(req, res) => {
         if (!apiKeysService) {
             return res.json({ ok: false, error: 'API keys service not available' });
         }
@@ -708,7 +708,7 @@ function mountFeatureRoutes(router, ctx) {
         }
     });
 
-    router.get('/api/admin/api-keys', requireOwner, async (req, res) => {
+    router.get('/api/admin/api-keys', requireOwner, async(req, res) => {
         if (!apiKeysService) {
             return res.json({ ok: false, error: 'API keys service not available' });
         }
@@ -726,7 +726,7 @@ function mountFeatureRoutes(router, ctx) {
         }
     });
 
-    router.post('/api/admin/api-keys/:userId/:keyId/disable', requireOwner, async (req, res) => {
+    router.post('/api/admin/api-keys/:userId/:keyId/disable', requireOwner, async(req, res) => {
         if (!apiKeysService) {
             return res.json({ ok: false, error: 'API keys service not available' });
         }
@@ -740,7 +740,7 @@ function mountFeatureRoutes(router, ctx) {
         }
     });
 
-    router.post('/api/admin/api-keys/:userId/:keyId/enable', requireOwner, async (req, res) => {
+    router.post('/api/admin/api-keys/:userId/:keyId/enable', requireOwner, async(req, res) => {
         if (!apiKeysService) {
             return res.json({ ok: false, error: 'API keys service not available' });
         }
@@ -754,7 +754,7 @@ function mountFeatureRoutes(router, ctx) {
         }
     });
 
-    router.get('/api/admin/ip-lookup/:ip', requireOwner, async (req, res) => {
+    router.get('/api/admin/ip-lookup/:ip', requireOwner, async(req, res) => {
         if (!apiKeysService) {
             return res.json({ ok: false, error: 'API keys service not available' });
         }

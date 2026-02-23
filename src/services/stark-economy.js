@@ -31,9 +31,9 @@ const LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
  * @returns {string} - Formatted string like "71.3Q" or "2.5M"
  */
 function formatCompact(num, decimals = 1) {
-    if (num == null || isNaN(num)) return '0';
+    if (num == null || isNaN(num)) {return '0';}
     num = Number(num);
-    if (!isFinite(num)) return '∞';
+    if (!isFinite(num)) {return '∞';}
 
     const absNum = Math.abs(num);
     const sign = num < 0 ? '-' : '';
@@ -71,7 +71,7 @@ function formatCompact(num, decimals = 1) {
         { threshold: 1e12, suffix: 'T' },   // Trillion
         { threshold: 1e9, suffix: 'B' },    // Billion
         { threshold: 1e6, suffix: 'M' },    // Million
-        { threshold: 1e3, suffix: 'K' },    // Thousand
+        { threshold: 1e3, suffix: 'K' }    // Thousand
     ];
 
     for (const { threshold, suffix } of suffixes) {
@@ -125,7 +125,7 @@ async function withUserLock(userId, operation) {
     }
 
     // Create a new lock
-    const lockPromise = (async () => {
+    const lockPromise = (async() => {
         try {
             return await operation();
         } finally {
@@ -459,7 +459,7 @@ async function getArcReactorPerks(userId) {
  */
 async function awardSbxBonus(userId, starkBucksEarned, reason = 'activity') {
     const sbx = getStarkbucks();
-    if (!sbx) return { sbxAwarded: 0 };
+    if (!sbx) {return { sbxAwarded: 0 };}
 
     try {
         // Get current SBX price to calculate bonus
@@ -505,7 +505,7 @@ async function getCombinedPerks(userId) {
     const localActive = await getActiveEffects(userId); // Reuse existing helper
     const inventory = user.inventory || [];
 
-    let localBonus = {
+    const localBonus = {
         earnings: 0,
         cooldownRed: 0,
         gambling: 0,
@@ -516,14 +516,14 @@ async function getCombinedPerks(userId) {
     // Process Active Effects (Shields, Boosters)
     for (const eff of localActive) {
         // Legacy shield check
-        if (eff.itemId === 'shield') localBonus.robberyImmunity = true;
+        if (eff.itemId === 'shield') {localBonus.robberyImmunity = true;}
 
         if (eff.effect) {
-            if (eff.effect.earningsBonus) localBonus.earnings += eff.effect.earningsBonus;
-            if (eff.effect.workCooldownReduction) localBonus.cooldownRed += eff.effect.workCooldownReduction;
-            if (eff.effect.gamblingBonus) localBonus.gambling += eff.effect.gamblingBonus;
-            if (eff.effect.robberyImmunity) localBonus.robberyImmunity = true;
-            if (eff.effect.robberyDefense) localBonus.robberyDefense += eff.effect.robberyDefense;
+            if (eff.effect.earningsBonus) {localBonus.earnings += eff.effect.earningsBonus;}
+            if (eff.effect.workCooldownReduction) {localBonus.cooldownRed += eff.effect.workCooldownReduction;}
+            if (eff.effect.gamblingBonus) {localBonus.gambling += eff.effect.gamblingBonus;}
+            if (eff.effect.robberyImmunity) {localBonus.robberyImmunity = true;}
+            if (eff.effect.robberyDefense) {localBonus.robberyDefense += eff.effect.robberyDefense;}
         }
     }
 
@@ -531,8 +531,8 @@ async function getCombinedPerks(userId) {
     for (const item of inventory) {
         const shopItem = SHOP_ITEMS[item.id];
         if (shopItem && shopItem.type === 'upgrade' && shopItem.effect) {
-            if (shopItem.effect.workCooldownReduction) localBonus.cooldownRed += shopItem.effect.workCooldownReduction;
-            if (shopItem.effect.gamblingBonus) localBonus.gambling += shopItem.effect.gamblingBonus;
+            if (shopItem.effect.workCooldownReduction) {localBonus.cooldownRed += shopItem.effect.workCooldownReduction;}
+            if (shopItem.effect.gamblingBonus) {localBonus.gambling += shopItem.effect.gamblingBonus;}
         }
     }
 
@@ -714,7 +714,7 @@ async function work(userId, username) {
 
     // Check for work cooldown reduction
     const effects = await getActiveEffects(userId);
-    let cooldownMultiplier = arcPerks.cooldownMultiplier; // Arc Reactor reduces cooldowns
+    let { cooldownMultiplier } = arcPerks; // Arc Reactor reduces cooldowns
     effects.forEach(e => {
         if (e.effect?.workCooldownReduction) {
             cooldownMultiplier *= 1 - e.effect.workCooldownReduction;
@@ -745,55 +745,55 @@ async function work(userId, username) {
 
     const jobs = [
         `fixed a bug in the Mark ${Math.floor(Math.random() * 50 + 1)} suit`,
-        `calibrated the arc reactor`,
-        `organized Tony's workshop`,
-        `debugged FRIDAY's code`,
-        `polished the Iron Legion`,
-        `updated the Stark satellite network`,
-        `ran diagnostics on the Quinjet`,
-        `cleaned Dum-E's mess`,
-        `tested new repulsor tech`,
-        `encrypted classified files`,
-        `repaired JARVIS's voice module`,
-        `optimized nanotech deployment systems`,
-        `calibrated Iron Man's targeting systems`,
-        `fixed the Avengers Tower elevator`,
-        `debugged War Machine's flight systems`,
-        `updated Pepper's calendar integration`,
-        `tested new energy shield prototypes`,
-        `organized Cap's shield collection`,
-        `repaired Spider-Man's web shooters`,
-        `calibrated Hawkeye's bow targeting`,
-        `fixed Black Widow's stealth tech`,
-        `updated Thor's hammer tracking`,
-        `debugged Hulk's transformation sensors`,
-        `repaired Vision's density controls`,
-        `calibrated Scarlet Witch's power dampeners`,
-        `fixed Doctor Strange's portal generator`,
-        `updated Black Panther's vibranium suit`,
-        `debugged Ant-Man's size controls`,
-        `repaired Wasp's shrinking tech`,
-        `calibrated Captain Marvel's energy absorption`,
-        `fixed Falcon's wing systems`,
-        `updated Winter Soldier's arm`,
-        `debugged Loki's illusion projectors`,
-        `repaired Rocket's weapon modifications`,
-        `calibrated Groot's growth inhibitors`,
-        `fixed Drax's invisibility (still working on it)`,
-        `updated Gamora's sword maintenance`,
-        `debugged Nebula's cybernetic upgrades`,
-        `repaired Mantis's empathy sensors`,
-        `calibrated Star-Lord's music player`,
-        `fixed Yondu's arrow controller`,
-        `updated Ego's planet core systems`,
-        `debugged Thanos's gauntlet interface`,
-        `repaired Ultron's consciousness backup`,
-        `calibrated Zemo's mask filters`,
-        `fixed Killmonger's suit systems`,
-        `updated Shuri's lab equipment`,
-        `debugged M'Baku's armor`,
-        `repaired Okoye's spear tech`,
-        `calibrated Nakia's ring blades`
+        'calibrated the arc reactor',
+        'organized Tony\'s workshop',
+        'debugged FRIDAY\'s code',
+        'polished the Iron Legion',
+        'updated the Stark satellite network',
+        'ran diagnostics on the Quinjet',
+        'cleaned Dum-E\'s mess',
+        'tested new repulsor tech',
+        'encrypted classified files',
+        'repaired JARVIS\'s voice module',
+        'optimized nanotech deployment systems',
+        'calibrated Iron Man\'s targeting systems',
+        'fixed the Avengers Tower elevator',
+        'debugged War Machine\'s flight systems',
+        'updated Pepper\'s calendar integration',
+        'tested new energy shield prototypes',
+        'organized Cap\'s shield collection',
+        'repaired Spider-Man\'s web shooters',
+        'calibrated Hawkeye\'s bow targeting',
+        'fixed Black Widow\'s stealth tech',
+        'updated Thor\'s hammer tracking',
+        'debugged Hulk\'s transformation sensors',
+        'repaired Vision\'s density controls',
+        'calibrated Scarlet Witch\'s power dampeners',
+        'fixed Doctor Strange\'s portal generator',
+        'updated Black Panther\'s vibranium suit',
+        'debugged Ant-Man\'s size controls',
+        'repaired Wasp\'s shrinking tech',
+        'calibrated Captain Marvel\'s energy absorption',
+        'fixed Falcon\'s wing systems',
+        'updated Winter Soldier\'s arm',
+        'debugged Loki\'s illusion projectors',
+        'repaired Rocket\'s weapon modifications',
+        'calibrated Groot\'s growth inhibitors',
+        'fixed Drax\'s invisibility (still working on it)',
+        'updated Gamora\'s sword maintenance',
+        'debugged Nebula\'s cybernetic upgrades',
+        'repaired Mantis\'s empathy sensors',
+        'calibrated Star-Lord\'s music player',
+        'fixed Yondu\'s arrow controller',
+        'updated Ego\'s planet core systems',
+        'debugged Thanos\'s gauntlet interface',
+        'repaired Ultron\'s consciousness backup',
+        'calibrated Zemo\'s mask filters',
+        'fixed Killmonger\'s suit systems',
+        'updated Shuri\'s lab equipment',
+        'debugged M\'Baku\'s armor',
+        'repaired Okoye\'s spear tech',
+        'calibrated Nakia\'s ring blades'
     ];
 
     const job = jobs[Math.floor(Math.random() * jobs.length)];
@@ -833,7 +833,7 @@ function getShopItems() {
  */
 async function buyItem(userId, itemId) {
     const item = SHOP_ITEMS[itemId];
-    if (!item) return { success: false, error: 'Item not found' };
+    if (!item) {return { success: false, error: 'Item not found' };}
 
     const user = await loadUser(userId);
 
@@ -913,7 +913,7 @@ async function getLeaderboard(limit = 10, client = null) {
 
         // Fetch current usernames from Discord if client is provided
         const leaderboardEntries = await Promise.all(
-            users.map(async (u, i) => {
+            users.map(async(u, i) => {
                 let username = u.username || 'Unknown';
 
                 // Try to get current username from Discord
@@ -1126,7 +1126,7 @@ async function startMultiplierEvent() {
  * Returns empty string if no boost active
  */
 function getBoostText() {
-    if (!isMultiplierActive()) return '';
+    if (!isMultiplierActive()) {return '';}
 
     const remaining = multiplierEndTime - Date.now();
     const hours = Math.floor(remaining / (60 * 60 * 1000));
@@ -1138,7 +1138,7 @@ function getBoostText() {
 // Schedule multiplier events every 3 hours
 let multiplierInterval = null;
 function startMultiplierScheduler() {
-    if (multiplierInterval) clearInterval(multiplierInterval);
+    if (multiplierInterval) {clearInterval(multiplierInterval);}
 
     // Start first event after 3 hours
     multiplierInterval = setInterval(() => {

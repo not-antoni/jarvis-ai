@@ -171,10 +171,10 @@ async function remove_subscription({ guild_id, source_id, monitor_type } = {}) {
     const docs = localdb.readCollection(config.database.collections.subscriptions);
     const before = docs.length;
     const kept = docs.filter(d => {
-        if (!d) return false;
-        if (d.guild_id !== gid) return true;
-        if (d.source_id !== source) return true;
-        if (type && d.monitor_type !== type) return true;
+        if (!d) {return false;}
+        if (d.guild_id !== gid) {return true;}
+        if (d.source_id !== source) {return true;}
+        if (type && d.monitor_type !== type) {return true;}
         return false;
     });
 

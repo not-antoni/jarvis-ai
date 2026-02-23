@@ -194,7 +194,7 @@ async function handleJarvis(interaction, jarvis) {
 
     // Peak bypass
     if (prompt && /\bis\s+this\s+peak\b/i.test(prompt)) {
-        return `Indubitably peak, sir. 🏔️🔥`;
+        return 'Indubitably peak, sir. 🏔️🔥';
     }
 
     try {
@@ -251,15 +251,15 @@ async function handleJarvis(interaction, jarvis) {
 
     if (prompt.length > config.ai.maxSlashInputLength) {
         const responses = [
-            "Rather verbose, sir. A concise version, perhaps?",
-            "Too many words, sir. Brevity, please.",
-            "TL;DR, sir.",
-            "Really, sir?",
-            "Saving your creativity for later, sir.",
+            'Rather verbose, sir. A concise version, perhaps?',
+            'Too many words, sir. Brevity, please.',
+            'TL;DR, sir.',
+            'Really, sir?',
+            'Saving your creativity for later, sir.',
             `${config.ai.maxSlashInputLength} characters is the limit, sir.`,
-            "Stop yapping, sir.",
-            "Quite the novella, sir. Abridged edition?",
-            "Brevity is the soul of wit, sir.",
+            'Stop yapping, sir.',
+            'Quite the novella, sir. Abridged edition?',
+            'Brevity is the soul of wit, sir.'
         ];
 
         await interaction.editReply(responses[Math.floor(Math.random() * responses.length)]);
@@ -409,13 +409,13 @@ async function handlePwdgen(interaction) {
         const symbols = '!@#$%^&*()-_=+[]{};:,.?/';
 
         let pool = lowers + uppers + digits;
-        if (includeSymbols) pool += symbols;
+        if (includeSymbols) {pool += symbols;}
 
         // Ensure at least one from each required class
         const required = [
             lowers[crypto.randomInt(lowers.length)],
             uppers[crypto.randomInt(uppers.length)],
-            digits[crypto.randomInt(digits.length)],
+            digits[crypto.randomInt(digits.length)]
         ];
         if (includeSymbols) {
             required.push(symbols[crypto.randomInt(symbols.length)]);
@@ -438,7 +438,7 @@ async function handlePwdgen(interaction) {
 
         const password = chars.join('');
         return {
-            content: `Here is your generated password (keep it private), sir:\n\n\`\`\`${password}\`\`\``,
+            content: `Here is your generated password (keep it private), sir:\n\n\`\`\`${password}\`\`\``
         };
     } catch (error) {
         try {
@@ -473,7 +473,7 @@ async function handleQrcode(interaction) {
                 type: 'png',
                 errorCorrectionLevel: 'M',
                 margin: 2,
-                width: 512,
+                width: 512
             });
         } catch {
             const allowExternalFallback = String(process.env.ALLOW_QR_EXTERNAL_FALLBACK || '1').toLowerCase() === '1';

@@ -10,7 +10,7 @@ const { EmbedBuilder, AuditLogEvent, Colors, PermissionFlagsBits } = require('di
 const LOG_CONFIG = {};
 (process.env.LOG_CHANNELS || '').split(',').filter(Boolean).forEach(pair => {
     const [gId, cId] = pair.split(':').map(s => s.trim());
-    if (gId && cId) LOG_CONFIG[gId] = cId;
+    if (gId && cId) {LOG_CONFIG[gId] = cId;}
 });
 
 class ServerLogger {
@@ -19,9 +19,9 @@ class ServerLogger {
      * Get the log channel for a guild if configured
      */
     getLogChannel(guild) {
-        if (!guild) return null;
+        if (!guild) {return null;}
         const channelId = LOG_CONFIG[guild.id];
-        if (!channelId) return null;
+        if (!channelId) {return null;}
         return guild.channels.cache.get(channelId);
     }
 
@@ -30,7 +30,7 @@ class ServerLogger {
      */
     async sendLog(guild, embed) {
         const channel = this.getLogChannel(guild);
-        if (!channel) return;
+        if (!channel) {return;}
         try {
             await channel.send({ embeds: [embed] });
         } catch (error) {
@@ -53,7 +53,7 @@ class ServerLogger {
 
             const logs = await guild.fetchAuditLogs({
                 limit: 1,
-                type: type,
+                type: type
             });
             const entry = logs.entries.first();
 
@@ -79,7 +79,7 @@ class ServerLogger {
      * Log Message Delete
      */
     async logMessageDelete(message) {
-        if (!message.guild || !message.author || message.author.bot) return; // Ignore bots or uncached messages
+        if (!message.guild || !message.author || message.author.bot) {return;} // Ignore bots or uncached messages
 
         // Audit Log check for "Message Delete" by generic mod (not author)
         // This is tricky because if author deletes, no audit log entry is typically created for "Self" delete?
@@ -92,7 +92,7 @@ class ServerLogger {
         // Note: Audit log for message delete target is the *author* of the message, not the message ID (usually)
         // Warning: High traffic channels make correlating difficult.
         // If we found an executor recently deleting messages from this user, blame them.
-        if (auditExecutor) executor = auditExecutor;
+        if (auditExecutor) {executor = auditExecutor;}
 
         const embed = new EmbedBuilder()
             .setAuthor({ name: `${message.author.tag} (ID: ${message.author.id})`, iconURL: message.author.displayAvatarURL() })
@@ -113,8 +113,8 @@ class ServerLogger {
      * Log Message Edit
      */
     async logMessageUpdate(oldMessage, newMessage) {
-        if (!oldMessage.guild || !oldMessage.author || oldMessage.author.bot) return;
-        if (oldMessage.content === newMessage.content) return; // Ignore embed updates/non-content changes
+        if (!oldMessage.guild || !oldMessage.author || oldMessage.author.bot) {return;}
+        if (oldMessage.content === newMessage.content) {return;} // Ignore embed updates/non-content changes
 
         const embed = new EmbedBuilder()
             .setAuthor({ name: `${newMessage.author.tag}`, iconURL: newMessage.author.displayAvatarURL() })
@@ -291,7 +291,7 @@ class ServerLogger {
      * Log Role Update
      */
     async logRoleUpdate(oldRole, newRole) {
-        if (oldRole.name === newRole.name && oldRole.color === newRole.color && oldRole.permissions.bitfield === newRole.permissions.bitfield) return;
+        if (oldRole.name === newRole.name && oldRole.color === newRole.color && oldRole.permissions.bitfield === newRole.permissions.bitfield) {return;}
 
         const executor = await this.getExecutor(newRole.guild, AuditLogEvent.RoleUpdate, newRole.id);
         const embed = new EmbedBuilder()
@@ -316,7 +316,7 @@ class ServerLogger {
      * Log Channel Create
      */
     async logChannelCreate(channel) {
-        if (!channel.guild) return;
+        if (!channel.guild) {return;}
         const executor = await this.getExecutor(channel.guild, AuditLogEvent.ChannelCreate, channel.id);
         const embed = new EmbedBuilder()
             .setTitle('📺 Channel Created')
@@ -331,7 +331,7 @@ class ServerLogger {
      * Log Channel Delete
      */
     async logChannelDelete(channel) {
-        if (!channel.guild) return;
+        if (!channel.guild) {return;}
         const executor = await this.getExecutor(channel.guild, AuditLogEvent.ChannelDelete, channel.id);
         const embed = new EmbedBuilder()
             .setTitle('🗑️ Channel Deleted')
@@ -346,9 +346,9 @@ class ServerLogger {
      * Log Channel Update
      */
     async logChannelUpdate(oldChannel, newChannel) {
-        if (!newChannel.guild) return;
+        if (!newChannel.guild) {return;}
         // Ignore permission overwrites for now to reduce spam, or just checking name/topic
-        if (oldChannel.name === newChannel.name && oldChannel.topic === newChannel.topic && oldChannel.nsfw === newChannel.nsfw) return;
+        if (oldChannel.name === newChannel.name && oldChannel.topic === newChannel.topic && oldChannel.nsfw === newChannel.nsfw) {return;}
 
         const executor = await this.getExecutor(newChannel.guild, AuditLogEvent.ChannelUpdate, newChannel.id);
         const embed = new EmbedBuilder()
@@ -357,9 +357,9 @@ class ServerLogger {
             .setColor(Colors.Yellow)
             .setTimestamp();
 
-        if (oldChannel.name !== newChannel.name) embed.addFields({ name: 'Name', value: `${oldChannel.name} ➡️ ${newChannel.name}` });
-        if (oldChannel.topic !== newChannel.topic) embed.addFields({ name: 'Topic', value: `Changed (See details in channel)` });
-        if (oldChannel.nsfw !== newChannel.nsfw) embed.addFields({ name: 'NSFW', value: `${oldChannel.nsfw} ➡️ ${newChannel.nsfw}` });
+        if (oldChannel.name !== newChannel.name) {embed.addFields({ name: 'Name', value: `${oldChannel.name} ➡️ ${newChannel.name}` });}
+        if (oldChannel.topic !== newChannel.topic) {embed.addFields({ name: 'Topic', value: 'Changed (See details in channel)' });}
+        if (oldChannel.nsfw !== newChannel.nsfw) {embed.addFields({ name: 'NSFW', value: `${oldChannel.nsfw} ➡️ ${newChannel.nsfw}` });}
 
         await this.sendLog(newChannel.guild, embed);
     }
@@ -369,7 +369,7 @@ class ServerLogger {
      */
     async logVoiceStateUpdate(oldState, newState) {
         const member = newState.member || oldState.member;
-        if (!member || !member.guild) return;
+        if (!member || !member.guild) {return;}
 
         const embed = new EmbedBuilder()
             .setAuthor({ name: member.user.tag, iconURL: member.user.displayAvatarURL() })
@@ -430,7 +430,7 @@ class ServerLogger {
      * Log Emoji Update
      */
     async logEmojiUpdate(oldEmoji, newEmoji) {
-        if (oldEmoji.name === newEmoji.name) return;
+        if (oldEmoji.name === newEmoji.name) {return;}
         const executor = await this.getExecutor(newEmoji.guild, AuditLogEvent.EmojiUpdate, newEmoji.id);
         const embed = new EmbedBuilder()
             .setTitle('📝 Emoji Renamed')
@@ -445,7 +445,7 @@ class ServerLogger {
      * Log Guild Update
      */
     async logGuildUpdate(oldGuild, newGuild) {
-        if (oldGuild.name === newGuild.name && oldGuild.icon === newGuild.icon && oldGuild.banner === newGuild.banner) return;
+        if (oldGuild.name === newGuild.name && oldGuild.icon === newGuild.icon && oldGuild.banner === newGuild.banner) {return;}
 
         const executor = await this.getExecutor(newGuild, AuditLogEvent.GuildUpdate, newGuild.id);
         const embed = new EmbedBuilder()
@@ -480,7 +480,7 @@ class ServerLogger {
      * Log Bulk Message Delete (Purge)
      */
     async logBulkDelete(messages, channel) {
-        if (!channel.guild) return;
+        if (!channel.guild) {return;}
         
         const count = messages.size;
         const authors = [...new Set(messages.map(m => m.author?.tag || 'Unknown'))].slice(0, 5);

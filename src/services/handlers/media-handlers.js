@@ -22,7 +22,7 @@ async function handleSlashCommandClip(handler, interaction) {
             return true;
         }
 
-        let targetMessage = await handler.findMessageAcrossChannels(interaction, messageId);
+        const targetMessage = await handler.findMessageAcrossChannels(interaction, messageId);
         if (!targetMessage) {
             await interaction.editReply('Could not find that message, sir. I searched this channel and others I can access.');
             return true;
@@ -98,10 +98,10 @@ async function fetchAttachmentBuffer(_handler, attachment) {
 }
 
 async function fetchImageFromUrl(_handler, rawUrl, { maxBytes } = {}) {
-    if (!rawUrl) throw new Error('URL required');
+    if (!rawUrl) {throw new Error('URL required');}
     let url;
     try { url = new URL(rawUrl); } catch { throw new Error('Invalid URL'); }
-    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Unsupported protocol');
+    if (!['http:', 'https:'].includes(url.protocol)) {throw new Error('Unsupported protocol');}
 
     let res = await fetch(url.toString(), { method: 'HEAD' });
     if (res.ok) {
@@ -112,7 +112,7 @@ async function fetchImageFromUrl(_handler, rawUrl, { maxBytes } = {}) {
         }
     }
     res = await fetch(url.toString(), { redirect: 'follow' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {throw new Error(`HTTP ${res.status}`);}
     const contentType = (res.headers.get('content-type') || '').toLowerCase();
     if (contentType.startsWith('image/')) {
         if (maxBytes && res.body) {
@@ -135,10 +135,10 @@ async function fetchImageFromUrl(_handler, rawUrl, { maxBytes } = {}) {
                 return { tooLarge: true, contentType, sourceUrl: url.toString() };
             }
             return { buffer: Buffer.concat(chunks), contentType, sourceUrl: url.toString() };
-        } else {
-            const buf = Buffer.from(await res.arrayBuffer());
-            return { buffer: buf, contentType, sourceUrl: url.toString() };
-        }
+        } 
+        const buf = Buffer.from(await res.arrayBuffer());
+        return { buffer: buf, contentType, sourceUrl: url.toString() };
+        
     }
 
     if (contentType.includes('text/html')) {
@@ -156,14 +156,14 @@ async function fetchImageFromUrl(_handler, rawUrl, { maxBytes } = {}) {
         }
         if (media) {
             const resolved = new URL(media, url).toString();
-            let head = await fetch(resolved, { method: 'HEAD' });
+            const head = await fetch(resolved, { method: 'HEAD' });
             const headType = (head.headers.get('content-type') || '').toLowerCase();
             const headLen = Number(head.headers.get('content-length') || 0);
             if (maxBytes && headLen && headLen > maxBytes) {
                 return { tooLarge: true, contentType: headType, sourceUrl: resolved };
             }
             res = await fetch(resolved, { redirect: 'follow' });
-            if (!res.ok) throw new Error(`Media HTTP ${res.status}`);
+            if (!res.ok) {throw new Error(`Media HTTP ${res.status}`);}
             const ctype = (res.headers.get('content-type') || '').toLowerCase();
             if (maxBytes && res.body) {
                 let received = 0;
@@ -185,17 +185,17 @@ async function fetchImageFromUrl(_handler, rawUrl, { maxBytes } = {}) {
                     return { tooLarge: true, contentType: ctype, sourceUrl: resolved };
                 }
                 return { buffer: Buffer.concat(chunks), contentType: ctype, sourceUrl: resolved };
-            } else {
-                const buf = Buffer.from(await res.arrayBuffer());
-                return { buffer: buf, contentType: ctype, sourceUrl: resolved };
-            }
+            } 
+            const buf = Buffer.from(await res.arrayBuffer());
+            return { buffer: buf, contentType: ctype, sourceUrl: resolved };
+            
         }
     }
     throw new Error('No image found at URL');
 }
 
 async function handleCaptionCommand(handler, interaction) {
-    const guild = interaction.guild;
+    const { guild } = interaction;
     if (guild && !(await handler.isFeatureActive('memeTools', guild))) {
         await interaction.editReply('Meme systems are disabled for this server, sir.');
         return;
@@ -270,7 +270,7 @@ async function handleCaptionCommand(handler, interaction) {
 }
 
 async function handleMemeCommand(handler, interaction) {
-    const guild = interaction.guild;
+    const { guild } = interaction;
     if (guild && !(await handler.isFeatureActive('memeTools', guild))) {
         await interaction.editReply('Meme systems are disabled for this server, sir.');
         return;
