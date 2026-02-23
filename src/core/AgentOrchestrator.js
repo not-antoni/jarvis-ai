@@ -339,7 +339,7 @@ class AgentOrchestrator extends EventEmitter {
      * Check if result is retryable
      */
     _isRetryable(result) {
-        if (result.success) return false;
+        if (result.success) {return false;}
 
         const content = result.content?.toLowerCase() || '';
         const retryablePatterns = [
@@ -487,14 +487,14 @@ class AgentOrchestrator extends EventEmitter {
             failed,
             successRate:
                 this.executionHistory.length > 0
-                    ? ((successful / this.executionHistory.length) * 100).toFixed(1) + '%'
+                    ? `${((successful / this.executionHistory.length) * 100).toFixed(1)  }%`
                     : 'N/A',
             avgDuration:
                 this.executionHistory.length > 0
                     ? Math.round(
-                          this.executionHistory.reduce((sum, e) => sum + e.duration, 0) /
+                        this.executionHistory.reduce((sum, e) => sum + e.duration, 0) /
                               this.executionHistory.length
-                      )
+                    )
                     : 0,
             approvalHandlers: this.approvalHandlers.length,
             sessionApprovals: this.sessionApprovals.size

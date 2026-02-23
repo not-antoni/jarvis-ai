@@ -136,7 +136,7 @@ router.use(logApiRequest);
  * GET /api/v1/models
  * List available AI models
  */
-router.get('/models', async (req, res) => {
+router.get('/models', async(req, res) => {
     try {
         let models = [];
         
@@ -189,7 +189,7 @@ router.get('/models', async (req, res) => {
  * OpenAI-compatible chat completions endpoint
  * DISABLED: Too abusable - use the Discord bot instead
  */
-router.post('/chat/completions', async (req, res) => {
+router.post('/chat/completions', async(req, res) => {
     // API temporarily disabled
     return res.status(999).json({
         error: {
@@ -315,7 +315,7 @@ router.post('/chat/completions', async (req, res) => {
  * GET /api/v1/user
  * Get current authenticated user info
  */
-router.get('/user', async (req, res) => {
+router.get('/user', async(req, res) => {
     try {
         const keys = await apiKeys.getUserKeys(req.apiUser.userId);
         
@@ -341,7 +341,7 @@ router.get('/user', async (req, res) => {
  * GET /api/v1/usage
  * Get API usage stats for the current user
  */
-router.get('/usage', async (req, res) => {
+router.get('/usage', async(req, res) => {
     try {
         const keys = await apiKeys.getUserKeys(req.apiUser.userId);
         

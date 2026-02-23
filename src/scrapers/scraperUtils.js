@@ -10,7 +10,7 @@ class ScraperUtils {
      * Clean HTML text
      */
     static cleanText(text) {
-        if (!text) return '';
+        if (!text) {return '';}
 
         return text
             .replace(/\s+/g, ' ') // Replace multiple spaces
@@ -102,7 +102,7 @@ class ScraperUtils {
         const tableRegex = /<table[^>]*>(.*?)<\/table>/is;
         const tableMatch = html.match(tableRegex);
 
-        if (!tableMatch) return [];
+        if (!tableMatch) {return [];}
 
         const tableContent = tableMatch[1];
         const headerRegex = /<th[^>]*>(.*?)<\/th>/gi;
@@ -155,8 +155,8 @@ class ScraperUtils {
      * Truncate text
      */
     static truncate(text, maxLength = 100, suffix = '...') {
-        if (!text) return '';
-        if (text.length <= maxLength) return text;
+        if (!text) {return '';}
+        if (text.length <= maxLength) {return text;}
         return text.substring(0, maxLength - suffix.length) + suffix;
     }
 
@@ -220,8 +220,8 @@ class ScraperUtils {
             const aVal = a[property];
             const bVal = b[property];
 
-            if (aVal < bVal) return ascending ? -1 : 1;
-            if (aVal > bVal) return ascending ? 1 : -1;
+            if (aVal < bVal) {return ascending ? -1 : 1;}
+            if (aVal > bVal) {return ascending ? 1 : -1;}
             return 0;
         });
     }
@@ -232,7 +232,7 @@ class ScraperUtils {
     static groupByProperty(arr, property) {
         return arr.reduce((groups, item) => {
             const key = item[property];
-            if (!groups[key]) groups[key] = [];
+            if (!groups[key]) {groups[key] = [];}
             groups[key].push(item);
             return groups;
         }, {});
@@ -249,7 +249,7 @@ class ScraperUtils {
             console.log(`[ScraperUtils] Saved JSON: ${filepath}`);
             return true;
         } catch (error) {
-            console.error(`[ScraperUtils] Failed to save JSON:`, error.message);
+            console.error('[ScraperUtils] Failed to save JSON:', error.message);
             return false;
         }
     }
@@ -262,7 +262,7 @@ class ScraperUtils {
             const data = await fs.readFile(filepath, 'utf-8');
             return JSON.parse(data);
         } catch (error) {
-            console.error(`[ScraperUtils] Failed to load JSON:`, error.message);
+            console.error('[ScraperUtils] Failed to load JSON:', error.message);
             return null;
         }
     }
@@ -305,7 +305,7 @@ class ScraperUtils {
             console.log(`[ScraperUtils] Saved CSV: ${filepath}`);
             return true;
         } catch (error) {
-            console.error(`[ScraperUtils] Failed to save CSV:`, error.message);
+            console.error('[ScraperUtils] Failed to save CSV:', error.message);
             return false;
         }
     }
@@ -318,7 +318,7 @@ class ScraperUtils {
             const content = await fs.readFile(filepath, 'utf-8');
             const lines = content.trim().split('\n');
 
-            if (lines.length < 1) return [];
+            if (lines.length < 1) {return [];}
 
             const headers = lines[0].split(',').map(h => h.trim());
             const data = [];
@@ -336,7 +336,7 @@ class ScraperUtils {
 
             return data;
         } catch (error) {
-            console.error(`[ScraperUtils] Failed to load CSV:`, error.message);
+            console.error('[ScraperUtils] Failed to load CSV:', error.message);
             return [];
         }
     }
@@ -375,7 +375,7 @@ class ScraperUtils {
      * Convert data to Markdown table
      */
     static toMarkdownTable(data, headers = null) {
-        if (!Array.isArray(data) || data.length === 0) return '';
+        if (!Array.isArray(data) || data.length === 0) {return '';}
 
         const cols = headers || Object.keys(data[0]);
         const separator = cols.map(() => '---').join(' | ');
@@ -392,7 +392,7 @@ class ScraperUtils {
     static async rateLimit(fn, interval = 1000) {
         let lastCall = 0;
 
-        return async (...args) => {
+        return async(...args) => {
             const now = Date.now();
             const timeSinceLastCall = now - lastCall;
 

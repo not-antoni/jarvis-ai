@@ -154,7 +154,7 @@ class FreeAIProvider {
         if (googleKey) {
             // Note: Google AI uses different SDK, storing key for now
             this._googleKey = googleKey;
-            console.log(`[FreeAIProvider] Google AI key found`);
+            console.log('[FreeAIProvider] Google AI key found');
         }
 
         // Select provider
@@ -319,7 +319,7 @@ class FreeAIProvider {
             metrics: { ...this.metrics },
             successRate:
                 this.metrics.calls > 0
-                    ? ((this.metrics.successes / this.metrics.calls) * 100).toFixed(1) + '%'
+                    ? `${((this.metrics.successes / this.metrics.calls) * 100).toFixed(1)  }%`
                     : 'N/A'
         };
     }

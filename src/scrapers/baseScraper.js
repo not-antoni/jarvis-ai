@@ -110,7 +110,7 @@ class BaseScraper {
             );
             return elements;
         } catch (error) {
-            console.warn(`[BaseScraper] Failed to extract elements:`, error.message);
+            console.warn('[BaseScraper] Failed to extract elements:', error.message);
             return [];
         }
     }
@@ -164,7 +164,7 @@ class BaseScraper {
             this.stats.totalImages += images.length;
             return images;
         } catch (error) {
-            console.warn(`[BaseScraper] Failed to extract images:`, error.message);
+            console.warn('[BaseScraper] Failed to extract images:', error.message);
             return [];
         }
     }
@@ -195,7 +195,7 @@ class BaseScraper {
 
             return links;
         } catch (error) {
-            console.warn(`[BaseScraper] Failed to extract links:`, error.message);
+            console.warn('[BaseScraper] Failed to extract links:', error.message);
             return [];
         }
     }
@@ -208,7 +208,7 @@ class BaseScraper {
             const result = await page.evaluate(fn, ...args);
             return result;
         } catch (error) {
-            console.error(`[BaseScraper] Evaluation failed:`, error.message);
+            console.error('[BaseScraper] Evaluation failed:', error.message);
             throw error;
         }
     }
@@ -223,7 +223,7 @@ class BaseScraper {
             console.log(`[BaseScraper] Clicked element: ${selector}`);
             return true;
         } catch (error) {
-            console.warn(`[BaseScraper] Failed to click element:`, error.message);
+            console.warn('[BaseScraper] Failed to click element:', error.message);
             return false;
         }
     }
@@ -239,7 +239,7 @@ class BaseScraper {
             console.log(`[BaseScraper] Typed into ${selector}: ${text}`);
             return true;
         } catch (error) {
-            console.warn(`[BaseScraper] Failed to type:`, error.message);
+            console.warn('[BaseScraper] Failed to type:', error.message);
             return false;
         }
     }
@@ -259,7 +259,7 @@ class BaseScraper {
             console.log(`[BaseScraper] Screenshot saved to ${path}`);
             return true;
         } catch (error) {
-            console.error(`[BaseScraper] Screenshot failed:`, error.message);
+            console.error('[BaseScraper] Screenshot failed:', error.message);
             return false;
         }
     }
@@ -270,7 +270,7 @@ class BaseScraper {
     async getPageMetadata(page) {
         try {
             const metadata = await page.evaluate(() => {
-                const head = document.head;
+                const { head } = document;
 
                 return {
                     title: document.title,
@@ -292,7 +292,7 @@ class BaseScraper {
 
             return metadata;
         } catch (error) {
-            console.warn(`[BaseScraper] Failed to get metadata:`, error.message);
+            console.warn('[BaseScraper] Failed to get metadata:', error.message);
             return null;
         }
     }
@@ -316,7 +316,7 @@ class BaseScraper {
             console.log(`[BaseScraper] Scrolled page ${scrollCount} times`);
             return true;
         } catch (error) {
-            console.warn(`[BaseScraper] Scroll failed:`, error.message);
+            console.warn('[BaseScraper] Scroll failed:', error.message);
             return false;
         }
     }
@@ -329,7 +329,7 @@ class BaseScraper {
             ...this.stats,
             successRate:
                 this.stats.totalPages > 0
-                    ? ((this.stats.successfulScapes / this.stats.totalPages) * 100).toFixed(2) + '%'
+                    ? `${((this.stats.successfulScapes / this.stats.totalPages) * 100).toFixed(2)  }%`
                     : 'N/A'
         };
     }

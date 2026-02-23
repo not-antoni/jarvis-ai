@@ -12,11 +12,11 @@ const { EmbedBuilder } = require('discord.js');
  */
 function formatNum(n) {
     n = Math.floor(n);
-    if (n >= 1e15) return (n / 1e15).toFixed(2) + 'Q';
-    if (n >= 1e12) return (n / 1e12).toFixed(2) + 'T';
-    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-    if (n >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+    if (n >= 1e15) {return `${(n / 1e15).toFixed(2)  }Q`;}
+    if (n >= 1e12) {return `${(n / 1e12).toFixed(2)  }T`;}
+    if (n >= 1e9) {return `${(n / 1e9).toFixed(2)  }B`;}
+    if (n >= 1e6) {return `${(n / 1e6).toFixed(2)  }M`;}
+    if (n >= 1e3) {return `${(n / 1e3).toFixed(2)  }K`;}
     return n.toLocaleString('en-US');
 }
 
@@ -24,9 +24,9 @@ function formatNum(n) {
  * Parse formatted numbers like "1M", "5K", "1B"
  */
 function parseFormattedNumber(str) {
-    if (!str) return NaN;
+    if (!str) {return NaN;}
     str = String(str).trim().toUpperCase();
-    if (str === 'ALL') return NaN;
+    if (str === 'ALL') {return NaN;}
     str = str.replace(/,/g, '').replace(/\s/g, '');
     const suffixes = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12, 'Q': 1e15 };
     const lastChar = str.slice(-1);
@@ -42,12 +42,12 @@ let starkEconomy = null;
 let starkTinker = null;
 
 function getStarkEconomy() {
-    if (!starkEconomy) starkEconomy = require('../services/stark-economy');
+    if (!starkEconomy) {starkEconomy = require('../services/stark-economy');}
     return starkEconomy;
 }
 
 function getStarkTinker() {
-    if (!starkTinker) starkTinker = require('../services/stark-tinkerer');
+    if (!starkTinker) {starkTinker = require('../services/stark-tinkerer');}
     return starkTinker;
 }
 
@@ -131,7 +131,7 @@ async function handleTinker(interaction) {
             if (rarity) {
                 recipes = recipes.filter(r => r.rarity === rarity);
             }
-            if (recipes.length > 25) recipes = recipes.slice(0, 25);
+            if (recipes.length > 25) {recipes = recipes.slice(0, 25);}
 
             const recipeList = recipes.map(r =>
                 `**${r.name}** (${r.rarity}) [ID: \`${r.id}\`]\n> ${Object.entries(r.ingredients).map(([k, v]) => `${v}x ${k}`).join(', ')}`
@@ -203,7 +203,7 @@ async function handleBoss(interaction) {
     switch (sub) {
         case 'status': {
             const boss = await economy.getBossData(interaction.guild.id);
-            if (!boss.active) return 'No active boss. Bosses spawn randomly!';
+            if (!boss.active) {return 'No active boss. Bosses spawn randomly!';}
             const hpPercent = Math.floor((boss.hp / boss.maxHp) * 100);
             const bar = '🟥'.repeat(Math.floor(hpPercent / 10)) + '⬜'.repeat(10 - Math.floor(hpPercent / 10));
             return `👹 **${boss.name}** is attacking!\nHP: ${boss.hp}/${boss.maxHp} (${hpPercent}%)\n${bar}`;
@@ -211,7 +211,7 @@ async function handleBoss(interaction) {
 
         case 'attack': {
             const res = await economy.attackBoss(interaction.guild.id, interaction.user.id);
-            if (!res.success) return `❌ ${res.error}`;
+            if (!res.success) {return `❌ ${res.error}`;}
             return `⚔️ You dealt **${res.damage}** damage to **${res.bossName}**! Reward: ${res.reward} 💵`;
         }
 
@@ -230,7 +230,7 @@ async function handleSBX(interaction) {
     switch (sub) {
         case 'market': {
             const data = await economy.getSBXMarketData();
-            if (!data) return '❌ Market offline.';
+            if (!data) {return '❌ Market offline.';}
             const embed = new EmbedBuilder()
                 .setTitle('📈 SBX Market')
                 .setDescription(`Price: **${data.price}** Stark Bucks`)
@@ -242,28 +242,28 @@ async function handleSBX(interaction) {
         case 'buy': {
             const amount = interaction.options.getInteger('amount');
             const res = await economy.buySBX(interaction.user.id, amount);
-            if (!res.success) return `❌ ${res.error}`;
+            if (!res.success) {return `❌ ${res.error}`;}
             return `✅ Bought **${amount} SBX** for **${res.cost}** Stark Bucks.`;
         }
 
         case 'sell': {
             const amount = interaction.options.getInteger('amount');
             const res = await economy.sellSBX(interaction.user.id, amount);
-            if (!res.success) return `❌ ${res.error}`;
+            if (!res.success) {return `❌ ${res.error}`;}
             return `✅ Sold **${amount} SBX** for **${res.earnings}** Stark Bucks.`;
         }
 
         case 'invest': {
             const amount = interaction.options.getInteger('amount');
             const res = await economy.investSBX(interaction.user.id, amount);
-            if (!res.success) return `❌ ${res.error}`;
+            if (!res.success) {return `❌ ${res.error}`;}
             return `💼 Invested **${amount} SBX**! Earning 0.5% daily.`;
         }
 
         case 'withdraw': {
             const amount = interaction.options.getInteger('amount');
             const res = await economy.withdrawInvestment(interaction.user.id, amount);
-            if (!res.success) return `❌ ${res.error}`;
+            if (!res.success) {return `❌ ${res.error}`;}
             return `🏧 Withdrew **${res.withdrawn} SBX** from investment.`;
         }
 
@@ -282,7 +282,7 @@ async function handleQuests(interaction) {
     switch (sub) {
         case 'list': {
             const quests = await economy.getAvailableQuests(interaction.user.id);
-            if (!quests.length) return 'No quests available.';
+            if (!quests.length) {return 'No quests available.';}
             const list = quests.map(q => `**${q.name}** (${q.reward} 💵) [ID: ${q.id}]`).join('\n');
             return `📜 **Quests**\n${list}`;
         }
@@ -290,7 +290,7 @@ async function handleQuests(interaction) {
         case 'start': {
             const id = interaction.options.getString('id');
             const res = await economy.startQuest(interaction.user.id, id);
-            if (!res.success) return `❌ ${res.error}`;
+            if (!res.success) {return `❌ ${res.error}`;}
             return `⚔️ Quest **${res.quest.name}** started! Good luck.`;
         }
 
@@ -318,6 +318,6 @@ module.exports = {
         'tinker': handleTinker,
         'boss': handleBoss,
         'sbx': handleSBX,
-        'quests': handleQuests,
+        'quests': handleQuests
     }
 };

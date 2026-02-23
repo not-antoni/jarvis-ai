@@ -41,7 +41,7 @@ const LoopType = {
  * Hash content for quick comparison
  */
 function hashContent(content) {
-    if (!content || typeof content !== 'string') return '';
+    if (!content || typeof content !== 'string') {return '';}
     const normalized = content.toLowerCase().trim().replace(/\s+/g, ' ');
     return crypto.createHash('md5').update(normalized).digest('hex');
 }
@@ -51,14 +51,14 @@ function hashContent(content) {
  * Uses character-level Jaccard similarity for speed
  */
 function calculateSimilarity(str1, str2) {
-    if (!str1 || !str2) return 0;
+    if (!str1 || !str2) {return 0;}
 
     const normalize = s => s.toLowerCase().trim().replace(/\s+/g, ' ');
     const a = normalize(str1);
     const b = normalize(str2);
 
-    if (a === b) return 1;
-    if (a.length === 0 || b.length === 0) return 0;
+    if (a === b) {return 1;}
+    if (a.length === 0 || b.length === 0) {return 0;}
 
     // Use trigrams for better accuracy
     const getTrigrams = s => {
@@ -72,11 +72,11 @@ function calculateSimilarity(str1, str2) {
     const trigramsA = getTrigrams(a);
     const trigramsB = getTrigrams(b);
 
-    if (trigramsA.size === 0 || trigramsB.size === 0) return 0;
+    if (trigramsA.size === 0 || trigramsB.size === 0) {return 0;}
 
     let intersection = 0;
     for (const t of trigramsA) {
-        if (trigramsB.has(t)) intersection++;
+        if (trigramsB.has(t)) {intersection++;}
     }
 
     const union = trigramsA.size + trigramsB.size - intersection;
@@ -87,7 +87,7 @@ function calculateSimilarity(str1, str2) {
  * Extract key patterns from response for comparison
  */
 function extractPatterns(content) {
-    if (!content || typeof content !== 'string') return [];
+    if (!content || typeof content !== 'string') {return [];}
 
     const patterns = [];
 
@@ -169,7 +169,7 @@ class LoopDetectionService {
         }
 
         const history = this.getHistory(userId, channelId);
-        const turns = history.turns;
+        const { turns } = history;
 
         if (turns.length < 3) {
             return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };
@@ -178,13 +178,13 @@ class LoopDetectionService {
         // Include new content if provided
         const checkTurns = newContent
             ? [
-                  ...turns,
-                  {
-                      content: newContent,
-                      hash: hashContent(newContent),
-                      patterns: extractPatterns(newContent)
-                  }
-              ]
+                ...turns,
+                {
+                    content: newContent,
+                    hash: hashContent(newContent),
+                    patterns: extractPatterns(newContent)
+                }
+            ]
             : turns;
 
         // Check cache
@@ -193,7 +193,7 @@ class LoopDetectionService {
             .map(t => t.hash)
             .join(':');
         const cached = loopResultsCache.get(cacheKey);
-        if (cached) return cached;
+        if (cached) {return cached;}
 
         let result = { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };
 
@@ -230,7 +230,7 @@ class LoopDetectionService {
         const hashCounts = new Map();
 
         for (const turn of recent) {
-            if (!turn.hash) continue;
+            if (!turn.hash) {continue;}
             const count = (hashCounts.get(turn.hash) || 0) + 1;
             hashCounts.set(turn.hash, count);
 
@@ -253,13 +253,13 @@ class LoopDetectionService {
     checkAlternatingPattern(turns) {
         const recent = turns.slice(-12);
         if (recent.length < 4)
-            return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };
+        {return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };}
 
         const hashes = recent.map(t => t.hash).filter(Boolean);
 
         // Check for 2-element alternating pattern
         for (let patternLen = 2; patternLen <= 3; patternLen++) {
-            if (hashes.length < patternLen * ALTERNATING_LOOP_THRESHOLD) continue;
+            if (hashes.length < patternLen * ALTERNATING_LOOP_THRESHOLD) {continue;}
 
             const pattern = hashes.slice(-patternLen);
             let matches = 0;
@@ -292,7 +292,7 @@ class LoopDetectionService {
     checkSemanticLoop(turns) {
         const recent = turns.slice(-8);
         if (recent.length < 4)
-            return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };
+        {return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };}
 
         let similarCount = 0;
         const last = recent[recent.length - 1];

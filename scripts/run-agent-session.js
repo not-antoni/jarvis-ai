@@ -28,7 +28,7 @@ function loadState() {
     try {
         if (fs.existsSync(STATE_PATH)) {
             const raw = fs.readFileSync(STATE_PATH, 'utf8');
-            if (raw) return JSON.parse(raw);
+            if (raw) {return JSON.parse(raw);}
         }
     } catch (err) {
         console.warn('Failed to load session state:', err);
@@ -61,7 +61,7 @@ function parseArgs() {
 }
 
 function readUrlsFromFile(filePath) {
-    if (!filePath) return [];
+    if (!filePath) {return [];}
     try {
         const raw = fs.readFileSync(filePath, 'utf8');
         return raw
@@ -75,7 +75,7 @@ function readUrlsFromFile(filePath) {
 }
 
 async function sendWebhook(webhook, payload) {
-    if (!webhook) return;
+    if (!webhook) {return;}
     const res = await fetch(webhook, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

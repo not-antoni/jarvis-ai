@@ -69,7 +69,7 @@ fileBreakdown.slice(0, 10).forEach((f, i) => {
 const categories = {};
 fileBreakdown.forEach(f => {
     const parts = f.path.split(path.sep);
-    const category = parts.length > 1 ? parts[0] + '/' + (parts[1] || '') : 'root';
+    const category = parts.length > 1 ? `${parts[0]  }/${  parts[1] || ''}` : 'root';
     categories[category] = (categories[category] || 0) + f.lines;
 });
 
@@ -81,5 +81,5 @@ Object.entries(categories)
         console.log(`  ${cat}: ${lines.toLocaleString()} lines`);
     });
 
-console.log('\n' + '='.repeat(50));
+console.log(`\n${  '='.repeat(50)}`);
 console.log('✅ Analysis complete!\n');

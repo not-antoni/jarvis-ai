@@ -60,7 +60,7 @@ function getDashboardPassword() {
     const candidates = [process.env.DASHBOARD_PASSWORD, process.env.PASSWORD];
     for (const raw of candidates) {
         const value = typeof raw === 'string' ? raw.trim() : '';
-        if (value) return value;
+        if (value) {return value;}
     }
     return null;
 }
@@ -70,8 +70,8 @@ function makeDashboardCookieValue(password) {
 }
 
 function timingSafeEqualHex(a, b) {
-    if (typeof a !== 'string' || typeof b !== 'string') return false;
-    if (a.length !== b.length) return false;
+    if (typeof a !== 'string' || typeof b !== 'string') {return false;}
+    if (a.length !== b.length) {return false;}
     try {
         return crypto.timingSafeEqual(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'));
     } catch {
@@ -96,7 +96,7 @@ function shouldUseSecureCookie(req) {
 
 function setDashboardAuthCookie(req, res) {
     const password = getDashboardPassword();
-    if (!password) return;
+    if (!password) {return;}
     const maxAgeMs = 10 * 24 * 60 * 60 * 1000;
     res.cookie('jarvis_dashboard_auth', makeDashboardCookieValue(password), {
         httpOnly: true,
@@ -143,7 +143,7 @@ function dashboardLoginRateLimit(req, res, next) {
 }
 
 function dashboardAuthMiddleware(req, res, next) {
-    if (isDashboardAuthed(req)) return next();
+    if (isDashboardAuthed(req)) {return next();}
 
     const accept = String(req.headers?.accept || '');
     const expectsHtml = accept.includes('text/html');

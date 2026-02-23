@@ -9,10 +9,10 @@ const LRUCache =
     typeof LruModule === 'function'
         ? LruModule
         : typeof LruModule?.LRUCache === 'function'
-          ? LruModule.LRUCache
-          : typeof LruModule?.default === 'function'
-            ? LruModule.default
-            : null;
+            ? LruModule.LRUCache
+            : typeof LruModule?.default === 'function'
+                ? LruModule.default
+                : null;
 
 class SmartToolRegistry {
     constructor(options = {}) {
@@ -28,9 +28,9 @@ class SmartToolRegistry {
         };
         this.cache = LRUCache
             ? new LRUCache({
-                  max: Number(this.options.cacheMaxEntries) || 500,
-                  ttl: this.options.cacheTTL
-              })
+                max: Number(this.options.cacheMaxEntries) || 500,
+                ttl: this.options.cacheTTL
+            })
             : new Map();
         this.cacheTimestamps = LRUCache ? null : new Map();
         this.contextAnalyzer = new ContextAnalyzer();
@@ -157,7 +157,7 @@ class SmartToolRegistry {
                                 oldestKey = key;
                             }
                         }
-                        if (!oldestKey) break;
+                        if (!oldestKey) {break;}
                         this.cache.delete(oldestKey);
                         this.cacheTimestamps.delete(oldestKey);
                     }
@@ -293,10 +293,10 @@ class SmartToolRegistry {
     }
 
     _getCachedValue(key) {
-        if (!this.cache) return null;
+        if (!this.cache) {return null;}
         const cached = this.cache.get(key);
-        if (cached == null) return null;
-        if (!this.cacheTimestamps) return cached;
+        if (cached == null) {return null;}
+        if (!this.cacheTimestamps) {return cached;}
 
         const timestamp = this.cacheTimestamps.get(key);
         if (timestamp && Date.now() - timestamp < this.options.cacheTTL) {
@@ -309,7 +309,7 @@ class SmartToolRegistry {
     }
 
     _recordExecution(name, args, result) {
-        if (!this.options.autoLearn) return;
+        if (!this.options.autoLearn) {return;}
 
         this.callHistory.push({
             toolName: name,
@@ -342,7 +342,7 @@ class ContextAnalyzer {
     }
 
     _extractKeywords(query) {
-        if (!query) return [];
+        if (!query) {return [];}
 
         // Simple keyword extraction - can be enhanced with NLP
         return query

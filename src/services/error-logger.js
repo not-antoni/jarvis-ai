@@ -20,9 +20,9 @@ const STATUS = {
 };
 
 function truncate(text, max = 1000) {
-    if (typeof text !== 'string') return '';
-    if (text.length <= max) return text;
-    return text.slice(0, max - 1) + '…';
+    if (typeof text !== 'string') {return '';}
+    if (text.length <= max) {return text;}
+    return `${text.slice(0, max - 1)  }…`;
 }
 
 function safeStringify(value, max = 1000) {
@@ -55,7 +55,7 @@ class ErrorLogger {
     }
 
     async flush() {
-        if (!this.client || this.pendingQueue.length === 0) return;
+        if (!this.client || this.pendingQueue.length === 0) {return;}
         const queued = [...this.pendingQueue];
         this.pendingQueue = [];
         for (const item of queued) {
@@ -190,16 +190,16 @@ class ErrorLogger {
             typeof customId === 'string'
                 ? customId.match(/^errlog:([^:]+):(pending|solved|unsolved)$/)
                 : null;
-        if (!match) return null;
+        if (!match) {return null;}
         return { errorId: match[1], status: match[2] };
     }
 
     async handleStatusButton(interaction) {
         const parsed = this.parseButtonCustomId(interaction.customId);
-        if (!parsed) return false;
+        if (!parsed) {return false;}
 
         const status = STATUS[parsed.status];
-        if (!status) return false;
+        if (!status) {return false;}
 
         const embed = interaction.message?.embeds?.[0];
         if (!embed) {
@@ -213,7 +213,7 @@ class ErrorLogger {
 
         const components = this.buildComponents(parsed.errorId, parsed.status);
 
-        await interaction.update({ embeds: [newEmbed], components }).catch(async () => {
+        await interaction.update({ embeds: [newEmbed], components }).catch(async() => {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
                     content: 'Failed to update error status.',

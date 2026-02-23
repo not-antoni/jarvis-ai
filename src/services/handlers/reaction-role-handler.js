@@ -14,8 +14,8 @@ async function handleReactionRoleCommand(handler, interaction) {
         return;
     }
 
-    const guild = interaction.guild;
-    const member = interaction.member;
+    const { guild } = interaction;
+    const { member } = interaction;
     const subcommand = interaction.options.getSubcommand();
     const guildConfig = await handler.getGuildConfig(guild);
 
@@ -281,7 +281,7 @@ async function handleReactionRoleCommand(handler, interaction) {
             // Check role hierarchy
             const unusableRole = newOptions.find(option => {
                 const role = guild.roles.cache.get(option.roleId);
-                if (!role) return false;
+                if (!role) {return false;}
                 return me.roles.highest.comparePositionTo(role) <= 0;
             });
 
@@ -303,7 +303,7 @@ async function handleReactionRoleCommand(handler, interaction) {
                 const parsedEmoji = parseEmoji(emojiInput);
                 if (parsedEmoji) {
                     const key = parsedEmoji.id || parsedEmoji.name;
-                    if (key) removeKeys.add(key);
+                    if (key) {removeKeys.add(key);}
                 }
             }
 
@@ -331,7 +331,7 @@ async function handleReactionRoleCommand(handler, interaction) {
                                 // Fetch all users who reacted
                                 const users = await reaction.users.fetch();
                                 for (const [userId, user] of users) {
-                                    if (user.bot) continue;
+                                    if (user.bot) {continue;}
                                     try {
                                         const member = await guild.members.fetch(userId);
                                         if (member && member.roles.cache.has(removedOption.roleId)) {
@@ -414,10 +414,10 @@ async function handleReactionRoleCommand(handler, interaction) {
         }
 
         const changes = [];
-        if (newTitle) changes.push('title');
-        if (newDescription) changes.push('description');
-        if (newOptions.length > 0) changes.push(`${newOptions.length} new role(s)`);
-        if (removedOptions.length > 0) changes.push(`removed ${removedOptions.length} role(s)${usersAffected > 0 ? ` from ${usersAffected} user(s)` : ''}`);
+        if (newTitle) {changes.push('title');}
+        if (newDescription) {changes.push('description');}
+        if (newOptions.length > 0) {changes.push(`${newOptions.length} new role(s)`);}
+        if (removedOptions.length > 0) {changes.push(`removed ${removedOptions.length} role(s)${usersAffected > 0 ? ` from ${usersAffected} user(s)` : ''}`);}
 
         const messageUrl = panelMessage.url || `https://discord.com/channels/${guild.id}/${record.channelId}/${record.messageId}`;
         await interaction.editReply(`Panel updated (${changes.join(', ')}), sir. [Jump to message](${messageUrl})`);

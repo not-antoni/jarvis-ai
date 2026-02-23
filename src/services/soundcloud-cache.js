@@ -70,7 +70,7 @@ function isSoundCloudUrl(url) {
 
 // Get cached track info
 function get(url) {
-    if (!isSoundCloudUrl(url)) return null;
+    if (!isSoundCloudUrl(url)) {return null;}
 
     const key = normalizeUrl(url);
     const entry = cache[key];
@@ -80,17 +80,17 @@ function get(url) {
         if (Date.now() - entry.cachedAt < CACHE_TTL_MS) {
             console.log(`[SC-Cache] HIT for: ${url}`);
             return entry;
-        } else {
-            // Expired
-            delete cache[key];
-        }
+        } 
+        // Expired
+        delete cache[key];
+        
     }
     return null;
 }
 
 // Set cache entry
 function set(url, info) {
-    if (!isSoundCloudUrl(url)) return;
+    if (!isSoundCloudUrl(url)) {return;}
 
     const key = normalizeUrl(url);
 

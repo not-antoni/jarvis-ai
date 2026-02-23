@@ -9,10 +9,10 @@ function deepClone(value) {
 
 function matchesFilter(doc = {}, filter = {}) {
     const toComparable = value => {
-        if (value instanceof Date) return value.getTime();
+        if (value instanceof Date) {return value.getTime();}
         if (typeof value === 'string') {
             const asDate = Date.parse(value);
-            if (!Number.isNaN(asDate)) return asDate;
+            if (!Number.isNaN(asDate)) {return asDate;}
         }
         return value;
     };
@@ -83,7 +83,7 @@ function sortDocuments(docs, sortSpec = {}) {
         const aValue = a[field];
         const bValue = b[field];
 
-        if (aValue === bValue) return 0;
+        if (aValue === bValue) {return 0;}
         return aValue > bValue ? normalizedDirection : -normalizedDirection;
     });
 }

@@ -6,7 +6,7 @@ const LRUCache = typeof LRU === 'function' ? LRU : LRU.LRUCache;
 
 const router = express.Router();
 
-const FORWARD_WEBHOOK = process.env.FORWARD_WEBHOOK;
+const { FORWARD_WEBHOOK } = process.env;
 if (!FORWARD_WEBHOOK) {
     console.warn(
         'FORWARD_WEBHOOK is not configured. Incoming Discord webhooks will be acknowledged but not forwarded.'
@@ -96,14 +96,13 @@ function withTimeout(promise, timeoutMs, errorMessage) {
     });
 
     return Promise.race([promise, timeoutPromise]).finally(() => {
-        if (timeoutHandle) clearTimeout(timeoutHandle);
+        if (timeoutHandle) {clearTimeout(timeoutHandle);}
     });
 }
 
 async function fetchWithTimeout(url, options, timeoutMs) {
-    const AbortCtrl = global.AbortController;
-    if (typeof AbortCtrl === 'function') {
-        const controller = new AbortCtrl();
+    if (typeof AbortController === 'function') {
+        const controller = new AbortController();
         const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
         try {
             return await fetch(url, { ...options, signal: controller.signal });
@@ -128,7 +127,7 @@ router.head('/', (_req, res) => {
     res.sendStatus(200);
 });
 
-router.post('/', rawBodyParser, async (req, res) => {
+router.post('/', rawBodyParser, async(req, res) => {
     if (!Buffer.isBuffer(req.body)) {
         return res.status(400).json({ error: 'Expected raw request body' });
     }
@@ -256,13 +255,13 @@ function enqueueWebhookSend(task) {
 }
 
 async function drainWebhookQueue() {
-    if (webhookWorkerRunning) return;
+    if (webhookWorkerRunning) {return;}
     webhookWorkerRunning = true;
 
     try {
         while (webhookQueue.length) {
             const entry = webhookQueue.shift();
-            if (!entry) continue;
+            if (!entry) {continue;}
 
             const now = Date.now();
             const elapsed = now - lastWebhookSendAt;
@@ -312,9 +311,9 @@ async function sendWebhookWithRetry(body, attempt = 1) {
             const retryAfterSeconds = retryAfterRaw ? Number(retryAfterRaw) : null;
             const retryDelay = Number.isFinite(retryAfterSeconds)
                 ? Math.min(
-                      WEBHOOK_MAX_RETRY_DELAY_MS,
-                      Math.max(retryAfterSeconds * 1000, WEBHOOK_MIN_INTERVAL_MS)
-                  )
+                    WEBHOOK_MAX_RETRY_DELAY_MS,
+                    Math.max(retryAfterSeconds * 1000, WEBHOOK_MIN_INTERVAL_MS)
+                )
                 : Math.min(4000, attempt * 1500);
 
             console.warn(
@@ -459,11 +458,11 @@ function extractDiscordEvent(payload) {
 
 function buildDiscordWebhookBody(originalPayload, eventInfo) {
     const eventName = (() => {
-        if (eventInfo?.raw?.name) return eventInfo.raw.name;
-        if (eventInfo?.type) return eventInfo.type;
+        if (eventInfo?.raw?.name) {return eventInfo.raw.name;}
+        if (eventInfo?.type) {return eventInfo.type;}
         if (typeof originalPayload?.event_type !== 'undefined')
-            return String(originalPayload.event_type);
-        if (typeof originalPayload?.type !== 'undefined') return `Type ${originalPayload.type}`;
+        {return String(originalPayload.event_type);}
+        if (typeof originalPayload?.type !== 'undefined') {return `Type ${originalPayload.type}`;}
         return 'Unknown Event';
     })();
 
@@ -513,10 +512,10 @@ function buildDiscordWebhookBody(originalPayload, eventInfo) {
         fields: fields.length ? fields : undefined,
         author: user
             ? {
-                  name: userDisplayName,
-                  icon_url: userAvatarUrl || undefined,
-                  url: user?.id ? `https://discord.com/users/${user.id}` : undefined
-              }
+                name: userDisplayName,
+                icon_url: userAvatarUrl || undefined,
+                url: user?.id ? `https://discord.com/users/${user.id}` : undefined
+            }
             : undefined,
         thumbnail: guildIconUrl ? { url: guildIconUrl } : undefined,
         footer: guildDisplayName ? { text: guildDisplayName } : undefined
@@ -540,13 +539,13 @@ function buildUserDisplayName(user = {}) {
 }
 
 function buildUserAvatarUrl(user) {
-    if (!user || !user.id || !user.avatar) return null;
+    if (!user || !user.id || !user.avatar) {return null;}
     const isGif = String(user.avatar).startsWith('a_');
     return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.${isGif ? 'gif' : 'png'}?size=256`;
 }
 
 function buildGuildIconUrl(guild) {
-    if (!guild || !guild.id || !guild.icon) return null;
+    if (!guild || !guild.id || !guild.icon) {return null;}
     const isGif = String(guild.icon).startsWith('a_');
     return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.${isGif ? 'gif' : 'png'}?size=256`;
 }

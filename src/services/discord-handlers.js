@@ -1,26 +1,8 @@
-const fs = require('fs');
-const path = require('path');
-
-const partsDir = path.join(__dirname, 'discord-handlers-parts');
-const partFiles = fs
-    .readdirSync(partsDir)
-    .filter(name => name.endsWith('.js'))
-    .sort();
-
-// Validate handler parts exist (minimum 1, warn if count changes unexpectedly)
-const EXPECTED_PARTS_COUNT = 7;
-if (partFiles.length === 0) {
-    throw new Error('No discord handler parts found in discord-handlers-parts/');
-}
-if (partFiles.length !== EXPECTED_PARTS_COUNT) {
-    console.warn(
-        `[DiscordHandlers] Part count changed: expected ${EXPECTED_PARTS_COUNT}, found ${partFiles.length}. ` +
-        'Update EXPECTED_PARTS_COUNT if this is intentional.'
-    );
-}
-
-const combinedCode = partFiles
-    .map(name => fs.readFileSync(path.join(partsDir, name), 'utf8'))
-    .join('\n');
-
-module._compile(combinedCode, __filename);
+/**
+ * Discord event handlers — re-exports the merged implementation.
+ *
+ * Previously this file concatenated part-*.js files and compiled them via
+ * module._compile().  The parts have been merged into discord-handlers-impl.js
+ * so standard require() (and IDE tooling / stack traces) works normally.
+ */
+module.exports = require('./discord-handlers-impl');

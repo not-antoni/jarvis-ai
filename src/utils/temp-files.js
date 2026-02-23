@@ -24,7 +24,7 @@ function randomId() {
 
 function getPublicBaseUrl() {
     const envBase = process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || '';
-    if (envBase) return envBase.replace(/\/$/, '');
+    if (envBase) {return envBase.replace(/\/$/, '');}
     const port = process.env.PORT || 3000;
     return `http://localhost:${port}`;
 }
@@ -70,7 +70,7 @@ function sweepExpired() {
     const names = fs.readdirSync(TEMP_DIR);
     const now = Date.now();
     for (const name of names) {
-        if (!name.endsWith('.json')) continue;
+        if (!name.endsWith('.json')) {continue;}
         try {
             const meta = JSON.parse(fs.readFileSync(path.join(TEMP_DIR, name), 'utf8'));
             if (!meta || !meta.expiresAt || meta.expiresAt <= now) {

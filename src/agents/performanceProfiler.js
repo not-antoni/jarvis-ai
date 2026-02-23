@@ -112,7 +112,7 @@ class PerformanceProfiler {
      */
     updateMetrics() {
         const recent = this.getRecentOperations();
-        if (recent.length === 0) return;
+        if (recent.length === 0) {return;}
 
         const durations = recent.map(op => op.durationMs).sort((a, b) => a - b);
 
@@ -156,7 +156,7 @@ class PerformanceProfiler {
     getPageLoadStats(url = null) {
         if (url) {
             const times = this.pageLoadTimes.get(url) || [];
-            if (times.length === 0) return null;
+            if (times.length === 0) {return null;}
 
             const durations = times.map(t => t.durationMs).sort((a, b) => a - b);
             return {
@@ -223,7 +223,7 @@ class PerformanceProfiler {
             ? this.resourceUsage.filter(r => r.operationName === operationName)
             : this.resourceUsage;
 
-        if (resources.length === 0) return null;
+        if (resources.length === 0) {return null;}
 
         const cpuValues = resources.map(r => r.cpuPercent).sort((a, b) => a - b);
         const memValues = resources.map(r => r.memoryMb).sort((a, b) => a - b);
@@ -263,8 +263,8 @@ class PerformanceProfiler {
      */
     toPrometheus() {
         const lines = [];
-        lines.push(`# HELP operation_duration_seconds Operation duration in seconds`);
-        lines.push(`# TYPE operation_duration_seconds summary`);
+        lines.push('# HELP operation_duration_seconds Operation duration in seconds');
+        lines.push('# TYPE operation_duration_seconds summary');
         lines.push(
             `operation_duration_seconds_sum ${(this.metrics.averageOperationMs * this.metrics.totalOperations) / 1000}`
         );
@@ -273,8 +273,8 @@ class PerformanceProfiler {
         lines.push(`operation_duration_seconds{quantile="0.95"} ${this.metrics.p95Ms / 1000}`);
         lines.push(`operation_duration_seconds{quantile="0.99"} ${this.metrics.p99Ms / 1000}`);
 
-        lines.push(`# HELP operation_total Total operations`);
-        lines.push(`# TYPE operation_total counter`);
+        lines.push('# HELP operation_total Total operations');
+        lines.push('# TYPE operation_total counter');
         lines.push(`operation_total{status="successful"} ${this.metrics.totalSuccessful}`);
         lines.push(`operation_total{status="failed"} ${this.metrics.totalFailed}`);
 

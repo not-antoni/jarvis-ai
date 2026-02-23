@@ -111,7 +111,7 @@ class DistributedTracer {
      */
     endSpan(spanId, status = 'completed', error = null) {
         const span = this.spans.get(spanId);
-        if (!span) return;
+        if (!span) {return;}
 
         span.duration = Date.now() - span.startTime;
         span.status = status;
@@ -128,7 +128,7 @@ class DistributedTracer {
      */
     addSpanAttribute(spanId, key, value) {
         const span = this.spans.get(spanId);
-        if (!span) return;
+        if (!span) {return;}
 
         span.attributes[key] = {
             value,
@@ -141,7 +141,7 @@ class DistributedTracer {
      */
     recordSpanEvent(spanId, eventName, metadata = {}) {
         const span = this.spans.get(spanId);
-        if (!span) return;
+        if (!span) {return;}
 
         span.events.push({
             name: eventName,
@@ -160,7 +160,7 @@ class DistributedTracer {
      */
     endTrace(traceId, status = 'completed', error = null) {
         const trace = this.traces.get(traceId);
-        if (!trace) return;
+        if (!trace) {return;}
 
         trace.endTime = Date.now();
         trace.duration = trace.endTime - trace.startTime;
@@ -177,7 +177,7 @@ class DistributedTracer {
      */
     getTrace(traceId) {
         const trace = this.traces.get(traceId);
-        if (!trace) return null;
+        if (!trace) {return null;}
 
         const spans = trace.spans.map(spanId => this.spans.get(spanId));
 
@@ -195,7 +195,7 @@ class DistributedTracer {
      */
     getTraceTimeline(traceId) {
         const trace = this.traces.get(traceId);
-        if (!trace) return null;
+        if (!trace) {return null;}
 
         const spans = trace.spans.map(spanId => this.spans.get(spanId));
         const timeline = [];
@@ -230,7 +230,7 @@ class DistributedTracer {
      */
     getCriticalPath(traceId) {
         const trace = this.traces.get(traceId);
-        if (!trace) return null;
+        if (!trace) {return null;}
 
         const spans = trace.spans.map(spanId => this.spans.get(spanId));
         const path = [];
@@ -267,7 +267,7 @@ class DistributedTracer {
      */
     identifyBottlenecks(traceId, percentileThreshold = 95) {
         const trace = this.traces.get(traceId);
-        if (!trace) return null;
+        if (!trace) {return null;}
 
         const spans = trace.spans.map(spanId => this.spans.get(spanId));
         const durations = spans.map(s => s.duration).sort((a, b) => a - b);
@@ -293,7 +293,7 @@ class DistributedTracer {
      */
     exportTrace(traceId) {
         const trace = this.getTrace(traceId);
-        if (!trace) return null;
+        if (!trace) {return null;}
 
         return JSON.stringify(trace, null, 2);
     }

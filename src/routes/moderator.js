@@ -10,6 +10,7 @@
 
 const express = require('express');
 const router = express.Router();
+const appContext = require('../core/app-context');
 const auth = require('../services/moderator-auth');
 const moderation = require('../services/GUILDS_FEATURES/moderation');
 
@@ -18,10 +19,10 @@ const cookieParser = require('cookie-parser');
 router.use(cookieParser());
 
 function shouldUseSecureCookies(req) {
-    if (req?.secure) return true;
-    if (String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase() === 'https') return true;
+    if (req?.secure) {return true;}
+    if (String(req?.headers?.['x-forwarded-proto'] || '').toLowerCase() === 'https') {return true;}
     if (process.env.DASHBOARD_DOMAIN && process.env.DASHBOARD_DOMAIN.startsWith('https://'))
-        return true;
+    {return true;}
     return false;
 }
 
@@ -36,7 +37,7 @@ function getCookieOptions(req, overrides = {}) {
 }
 
 function getDiscordAvatarUrl(discordUser) {
-    if (!discordUser || !discordUser.id) return '';
+    if (!discordUser || !discordUser.id) {return '';}
     if (discordUser.avatar) {
         const ext = String(discordUser.avatar).startsWith('a_') ? 'gif' : 'png';
         return `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.${ext}?size=64`;
@@ -45,7 +46,7 @@ function getDiscordAvatarUrl(discordUser) {
 }
 
 function getDiscordClient() {
-    return global.discordClient || null;
+    return appContext.getClient();
 }
 
 function userOwnsGuild(userId, guildId) {
@@ -55,7 +56,7 @@ function userOwnsGuild(userId, guildId) {
 }
 
 function parseDiscordIdList(input) {
-    if (!input) return [];
+    if (!input) {return [];}
     const raw = String(input);
     const tokens = raw
         .split(/[\s,]+/)
@@ -64,20 +65,20 @@ function parseDiscordIdList(input) {
     const ids = [];
     for (const token of tokens) {
         const match = token.match(/\d{15,20}/);
-        if (match) ids.push(match[0]);
+        if (match) {ids.push(match[0]);}
     }
     return Array.from(new Set(ids));
 }
 
 async function resolveDiscordUserData(userId) {
     const client = getDiscordClient();
-    if (!client?.users?.fetch) return { id: String(userId) };
+    if (!client?.users?.fetch) {return { id: String(userId) };}
 
     const user = await client.users.fetch(String(userId)).catch(err => {
         console.warn('[Moderator] Failed to fetch user:', userId, err?.message || err);
         return null;
     });
-    if (!user) return { id: String(userId) };
+    if (!user) {return { id: String(userId) };}
 
     return {
         id: user.id,
@@ -128,7 +129,7 @@ async function requireAuth(req, res, next) {
 
 // ============ LOGIN PAGE ============
 router.get('/', (req, res) => {
-    const error = req.query.error;
+    const { error } = req.query;
     const errorMessages = {
         not_authenticated: 'Please log in to access the dashboard.',
         session_expired: 'Your session has expired. Please log in again.',
@@ -154,7 +155,7 @@ router.get('/', (req, res) => {
 router.get('/login', (req, res) => res.redirect('/moderator'));
 
 // ============ OAUTH CALLBACK ============
-router.get('/callback', async (req, res) => {
+router.get('/callback', async(req, res) => {
     const { code, state } = req.query;
     const storedState = req.cookies?.oauth_state;
 
@@ -191,15 +192,15 @@ router.get('/callback', async (req, res) => {
 // Password setup routes removed - OAuth only
 
 // ============ DASHBOARD ============
-router.get('/dashboard', requireAuth, async (req, res) => {
-    const userId = req.session.userId;
+router.get('/dashboard', requireAuth, async(req, res) => {
+    const { userId } = req.session;
 
     const client = getDiscordClient();
     const guildStats = [];
 
     if (client?.guilds?.cache) {
         for (const guild of client.guilds.cache.values()) {
-            if (guild.ownerId !== userId) continue;
+            if (guild.ownerId !== userId) {continue;}
             const status = moderation.getStatus(guild.id);
             guildStats.push({
                 guildId: guild.id,
@@ -214,7 +215,7 @@ router.get('/dashboard', requireAuth, async (req, res) => {
 });
 
 // ============ API ENDPOINTS ============
-router.get('/api/stats/:guildId', requireAuth, async (req, res) => {
+router.get('/api/stats/:guildId', requireAuth, async(req, res) => {
     const { guildId } = req.params;
     if (!userOwnsGuild(req.session.userId, guildId)) {
         res.status(403).json({ success: false, error: 'unauthorized' });
@@ -224,7 +225,7 @@ router.get('/api/stats/:guildId', requireAuth, async (req, res) => {
     res.json(status);
 });
 
-router.post('/api/settings/:guildId', requireAuth, express.json(), async (req, res) => {
+router.post('/api/settings/:guildId', requireAuth, express.json(), async(req, res) => {
     const { guildId } = req.params;
     const settings = req.body;
 
@@ -245,13 +246,13 @@ router.post('/api/settings/:guildId', requireAuth, express.json(), async (req, r
 // ============ QUEUE & ANALYTICS API ENDPOINTS ============
 
 // Get queue status (pending messages count, processing state)
-router.get('/api/queue/status', requireAuth, async (req, res) => {
+router.get('/api/queue/status', requireAuth, async(req, res) => {
     const status = moderation.getQueueStatus();
     res.json({ success: true, ...status });
 });
 
 // Get pending messages in queue for a guild
-router.get('/api/queue/:guildId/pending', requireAuth, async (req, res) => {
+router.get('/api/queue/:guildId/pending', requireAuth, async(req, res) => {
     const { guildId } = req.params;
     const limit = parseInt(req.query.limit) || 50;
 
@@ -264,14 +265,14 @@ router.get('/api/queue/:guildId/pending', requireAuth, async (req, res) => {
 });
 
 // Get analysis logs (recent AI decisions)
-router.get('/api/logs', requireAuth, async (req, res) => {
+router.get('/api/logs', requireAuth, async(req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const logs = moderation.getAnalysisLogs(limit);
     res.json({ success: true, logs });
 });
 
 // Get user risk profile
-router.get('/api/user/:userId/risk', requireAuth, async (req, res) => {
+router.get('/api/user/:userId/risk', requireAuth, async(req, res) => {
     const { userId } = req.params;
     const profile = moderation.getUserRiskProfile(userId);
 
@@ -291,7 +292,7 @@ router.get('/api/user/:userId/risk', requireAuth, async (req, res) => {
 });
 
 // Get high-risk users for a guild
-router.get('/api/guild/:guildId/risk-profiles', requireAuth, async (req, res) => {
+router.get('/api/guild/:guildId/risk-profiles', requireAuth, async(req, res) => {
     const { guildId } = req.params;
     const limit = parseInt(req.query.limit) || 50;
 
@@ -304,7 +305,7 @@ router.get('/api/guild/:guildId/risk-profiles', requireAuth, async (req, res) =>
 });
 
 // Trigger manual batch analysis
-router.post('/api/queue/analyze', requireAuth, async (req, res) => {
+router.post('/api/queue/analyze', requireAuth, async(req, res) => {
     try {
         await moderation.triggerBatchAnalysis();
         res.json({ success: true, message: 'Batch analysis triggered' });
@@ -316,7 +317,7 @@ router.post('/api/queue/analyze', requireAuth, async (req, res) => {
 // ============ THREAT DATABASE API ENDPOINTS ============
 
 // Get all global threats (cross-guild scammer database)
-router.get('/api/threats', requireAuth, async (req, res) => {
+router.get('/api/threats', requireAuth, async(req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const threats = moderation.getAllThreats(limit);
     const stats = moderation.getThreatStats();
@@ -324,7 +325,7 @@ router.get('/api/threats', requireAuth, async (req, res) => {
 });
 
 // Report a threat
-router.post('/api/threats/report', requireAuth, express.json(), async (req, res) => {
+router.post('/api/threats/report', requireAuth, express.json(), async(req, res) => {
     const { userId, reason, severity } = req.body;
     if (!userId) {
         return res.status(400).json({ success: false, error: 'userId required' });
@@ -347,21 +348,21 @@ router.post('/api/threats/report', requireAuth, express.json(), async (req, res)
 });
 
 // Remove a threat (false positive)
-router.delete('/api/threats/:userId', requireAuth, async (req, res) => {
+router.delete('/api/threats/:userId', requireAuth, async(req, res) => {
     const { userId } = req.params;
     const removed = moderation.removeThreat(userId);
     res.json({ success: removed, message: removed ? 'Threat removed' : 'Threat not found' });
 });
 
 // Check if user is a known threat
-router.get('/api/threats/check/:userId', requireAuth, async (req, res) => {
+router.get('/api/threats/check/:userId', requireAuth, async(req, res) => {
     const { userId } = req.params;
     const threat = moderation.isKnownThreat(userId);
     res.json({ success: true, isKnown: !!threat, threat });
 });
 
 // ============ GUILD MANAGEMENT PAGES ============
-router.get('/guild/:guildId', requireAuth, async (req, res) => {
+router.get('/guild/:guildId', requireAuth, async(req, res) => {
     const { guildId } = req.params;
 
     if (!userOwnsGuild(req.session.userId, guildId)) {
@@ -378,7 +379,7 @@ router.post(
     '/guild/:guildId/toggle',
     requireAuth,
     express.urlencoded({ extended: true }),
-    async (req, res) => {
+    async(req, res) => {
         const { guildId } = req.params;
         const enabled = String(req.body?.enabled || '').toLowerCase() === 'true';
 
@@ -404,7 +405,7 @@ router.post(
     '/guild/:guildId/settings',
     requireAuth,
     express.urlencoded({ extended: true }),
-    async (req, res) => {
+    async(req, res) => {
         const { guildId } = req.params;
 
         if (!userOwnsGuild(req.session.userId, guildId)) {
@@ -682,7 +683,7 @@ function getGuildPage(session, guild, status, errorCode = '') {
             </div>
         </div>
 
-        ${showNotWhitelisted ? `<div class="error">ask Stark for a invite, sir.</div>` : ''}
+        ${showNotWhitelisted ? '<div class="error">ask Stark for a invite, sir.</div>' : ''}
         ${errorBanner ? `<div class="error">${errorBanner}</div>` : ''}
         ${error && error !== 'not_whitelisted' ? `<div class="error">${error}</div>` : ''}
 
@@ -706,7 +707,7 @@ function getGuildPage(session, guild, status, errorCode = '') {
                     </button>
                 </form>
 
-                ${!canEnable && !isEnabled ? `<p class="muted" style="text-align: center; margin-bottom: 15px;">ask Stark for a invite, sir.</p>` : ''}
+                ${!canEnable && !isEnabled ? '<p class="muted" style="text-align: center; margin-bottom: 15px;">ask Stark for a invite, sir.</p>' : ''}
 
                 ${isEnabled ? `
                 <form method="POST" action="/moderator/guild/${guild?.id || ''}/settings">
@@ -877,8 +878,8 @@ function getGuildPage(session, guild, status, errorCode = '') {
             <div class="card">
                 <h2 class="section-title">📊 Recent Detections</h2>
                 
-                ${!isEnabled ? `<p class="muted">Enable moderation to see detections.</p>` :
-            recentDetections.length === 0 ? `<p class="muted">No recent detections. Your server is clean! ✨</p>` : `
+                ${!isEnabled ? '<p class="muted">Enable moderation to see detections.</p>' :
+        recentDetections.length === 0 ? '<p class="muted">No recent detections. Your server is clean! ✨</p>' : `
                 <div class="detection-list">
                     ${recentDetections.slice(0, 10).map(d => `
                         <div class="detection-item ${d.severity || 'medium'}">
@@ -1396,15 +1397,15 @@ function getDashboardPage(session, guildStats) {
             <h2 style="margin-bottom: 20px;">🧰 Moderation Controls</h2>
             
             ${guildStats.length === 0
-            ? `
+        ? `
                 <p style="color: #888; text-align: center; padding: 40px;">
                     No manageable guilds found.<br>
                     You can only manage guilds where you are the <strong>owner</strong> and Jarvis is present.
                 </p>
             `
-            : guildStats
-                .map(
-                    guild => `
+        : guildStats
+            .map(
+                guild => `
                 <div class="guild-card">
                     <div class="guild-header">
                         <div>
@@ -1448,27 +1449,27 @@ function getDashboardPage(session, guildStats) {
                     </div>
                     
                     ${Object.keys(guild.stats?.byCategory || {}).length > 0
-                            ? `
+        ? `
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
                             <div class="setting-label" style="margin-bottom: 8px;">Detection Categories</div>
                             ${Object.entries(guild.stats.byCategory)
-                                .map(
-                                    ([cat, count]) => `
+        .map(
+            ([cat, count]) => `
                                 <span style="display: inline-block; background: rgba(233,69,96,0.2); color: #e94560; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin-right: 5px; margin-bottom: 5px;">
                                     ${cat}: ${count}
                                 </span>
                             `
-                                )
-                                .join('')}
+        )
+        .join('')}
                         </div>
                     `
-                            : ''
-                        }
+        : ''
+}
                 </div>
             `
-                )
-                .join('')
-        }
+            )
+            .join('')
+}
         </div>
         
         <div style="text-align: center; color: #666; font-size: 12px; margin-top: 40px;">

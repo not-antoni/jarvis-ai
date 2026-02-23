@@ -27,9 +27,9 @@ export default {
         const allowedHostsRaw = (env && env.AI_PROXY_ALLOWED_HOSTS ? String(env.AI_PROXY_ALLOWED_HOSTS) : '').trim();
         const allowedHosts = allowedHostsRaw
             ? allowedHostsRaw
-                  .split(',')
-                  .map(value => value.trim().toLowerCase())
-                  .filter(Boolean)
+                .split(',')
+                .map(value => value.trim().toLowerCase())
+                .filter(Boolean)
             : [];
 
         if (allowedHosts.length > 0) {

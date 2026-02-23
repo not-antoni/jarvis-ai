@@ -22,7 +22,7 @@ async function loadMigrationFiles() {
 
 async function run() {
     await database.connect();
-    const db = database.db;
+    const { db } = database;
     const migrationsCollection = db.collection(migrationCollectionName);
 
     const applied = await migrationsCollection.find({}, { projection: { id: 1 } }).toArray();
@@ -80,7 +80,7 @@ async function run() {
     }
 }
 
-(async () => {
+(async() => {
     try {
         await run();
         await database.disconnect();

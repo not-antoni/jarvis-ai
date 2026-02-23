@@ -116,8 +116,8 @@ async function getAppeals(guildId, options = {}) {
     const collection = db.collection('moderationAppeals');
 
     const query = { guildId };
-    if (status) query.status = status;
-    if (userId) query.userId = userId;
+    if (status) {query.status = status;}
+    if (userId) {query.userId = userId;}
 
     return collection.find(query)
         .sort({ createdAt: -1 })
@@ -188,7 +188,7 @@ async function getUserAppeals(userId, guildId = null) {
     const collection = db.collection('moderationAppeals');
 
     const query = { userId };
-    if (guildId) query.guildId = guildId;
+    if (guildId) {query.guildId = guildId;}
 
     return collection.find(query)
         .sort({ createdAt: -1 })

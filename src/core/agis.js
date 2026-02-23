@@ -38,7 +38,7 @@ class AGIS extends EventEmitter {
      * Decompose a high-level goal into actionable steps
      */
     async decompose(goal) {
-        if (!this.enabled) return { error: 'A.G.I.S. is only available in selfhost mode.' };
+        if (!this.enabled) {return { error: 'A.G.I.S. is only available in selfhost mode.' };}
 
         const plan = {
             id: `plan_${Date.now().toString(36)}`,
@@ -107,14 +107,14 @@ Context: Running as a Discord bot with access to: AI chat, web search, code exec
      * Evaluate context and decide what to do next (proactive thinking)
      */
     async evaluate() {
-        if (!this.enabled) return null;
+        if (!this.enabled) {return null;}
 
         this.context.uptime = process.uptime();
 
         const activePlans = Array.from(this.plans.values())
             .filter(p => p.status === 'ready' || p.status === 'in_progress');
 
-        if (activePlans.length === 0) return null;
+        if (activePlans.length === 0) {return null;}
 
         const plan = activePlans[0];
         const nextStep = plan.steps.find(s => s.status === 'pending');
@@ -137,10 +137,10 @@ Context: Running as a Discord bot with access to: AI chat, web search, code exec
      */
     completeStep(planId, stepId, result) {
         const plan = this.plans.get(planId);
-        if (!plan) return false;
+        if (!plan) {return false;}
 
         const step = plan.steps.find(s => s.id === stepId);
-        if (!step) return false;
+        if (!step) {return false;}
 
         step.status = 'completed';
         step.result = result;

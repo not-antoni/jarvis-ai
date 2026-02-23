@@ -18,14 +18,14 @@ function createSampleImageBuffer() {
     return canvas.toBuffer('image/png');
 }
 
-test('caption image renders output buffer', async () => {
+test('caption image renders output buffer', async() => {
     const source = createSampleImageBuffer();
     const buffer = await memeCanvas.createCaptionImage(source, 'Systems online');
     assert.ok(Buffer.isBuffer(buffer));
     assert.ok(buffer.length > 0);
 });
 
-test('impact meme renders with top and bottom text', async () => {
+test('impact meme renders with top and bottom text', async() => {
     const source = createSampleImageBuffer();
     const buffer = await memeCanvas.createImpactMemeImage(source, 'Top Text', 'Bottom Text');
     assert.ok(Buffer.isBuffer(buffer));

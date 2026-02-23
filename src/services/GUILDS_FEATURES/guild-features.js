@@ -25,7 +25,7 @@ if (PRIMARY_GUILD_ID) {
             flagThisYearAccounts: true
         }
     };
-};
+}
 
 // Load additional guilds from .env
 const envGuilds = (process.env.MODERATION_GUILD_IDS || '')
@@ -65,7 +65,7 @@ envGuilds.forEach(guildId => {
  */
 function isFeatureEnabled(guildId, feature) {
     const config = GUILD_CONFIGS[guildId];
-    if (!config) return false;
+    if (!config) {return false;}
     return config.features[feature] === true;
 }
 

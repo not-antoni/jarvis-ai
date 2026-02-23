@@ -38,7 +38,7 @@ const SECRET_PATTERNS = [
     { pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, mask: '***@***.***' },
 
     // Credit card patterns (basic)
-    { pattern: /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/g, mask: '****-****-****-****' },
+    { pattern: /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/g, mask: '****-****-****-****' }
 ];
 
 /**
@@ -47,7 +47,7 @@ const SECRET_PATTERNS = [
  * @returns {string} - Sanitized text
  */
 function maskSecrets(text) {
-    if (!text || typeof text !== 'string') return text;
+    if (!text || typeof text !== 'string') {return text;}
 
     let sanitized = text;
     for (const { pattern, mask } of SECRET_PATTERNS) {
@@ -63,7 +63,7 @@ function maskSecrets(text) {
  * @returns {Error} - Sanitized error
  */
 function maskError(error) {
-    if (!error) return error;
+    if (!error) {return error;}
 
     const sanitized = new Error(maskSecrets(error.message));
     sanitized.name = error.name;
@@ -116,7 +116,7 @@ function createSafeConsole() {
  * @returns {Object} - Sanitized object
  */
 function sanitizeObject(obj, sensitiveKeys = new Set(['password', 'token', 'secret', 'apiKey', 'key'])) {
-    if (!obj || typeof obj !== 'object') return obj;
+    if (!obj || typeof obj !== 'object') {return obj;}
 
     const sanitized = Array.isArray(obj) ? [] : {};
 
@@ -151,5 +151,5 @@ module.exports = {
     maskError,
     createSafeConsole,
     sanitizeObject,
-    SECRET_PATTERNS,
+    SECRET_PATTERNS
 };

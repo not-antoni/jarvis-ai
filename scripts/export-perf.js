@@ -45,10 +45,10 @@ function getJsFiles(dir) {
     try {
         for (const f of fs.readdirSync(dir)) {
             if (f.startsWith('.') || f === 'node_modules' || f === 'codex' || f === 'vendor')
-                continue;
+            {continue;}
             const fp = path.join(dir, f);
-            if (fs.statSync(fp).isDirectory()) files.push(...getJsFiles(fp));
-            else if (f.endsWith('.js') && !f.includes('test')) files.push(fp);
+            if (fs.statSync(fp).isDirectory()) {files.push(...getJsFiles(fp));}
+            else if (f.endsWith('.js') && !f.includes('test')) {files.push(fp);}
         }
     } catch {}
     return files;
@@ -59,7 +59,7 @@ const lines = [];
 
 lines.push('========================================');
 lines.push('  JARVIS CODEX - Module Load Times');
-lines.push('  ' + new Date().toLocaleString());
+lines.push(`  ${  new Date().toLocaleString()}`);
 lines.push('========================================\n');
 
 // Safe modules only (no entry points that start servers/REPLs)
@@ -76,7 +76,7 @@ const safeRoot = [
     'crypto-client.js'
 ];
 
-lines.push('ROOT MODULES:\n' + '-'.repeat(40));
+lines.push(`ROOT MODULES:\n${  '-'.repeat(40)}`);
 for (const m of safeRoot) {
     const fp = path.join(__dirname, m);
     if (fs.existsSync(fp)) {
@@ -97,13 +97,13 @@ for (const [dir, label] of [
     ['scripts', 'SCRIPTS']
 ]) {
     const full = path.join(__dirname, dir);
-    if (!fs.existsSync(full)) continue;
+    if (!fs.existsSync(full)) {continue;}
 
-    lines.push(`\n${label}:\n` + '-'.repeat(40));
+    lines.push(`\n${label}:\n${  '-'.repeat(40)}`);
     for (const fp of getJsFiles(full)) {
         const name = path.basename(fp);
         // Skip entry points
-        if (name === 'index.js' && dir === '.') continue;
+        if (name === 'index.js' && dir === '.') {continue;}
         const r = timeRequire(fp, name);
         results.push(r);
         lines.push(

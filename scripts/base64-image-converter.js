@@ -41,9 +41,9 @@ function getTotalSize(storage) {
 }
 
 function formatBytes(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    if (bytes < 1024) {return `${bytes  } B`;}
+    if (bytes < 1024 * 1024) {return `${(bytes / 1024).toFixed(2)  } KB`;}
+    return `${(bytes / (1024 * 1024)).toFixed(2)  } MB`;
 }
 
 function addImage(imagePath, customName) {
@@ -92,10 +92,10 @@ function addImage(imagePath, customName) {
         ext === '.png'
             ? 'image/png'
             : ext === '.webp'
-              ? 'image/webp'
-              : ext === '.gif'
-                ? 'image/gif'
-                : 'image/jpeg';
+                ? 'image/webp'
+                : ext === '.gif'
+                    ? 'image/gif'
+                    : 'image/jpeg';
 
     storage.images.push({
         name,

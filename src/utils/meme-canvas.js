@@ -22,7 +22,7 @@ const unicodeAssetCache = new LRUCache({ max: UNICODE_ASSET_CACHE_MAX });
 let emojiImageLoader = null;
 
 function unicodeEmojiToCodePoints(emoji) {
-    if (!emoji) return null;
+    if (!emoji) {return null;}
     const cacheHit = unicodeAssetCache.get(emoji);
     if (cacheHit !== undefined) {
         return cacheHit;
@@ -108,7 +108,7 @@ function wrapText(ctx, text, maxWidth) {
         let current = '';
 
         for (const word of words) {
-            if (!word) continue;
+            if (!word) {continue;}
             const candidate = current ? `${current} ${word}` : word;
             const metrics = ctx.measureText(candidate);
             if (metrics.width <= maxWidth || !current) {
@@ -157,7 +157,7 @@ async function createCaptionImage(imageBuffer, captionText) {
     }
 
     const image = await loadImage(imageBuffer);
-    const width = image.width;
+    const { width } = image;
     const padding = Math.max(16, Math.round(width * 0.04));
     const maxWidth = Math.max(10, width - padding * 2);
 
@@ -192,7 +192,7 @@ async function createCaptionImage(imageBuffer, captionText) {
     for (const token of tokens) {
         if (token.type === 'text') {
             token.value.split(/(\s+)/).forEach(piece => {
-                if (!piece) return;
+                if (!piece) {return;}
                 words.push({ type: /\s+/.test(piece) ? 'space' : 'text', value: piece });
             });
         } else {
@@ -349,8 +349,8 @@ async function createCaptionImage(imageBuffer, captionText) {
 
 async function createImpactMemeImage(imageBuffer, topText = '', bottomText = '') {
     const image = await loadImage(imageBuffer);
-    const width = image.width;
-    const height = image.height;
+    const { width } = image;
+    const { height } = image;
     const padding = Math.max(16, Math.round(width * 0.03));
     const maxWidth = Math.max(10, width - padding * 2);
 

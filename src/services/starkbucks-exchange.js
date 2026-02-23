@@ -336,7 +336,7 @@ async function addNewsItem(headline, priceImpact = 0, secretKey = null, image = 
         // Clean up old news (keep only latest N and delete expired)
         await col.deleteMany({
             $or: [
-                { expiresAt: { $lt: new Date() } },
+                { expiresAt: { $lt: new Date() } }
             ]
         });
         // Keep only latest N items

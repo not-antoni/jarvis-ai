@@ -69,7 +69,7 @@ class SelfhostSetup {
     async promptYesNo(question, defaultYes = true) {
         const hint = defaultYes ? '[Y/n]' : '[y/N]';
         const answer = await this.prompt(`${question} ${hint}`);
-        if (!answer) return defaultYes;
+        if (!answer) {return defaultYes;}
         return answer.toLowerCase().startsWith('y');
     }
 
@@ -125,7 +125,7 @@ class SelfhostSetup {
 # IPv4
 `;
         ipv4.forEach(ip => config += `allow ${ip};\n`);
-        config += `\n# IPv6\n`;
+        config += '\n# IPv6\n';
         ipv6.forEach(ip => config += `allow ${ip};\n`);
         config += `
 # Localhost for local testing
@@ -288,7 +288,7 @@ WantedBy=timers.target
         return [
             `echo '${serviceEscaped}' | sudo tee /etc/systemd/system/cloudflare-ips-update.service > /dev/null`,
             `echo '${timerEscaped}' | sudo tee /etc/systemd/system/cloudflare-ips-update.timer > /dev/null`,
-            `sudo chmod 644 /etc/systemd/system/cloudflare-ips-update.service /etc/systemd/system/cloudflare-ips-update.timer`,
+            'sudo chmod 644 /etc/systemd/system/cloudflare-ips-update.service /etc/systemd/system/cloudflare-ips-update.timer',
             `sudo chmod +x ${path.join(PROJECT_ROOT, 'scripts', 'update-cloudflare-ips.sh')}`,
             'sudo systemctl daemon-reload',
             'sudo systemctl enable cloudflare-ips-update.timer',
@@ -327,7 +327,7 @@ WantedBy=timers.target
         return [
             `echo '${serviceEscaped}' | sudo tee /etc/systemd/system/jarvis-nginx-ensure.service > /dev/null`,
             `echo '${timerEscaped}' | sudo tee /etc/systemd/system/jarvis-nginx-ensure.timer > /dev/null`,
-            `sudo chmod 644 /etc/systemd/system/jarvis-nginx-ensure.service /etc/systemd/system/jarvis-nginx-ensure.timer`,
+            'sudo chmod 644 /etc/systemd/system/jarvis-nginx-ensure.service /etc/systemd/system/jarvis-nginx-ensure.timer',
             `sudo chmod +x ${path.join(PROJECT_ROOT, 'scripts', 'ensure-nginx-config.js')}`,
             'sudo systemctl daemon-reload',
             'sudo systemctl enable jarvis-nginx-ensure.timer',
@@ -452,7 +452,7 @@ WantedBy=timers.target
             log.warn('Discord token not found');
             discordToken = await this.promptSecret('Enter Discord Bot Token');
         }
-        if (discordToken) this.envVars.DISCORD_TOKEN = discordToken;
+        if (discordToken) {this.envVars.DISCORD_TOKEN = discordToken;}
 
         // Discord OAuth (for moderator dashboard)
         const hasOAuth = this.existingEnv.DISCORD_CLIENT_ID && this.existingEnv.DISCORD_CLIENT_SECRET;
@@ -463,14 +463,14 @@ WantedBy=timers.target
         } else {
             const setupOAuth = await this.promptYesNo('Set up Discord OAuth (for moderator dashboard)?', false);
             if (setupOAuth) {
-                log.info(`\nIn Discord Developer Portal, add this redirect URL:`);
+                log.info('\nIn Discord Developer Portal, add this redirect URL:');
                 log.info(`${colors.bright}${baseUrl}/auth/discord/callback${colors.reset}\n`);
 
                 const clientId = await this.prompt('Discord Client ID', '');
                 const clientSecret = await this.prompt('Discord Client Secret', '');
 
-                if (clientId) this.envVars.DISCORD_CLIENT_ID = clientId;
-                if (clientSecret) this.envVars.DISCORD_CLIENT_SECRET = clientSecret;
+                if (clientId) {this.envVars.DISCORD_CLIENT_ID = clientId;}
+                if (clientSecret) {this.envVars.DISCORD_CLIENT_SECRET = clientSecret;}
             }
         }
 
@@ -499,8 +499,8 @@ WantedBy=timers.target
                 } else {
                     const mongoMain = await this.prompt('MongoDB Main URI', '');
                     const mongoVault = await this.prompt('MongoDB Vault URI', mongoMain);
-                    if (mongoMain) this.envVars.MONGO_URI_MAIN = mongoMain;
-                    if (mongoVault) this.envVars.MONGO_URI_VAULT = mongoVault;
+                    if (mongoMain) {this.envVars.MONGO_URI_MAIN = mongoMain;}
+                    if (mongoVault) {this.envVars.MONGO_URI_VAULT = mongoVault;}
                 }
             } else {
                 log.warn('Local MongoDB not detected on localhost:27017');
@@ -514,8 +514,8 @@ WantedBy=timers.target
                 } else {
                     const mongoMain = await this.prompt('MongoDB Main URI (Atlas or custom)', '');
                     const mongoVault = await this.prompt('MongoDB Vault URI', mongoMain);
-                    if (mongoMain) this.envVars.MONGO_URI_MAIN = mongoMain;
-                    if (mongoVault) this.envVars.MONGO_URI_VAULT = mongoVault;
+                    if (mongoMain) {this.envVars.MONGO_URI_MAIN = mongoMain;}
+                    if (mongoVault) {this.envVars.MONGO_URI_VAULT = mongoVault;}
                 }
             }
         }
@@ -548,21 +548,21 @@ WantedBy=timers.target
         if (hasAnyAI) {
             log.success('AI providers already configured');
             // Preserve existing AI keys
-            if (this.existingEnv.OPENROUTER_API_KEY) this.envVars.OPENROUTER_API_KEY = this.existingEnv.OPENROUTER_API_KEY;
-            if (this.existingEnv.GROQ_API_KEY) this.envVars.GROQ_API_KEY = this.existingEnv.GROQ_API_KEY;
-            if (this.existingEnv.GOOGLE_AI_API_KEY) this.envVars.GOOGLE_AI_API_KEY = this.existingEnv.GOOGLE_AI_API_KEY;
-            if (this.existingEnv.OPENAI_API_KEY) this.envVars.OPENAI_API_KEY = this.existingEnv.OPENAI_API_KEY;
+            if (this.existingEnv.OPENROUTER_API_KEY) {this.envVars.OPENROUTER_API_KEY = this.existingEnv.OPENROUTER_API_KEY;}
+            if (this.existingEnv.GROQ_API_KEY) {this.envVars.GROQ_API_KEY = this.existingEnv.GROQ_API_KEY;}
+            if (this.existingEnv.GOOGLE_AI_API_KEY) {this.envVars.GOOGLE_AI_API_KEY = this.existingEnv.GOOGLE_AI_API_KEY;}
+            if (this.existingEnv.OPENAI_API_KEY) {this.envVars.OPENAI_API_KEY = this.existingEnv.OPENAI_API_KEY;}
         } else {
             const configureAI = await this.promptYesNo('Configure AI providers now?', false);
             if (configureAI) {
                 const openrouterKey = await this.prompt('OpenRouter API Key (leave empty to skip)', '');
-                if (openrouterKey) this.envVars.OPENROUTER_API_KEY = openrouterKey;
+                if (openrouterKey) {this.envVars.OPENROUTER_API_KEY = openrouterKey;}
 
                 const groqKey = await this.prompt('Groq API Key (leave empty to skip)', '');
-                if (groqKey) this.envVars.GROQ_API_KEY = groqKey;
+                if (groqKey) {this.envVars.GROQ_API_KEY = groqKey;}
 
                 const googleKey = await this.prompt('Google AI API Key (leave empty to skip)', '');
-                if (googleKey) this.envVars.GOOGLE_AI_API_KEY = googleKey;
+                if (googleKey) {this.envVars.GOOGLE_AI_API_KEY = googleKey;}
             }
         }
 
@@ -591,7 +591,7 @@ WantedBy=timers.target
         console.log(`${colors.bright}Next Steps:${colors.reset}\n`);
 
         console.log(`1. ${colors.cyan}Update Discord Developer Portal:${colors.reset}`);
-        console.log(`   - Go to https://discord.com/developers/applications`);
+        console.log('   - Go to https://discord.com/developers/applications');
         console.log(`   - OAuth2 → Redirects → Add: ${colors.bright}${baseUrl}/auth/discord/callback${colors.reset}`);
         console.log(`   - OAuth2 → Redirects → Add: ${colors.bright}${baseUrl}/moderator/callback${colors.reset}\n`);
 
@@ -807,7 +807,7 @@ WantedBy=timers.target
                         timeout: 300000,
                         stdio: ['pipe', 'pipe', 'pipe']
                     };
-                    if (task.cwd) options.cwd = task.cwd;
+                    if (task.cwd) {options.cwd = task.cwd;}
 
                     execSync(task.cmd, options);
 
@@ -824,7 +824,7 @@ WantedBy=timers.target
                 } catch (error) {
                     log.error(`${task.name} failed: ${error.message}`);
                     const cont = await this.promptYesNo('Continue with remaining tasks?', true);
-                    if (!cont) break;
+                    if (!cont) {break;}
                 }
             }
         }
@@ -975,7 +975,7 @@ WantedBy=timers.target
         }
 
         const setupSSL = await this.promptYesNo(`Setup Cloudflare SSL for ${domain}?`, true);
-        if (!setupSSL) return;
+        if (!setupSSL) {return;}
 
         // 1. Get Credentials
         let headers = await this.headers();
@@ -1020,7 +1020,7 @@ WantedBy=timers.target
 
             // 3. Save Files
             const cfDir = path.join(PROJECT_ROOT, 'cloudflare');
-            if (!fs.existsSync(cfDir)) fs.mkdirSync(cfDir, { recursive: true });
+            if (!fs.existsSync(cfDir)) {fs.mkdirSync(cfDir, { recursive: true });}
 
             fs.writeFileSync(path.join(cfDir, 'cert.pem'), cert);
             fs.writeFileSync(path.join(cfDir, 'key.pem'), key);
@@ -1116,9 +1116,9 @@ class SystemVerifier {
 
     addResult(name, status, message) {
         this.results.checks.push({ name, status, message });
-        if (status === 'pass') this.results.passed++;
-        else if (status === 'warn') this.results.warnings++;
-        else this.results.failed++;
+        if (status === 'pass') {this.results.passed++;}
+        else if (status === 'warn') {this.results.warnings++;}
+        else {this.results.failed++;}
     }
 
     // Check if a command exists
@@ -1227,7 +1227,7 @@ class SystemVerifier {
 
     // Check critical env vars
     checkEnvVars(env) {
-        if (!env) return;
+        if (!env) {return;}
 
         // Required
         const required = ['DISCORD_TOKEN', 'MASTER_KEY_BASE64'];
@@ -1348,7 +1348,7 @@ class SystemVerifier {
 
     // Check Discord OAuth configuration
     checkDiscordOAuth(env) {
-        if (!env) return;
+        if (!env) {return;}
 
         const hasClientId = env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_ID.length > 10;
         const hasClientSecret = env.DISCORD_CLIENT_SECRET && env.DISCORD_CLIENT_SECRET.length > 10;
@@ -1421,7 +1421,7 @@ class SystemVerifier {
             console.log(`${icon}${colors.reset} ${colors.bright}${check.name}${colors.reset}: ${check.message}`);
         }
 
-        console.log('\n' + '─'.repeat(50));
+        console.log(`\n${  '─'.repeat(50)}`);
         console.log(`${colors.green}Passed: ${this.results.passed}${colors.reset} | ` +
             `${colors.yellow}Warnings: ${this.results.warnings}${colors.reset} | ` +
             `${colors.red}Failed: ${this.results.failed}${colors.reset}`);
@@ -1432,10 +1432,10 @@ class SystemVerifier {
         } else if (this.results.warnings > 0) {
             console.log(`\n${colors.yellow}Warnings found - bot will run but some features may be limited.${colors.reset}`);
             return true;
-        } else {
-            console.log(`\n${colors.green}All checks passed! Ready to start.${colors.reset}`);
-            return true;
-        }
+        } 
+        console.log(`\n${colors.green}All checks passed! Ready to start.${colors.reset}`);
+        return true;
+        
     }
 }
 
@@ -1465,8 +1465,8 @@ if (verifyMode) {
             process.exit(0);
         })
         .catch(err => {
-            console.error('\n' + colors.red + 'Setup failed:' + colors.reset, err.message || err);
-            console.error(colors.dim + 'Stack trace:' + colors.reset, err.stack || 'N/A');
+            console.error(`\n${  colors.red  }Setup failed:${  colors.reset}`, err.message || err);
+            console.error(`${colors.dim  }Stack trace:${  colors.reset}`, err.stack || 'N/A');
             if (setup.rl) {
                 setup.rl.close();
             }
@@ -1475,7 +1475,7 @@ if (verifyMode) {
 
     // Handle unexpected readline close
     setup.rl.on('close', () => {
-        console.error('\n' + colors.yellow + 'Setup interrupted.' + colors.reset);
+        console.error(`\n${  colors.yellow  }Setup interrupted.${  colors.reset}`);
     });
 }
 
@@ -1523,8 +1523,8 @@ class PackageManager {
                 return `sudo ${this.manager} install -y ffmpeg || echo "Warning: ffmpeg install failed. Enable RPM Fusion or install static binary."`;
             }
             return `sudo ${this.manager} install -y ${packageNames}`;
-        } else {
-            return `echo "Manual install required for: ${packageNames}"`;
-        }
+        } 
+        return `echo "Manual install required for: ${packageNames}"`;
+        
     }
 }

@@ -9,7 +9,7 @@ const DEFAULT_TICK_MS = 7 * 60 * 1000;
 
 const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
 
-let schedulerState = {
+const schedulerState = {
     started: false,
     tickHandle: null,
     client: null,
@@ -96,8 +96,8 @@ function buildWebsiteEmbed({ url, previousStatus, currentStatus }) {
     const title = wentUp
         ? '✅ Website recovered'
         : wentDown
-          ? '🚨 Website down'
-          : '🌐 Website status changed';
+            ? '🚨 Website down'
+            : '🌐 Website status changed';
 
     const color = wentUp ? 0x2ecc71 : wentDown ? 0xe74c3c : 0xf1c40f;
 
@@ -196,7 +196,7 @@ const CLOUDFLARE_CORE_SERVICES_GROUP_ID = '1km35smx8p41';
 
 // Filter to only include important Cloudflare components (core services, not locations)
 function filterImportantCloudflareComponents(componentsList) {
-    if (!Array.isArray(componentsList)) return [];
+    if (!Array.isArray(componentsList)) {return [];}
     
     return componentsList.filter(c => {
         // Include components that belong to the core services group
@@ -278,13 +278,13 @@ function buildCloudflareSnapshot(status) {
 
     const incidents = Array.isArray(status.incidents)
         ? status.incidents
-              .map(i => ({
-                  id: i?.id ? String(i.id) : i?.name ? String(i.name) : '',
-                  status: i?.status ? String(i.status) : 'unknown',
-                  impact: i?.impact ? String(i.impact) : 'unknown',
-                  updatedAt: i?.updatedAt ? String(i.updatedAt) : ''
-              }))
-              .filter(i => i.id)
+            .map(i => ({
+                id: i?.id ? String(i.id) : i?.name ? String(i.name) : '',
+                status: i?.status ? String(i.status) : 'unknown',
+                impact: i?.impact ? String(i.impact) : 'unknown',
+                updatedAt: i?.updatedAt ? String(i.updatedAt) : ''
+            }))
+            .filter(i => i.id)
         : [];
     incidents.sort((a, b) => a.id.localeCompare(b.id));
 
@@ -299,23 +299,23 @@ function buildStatusPageSnapshot(status) {
     const overall = status.overall?.status ? String(status.overall.status) : 'unknown';
     const components = Array.isArray(status.components)
         ? status.components
-              .map(c => ({
-                  id: c?.id ? String(c.id) : c?.name ? String(c.name) : '',
-                  status: c?.status ? String(c.status) : 'unknown'
-              }))
-              .filter(c => c.id)
+            .map(c => ({
+                id: c?.id ? String(c.id) : c?.name ? String(c.name) : '',
+                status: c?.status ? String(c.status) : 'unknown'
+            }))
+            .filter(c => c.id)
         : [];
     components.sort((a, b) => a.id.localeCompare(b.id));
 
     const incidents = Array.isArray(status.incidents)
         ? status.incidents
-              .map(i => ({
-                  id: i?.id ? String(i.id) : i?.name ? String(i.name) : '',
-                  status: i?.status ? String(i.status) : 'unknown',
-                  impact: i?.impact ? String(i.impact) : 'unknown',
-                  updatedAt: i?.updatedAt ? String(i.updatedAt) : ''
-              }))
-              .filter(i => i.id)
+            .map(i => ({
+                id: i?.id ? String(i.id) : i?.name ? String(i.name) : '',
+                status: i?.status ? String(i.status) : 'unknown',
+                impact: i?.impact ? String(i.impact) : 'unknown',
+                updatedAt: i?.updatedAt ? String(i.updatedAt) : ''
+            }))
+            .filter(i => i.id)
         : [];
     incidents.sort((a, b) => a.id.localeCompare(b.id));
 
@@ -394,10 +394,10 @@ function buildCloudflareEmbed(status, { isResolved = false, affectedServices = [
                     i.impact === 'critical'
                         ? '🚨'
                         : i.impact === 'major'
-                          ? '🔴'
-                          : i.impact === 'minor'
-                            ? '⚠️'
-                            : '📋';
+                            ? '🔴'
+                            : i.impact === 'minor'
+                                ? '⚠️'
+                                : '📋';
                 const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
                 const when = formatRelativeTime(i.updatedAt || i.createdAt);
                 const updates = Array.isArray(i.updates) ? i.updates : [];
@@ -471,10 +471,10 @@ function buildStatusPageEmbed({ url, status }) {
                     i.impact === 'critical'
                         ? '🚨'
                         : i.impact === 'major'
-                          ? '🔴'
-                          : i.impact === 'minor'
-                            ? '⚠️'
-                            : '📋';
+                            ? '🔴'
+                            : i.impact === 'minor'
+                                ? '⚠️'
+                                : '📋';
                 const details = i.shortlink ? ` | [Details](${i.shortlink})` : '';
                 const when = formatRelativeTime(i.updatedAt || i.createdAt);
                 const updates = Array.isArray(i.updates) ? i.updates : [];
@@ -806,7 +806,7 @@ async function processSubscription(sub) {
                 .update_last_seen_data({ id: String(sub.id), last_seen_data: currentSnapshot })
                 .catch(() => null);
         }
-        return;
+        
     }
 }
 

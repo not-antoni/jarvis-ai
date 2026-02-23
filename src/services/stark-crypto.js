@@ -40,7 +40,7 @@ const SX_CONFIG = {
     // Events
     eventChance: 0.005,            // 0.5% chance per tick for event
     crashChance: 0.001,            // 0.1% chance of flash crash
-    pumpChance: 0.001,             // 0.1% chance of pump
+    pumpChance: 0.001             // 0.1% chance of pump
 };
 
 // Market events that can occur
@@ -51,7 +51,7 @@ const MARKET_EVENTS = [
     { name: '💥 Flash Crash', type: 'crash', multiplier: 0.3, duration: 3 * 60 * 1000, chance: 0.05 },
     { name: '📰 Good News', type: 'bull', multiplier: 1.3, duration: 10 * 60 * 1000, chance: 0.15 },
     { name: '⚠️ FUD Alert', type: 'bear', multiplier: 0.7, duration: 10 * 60 * 1000, chance: 0.1 },
-    { name: '🏦 Whale Buy', type: 'pump', multiplier: 1.8, duration: 8 * 60 * 1000, chance: 0.05 },
+    { name: '🏦 Whale Buy', type: 'pump', multiplier: 1.8, duration: 8 * 60 * 1000, chance: 0.05 }
 ];
 
 // Available cryptocurrencies with market cap tiers
@@ -299,7 +299,7 @@ const tradeVolume = new Map();       // Recent trade volume per coin
 let lastPriceTick = 0;
 
 // Market state
-let marketState = {
+const marketState = {
     cycle: 'sideways',               // bull, bear, sideways
     cycleStarted: Date.now(),
     sentiment: 0,                    // -1 to 1 (bearish to bullish)
@@ -833,7 +833,7 @@ async function updatePrices() {
         // Store history
         const history = priceHistory.get(symbol) || [];
         history.push({ price: newPrice, timestamp: now });
-        if (history.length > SX_CONFIG.historyMaxLength) history.shift();
+        if (history.length > SX_CONFIG.historyMaxLength) {history.shift();}
         priceHistory.set(symbol, history);
     }
 
@@ -867,8 +867,8 @@ function calculateMarketTrend() {
  */
 function checkForMarketEvent(now) {
     // Don't trigger events too frequently
-    if (now - marketState.lastEventTime < 5 * 60 * 1000) return;
-    if (marketState.activeEvent) return;
+    if (now - marketState.lastEventTime < 5 * 60 * 1000) {return;}
+    if (marketState.activeEvent) {return;}
 
     // Roll for event
     if (Math.random() < SX_CONFIG.eventChance) {
@@ -969,7 +969,7 @@ function getAllPrices() {
  */
 function getCoinPrice(symbol) {
     const coin = CRYPTO_COINS[symbol.toUpperCase()];
-    if (!coin) return null;
+    if (!coin) {return null;}
 
     const currentPrice = coinPrices.get(symbol.toUpperCase());
     const history = priceHistory.get(symbol.toUpperCase()) || [];
@@ -1053,7 +1053,7 @@ async function getLeaderboard(limit = 10) {
 let priceUpdateInterval = null;
 
 function startPriceUpdates() {
-    if (priceUpdateInterval) return;
+    if (priceUpdateInterval) {return;}
 
     priceUpdateInterval = setInterval(() => {
         updatePrices().catch(err => {

@@ -6,7 +6,7 @@
 const express = require('express');
 
 function createAgentDiagnosticsRouter(discordHandlers) {
-    if (!discordHandlers) return null;
+    if (!discordHandlers) {return null;}
     const router = express.Router();
 
     /**
@@ -73,7 +73,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
      * POST /health/agent/restart
      * Manual restart of browser (requires auth token)
      */
-    router.post('/health/agent/restart', async (req, res) => {
+    router.post('/health/agent/restart', async(req, res) => {
         const expectedToken = process.env.HEALTH_TOKEN;
         if (!expectedToken) {
             return res.status(503).json({ error: 'Health token not configured' });
@@ -111,8 +111,8 @@ function createAgentDiagnosticsRouter(discordHandlers) {
                     trend.riskLevel === 'high'
                         ? 'RESTART'
                         : trend.riskLevel === 'medium'
-                          ? 'MONITOR'
-                          : 'OK'
+                            ? 'MONITOR'
+                            : 'OK'
             }
         });
     });
@@ -233,7 +233,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         const metrics = discordHandlers.browserAgent.getMetrics();
         const health = discordHandlers.agentMonitor.getHealthReport(discordHandlers.browserAgent);
 
-        let lines = [
+        const lines = [
             '# HELP jarvis_agent_health Overall agent health score (0-100)',
             '# TYPE jarvis_agent_health gauge',
             `jarvis_agent_health ${health.overallHealth}`,
@@ -304,7 +304,7 @@ function createAgentDiagnosticsRouter(discordHandlers) {
         ];
 
         res.set('Content-Type', 'text/plain; charset=utf-8');
-        res.send(lines.join('\n') + '\n');
+        res.send(`${lines.join('\n')  }\n`);
     });
 
     return router;

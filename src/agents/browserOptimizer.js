@@ -30,7 +30,7 @@ class BrowserOptimizer {
      * Bypass stealth detection (puppeteer-extra-plugin-stealth equivalent)
      */
     async bypassStealthDetection() {
-        if (!this.page) return;
+        if (!this.page) {return;}
 
         try {
             // Override navigator.webdriver
@@ -62,7 +62,7 @@ class BrowserOptimizer {
      * Randomize browser fingerprint
      */
     async randomizeFingerprint() {
-        if (!this.page) return;
+        if (!this.page) {return;}
 
         try {
             const randomString = () => Math.random().toString(36).substring(2, 15);
@@ -70,25 +70,25 @@ class BrowserOptimizer {
             await this.page.evaluateOnNewDocument(() => {
                 // Override canvas fingerprinting
                 const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-                HTMLCanvasElement.prototype.toDataURL = function (...args) {
+                HTMLCanvasElement.prototype.toDataURL = function(...args) {
                     const context = this.getContext('2d');
                     if (context) {
                         context.fillStyle =
-                            'rgb(' +
-                            Math.floor(Math.random() * 255) +
-                            ',' +
-                            Math.floor(Math.random() * 255) +
-                            ',' +
-                            Math.floor(Math.random() * 255) +
-                            ')';
+                            `rgb(${ 
+                                Math.floor(Math.random() * 255) 
+                            },${ 
+                                Math.floor(Math.random() * 255) 
+                            },${ 
+                                Math.floor(Math.random() * 255) 
+                            })`;
                         context.fillRect(0, 0, 1, 1);
                     }
                     return originalToDataURL.apply(this, args);
                 };
 
                 // Override WebGL fingerprinting
-                const getParameter = WebGLRenderingContext.prototype.getParameter;
-                WebGLRenderingContext.prototype.getParameter = function (parameter) {
+                const { getParameter } = WebGLRenderingContext.prototype;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
                     if (parameter === 37445) {
                         return 'Intel Inc.';
                     }
@@ -116,7 +116,7 @@ class BrowserOptimizer {
      * Block ads, tracking, and non-essential resources
      */
     async blockUnnecessaryResources() {
-        if (!this.page) return;
+        if (!this.page) {return;}
 
         try {
             await this.page.setRequestInterception(true);
@@ -165,7 +165,7 @@ class BrowserOptimizer {
      * Optimize Chrome DevTools Protocol operations
      */
     async optimizeCDP() {
-        if (!this.page) return;
+        if (!this.page) {return;}
 
         try {
             const client = await this.page.target().createCDPSession();
@@ -195,7 +195,7 @@ class BrowserOptimizer {
      * Anti-bot detection measures
      */
     async antiBot() {
-        if (!this.page) return;
+        if (!this.page) {return;}
 
         try {
             // Add realistic behavior
@@ -234,7 +234,7 @@ class BrowserOptimizer {
             // Add navigation timing delays
             await this.page.evaluateOnNewDocument(() => {
                 const originalFetch = window.fetch;
-                window.fetch = function (...args) {
+                window.fetch = function(...args) {
                     // Add slight delay to make it look human
                     return new Promise(resolve => {
                         setTimeout(
@@ -288,11 +288,11 @@ class BrowserOptimizer {
      * Human-like click with slight offsets
      */
     async humanClick(selector) {
-        if (!this.page) throw new Error('No page instance');
+        if (!this.page) {throw new Error('No page instance');}
 
         await this.page.evaluate(sel => {
             const element = document.querySelector(sel);
-            if (!element) throw new Error(`Element not found: ${sel}`);
+            if (!element) {throw new Error(`Element not found: ${sel}`);}
 
             // Calculate offset
             const offsetX = Math.random() * 10 - 5;

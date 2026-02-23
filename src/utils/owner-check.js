@@ -12,7 +12,7 @@ const config = require('../../config');
  * @returns {boolean} - True if user is the owner
  */
 function isOwner(userId) {
-    if (!userId) return false;
+    if (!userId) {return false;}
 
     const userIdStr = String(userId).trim();
 

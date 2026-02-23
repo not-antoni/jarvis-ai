@@ -13,7 +13,7 @@ let proxyIndex = 0;
 
 // Get next proxy in rotation (round-robin)
 function getNextProxy() {
-    if (!YTDLP_PROXY_ENABLED || YTDLP_PROXIES.length === 0) return null;
+    if (!YTDLP_PROXY_ENABLED || YTDLP_PROXIES.length === 0) {return null;}
     const proxy = YTDLP_PROXIES[proxyIndex % YTDLP_PROXIES.length];
     proxyIndex++;
     // Format: ip:port:user:pass -> http://user:pass@ip:port
@@ -27,7 +27,7 @@ function getNextProxy() {
 module.exports = {
     init: (client) => {
         console.log('[Distube] Init called');
-        if (distube) return distube;
+        if (distube) {return distube;}
 
         try {
             console.log('[Distube] requiring ffmpeg-static...');
@@ -188,7 +188,7 @@ module.exports = {
                 }
 
                 // queue might be a TextChannel, a Queue, or undefined depending on where error originated
-                let channel = queue?.textChannel || (queue?.send ? queue : null);
+                const channel = queue?.textChannel || (queue?.send ? queue : null);
 
                 if (channel) {
                     // Provide user-friendly error messages
@@ -213,7 +213,7 @@ module.exports = {
     },
 
     get: () => {
-        if (!distube) throw new Error('Distube not initialized!');
+        if (!distube) {throw new Error('Distube not initialized!');}
         return distube;
     }
 };

@@ -55,8 +55,8 @@ test('RateLimitError: Rate limit error', () => {
     assert.strictEqual(error.metadata.retryAfter, 5000);
 });
 
-test('asyncHandler: Success case', async () => {
-    const handler = asyncHandler(async (req, res) => {
+test('asyncHandler: Success case', async() => {
+    const handler = asyncHandler(async(req, res) => {
         res.json({ success: true });
     });
 
@@ -70,8 +70,8 @@ test('asyncHandler: Success case', async () => {
     await handler(req, res, () => {});
 });
 
-test('asyncHandler: Error case', async () => {
-    const handler = asyncHandler(async (req, res) => {
+test('asyncHandler: Error case', async() => {
+    const handler = asyncHandler(async(req, res) => {
         throw new ValidationError('Test error');
     });
 

@@ -194,7 +194,7 @@ class CodexIntegrationAdapter {
         const groups = {};
         items.forEach(item => {
             const key = keyFn(item);
-            if (!groups[key]) groups[key] = [];
+            if (!groups[key]) {groups[key] = [];}
             groups[key].push(item);
         });
         return groups;

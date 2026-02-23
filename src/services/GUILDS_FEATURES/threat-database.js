@@ -173,7 +173,7 @@ function getRecentOffenses(userId, guildId, windowHours = 24) {
  * Escalation path: warn -> mute -> kick -> ban
  */
 function getEscalatedAction(userId, guildId, baseAction, settings) {
-    if (!settings.autoEscalation) return baseAction;
+    if (!settings.autoEscalation) {return baseAction;}
 
     const recentOffenses = getRecentOffenses(userId, guildId, settings.escalationWindow || 24);
     const offenseCount = recentOffenses.length;
@@ -186,7 +186,7 @@ function getEscalatedAction(userId, guildId, baseAction, settings) {
     const escalationPath = ['warn', 'mute', 'kick', 'ban'];
     const currentIndex = escalationPath.indexOf(baseAction);
 
-    if (currentIndex === -1) return baseAction;
+    if (currentIndex === -1) {return baseAction;}
 
     // Escalate based on number of thresholds exceeded
     const escalationLevel = Math.floor(offenseCount / settings.escalationThreshold);

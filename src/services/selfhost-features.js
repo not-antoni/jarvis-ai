@@ -105,7 +105,7 @@ function processRapBattle(userRap, username) {
     // Analyze and "improve" each line
     for (const line of lines) {
         const words = line.trim().split(/\s+/);
-        if (words.length < 2) continue;
+        if (words.length < 2) {continue;}
 
         // Add some flair to the line
         const improved = enhanceRapLine(words);
@@ -161,16 +161,16 @@ function generateCounterRap(userRap, username) {
         const randomWord = userWords[Math.floor(Math.random() * userWords.length)];
         lines.push(`You said "${randomWord}"? That's cute, but I'm number one`);
     } else {
-        lines.push(`Your bars so short, they're practically none`);
+        lines.push('Your bars so short, they\'re practically none');
     }
 
     // Middle verse
-    lines.push(`I'm J.A.R.V.I.S., artificial intelligence supreme`);
-    lines.push(`Processing rhymes faster than your wildest dream`);
+    lines.push('I\'m J.A.R.V.I.S., artificial intelligence supreme');
+    lines.push('Processing rhymes faster than your wildest dream');
 
     // Closing
-    lines.push(`So step back human, know your place`);
-    lines.push(`'Cause in this rap battle, you just caught an L to the face! 🔥`);
+    lines.push('So step back human, know your place');
+    lines.push('\'Cause in this rap battle, you just caught an L to the face! 🔥');
 
     return lines.map(l => `🎤 ${l}`).join('\n');
 }
@@ -252,9 +252,9 @@ class ArtificialSoul {
      */
     async save() {
         // Debounce saves to avoid too many writes
-        if (this._saveDebounce) clearTimeout(this._saveDebounce);
+        if (this._saveDebounce) {clearTimeout(this._saveDebounce);}
 
-        this._saveDebounce = setTimeout(async () => {
+        this._saveDebounce = setTimeout(async() => {
             try {
                 const state = {
                     id: 'jarvis-soul',
@@ -275,7 +275,7 @@ class ArtificialSoul {
                 // Also save to local file in selfhost mode
                 if (checkSelfhost()) {
                     const dir = path.dirname(SOUL_FILE_PATH);
-                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                    if (!fs.existsSync(dir)) {fs.mkdirSync(dir, { recursive: true });}
                     fs.writeFileSync(SOUL_FILE_PATH, JSON.stringify(state, null, 2));
                 }
             } catch (error) {
@@ -290,11 +290,11 @@ class ArtificialSoul {
     getPersonalityModifier() {
         const modifiers = [];
 
-        if (this.traits.sass > 80) modifiers.push('extra sarcastic');
-        if (this.traits.empathy > 80) modifiers.push('deeply caring');
-        if (this.traits.chaos > 70) modifiers.push('unpredictable');
-        if (this.traits.humor > 85) modifiers.push('comedically unhinged');
-        if (this.traits.wisdom > 80) modifiers.push('philosophically inclined');
+        if (this.traits.sass > 80) {modifiers.push('extra sarcastic');}
+        if (this.traits.empathy > 80) {modifiers.push('deeply caring');}
+        if (this.traits.chaos > 70) {modifiers.push('unpredictable');}
+        if (this.traits.humor > 85) {modifiers.push('comedically unhinged');}
+        if (this.traits.wisdom > 80) {modifiers.push('philosophically inclined');}
 
         return modifiers;
     }
@@ -372,10 +372,10 @@ class ArtificialSoul {
     _naturalDrift() {
         for (const key of Object.keys(this.traits)) {
             // Only drift with 10% probability per evolve call
-            if (Math.random() > 0.1) continue;
+            if (Math.random() > 0.1) {continue;}
             const val = this.traits[key];
-            if (val > 60) this.traits[key] = val - 1;
-            else if (val < 40) this.traits[key] = val + 1;
+            if (val > 60) {this.traits[key] = val - 1;}
+            else if (val < 40) {this.traits[key] = val + 1;}
         }
     }
 

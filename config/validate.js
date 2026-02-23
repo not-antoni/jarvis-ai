@@ -33,61 +33,61 @@ const DEPLOYMENT_DOC_HINT =
 const envSchema = (
     localDbMode
         ? z.object({
-              DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
-              MONGO_URI_MAIN: z.string().optional(),
-              MONGO_URI_VAULT: z.string().optional(),
-              MASTER_KEY_BASE64: z
-                  .string()
-                  .min(1, 'MASTER_KEY_BASE64 is required')
-                  .refine(value => {
-                      try {
-                          return Buffer.from(value, 'base64').length === 32;
-                      } catch {
-                          return false;
-                      }
-                  }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
-              OPENAI: z.string().optional(),
-              OPENAI_API_KEY: z.string().optional(),
-              LOCAL_EMBEDDING_URL: z.string().optional(),
-              YOUTUBE_API_KEY: z.string().optional(),
-              BRAVE_API_KEY: z.string().optional(),
-              CRYPTO_API_KEY: z.string().optional(),
-              HEALTH_TOKEN: z.string().optional()
-          })
+            DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
+            MONGO_URI_MAIN: z.string().optional(),
+            MONGO_URI_VAULT: z.string().optional(),
+            MASTER_KEY_BASE64: z
+                .string()
+                .min(1, 'MASTER_KEY_BASE64 is required')
+                .refine(value => {
+                    try {
+                        return Buffer.from(value, 'base64').length === 32;
+                    } catch {
+                        return false;
+                    }
+                }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
+            OPENAI: z.string().optional(),
+            OPENAI_API_KEY: z.string().optional(),
+            LOCAL_EMBEDDING_URL: z.string().optional(),
+            YOUTUBE_API_KEY: z.string().optional(),
+            BRAVE_API_KEY: z.string().optional(),
+            CRYPTO_API_KEY: z.string().optional(),
+            HEALTH_TOKEN: z.string().optional()
+        })
         : z.object({
-              DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
-              MONGO_URI_MAIN: z
-                  .string()
-                  .min(1, 'MONGO_URI_MAIN is required')
-                  .refine(
-                      value => /^mongodb(\+srv)?:\/\//i.test(value),
-                      'MONGO_URI_MAIN must be a MongoDB connection string'
-                  ),
-              MONGO_URI_VAULT: z
-                  .string()
-                  .min(1, 'MONGO_URI_VAULT is required')
-                  .refine(
-                      value => /^mongodb(\+srv)?:\/\//i.test(value),
-                      'MONGO_URI_VAULT must be a MongoDB connection string'
-                  ),
-              MASTER_KEY_BASE64: z
-                  .string()
-                  .min(1, 'MASTER_KEY_BASE64 is required')
-                  .refine(value => {
-                      try {
-                          return Buffer.from(value, 'base64').length === 32;
-                      } catch {
-                          return false;
-                      }
-                  }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
-              OPENAI: z.string().optional(),
-              OPENAI_API_KEY: z.string().optional(),
-              LOCAL_EMBEDDING_URL: z.string().optional(),
-              YOUTUBE_API_KEY: z.string().optional(),
-              BRAVE_API_KEY: z.string().optional(),
-              CRYPTO_API_KEY: z.string().optional(),
-              HEALTH_TOKEN: z.string().optional()
-          })
+            DISCORD_TOKEN: z.string().min(1, 'DISCORD_TOKEN is required'),
+            MONGO_URI_MAIN: z
+                .string()
+                .min(1, 'MONGO_URI_MAIN is required')
+                .refine(
+                    value => /^mongodb(\+srv)?:\/\//i.test(value),
+                    'MONGO_URI_MAIN must be a MongoDB connection string'
+                ),
+            MONGO_URI_VAULT: z
+                .string()
+                .min(1, 'MONGO_URI_VAULT is required')
+                .refine(
+                    value => /^mongodb(\+srv)?:\/\//i.test(value),
+                    'MONGO_URI_VAULT must be a MongoDB connection string'
+                ),
+            MASTER_KEY_BASE64: z
+                .string()
+                .min(1, 'MASTER_KEY_BASE64 is required')
+                .refine(value => {
+                    try {
+                        return Buffer.from(value, 'base64').length === 32;
+                    } catch {
+                        return false;
+                    }
+                }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
+            OPENAI: z.string().optional(),
+            OPENAI_API_KEY: z.string().optional(),
+            LOCAL_EMBEDDING_URL: z.string().optional(),
+            YOUTUBE_API_KEY: z.string().optional(),
+            BRAVE_API_KEY: z.string().optional(),
+            CRYPTO_API_KEY: z.string().optional(),
+            HEALTH_TOKEN: z.string().optional()
+        })
 ).passthrough();
 
 function coerceAndDeduplicateChannelIds(ids) {
@@ -97,7 +97,7 @@ function coerceAndDeduplicateChannelIds(ids) {
 
     const normalized = ids
         .map(value => {
-            if (value == null) return null;
+            if (value == null) {return null;}
             return String(value).trim();
         })
         .filter(value => Boolean(value));

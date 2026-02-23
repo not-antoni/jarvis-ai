@@ -134,7 +134,7 @@ function isNetscapeFormat(str) {
         // Check for tab-separated cookie lines (7 fields)
         str.split('\n').some(line => {
             const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith('#')) return false;
+            if (!trimmed || trimmed.startsWith('#')) {return false;}
             const parts = trimmed.split('\t');
             return (
                 parts.length >= 7 &&
@@ -153,13 +153,13 @@ function parseNetscapeCookies(str) {
 
     for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
+        if (!trimmed || trimmed.startsWith('#')) {continue;}
 
         const parts = trimmed.split('\t');
-        if (parts.length < 7) continue;
+        if (parts.length < 7) {continue;}
 
         const [domain, , cookiePath, secure, expiry, name, value] = parts;
-        if (!name || !value) continue;
+        if (!name || !value) {continue;}
 
         cookies.push({
             domain,
@@ -300,7 +300,7 @@ async function autoUpdateBinary(binaryPath, options = {}) {
         return;
     }
 
-    const runUpdate = async () => {
+    const runUpdate = async() => {
         let lastUpdate = 0;
 
         if (!force) {
@@ -635,7 +635,7 @@ async function createDownloadTask(videoId, videoUrl) {
         }
     };
 
-    const promise = (async () => {
+    const promise = (async() => {
         try {
             return await runOnce(true);
         } catch (error) {
@@ -660,7 +660,7 @@ function scheduleCleanup(videoId, entry) {
         clearTimeout(entry.timer);
     }
 
-    entry.timer = setTimeout(async () => {
+    entry.timer = setTimeout(async() => {
         try {
             if (entry.path) {
                 await fs.promises.rm(entry.path, { force: true });

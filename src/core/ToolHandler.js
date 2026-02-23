@@ -297,7 +297,7 @@ class ToolHandler extends EventEmitter {
             failureCount,
             avgDuration: callCount > 0 ? Math.round(totalDuration / callCount) : 0,
             successRate:
-                callCount > 0 ? ((successCount / callCount) * 100).toFixed(1) + '%' : 'N/A',
+                callCount > 0 ? `${((successCount / callCount) * 100).toFixed(1)  }%` : 'N/A',
             lastCall: lastCall ? new Date(lastCall).toISOString() : null,
             lastError
         };

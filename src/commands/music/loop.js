@@ -16,7 +16,7 @@ module.exports = {
                 )
         ),
     async execute(interaction) {
-        if (!interaction.guild) return;
+        if (!interaction.guild) {return;}
 
         let distubeInstance;
         try {
@@ -38,9 +38,9 @@ module.exports = {
         // If no mode specified, cycle through: off -> song -> queue -> off
         let newMode;
         if (!mode) {
-            if (queue.repeatMode === 0) newMode = 1;      // off -> song
-            else if (queue.repeatMode === 1) newMode = 2; // song -> queue
-            else newMode = 0;                              // queue -> off
+            if (queue.repeatMode === 0) {newMode = 1;}      // off -> song
+            else if (queue.repeatMode === 1) {newMode = 2;} // song -> queue
+            else {newMode = 0;}                              // queue -> off
         } else {
             newMode = mode === 'song' ? 1 : mode === 'queue' ? 2 : 0;
         }

@@ -155,7 +155,7 @@ class ScreenshotTool extends ToolHandler {
             await this._navigateWithRetry(session.page, url, waitFor);
         }
 
-        const page = session.page;
+        const { page } = session;
 
         // Set viewport if specified
         if (viewport) {
@@ -228,7 +228,7 @@ class ScreenshotTool extends ToolHandler {
                 });
                 return;
             } catch (error) {
-                if (i === maxNavigationRetries - 1) throw error;
+                if (i === maxNavigationRetries - 1) {throw error;}
                 console.warn(`[ScreenshotTool] Navigation retry ${i + 1}: ${error.message}`);
                 await this._sleep(1000);
             }
@@ -274,12 +274,12 @@ class ScreenshotTool extends ToolHandler {
 
         // Scroll to ensure lazy-loaded content is visible (for full page)
         try {
-            await page.evaluate(async () => {
+            await page.evaluate(async() => {
                 await new Promise(resolve => {
                     let totalHeight = 0;
                     const distance = 500;
                     const timer = setInterval(() => {
-                        const scrollHeight = document.body.scrollHeight;
+                        const { scrollHeight } = document.body;
                         window.scrollBy(0, distance);
                         totalHeight += distance;
 

@@ -41,16 +41,16 @@ class YouTubeSearch {
                 return {
                     title: video.snippet.title,
                     channel: video.snippet.channelTitle,
-                    description: video.snippet.description.substring(0, 200) + '...',
+                    description: `${video.snippet.description.substring(0, 200)  }...`,
                     url: `https://www.youtube.com/watch?v=${video.id.videoId}`,
                     thumbnail:
                         video.snippet.thumbnails.medium?.url ||
                         video.snippet.thumbnails.default?.url,
                     publishedAt: new Date(video.snippet.publishedAt).toLocaleDateString()
                 };
-            } else {
-                return null;
-            }
+            } 
+            return null;
+            
         } catch (error) {
             console.error('YouTube API error:', error);
             throw new Error('Failed to search YouTube. Please try again later.');
@@ -117,7 +117,7 @@ function parseISODuration(isoValue) {
     const seconds = parseInt(match[3] || '0', 10);
 
     const parts = [];
-    if (hours) parts.push(hours);
+    if (hours) {parts.push(hours);}
     parts.push(hours ? String(minutes).padStart(2, '0') : minutes);
     parts.push(String(seconds).padStart(2, '0'));
 

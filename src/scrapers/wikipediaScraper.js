@@ -77,7 +77,7 @@ class WikipediaScraper extends BaseScraper {
             this.stats.successfulScapes++;
             return article;
         } catch (error) {
-            console.error(`[WikipediaScraper] Failed to scrape article:`, error.message);
+            console.error('[WikipediaScraper] Failed to scrape article:', error.message);
             this.stats.failedScrapes++;
             this.stats.totalErrors.push({ article: articleTitle, error: error.message });
             throw error;
@@ -120,7 +120,7 @@ class WikipediaScraper extends BaseScraper {
 
                 Array.from(el.children).forEach(child => {
                     if (child.tagName.match(/^H[2-6]$/)) {
-                        if (currentSection) sections.push(currentSection);
+                        if (currentSection) {sections.push(currentSection);}
                         currentSection = {
                             heading: child.innerText,
                             content: []
@@ -130,7 +130,7 @@ class WikipediaScraper extends BaseScraper {
                     }
                 });
 
-                if (currentSection) sections.push(currentSection);
+                if (currentSection) {sections.push(currentSection);}
                 return sections;
             });
 
@@ -140,7 +140,7 @@ class WikipediaScraper extends BaseScraper {
                 totalLength: paragraphs.join(' ').length
             };
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get article content:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get article content:', error.message);
             return { paragraphs: [], sections: [], totalLength: 0 };
         }
     }
@@ -152,7 +152,7 @@ class WikipediaScraper extends BaseScraper {
         try {
             const infobox = await page.evaluate(() => {
                 const infoboxEl = document.querySelector('.infobox');
-                if (!infoboxEl) return null;
+                if (!infoboxEl) {return null;}
 
                 const data = {};
                 const rows = infoboxEl.querySelectorAll('tr');
@@ -173,7 +173,7 @@ class WikipediaScraper extends BaseScraper {
 
             return infobox;
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get infobox:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get infobox:', error.message);
             return null;
         }
     }
@@ -208,7 +208,7 @@ class WikipediaScraper extends BaseScraper {
 
             return images;
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get images:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get images:', error.message);
             return [];
         }
     }
@@ -228,7 +228,7 @@ class WikipediaScraper extends BaseScraper {
 
             return references;
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get references:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get references:', error.message);
             return [];
         }
     }
@@ -248,7 +248,7 @@ class WikipediaScraper extends BaseScraper {
 
             return links;
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get links:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get links:', error.message);
             return [];
         }
     }
@@ -267,7 +267,7 @@ class WikipediaScraper extends BaseScraper {
 
             return categories;
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get categories:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get categories:', error.message);
             return [];
         }
     }
@@ -286,7 +286,7 @@ class WikipediaScraper extends BaseScraper {
 
             return wikilinks;
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get wikilinks:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get wikilinks:', error.message);
             return [];
         }
     }
@@ -319,7 +319,7 @@ class WikipediaScraper extends BaseScraper {
 
             return results;
         } catch (error) {
-            console.error(`[WikipediaScraper] Search failed:`, error.message);
+            console.error('[WikipediaScraper] Search failed:', error.message);
             return [];
         }
     }
@@ -346,7 +346,7 @@ class WikipediaScraper extends BaseScraper {
 
             return relatedLinks;
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get related articles:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get related articles:', error.message);
             return [];
         }
     }
@@ -361,7 +361,7 @@ class WikipediaScraper extends BaseScraper {
 
             const stats = await page.evaluate(() => {
                 const contentEl = document.querySelector('#mw-content-text');
-                if (!contentEl) return null;
+                if (!contentEl) {return null;}
 
                 const paragraphs = contentEl.querySelectorAll('p').length;
                 const headings = contentEl.querySelectorAll('h2, h3, h4').length;
@@ -386,7 +386,7 @@ class WikipediaScraper extends BaseScraper {
 
             return stats;
         } catch (error) {
-            console.warn(`[WikipediaScraper] Failed to get stats:`, error.message);
+            console.warn('[WikipediaScraper] Failed to get stats:', error.message);
             return null;
         }
     }

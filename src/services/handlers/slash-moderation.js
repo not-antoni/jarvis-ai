@@ -47,12 +47,12 @@ async function handleBan(interaction) {
             const mins = Math.floor(banDuration / 60000);
             const hours = Math.floor(mins / 60);
             const days = Math.floor(hours / 24);
-            if (days > 0) durationText = `for ${days} day(s)`;
-            else if (hours > 0) durationText = `for ${hours} hour(s)`;
-            else durationText = `for ${mins} minute(s)`;
+            if (days > 0) {durationText = `for ${days} day(s)`;}
+            else if (hours > 0) {durationText = `for ${hours} hour(s)`;}
+            else {durationText = `for ${mins} minute(s)`;}
 
             // Schedule unban
-            setTimeout(async () => {
+            setTimeout(async() => {
                 try {
                     await interaction.guild.members.unban(targetUser.id, 'Temporary ban expired');
                 } catch (_e) { console.warn('[ban] Auto-unban failed:', _e.message); }
@@ -275,9 +275,9 @@ async function handleSlowmode(interaction) {
         await interaction.channel.setRateLimitPerUser(seconds);
         if (seconds === 0) {
             return '⚡ Slowmode disabled for this channel.';
-        } else {
-            return `🐌 Slowmode set to **${durationStr}** for this channel.`;
-        }
+        } 
+        return `🐌 Slowmode set to **${durationStr}** for this channel.`;
+        
     } catch (error) {
         return `❌ Failed to set slowmode: ${error.message}`;
     }
@@ -293,14 +293,14 @@ async function handleLockdown(interaction) {
     }
 
     try {
-        const everyone = interaction.guild.roles.everyone;
+        const { everyone } = interaction.guild.roles;
         if (action === 'lock') {
             await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: false }, { reason });
             return `🔒 Channel locked.\nReason: ${reason}`;
-        } else {
-            await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: null }, { reason });
-            return `🔓 Channel unlocked.`;
-        }
+        } 
+        await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: null }, { reason });
+        return '🔓 Channel unlocked.';
+        
     } catch (error) {
         return `❌ Lockdown failed: ${error.message}`;
     }
@@ -340,7 +340,7 @@ async function handleUserinfo(interaction) {
 async function handleServerinfo(interaction) {
     if (!interaction.guild) { return 'This command only works in servers.'; }
 
-    const guild = interaction.guild;
+    const { guild } = interaction;
     const owner = await guild.fetchOwner().catch(() => null);
 
     const embed = new EmbedBuilder()

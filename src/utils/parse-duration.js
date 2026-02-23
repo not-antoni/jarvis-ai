@@ -18,18 +18,18 @@ const MULTIPLIERS = {
  * @returns {number|null} - Duration in milliseconds, or null if invalid
  */
 function parseDuration(str, defaultUnit = 'm') {
-    if (!str || typeof str !== 'string') return null;
+    if (!str || typeof str !== 'string') {return null;}
 
     const match = str.trim().match(/^(\d+)(s|m|h|d|w)?$/i);
-    if (!match) return null;
+    if (!match) {return null;}
 
     const amount = parseInt(match[1], 10);
-    if (amount <= 0 || !Number.isFinite(amount)) return null;
+    if (amount <= 0 || !Number.isFinite(amount)) {return null;}
 
     const unit = (match[2] || defaultUnit).toLowerCase();
     const multiplier = MULTIPLIERS[unit];
 
-    if (!multiplier) return null;
+    if (!multiplier) {return null;}
 
     return amount * multiplier;
 }
@@ -40,7 +40,7 @@ function parseDuration(str, defaultUnit = 'm') {
  * @returns {string} - Formatted duration (e.g., "2 hours", "30 minutes")
  */
 function formatDuration(ms) {
-    if (!ms || ms < 1000) return '0 seconds';
+    if (!ms || ms < 1000) {return '0 seconds';}
 
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -48,10 +48,10 @@ function formatDuration(ms) {
     const days = Math.floor(hours / 24);
     const weeks = Math.floor(days / 7);
 
-    if (weeks > 0) return `${weeks} week${weeks !== 1 ? 's' : ''}`;
-    if (days > 0) return `${days} day${days !== 1 ? 's' : ''}`;
-    if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
-    if (minutes > 0) return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    if (weeks > 0) {return `${weeks} week${weeks !== 1 ? 's' : ''}`;}
+    if (days > 0) {return `${days} day${days !== 1 ? 's' : ''}`;}
+    if (hours > 0) {return `${hours} hour${hours !== 1 ? 's' : ''}`;}
+    if (minutes > 0) {return `${minutes} minute${minutes !== 1 ? 's' : ''}`;}
     return `${seconds} second${seconds !== 1 ? 's' : ''}`;
 }
 

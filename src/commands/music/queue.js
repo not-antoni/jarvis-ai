@@ -6,7 +6,7 @@ module.exports = {
         .setName('queue')
         .setDescription('Show current music queue'),
     async execute(interaction) {
-        if (!interaction.guild) return;
+        if (!interaction.guild) {return;}
         const queue = distube.get().getQueue(interaction.guild);
 
         if (!queue) {

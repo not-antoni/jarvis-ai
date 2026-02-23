@@ -316,9 +316,9 @@ class AIProviderManager {
 
         // Selfhost: load from file
         try {
-            if (!fs.existsSync(PROVIDER_STATE_PATH)) return;
+            if (!fs.existsSync(PROVIDER_STATE_PATH)) {return;}
             const raw = fs.readFileSync(PROVIDER_STATE_PATH, 'utf8');
-            if (!raw.trim()) return;
+            if (!raw.trim()) {return;}
             this._applyStateData(JSON.parse(raw));
             console.log('Restored AI provider cache from disk');
         } catch (error) {
@@ -328,7 +328,7 @@ class AIProviderManager {
 
     async _loadStateFromMongo() {
         const db = await getDatabase();
-        if (!db || !db.db) return;
+        if (!db || !db.db) {return;}
 
         try {
             const doc = await db.db
@@ -344,7 +344,7 @@ class AIProviderManager {
     }
 
     _applyStateData(data) {
-        if (!data) return;
+        if (!data) {return;}
 
         if (data.metrics && typeof data.metrics === 'object') {
             for (const [name, metric] of Object.entries(data.metrics)) {
@@ -473,10 +473,10 @@ class AIProviderManager {
 
     scheduleStateSave() {
         this.stateDirty = true;
-        if (this.stateSaveTimer) return;
-        this.stateSaveTimer = setTimeout(async () => {
+        if (this.stateSaveTimer) {return;}
+        this.stateSaveTimer = setTimeout(async() => {
             this.stateSaveTimer = null;
-            if (!this.stateDirty) return;
+            if (!this.stateDirty) {return;}
             this.stateDirty = false;
             await this.saveState();
         }, this.stateSaveDebounceMs);
@@ -494,7 +494,7 @@ class AIProviderManager {
             filtered = filtered.filter(p => !p.moderationOnly);
         }
 
-        if (this.selectedProviderType === 'auto') return filtered;
+        if (this.selectedProviderType === 'auto') {return filtered;}
 
         return filtered.filter(provider => {
             const providerName = provider.name.toLowerCase();
@@ -528,7 +528,7 @@ class AIProviderManager {
             .filter(p => {
                 const disabledUntil = this.disabledProviders.get(p.name);
                 const isDisabled = disabledUntil && disabledUntil > now;
-                if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) return false;
+                if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {return false;}
                 return !isDisabled;
             })
             .sort((a, b) => {
@@ -551,7 +551,7 @@ class AIProviderManager {
                 };
 
                 const priorityDelta = resolveCostPriority(a) - resolveCostPriority(b);
-                if (priorityDelta !== 0) return priorityDelta;
+                if (priorityDelta !== 0) {return priorityDelta;}
                 return score(mb) - score(ma);
             });
     }
@@ -563,11 +563,11 @@ class AIProviderManager {
         const availableProviders = filteredProviders.filter(p => {
             const disabledUntil = this.disabledProviders.get(p.name);
             const isDisabled = disabledUntil && disabledUntil > now;
-            if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) return false;
+            if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {return false;}
             return !isDisabled;
         });
 
-        if (availableProviders.length === 0) return null;
+        if (availableProviders.length === 0) {return null;}
 
         const minPriority = Math.min(...availableProviders.map(p => resolveCostPriority(p)));
         const preferred = availableProviders.filter(p => resolveCostPriority(p) === minPriority);
@@ -616,8 +616,8 @@ class AIProviderManager {
 
     _recordMetric(name, ok, latencyMs) {
         const m = this.metrics.get(name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };
-        if (ok) m.successes += 1;
-        else m.failures += 1;
+        if (ok) {m.successes += 1;}
+        else {m.failures += 1;}
 
         if (!Number.isFinite(m.avgLatencyMs) || m.avgLatencyMs <= 0) {
             m.avgLatencyMs = latencyMs;
@@ -632,14 +632,14 @@ class AIProviderManager {
     _isRetryable(error) {
         const status = error?.status || error?.response?.status;
         const message = String(error?.message || '').toLowerCase();
-        if (error?.transient) return true;
-        if (status && [408, 409, 429, 500, 502, 503, 504].includes(status)) return true;
+        if (error?.transient) {return true;}
+        if (status && [408, 409, 429, 500, 502, 503, 504].includes(status)) {return true;}
         if (
             message.includes('empty') ||
             message.includes('timeout') ||
             message.includes('overloaded')
         )
-            return true;
+        {return true;}
         return false;
     }
 
@@ -691,7 +691,7 @@ class AIProviderManager {
      */
     getLoadAdjustedTokens(requestedTokens) {
         const load = this.getLoadFactor();
-        if (load <= 1.0) return requestedTokens;
+        if (load <= 1.0) {return requestedTokens;}
         // Linearly reduce tokens from 100% at softCap to 50% at maxConcurrent
         const reduction = Math.min(0.5, (load - 1.0) * 0.25);
         return Math.max(512, Math.floor(requestedTokens * (1 - reduction)));
@@ -777,10 +777,10 @@ class AIProviderManager {
                 };
             })
             .sort((a, b) => {
-                if (a.priority !== b.priority) return a.priority - b.priority;
+                if (a.priority !== b.priority) {return a.priority - b.priority;}
                 const rateA = a.metrics.successRate ?? -1;
                 const rateB = b.metrics.successRate ?? -1;
-                if (rateA !== rateB) return rateB - rateA;
+                if (rateA !== rateB) {return rateB - rateA;}
                 return (
                     (a.metrics.avgLatencyMs ?? Number.POSITIVE_INFINITY) -
                     (b.metrics.avgLatencyMs ?? Number.POSITIVE_INFINITY)
@@ -898,12 +898,12 @@ class AIProviderManager {
         const types = new Set();
         this.providers.forEach(provider => {
             const name = provider.name.toLowerCase();
-            if (name === 'gpt5nano') types.add('openai');
-            else if (name.startsWith('groq')) types.add('groq');
-            else if (name.startsWith('openrouter')) types.add('openrouter');
-            else if (name.startsWith('googleai')) types.add('google');
-            else if (name.startsWith('deepseek')) types.add('deepseek');
-            else if (name.startsWith('ollama')) types.add('ollama');
+            if (name === 'gpt5nano') {types.add('openai');}
+            else if (name.startsWith('groq')) {types.add('groq');}
+            else if (name.startsWith('openrouter')) {types.add('openrouter');}
+            else if (name.startsWith('googleai')) {types.add('google');}
+            else if (name.startsWith('deepseek')) {types.add('deepseek');}
+            else if (name.startsWith('ollama')) {types.add('ollama');}
         });
         const available = Array.from(types).sort();
         available.unshift('auto');
@@ -914,10 +914,10 @@ class AIProviderManager {
         const now = Date.now();
         const maxAge = 24 * 60 * 60 * 1000;
         for (const [name, error] of this.providerErrors.entries()) {
-            if (now - (error?.timestamp || 0) > maxAge) this.providerErrors.delete(name);
+            if (now - (error?.timestamp || 0) > maxAge) {this.providerErrors.delete(name);}
         }
         for (const [name, disabledUntil] of this.disabledProviders.entries()) {
-            if (disabledUntil <= now) this.disabledProviders.delete(name);
+            if (disabledUntil <= now) {this.disabledProviders.delete(name);}
         }
     }
 

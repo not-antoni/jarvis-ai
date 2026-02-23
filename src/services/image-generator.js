@@ -84,8 +84,8 @@ class ImageGenerator {
         let y = headerHeight;
 
         // Preload all avatars in parallel with timeout for speed
-        const avatarPromises = users.map(async (user) => {
-            if (!user.avatar) return null;
+        const avatarPromises = users.map(async(user) => {
+            if (!user.avatar) {return null;}
             try {
                 const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('timeout')), 2000)
@@ -117,10 +117,10 @@ class ImageGenerator {
             // Rank
             ctx.font = 'bold 30px Sans';
             ctx.textAlign = 'center';
-            if (user.rank === 1) ctx.fillStyle = '#FFD700';
-            else if (user.rank === 2) ctx.fillStyle = '#C0C0C0';
-            else if (user.rank === 3) ctx.fillStyle = '#CD7F32';
-            else ctx.fillStyle = '#FFFFFF';
+            if (user.rank === 1) {ctx.fillStyle = '#FFD700';}
+            else if (user.rank === 2) {ctx.fillStyle = '#C0C0C0';}
+            else if (user.rank === 3) {ctx.fillStyle = '#CD7F32';}
+            else {ctx.fillStyle = '#FFFFFF';}
 
             ctx.fillText(`#${user.rank}`, 60, y + 50);
 
@@ -168,7 +168,7 @@ class ImageGenerator {
 
             // Remove emoji characters that might cause rendering issues on VPS
             // and don't add the star prefix
-            let nameText = user.username.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
+            const nameText = user.username.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
 
             ctx.fillText(nameText, 190, y + 45);
             ctx.shadowBlur = 0; // Reset shadow for next items
@@ -208,8 +208,8 @@ class ImageGenerator {
         const totalHeight = Math.max(this.height, headerHeight + (users.length * rowHeight) + padding);
 
         // Preload avatars (same as static)
-        const avatarPromises = users.map(async (user) => {
-            if (!user.avatar) return null;
+        const avatarPromises = users.map(async(user) => {
+            if (!user.avatar) {return null;}
             try {
                 const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('timeout')), 2000)
@@ -228,7 +228,7 @@ class ImageGenerator {
             let name = user.username.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
             const maxNameWidth = 220;
             if (tempCtx.measureText(name).width > maxNameWidth) {
-                while (tempCtx.measureText(name + '...').width > maxNameWidth && name.length > 0) {
+                while (tempCtx.measureText(`${name  }...`).width > maxNameWidth && name.length > 0) {
                     name = name.slice(0, -1);
                 }
                 name += '...';
@@ -318,10 +318,10 @@ class ImageGenerator {
                 ctx.font = 'bold 30px Sans';
                 ctx.textAlign = 'center';
                 // Rank color logic
-                if (user.rank === 1) ctx.fillStyle = '#FFD700';
-                else if (user.rank === 2) ctx.fillStyle = '#C0C0C0';
-                else if (user.rank === 3) ctx.fillStyle = '#CD7F32';
-                else ctx.fillStyle = '#FFFFFF';
+                if (user.rank === 1) {ctx.fillStyle = '#FFD700';}
+                else if (user.rank === 2) {ctx.fillStyle = '#C0C0C0';}
+                else if (user.rank === 3) {ctx.fillStyle = '#CD7F32';}
+                else {ctx.fillStyle = '#FFFFFF';}
 
                 ctx.fillText(`#${user.rank}`, 60, y + 50);
 
@@ -480,7 +480,7 @@ class ImageGenerator {
 
         ctx.fillStyle = '#00d4ff';
         ctx.font = 'bold 50px Sans';
-        ctx.fillText(this.formatNumber(user.balance) + ' SB', textX, statsY + 50);
+        ctx.fillText(`${this.formatNumber(user.balance)  } SB`, textX, statsY + 50);
 
         // Sidebar Stats
         ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
@@ -499,18 +499,18 @@ class ImageGenerator {
         ctx.fillText('WIN RATE', rightX, 240);
         ctx.fillStyle = (user.winRate > 50 ? '#2ecc71' : '#e74c3c'); // Green/Red
         ctx.font = 'bold 24px Sans';
-        ctx.fillText((user.winRate || 0) + '%', rightX, 270);
+        ctx.fillText(`${user.winRate || 0  }%`, rightX, 270);
 
         return canvas.toBuffer();
     }
 
     formatNumber(num) {
-        if (!num) return '0';
-        if (num >= 1e15) return (num / 1e15).toFixed(2) + 'Q';
-        if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
-        if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-        if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-        if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+        if (!num) {return '0';}
+        if (num >= 1e15) {return `${(num / 1e15).toFixed(2)  }Q`;}
+        if (num >= 1e12) {return `${(num / 1e12).toFixed(2)  }T`;}
+        if (num >= 1e9) {return `${(num / 1e9).toFixed(2)  }B`;}
+        if (num >= 1e6) {return `${(num / 1e6).toFixed(2)  }M`;}
+        if (num >= 1e3) {return `${(num / 1e3).toFixed(2)  }K`;}
         return num.toLocaleString();
     }
 }

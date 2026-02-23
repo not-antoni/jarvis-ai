@@ -143,7 +143,7 @@ class ToolDefinition {
             avgDuration: this.callCount > 0 ? this.totalDuration / this.callCount : 0,
             successRate:
                 this.callCount > 0
-                    ? ((this.successCount / this.callCount) * 100).toFixed(2) + '%'
+                    ? `${((this.successCount / this.callCount) * 100).toFixed(2)  }%`
                     : 'N/A'
         };
     }

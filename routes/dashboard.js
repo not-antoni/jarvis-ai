@@ -135,8 +135,8 @@ async function saveMetrics() {
 }
 
 function scheduleSave() {
-    if (saveTimer) return;
-    saveTimer = setTimeout(async () => {
+    if (saveTimer) {return;}
+    saveTimer = setTimeout(async() => {
         saveTimer = null;
         await saveMetrics();
     }, SAVE_DEBOUNCE_MS);
@@ -270,8 +270,8 @@ function addLog(level, source, message) {
 // Export metrics functions for use by other modules
 router.trackAICall = (success, provider) => {
     metrics.aiCallCount++;
-    if (success) metrics.aiSuccessCount++;
-    else metrics.aiFailCount++;
+    if (success) {metrics.aiSuccessCount++;}
+    else {metrics.aiFailCount++;}
     metrics.lastProviderUsed = provider;
     addLog(
         success ? 'success' : 'error',
@@ -316,7 +316,7 @@ router.getMetrics = () => ({
  * GET /api/dashboard/health
  * Returns overall system health and stats
  */
-router.get('/health', async (req, res) => {
+router.get('/health', async(req, res) => {
     try {
         const uptime = Date.now() - metrics.botStartTime;
         const hours = Math.floor(uptime / 3600000);
@@ -389,7 +389,7 @@ router.get('/health', async (req, res) => {
  * GET /api/dashboard/providers
  * Returns AI provider status
  */
-router.get('/providers', async (req, res) => {
+router.get('/providers', async(req, res) => {
     try {
         // Try to load AI providers module
         let providers = [];
@@ -415,7 +415,7 @@ router.get('/providers', async (req, res) => {
  * POST /api/dashboard/providers/test
  * Test a specific provider
  */
-router.post('/providers/test', async (req, res) => {
+router.post('/providers/test', async(req, res) => {
     try {
         const { provider } = req.body;
         const startTime = Date.now();
@@ -454,7 +454,7 @@ router.post('/providers/test', async (req, res) => {
  * POST /api/dashboard/providers/reinitialize
  * Force reinitialize all providers (recovery from corrupted state)
  */
-router.post('/providers/reinitialize', async (req, res) => {
+router.post('/providers/reinitialize', async(req, res) => {
     try {
         const aiManager = require('../src/services/ai-providers');
         const count = aiManager.forceReinitialize();
@@ -472,7 +472,7 @@ router.post('/providers/reinitialize', async (req, res) => {
  * GET /api/dashboard/providers/health
  * Get provider health summary
  */
-router.get('/providers/health', async (req, res) => {
+router.get('/providers/health', async(req, res) => {
     try {
         const aiManager = require('../src/services/ai-providers');
         const health = aiManager.getHealthSummary();
@@ -486,7 +486,7 @@ router.get('/providers/health', async (req, res) => {
  * GET /api/dashboard/agents
  * Returns agent status and metrics
  */
-router.get('/agents', async (req, res) => {
+router.get('/agents', async(req, res) => {
     try {
         // Try to load agent components
         let agents = [];
@@ -575,7 +575,7 @@ router.get('/agents', async (req, res) => {
  * GET /api/dashboard/logs
  * Returns recent logs
  */
-router.get('/logs', async (req, res) => {
+router.get('/logs', async(req, res) => {
     try {
         const { level, limit = 100 } = req.query;
         let logs = metrics.recentLogs;
@@ -601,10 +601,10 @@ router.get('/logs', async (req, res) => {
  * GET /api/dashboard/local-ai/status
  * Returns local AI (Ollama) status
  */
-router.get('/local-ai/status', async (req, res) => {
+router.get('/local-ai/status', async(req, res) => {
     try {
         let status = 'not_installed';
-        let gpus = [];
+        const gpus = [];
         let models = [];
 
         // Check if Ollama is running
@@ -638,7 +638,7 @@ router.get('/local-ai/status', async (req, res) => {
  * POST /api/dashboard/settings
  * Save dashboard settings
  */
-router.post('/settings', async (req, res) => {
+router.post('/settings', async(req, res) => {
     try {
         const settings = req.body;
         
@@ -663,7 +663,7 @@ router.post('/settings', async (req, res) => {
  * GET /api/dashboard/settings
  * Get current settings
  */
-router.get('/settings', async (req, res) => {
+router.get('/settings', async(req, res) => {
     try {
         const config = require('../config');
         res.json({
@@ -680,7 +680,7 @@ router.get('/settings', async (req, res) => {
 /**
  * GET /soul — Artificial soul state and sentient agent status
  */
-router.get('/soul', async (req, res) => {
+router.get('/soul', async(req, res) => {
     try {
         const selfhostFeatures = require('../src/services/selfhost-features');
         const soul = selfhostFeatures.jarvisSoul?.getStatus?.() || null;
@@ -708,7 +708,7 @@ router.get('/soul', async (req, res) => {
 /**
  * GET /economy — Economy system stats
  */
-router.get('/economy', async (req, res) => {
+router.get('/economy', async(req, res) => {
     try {
         const db = await getDatabase();
         let stats = { totalUsers: 0, totalBucks: 0, topUsers: [] };
@@ -752,10 +752,10 @@ function formatUptime(ms) {
 }
 
 function formatBytes(bytes) {
-    if (bytes < 1024) return bytes + 'B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + 'MB';
-    return (bytes / 1024 / 1024 / 1024).toFixed(1) + 'GB';
+    if (bytes < 1024) {return `${bytes  }B`;}
+    if (bytes < 1024 * 1024) {return `${(bytes / 1024).toFixed(1)  }KB`;}
+    if (bytes < 1024 * 1024 * 1024) {return `${(bytes / 1024 / 1024).toFixed(1)  }MB`;}
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)  }GB`;
 }
 
 // Export initialization function for bot start time

@@ -37,11 +37,11 @@ function cookiesToString(cookies) {
  * Initialize play-dl with YouTube cookies if available
  */
 async function initializePlayDl() {
-    if (!play) return false;
+    if (!play) {return false;}
 
     for (const key of COOKIE_ENV_KEYS) {
         const raw = process.env[key];
-        if (!raw || !raw.trim()) continue;
+        if (!raw || !raw.trim()) {continue;}
 
         let cookieString = null;
 
@@ -70,7 +70,7 @@ async function initializePlayDl() {
                 console.log(`play-dl: Initialized with cookies from ${key}`);
                 return true;
             } catch (error) {
-                console.warn(`play-dl: Cookie init failed:`, error.message);
+                console.warn('play-dl: Cookie init failed:', error.message);
             }
         }
     }
@@ -93,7 +93,7 @@ const initPromise = initializePlayDl()
  * Try to get stream via play-dl (fast, but can be rate-limited)
  */
 async function tryPlayDl(videoUrl, streamState) {
-    if (!play) throw new Error('play-dl not available');
+    if (!play) {throw new Error('play-dl not available');}
 
     // Check if we're in rate limit cooldown
     if (playDlRateLimited && Date.now() < rateLimitResetTime) {
@@ -307,7 +307,7 @@ function cancelStream(videoId) {
  * @returns {Promise<Array<{title: string, url: string, duration: string, thumbnail: string}>>}
  */
 async function searchYouTube(query, limit = 5) {
-    if (!play) return [];
+    if (!play) {return [];}
     await initPromise;
 
     try {
@@ -335,7 +335,7 @@ async function searchYouTube(query, limit = 5) {
  * @returns {Promise<{title: string, duration: number, thumbnail: string}>}
  */
 async function getVideoInfo(url) {
-    if (!play) throw new Error('play-dl not available');
+    if (!play) {throw new Error('play-dl not available');}
     await initPromise;
 
     try {
