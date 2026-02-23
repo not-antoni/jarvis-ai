@@ -1,9 +1,3 @@
-            }
-
-            console.error('Failed to handle member log command:', error);
-            await replyWithError('I could not complete that member log request, sir.');
-        }
-    }
 
     async fetchNewsFromTheNewsApi(topic, limit = 5) {
         if (!NEWS_API_KEY) return [];
