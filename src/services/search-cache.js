@@ -70,6 +70,7 @@ function set(query, result) {
     cache[key] = {
         url: result.url,
         title: result.title,
+        source: result.source || null,
         cachedAt: Date.now()
     };
 

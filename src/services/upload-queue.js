@@ -3,7 +3,7 @@
  * Processes file uploads one at a time to prevent bot overload
  * When many users upload simultaneously, they get queued and processed sequentially
  */
-const distube = require('./distube');
+const { musicManager } = require('../core/musicManager');
 const { execSync } = require('child_process');
 
 // Try to get ffprobe path from npm package, fall back to system
@@ -133,7 +133,7 @@ class UploadQueue {
         console.log(`[UploadQueue] Processing: ${item.filename} (Remaining: ${this.queue.length})`);
 
         try {
-            const distubeInstance = distube.get();
+            const manager = musicManager.get();
 
             // Probe file for duration
             console.log(`[UploadQueue] Probing duration for: ${item.filename}`);
@@ -145,17 +145,22 @@ class UploadQueue {
             // Add small delay to let network stabilize before playback
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            await distubeInstance.play(item.voiceChannel, item.fileUrl, {
-                member: item.member,
-                textChannel: item.textChannel,
-                metadata: {
-                    originalInteraction: item.interaction,
-                    isUpload: true,
-                    filename: item.filename,
-                    duration: durationSeconds,
-                    formattedDuration: formattedDuration
-                }
-            });
+            const response = await manager.enqueue(
+                item.guildId,
+                item.voiceChannel,
+                {
+                    source: 'direct_link',
+                    title: item.filename,
+                    url: item.fileUrl,
+                    duration: formattedDuration,
+                    durationSeconds
+                },
+                item.interaction
+            );
+
+            if (response && item.textChannel) {
+                await item.textChannel.send(response).catch(() => { });
+            }
 
             console.log(`[UploadQueue] Success: ${item.filename}`);
 

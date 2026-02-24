@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const distube = require('../../services/distube');
+const { musicManager } = require('../../core/musicManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,19 +12,8 @@ module.exports = {
         const { canControlMusic } = require('../../utils/dj-system');
         if (!await canControlMusic(interaction)) {return;}
 
-        const queue = distube.get().getQueue(interaction.guild);
-
-        if (!queue) {
-            await interaction.reply({ content: '⚠️ Nothing playing.', ephemeral: true });
-            return;
-        }
-
-        if (!queue.paused) {
-            await interaction.reply('Already playing.');
-            return;
-        }
-
-        queue.resume();
-        await interaction.reply('▶️ Resumed.');
+        const manager = musicManager.get();
+        const message = manager.resume(interaction.guildId);
+        await interaction.reply({ content: message, flags: 64 });
     }
 };
