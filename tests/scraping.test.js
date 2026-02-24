@@ -5,16 +5,15 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { describe, it, beforeEach } = require('node:test');
 
 // Components to test
-const BaseScraper = require('../scrapers/baseScraper');
-const WikipediaScraper = require('../scrapers/wikipediaScraper');
-const ImageManager = require('../scrapers/imageManager');
-const ScraperUtils = require('../scrapers/scraperUtils');
+const BaseScraper = require('../src/scrapers/baseScraper');
+const WikipediaScraper = require('../src/scrapers/wikipediaScraper');
+const ImageManager = require('../src/scrapers/imageManager');
+const ScraperUtils = require('../src/scrapers/scraperUtils');
 
 describe('Scraping System Tests', function() {
-    this.timeout(30000); // 30 second timeout for browser operations
-
     // ==================== ScraperUtils Tests ====================
     describe('ScraperUtils', function() {
         
