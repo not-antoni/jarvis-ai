@@ -14,6 +14,28 @@ const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
 const { safeSend } = require('../utils/discord-safe-send');
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const LOOP_MODES = ['off', 'song', 'queue'];
+
+function cloneTrack(track) {
+    return track ? { ...track } : null;
+}
+
+function extractVoiceCloseCode(state) {
+    const candidates = [
+        state?.closeCode,
+        state?.reason?.code,
+        state?.networking?.closeCode,
+        state?.networking?.state?.closeCode,
+        state?.ws?.closeCode,
+        state?.adapterData?.closeCode
+    ];
+    for (const value of candidates) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value;
+        }
+    }
+    return null;
+}
 
 class MusicManager {
     constructor(client) {
@@ -38,7 +60,8 @@ class MusicManager {
                 current: null,
                 pendingVideoId: null,
                 queuedCount: 0,
-                voiceChannelId: null
+                voiceChannelId: null,
+                loopMode: 'off'
             };
         }
 
@@ -53,7 +76,8 @@ class MusicManager {
                 : null,
             pendingVideoId: state.pendingVideoId || null,
             queuedCount: Array.isArray(state.queue) ? state.queue.length : 0,
-            voiceChannelId: state.voiceChannelId || null
+            voiceChannelId: state.voiceChannelId || null,
+            loopMode: state.loopMode || 'off'
         };
     }
 
@@ -80,7 +104,8 @@ class MusicManager {
                 skipInProgress: false,
                 timeout: null,
                 textChannel: interaction.channel ?? null,
-                voiceChannelId: voiceChannel.id
+                voiceChannelId: voiceChannel.id,
+                loopMode: 'off'
             };
 
             this.queues.set(guildId, state);
@@ -100,7 +125,7 @@ class MusicManager {
         }
 
         state.queue.push(video);
-        return `🧃 Queued **${video.title}** (position ${state.queue.length})`;
+        return `🧃 Queued **${video.title}** (position ${state.queue.length + 1})`;
     }
 
     async play(guildId, video, options = {}) {
@@ -188,6 +213,8 @@ class MusicManager {
             return '⚠️ Nothing is playing, sir.';
         }
 
+        const loopBeforeSkip = state.loopMode;
+        state.loopMode = 'off';
         this.cancelPendingDownload(state);
         this.releaseCurrent(state);
 
@@ -201,10 +228,38 @@ class MusicManager {
             return '⏭️ Skipped — queue empty.';
         }
 
+        state.loopMode = loopBeforeSkip;
         return `⏭️ Skipping to **${upcoming.title}**…`;
     }
 
-    stop(guildId) {
+    async jumpToPosition(guildId, position) {
+        const state = this.queues.get(guildId);
+        if (!state) {
+            return '⚠️ Nothing is playing right now.';
+        }
+
+        const total = (state.currentVideo || state.pendingVideoId) ? state.queue.length + 1 : state.queue.length;
+        if (!Number.isInteger(position) || position < 1 || position > total) {
+            return `⚠️ Queue only has **${total}** song${total === 1 ? '' : 's'}.`;
+        }
+
+        if (position === 1) {
+            return '⚠️ Song #1 is already playing! Use `/skip` to skip it.';
+        }
+
+        const targetIndex = position - 2;
+        const target = state.queue[targetIndex];
+        if (!target) {
+            return '⚠️ Could not jump to that queue position.';
+        }
+
+        state.queue = state.queue.slice(targetIndex);
+        await this.skip(guildId);
+        return `⏭️ Jumped to #${position}: **${target.title}**`;
+    }
+
+    stop(guildId, options = {}) {
+        const disconnect = options.disconnect !== false;
         const state = this.queues.get(guildId);
         if (!state) {
             return '⚠️ Nothing to stop, sir.';
@@ -216,7 +271,12 @@ class MusicManager {
             state.timeout = null;
         }
 
-        // Stop the player before cleanup to ensure it actually stops
+        this.cancelPendingDownload(state);
+        this.releaseCurrent(state);
+        state.queue = [];
+        state.skipInProgress = false;
+
+        // Stop the player to interrupt active playback.
         try {
             if (state.player) {
                 state.player.stop(true);
@@ -225,13 +285,18 @@ class MusicManager {
             console.warn('Failed to stop player:', e?.message || e);
         }
 
-        this.cleanup(guildId);
-        return '🛑 Stopped playback and cleared queue.';
+        if (disconnect) {
+            this.cleanup(guildId);
+            return '🛑 Stopped playback and cleared queue.';
+        }
+
+        this.armInactivityTimeout(guildId, state);
+        return '⏹️ Stopped music and cleared queue.';
     }
 
     pause(guildId) {
         const state = this.queues.get(guildId);
-        if (!state?.player) {
+        if (!state?.player || !state.currentVideo) {
             return '⚠️ Nothing is playing, sir.';
         }
 
@@ -249,6 +314,45 @@ class MusicManager {
         return success ? '▶️ Resumed playback.' : '⚠️ Playback is not paused, sir.';
     }
 
+    getLoopMode(guildId) {
+        const state = this.queues.get(guildId);
+        if (!state) {
+            return null;
+        }
+        return state.loopMode || 'off';
+    }
+
+    setLoopMode(guildId, mode) {
+        const state = this.queues.get(guildId);
+        if (!state || (!state.currentVideo && !state.pendingVideoId && state.queue.length === 0)) {
+            return null;
+        }
+        const normalized = LOOP_MODES.includes(mode) ? mode : 'off';
+        state.loopMode = normalized;
+        return normalized;
+    }
+
+    cycleLoopMode(guildId) {
+        const current = this.getLoopMode(guildId) || 'off';
+        const idx = LOOP_MODES.indexOf(current);
+        const next = LOOP_MODES[(idx + 1) % LOOP_MODES.length];
+        return this.setLoopMode(guildId, next);
+    }
+
+    getQueueView(guildId) {
+        const state = this.queues.get(guildId);
+        if (!state) {
+            return null;
+        }
+
+        return {
+            current: state.currentVideo ? cloneTrack(state.currentVideo) : null,
+            queue: state.queue.map(track => cloneTrack(track)),
+            loopMode: state.loopMode || 'off',
+            pendingVideoId: state.pendingVideoId || null
+        };
+    }
+
     showQueue(guildId) {
         const state = this.queues.get(guildId);
         if (!state) {
@@ -263,11 +367,30 @@ class MusicManager {
 
         if (state.queue.length) {
             state.queue.forEach((track, index) => {
-                lines.push(`${index + 1}. ${track.title}`);
+                lines.push(`${index + 1}. ${track.title}${track.duration ? ` - \`${track.duration}\`` : ''}`);
             });
         }
 
+        lines.push(`• Loop: **${state.loopMode || 'off'}**`);
+
         return lines.length ? lines.join('\n') : 'Queue is empty.';
+    }
+
+    armInactivityTimeout(guildId, state) {
+        if (state.timeout) {
+            clearTimeout(state.timeout);
+        }
+        state.timeout = setTimeout(() => {
+            const queueState = this.queues.get(guildId);
+            if (queueState && !queueState.currentVideo && !queueState.pendingVideoId && queueState.queue.length === 0) {
+                if (queueState.textChannel) {
+                    queueState.textChannel
+                        .send('⌛ Leaving voice channel due to inactivity.')
+                        .catch(() => { });
+                }
+                this.cleanup(guildId);
+            }
+        }, IDLE_TIMEOUT_MS);
     }
 
     async createConnection(guildId, voiceChannel) {
@@ -283,12 +406,30 @@ class MusicManager {
 
             connection.on('stateChange', (_, newState) => {
                 if (newState.status === VoiceConnectionStatus.Disconnected) {
+                    const closeCode = extractVoiceCloseCode(newState);
+                    if (closeCode === 4017) {
+                        console.error(
+                            '[Voice] Disconnected with close code 4017 (DAVE required). ' +
+                            'Voice library/runtime may be out of date for Discord E2EE.'
+                        );
+                    }
                     setTimeout(() => {
                         const state = this.queues.get(guildId);
                         if (
                             state?.connection === connection &&
                             newState.status === VoiceConnectionStatus.Disconnected
                         ) {
+                            if (closeCode === 4017 && state.textChannel) {
+                                safeSend(
+                                    state.textChannel,
+                                    {
+                                        content:
+                                            '⚠️ Voice session rejected (Discord close code 4017: DAVE/E2EE required). ' +
+                                            'Please update voice runtime and try again.'
+                                    },
+                                    this.client
+                                ).catch(() => { });
+                            }
                             this.cleanup(guildId);
                         }
                     }, 5000);
@@ -330,7 +471,16 @@ class MusicManager {
             if (state.skipInProgress) {
                 state.skipInProgress = false;
             } else {
+                const finishedTrack = cloneTrack(state.currentVideo);
                 this.releaseCurrent(state);
+                if (state.loopMode === 'queue' && finishedTrack) {
+                    state.queue.push(finishedTrack);
+                }
+
+                if (state.loopMode === 'song' && finishedTrack) {
+                    await this.play(guildId, finishedTrack, { announce: 'channel' });
+                    return;
+                }
             }
 
             // Clear any existing timeout before deciding what to do
@@ -344,18 +494,7 @@ class MusicManager {
                 await this.play(guildId, next, { announce: 'channel' });
             } else if (!state.currentVideo && !state.pendingVideoId) {
                 // Only set inactivity timeout if truly idle (no current song, no pending, no queue)
-                state.timeout = setTimeout(() => {
-                    const queueState = this.queues.get(guildId);
-                    // Double-check we're still idle before leaving
-                    if (queueState && !queueState.currentVideo && !queueState.pendingVideoId && queueState.queue.length === 0) {
-                        if (queueState.textChannel) {
-                            queueState.textChannel
-                                .send('⌛ Leaving voice channel due to inactivity.')
-                                .catch(() => { });
-                        }
-                        this.cleanup(guildId);
-                    }
-                }, IDLE_TIMEOUT_MS);
+                this.armInactivityTimeout(guildId, state);
             }
         });
 

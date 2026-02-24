@@ -2,7 +2,7 @@
  * Spotify Playlist Import
  * 
  * Parses Spotify playlist URLs and converts tracks to YouTube searches
- * for playback via DisTube.
+ * for playback in the native music pipeline.
  */
 
 const fetch = require('node-fetch');

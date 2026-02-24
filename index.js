@@ -5,9 +5,6 @@
 
 /* eslint-disable no-console */
 
-// Patch @distube/yt-dlp to ignore stderr warnings (prevents JSON parse errors)
-require('./scripts/patch-ytdlp');
-
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
@@ -322,6 +319,12 @@ client.once(Events.ClientReady, async() => {
     try {
         const { musicManager } = require('./src/core/musicManager');
         musicManager.init(client);
+        try {
+            const voicePkg = require('@discordjs/voice/package.json');
+            console.log(`[Voice] DAVE-capable voice stack enabled (@discordjs/voice ${voicePkg.version}, Node ${process.version}).`);
+        } catch (_e) {
+            console.log(`[Voice] DAVE-capable voice stack enabled (Node ${process.version}).`);
+        }
     } catch (e) {
         console.warn('[MusicManager] Failed to initialize:', e.message);
     }
@@ -471,14 +474,6 @@ client.once(Events.ClientReady, async() => {
         console.log('[Giveaways] Manager initialized 🎁');
     } catch (e) {
         console.warn('Failed to start giveaway manager:', e);
-    }
-
-    // Initialize Distube Music
-    try {
-        const distube = require('./src/services/distube');
-        distube.init(client);
-    } catch (e) {
-        console.warn('Failed to start Distube:', e);
     }
 
     console.log('Provider status on startup:', aiManager.getProviderStatus());
