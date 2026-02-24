@@ -2,18 +2,23 @@
 
 const express = require('express');
 const router = express.Router();
+const { getPublicConfig } = require('../src/utils/public-config');
+
+const publicConfig = getPublicConfig();
+const DISCORD_INVITE = publicConfig.discordInviteUrl;
+const GA_MEASUREMENT_ID = publicConfig.gaMeasurementId;
 
 const PRIVACY_POLICY = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-7P8W1MN168"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-7P8W1MN168');
+      gtag('config', '${GA_MEASUREMENT_ID}');
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -115,7 +120,7 @@ const PRIVACY_POLICY = `
         </ul>
         
         <h2>Contact</h2>
-        <p>Discord: <a href="https://discord.com/invite/ksXzuBtmK5" target="_blank">https://discord.com/invite/ksXzuBtmK5</a></p>
+        <p>Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a></p>
         
         <div class="footer">
             <p>Effective Date: November 16, 2025</p>
@@ -131,12 +136,12 @@ const TERMS_OF_SERVICE = `
 <html lang="en">
 <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-7P8W1MN168"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-7P8W1MN168');
+      gtag('config', '${GA_MEASUREMENT_ID}');
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -230,7 +235,7 @@ const TERMS_OF_SERVICE = `
         <p>Jarvis integrates with external AI providers (e.g., OpenRouter) to generate responses. These providers may process input text temporarily for inference. Jarvis is not responsible for the data handling practices of third-party services.</p>
         
         <h2>10. Contact</h2>
-        <p>Questions or concerns? Contact us on Discord: <a href="https://discord.com/invite/ksXzuBtmK5" target="_blank">https://discord.com/invite/ksXzuBtmK5</a></p>
+        <p>Questions or concerns? Contact us on Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a></p>
         
         <h2>11. Changes to Terms</h2>
         <p>We may update these Terms periodically. Continued use of Jarvis after changes means you accept the revised version.</p>
