@@ -60,9 +60,11 @@ Advanced AI-powered moderation system with:
 - **Web Dashboard**: Full control panel at `/moderator` to view logs, manage queues, and configure settings
 
 ### Music
-YouTube playback via yt-dlp with auto-updates.
+Native Discord voice playback via `@discordjs/voice` + `yt-dlp`.
+- **Sources**: YouTube + SoundCloud (with SoundCloud API fallback for queries)
+- **Spotify URLs**: Explicitly unsupported in `/play` (use YouTube/SoundCloud instead)
 - **File Uploads**: Drag & drop MP3/FLAC/OGG files directly into chat to play them
-- **Smart Queue**: Mix YouTube links and uploaded files seamlessly
+- **Smart Queue**: Mix YouTube/SoundCloud links and uploaded files seamlessly
 - **Glitch-Free**: Enhanced buffering and fade-in for smooth playback
 
 ---
@@ -85,6 +87,8 @@ npm start
 ```
 
 > [!NOTE]
+> **Runtime Requirement**: Discord voice + DAVE support requires **Node 22.12+**.
+>
 > **Python Requirement**: yt-dlp requires **Python 3.10+** for music playback. Amazon Linux users should run:
 > ```bash
 > sudo dnf install -y python3.11
@@ -117,6 +121,10 @@ GROQ_API_KEY=...
 GOOGLE_AI_API_KEY=...
 OPENAI_API_KEY=...
 GOOGLE_SAFE_BROWSING_API_KEY=... # Real-time malicious link detection
+
+# SoundCloud API (recommended for reliable fallback/search)
+SOUNDCLOUD_CLIENT_ID=...
+SOUNDCLOUD_CLIENT_SECRET=...
 
 # Cloudflare Workers AI (optional)
 CLOUDFLARE_WORKER_URL=...  # Your deployed worker URL
@@ -283,10 +291,9 @@ pm2 restart jarvis
 ### 5. Music Playback - yt-dlp Not Found
 **Symptom:** `Error: spawn yt-dlp ENOENT` or similar
 
-**Fix:** yt-dlp should be installed via npm (`@distube/yt-dlp`). Check it exists:
+**Fix:** Jarvis downloads `yt-dlp` to a temp tools directory at runtime. Verify startup logs:
 ```bash
-ls node_modules/@distube/yt-dlp/bin/yt-dlp
-node_modules/@distube/yt-dlp/bin/yt-dlp --version
+pm2 logs jarvis --lines 100 | grep -i ytdlp
 ```
 
 If missing, reinstall dependencies:
@@ -296,25 +303,28 @@ npm install
 pm2 restart jarvis
 ```
 
+If it still fails, ensure `python3 --version` is 3.10+ and the runtime can write to `/tmp`.
+
 ### 6. Music Playback - Audio Glitches/Stuttering
 **Symptom:** Music plays but has crackling, pops, or stutters
 
 **Fixes:**
-1. **Increase buffer size** in `.env`:
-   ```env
-   YTDLP_BUFFER_SIZE=16384
-   ```
-2. **Check network latency** to Discord voice servers
-3. **Restart the queue**: `/stop` then `/play` again
+1. Check network latency to Discord voice servers
+2. Restart the queue: `/stop` then `/play` again
+3. Ensure Node is `22.12+` and bot host CPU is not throttled
 
 ### 7. Music Playback - JSON Parse Error
 **Symptom:** `SyntaxError: Unexpected token` when playing YouTube (often caused by Python DeprecationWarnings).
 
-**Cause:** `@distube/yt-dlp` library incorrectly mixes `stderr` (warnings) with `stdout` (JSON data).
+**Cause:** usually stale/corrupt yt-dlp binary output or upstream extractor changes.
 
-**Fix:** This project now includes an **auto-patcher** that runs on startup.
-- **Automatic:** The bot runs `scripts/patch-ytdlp.js` on every start to fix this.
-- **Manual:** Run `node scripts/patch-ytdlp.js` if you still see issues.
+**Fix:**
+1. restart the bot to trigger yt-dlp re-check
+2. if needed, clear temp tool/cache directories and restart:
+```bash
+rm -rf /tmp/jarvis-tools /tmp/jarvis-music-cache
+pm2 restart jarvis
+```
 
 
 ### 8. Database Connection Failed

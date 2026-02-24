@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const distube = require('../../services/distube');
+const { musicManager } = require('../../core/musicManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -18,36 +18,26 @@ module.exports = {
     async execute(interaction) {
         if (!interaction.guild) {return;}
 
-        let distubeInstance;
-        try {
-            distubeInstance = distube.get();
-        } catch (e) {
-            await interaction.reply({ content: '⚠️ Music system is still starting up.', flags: 64 });
-            return;
+        // DJ / Blocking Check
+        const { canControlMusic } = require('../../utils/dj-system');
+        if (!await canControlMusic(interaction)) {return;}
+
+        const manager = musicManager.get();
+        const mode = interaction.options.getString('mode');
+
+        let newMode = null;
+        if (!mode) {
+            newMode = manager.cycleLoopMode(interaction.guildId);
+        } else {
+            newMode = manager.setLoopMode(interaction.guildId, mode);
         }
 
-        const queue = distubeInstance.getQueue(interaction.guild);
-
-        if (!queue) {
+        if (!newMode) {
             await interaction.reply({ content: '⚠️ Nothing is playing right now.', flags: 64 });
             return;
         }
 
-        const mode = interaction.options.getString('mode');
-
-        // If no mode specified, cycle through: off -> song -> queue -> off
-        let newMode;
-        if (!mode) {
-            if (queue.repeatMode === 0) {newMode = 1;}      // off -> song
-            else if (queue.repeatMode === 1) {newMode = 2;} // song -> queue
-            else {newMode = 0;}                              // queue -> off
-        } else {
-            newMode = mode === 'song' ? 1 : mode === 'queue' ? 2 : 0;
-        }
-
-        queue.setRepeatMode(newMode);
-
-        const modeNames = ['❌ Off', '🔂 Song', '🔁 Queue'];
-        await interaction.reply(`🔄 Loop mode: **${modeNames[newMode]}**`);
+        const modeName = newMode === 'song' ? '🔂 Song' : newMode === 'queue' ? '🔁 Queue' : '❌ Off';
+        await interaction.reply({ content: `🔄 Loop mode: **${modeName}**`, flags: 64 });
     }
 };

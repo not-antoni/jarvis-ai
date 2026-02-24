@@ -1,7 +1,7 @@
 /**
  * Audio Effects for Music Playback
  * 
- * FFmpeg audio filter presets for DisTube.
+ * FFmpeg audio filter presets for the native music stack.
  * Add effects like bass boost, nightcore, slowed, etc.
  */
 
@@ -161,9 +161,9 @@ function formatEffectDisplay(effectName) {
 }
 
 /**
- * Apply effect to DisTube queue filters
+ * Apply effect metadata to queue filters
  * Note: This modifies the queue's ffmpeg args
- * @param {Queue} queue - DisTube queue
+ * @param {Object} queue - Active queue state
  * @param {string} effectName - Effect name
  * @returns {{ success: boolean, effect?: Object, error?: string }}
  */

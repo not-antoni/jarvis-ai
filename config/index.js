@@ -228,6 +228,12 @@ const rawConfig = {
         apiKey: process.env.YOUTUBE_API_KEY
     },
 
+    // SoundCloud API Configuration
+    soundcloud: {
+        clientId: process.env.SOUNDCLOUD_CLIENT_ID || null,
+        clientSecret: process.env.SOUNDCLOUD_CLIENT_SECRET || null
+    },
+
     // Brave Search API Configuration
     brave: {
         apiKey: process.env.BRAVE_API_KEY
