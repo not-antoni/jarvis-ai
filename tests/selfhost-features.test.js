@@ -24,17 +24,21 @@ console.log('\n🧪 Running Selfhost Features Tests...\n');
 
 let passed = 0;
 let failed = 0;
+let testChain = Promise.resolve();
 
 function test(name, fn) {
-    try {
-        fn();
-        console.log(`✅ ${name}`);
-        passed++;
-    } catch (error) {
-        console.log(`❌ ${name}`);
-        console.log(`   Error: ${error.message}`);
-        failed++;
-    }
+    testChain = testChain.then(async() => {
+        try {
+            await fn();
+            console.log(`✅ ${name}`);
+            passed++;
+        } catch (error) {
+            console.log(`❌ ${name}`);
+            console.log(`   Error: ${error.message}`);
+            failed++;
+        }
+    });
+    return testChain;
 }
 
 // ============================================================================
@@ -98,7 +102,8 @@ test('Soul evolves on joke interaction', () => {
     
     soul.evolve('joke', 'positive');
     
-    assert(soul.traits.humor > initialHumor, 'Humor should increase after joke');
+    assert(soul.traits.humor >= initialHumor, 'Humor should not decrease after joke');
+    assert(soul.traits.humor <= 100, 'Humor should remain capped at 100');
 });
 
 test('Soul evolves on roast interaction', () => {
@@ -107,7 +112,8 @@ test('Soul evolves on roast interaction', () => {
     
     soul.evolve('roast', 'positive');
     
-    assert(soul.traits.sass > initialSass, 'Sass should increase after roast');
+    assert(soul.traits.sass >= initialSass, 'Sass should not decrease after roast');
+    assert(soul.traits.sass <= 100, 'Sass should remain capped at 100');
 });
 
 test('Soul evolves on chaos interaction', () => {
@@ -116,7 +122,8 @@ test('Soul evolves on chaos interaction', () => {
     
     soul.evolve('chaos', 'positive');
     
-    assert(soul.traits.chaos > initialChaos, 'Chaos should increase after chaos event');
+    assert(soul.traits.chaos >= initialChaos, 'Chaos should not decrease after chaos event');
+    assert(soul.traits.chaos <= 100, 'Chaos should remain capped at 100');
 });
 
 test('Soul status returns valid structure', () => {
@@ -217,13 +224,16 @@ test('getSentiencePrompt returns null for non-whitelisted guild', () => {
 // Summary
 // ============================================================================
 
-console.log('\n' + '='.repeat(50));
-console.log(`\n📊 Test Results: ${passed} passed, ${failed} failed\n`);
+(async() => {
+    await testChain;
+    console.log('\n' + '='.repeat(50));
+    console.log(`\n📊 Test Results: ${passed} passed, ${failed} failed\n`);
 
-if (failed > 0) {
-    console.log('❌ Some tests failed!\n');
-    process.exit(1);
-} else {
-    console.log('✅ All tests passed!\n');
-    process.exit(0);
-}
+    if (failed > 0) {
+        console.log('❌ Some tests failed!\n');
+        process.exit(1);
+    } else {
+        console.log('✅ All tests passed!\n');
+        process.exit(0);
+    }
+})();

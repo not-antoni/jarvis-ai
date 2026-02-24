@@ -7,9 +7,9 @@ const router = express.Router();
 
 function createScrapingRouter(discordHandlers, productionAgent) {
     const BrowserAgent = require('../agents/browserAgent');
-    const WikipediaScraper = require('./wikipediaScraper');
-    const ImageManager = require('./imageManager');
-    const ScraperUtils = require('./scraperUtils');
+    const WikipediaScraper = require('../scrapers/wikipediaScraper');
+    const ImageManager = require('../scrapers/imageManager');
+    const ScraperUtils = require('../scrapers/scraperUtils');
 
     const browserAgent = discordHandlers?.browserAgent || new BrowserAgent();
     const imageManager = new ImageManager();

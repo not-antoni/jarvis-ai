@@ -10,6 +10,7 @@
  *   node scripts/selfhost-setup.js          # Interactive setup
  *   node scripts/selfhost-setup.js --verify # Verify current configuration
  *   node scripts/selfhost-setup.js --force  # Re-run setup from scratch
+ *   node scripts/selfhost-setup.js --non-interactive --yes # Safe defaults for automation
  */
 
 const readline = require('readline');
@@ -24,6 +25,7 @@ const ENV_EXAMPLE_PATH = path.join(__dirname, '..', '.env.example');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const SETUP_COMPLETE_FILE = path.join(DATA_DIR, '.selfhost-setup-complete');
 const PROJECT_ROOT = path.join(__dirname, '..');
+const SIMPLE_ENV_VALUE_REGEX = /^[A-Za-z0-9_./:@%+-]+$/;
 
 // ANSI colors
 const colors = {
@@ -48,16 +50,24 @@ const log = {
 };
 
 class SelfhostSetup {
-    constructor() {
+    constructor(options = {}) {
         this.rl = readline.createInterface({
             input: process.stdin,
             output: process.stdout
         });
+        this.options = {
+            assumeYes: Boolean(options.assumeYes),
+            nonInteractive: Boolean(options.nonInteractive)
+        };
         this.envVars = {};
         this.existingEnv = {};
+        this.completedSuccessfully = false;
     }
 
     async prompt(question, defaultValue = '') {
+        if (this.options.nonInteractive) {
+            return String(defaultValue || '');
+        }
         const defaultStr = defaultValue ? ` ${colors.dim}[${defaultValue}]${colors.reset}` : '';
         return new Promise(resolve => {
             this.rl.question(`${question}${defaultStr}: `, answer => {
@@ -67,6 +77,12 @@ class SelfhostSetup {
     }
 
     async promptYesNo(question, defaultYes = true) {
+        if (this.options.assumeYes) {
+            return true;
+        }
+        if (this.options.nonInteractive) {
+            return defaultYes;
+        }
         const hint = defaultYes ? '[Y/n]' : '[y/N]';
         const answer = await this.prompt(`${question} ${hint}`);
         if (!answer) {return defaultYes;}
@@ -79,21 +95,73 @@ class SelfhostSetup {
         return this.prompt(question, '');
     }
 
+    parseEnvContent(content) {
+        const parsed = {};
+        for (const rawLine of content.split('\n')) {
+            const line = rawLine.trim();
+            if (!line || line.startsWith('#')) {
+                continue;
+            }
+
+            const match = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+            if (!match) {
+                continue;
+            }
+
+            const key = match[1];
+            const rawValue = match[2].trim();
+            parsed[key] = this.parseEnvValue(rawValue);
+        }
+        return parsed;
+    }
+
+    parseEnvValue(rawValue) {
+        let value = rawValue;
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+        }
+
+        return value
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
+    }
+
+    formatEnvValue(value) {
+        const normalized = String(value ?? '');
+        if (!normalized.length) {
+            return '""';
+        }
+        if (SIMPLE_ENV_VALUE_REGEX.test(normalized)) {
+            return normalized;
+        }
+        const escaped = normalized
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n');
+        return `"${escaped}"`;
+    }
+
+    escapeRegExp(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    safeHostnameFromUrl(rawUrl) {
+        if (!rawUrl) {
+            return null;
+        }
+        try {
+            return new URL(rawUrl).hostname;
+        } catch {
+            return null;
+        }
+    }
+
     loadExistingEnv() {
         if (fs.existsSync(ENV_PATH)) {
             const content = fs.readFileSync(ENV_PATH, 'utf8');
-            for (const line of content.split('\n')) {
-                const match = line.match(/^([^#=]+)=(.*)$/);
-                if (match) {
-                    let value = match[2].trim();
-                    // Remove quotes
-                    if ((value.startsWith('"') && value.endsWith('"')) ||
-                        (value.startsWith("'") && value.endsWith("'"))) {
-                        value = value.slice(1, -1);
-                    }
-                    this.existingEnv[match[1].trim()] = value;
-                }
-            }
+            this.existingEnv = this.parseEnvContent(content);
         }
     }
 
@@ -393,6 +461,15 @@ WantedBy=timers.target
         console.clear();
         log.header('Jarvis AI - Selfhost Setup Wizard');
 
+        if ((!process.stdin.isTTY || !process.stdout.isTTY) && !this.options.nonInteractive) {
+            log.warn('No interactive TTY detected. Switching to non-interactive defaults.');
+            this.options.nonInteractive = true;
+        }
+
+        if (this.options.nonInteractive) {
+            log.info('Running in non-interactive mode (existing values + safe defaults).');
+        }
+
         // Check if already set up
         if (fs.existsSync(SETUP_COMPLETE_FILE)) {
             log.info('Selfhost setup was already completed.');
@@ -453,6 +530,9 @@ WantedBy=timers.target
             discordToken = await this.promptSecret('Enter Discord Bot Token');
         }
         if (discordToken) {this.envVars.DISCORD_TOKEN = discordToken;}
+        if (!discordToken) {
+            throw new Error('DISCORD_TOKEN is required. Re-run setup and provide a valid token.');
+        }
 
         // Discord OAuth (for moderator dashboard)
         const hasOAuth = this.existingEnv.DISCORD_CLIENT_ID && this.existingEnv.DISCORD_CLIENT_SECRET;
@@ -506,16 +586,22 @@ WantedBy=timers.target
                 log.warn('Local MongoDB not detected on localhost:27017');
                 log.info('Install MongoDB: sudo apt install mongodb-org && sudo systemctl start mongod');
 
-                const useLocalDb = await this.promptYesNo('Continue without MongoDB (LOCAL_DB_MODE)?', false);
-                if (useLocalDb) {
+                if (this.options.nonInteractive) {
                     this.envVars.LOCAL_DB_MODE = '1';
                     this.envVars.ALLOW_START_WITHOUT_DB = '1';
-                    log.warn('Using LOCAL_DB_MODE - some features like Starkbucks will be disabled');
+                    log.warn('No Mongo URI in non-interactive mode; using LOCAL_DB_MODE.');
                 } else {
-                    const mongoMain = await this.prompt('MongoDB Main URI (Atlas or custom)', '');
-                    const mongoVault = await this.prompt('MongoDB Vault URI', mongoMain);
-                    if (mongoMain) {this.envVars.MONGO_URI_MAIN = mongoMain;}
-                    if (mongoVault) {this.envVars.MONGO_URI_VAULT = mongoVault;}
+                    const useLocalDb = await this.promptYesNo('Continue without MongoDB (LOCAL_DB_MODE)?', false);
+                    if (useLocalDb) {
+                        this.envVars.LOCAL_DB_MODE = '1';
+                        this.envVars.ALLOW_START_WITHOUT_DB = '1';
+                        log.warn('Using LOCAL_DB_MODE - some features like Starkbucks will be disabled');
+                    } else {
+                        const mongoMain = await this.prompt('MongoDB Main URI (Atlas or custom)', '');
+                        const mongoVault = await this.prompt('MongoDB Vault URI', mongoMain);
+                        if (mongoMain) {this.envVars.MONGO_URI_MAIN = mongoMain;}
+                        if (mongoVault) {this.envVars.MONGO_URI_VAULT = mongoVault;}
+                    }
                 }
             }
         }
@@ -584,6 +670,7 @@ WantedBy=timers.target
         // Mark setup as complete
         fs.mkdirSync(DATA_DIR, { recursive: true });
         fs.writeFileSync(SETUP_COMPLETE_FILE, new Date().toISOString());
+        this.completedSuccessfully = true;
 
         // Step 10: Post-Setup Instructions
         log.header('Setup Complete!');
@@ -642,7 +729,7 @@ WantedBy=timers.target
         log.info('This will install/configure system dependencies.');
         log.info('Some commands require sudo (you may be prompted for password).\n');
 
-        const runSetup = await this.promptYesNo('Run automated system setup?', true);
+        const runSetup = await this.promptYesNo('Run automated system setup?', this.options.nonInteractive ? false : true);
         if (!runSetup) {
             log.info('Skipping system setup. You can run these manually later.');
             return;
@@ -651,17 +738,25 @@ WantedBy=timers.target
         const pm = new PackageManager();
         await pm.detect();
         log.info(`Detected Config: ${pm.type} (${pm.manager})`);
+        const canInstallPackages = pm.type !== 'unknown';
+        if (!canInstallPackages) {
+            log.warn('Unsupported package manager detected; skipping automatic package installations.');
+        }
 
         const setupTasks = [];
 
         // Check and install ffmpeg
         if (!this.commandExists('ffmpeg')) {
-            setupTasks.push({
-                name: 'Install ffmpeg',
-                cmd: pm.install('ffmpeg'),
-                check: () => this.commandExists('ffmpeg'),
-                envVar: { key: 'FFMPEG_PATH', value: '/usr/bin/ffmpeg' }
-            });
+            if (canInstallPackages) {
+                setupTasks.push({
+                    name: 'Install ffmpeg',
+                    cmd: pm.install('ffmpeg'),
+                    check: () => this.commandExists('ffmpeg'),
+                    envVar: { key: 'FFMPEG_PATH', value: '/usr/bin/ffmpeg' }
+                });
+            } else {
+                log.warn('ffmpeg missing and could not auto-install (unknown package manager).');
+            }
         } else {
             log.success('ffmpeg already installed');
             this.envVars.FFMPEG_PATH = '/usr/bin/ffmpeg';
@@ -679,16 +774,24 @@ WantedBy=timers.target
         }
 
         // Configure firewall
-        const configureFirewall = await this.promptYesNo('Configure firewall (allow SSH + HTTP/HTTPS)?', true);
+        const configureFirewall = await this.promptYesNo(
+            'Configure firewall (allow SSH + HTTP/HTTPS)?',
+            this.options.nonInteractive ? false : true
+        );
         if (configureFirewall) {
             if (pm.type === 'debian') {
+                if (!this.commandExists('ufw') && canInstallPackages) {
+                    setupTasks.push({ name: 'Install ufw', cmd: pm.install('ufw'), check: () => this.commandExists('ufw') });
+                }
                 setupTasks.push({ name: 'Allow SSH', cmd: 'sudo ufw allow ssh', check: () => true });
                 setupTasks.push({ name: 'Allow HTTP', cmd: 'sudo ufw allow 80', check: () => true });
                 setupTasks.push({ name: 'Allow HTTPS', cmd: 'sudo ufw allow 443', check: () => true });
                 setupTasks.push({ name: 'Enable firewall', cmd: 'echo "y" | sudo ufw enable', check: () => true });
             } else if (pm.type === 'rhel') {
                 // Firewalld
-                setupTasks.push({ name: 'Install firewalld', cmd: pm.install('firewalld'), check: () => true });
+                if (canInstallPackages) {
+                    setupTasks.push({ name: 'Install firewalld', cmd: pm.install('firewalld'), check: () => true });
+                }
                 setupTasks.push({ name: 'Start firewalld', cmd: 'sudo systemctl start firewalld && sudo systemctl enable firewalld', check: () => true });
                 setupTasks.push({ name: 'Allow SSH', cmd: 'sudo firewall-cmd --permanent --add-service=ssh', check: () => true });
                 setupTasks.push({ name: 'Allow HTTP', cmd: 'sudo firewall-cmd --permanent --add-service=http', check: () => true });
@@ -700,7 +803,10 @@ WantedBy=timers.target
         // Setup Nginx reverse proxy with Cloudflare-only protection
         const domain = this.envVars.JARVIS_DOMAIN || this.existingEnv.JARVIS_DOMAIN || '';
         if (domain) {
-            const setupNginx = await this.promptYesNo(`Setup Nginx reverse proxy for ${domain}?`, true);
+            const setupNginx = await this.promptYesNo(
+                `Setup Nginx reverse proxy for ${domain}?`,
+                this.options.nonInteractive ? false : true
+            );
             if (setupNginx) {
                 // Ask about Cloudflare-only protection
                 const enableCloudflareOnly = await this.promptYesNo(
@@ -708,11 +814,15 @@ WantedBy=timers.target
                     true
                 );
 
-                setupTasks.push({
-                    name: 'Install Nginx',
-                    cmd: pm.install('nginx'),
-                    check: () => this.commandExists('nginx')
-                });
+                if (canInstallPackages && !this.commandExists('nginx')) {
+                    setupTasks.push({
+                        name: 'Install Nginx',
+                        cmd: pm.install('nginx'),
+                        check: () => this.commandExists('nginx')
+                    });
+                } else if (!this.commandExists('nginx')) {
+                    log.warn('Nginx missing and could not auto-install (unknown package manager).');
+                }
 
                 // Create Cloudflare IPs config if enabled
                 if (enableCloudflareOnly) {
@@ -831,7 +941,10 @@ WantedBy=timers.target
 
         // Set up PM2 startup if available
         if (this.commandExists('pm2')) {
-            const setupPm2Startup = await this.promptYesNo('Configure PM2 to start on boot?', true);
+            const setupPm2Startup = await this.promptYesNo(
+                'Configure PM2 to start on boot?',
+                this.options.nonInteractive ? false : true
+            );
             if (setupPm2Startup) {
                 log.info('Setting up PM2 startup...');
                 try {
@@ -865,7 +978,10 @@ WantedBy=timers.target
         log.step('VPS Performance Optimization');
         log.info('These optimizations improve audio streaming and reduce glitches.');
 
-        const optimize = await this.promptYesNo('Apply VPS performance optimizations?', true);
+        const optimize = await this.promptYesNo(
+            'Apply VPS performance optimizations?',
+            this.options.nonInteractive ? false : true
+        );
         if (!optimize) {
             log.info('Skipping VPS optimization.');
             return;
@@ -875,7 +991,7 @@ WantedBy=timers.target
             {
                 name: 'Set swappiness to 5 (minimal swapping)',
                 cmd: 'echo 5 | sudo tee /proc/sys/vm/swappiness > /dev/null',
-                persist: 'echo "vm.swappiness=5" | sudo tee -a /etc/sysctl.conf > /dev/null 2>&1 || true'
+                persist: 'grep -q "^vm.swappiness=" /etc/sysctl.conf || echo "vm.swappiness=5" | sudo tee -a /etc/sysctl.conf > /dev/null 2>&1 || true'
             },
             {
                 name: 'Drop memory caches',
@@ -888,7 +1004,7 @@ WantedBy=timers.target
             {
                 name: 'Increase max file descriptors',
                 cmd: 'sudo sysctl -w fs.file-max=100000 > /dev/null 2>&1 || true',
-                persist: 'echo "fs.file-max=100000" | sudo tee -a /etc/sysctl.conf > /dev/null 2>&1 || true'
+                persist: 'grep -q "^fs.file-max=" /etc/sysctl.conf || echo "fs.file-max=100000" | sudo tee -a /etc/sysctl.conf > /dev/null 2>&1 || true'
             },
             {
                 name: 'Optimize network buffers for streaming',
@@ -966,20 +1082,25 @@ WantedBy=timers.target
     }
 
     async setupCloudflareSSL() {
-        const domain = this.envVars.PUBLIC_DOMAIN || this.existingEnv.PUBLIC_DOMAIN ||
-            (this.envVars.PUBLIC_BASE_URL ? new URL(this.envVars.PUBLIC_BASE_URL).hostname : null);
+        const urlHost = this.safeHostnameFromUrl(this.envVars.PUBLIC_BASE_URL || this.existingEnv.PUBLIC_BASE_URL);
+        const domain = this.envVars.PUBLIC_DOMAIN || this.existingEnv.PUBLIC_DOMAIN || urlHost;
 
         if (!domain || domain === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(domain)) {
             log.info('Skipping Cloudflare SSL: No valid domain name configured.');
             return;
         }
 
-        const setupSSL = await this.promptYesNo(`Setup Cloudflare SSL for ${domain}?`, true);
+        const defaultSetup = this.options.nonInteractive ? false : true;
+        const setupSSL = await this.promptYesNo(`Setup Cloudflare SSL for ${domain}?`, defaultSetup);
         if (!setupSSL) {return;}
 
         // 1. Get Credentials
         let headers = await this.headers();
         if (!headers) {
+            if (this.options.nonInteractive) {
+                log.info('Skipping Cloudflare SSL in non-interactive mode (credentials missing).');
+                return;
+            }
             log.info('Cloudflare credentials not found.');
             const useToken = await this.promptYesNo('Do you have an API Token (Recommended)?', true);
 
@@ -1054,8 +1175,7 @@ WantedBy=timers.target
             content += `# Generated by selfhost-setup.js on ${new Date().toISOString()}\n\n`;
 
             for (const [key, value] of Object.entries(this.envVars)) {
-                const needsQuotes = /[\s#=]/.test(value);
-                content += needsQuotes ? `${key}="${value}"\n` : `${key}=${value}\n`;
+                content += `${key}=${this.formatEnvValue(value)}\n`;
             }
 
             fs.writeFileSync(ENV_PATH, content);
@@ -1075,11 +1195,10 @@ WantedBy=timers.target
         const toAppend = [];
 
         for (const [key, value] of Object.entries(this.envVars)) {
-            const needsQuotes = /[\s#=]/.test(value);
-            const formattedValue = needsQuotes ? `"${value}"` : value;
+            const formattedValue = this.formatEnvValue(value);
 
             // Check if key already exists in file
-            const keyRegex = new RegExp(`^${key}=.*$`, 'm');
+            const keyRegex = new RegExp(`^${this.escapeRegExp(key)}=.*$`, 'm');
 
             if (keyRegex.test(existingContent)) {
                 // Update existing key in place
@@ -1443,6 +1562,9 @@ class SystemVerifier {
 const args = process.argv.slice(2);
 const verifyMode = args.includes('--verify') || args.includes('-v');
 const forceSetup = args.includes('--force') || args.includes('-f');
+const assumeYes = args.includes('--yes') || args.includes('-y');
+const nonInteractive = args.includes('--non-interactive') || args.includes('--ci') ||
+    assumeYes || !process.stdin.isTTY || !process.stdout.isTTY;
 
 if (forceSetup) {
     if (fs.existsSync(SETUP_COMPLETE_FILE)) {
@@ -1459,7 +1581,7 @@ if (verifyMode) {
     });
 } else {
     // Interactive setup mode
-    const setup = new SelfhostSetup();
+    const setup = new SelfhostSetup({ assumeYes, nonInteractive });
     setup.run()
         .then(() => {
             process.exit(0);
@@ -1475,7 +1597,9 @@ if (verifyMode) {
 
     // Handle unexpected readline close
     setup.rl.on('close', () => {
-        console.error(`\n${  colors.yellow  }Setup interrupted.${  colors.reset}`);
+        if (!setup.completedSuccessfully) {
+            console.error(`\n${colors.yellow}Setup interrupted.${colors.reset}`);
+        }
     });
 }
 
