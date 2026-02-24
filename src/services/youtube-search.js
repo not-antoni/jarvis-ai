@@ -20,6 +20,11 @@ class YouTubeSearch {
     }
 
     async searchVideo(query) {
+        const batch = await this.searchVideos(query, 1);
+        return batch.items[0] || null;
+    }
+
+    async searchVideos(query, maxResults = 24) {
         if (!this.youtube) {
             throw new Error(
                 'YouTube API not configured. Please set YOUTUBE_API_KEY environment variable.'
@@ -27,29 +32,42 @@ class YouTubeSearch {
         }
 
         try {
+            const limit = Math.max(1, Math.min(50, Number(maxResults) || 24));
             const searchResponse = await this.youtube.search.list({
                 part: 'snippet',
                 q: query,
                 type: 'video',
-                maxResults: 1,
+                maxResults: limit,
                 order: 'relevance',
                 safeSearch: 'moderate'
             });
 
-            if (searchResponse.data.items && searchResponse.data.items.length > 0) {
-                const video = searchResponse.data.items[0];
-                return {
-                    title: video.snippet.title,
-                    channel: video.snippet.channelTitle,
-                    description: `${video.snippet.description.substring(0, 200)  }...`,
-                    url: `https://www.youtube.com/watch?v=${video.id.videoId}`,
-                    thumbnail:
-                        video.snippet.thumbnails.medium?.url ||
-                        video.snippet.thumbnails.default?.url,
-                    publishedAt: new Date(video.snippet.publishedAt).toLocaleDateString()
-                };
-            } 
-            return null;
+            const items = Array.isArray(searchResponse.data.items)
+                ? searchResponse.data.items
+                : [];
+
+            return {
+                totalResults: Number(searchResponse.data.pageInfo?.totalResults) || items.length,
+                items: items.map((video) => {
+                    const rawDescription = video?.snippet?.description || '';
+                    return {
+                        videoId: video?.id?.videoId || null,
+                        title: video?.snippet?.title || 'Untitled Video',
+                        channel: video?.snippet?.channelTitle || 'Unknown channel',
+                        description: rawDescription.length > 200 ? `${rawDescription.substring(0, 200)}...` : rawDescription,
+                        url: video?.id?.videoId ? `https://www.youtube.com/watch?v=${video.id.videoId}` : null,
+                        thumbnail:
+                            video?.snippet?.thumbnails?.maxres?.url ||
+                            video?.snippet?.thumbnails?.high?.url ||
+                            video?.snippet?.thumbnails?.medium?.url ||
+                            video?.snippet?.thumbnails?.default?.url ||
+                            null,
+                        publishedAt: video?.snippet?.publishedAt
+                            ? new Date(video.snippet.publishedAt).toLocaleDateString()
+                            : null
+                    };
+                }).filter((item) => item.url)
+            };
             
         } catch (error) {
             console.error('YouTube API error:', error);
