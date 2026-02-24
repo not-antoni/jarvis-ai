@@ -547,14 +547,7 @@ async function handleAvatar(interaction) {
             avatarUrl = targetUser.displayAvatarURL({ size: 4096, forceStatic: false });
         }
 
-        const embed = new EmbedBuilder()
-            .setColor(0x5865f2)
-            .setTitle(`Avatar • ${targetUser.tag}`)
-            .setURL(avatarUrl)
-            .setImage(avatarUrl)
-            .setFooter({ text: useServerAvatar ? 'Server avatar' : 'Global avatar' });
-
-        return { embeds: [embed] };
+        return avatarUrl;
     } catch (error) {
         console.error('Avatar command failed:', error);
         return 'Unable to fetch avatar right now, sir.';
