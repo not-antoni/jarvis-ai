@@ -3,8 +3,8 @@
 const { PermissionsBitField, EmbedBuilder } = require('discord.js');
 
 async function handleMonitorCommand(interaction) {
-    const monitorSubscriptions = require('./monitor-subscriptions');
-    const monitorUtils = require('./monitor-utils');
+    const monitorSubscriptions = require('../monitor-subscriptions');
+    const monitorUtils = require('../monitor-utils');
 
     const { guildId } = interaction;
     const userId = interaction.user.id;
@@ -492,7 +492,7 @@ async function handleMonitorCommand(interaction) {
         }
 
         if (subcommand === 'status') {
-            const monitorScheduler = require('./monitor-scheduler');
+            const monitorScheduler = require('../monitor-scheduler');
             const schedulerStatus =
                 monitorScheduler && typeof monitorScheduler.getStatus === 'function'
                     ? monitorScheduler.getStatus()

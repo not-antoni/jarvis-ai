@@ -442,7 +442,7 @@ async function handlePwdgen(interaction) {
         };
     } catch (error) {
         try {
-            const errorLogger = require('./error-logger');
+            const errorLogger = require('../error-logger');
             await errorLogger.log({
                 error,
                 context: {
@@ -497,7 +497,7 @@ async function handleQrcode(interaction) {
         };
     } catch (error) {
         try {
-            const errorLogger = require('./error-logger');
+            const errorLogger = require('../error-logger');
             await errorLogger.log({
                 error,
                 context: {
