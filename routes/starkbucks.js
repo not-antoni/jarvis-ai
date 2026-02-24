@@ -17,6 +17,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const userAuth = require('../src/services/user-auth');
+const { getPublicConfig } = require('../src/utils/public-config');
 
 // ============================================================================
 // MIDDLEWARE
@@ -26,11 +27,7 @@ const userAuth = require('../src/services/user-auth');
 router.use(express.json());
 
 // CORS for API routes - restrict to same origin for authenticated endpoints
-const ALLOWED_ORIGINS = [
-    process.env.PUBLIC_BASE_URL,
-    'http://localhost:3000',
-    'http://localhost:5173'
-].filter(Boolean);
+const ALLOWED_ORIGINS = getPublicConfig().corsAllowedOrigins;
 
 router.use('/api', (req, res, next) => {
     const { origin } = req.headers;

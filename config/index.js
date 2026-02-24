@@ -4,6 +4,7 @@
 
 const path = require('path');
 const validateConfig = require('./validate');
+const { getPublicConfig } = require('../src/utils/public-config');
 
 function parseBooleanEnv(envValue, fallback = false) {
     if (envValue == null) {
@@ -56,6 +57,7 @@ const deploymentTarget = resolveDeploymentTarget();
 const selfhostMode = parseBooleanEnv(process.env.SELFHOST_MODE, false) || deploymentTarget === 'selfhost';
 const headlessBrowserEnabled = parseBooleanEnv(process.env.HEADLESS_BROWSER_ENABLED, true);
 const liveAgentModeEnabled = parseBooleanEnv(process.env.LIVE_AGENT_MODE, true);
+const publicConfig = getPublicConfig();
 const agentAllowlist = (process.env.AGENT_ALLOWLIST_DOMAINS || '')
     .split(',')
     .map(s => s.trim().toLowerCase())
@@ -179,7 +181,17 @@ const rawConfig = {
         host: process.env.SERVER_BIND_HOST || (selfhostMode ? '127.0.0.1' : '0.0.0.0'),
         port: process.env.PORT || 3000,
         uptimeInterval: 300000, // 5 minutes
-        healthToken: process.env.HEALTH_TOKEN || null
+        healthToken: process.env.HEALTH_TOKEN || null,
+        corsAllowedOrigins: publicConfig.corsAllowedOrigins
+    },
+
+    // Public site/runtime configuration
+    site: {
+        baseUrl: publicConfig.baseUrl,
+        domain: publicConfig.domain,
+        discordInviteUrl: publicConfig.discordInviteUrl,
+        botInviteUrl: publicConfig.botInviteUrl,
+        gaMeasurementId: publicConfig.gaMeasurementId
     },
 
     // Wake Words

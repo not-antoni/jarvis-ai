@@ -1,6 +1,8 @@
 'use strict';
 
-const DISCORD_INVITE = 'https://discord.com/invite/ksXzuBtmK5';
+const { getPublicConfig } = require('../../src/utils/public-config');
+
+const DISCORD_INVITE = getPublicConfig().discordInviteUrl;
 
 const SHARED_STYLES = `
     * { margin: 0; padding: 0; box-sizing: border-box; }
