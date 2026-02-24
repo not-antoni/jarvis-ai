@@ -34,6 +34,13 @@ class SoundCloudApi {
         this.oauthBlockedUntil = 0;
         this.configuredClientIdBlockedUntil = 0;
         this.lastWebClientIdFailureAt = 0;
+
+        if (String(process.env.SOUNDCLOUD_DISABLE_WEB_CLIENT_WARMUP || '') !== '1') {
+            const warmup = setImmediate(() => {
+                this.getWebClientId().catch(() => {});
+            });
+            warmup.unref?.();
+        }
     }
 
     isConfigured() {
@@ -240,6 +247,21 @@ class SoundCloudApi {
         };
 
         const authErrors = [];
+        const preferWebClient = path.startsWith('/search/');
+
+        if (preferWebClient && this.webClientId) {
+            const webCached = await executeRequest({ clientId: this.webClientId });
+            if (webCached.ok) {
+                return webCached.data;
+            }
+            if (webCached.status === 401 || webCached.status === 403) {
+                authErrors.push(`web_client_id_cached:${webCached.status}`);
+            } else {
+                throw new Error(
+                    `SoundCloud API request failed (${webCached.status}): ${webCached.raw || 'unknown'}`
+                );
+            }
+        }
 
         if (this.canUseOAuth() && !this.isOauthBlocked()) {
             try {
