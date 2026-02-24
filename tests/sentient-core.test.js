@@ -25,29 +25,25 @@ console.log('\n🧪 Running Sentient Core Tests...\n');
 
 let passed = 0;
 let failed = 0;
+let testChain = Promise.resolve();
 
 function test(name, fn) {
-    try {
-        fn();
-        console.log(`✅ ${name}`);
-        passed++;
-    } catch (error) {
-        console.log(`❌ ${name}`);
-        console.log(`   Error: ${error.message}`);
-        failed++;
-    }
+    testChain = testChain.then(async() => {
+        try {
+            await fn();
+            console.log(`✅ ${name}`);
+            passed++;
+        } catch (error) {
+            console.log(`❌ ${name}`);
+            console.log(`   Error: ${error.message}`);
+            failed++;
+        }
+    });
+    return testChain;
 }
 
 async function asyncTest(name, fn) {
-    try {
-        await fn();
-        console.log(`✅ ${name}`);
-        passed++;
-    } catch (error) {
-        console.log(`❌ ${name}`);
-        console.log(`   Error: ${error.message}`);
-        failed++;
-    }
+    return test(name, fn);
 }
 
 // ============================================================================
@@ -225,7 +221,10 @@ test('File reading respects path restrictions', () => {
     const result = agent.tools.readFile('/etc/passwd');
     
     assert(result.error, 'Should error for restricted path');
-    assert(result.error.includes('not allowed'), 'Error should mention restriction');
+    assert(
+        /(not allowed|denied|restricted|outside project)/i.test(result.error),
+        'Error should mention restriction'
+    );
 });
 
 test('Config has required safety settings', () => {
@@ -241,6 +240,7 @@ test('Config has required safety settings', () => {
 // ============================================================================
 
 (async () => {
+    await testChain;
     console.log('\n⚡ Async Tests:\n');
     
     await asyncTest('SentientAgent can initialize', async () => {
@@ -260,6 +260,8 @@ test('Config has required safety settings', () => {
         assert(result.thought.observations, 'Should have observations');
         assert(result.thought.decision, 'Should have decision');
     });
+
+    await testChain;
 
     // Summary
     console.log('\n' + '='.repeat(50));

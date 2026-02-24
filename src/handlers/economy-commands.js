@@ -47,7 +47,7 @@ function getStarkEconomy() {
 }
 
 function getStarkTinker() {
-    if (!starkTinker) {starkTinker = require('../services/stark-tinkerer');}
+    if (!starkTinker) {starkTinker = require('../services/stark-tinker');}
     return starkTinker;
 }
 
