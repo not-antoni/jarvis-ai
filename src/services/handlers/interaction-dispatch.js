@@ -26,12 +26,6 @@ const guildId = guild?.id || null;
 const cooldownScope = `slash:${commandName}`;
 const startedAt = Date.now();
 
-// When compiled in discord-handlers.js, the context is src/services/
-// So we need to require sibling files with ./
-const fs = require('fs');
-const path = require('path');
-const fetch = require('node-fetch');
-
 let telemetryStatus = 'ok';
 let telemetryError = null;
 const telemetryMetadata = {};
@@ -102,7 +96,7 @@ try {
     }
 
     // Check if sentience is enabled for this guild - if so, bypass feature flag check for sentience-related commands
-    const SENTIENCE_COMMANDS = ['soul', 'roast', 'sentient'];
+    const SENTIENCE_COMMANDS = ['soul', 'sentient'];
     const isSentienceCommand = SENTIENCE_COMMANDS.includes(commandName);
     
     // Allow owner to bypass sentience whitelist
@@ -215,11 +209,6 @@ try {
 
     if (commandName === 'ask') {
         await handler.handleAskCommand(interaction);
-        return;
-    }
-
-    if (commandName === 'macro') {
-        await handler.handleMacroCommand(interaction);
         return;
     }
 
@@ -394,11 +383,6 @@ try {
             response = await slashSocial.handleAatrox(interaction);
             break;
         }
-        case 'roast': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleRoast(interaction);
-            break;
-        }
         case 'wiki': {
             telemetryMetadata.category = 'fun';
             response = await slashSocial.handleWiki(interaction);
@@ -412,11 +396,6 @@ try {
         case 'wyr': {
             telemetryMetadata.category = 'fun';
             response = await slashSocial.handleWyr(interaction);
-            break;
-        }
-        case 'prophecy': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleProphecy(interaction);
             break;
         }
         case 'trial': {
@@ -445,19 +424,29 @@ try {
             response = await slashEconomy.handleTinker(interaction);
             break;
         }
-        case 'boss': {
-            telemetryMetadata.category = 'game';
-            response = await slashEconomy.handleBoss(interaction);
-            break;
-        }
         case 'sbx': {
             telemetryMetadata.category = 'economy';
             response = await slashEconomy.handleSbx(interaction);
             break;
         }
-        case 'quests': {
-            telemetryMetadata.category = 'game';
-            response = await slashEconomy.handleQuests(interaction);
+        case 'caption': {
+            telemetryMetadata.category = 'utility';
+            await handler.handleCaptionCommand(interaction);
+            return;
+        }
+        case 'gif': {
+            telemetryMetadata.category = 'utility';
+            await handler.handleGifCommand(interaction);
+            return;
+        }
+        case 'avatar': {
+            telemetryMetadata.category = 'utility';
+            response = await slashUtility.handleAvatar(interaction);
+            break;
+        }
+        case 'banner': {
+            telemetryMetadata.category = 'utility';
+            response = await slashUtility.handleBanner(interaction);
             break;
         }
         // ============ SOCIAL (Consolidated) ============
@@ -743,11 +732,6 @@ try {
         case 'slowmode': {
             telemetryMetadata.category = 'moderation';
             response = await slashModeration.handleSlowmode(interaction);
-            break;
-        }
-        case 'lockdown': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handleLockdown(interaction);
             break;
         }
         case 'userinfo': {

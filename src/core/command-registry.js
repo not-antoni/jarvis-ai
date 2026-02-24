@@ -293,11 +293,27 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'meme',
-        description: 'Generate meme variations with top and bottom text.',
+        name: 'gif',
+        description: 'Convert an image or gif into a GIF file.',
         category: 'Meme Lab',
-        usage: '/meme impact top:<text> bottom:<text> image:<attachment>',
+        usage: '/gif [image|url]',
         feature: 'memeTools',
+        ephemeral: false
+    },
+    {
+        name: 'avatar',
+        description: "Get a user's avatar.",
+        category: 'Utilities',
+        usage: '/avatar [user] [server]',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
+        name: 'banner',
+        description: "Get a user's banner.",
+        category: 'Utilities',
+        usage: '/banner [user] [server]',
+        feature: 'utilities',
         ephemeral: false
     },
     {
@@ -321,22 +337,6 @@ const commandDefinitions = [
         description: 'Deliver comedic corrective action.',
         category: 'Fun',
         usage: '/bonk <user>',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
-        name: 'roast',
-        description: 'Deploy a refined Jarvis roast.',
-        category: 'Fun',
-        usage: '/roast <user>',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
-        name: 'flatter',
-        description: 'Deliver a premium compliment.',
-        category: 'Fun',
-        usage: '/flatter [user]',
         feature: 'funUtilities',
         ephemeral: false
     },
@@ -501,14 +501,6 @@ const commandDefinitions = [
         description: 'Would You Rather - get a random dilemma.',
         category: 'Fun',
         usage: '/wyr',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
-        name: 'prophecy',
-        description: "Receive a prophecy about someone's future.",
-        category: 'Fun',
-        usage: '/prophecy [user]',
         feature: 'funUtilities',
         ephemeral: false
     },
@@ -682,14 +674,6 @@ const commandDefinitions = [
         usage: '/ask <question>',
         feature: 'knowledgeAsk',
         ephemeral: false
-    },
-    {
-        name: 'macro',
-        description: 'Set up canned responses.',
-        category: 'Operations',
-        usage: '/macro list',
-        feature: 'macroReplies',
-        ephemeral: true
     },
     {
         name: 'play',

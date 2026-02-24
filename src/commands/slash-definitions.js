@@ -144,17 +144,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('roast')
-        .setDescription('50/50 chance to get roasted or blessed')
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who to target').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('wiki')
         .setDescription('Generate a fake Wikipedia entry for someone')
         .addUserOption(option =>
@@ -179,17 +168,6 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('wyr')
         .setDescription('Would You Rather - get a random dilemma')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('prophecy')
-        .setDescription("Receive a prophecy about someone's future")
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who to prophesy about').setRequired(false)
-        )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
@@ -567,17 +545,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('flatter')
-        .setDescription('Deliver premium Jarvis-approved praise')
-        .addUserOption(option =>
-            option.setName('target').setDescription('Optional honoree').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('toast')
         .setDescription('Raise a cinematic toast to an ally')
         .addUserOption(option =>
@@ -922,35 +889,50 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('meme')
-        .setDescription('Generate meme variants')
-        .addSubcommand(sub =>
-            sub
-                .setName('impact')
-                .setDescription('Classic impact meme with top/bottom text')
-                .addAttachmentOption(option =>
-                    option.setName('image').setDescription('Image to memeify').setRequired(false)
-                )
-                .addStringOption(option =>
-                    option
-                        .setName('url')
-                        .setDescription('Image/GIF URL (Tenor and direct links supported)')
-                        .setRequired(false)
-                )
-                .addStringOption(option =>
-                    option
-                        .setName('top')
-                        .setDescription('Top text (optional)')
-                        .setRequired(false)
-                        .setMaxLength(120)
-                )
-                .addStringOption(option =>
-                    option
-                        .setName('bottom')
-                        .setDescription('Bottom text (optional)')
-                        .setRequired(false)
-                        .setMaxLength(120)
-                )
+        .setName('gif')
+        .setDescription('Convert an image or GIF into a GIF file')
+        .addStringOption(option =>
+            option
+                .setName('url')
+                .setDescription('Image/GIF URL (Tenor and direct links supported)')
+                .setRequired(false)
+        )
+        .addAttachmentOption(option =>
+            option.setName('image').setDescription('Image to convert').setRequired(false)
+        )
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
+    new SlashCommandBuilder()
+        .setName('avatar')
+        .setDescription("Get a user's avatar")
+        .addUserOption(option =>
+            option.setName('user').setDescription('User to inspect').setRequired(false)
+        )
+        .addBooleanOption(option =>
+            option
+                .setName('server')
+                .setDescription('Use server avatar (guild only)')
+                .setRequired(false)
+        )
+        .setContexts([
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]),
+    new SlashCommandBuilder()
+        .setName('banner')
+        .setDescription("Get a user's banner")
+        .addUserOption(option =>
+            option.setName('user').setDescription('User to inspect').setRequired(false)
+        )
+        .addBooleanOption(option =>
+            option
+                .setName('server')
+                .setDescription('Use server banner (guild only)')
+                .setRequired(false)
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -964,43 +946,6 @@ const allCommands = [
             option.setName('query').setDescription('What would you like to know?').setRequired(true)
         )
         .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
-        .setName('macro')
-        .setDescription('Send reusable knowledge base responses')
-        .addSubcommand(sub =>
-            sub
-                .setName('list')
-                .setDescription('List macros available for this server')
-                .addStringOption(option =>
-                    option.setName('tag').setDescription('Filter macros by tag').setRequired(false)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('send')
-                .setDescription('Send a macro response from the knowledge base')
-                .addStringOption(option =>
-                    option
-                        .setName('entry_id')
-                        .setDescription('Knowledge base entry identifier to send')
-                        .setRequired(false)
-                )
-                .addStringOption(option =>
-                    option
-                        .setName('tag')
-                        .setDescription('Fallback tag if entry id is not provided')
-                        .setRequired(false)
-                )
-                .addChannelOption(option =>
-                    option
-                        .setName('channel')
-                        .setDescription('Channel to send the macro to (defaults to here)')
-                        .setRequired(false)
-                        .addChannelTypes(ChannelType.GuildText)
-                )
-        )
-        .setContexts([InteractionContextType.Guild]),
-
     new SlashCommandBuilder()
         .setName('reactionrole')
         .setDescription('Manage reaction role panels')
@@ -1575,22 +1520,6 @@ const allCommands = [
         .addSubcommand(s => s.setName('invest').setDescription('Invest SBX for passive income').addIntegerOption(o => o.setName('amount').setDescription('Amount to invest').setRequired(true)))
         .addSubcommand(s => s.setName('withdraw').setDescription('Withdraw invested SBX').addIntegerOption(o => o.setName('amount').setDescription('Amount to withdraw (or 0 for all)').setRequired(true))),
 
-    // Boss Battle
-    new SlashCommandBuilder()
-        .setName('boss')
-        .setDescription('World Boss Battles')
-        .setContexts([InteractionContextType.Guild])
-        .addSubcommand(s => s.setName('status').setDescription('Check boss status'))
-        .addSubcommand(s => s.setName('attack').setDescription('Attack the boss')),
-
-    // Quests
-    new SlashCommandBuilder()
-        .setName('quests')
-        .setDescription('Adventure Quests')
-        .setContexts([InteractionContextType.Guild])
-        .addSubcommand(s => s.setName('list').setDescription('List available quests'))
-        .addSubcommand(s => s.setName('start').setDescription('Start a quest').addStringOption(o => o.setName('id').setDescription('Quest ID').setRequired(true))),
-
     // ============ MODERATION SLASH COMMANDS ============
     new SlashCommandBuilder()
         .setName('ban')
@@ -1649,16 +1578,6 @@ const allCommands = [
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
         .setContexts([InteractionContextType.Guild])
         .addStringOption(o => o.setName('duration').setDescription('Slowmode duration (e.g., 5s, 1m, 0 to disable)').setRequired(true)),
-    new SlashCommandBuilder()
-        .setName('lockdown')
-        .setDescription('Lock or unlock a channel')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-        .setContexts([InteractionContextType.Guild])
-        .addStringOption(o => o.setName('action').setDescription('Lock or unlock').setRequired(true).addChoices(
-            { name: 'Lock', value: 'lock' },
-            { name: 'Unlock', value: 'unlock' }
-        ))
-        .addStringOption(o => o.setName('reason').setDescription('Reason for lockdown')),
     new SlashCommandBuilder()
         .setName('userinfo')
         .setDescription('Get detailed information about a user')

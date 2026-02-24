@@ -525,6 +525,81 @@ async function handleQrcode(interaction) {
     }
 }
 
+async function handleAvatar(interaction) {
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const useServerAvatar = interaction.options.getBoolean('server') === true;
+
+    if (useServerAvatar && !interaction.guild) {
+        return 'Server avatars can only be fetched inside a server, sir.';
+    }
+
+    try {
+        let avatarUrl = null;
+        if (useServerAvatar && interaction.guild) {
+            const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+            if (!member) {
+                return 'I could not resolve that member in this server, sir.';
+            }
+            avatarUrl = member.displayAvatarURL({ size: 4096, forceStatic: false });
+        }
+
+        if (!avatarUrl) {
+            avatarUrl = targetUser.displayAvatarURL({ size: 4096, forceStatic: false });
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor(0x5865f2)
+            .setTitle(`Avatar • ${targetUser.tag}`)
+            .setImage(avatarUrl)
+            .setFooter({ text: useServerAvatar ? 'Server avatar' : 'Global avatar' });
+
+        return { content: avatarUrl, embeds: [embed] };
+    } catch (error) {
+        console.error('Avatar command failed:', error);
+        return 'Unable to fetch avatar right now, sir.';
+    }
+}
+
+async function handleBanner(interaction) {
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const useServerBanner = interaction.options.getBoolean('server') === true;
+
+    if (useServerBanner && !interaction.guild) {
+        return 'Server banners can only be fetched inside a server, sir.';
+    }
+
+    try {
+        let bannerUrl = null;
+        if (useServerBanner && interaction.guild) {
+            const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+            if (!member) {
+                return 'I could not resolve that member in this server, sir.';
+            }
+            bannerUrl = member.bannerURL?.({ size: 4096, forceStatic: false }) || null;
+            if (!bannerUrl) {
+                return 'No server banner found for that user, sir.';
+            }
+        } else {
+            const fetchedUser = await interaction.client.users.fetch(targetUser.id, { force: true }).catch(() => targetUser);
+            bannerUrl = fetchedUser.bannerURL({ size: 4096, forceStatic: false });
+            if (!bannerUrl) {
+                return 'No banner found for that user, sir.';
+            }
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor(0x2f3136)
+            .setTitle(`Banner • ${targetUser.tag}`)
+            .setImage(bannerUrl)
+            .setFooter({ text: useServerBanner ? 'Server banner' : 'Global banner' });
+
+        return { content: bannerUrl, embeds: [embed] };
+    } catch (error) {
+        console.error('Banner command failed:', error);
+        return 'Unable to fetch banner right now, sir.';
+    }
+}
+
 module.exports = {
     handlePing,
     handleT,
@@ -543,5 +618,7 @@ module.exports = {
     handleEncode,
     handleDecode,
     handlePwdgen,
-    handleQrcode
+    handleQrcode,
+    handleAvatar,
+    handleBanner
 };
