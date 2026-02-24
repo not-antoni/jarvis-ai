@@ -19,6 +19,59 @@ const {
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
 
+function normalizeHostValue(raw) {
+    const value = String(raw || '').trim().toLowerCase();
+    if (!value) {return '';}
+
+    // Host header may include a port. Strip ":port" for hostname comparisons.
+    if (value.startsWith('[') && value.includes(']')) {
+        const endBracket = value.indexOf(']');
+        return value.slice(1, endBracket);
+    }
+
+    return value.replace(/:\d+$/, '');
+}
+
+function hostFromEnv(raw) {
+    const value = String(raw || '').trim();
+    if (!value) {return '';}
+
+    try {
+        if (value.includes('://')) {
+            return normalizeHostValue(new URL(value).host);
+        }
+    } catch {
+        // Fall back to raw host parsing below.
+    }
+
+    return normalizeHostValue(value);
+}
+
+function buildAllowedHostSet() {
+    const hosts = new Set(['localhost', '127.0.0.1', '::1']);
+    const directEnvHosts = String(process.env.ALLOWED_HOSTS || '')
+        .split(',')
+        .map(entry => hostFromEnv(entry))
+        .filter(Boolean);
+
+    const derivedHosts = [
+        process.env.JARVIS_DOMAIN,
+        process.env.PUBLIC_BASE_URL,
+        process.env.RENDER_EXTERNAL_URL
+    ]
+        .map(hostFromEnv)
+        .filter(Boolean);
+
+    for (const host of [...directEnvHosts, ...derivedHosts]) {
+        hosts.add(host);
+        if (!host.startsWith('www.') && !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) && host !== '::1') {
+            hosts.add(`www.${host}`);
+        }
+    }
+
+    return hosts;
+}
+
 function createExpressApp({ webhookRouter, database }) {
     const app = express();
     app.disable('x-powered-by');
@@ -54,7 +107,7 @@ function createExpressApp({ webhookRouter, database }) {
 
     // ---- Cloudflare-only access middleware ----
     const CLOUDFLARE_ONLY = process.env.CLOUDFLARE_ONLY !== 'false';
-    const ALLOWED_HOSTS = ['jorvis.org', 'www.jorvis.org', 'localhost', '127.0.0.1'];
+    const ALLOWED_HOSTS = buildAllowedHostSet();
 
     app.use((req, res, next) => {
         const clientIp = req.ip || req.connection?.remoteAddress || '';
@@ -67,10 +120,13 @@ function createExpressApp({ webhookRouter, database }) {
         const cfRay = req.headers['cf-ray'];
         const cfConnectingIp = req.headers['cf-connecting-ip'];
         const isFromCloudflare = !!(cfRay || cfConnectingIp);
-        const hostHeader = (req.headers.host || '').toLowerCase();
-        const isDirectIpAccess = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(hostHeader);
-        const isAwsDns = hostHeader.includes('amazonaws.com') || hostHeader.includes('compute-1.amazonaws.com');
-        const isAllowedHost = ALLOWED_HOSTS.some(h => hostHeader.startsWith(h));
+        const hostHeader = String(req.headers.host || '').toLowerCase();
+        const normalizedHost = normalizeHostValue(hostHeader);
+        const isDirectIpAccess = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalizedHost);
+        const isAwsDns = normalizedHost.includes('amazonaws.com') || normalizedHost.includes('compute-1.amazonaws.com');
+        const isAllowedHost = Array.from(ALLOWED_HOSTS).some(
+            host => normalizedHost === host || normalizedHost.endsWith(`.${host}`)
+        );
 
         if ((isDirectIpAccess || isAwsDns) && !isFromCloudflare) {
             console.log(`[Security] Dropping connection: ${clientIp} -> ${hostHeader}`);

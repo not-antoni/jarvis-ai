@@ -140,7 +140,7 @@ ${traitsDisplay}
                 if (v <= 0) {guildQueue.delete(k);}
             }
         }
-        const gId = guildId || 'dm';
+        const gId = guild?.id || interaction.guildId || 'dm';
         const currentCount = guildQueue.get(gId) || 0;
         
         if (currentCount >= 2) {
