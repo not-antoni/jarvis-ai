@@ -140,7 +140,7 @@ ${traitsDisplay}
                 if (v <= 0) {guildQueue.delete(k);}
             }
         }
-        const gId = guild?.id || interaction.guildId || 'dm';
+        const gId = interaction.guildId || 'dm';
         const currentCount = guildQueue.get(gId) || 0;
         
         if (currentCount >= 2) {
@@ -192,7 +192,7 @@ ${traitsDisplay}
             await interaction.editReply(`${loadingEmoji} Engaging consciousness matrix...`);
 
             // Get AI manager for real AI responses
-            const aiManager = require('./ai-providers');
+            const aiManager = require('../ai-providers');
         
             // Get soul for personality context
             const soul = selfhostFeatures.jarvisSoul?.getStatus?.() || { 
@@ -675,8 +675,8 @@ ${(result.output || 'No output').substring(0, 1800)}
             response = '✅ Autonomous mode disabled. All actions now require explicit commands.';
         }
     } else if (subcommand === 'agis') {
-        const { getAGIS } = require('../core/agis');
-        const agis = getAGIS({ aiManager: require('./ai-providers') });
+        const { getAGIS } = require('../../core/agis');
+        const agis = getAGIS({ aiManager: require('../ai-providers') });
         const goal = interaction.options.getString('goal');
 
         if (!agis.enabled) {
