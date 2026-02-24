@@ -2,6 +2,8 @@
 
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const config = require('../../../config');
+const youtubeSearch = require('../youtube-search');
+const ytSearchUi = require('./yt-search-ui');
 
 async function handlePing(interaction) {
     const sent = await interaction.editReply({ content: 'Pinging system...', fetchReply: true });
@@ -123,14 +125,24 @@ async function handleT(interaction, jarvis, userId, guildId) {
     }
 }
 
-async function handleYt(interaction, jarvis) {
+async function handleYt(interaction, _jarvis) {
     const query = (interaction.options.getString('query') || '').trim();
     if (!query.length) {
         return 'Please provide a YouTube search query, sir.';
     }
 
     try {
-        return await jarvis.handleYouTubeSearch(query);
+        const response = await youtubeSearch.searchVideos(query, 24);
+        const items = Array.isArray(response?.items) ? response.items : [];
+        if (!items.length) {
+            return 'No relevant videos found, sir. Perhaps try a different search term?';
+        }
+
+        return ytSearchUi.buildInitialResponse({
+            ownerId: interaction.user.id,
+            query,
+            results: items
+        });
     } catch (error) {
         console.error('YouTube search command failed:', error);
         return 'YouTube search failed, sir. Technical difficulties.';

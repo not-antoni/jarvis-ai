@@ -5,7 +5,6 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { describe, it, beforeEach } = require('node:test');
 
 // Components to test
 const BaseScraper = require('../src/scrapers/baseScraper');
