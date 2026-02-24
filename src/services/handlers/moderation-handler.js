@@ -325,32 +325,6 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
             break;
         }
 
-        case 'lockdown': {
-            telemetryMetadata.category = 'moderation';
-            const action = interaction.options.getString('action', true);
-            const reason = interaction.options.getString('reason') || `Channel ${action}ed by ${interaction.user.tag}`;
-
-            if (!interaction.guild) { response = 'This command only works in servers.'; break; }
-            if (!interaction.channel || !interaction.channel.permissionOverwrites) {
-                response = '❌ Cannot modify this channel type.';
-                break;
-            }
-
-            try {
-                const { everyone } = interaction.guild.roles;
-                if (action === 'lock') {
-                    await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: false }, { reason });
-                    response = `🔒 Channel locked.\nReason: ${reason}`;
-                } else {
-                    await interaction.channel.permissionOverwrites.edit(everyone, { SendMessages: null }, { reason });
-                    response = '🔓 Channel unlocked.';
-                }
-            } catch (error) {
-                response = `❌ Lockdown failed: ${error.message}`;
-            }
-            break;
-        }
-
         case 'userinfo': {
             telemetryMetadata.category = 'utility';
             const targetUser = interaction.options.getUser('user') || interaction.user;
@@ -436,7 +410,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 // List of commands this module handles
 const MODERATION_COMMANDS = [
     'ban', 'unban', 'kick', 'mute', 'unmute',
-    'warn', 'purge', 'slowmode', 'lockdown',
+    'warn', 'purge', 'slowmode',
     'userinfo', 'serverinfo'
 ];
 
