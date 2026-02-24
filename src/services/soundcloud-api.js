@@ -26,7 +26,14 @@ class SoundCloudApi {
         this.clientSecret = String(process.env.SOUNDCLOUD_CLIENT_SECRET || '').trim();
         this.timeoutMs = Number(process.env.SOUNDCLOUD_API_TIMEOUT_MS) || 8000;
         this.refreshSkewMs = Number(process.env.SOUNDCLOUD_TOKEN_REFRESH_SKEW_MS) || 60_000;
+        this.webClientIdTtlMs = Number(process.env.SOUNDCLOUD_WEB_CLIENT_ID_TTL_MS) || (6 * 60 * 60 * 1000);
+        this.authBackoffMs = Number(process.env.SOUNDCLOUD_AUTH_BACKOFF_MS) || (10 * 60 * 1000);
         this.cachedToken = null;
+        this.webClientId = null;
+        this.webClientIdFetchedAt = 0;
+        this.oauthBlockedUntil = 0;
+        this.configuredClientIdBlockedUntil = 0;
+        this.lastWebClientIdFailureAt = 0;
     }
 
     isConfigured() {
@@ -37,12 +44,28 @@ class SoundCloudApi {
         return Boolean(this.clientId && this.clientSecret);
     }
 
+    defaultHeaders() {
+        return {
+            'user-agent':
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            accept: 'application/json, text/plain, */*',
+            'accept-language': 'en-US,en;q=0.9',
+            origin: 'https://soundcloud.com',
+            referer: 'https://soundcloud.com/'
+        };
+    }
+
     async fetchJson(url, options = {}) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
         try {
+            const headers = {
+                ...this.defaultHeaders(),
+                ...(options.headers || {})
+            };
             const res = await fetch(url, {
                 ...options,
+                headers,
                 signal: controller.signal
             });
             const text = await res.text();
@@ -58,6 +81,27 @@ class SoundCloudApi {
         } finally {
             clearTimeout(timeout);
         }
+    }
+
+    isOauthBlocked() {
+        return Date.now() < this.oauthBlockedUntil;
+    }
+
+    isConfiguredClientIdBlocked() {
+        return Date.now() < this.configuredClientIdBlockedUntil;
+    }
+
+    markOauthBlocked() {
+        this.oauthBlockedUntil = Date.now() + this.authBackoffMs;
+    }
+
+    markConfiguredClientIdBlocked() {
+        this.configuredClientIdBlockedUntil = Date.now() + this.authBackoffMs;
+    }
+
+    clearAuthBlocks() {
+        this.oauthBlockedUntil = 0;
+        this.configuredClientIdBlockedUntil = 0;
     }
 
     async getAccessToken() {
@@ -103,57 +147,177 @@ class SoundCloudApi {
         return data.access_token;
     }
 
-    async requestV2(path, query = {}) {
-        const params = new URLSearchParams();
-        for (const [key, value] of Object.entries(query || {})) {
-            if (value == null || value === '') {continue;}
-            params.set(key, String(value));
+    extractClientIdFromScript(sourceText) {
+        if (!sourceText || typeof sourceText !== 'string') {
+            return null;
         }
 
-        const withClientId = () => {
-            if (this.clientId && !params.has('client_id')) {
-                params.set('client_id', this.clientId);
-            }
-        };
+        const patterns = [
+            /client_id\s*[:=]\s*["']([a-zA-Z0-9]{32})["']/,
+            /["']client_id["']\s*:\s*["']([a-zA-Z0-9]{32})["']/,
+            /clientId\s*[:=]\s*["']([a-zA-Z0-9]{32})["']/
+        ];
 
-        const doRequest = async(headers = {}) => {
+        for (const pattern of patterns) {
+            const match = sourceText.match(pattern);
+            if (match?.[1]) {
+                return match[1];
+            }
+        }
+
+        return null;
+    }
+
+    async getWebClientId(options = {}) {
+        const forceRefresh = Boolean(options.forceRefresh);
+        const now = Date.now();
+        if (
+            !forceRefresh &&
+            this.webClientId &&
+            this.webClientIdFetchedAt > 0 &&
+            now - this.webClientIdFetchedAt < this.webClientIdTtlMs
+        ) {
+            return this.webClientId;
+        }
+
+        if (!forceRefresh && now - this.lastWebClientIdFailureAt < 30_000) {
+            return this.webClientId || null;
+        }
+
+        try {
+            const home = await this.fetchJson('https://soundcloud.com');
+            if (!home.ok || !home.raw) {
+                throw new Error(`home request failed (${home.status})`);
+            }
+
+            const assets = Array.from(
+                new Set(
+                    (home.raw.match(/https:\/\/a-v2\.sndcdn\.com\/assets\/[^"]+\.js/g) || []).slice(0, 20)
+                )
+            );
+
+            for (const assetUrl of assets) {
+                try {
+                    const asset = await this.fetchJson(assetUrl);
+                    if (!asset.ok || !asset.raw) {
+                        continue;
+                    }
+                    const discovered = this.extractClientIdFromScript(asset.raw);
+                    if (discovered) {
+                        this.webClientId = discovered;
+                        this.webClientIdFetchedAt = Date.now();
+                        return discovered;
+                    }
+                } catch {
+                    // Continue scanning other assets.
+                }
+            }
+
+            throw new Error('no client_id found in SoundCloud assets');
+        } catch (error) {
+            this.lastWebClientIdFailureAt = Date.now();
+            console.warn('[SoundCloud] Failed to obtain web client_id:', error.message);
+            return this.webClientId || null;
+        }
+    }
+
+    async requestV2(path, query = {}) {
+        const normalizedQuery = {};
+        for (const [key, value] of Object.entries(query || {})) {
+            if (value == null || value === '') {continue;}
+            normalizedQuery[key] = String(value);
+        }
+
+        const executeRequest = async({ clientId = null, headers = {} }) => {
+            const params = new URLSearchParams(normalizedQuery);
+            if (clientId) {
+                params.set('client_id', clientId);
+            } else {
+                params.delete('client_id');
+            }
             const url = `${API_BASE}${path}?${params.toString()}`;
             return this.fetchJson(url, { headers });
         };
 
-        // Try OAuth first (best reliability), then fall back to client_id.
-        if (this.canUseOAuth()) {
+        const authErrors = [];
+
+        if (this.canUseOAuth() && !this.isOauthBlocked()) {
             try {
-                withClientId();
                 const token = await this.getAccessToken();
-                const tokenRes = await doRequest({
-                    authorization: `OAuth ${token}`
+                const oauthRes = await executeRequest({
+                    headers: { authorization: `OAuth ${token}` }
                 });
-                if (tokenRes.ok) {
-                    return tokenRes.data;
+                if (oauthRes.ok) {
+                    this.clearAuthBlocks();
+                    return oauthRes.data;
                 }
-                if (tokenRes.status !== 401 && tokenRes.status !== 403) {
+                if (oauthRes.status === 401 || oauthRes.status === 403) {
+                    this.markOauthBlocked();
+                    authErrors.push(`oauth:${oauthRes.status}`);
+                } else {
                     throw new Error(
-                        `SoundCloud API request failed (${tokenRes.status}): ${tokenRes.raw || 'unknown'}`
+                        `SoundCloud API request failed (${oauthRes.status}): ${oauthRes.raw || 'unknown'}`
                     );
                 }
             } catch (error) {
-                console.warn('[SoundCloud] OAuth request failed, falling back to client_id:', error.message);
+                this.markOauthBlocked();
+                authErrors.push(`oauth:error:${error.message}`);
             }
         }
 
-        if (!this.clientId) {
-            throw new Error('SoundCloud client_id is not configured.');
+        if (this.clientId && !this.isConfiguredClientIdBlocked()) {
+            const configuredRes = await executeRequest({ clientId: this.clientId });
+            if (configuredRes.ok) {
+                this.clearAuthBlocks();
+                return configuredRes.data;
+            }
+            if (configuredRes.status === 401 || configuredRes.status === 403) {
+                this.markConfiguredClientIdBlocked();
+                authErrors.push(`client_id:${configuredRes.status}`);
+            } else {
+                throw new Error(
+                    `SoundCloud API request failed (${configuredRes.status}): ${configuredRes.raw || 'unknown'}`
+                );
+            }
         }
 
-        withClientId();
-        const fallbackRes = await doRequest();
-        if (!fallbackRes.ok) {
-            throw new Error(
-                `SoundCloud API request failed (${fallbackRes.status}): ${fallbackRes.raw || 'unknown'}`
-            );
+        const webClientId = await this.getWebClientId({
+            forceRefresh: !this.webClientId || authErrors.length > 0
+        });
+        if (webClientId) {
+            const webRes = await executeRequest({ clientId: webClientId });
+            if (webRes.ok) {
+                this.webClientId = webClientId;
+                this.webClientIdFetchedAt = Date.now();
+                return webRes.data;
+            }
+            if (webRes.status === 401 || webRes.status === 403) {
+                authErrors.push(`web_client_id:${webRes.status}`);
+                const refreshedId = await this.getWebClientId({ forceRefresh: true });
+                if (refreshedId && refreshedId !== webClientId) {
+                    const refreshedRes = await executeRequest({ clientId: refreshedId });
+                    if (refreshedRes.ok) {
+                        this.webClientId = refreshedId;
+                        this.webClientIdFetchedAt = Date.now();
+                        return refreshedRes.data;
+                    }
+                    if (refreshedRes.status === 401 || refreshedRes.status === 403) {
+                        authErrors.push(`web_client_id_refreshed:${refreshedRes.status}`);
+                    } else {
+                        throw new Error(
+                            `SoundCloud API request failed (${refreshedRes.status}): ${refreshedRes.raw || 'unknown'}`
+                        );
+                    }
+                }
+            } else {
+                throw new Error(
+                    `SoundCloud API request failed (${webRes.status}): ${webRes.raw || 'unknown'}`
+                );
+            }
         }
-        return fallbackRes.data;
+
+        const reason = authErrors.length ? authErrors.join(', ') : 'no usable auth mode';
+        throw new Error(`SoundCloud API request failed (403): ${reason}`);
     }
 
     mapTrack(rawTrack) {
