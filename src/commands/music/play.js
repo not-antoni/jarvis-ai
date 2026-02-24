@@ -223,8 +223,8 @@ module.exports = {
             if (fromCache) {
                 contextLines.push(`⚡ **${track.title}**`);
                 contextLines.push('_From cache._');
-            } else if (track.source === 'soundcloud' && /^https?:\/\//i.test(queryOption)) {
-                contextLines.push('🎧 Resolved SoundCloud track.');
+            } else if (/^https?:\/\//i.test(queryOption)) {
+                contextLines.push('🎧 Resolved track.');
             }
 
             const message = [...contextLines, enqueueMessage].filter(Boolean).join('\n');
