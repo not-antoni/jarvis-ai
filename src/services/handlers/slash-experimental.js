@@ -621,7 +621,6 @@ RULES:
         }
     } else if (subcommand === 'execute') {
     // 1. Immediate Owner Check
-        const { isOwner } = require('../utils/owner-check');
         if (!isOwner(interaction.user.id)) {
             response = '⛔ This command is restricted, sir.';
             await interaction.editReply(response); 
