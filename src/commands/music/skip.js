@@ -28,6 +28,6 @@ module.exports = {
             result = await manager.skip(interaction.guildId);
         }
 
-        await interaction.reply({ content: result || '⏭️ Skipped.', flags: 64 });
+        await interaction.reply({ content: result || '⏭️ Skipped.' });
     }
 };
