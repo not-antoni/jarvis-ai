@@ -270,16 +270,30 @@ class DiscordHandlers {
         return sanitizePingsUtil(text);
     }
 
-    async sendBufferOrLink(interaction, buffer, preferredName) {
-        const MAX_UPLOAD = 8 * 1024 * 1024;
+    async sendBufferOrLink(interaction, buffer, preferredName, options = {}) {
+        const {
+            maxUploadBytes = 8 * 1024 * 1024,
+            allowTempLink = true,
+            tooLargeMessage = null
+        } = options || {};
         const ext = (preferredName.split('.').pop() || '').toLowerCase();
         const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
-        if (buffer.length <= MAX_UPLOAD) {
+        if (buffer.length <= maxUploadBytes) {
             const file = new AttachmentBuilder(buffer, { name: preferredName });
             const payload = { files: [file] };
             if (!interaction.deferred && !interaction.replied) {await interaction.reply(payload);}
             else {await interaction.editReply(payload);}
             return { uploaded: true };
+        }
+
+        if (!allowTempLink) {
+            const content = tooLargeMessage || 'Generated output is too large to upload, sir.';
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.reply({ content });
+            } else {
+                await interaction.editReply({ content });
+            }
+            return { uploaded: false, tooLarge: true };
         }
 
         try {
@@ -293,7 +307,7 @@ class DiscordHandlers {
             return { uploaded: false, url };
         } catch (err) {
             const kb = Math.round(buffer.length / 1024);
-            const content = `Generated file (${kb} KB) is too large to upload and saving failed.`;
+            const content = tooLargeMessage || `Generated file (${kb} KB) is too large to upload and saving failed.`;
             if (!interaction.deferred && !interaction.replied) {await interaction.reply({ content });}
             else {await interaction.editReply({ content });}
             return { uploaded: false, error: err };
@@ -3968,6 +3982,10 @@ class DiscordHandlers {
 
     async handleCaptionCommand(interaction) {
         return await mediaHandlers.handleCaptionCommand(this, interaction);
+    }
+
+    async handleGifCommand(interaction) {
+        return await mediaHandlers.handleGifCommand(this, interaction);
     }
 
     async handleMemeCommand(interaction) {

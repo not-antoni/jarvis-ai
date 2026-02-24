@@ -2,7 +2,10 @@
 
 const fetch = require('node-fetch');
 const cheerio = require('cheerio');
-const config = require('../../../config');
+
+const TEN_MB = 10 * 1024 * 1024;
+const NITRO_LIMIT_MESSAGE = "sir, please understand that I don't have nitro and therefore I can only process files up to 10mb.";
+const MEDIA_REQUIRED_MESSAGE = 'Sir, either provide an attachment or let me drink my coffee.';
 
 let memeCanvas;
 try {
@@ -194,6 +197,50 @@ async function fetchImageFromUrl(_handler, rawUrl, { maxBytes } = {}) {
     throw new Error('No image found at URL');
 }
 
+async function resolveSlashMediaInput(handler, interaction, { maxBytes = TEN_MB } = {}) {
+    const attachment = interaction.options.getAttachment('image', false);
+    const urlOpt = (interaction.options.getString('url') || '').trim();
+
+    if (attachment) {
+        const contentType = (attachment.contentType || '').toLowerCase();
+        if (!contentType.startsWith('image/')) {
+            await interaction.editReply('That file does not appear to be an image, sir.');
+            return null;
+        }
+        if (Number(attachment.size || 0) > maxBytes) {
+            await interaction.editReply(NITRO_LIMIT_MESSAGE);
+            return null;
+        }
+        const buffer = await handler.fetchAttachmentBuffer(attachment);
+        if (buffer.length > maxBytes) {
+            await interaction.editReply(NITRO_LIMIT_MESSAGE);
+            return null;
+        }
+        return { buffer, contentType };
+    }
+
+    if (urlOpt) {
+        const fetched = await handler.fetchImageFromUrl(urlOpt, { maxBytes });
+        if (fetched.tooLarge) {
+            await interaction.editReply(NITRO_LIMIT_MESSAGE);
+            return null;
+        }
+        const contentType = (fetched.contentType || '').toLowerCase();
+        if (contentType && !contentType.startsWith('image/')) {
+            await interaction.editReply('That file does not appear to be an image, sir.');
+            return null;
+        }
+        if (!fetched.buffer || fetched.buffer.length > maxBytes) {
+            await interaction.editReply(NITRO_LIMIT_MESSAGE);
+            return null;
+        }
+        return { buffer: fetched.buffer, contentType };
+    }
+
+    await interaction.editReply(MEDIA_REQUIRED_MESSAGE);
+    return null;
+}
+
 async function handleCaptionCommand(handler, interaction) {
     const { guild } = interaction;
     if (guild && !(await handler.isFeatureActive('memeTools', guild))) {
@@ -202,8 +249,6 @@ async function handleCaptionCommand(handler, interaction) {
     }
 
     const text = interaction.options.getString('text', true).trim();
-    const attachment = interaction.options.getAttachment('image', false);
-    const urlOpt = (interaction.options.getString('url') || '').trim();
 
     if (!text.length) {
         await interaction.editReply('Please provide a caption, sir.');
@@ -216,56 +261,72 @@ async function handleCaptionCommand(handler, interaction) {
     }
 
     try {
-        let buffer;
-        let contentType = null;
-        if (attachment) {
-            contentType = (attachment.contentType || '').toLowerCase();
-            if (!contentType.startsWith('image/')) {
-                await interaction.editReply('That file does not appear to be an image, sir.');
-                return;
-            }
-            if (Number(attachment.size || 0) > handler.maxInputBytes) {
-                await interaction.editReply("MY poor CPU can't handle that, sir.");
-                return;
-            }
-            buffer = await handler.fetchAttachmentBuffer(attachment);
-        } else if (urlOpt) {
-            const fetched = await handler.fetchImageFromUrl(urlOpt, { maxBytes: handler.maxInputBytes });
-            if (fetched.tooLarge) {
-                await interaction.editReply("MY poor CPU can't handle that, sir.");
-                return;
-            }
-            const { buffer: buf, contentType: ct } = fetched;
-            buffer = buf;
-            contentType = (ct || '').toLowerCase();
-        } else {
-            await interaction.editReply('Provide an image attachment or a URL, sir.');
+        const mediaInput = await resolveSlashMediaInput(handler, interaction, { maxBytes: TEN_MB });
+        if (!mediaInput) {
             return;
         }
-        if (contentType && (contentType.includes('gif') || contentType.includes('video/'))) {
+
+        const { buffer, contentType } = mediaInput;
+        const uploadPolicy = {
+            maxUploadBytes: TEN_MB,
+            allowTempLink: false,
+            tooLargeMessage: NITRO_LIMIT_MESSAGE
+        };
+
+        if (contentType && contentType.includes('gif')) {
             try {
-                const isRender = (config?.deployment?.target || 'render').toLowerCase() === 'render';
-                if (isRender) {
-                    const { captionToMp4 } = require('../../utils/video-caption');
-                    const out = await captionToMp4({ inputBuffer: buffer, captionText: text });
-                    await handler.sendBufferOrLink(interaction, out, 'caption.mp4');
-                } else {
-                    const { captionAnimated } = require('../../utils/gif-caption');
-                    const out = await captionAnimated({ inputBuffer: buffer, captionText: text });
-                    await handler.sendBufferOrLink(interaction, out, 'caption.gif');
-                }
+                const { captionAnimated } = require('../../utils/gif-caption');
+                const out = await captionAnimated({ inputBuffer: buffer, captionText: text });
+                await handler.sendBufferOrLink(interaction, out, 'caption.gif', uploadPolicy);
             } catch (err) {
                 console.warn('Animated caption failed, falling back to PNG:', err?.message || err);
                 const rendered = await memeCanvas.createCaptionImage(buffer, text);
-                await handler.sendBufferOrLink(interaction, rendered, 'caption.png');
+                await handler.sendBufferOrLink(interaction, rendered, 'caption.png', uploadPolicy);
             }
         } else {
             const rendered = await memeCanvas.createCaptionImage(buffer, text);
-            await handler.sendBufferOrLink(interaction, rendered, 'caption.png');
+            await handler.sendBufferOrLink(interaction, rendered, 'caption.png', uploadPolicy);
         }
     } catch (error) {
         console.error('Caption command failed:', error);
         await interaction.editReply('Caption generator misfired, sir. Try another image.');
+    }
+}
+
+async function handleGifCommand(handler, interaction) {
+    const { guild } = interaction;
+    if (guild && !(await handler.isFeatureActive('memeTools', guild))) {
+        await interaction.editReply('Meme systems are disabled for this server, sir.');
+        return;
+    }
+
+    try {
+        const mediaInput = await resolveSlashMediaInput(handler, interaction, { maxBytes: TEN_MB });
+        if (!mediaInput) {
+            return;
+        }
+
+        const sharp = require('sharp');
+        const { buffer } = mediaInput;
+        let rendered;
+        try {
+            rendered = await sharp(buffer, { animated: true, pages: -1 })
+                .gif({ effort: 3 })
+                .toBuffer();
+        } catch (_firstError) {
+            rendered = await sharp(buffer)
+                .gif({ effort: 3 })
+                .toBuffer();
+        }
+
+        await handler.sendBufferOrLink(interaction, rendered, 'converted.gif', {
+            maxUploadBytes: TEN_MB,
+            allowTempLink: false,
+            tooLargeMessage: NITRO_LIMIT_MESSAGE
+        });
+    } catch (error) {
+        console.error('GIF command failed:', error);
+        await interaction.editReply('GIF conversion failed, sir. Try another image.');
     }
 }
 
@@ -329,5 +390,6 @@ module.exports = {
     fetchAttachmentBuffer,
     fetchImageFromUrl,
     handleCaptionCommand,
+    handleGifCommand,
     handleMemeCommand
 };
