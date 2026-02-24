@@ -33,7 +33,7 @@ function wireEventHandlers(ctx) {
                 await discordHandlers.handleSlashCommand(interaction);
             } else if (interaction.isAutocomplete()) {
                 await discordHandlers.handleAutocomplete(interaction);
-            } else if (interaction.isButton()) {
+            } else if (interaction.isButton() || interaction.isModalSubmit()) {
                 await discordHandlers.handleComponentInteraction(interaction);
             }
         } catch (error) {

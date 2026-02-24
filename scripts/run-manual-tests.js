@@ -48,15 +48,23 @@ for (const test of tests) {
 }
 
 if (process.env.RUN_SCRAPING_TESTS === '1') {
-    const scrapingOutcome = runTest({
-        name: 'scraping',
-        args: ['--test', 'tests/scraping.test.js'],
-        retries: 0
-    });
-    if (scrapingOutcome.ok) {
-        passed++;
+    const scrapingCommand = process.env.SCRAPING_TEST_CMD || '';
+    if (!scrapingCommand.trim()) {
+        console.log('\nSkipping scraping test suite (legacy Mocha-style test). Set SCRAPING_TEST_CMD to run it.');
+        skipped++;
     } else {
-        failed++;
+        console.log(`\n=== scraping (custom command) ===`);
+        const result = spawnSync(scrapingCommand, {
+            cwd: path.join(__dirname, '..'),
+            stdio: 'inherit',
+            env: process.env,
+            shell: true
+        });
+        if ((result.status ?? 1) === 0) {
+            passed++;
+        } else {
+            failed++;
+        }
     }
 } else {
     console.log('\nSkipping scraping test suite (set RUN_SCRAPING_TESTS=1 to include it).');

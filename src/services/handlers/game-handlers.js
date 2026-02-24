@@ -4,6 +4,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsB
 const database = require('../../services/database');
 const config = require('../../../config');
 const fetch = require('node-fetch');
+const ytSearchUi = require('./yt-search-ui');
 
 // ── Pure functions (no handler dependency) ─────────────────────────────
 
@@ -422,6 +423,18 @@ async function handleOptCommand(handler, interaction) {
 }
 
 async function handleComponentInteraction(handler, interaction) {
+    const ytHandled = await ytSearchUi.handleInteraction(interaction);
+    if (ytHandled) {
+        return;
+    }
+
+    if (interaction.isModalSubmit()) {
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'Interactive controls are currently unavailable, sir.', ephemeral: true });
+        }
+        return;
+    }
+
     if (!interaction.isButton()) {
         return;
     }
