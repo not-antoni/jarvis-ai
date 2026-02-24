@@ -13,7 +13,6 @@ const { extractVideoId } = require('../utils/youtube');
 const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
 const { safeSend } = require('../utils/discord-safe-send');
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const LOOP_MODES = ['off', 'song', 'queue'];
 
 function cloneTrack(track) {
@@ -224,8 +223,7 @@ class MusicManager {
         state.player.stop(true);
 
         if (!upcoming) {
-            this.cleanup(guildId);
-            return '⏭️ Skipped — queue empty.';
+            return '⏭️ Skipped — queue empty. Staying connected.';
         }
 
         state.loopMode = loopBeforeSkip;
@@ -290,8 +288,7 @@ class MusicManager {
             return '🛑 Stopped playback and cleared queue.';
         }
 
-        this.armInactivityTimeout(guildId, state);
-        return '⏹️ Stopped music and cleared queue.';
+        return '⏹️ Stopped music and cleared queue. Staying connected.';
     }
 
     pause(guildId) {
@@ -374,23 +371,6 @@ class MusicManager {
         lines.push(`• Loop: **${state.loopMode || 'off'}**`);
 
         return lines.length ? lines.join('\n') : 'Queue is empty.';
-    }
-
-    armInactivityTimeout(guildId, state) {
-        if (state.timeout) {
-            clearTimeout(state.timeout);
-        }
-        state.timeout = setTimeout(() => {
-            const queueState = this.queues.get(guildId);
-            if (queueState && !queueState.currentVideo && !queueState.pendingVideoId && queueState.queue.length === 0) {
-                if (queueState.textChannel) {
-                    queueState.textChannel
-                        .send('⌛ Leaving voice channel due to inactivity.')
-                        .catch(() => { });
-                }
-                this.cleanup(guildId);
-            }
-        }, IDLE_TIMEOUT_MS);
     }
 
     async createConnection(guildId, voiceChannel) {
@@ -492,9 +472,6 @@ class MusicManager {
             if (state.queue.length > 0) {
                 const next = state.queue.shift();
                 await this.play(guildId, next, { announce: 'channel' });
-            } else if (!state.currentVideo && !state.pendingVideoId) {
-                // Only set inactivity timeout if truly idle (no current song, no pending, no queue)
-                this.armInactivityTimeout(guildId, state);
             }
         });
 

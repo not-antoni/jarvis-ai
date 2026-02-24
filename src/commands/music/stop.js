@@ -21,7 +21,7 @@ module.exports = {
 
         if (!state.currentVideo && !state.pendingVideoId && state.queue.length === 0) {
             await interaction.reply({
-                content: '⚠️ Nothing is playing. I\'m still connected and will auto-leave after inactivity.',
+                content: '⚠️ Nothing is playing. I\'m still connected.',
                 flags: 64
             });
             return;
