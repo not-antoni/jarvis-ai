@@ -550,10 +550,11 @@ async function handleAvatar(interaction) {
         const embed = new EmbedBuilder()
             .setColor(0x5865f2)
             .setTitle(`Avatar • ${targetUser.tag}`)
+            .setURL(avatarUrl)
             .setImage(avatarUrl)
             .setFooter({ text: useServerAvatar ? 'Server avatar' : 'Global avatar' });
 
-        return { content: avatarUrl, embeds: [embed] };
+        return { embeds: [embed] };
     } catch (error) {
         console.error('Avatar command failed:', error);
         return 'Unable to fetch avatar right now, sir.';
@@ -590,10 +591,11 @@ async function handleBanner(interaction) {
         const embed = new EmbedBuilder()
             .setColor(0x2f3136)
             .setTitle(`Banner • ${targetUser.tag}`)
+            .setURL(bannerUrl)
             .setImage(bannerUrl)
             .setFooter({ text: useServerBanner ? 'Server banner' : 'Global banner' });
 
-        return { content: bannerUrl, embeds: [embed] };
+        return { embeds: [embed] };
     } catch (error) {
         console.error('Banner command failed:', error);
         return 'Unable to fetch banner right now, sir.';
