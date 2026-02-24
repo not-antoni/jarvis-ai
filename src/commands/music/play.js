@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const { musicManager } = require('../../core/musicManager');
 const { resolveTrackInput } = require('../../services/music-resolver');
+const soundcloudApi = require('../../services/soundcloud-api');
 
 // Max file size: 10MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -14,12 +15,38 @@ function isAudioFile(filename) {
     return AUDIO_EXTENSIONS.some(ext => cleanName.endsWith(ext));
 }
 
+function clampChoiceText(value, max = 100) {
+    const text = String(value || '').trim();
+    if (text.length <= max) {
+        return text;
+    }
+    return `${text.slice(0, max - 3)}...`;
+}
+
+function buildQueryChoice(track) {
+    const title = String(track?.title || 'SoundCloud Track').trim();
+    const meta = [track?.uploader, track?.duration].filter(Boolean).join(' • ');
+    const name = clampChoiceText(meta ? `${title} — ${meta}` : title, 100);
+    const rawValue = String(track?.url || '').trim();
+    const value = rawValue.length > 0 && rawValue.length <= 100 ? rawValue : clampChoiceText(title, 100);
+
+    if (!name || !value) {
+        return null;
+    }
+
+    return { name, value };
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
         .setDescription('Play a song or playlist')
         .addStringOption(option =>
-            option.setName('query').setDescription('Song name, YouTube/SoundCloud URL or playlist').setRequired(false)
+            option
+                .setName('query')
+                .setDescription('Song name, YouTube/SoundCloud URL or playlist')
+                .setRequired(false)
+                .setAutocomplete(true)
         )
         .addAttachmentOption(option =>
             option.setName('file1').setDescription('Audio file #1 (10MB max each)').setRequired(false)
@@ -53,6 +80,46 @@ module.exports = {
         )
         .setDMPermission(false)
         .setContexts([InteractionContextType.Guild]),
+
+    async autocomplete(interaction) {
+        const focused = interaction.options.getFocused(true);
+        if (!focused || focused.name !== 'query') {
+            await interaction.respond([]).catch(() => {});
+            return;
+        }
+
+        const query = String(focused.value || '').trim();
+        if (!query || query.length < 2 || /^https?:\/\//i.test(query)) {
+            await interaction.respond([]).catch(() => {});
+            return;
+        }
+
+        if (!soundcloudApi.isConfigured()) {
+            await interaction.respond([]).catch(() => {});
+            return;
+        }
+
+        try {
+            const tracks = await soundcloudApi.searchTracks(query, 10);
+            const choices = [];
+            const seenValues = new Set();
+            for (const track of tracks) {
+                const choice = buildQueryChoice(track);
+                if (!choice || seenValues.has(choice.value)) {
+                    continue;
+                }
+                seenValues.add(choice.value);
+                choices.push(choice);
+                if (choices.length >= 25) {
+                    break;
+                }
+            }
+            await interaction.respond(choices);
+        } catch (error) {
+            console.warn('[Play] Autocomplete failed:', error?.message || error);
+            await interaction.respond([]).catch(() => {});
+        }
+    },
 
     async execute(interaction) {
         if (!interaction.guild) {return;}
@@ -144,7 +211,7 @@ module.exports = {
 
         try {
             const manager = musicManager.get();
-            const { track, fromCache, fallbackToSoundCloud } = await resolveTrackInput(queryOption);
+            const { track, fromCache } = await resolveTrackInput(queryOption);
             const enqueueMessage = await manager.enqueue(
                 interaction.guildId,
                 voiceChannel,
@@ -156,8 +223,6 @@ module.exports = {
             if (fromCache) {
                 contextLines.push(`⚡ **${track.title}**`);
                 contextLines.push('_From cache._');
-            } else if (fallbackToSoundCloud) {
-                contextLines.push('🎧 YouTube search failed, using SoundCloud fallback.');
             } else if (track.source === 'soundcloud' && /^https?:\/\//i.test(queryOption)) {
                 contextLines.push('🎧 Resolved SoundCloud track.');
             }

@@ -127,11 +127,11 @@ async function resolveQueryTrack(query) {
     const cached = searchCache.get(query);
     if (cached?.url) {
         const source = cached.source || inferSourceFromUrl(cached.url);
-        if (source === 'youtube' || source === 'soundcloud') {
+        if (source === 'soundcloud') {
             return {
                 track: buildTrack({
                     source,
-                    title: cached.title || (source === 'soundcloud' ? 'SoundCloud Track' : 'YouTube Track'),
+                    title: cached.title || 'SoundCloud Track',
                     url: cached.url
                 }),
                 fromCache: true,
@@ -140,28 +140,7 @@ async function resolveQueryTrack(query) {
         }
     }
 
-    let youtubeError = null;
-    try {
-        const result = await youtubeSearch.searchVideo(query);
-        if (result?.url) {
-            const track = buildTrack({
-                source: 'youtube',
-                title: result.title || 'YouTube Track',
-                url: cleanYouTubeUrl(result.url),
-                thumbnail: result.thumbnail || null,
-                uploader: result.channel || null
-            });
-            searchCache.set(query, {
-                title: track.title,
-                url: track.url,
-                source: 'youtube'
-            });
-            return { track, fromCache: false, fallbackToSoundCloud: false };
-        }
-    } catch (error) {
-        youtubeError = error;
-    }
-
+    let soundCloudError = null;
     try {
         const soundCloudResults = await soundcloudApi.searchTracks(query, 1);
         const match = soundCloudResults[0];
@@ -180,20 +159,21 @@ async function resolveQueryTrack(query) {
                 url: track.url,
                 source: 'soundcloud'
             });
-            return { track, fromCache: false, fallbackToSoundCloud: true };
+            return { track, fromCache: false, fallbackToSoundCloud: false };
         }
-    } catch (soundCloudError) {
-        console.warn('[MusicResolver] SoundCloud query fallback failed:', soundCloudError.message);
+    } catch (error) {
+        soundCloudError = error;
+        console.warn('[MusicResolver] SoundCloud query search failed:', soundCloudError.message);
     }
 
-    if (youtubeError) {
+    if (soundCloudError) {
         throw createResolverError(
-            '❌ YouTube search failed and no SoundCloud fallback result was found.',
+            '❌ SoundCloud search failed. Please try a SoundCloud link directly, sir.',
             'NO_RESULT'
         );
     }
 
-    throw createResolverError('❌ No results found for that query.', 'NO_RESULT');
+    throw createResolverError('❌ No SoundCloud results found for that query, sir.', 'NO_RESULT');
 }
 
 async function resolveTrackInput(input) {

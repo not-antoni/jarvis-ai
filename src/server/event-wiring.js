@@ -31,6 +31,8 @@ function wireEventHandlers(ctx) {
             if (interaction.isChatInputCommand() || interaction.isContextMenuCommand()) {
                 dashboardRouter.trackCommand(interaction.commandName, interaction.user.id);
                 await discordHandlers.handleSlashCommand(interaction);
+            } else if (interaction.isAutocomplete()) {
+                await discordHandlers.handleAutocomplete(interaction);
             } else if (interaction.isButton()) {
                 await discordHandlers.handleComponentInteraction(interaction);
             }
