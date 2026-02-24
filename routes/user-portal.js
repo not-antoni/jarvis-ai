@@ -10,8 +10,10 @@ const router = express.Router();
 const appContext = require('../src/core/app-context');
 const userAuth = require('../src/services/user-auth');
 const apiKeys = require('../src/services/api-keys');
+const { getPublicConfig } = require('../src/utils/public-config');
 
 let database = null;
+const API_BASE_URL = `${getPublicConfig().baseUrl}/api/v1`;
 
 function init(db) {
     database = db;
@@ -420,7 +422,7 @@ const PORTAL_PAGE = `
                 <h2>📚 Quick Start</h2>
                 <p style="color: #888; margin-bottom: 1rem;">Use your API key with the Jarvis API:</p>
                 <pre style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.85rem;">
-curl https://jorvis.org/api/v1/chat/completions \\
+curl ${API_BASE_URL}/chat/completions \\
   -H "Authorization: Bearer jv-your-api-key" \\
   -H "Content-Type: application/json" \\
   -d '{

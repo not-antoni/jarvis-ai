@@ -2,21 +2,25 @@
 
 const express = require('express');
 const router = express.Router();
+const { getPublicConfig } = require('../src/utils/public-config');
 
-const DISCORD_INVITE = 'https://discord.com/invite/ksXzuBtmK5';
-const BOT_INVITE = 'https://discord.com/oauth2/authorize?client_id=1402324275762954371&permissions=8&scope=bot%20applications.commands';
+const publicConfig = getPublicConfig();
+const DISCORD_INVITE = publicConfig.discordInviteUrl;
+const BOT_INVITE = publicConfig.botInviteUrl;
+const SITE_BASE_URL = publicConfig.baseUrl;
+const GA_MEASUREMENT_ID = publicConfig.gaMeasurementId;
 
 const LANDING_PAGE = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-7P8W1MN168"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-7P8W1MN168');
+      gtag('config', '${GA_MEASUREMENT_ID}');
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -25,14 +29,14 @@ const LANDING_PAGE = `
     <meta property="og:title" content="Jarvis - The Discord AI with Actual Personality">
     <meta property="og:description" content="Natural AI chat, moderation, music, and economy in one bot.">
     <link rel="icon" type="image/webp" href="/jarvis.webp">
-    <meta property="og:image" content="https://jorvis.org/jarvis.webp">
+    <meta property="og:image" content="${SITE_BASE_URL}/jarvis.webp">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://jorvis.org">
+    <meta property="og:url" content="${SITE_BASE_URL}">
     <meta name="theme-color" content="#00d4ff">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="keywords" content="discord bot, ai discord bot, music bot, moderation bot, discord economy bot, jarvis">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://jorvis.org">
+    <link rel="canonical" href="${SITE_BASE_URL}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">

@@ -1,18 +1,20 @@
 'use strict';
 
+const { getPublicConfig } = require('../../src/utils/public-config');
 const { SHARED_STYLES, NAV_HTML } = require('./shared-styles');
+const GA_MEASUREMENT_ID = getPublicConfig().gaMeasurementId;
 
 const COMMANDS_PAGE = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-7P8W1MN168"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-7P8W1MN168');
+      gtag('config', '${GA_MEASUREMENT_ID}');
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

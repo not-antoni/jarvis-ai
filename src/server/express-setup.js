@@ -6,6 +6,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const appContext = require('../core/app-context');
 const tempFiles = require('../utils/temp-files');
+const { getPublicConfig } = require('../utils/public-config');
 const { gatherHealthSnapshot } = require('../services/diagnostics');
 const {
     safeReadJson, writeJsonAtomic, extractBearerToken,
@@ -18,6 +19,7 @@ const {
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
+const PUBLIC_CONFIG = getPublicConfig();
 
 function normalizeHostValue(raw) {
     const value = String(raw || '').trim().toLowerCase();
@@ -55,6 +57,8 @@ function buildAllowedHostSet() {
         .filter(Boolean);
 
     const derivedHosts = [
+        process.env.SITE_DOMAIN,
+        process.env.SITE_BASE_URL,
         process.env.JARVIS_DOMAIN,
         process.env.PUBLIC_BASE_URL,
         process.env.RENDER_EXTERNAL_URL
@@ -62,7 +66,10 @@ function buildAllowedHostSet() {
         .map(hostFromEnv)
         .filter(Boolean);
 
-    for (const host of [...directEnvHosts, ...derivedHosts]) {
+    const configuredDomain = normalizeHostValue(PUBLIC_CONFIG.domain);
+    const configuredBaseHost = hostFromEnv(PUBLIC_CONFIG.baseUrl);
+
+    for (const host of [...directEnvHosts, ...derivedHosts, configuredDomain, configuredBaseHost].filter(Boolean)) {
         hosts.add(host);
         if (!host.startsWith('www.') && !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) && host !== '::1') {
             hosts.add(`www.${host}`);
@@ -228,7 +235,8 @@ function createExpressApp({ webhookRouter, database }) {
 
     // ---- SEO ----
     app.get('/robots.txt', (req, res) => {
-        res.type('text/plain').send(`# Jarvis Discord Bot - https://jorvis.org
+        const siteBaseUrl = PUBLIC_CONFIG.baseUrl;
+        res.type('text/plain').send(`# Jarvis Discord Bot - ${siteBaseUrl}
 User-agent: *
 Allow: /
 Allow: /commands
@@ -250,7 +258,7 @@ Disallow: /me
 Disallow: /api/
 
 # Sitemap
-Sitemap: https://jorvis.org/sitemap.xml
+Sitemap: ${siteBaseUrl}/sitemap.xml
 
 # LLMs.txt for AI crawlers
 # See: https://llmstxt.org
@@ -258,7 +266,7 @@ Sitemap: https://jorvis.org/sitemap.xml
     });
 
     app.get('/sitemap.xml', (req, res) => {
-        const baseUrl = 'https://jorvis.org';
+        const baseUrl = PUBLIC_CONFIG.baseUrl;
         const pages = [
             { url: '/', priority: '1.0', changefreq: 'weekly' },
             { url: '/commands', priority: '0.9', changefreq: 'weekly' },

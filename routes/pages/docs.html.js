@@ -1,6 +1,8 @@
 'use strict';
 
+const { getPublicConfig } = require('../../src/utils/public-config');
 const { SHARED_STYLES, NAV_HTML, DISCORD_INVITE } = require('./shared-styles');
+const API_BASE_URL = `${getPublicConfig().baseUrl}/api/v1`;
 
 const DOCS_PAGE = `
 <!DOCTYPE html>
@@ -116,7 +118,7 @@ const DOCS_PAGE = `
             <div class="doc-section">
                 <h2>📡 Base URL</h2>
                 <div class="card">
-                    <pre>https://jorvis.org/api/v1</pre>
+                    <pre>${API_BASE_URL}</pre>
                 </div>
             </div>
 
@@ -169,7 +171,7 @@ const DOCS_PAGE = `
                     </table>
 
                     <h4 style="color: #00d4ff; margin: 1rem 0 0.5rem;">Example Request</h4>
-                    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl https://jorvis.org/api/v1/chat/completions \\
+                    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl ${API_BASE_URL}/chat/completions \\
   -H "Authorization: Bearer jv-your-api-key" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -276,7 +278,7 @@ const DOCS_PAGE = `
                 <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>import requests
 
 response = requests.post(
-    "https://jorvis.org/api/v1/chat/completions",
+    "${API_BASE_URL}/chat/completions",
     headers={
         "Authorization": "Bearer jv-your-api-key",
         "Content-Type": "application/json"
@@ -289,7 +291,7 @@ response = requests.post(
 print(response.json()["choices"][0]["message"]["content"])</pre>
 
                 <h3 style="color: #fff; margin: 1rem 0;">JavaScript (Node.js)</h3>
-                <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>const response = await fetch("https://jorvis.org/api/v1/chat/completions", {
+                <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>const response = await fetch("${API_BASE_URL}/chat/completions", {
   method: "POST",
   headers: {
     "Authorization": "Bearer jv-your-api-key",
@@ -308,7 +310,7 @@ console.log(data.choices[0].message.content);</pre>
 
 client = OpenAI(
     api_key="jv-your-api-key",
-    base_url="https://jorvis.org/api/v1"
+    base_url="${API_BASE_URL}"
 )
 
 response = client.chat.completions.create(
@@ -394,7 +396,7 @@ print(response.choices[0].message.content)</pre>
                 <h2>🔗 Links</h2>
                 <div class="card">
                     <p>
-                        <a href="\${DISCORD_INVITE}" style="color: #00d4ff;">Support Discord</a><br>
+                        <a href="${DISCORD_INVITE}" style="color: #00d4ff;">Support Discord</a><br>
                         <a href="/tos" style="color: #00d4ff;">Terms of Service</a><br>
                         <a href="/policy" style="color: #00d4ff;">Privacy Policy</a>
                     </p>
