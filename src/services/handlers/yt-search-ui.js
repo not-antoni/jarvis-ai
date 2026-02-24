@@ -31,7 +31,7 @@ function pruneSessions() {
     }
 
     const oldest = [...sessions.entries()]
-        .sort((a, b) => a[1].createdAt - a[1].createdAt)
+        .sort((a, b) => a[1].createdAt - b[1].createdAt)
         .slice(0, sessions.size - MAX_SESSIONS);
     for (const [id] of oldest) {
         sessions.delete(id);
@@ -89,7 +89,7 @@ function buildEmbed(query, video) {
         .setColor(0xff0000)
         .setAuthor({ name: 'YouTube' })
         .setTitle(video.title || 'Untitled Video')
-        // NOTE: removed .setURL(video.url) to avoid embedding the already-embedded YouTube link
+        .setURL(video.url || null)
         .setDescription(video.channel ? `**${video.channel}**` : '**Unknown channel**');
 
     if (video.thumbnail) {
@@ -115,7 +115,6 @@ function buildPayload(sessionId, session) {
 
     return {
         content,
-        embeds: [buildEmbed(session.query, video)],
         components: [buildButtons(sessionId, index, total)],
         allowedMentions: { parse: [] }
     };
