@@ -262,16 +262,29 @@ async function getAudioStream(videoId, videoUrl) {
         activeStreams.delete(videoId);
 
         const msg = error.message || String(error);
+        const lowerMsg = msg.toLowerCase();
 
         if (msg === 'Download cancelled') {
             throw new Error('Stream cancelled');
         }
 
-        if (msg.includes('Sign in') || msg.includes('age')) {
-            throw new Error('This video requires sign-in (age-restricted)');
+        if (
+            lowerMsg.includes('sign in to confirm') ||
+            lowerMsg.includes("confirm you're not a bot") ||
+            lowerMsg.includes('confirm youre not a bot')
+        ) {
+            throw new Error('YouTube requested sign-in verification (anti-bot challenge).');
         }
 
-        if (msg.includes('unavailable') || msg.includes('private')) {
+        if (lowerMsg.includes('age-restricted') || lowerMsg.includes('age restricted')) {
+            throw new Error('This video is age-restricted and requires a signed-in YouTube account.');
+        }
+
+        if (lowerMsg.includes('sign in')) {
+            throw new Error('This video requires a signed-in YouTube session to play.');
+        }
+
+        if (lowerMsg.includes('unavailable') || lowerMsg.includes('private')) {
             throw new Error('Video is unavailable or private');
         }
 
