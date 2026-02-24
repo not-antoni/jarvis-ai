@@ -36,6 +36,23 @@ function extractVoiceCloseCode(state) {
     return null;
 }
 
+function normalizePlaybackFailureReason(rawMessage) {
+    const text = String(rawMessage || '').trim();
+    if (!text) {
+        return 'Unable to play that track right now, sir.';
+    }
+
+    const normalized = text.startsWith('Unable to play:')
+        ? (text.slice('Unable to play:'.length).trim() || text)
+        : text;
+
+    if (normalized.length > 500) {
+        return `${normalized.slice(0, 497)}...`;
+    }
+
+    return normalized;
+}
+
 class MusicManager {
     constructor(client) {
         this.queues = new Map(); // guildId -> state
@@ -129,6 +146,7 @@ class MusicManager {
 
     async play(guildId, video, options = {}) {
         const announce = options.announce ?? 'command';
+        const queueAdvance = options.queueAdvance === true;
         const state = this.queues.get(guildId);
         if (!state) {
             return '⚠️ Nothing to play, sir.';
@@ -153,7 +171,16 @@ class MusicManager {
                 return null;
             }
             console.error('play-dl stream failed:', error.message);
-            return `⚠️ ${error.message || 'Unable to play that track right now, sir.'}`;
+            const reason = normalizePlaybackFailureReason(error.message);
+            const failureMessage = queueAdvance
+                ? `⚠️ Skipping **${video.title}**: ${reason}`
+                : `⚠️ Unable to play **${video.title}**: ${reason}`;
+
+            if (announce === 'channel' && state.textChannel) {
+                safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => { });
+            }
+
+            return failureMessage;
         }
 
         try {
@@ -185,7 +212,10 @@ class MusicManager {
             console.error('Music playback error:', error);
             streamResult.cleanup();
 
-            const failureMessage = `⚠️ Could not play **${video.title}**.`;
+            const reason = normalizePlaybackFailureReason(error?.message);
+            const failureMessage = queueAdvance
+                ? `⚠️ Skipping **${video.title}**: ${reason}`
+                : `⚠️ Could not play **${video.title}**.`;
             if (announce === 'command') {
                 return failureMessage;
             }
@@ -194,8 +224,45 @@ class MusicManager {
                 safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => { });
             }
 
-            this.cleanup(guildId);
             return failureMessage;
+        }
+
+        return null;
+    }
+
+    async playNextAvailableFromQueue(guildId, state, options = {}) {
+        const announce = options.announce ?? 'channel';
+        let attempted = 0;
+
+        while (state.queue.length > 0) {
+            const liveState = this.queues.get(guildId);
+            if (!liveState || liveState !== state) {
+                return null;
+            }
+
+            const next = state.queue.shift();
+            attempted += 1;
+
+            const result = await this.play(guildId, next, {
+                announce,
+                queueAdvance: true
+            });
+
+            if (state.currentVideo) {
+                return result;
+            }
+
+            if (result === null) {
+                return null;
+            }
+        }
+
+        if (announce === 'channel' && attempted > 0 && state.textChannel) {
+            safeSend(
+                state.textChannel,
+                { content: '⚠️ No playable tracks left in queue, sir.' },
+                this.client
+            ).catch(() => { });
         }
 
         return null;
@@ -458,7 +525,13 @@ class MusicManager {
                 }
 
                 if (state.loopMode === 'song' && finishedTrack) {
-                    await this.play(guildId, finishedTrack, { announce: 'channel' });
+                    await this.play(guildId, finishedTrack, {
+                        announce: 'channel',
+                        queueAdvance: true
+                    });
+                    if (!state.currentVideo && state.queue.length > 0) {
+                        await this.playNextAvailableFromQueue(guildId, state, { announce: 'channel' });
+                    }
                     return;
                 }
             }
@@ -470,8 +543,7 @@ class MusicManager {
             }
 
             if (state.queue.length > 0) {
-                const next = state.queue.shift();
-                await this.play(guildId, next, { announce: 'channel' });
+                await this.playNextAvailableFromQueue(guildId, state, { announce: 'channel' });
             }
         });
 
