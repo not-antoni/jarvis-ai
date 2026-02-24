@@ -38,9 +38,103 @@ const COOKIE_FILE_NAME = 'youtube-cookies.txt';
 // Track/file size limits to prevent VPS crashes
 const MAX_FILESIZE_MB = parseInt(process.env.YTDLP_MAX_FILESIZE_MB || '50', 10);
 const MAX_DURATION_SECONDS = parseInt(process.env.YTDLP_MAX_DURATION || '900', 10); // 15 min default
+const DOCUMENTARY_OPENER =
+    '🦁 Sir, with all due respect... are you listening to National Geographic documentaries?';
 
 const cache = new Map(); // videoId -> { path, refs, timer, lastAccess }
 const pendingDownloads = new Map(); // videoId -> { promise, cancel }
+
+function buildDurationLimitReason(durationSeconds) {
+    const minutes = Math.max(1, Math.floor(durationSeconds / 60));
+    const maxMinutes = Math.max(1, Math.floor(MAX_DURATION_SECONDS / 60));
+    return `${DOCUMENTARY_OPENER} This is ${minutes} minutes long! Max is ${maxMinutes} minutes.`;
+}
+
+function buildFilesizeLimitReason(sizeMb = null) {
+    if (Number.isFinite(sizeMb) && sizeMb > 0) {
+        return `${DOCUMENTARY_OPENER} This is ~${Math.round(sizeMb)}MB! Max is ${MAX_FILESIZE_MB}MB.`;
+    }
+
+    return `${DOCUMENTARY_OPENER} This is too large! Max is ${MAX_FILESIZE_MB}MB.`;
+}
+
+function extractApproxSizeMb(text) {
+    if (!text || typeof text !== 'string') {
+        return null;
+    }
+
+    const match = text.match(/(\d+(?:\.\d+)?)\s*(?:mib|mb)\b/i);
+    if (!match) {
+        return null;
+    }
+
+    const parsed = Number.parseFloat(match[1]);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractBestYtDlpErrorLine(stderr) {
+    if (!stderr || typeof stderr !== 'string') {
+        return '';
+    }
+
+    const lines = stderr
+        .split('\n')
+        .map(line =>
+            line
+                .replace(/^\s*ERROR:\s*/i, '')
+                .replace(/^\s*\[[^\]]+\]\s*/g, '')
+                .trim()
+        )
+        .filter(Boolean);
+
+    if (!lines.length) {
+        return '';
+    }
+
+    const preferred = lines
+        .slice()
+        .reverse()
+        .find(line =>
+            /(error|failed|unable|max-filesize|too large|private|unavailable|sign in|cookies|forbidden|429)/i
+                .test(line)
+        );
+
+    return preferred || lines[lines.length - 1];
+}
+
+function normalizeYtDlpError(error) {
+    if (!error || typeof error !== 'object') {
+        return error;
+    }
+
+    const message = String(error.message || '');
+    const stderr = String(error.stderr || '');
+    const combined = `${message}\n${stderr}`.toLowerCase();
+
+    if (combined.includes('national geographic documentaries')) {
+        return error;
+    }
+
+    const isSizeLimitError =
+        combined.includes('max-filesize') ||
+        combined.includes('file is larger than') ||
+        combined.includes('requested formats are incompatible for merge and this file is too large') ||
+        combined.includes('too large');
+
+    if (isSizeLimitError) {
+        error.message = buildFilesizeLimitReason(extractApproxSizeMb(`${message}\n${stderr}`));
+        return error;
+    }
+
+    if (/yt-dlp exited with code \d+/i.test(message) && stderr.trim()) {
+        const bestLine = extractBestYtDlpErrorLine(stderr);
+        if (bestLine) {
+            error.message = bestLine;
+        }
+    }
+
+    return error;
+}
 
 async function fileIsFresh(filePath) {
     try {
@@ -464,11 +558,28 @@ async function cleanupArtifacts(base) {
 async function checkVideoLimits(videoId, videoUrl) {
     try {
         const binaryPath = await ensureBinary();
+        const cookieFile = await ensureCookiesFile();
+        const extractorArgs = buildExtractorArgs(Boolean(cookieFile));
         
         // Get video info without downloading
         const result = await new Promise((resolve, reject) => {
-            const args = ['-j', '--no-warnings', '--no-playlist', videoUrl];
-            const proc = spawn(binaryPath, args, { timeout: 30000 });
+            const args = [
+                '-j',
+                '--no-warnings',
+                '--no-playlist',
+                '--extractor-args',
+                extractorArgs,
+                videoUrl
+            ];
+
+            if (cookieFile) {
+                args.splice(args.length - 1, 0, '--cookies', cookieFile);
+            }
+
+            const proc = spawn(binaryPath, args, {
+                timeout: 30000,
+                env: { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' }
+            });
             
             let stdout = '';
             let stderr = '';
@@ -484,7 +595,9 @@ async function checkVideoLimits(videoId, videoUrl) {
                         reject(new Error('Failed to parse video info'));
                     }
                 } else {
-                    reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+                    const ytdlpError = new Error(`yt-dlp exited with code ${code}`);
+                    ytdlpError.stderr = stderr;
+                    reject(normalizeYtDlpError(ytdlpError));
                 }
             });
             proc.on('error', reject);
@@ -496,11 +609,9 @@ async function checkVideoLimits(videoId, videoUrl) {
         
         // Check duration limit
         if (durationSec > MAX_DURATION_SECONDS) {
-            const minutes = Math.floor(durationSec / 60);
-            const maxMinutes = Math.floor(MAX_DURATION_SECONDS / 60);
             return {
                 allowed: false,
-                reason: `🦁 Sir, with all due respect... are you listening to National Geographic documentaries? This is ${minutes} minutes long! Max is ${maxMinutes} minutes.`
+                reason: buildDurationLimitReason(durationSec)
             };
         }
         
@@ -508,14 +619,18 @@ async function checkVideoLimits(videoId, videoUrl) {
         if (filesizeMB > MAX_FILESIZE_MB) {
             return {
                 allowed: false,
-                reason: `🦁 Sir, with all due respect... are you listening to National Geographic documentaries? This is ~${Math.round(filesizeMB)}MB! Max is ${MAX_FILESIZE_MB}MB.`
+                reason: buildFilesizeLimitReason(filesizeMB)
             };
         }
         
         return { allowed: true, duration: durationSec, title: result.title };
     } catch (error) {
+        const normalized = normalizeYtDlpError(error);
+        if (normalized?.message && normalized.message.includes('National Geographic documentaries')) {
+            return { allowed: false, reason: normalized.message };
+        }
         // If we can't check, allow it (fail open for edge cases)
-        return { allowed: true, error: error.message };
+        return { allowed: true, error: normalized?.message || error?.message };
     }
 }
 
@@ -600,6 +715,7 @@ async function createDownloadTask(videoId, videoUrl) {
                 const handleError = async error => {
                     await cleanupArtifacts(base).catch(() => {});
                     error.stderr = stderrChunks.join('');
+                    normalizeYtDlpError(error);
                     reject(error);
                 };
 
