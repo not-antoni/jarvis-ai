@@ -23,7 +23,7 @@ const LANDING_PAGE = `
     <title>Jarvis - The Discord AI with Actual Personality | All-in-One Bot</title>
     <meta name="description" content="Stop using boring bots. Jarvis brings natural AI chat, powerful moderation, music streaming, and a global economy to your Discord server. Free forever.">
     <meta property="og:title" content="Jarvis - The Discord AI with Actual Personality">
-    <meta property="og:description" content="Natural AI chat, moderation, music, and economy in one bot. Trusted by thousands of servers.">
+    <meta property="og:description" content="Natural AI chat, moderation, music, and economy in one bot.">
     <link rel="icon" type="image/webp" href="/jarvis.webp">
     <meta property="og:image" content="https://jorvis.org/jarvis.webp">
     <meta property="og:type" content="website">
