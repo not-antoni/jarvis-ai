@@ -4567,6 +4567,35 @@ class DiscordHandlers {
         return await memoryHandler.handlePersonaCommand(this, interaction);
     }
 
+    async handleAutocomplete(interaction) {
+        const commandName = interaction.commandName;
+        const guild = interaction.guild || null;
+        const musicCommand = musicCommandMap.get(commandName);
+
+        if (!musicCommand || typeof musicCommand.autocomplete !== 'function') {
+            await interaction.respond([]).catch(() => {});
+            return;
+        }
+
+        if (!isCommandEnabled(commandName)) {
+            await interaction.respond([]).catch(() => {});
+            return;
+        }
+
+        const featureAllowed = await this.isCommandFeatureEnabled(commandName, guild);
+        if (!featureAllowed) {
+            await interaction.respond([]).catch(() => {});
+            return;
+        }
+
+        try {
+            await musicCommand.autocomplete(interaction);
+        } catch (error) {
+            console.error(`Error handling /${commandName} autocomplete:`, error);
+            await interaction.respond([]).catch(() => {});
+        }
+    }
+
     async handleSlashCommand(interaction) {
         const { commandName } = interaction;
         const userId = interaction.user.id;
