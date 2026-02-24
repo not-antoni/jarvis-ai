@@ -36,7 +36,7 @@ async function handleBalance(interaction) {
     const lb = await starkEconomy.getLeaderboard(100);
     const rankIndex = lb.findIndex(u => u.userId === interaction.user.id);
     const rank = rankIndex !== -1 ? rankIndex + 1 : null;
-    const imageGenerator = require('./image-generator');
+    const imageGenerator = require('../image-generator');
     const profileData = {
         username: interaction.user.username,
         avatar: interaction.user.displayAvatarURL({ extension: 'png', size: 256 }),
@@ -214,7 +214,7 @@ async function handleLeaderboard(interaction) {
     if (!lb.length) {
         return 'No data yet, sir.';
     }
-    const imageGenerator = require('./image-generator');
+    const imageGenerator = require('../image-generator');
     const enrichedLb = await Promise.all(lb.map(async(u) => {
         let avatarUrl = null;
         let username = u.username || 'Unknown';
@@ -364,7 +364,7 @@ async function handleEconomy(interaction) {
             const lb = await starkEconomy.getLeaderboard(100);
             const rankIndex = lb.findIndex(u => u.userId === interaction.user.id);
             const rank = rankIndex !== -1 ? rankIndex + 1 : null;
-            const imageGenerator = require('./image-generator');
+            const imageGenerator = require('../image-generator');
             const profileData = {
                 username: interaction.user.username,
                 avatar: interaction.user.displayAvatarURL({ extension: 'png', size: 256 }),

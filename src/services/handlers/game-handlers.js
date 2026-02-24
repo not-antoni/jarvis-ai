@@ -578,7 +578,7 @@ async function handleComponentInteraction(handler, interaction) {
 
     // Error log status buttons
     try {
-        const errorLogger = require('./error-logger');
+        const errorLogger = require('../error-logger');
         const handled = await errorLogger.handleStatusButton(interaction);
         if (handled) {
             return;
