@@ -4,6 +4,7 @@ const fs = require('fs');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const path = require('path');
+const { sanitizeQuoteText } = require('./quote-text-sanitize');
 
 // Helper to interact with temp files
 async function loadGifFrame(url) {
@@ -50,30 +51,6 @@ async function loadGifFrame(url) {
 
         return await loadImage(url);
     }
-}
-
-/**
- * Strip Discord markdown from text for clean display
- */
-function stripMarkdown(text) {
-    if (!text) {return text;}
-    return text
-        // Bold/italic combinations
-        .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
-        // Bold
-        .replace(/\*\*(.+?)\*\*/g, '$1')
-        // Italic (underscore)
-        .replace(/__(.+?)__/g, '$1')
-        // Italic (asterisk)
-        .replace(/\*(.+?)\*/g, '$1')
-        // Italic (single underscore - be careful not to break emoji names)
-        .replace(/(?<![:\w])_([^_]+)_(?![:\w])/g, '$1')
-        // Strikethrough
-        .replace(/~~(.+?)~~/g, '$1')
-        // Inline code
-        .replace(/`(.+?)`/g, '$1')
-        // Spoilers
-        .replace(/\|\|(.+?)\|\|/g, '$1');
 }
 
 /**
@@ -180,8 +157,6 @@ function tokenizeText(text) {
     const customEmojiRegex = /<a?:(\w+):(\d+)>/g;
     const unicodeEmojiRegex = emojiRegex();
 
-    const currentIndex = 0;
-
     const customMatches = [...text.matchAll(customEmojiRegex)];
 
     const processPlain = (plainText) => {
@@ -190,9 +165,14 @@ function tokenizeText(text) {
         let lastIdx = 0;
 
         const addWords = (str) => {
-            const words = str.split(/(\s+)/);
+            const words = str.split(/(\n|[^\S\n]+)/);
             for (const w of words) {
-                if (w.length > 0) {subTokens.push({ type: 'text', content: w });}
+                if (!w) {continue;}
+                if (w === '\n') {
+                    subTokens.push({ type: 'newline' });
+                } else {
+                    subTokens.push({ type: 'text', content: w });
+                }
             }
         };
 
@@ -233,6 +213,13 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
     let currentWidth = 0;
 
     for (const token of tokens) {
+        if (token.type === 'newline') {
+            lines.push(currentLine);
+            currentLine = [];
+            currentWidth = 0;
+            continue;
+        }
+
         let tokenWidth = 0;
         if (token.type === 'text') {
             tokenWidth = ctx.measureText(token.content).width;
@@ -241,6 +228,7 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
         }
 
         if (token.type === 'text' && /^\s+$/.test(token.content)) {
+            if (currentLine.length === 0) {continue;}
             currentLine.push(token);
             currentWidth += tokenWidth;
             continue;
@@ -248,8 +236,13 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
 
         if (currentWidth + tokenWidth > maxWidth && currentLine.length > 0) {
             lines.push(currentLine);
-            currentLine = [token];
-            currentWidth = tokenWidth;
+            if (token.type === 'text' && /^\s+$/.test(token.content)) {
+                currentLine = [];
+                currentWidth = 0;
+            } else {
+                currentLine = [token];
+                currentWidth = tokenWidth;
+            }
         } else {
             currentLine.push(token);
             currentWidth += tokenWidth;
@@ -275,9 +268,9 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     const fontSize = 80;
     ctx.font = `${fontSize}px ${fontStack}`;
 
-    // 1. Normalize Nitro fancy fonts to ASCII, strip markdown, then tokenize
+    // 1. Normalize Nitro fonts, sanitize Discord markdown, then tokenize.
     const normalizedText = normalizeNitroFonts(text || '');
-    const cleanText = stripMarkdown(normalizedText);
+    const cleanText = sanitizeQuoteText(normalizedText);
     const tokens = tokenizeText(cleanText);
 
     const assetsToLoad = [];
@@ -528,7 +521,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     const nameY = currentY + 40;
 
     // Process displayName - normalize fancy fonts and support emojis
-    const normalizedDisplayName = normalizeNitroFonts(displayName);
+    const normalizedDisplayName = normalizeNitroFonts(displayName).replace(/[\r\n]+/g, ' ');
     const nameTokens = tokenizeText(normalizedDisplayName);
 
     // Load emoji assets for displayName

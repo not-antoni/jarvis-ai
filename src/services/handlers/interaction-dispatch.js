@@ -2,6 +2,7 @@
 
 const { commandMap: musicCommandMap } = require('../../commands/music');
 const { splitMessage } = require('../../utils/discord-safe-send');
+const { stripReactionDirectives } = require('../../utils/react-tags');
 const { recordCommandRun } = require('../../utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../../core/command-registry');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
@@ -252,10 +253,7 @@ try {
                     await interaction.followUp('Response circuits tangled, sir. Try again?');
                 }
             } else if (typeof response === 'string') {
-                let cleanedModResponse = response;
-                if (/\[REACT:.+?\]\s*$/.test(response)) {
-                    cleanedModResponse = response.replace(/\s*\[REACT:.+?\]\s*$/, '').trim();
-                }
+                const cleanedModResponse = stripReactionDirectives(response);
                 const trimmed = cleanedModResponse.trim();
                 const safe = handler.sanitizePings(trimmed);
                 const msg = safe.length > 2000 ? `${safe.slice(0, 1997)  }...` : (safe.length ? safe : 'Response circuits tangled, sir. Try again?');
@@ -769,12 +767,8 @@ try {
         }
         telemetryMetadata.reason = 'empty-response';
     } else if (typeof response === 'string') {
-        // Strip [REACT:emoji] tag — slash commands can't react on the user's message
-        let cleanedResponse = response;
-        const slashReactMatch = response.match(/\[REACT:(.+?)\]\s*$/);
-        if (slashReactMatch) {
-            cleanedResponse = response.replace(/\s*\[REACT:.+?\]\s*$/, '').trim();
-        }
+        // Strip any reaction directive — slash commands can't react on the user's message
+        const cleanedResponse = stripReactionDirectives(response);
         const trimmed = cleanedResponse.trim();
         const safe = handler.sanitizePings(trimmed);
         if (!safe.length) {
