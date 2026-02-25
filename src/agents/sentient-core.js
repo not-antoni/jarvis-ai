@@ -29,8 +29,8 @@ try {
     console.warn('[SentientCore] Could not load soul:', e.message);
 }
 
-// Import owner check for bypasses
-const { isOwner } = require('../utils/owner-check');
+// Import owner identity helpers
+const { isOwner, getOwnerId } = require('../utils/owner-check');
 
 // ============================================================================
 // CONFIGURATION
@@ -350,8 +350,23 @@ class AgentTools {
     async executeCommand(command, options = {}) {
         const { requireApproval = true, timeout = 30000 } = options;
 
-        // OWNER BYPASS: Check owner status FIRST before metacharacter check
-        const callerIsOwner = options.userId && isOwner(options.userId);
+        const ownerId = getOwnerId();
+        const callerUserId = options.userId ? String(options.userId).trim() : null;
+        const callerIsOwner = Boolean(ownerId && callerUserId && callerUserId === String(ownerId).trim());
+
+        // Hardened security: shell execution is owner-only.
+        if (!callerIsOwner) {
+            return {
+                status: 'forbidden',
+                command,
+                output: ownerId
+                    ? 'Sentient shell execution is restricted to the configured owner.'
+                    : 'Sentient shell execution is disabled until an owner ID is configured.',
+                exitCode: 1,
+                duration: 0,
+                reason: 'Owner-only command execution'
+            };
+        }
 
         // Parse command into safe argv format (skip for owner - they get full shell)
         const parsed = callerIsOwner ? { executable: command, args: [] } : parseCommandToArgv(command);
@@ -1057,7 +1072,9 @@ class SentientAgent extends EventEmitter {
     async executeAction(action, context) {
         switch (action.type) {
             case 'execute_command':
-                return await this.tools.executeCommand(action.command);
+                return await this.tools.executeCommand(action.command, {
+                    userId: context?.userId
+                });
 
             case 'read_file':
                 return this.tools.readFile(action.path);

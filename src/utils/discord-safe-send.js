@@ -77,27 +77,31 @@ async function safeDM(user, options) {
  * @returns {string[]}
  */
 function splitMessage(text, maxLength = 1900) {
-    if (!text || text.length <= maxLength) {return [text];}
+    if (!text) {return [text];}
+    const value = typeof text === 'string' ? text : String(text);
+    if (value.length <= maxLength) {return [value];}
 
     const chunks = [];
-    let remaining = text;
+    let cursor = 0;
 
-    while (remaining.length > 0) {
-        if (remaining.length <= maxLength) {
-            chunks.push(remaining);
+    while (cursor < value.length) {
+        const remainingLength = value.length - cursor;
+        if (remainingLength <= maxLength) {
+            chunks.push(value.slice(cursor));
             break;
         }
 
-        let splitAt = remaining.lastIndexOf('\n', maxLength);
-        if (splitAt < maxLength * 0.3) {
-            splitAt = remaining.lastIndexOf(' ', maxLength);
+        const minSplitAt = cursor + Math.floor(maxLength * 0.3);
+        let splitAt = value.lastIndexOf('\n', cursor + maxLength);
+        if (splitAt < minSplitAt) {
+            splitAt = value.lastIndexOf(' ', cursor + maxLength);
         }
-        if (splitAt < maxLength * 0.3) {
-            splitAt = maxLength;
+        if (splitAt <= cursor || splitAt < minSplitAt) {
+            splitAt = cursor + maxLength;
         }
 
-        chunks.push(remaining.slice(0, splitAt));
-        remaining = remaining.slice(splitAt).trimStart();
+        chunks.push(value.slice(cursor, splitAt));
+        cursor = splitAt;
     }
 
     return chunks;
