@@ -44,6 +44,7 @@ const AutoHealer = require('../agents/autoHealer');
 const CaptchaHandler = require('../agents/captchaHandler');
 const RobustnessEnhancer = require('../agents/robustnessEnhancer');
 const tempFiles = require('../utils/temp-files');
+const { extractReactionDirective } = require('../utils/react-tags');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
 const { splitMessage } = require('../utils/discord-safe-send');
 const funFeatures = require('./fun-features');
@@ -3733,14 +3734,12 @@ class DiscordHandlers {
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
 
             // Parse optional emoji reaction tag from AI response
-            let reactEmoji = null;
+            let reactCandidates = [];
             let cleanResponse = response;
             if (typeof response === 'string') {
-                const reactMatch = response.match(/\[REACT:(.+?)\]\s*$/);
-                if (reactMatch) {
-                    reactEmoji = reactMatch[1].trim();
-                    cleanResponse = response.replace(/\s*\[REACT:.+?\]\s*$/, '').trim();
-                }
+                const parsedReactionDirective = extractReactionDirective(response);
+                cleanResponse = parsedReactionDirective.cleanText;
+                reactCandidates = parsedReactionDirective.reactionCandidates;
             }
 
             if (typeof cleanResponse === 'string' && cleanResponse.trim()) {
@@ -3758,14 +3757,13 @@ class DiscordHandlers {
             }
 
             // Apply emoji reaction if the AI suggested one
-            if (reactEmoji) {
-                try {
-                    await message.react(reactEmoji);
-                } catch (_) {
-                    // Custom emoji format: <:name:id> or <a:name:id> — extract the ID
-                    const customMatch = reactEmoji.match(/<a?:\w+:(\d+)>/);
-                    if (customMatch) {
-                        try { await message.react(customMatch[1]); } catch (_e) { /* emoji unavailable */ }
+            if (reactCandidates.length > 0) {
+                for (const candidate of reactCandidates) {
+                    try {
+                        await message.react(candidate);
+                        break;
+                    } catch (_) {
+                        // Continue until a valid candidate reacts successfully.
                     }
                 }
             }
