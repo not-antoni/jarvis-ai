@@ -234,7 +234,7 @@ class MusicManager {
                 return failureMessage;
             }
 
-            if (state.textChannel) {
+            if (announce === 'channel' && state.textChannel) {
                 safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => { });
             }
 
@@ -581,7 +581,7 @@ class MusicManager {
 
                 if (state.loopMode === 'song' && finishedTrack) {
                     await this.play(guildId, finishedTrack, {
-                        announce: 'channel',
+                        announce: 'silent',
                         queueAdvance: true
                     });
                     if (!state.currentVideo && state.queue.length > 0) {
