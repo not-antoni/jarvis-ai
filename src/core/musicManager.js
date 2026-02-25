@@ -5,9 +5,9 @@ const {
     AudioPlayerStatus,
     NoSubscriberBehavior,
     VoiceConnectionStatus,
-    entersState,
-    StreamType
+    entersState
 } = require('@discordjs/voice');
+const { AttachmentBuilder } = require('discord.js');
 const { getAudioStream, cancelStream } = require('../utils/playDl');
 const { extractVideoId } = require('../utils/youtube');
 const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
@@ -51,6 +51,20 @@ function normalizePlaybackFailureReason(rawMessage) {
     }
 
     return normalized;
+}
+
+function sanitizeAttachmentFilename(name) {
+    const raw = String(name || '').trim();
+    if (!raw) {
+        return 'upload-audio.mp3';
+    }
+
+    const cleaned = raw
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return (cleaned || 'upload-audio.mp3').slice(0, 180);
 }
 
 class MusicManager {
@@ -136,8 +150,8 @@ class MusicManager {
         }
 
         if (!state.currentVideo && !state.pendingVideoId) {
-            const message = await this.play(guildId, video, { announce: 'command' });
-            return message || `🎶 Now playing: **${video.title}**\n${video.url}`;
+            const announcement = await this.play(guildId, video, { announce: 'command' });
+            return announcement || this.buildNowPlayingAnnouncement(video);
         }
 
         state.queue.push(video);
@@ -199,14 +213,14 @@ class MusicManager {
             state.currentVideo = video;
             state.currentRelease = streamResult.cleanup;
 
-            const message = `🎶 Now playing: **${video.title}**\n${video.url}`;
+            const message = this.buildNowPlayingAnnouncement(video);
 
             if (announce === 'command') {
                 return message;
             }
 
             if (announce === 'channel' && state.textChannel) {
-                safeSend(state.textChannel, { content: message }, this.client).catch(() => { });
+                await this.sendNowPlayingAnnouncement(state, video, message);
             }
         } catch (error) {
             console.error('Music playback error:', error);
@@ -228,6 +242,47 @@ class MusicManager {
         }
 
         return null;
+    }
+
+    buildNowPlayingAnnouncement(video) {
+        const title = String(video?.title || 'Unknown track');
+        const fallbackMessage = `🎶 Now playing: **${title}**\n${video?.url || ''}`.trim();
+
+        if (!video?.isUpload || !video?.uploadPreviewUrl) {
+            return fallbackMessage;
+        }
+
+        try {
+            const filename = sanitizeAttachmentFilename(video?.filename || video?.title);
+            return {
+                content: `🎶 Now playing: **${title}**`,
+                files: [new AttachmentBuilder(video.uploadPreviewUrl, { name: filename })]
+            };
+        } catch (error) {
+            console.warn('[MusicManager] Failed to build upload attachment message:', error?.message || error);
+            return fallbackMessage;
+        }
+    }
+
+    async sendNowPlayingAnnouncement(state, video, payload = null) {
+        if (!state?.textChannel) {
+            return;
+        }
+
+        const announcement = payload || this.buildNowPlayingAnnouncement(video);
+        if (typeof announcement === 'string') {
+            await safeSend(state.textChannel, { content: announcement }, this.client);
+            return;
+        }
+
+        const sent = await safeSend(state.textChannel, announcement, this.client);
+        if (sent?.ok) {
+            return;
+        }
+
+        // Fallback when URL-based attachment upload fails (expired URL, fetch failure, etc.).
+        const fallback = `🎶 Now playing: **${video?.title || 'Unknown track'}**\n${video?.url || ''}`.trim();
+        await safeSend(state.textChannel, { content: fallback }, this.client);
     }
 
     async playNextAvailableFromQueue(guildId, state, options = {}) {

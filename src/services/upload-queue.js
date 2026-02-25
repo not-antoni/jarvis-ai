@@ -153,13 +153,23 @@ class UploadQueue {
                     title: item.filename,
                     url: item.fileUrl,
                     duration: formattedDuration,
-                    durationSeconds
+                    durationSeconds,
+                    isUpload: true,
+                    uploadPreviewUrl: item.fileUrl,
+                    filename: item.filename
                 },
                 item.interaction
             );
 
             if (response && item.textChannel) {
-                await item.textChannel.send(response).catch(() => { });
+                try {
+                    await item.textChannel.send(response);
+                } catch (_sendError) {
+                    const fallback = typeof response === 'string' ? response : response?.content;
+                    if (fallback) {
+                        await item.textChannel.send(fallback).catch(() => { });
+                    }
+                }
             }
 
             console.log(`[UploadQueue] Success: ${item.filename}`);
