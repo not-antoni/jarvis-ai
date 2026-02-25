@@ -7,12 +7,14 @@
 const assert = require('assert');
 
 // Mock environment
-process.env.SELFHOST_MODE = 'true';
+process.env.DEPLOY_TARGET = 'selfhost';
+process.env.LOCAL_DB_MODE = 'true';
 process.env.DISCORD_TOKEN = 'test-token';
 process.env.MONGO_URI_MAIN = 'mongodb://localhost:27017/test';
 process.env.MONGO_URI_VAULT = 'mongodb://localhost:27017/test_vault';
 process.env.BRAVE_API_KEY = 'test-brave-key';
 process.env.MASTER_KEY_BASE64 = Buffer.from('12345678901234567890123456789012').toString('base64');
+process.env.ADMIN_USER_ID = 'test-owner-123';
 
 const {
     SentientAgent,
@@ -198,20 +200,22 @@ test('SentientAgent can toggle autonomous mode', () => {
 
 console.log('\n🔒 Safety Tests:\n');
 
-test('Dangerous commands require approval', async () => {
+test('Non-owner command execution is forbidden', async () => {
     const agent = new SentientAgent();
-    const result = await agent.tools.executeCommand('rm -rf /', { requireApproval: true });
+    const result = await agent.tools.executeCommand('echo blocked');
     
-    assert(result.status === 'pending_approval', 'Should require approval');
-    assert(result.command === 'rm -rf /', 'Command should be preserved');
+    assert.strictEqual(result.status, 'forbidden', 'Should be owner-only');
+    assert(/owner/i.test(result.reason || ''), 'Reason should mention owner restriction');
 });
 
-test('Safe commands execute without approval', async () => {
+test('Owner can execute safe commands', async () => {
     const agent = new SentientAgent();
-    const result = await agent.tools.executeCommand('echo test');
+    const result = await agent.tools.executeCommand('echo test', {
+        userId: process.env.ADMIN_USER_ID
+    });
     
     assert(result.status === 'success' || result.status === 'error', 'Should execute');
-    assert(result.status !== 'pending_approval', 'Should not require approval');
+    assert(result.status !== 'forbidden', 'Owner should not be blocked');
 });
 
 test('File reading respects path restrictions', () => {

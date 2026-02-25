@@ -1,9 +1,51 @@
 'use strict';
 
 const { EmbedBuilder } = require('discord.js');
+const config = require('../../../config');
 const appContext = require('../../core/app-context');
 const selfhostFeatures = require('../selfhost-features');
 const { getSentientAgent } = require('../../agents/sentient-core');
+const { isOwner, getOwnerId } = require('../../utils/owner-check');
+const { splitMessage } = require('../../utils/discord-safe-send');
+
+function buildThinkPreview(header, fullContent, maxLength = 1990) {
+    const combined = `${header}${fullContent}`;
+    if (combined.length <= maxLength) {return combined;}
+
+    const marker = '\n\n... (live preview trimmed; full response will be posted below) ...\n\n';
+    const available = maxLength - header.length - marker.length;
+    if (available <= 120) {
+        return `${header}${marker}`.slice(0, maxLength);
+    }
+
+    const headKeep = Math.max(60, Math.floor(available * 0.45));
+    const tailKeep = Math.max(60, available - headKeep);
+    const head = fullContent.slice(0, headKeep);
+    const tail = fullContent.slice(-tailKeep);
+    return `${header}${head}${marker}${tail}`.slice(0, maxLength);
+}
+
+async function sendChunkedInteractionResponse(interaction, content) {
+    const chunks = splitMessage(content, 1820).filter(Boolean);
+    if (!chunks.length) {
+        await interaction.editReply('*No output*');
+        return;
+    }
+
+    const totalChunks = chunks.length;
+    const formatChunk = (chunk, index) => {
+        if (totalChunks <= 1) {return chunk;}
+        return `${chunk}\n\n*(${index + 1}/${totalChunks})*`;
+    };
+
+    await interaction.editReply(formatChunk(chunks[0], 0));
+    for (let i = 1; i < chunks.length; i++) {
+        await interaction.followUp({
+            content: formatChunk(chunks[i], i),
+            allowedMentions: { parse: [] }
+        });
+    }
+}
 
 async function handleSelfmodCommand(interaction) {
     if (!selfhostFeatures.isSelfhost) {
@@ -59,7 +101,6 @@ async function handleSelfmodCommand(interaction) {
 }
 
 async function handleSentientCommand(interaction, handler, guild) {
-    const { isOwner } = require('../../utils/owner-check');
     const isOwnerUser = isOwner(interaction.user.id);
     const sentienceEnabled = isOwnerUser || (guild ? selfhostFeatures.isSentienceEnabled(guild.id) : false);
     if (!sentienceEnabled) {
@@ -68,6 +109,16 @@ async function handleSentientCommand(interaction, handler, guild) {
 
     let response;
     const subcommand = interaction.options.getSubcommand();
+
+    // Hardened gate for shell execution: canonical owner only.
+    if (subcommand === 'execute') {
+        const ownerId = getOwnerId();
+        if (!ownerId || String(interaction.user.id) !== String(ownerId)) {
+            await interaction.editReply('⛔ /sentient execute is restricted to the configured bot owner, sir.');
+            return '__SENTIENT_HANDLED__';
+        }
+    }
+
     const sentientAgent = getSentientAgent({ name: 'Jarvis' });
     
     // Initialize if not ready
@@ -182,7 +233,6 @@ ${traitsDisplay}
             ];
 
             // Loading loop
-            const loadingMsgIndex = 0;
             const loadingInterval = setInterval(async() => {
                 const msg = loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
                 await interaction.editReply(`${loadingEmoji} ${msg}`).catch(() => {});
@@ -215,7 +265,7 @@ RULES:
 
             try {
             // Call AI for real thinking
-                const aiResponse = await aiManager.generateResponse(
+                await aiManager.generateResponse(
                     sentienceSystemPrompt,
                     `Think deeply about this: ${prompt}`,
                     500
@@ -500,7 +550,10 @@ RULES:
                             new Promise((_, reject) => setTimeout(() => reject(new Error('AI Timeout')), 25000))
                         ]);
                     
-                        await interaction.editReply(`${buildHeader(getTimeStr())}\n\n${casualResponse.content || '*crickets*'}`);
+                        await sendChunkedInteractionResponse(
+                            interaction,
+                            `${buildHeader(getTimeStr())}\n\n${casualResponse.content || '*crickets*'}`
+                        );
                     } catch (e) {
                         await interaction.editReply(`${buildHeader(getTimeStr())}\n\n*Neural pathways crossed. Try again.*`);
                     }
@@ -528,7 +581,7 @@ RULES:
                     
                         // 1. Show loading status with emoji
                         try {
-                            await interaction.editReply(`${getRandomMsgWithEmoji()}${fullContent}`);
+                            await interaction.editReply(`${getRandomMsgWithEmoji()} (phase ${i + 1}/${phases.length})`);
                         } catch (e) { /* ignore */ }
                     
                         // Brief pause for visual feedback (only after first phase)
@@ -564,11 +617,7 @@ RULES:
                     
                         // Update with simple header
                         try {
-                        // content limit safety 
-                            let msgContent = `${buildHeader(getTimeStr())}${fullContent}`;
-                            if (msgContent.length > 1990) {
-                                msgContent = `${msgContent.substring(0, 1990)  }...`;
-                            }
+                            const msgContent = buildThinkPreview(buildHeader(getTimeStr()), fullContent);
                             await interaction.editReply(msgContent);
                         } catch (e) { 
                             console.error('Edit failed:', e);
@@ -577,11 +626,8 @@ RULES:
                 
                     // Final update to ensure loading emoji is gone
                     try {
-                        let finalMsg = `${buildHeader(getTimeStr())}${fullContent}`;
-                        if (finalMsg.length > 1990) {
-                            finalMsg = `${finalMsg.substring(0, 1990)  }...`;
-                        }
-                        await interaction.editReply(finalMsg);
+                        const finalMsg = `${buildHeader(getTimeStr())}${fullContent}`;
+                        await sendChunkedInteractionResponse(interaction, finalMsg);
                     } catch (e) {
                         console.error('Final edit failed:', e);
                     }
@@ -590,7 +636,10 @@ RULES:
                 }
 
                 // Silently run OODA loop and record success in soul
-                sentientAgent.process(prompt).catch(e => console.error('OODA:', e));
+                sentientAgent.process(prompt, {
+                    userId: interaction.user.id,
+                    source: 'slash-sentient-think'
+                }).catch(e => console.error('OODA:', e));
                 try {
                     selfhostFeatures.jarvisSoul?.evolve?.('success');
                     selfhostFeatures.jarvisSoul?.updateMoodFromOutcome?.(true, 'think');
@@ -620,14 +669,7 @@ RULES:
             throw outerError;
         }
     } else if (subcommand === 'execute') {
-    // 1. Immediate Owner Check
-        if (!isOwner(interaction.user.id)) {
-            response = '⛔ This command is restricted, sir.';
-            await interaction.editReply(response); 
-            return; // Stop execution here
-        }
-
-        // 2. Authorized logic
+        // Authorized logic
         const command = interaction.options.getString('command');
         await interaction.editReply(`🔧 Executing: \`${command}\`...`);
 
@@ -658,6 +700,7 @@ ${(result.output || 'No output').substring(0, 1800)}
 
         // Final update with the actual result or approval message
         await interaction.editReply(response);
+        return '__SENTIENT_HANDLED__';
     } else if (subcommand === 'autonomous') {
         const enabled = interaction.options.getBoolean('enabled');
 
