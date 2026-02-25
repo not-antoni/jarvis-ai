@@ -187,8 +187,7 @@ class AIProviderManager {
             'gemini-2.5-pro',          // Most capable, 100 RPD
             'gemini-2.0-flash',        // Separate rate limit
             'gemini-2.0-flash-lite',   // Separate rate limit, high throughput
-            'gemini-1.5-flash',        // Older but separate limit
-            'gemini-1.5-pro'           // Older but separate limit
+            'gemma-3-27b-it'           // Replacement for deprecated Gemini 1.5 models
         ];
 
         googleKeys.forEach((key, keyIndex) => {
@@ -228,8 +227,8 @@ class AIProviderManager {
                         'X-Title': process.env.APP_NAME || 'Jarvis AI'
                     }
                 }),
-                // Vercel AI Gateway model format - no provider prefix needed
-                model: 'deepseek-v3.2-exp',
+                // Vercel AI Gateway model id (verified available)
+                model: 'deepseek/deepseek-v3.2',
                 type: 'openai-chat',
                 family: 'deepseek',
                 costTier: 'paid'
