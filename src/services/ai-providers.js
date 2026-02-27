@@ -822,49 +822,8 @@ class AIProviderManager {
         });
     }
 
-    _redactProviderName(name) {
-        const redactionMap = {
-            OpenRouter1: '[REDACTED]',
-            OpenRouter2: '[REDACTED]',
-            OpenRouter3: '[REDACTED]',
-            OpenRouter4: '[REDACTED]',
-            OpenRouter5: '[REDACTED]',
-            OpenRouter6: '[REDACTED]',
-            OpenRouter7: '[REDACTED]',
-            OpenRouter8: '[REDACTED]',
-            OpenRouter9: '[REDACTED]',
-            OpenRouter10: '[REDACTED]',
-            OpenRouter11: '[REDACTED]',
-            OpenRouter12: '[REDACTED]',
-            OpenRouter13: '[REDACTED]',
-            OpenRouter14: '[REDACTED]',
-            OpenRouter15: '[REDACTED]',
-            OpenRouter16: '[REDACTED]',
-            OpenRouter17: '[REDACTED]',
-            OpenRouter18: '[REDACTED]',
-            OpenRouter19: '[REDACTED]',
-            OpenRouter20: '[REDACTED]',
-            OpenRouter21: '[REDACTED]',
-            OpenRouter22: '[REDACTED]',
-            Groq1: '[REDACTED]',
-            Groq2: '[REDACTED]',
-            Groq3: '[REDACTED]',
-            Groq4: '[REDACTED]',
-            Groq5: '[REDACTED]',
-            Groq6: '[REDACTED]',
-            Groq7: '[REDACTED]',
-            GoogleAI1: '[REDACTED]',
-            GoogleAI2: '[REDACTED]',
-            GPT5Nano: '[REDACTED]',
-            'deepseek-gateway-1': '[REDACTED]',
-            'deepseek-gateway-2': '[REDACTED]',
-            Ollama1: '[REDACTED]',
-            Ollama2: '[REDACTED]',
-            Ollama3: '[REDACTED]',
-            Ollama4: '[REDACTED]',
-            Ollama5: '[REDACTED]'
-        };
-        return redactionMap[name] || '[REDACTED]';
+    _redactProviderName(_name) {
+        return '[REDACTED]';
     }
 
     _redactModelName(_model) {
