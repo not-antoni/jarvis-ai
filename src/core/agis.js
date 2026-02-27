@@ -11,10 +11,14 @@
  */
 
 const EventEmitter = require('events');
+const fs = require('fs');
+const path = require('path');
 
 const IS_SELFHOST = (process.env.DEPLOY_TARGET || '').toLowerCase() === 'selfhost'
     || process.env.LOCAL_DB_MODE === 'true'
     || process.env.SELFHOST_MODE === 'true';
+
+const AGIS_STATE_PATH = path.join(__dirname, '..', 'data', 'agis-state.json');
 
 class AGIS extends EventEmitter {
     constructor(options = {}) {
@@ -32,6 +36,49 @@ class AGIS extends EventEmitter {
         this.maxGoals = options.maxGoals || 5;
         this.aiManager = options.aiManager || null;
         this.database = options.database || null;
+
+        this._loadState();
+    }
+
+    _loadState() {
+        try {
+            if (!fs.existsSync(AGIS_STATE_PATH)) {return;}
+            const raw = fs.readFileSync(AGIS_STATE_PATH, 'utf8');
+            if (!raw.trim()) {return;}
+            const data = JSON.parse(raw);
+            if (Array.isArray(data.goals)) {
+                this.goals = data.goals;
+            }
+            if (data.plans && typeof data.plans === 'object') {
+                for (const [id, plan] of Object.entries(data.plans)) {
+                    this.plans.set(id, plan);
+                }
+            }
+            if (Array.isArray(data.recentActions)) {
+                this.context.recentActions = data.recentActions;
+            }
+            console.log(`[AGIS] Restored ${this.goals.length} goals, ${this.plans.size} plans from disk`);
+        } catch (error) {
+            console.warn('[AGIS] Could not load state:', error.message);
+        }
+    }
+
+    _saveState() {
+        try {
+            const dir = path.dirname(AGIS_STATE_PATH);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+            const payload = {
+                goals: this.goals,
+                plans: Object.fromEntries(this.plans),
+                recentActions: this.context.recentActions,
+                savedAt: new Date().toISOString()
+            };
+            fs.writeFileSync(AGIS_STATE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+        } catch (error) {
+            console.warn('[AGIS] Could not save state:', error.message);
+        }
     }
 
     /**
@@ -100,13 +147,14 @@ Context: Running as a Discord bot with access to: AI chat, web search, code exec
         }
         this.goals.push({ goal, planId: plan.id, createdAt: new Date() });
 
+        this._saveState();
         return plan;
     }
 
     /**
      * Evaluate context and decide what to do next (proactive thinking)
      */
-    async evaluate() {
+    evaluate() {
         if (!this.enabled) {return null;}
 
         this.context.uptime = process.uptime();
@@ -167,6 +215,7 @@ Context: Running as a Discord bot with access to: AI chat, web search, code exec
             this.context.recentActions = this.context.recentActions.slice(-20);
         }
 
+        this._saveState();
         return true;
     }
 
