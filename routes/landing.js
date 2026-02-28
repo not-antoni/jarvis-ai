@@ -39,13 +39,13 @@ const LANDING_PAGE = `
     <link rel="canonical" href="${SITE_BASE_URL}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0d0d14;
+            font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
+            background: #000;
             color: #e4e4e4;
             min-height: 100vh;
             overflow-x: hidden;
@@ -255,7 +255,7 @@ const LANDING_PAGE = `
         }
         
         .screenshot-item {
-            background: #16161f;
+            background: #0a0a0a;
             border: 1px solid rgba(255,255,255,0.06);
             border-radius: 12px;
             padding: 1.25rem;
@@ -401,7 +401,7 @@ const LANDING_PAGE = `
         .comparison-table {
             width: 100%;
             border-collapse: collapse;
-            background: #16161f;
+            background: #0a0a0a;
             border-radius: 12px;
             overflow: hidden;
         }
@@ -503,7 +503,6 @@ const LANDING_PAGE = `
     <nav>
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
-            <li><a href="/commands">Commands</a></li>
             <li><a href="/status">Status</a></li>
             <li><a href="/me">My Portal</a></li>
         </ul>
@@ -642,7 +641,6 @@ const LANDING_PAGE = `
         <div class="footer-links">
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
             <a href="${DISCORD_INVITE}" target="_blank">Discord</a>
-            <a href="/commands">Commands</a>
             <a href="/status">Status</a>
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>

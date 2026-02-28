@@ -7,8 +7,8 @@ const DISCORD_INVITE = getPublicConfig().discordInviteUrl;
 const SHARED_STYLES = `
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: #0d0d14;
+        font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
+        background: #000;
         color: #e4e4e4;
         min-height: 100vh;
     }
@@ -86,22 +86,6 @@ const SHARED_STYLES = `
         font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
         font-size: 0.85em;
     }
-    .search-box {
-        width: 100%;
-        padding: 0.85rem 1rem;
-        background: rgba(255,255,255,0.04);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 8px;
-        color: #fff;
-        font-size: 0.95rem;
-        margin-bottom: 2rem;
-        transition: border-color 0.2s;
-    }
-    .search-box:focus {
-        outline: none;
-        border-color: rgba(0,212,255,0.4);
-    }
-    .search-box::placeholder { color: #555; }
     table {
         width: 100%;
         border-collapse: collapse;
@@ -123,7 +107,6 @@ const NAV_HTML = `
     <nav>
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
-            <li><a href="/commands">Commands</a></li>
             <li><a href="/status">Status</a></li>
             <li><a href="/me">My Portal</a></li>
         </ul>
