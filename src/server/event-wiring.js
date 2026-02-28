@@ -8,7 +8,7 @@ function wireEventHandlers(ctx) {
     const {
         client, discordHandlers, dashboardRouter, serverLogger,
         errorLogger, aiManager, database, cron, monitorScheduler,
-        starkEconomy, wealthTax, serverStatsRefreshJob, tempSweepJob
+        serverStatsRefreshJob, tempSweepJob
     } = ctx;
 
     // ─── Guild Events ────────────────────────────────────────────────────────
@@ -209,8 +209,6 @@ function wireEventHandlers(ctx) {
         try {
             serverStatsRefreshJob.stop();
             try { monitorScheduler.stop(); } catch (_) { }
-            try { starkEconomy.stopMultiplierScheduler(); } catch (_) { }
-            try { wealthTax.stopScheduler(); } catch (_) { }
             try { tempSweepJob.stop(); } catch (_) { }
             await database.disconnect();
             try { await require('../utils/logger').flush(); } catch (_) { }

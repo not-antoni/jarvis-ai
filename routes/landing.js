@@ -25,16 +25,16 @@ const LANDING_PAGE = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jarvis - The Discord AI with Actual Personality | All-in-One Bot</title>
-    <meta name="description" content="Stop using boring bots. Jarvis brings natural AI chat, powerful moderation, music streaming, and a global economy to your Discord server. Free forever.">
+    <meta name="description" content="Stop using boring bots. Jarvis brings natural AI chat, powerful moderation, and music streaming to your Discord server. Free forever.">
     <meta property="og:title" content="Jarvis - The Discord AI with Actual Personality">
-    <meta property="og:description" content="Natural AI chat, moderation, music, and economy in one bot.">
+    <meta property="og:description" content="Natural AI chat, moderation, and music in one bot.">
     <link rel="icon" type="image/webp" href="/jarvis.webp">
     <meta property="og:image" content="${SITE_BASE_URL}/jarvis.webp">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${SITE_BASE_URL}">
     <meta name="theme-color" content="#00d4ff">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="keywords" content="discord bot, ai discord bot, music bot, moderation bot, discord economy bot, jarvis">
+    <meta name="keywords" content="discord bot, ai discord bot, music bot, moderation bot, jarvis">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="${SITE_BASE_URL}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -504,12 +504,8 @@ const LANDING_PAGE = `
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
-            <li><a href="/store">Store</a></li>
-            <li><a href="/leaderboard">Leaderboard</a></li>
-            <li><a href="/sbx">Economy</a></li>
-            <li><a href="/crypto">Trading</a></li>
             <li><a href="/status">Status</a></li>
-            <li><a href="/docs">Docs</a></li>
+            <li><a href="/me">My Portal</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
             <a href="/auth/login" class="login-btn" id="loginBtn">Login</a>
@@ -519,7 +515,7 @@ const LANDING_PAGE = `
     <section class="hero">
         <img src="/jarvis.gif" alt="Jarvis AI Discord Bot" class="hero-icon">
         <h1>The Discord AI with <span class="accent">Actual Personality</span></h1>
-        <p>Stop using boring bots. Jarvis brings natural chat, powerful moderation, music streaming, and a global economy to your server.</p>
+        <p>Stop using boring bots. Jarvis brings natural chat, powerful moderation, and music streaming to your server.</p>
         <div class="cta-buttons">
             <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">➕ Add to Discord</a>
             <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join Support Server</a>
@@ -564,18 +560,14 @@ const LANDING_PAGE = `
                 <h3>🛡️ Moderation</h3>
                 <p>AI-powered auto-mod, word filters, anti-spam, raid protection, and detailed logging to keep your server safe.</p>
             </div>
-            <div class="feature-card">
-                <h3>💰 Economy</h3>
-                <p>Virtual Stark Bucks currency, daily rewards, gambling, trading, pets, crafting, and the simulated SBX exchange. <em>100% virtual, no real money.</em></p>
-            </div>
             <div class="feature-card highlight">
                 <span class="badge">Popular</span>
                 <h3>🎵 Music</h3>
                 <p>Play from YouTube, Spotify, SoundCloud, and direct file uploads. Advanced audio effects, queues, filters, and 24/7 mode. <strong>Works reliably in 2026!</strong></p>
             </div>
             <div class="feature-card">
-                <h3>📊 Stats & Leaderboards</h3>
-                <p>Track activity, messages, voice time. Server and global leaderboards. Beautiful generated stat cards.</p>
+                <h3>📊 Server Stats</h3>
+                <p>Track activity, messages, and voice time. Live member counters and beautiful generated stat cards.</p>
             </div>
             <div class="feature-card">
                 <h3>⚙️ Fully Customizable</h3>
@@ -620,13 +612,6 @@ const LANDING_PAGE = `
                     <td class="check">✓</td>
                 </tr>
                 <tr>
-                    <td>Economy System</td>
-                    <td class="check">✓</td>
-                    <td class="check">✓</td>
-                    <td class="cross">✗</td>
-                    <td class="cross">✗</td>
-                </tr>
-                <tr>
                     <td>100% Free</td>
                     <td class="check">✓</td>
                     <td class="cross">✗</td>
@@ -648,7 +633,7 @@ const LANDING_PAGE = `
                 <img src="/screenshot-2.png?v=2" alt="Jarvis music playback example" loading="lazy">
             </div>
             <div class="screenshot-item">
-                <img src="/screenshot-3.png?v=2" alt="Jarvis economy system example" loading="lazy">
+                <img src="/screenshot-3.png?v=2" alt="Jarvis moderation example" loading="lazy">
             </div>
         </div>
     </section>
@@ -658,7 +643,6 @@ const LANDING_PAGE = `
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
             <a href="${DISCORD_INVITE}" target="_blank">Discord</a>
             <a href="/commands">Commands</a>
-            <a href="/docs">Documentation</a>
             <a href="/status">Status</a>
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>
