@@ -52,44 +52,6 @@ async function getUserConversations(userId, limit = 50) {
 }
 
 /**
- * Get user's economy data
- */
-async function getUserEconomy(userId) {
-    if (!database || !database.isConnected) {
-        return null;
-    }
-    try {
-        const starkEconomy = database.db.collection('starkEconomy');
-        const sbxWallets = database.db.collection('sbx_wallets');
-        const sbxInvestments = database.db.collection('sbx_investments');
-        
-        // Query by both odUserId and userId to handle both systems
-        const [economyProfile, wallet, investment] = await Promise.all([
-            starkEconomy.findOne({ userId: userId }),
-            sbxWallets.findOne({ userId: userId }),
-            sbxInvestments.findOne({ userId: userId })
-        ]);
-
-        return {
-            starkBucks: economyProfile?.balance || 0,
-            sbx: wallet?.balance || 0,
-            invested: investment?.principal || 0,
-            dailyStreak: economyProfile?.dailyStreak || 0,
-            lastDaily: economyProfile?.lastDaily,
-            xp: economyProfile?.xp || 0,
-            level: economyProfile?.level || 1,
-            gamesPlayed: economyProfile?.gamesPlayed || 0,
-            gamesWon: economyProfile?.gamesWon || 0,
-            winRate: economyProfile?.gamesPlayed > 0 
-                ? Math.round((economyProfile.gamesWon / economyProfile.gamesPlayed) * 100) 
-                : 0
-        };
-    } catch (err) {
-        return null;
-    }
-}
-
-/**
  * Get servers where user is owner/admin
  */
 async function getUserServers(userId, discordClient) {
@@ -315,12 +277,7 @@ const PORTAL_PAGE = `
         <a href="/" class="logo">⚡ Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
-            <li><a href="/store">Store</a></li>
-            <li><a href="/leaderboard">Leaderboard</a></li>
-            <li><a href="/sbx">SBX</a></li>
-            <li><a href="/crypto">Crypto</a></li>
             <li><a href="/status">Status</a></li>
-            <li><a href="/docs">Docs</a></li>
             <li><a href="/me" class="active">My Portal</a></li>
         </ul>
     </nav>
@@ -344,7 +301,6 @@ const PORTAL_PAGE = `
             <button class="nav-tab" onclick="showSection('api-keys')">🔑 API Keys</button>
             <button class="nav-tab" onclick="showSection('conversations')">💬 Conversations</button>
             <button class="nav-tab" onclick="showSection('servers')">🏠 My Servers</button>
-            <button class="nav-tab" onclick="showSection('economy')">💰 Economy</button>
         </div>
 
         <!-- Overview Section -->
@@ -364,34 +320,9 @@ const PORTAL_PAGE = `
                         <div class="stat-value" id="statApiKeys">--</div>
                         <div class="stat-label">API Keys</div>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="statLevel">--</div>
-                        <div class="stat-label">Level</div>
-                    </div>
                 </div>
             </div>
 
-            <div class="card">
-                <h2>💰 Economy Summary</h2>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-value" id="statStarkBucks">--</div>
-                        <div class="stat-label">Stark Bucks</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="statSbx">--</div>
-                        <div class="stat-label">SBX</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="statInvested">--</div>
-                        <div class="stat-label">Invested</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="statStreak">--</div>
-                        <div class="stat-label">Daily Streak</div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- API Keys Section -->
@@ -428,7 +359,7 @@ curl ${API_BASE_URL}/chat/completions \\
   -d '{
     "messages": [{"role": "user", "content": "Hello!"}]
   }'</pre>
-                <p style="margin-top: 1rem;"><a href="/docs" style="color: #00d4ff;">View full API documentation →</a></p>
+                <p style="margin-top: 1rem; color: #888;">Use the Jarvis API to integrate AI chat into your applications.</p>
             </div>
         </div>
 
@@ -453,15 +384,6 @@ curl ${API_BASE_URL}/chat/completions \\
             </div>
         </div>
 
-        <!-- Economy Section -->
-        <div id="economy" class="section">
-            <div class="card">
-                <h2>💰 Economy Details</h2>
-                <div class="stats-grid" id="economyDetails">
-                    <div class="empty-state">Loading economy data...</div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script>
@@ -481,18 +403,6 @@ curl ${API_BASE_URL}/chat/completions \\
             setTimeout(() => el.classList.remove('show'), 5000);
         }
 
-        // Format large numbers with K/M/B/T suffixes
-        function formatNumber(num) {
-            if (num === null || num === undefined) return '0';
-            num = parseFloat(num);
-            if (isNaN(num)) return '0';
-            if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
-            if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-            if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-            if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-            return num.toLocaleString();
-        }
-        
         async function loadUserData() {
             try {
                 const res = await fetch('/api/user');
@@ -519,19 +429,11 @@ curl ${API_BASE_URL}/chat/completions \\
                 document.getElementById('statConvos').textContent = data.conversationCount || 0;
                 document.getElementById('statServers').textContent = data.serverCount || 0;
                 document.getElementById('statApiKeys').textContent = data.keyCount || 0;
-                document.getElementById('statLevel').textContent = data.economy?.level || 1;
-                
-                // Economy (use formatNumber for large values)
-                document.getElementById('statStarkBucks').textContent = formatNumber(data.economy?.starkBucks);
-                document.getElementById('statSbx').textContent = formatNumber(data.economy?.sbx);
-                document.getElementById('statInvested').textContent = formatNumber(data.economy?.invested);
-                document.getElementById('statStreak').textContent = data.economy?.dailyStreak || 0;
 
                 // Render lists
                 renderKeys(data.keys || []);
                 renderConversations(data.conversations || []);
                 renderServers(data.servers || []);
-                renderEconomy(data.economy);
             } catch (e) {
                 console.error('Failed to load dashboard data:', e);
             }
@@ -588,36 +490,6 @@ curl ${API_BASE_URL}/chat/completions \\
                     </div>
                 </div>
             \`).join('');
-        }
-
-        function renderEconomy(economy) {
-            if (!economy) return;
-            document.getElementById('economyDetails').innerHTML = \`
-                <div class="stat-item">
-                    <div class="stat-value">\${formatNumber(economy.starkBucks)}</div>
-                    <div class="stat-label">Stark Bucks</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">\${formatNumber(economy.sbx)}</div>
-                    <div class="stat-label">SBX Balance</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">\${formatNumber(economy.invested)}</div>
-                    <div class="stat-label">SBX Invested</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">\${economy.level || 1}</div>
-                    <div class="stat-label">Level</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">\${formatNumber(economy.xp)}</div>
-                    <div class="stat-label">XP</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">\${economy.dailyStreak || 0}</div>
-                    <div class="stat-label">Daily Streak</div>
-                </div>
-            \`;
         }
 
         async function createKey() {
@@ -693,10 +565,9 @@ router.get('/api/dashboard', requireAuth, async(req, res) => {
     try {
         const { userId } = req.user;
         
-        const [keys, conversations, economy, servers] = await Promise.all([
+        const [keys, conversations, servers] = await Promise.all([
             apiKeys.getUserKeys(userId),
             getUserConversations(userId),
-            getUserEconomy(userId),
             getUserServers(userId, appContext.getClient())
         ]);
 
@@ -706,7 +577,6 @@ router.get('/api/dashboard', requireAuth, async(req, res) => {
             keys,
             conversationCount: conversations.length,
             conversations: conversations.slice(0, 20),
-            economy,
             serverCount: servers.length,
             servers
         });

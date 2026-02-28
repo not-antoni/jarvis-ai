@@ -37,10 +37,8 @@ const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
-const starkEconomy = require('./src/services/stark-economy');
 const errorLogger = require('./src/services/error-logger');
 const serverLogger = require('./src/services/server-logger');
-const wealthTax = require('./src/services/stark-wealth-tax');
 const monitorScheduler = require('./src/services/monitor-scheduler');
 const { printSelfhostStatus } = require('./scripts/selfhost-check');
 const { printRenderStatus } = require('./scripts/render-check');
@@ -340,16 +338,6 @@ client.once(Events.ClientReady, async() => {
         }
     })();
 
-    // Start Stark Bucks multiplier event scheduler (250% bonus every 3 hours)
-    starkEconomy.startMultiplierScheduler();
-
-    // Start wealth tax scheduler (SB + SBX)
-    try {
-        wealthTax.startScheduler();
-    } catch (e) {
-        console.warn('[WealthTax] Failed to start scheduler:', e.message);
-    }
-
     // Initialize diagnostics router now that discordHandlers is ready
     setDiagnosticsRouter(createAgentDiagnosticsRouter(discordHandlers));
 
@@ -484,7 +472,7 @@ const { wireEventHandlers } = require('./src/server/event-wiring');
 wireEventHandlers({
     client, discordHandlers, dashboardRouter, serverLogger,
     errorLogger, aiManager, database, cron, monitorScheduler,
-    starkEconomy, wealthTax, serverStatsRefreshJob, tempSweepJob
+    serverStatsRefreshJob, tempSweepJob
 });
 
 // Mount 404 error handler (must be last)

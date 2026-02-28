@@ -354,32 +354,9 @@ async function handleComponentInteraction(handler, interaction) {
                 title: 'Command Overview',
                 description: 'Welcome to Jarvis Legacy Commands!\nSelect a category below to see commands.',
                 fields: [
-                    { name: '\u{1F4B0} Economy', value: '`*j help economy`', inline: true },
-                    { name: '\u{1F3B0} Gambling', value: '`*j help gambling`', inline: true },
                     { name: '\u{1F3AE} Fun', value: '`*j help fun`', inline: true },
                     { name: '\u{1F6E1}\uFE0F Moderation', value: '`*j help mod`', inline: true },
-                    { name: '\u2699\uFE0F Utility', value: '`*j help utility`', inline: true },
-                    { name: '\u{1F48E} Premium', value: '`*j help premium`', inline: true }
-                ]
-            },
-            economy: {
-                emoji: '\u{1F4B0}',
-                title: 'Economy Commands',
-                description: 'Build your Stark Industries fortune!',
-                fields: [
-                    { name: '\u{1F4B5} Basics', value: '`*j balance` - Check balance\n`*j daily` - Daily reward\n`*j work` - Earn money\n`*j beg` - Beg for coins', inline: false },
-                    { name: '\u{1F4B3} Transactions', value: '`*j pay @user <amt>` - Send money\n`*j deposit <amt>` - Bank deposit\n`*j withdraw <amt>` - Bank withdraw\n`*j leaderboard` - Rich list', inline: false },
-                    { name: '\u{1F6D2} Shopping', value: '`*j shop` - View shop\n`*j buy <item>` - Buy item\n`*j inventory` - Your items', inline: false }
-                ]
-            },
-            gambling: {
-                emoji: '\u{1F3B0}',
-                title: 'Gambling Commands',
-                description: 'Test your luck at Stark Casino!',
-                fields: [
-                    { name: '\u{1F3B2} Games', value: '`*j coinflip <amt>` - Flip a coin\n`*j slots <amt>` - Slot machine\n`*j blackjack <amt>` - Play 21\n`*j roulette <amt> <bet>` - Roulette', inline: false },
-                    { name: '\u{1F3AF} More Games', value: '`*j dice <amt>` - Roll dice\n`*j crash <amt>` - Crash game\n`*j highlow <amt>` - Higher or lower', inline: false },
-                    { name: '\u{1F3C6} Multiplayer', value: '`*j boss attack` - Attack boss', inline: false }
+                    { name: '\u2699\uFE0F Utility', value: '`*j help utility`', inline: true }
                 ]
             },
             fun: {
@@ -409,16 +386,6 @@ async function handleComponentInteraction(handler, interaction) {
                 fields: [
                     { name: '\u{1F527} Tools', value: '`*j ping` - Bot latency\n`*j remind in <time> <msg>` - Set reminder\n`*j profile` - View profile', inline: false }
                 ]
-            },
-            premium: {
-                emoji: '\u{1F48E}',
-                title: 'Premium Features',
-                description: 'Advanced economy features',
-                fields: [
-                    { name: '\u{1F4A0} Arc Reactor', value: '`*j reactor` - Check reactor\n`*j buy arc_reactor` - Buy (10,000\u{1F4B5})\n*+15% earnings, -25% cooldowns*', inline: false },
-                    { name: '\u{1F4B1} Starkbucks', value: '`*j sbx wallet` - SBX balance\n`*j sbx convert <amt>` - Convert\n`*j sbx store` - SBX shop', inline: false },
-                    { name: '\u{1F4CA} Crypto', value: '`*j crypto prices` - View prices\n`*j crypto buy <coin> <amt>` - Buy\n`*j crypto portfolio` - Holdings', inline: false }
-                ]
             }
         };
 
@@ -439,23 +406,10 @@ async function handleComponentInteraction(handler, interaction) {
                 .setEmoji('\u{1F4CB}')
                 .setStyle(categoryKey === 'overview' ? ButtonStyle.Primary : ButtonStyle.Secondary),
             new ButtonBuilder()
-                .setCustomId('help_economy')
-                .setLabel('Economy')
-                .setEmoji('\u{1F4B0}')
-                .setStyle(categoryKey === 'economy' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('help_gambling')
-                .setLabel('Gambling')
-                .setEmoji('\u{1F3B0}')
-                .setStyle(categoryKey === 'gambling' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-            new ButtonBuilder()
                 .setCustomId('help_fun')
                 .setLabel('Fun')
                 .setEmoji('\u{1F3AE}')
-                .setStyle(categoryKey === 'fun' ? ButtonStyle.Primary : ButtonStyle.Secondary)
-        );
-
-        const row2 = new ActionRowBuilder().addComponents(
+                .setStyle(categoryKey === 'fun' ? ButtonStyle.Primary : ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('help_mod')
                 .setLabel('Moderation')
@@ -465,19 +419,14 @@ async function handleComponentInteraction(handler, interaction) {
                 .setCustomId('help_utility')
                 .setLabel('Utility')
                 .setEmoji('\u2699\uFE0F')
-                .setStyle(categoryKey === 'utility' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('help_premium')
-                .setLabel('Premium')
-                .setEmoji('\u{1F48E}')
-                .setStyle(categoryKey === 'premium' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                .setStyle(categoryKey === 'utility' ? ButtonStyle.Primary : ButtonStyle.Secondary)
         );
 
         try {
-            await interaction.update({ embeds: [embed], components: [row1, row2] });
+            await interaction.update({ embeds: [embed], components: [row1] });
         } catch {
             // Fallback if update fails
-            await interaction.reply({ embeds: [embed], components: [row1, row2], ephemeral: true });
+            await interaction.reply({ embeds: [embed], components: [row1], ephemeral: true });
         }
         return;
     }

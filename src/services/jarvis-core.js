@@ -847,17 +847,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         const gate = await this.gateDestructiveRequests(userInput);
         if (gate.blocked) {return gate.message;}
 
-        // Get SBX perks for AI features (memoryMultiplier, tokenMultiplier, personalities)
-        let sbxPerks = { memoryMultiplier: 1, tokenMultiplier: 1, personalities: [] };
-        try {
-            const starkEconomy = require('./stark-economy');
-            if (starkEconomy.getCombinedPerks) {
-                sbxPerks = await starkEconomy.getCombinedPerks(userId);
-            }
-        } catch (e) {
-            // SBX perks not available, use defaults
-        }
-
         try {
             const userProfile = await database.getUserProfile(userId, userName);
             let systemPrompt = this.personality.basePrompt;
@@ -909,7 +898,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
             let secureMemories = [];
             // Apply SBX memoryMultiplier (default 12, with extended_memory: 24)
-            const memoryLimit = Math.floor(12 * (sbxPerks.memoryMultiplier || 1));
+            const memoryLimit = 12;
             if (allowsLongTermMemory) {
                 secureMemories = await vaultClient
                     .decryptMemories(userId, { limit: memoryLimit })
@@ -949,7 +938,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             let conversationEntries =
                 allowsLongTermMemory && Array.isArray(secureMemories) ? secureMemories : [];
             // Apply SBX memoryMultiplier to fallback conversation limit too
-            const conversationLimit = Math.floor(8 * (sbxPerks.memoryMultiplier || 1));
+            const conversationLimit = 8;
             if (allowsLongTermMemory && !conversationEntries.length) {
                 const fallbackConversations = await database.getRecentConversations(userId, conversationLimit);
                 conversationEntries = fallbackConversations.map(conv => ({
@@ -1034,7 +1023,7 @@ ${recentJarvisResponses.length ? `[Vary your phrasing — your recent responses 
 Current message: "${processedInput}"`;
 
             // Apply SBX tokenMultiplier (default maxTokens, with unlimited_tokens: 2x)
-            const maxTokens = Math.floor(config.ai.maxTokens * (sbxPerks.tokenMultiplier || 1));
+            const maxTokens = config.ai.maxTokens;
 
             // Use image-aware generation if images are provided
             let aiResponse;

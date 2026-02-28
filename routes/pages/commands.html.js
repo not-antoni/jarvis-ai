@@ -77,55 +77,6 @@ const COMMANDS_PAGE = `
                 <p class="command-desc">Clear your conversation history</p>
             </div>
 
-            <h2>💰 Economy</h2>
-            <div class="command-item" data-category="economy">
-                <span class="command-name">*j balance</span>
-                <span class="category-tag">Economy</span>
-                <p class="command-desc">Check your Stark Bucks balance</p>
-            </div>
-            <div class="command-item" data-category="economy">
-                <span class="command-name">*j daily</span>
-                <span class="category-tag">Economy</span>
-                <p class="command-desc">Claim your daily reward</p>
-            </div>
-            <div class="command-item" data-category="economy">
-                <span class="command-name">*j work</span>
-                <span class="category-tag">Economy</span>
-                <p class="command-desc">Work to earn Stark Bucks</p>
-            </div>
-            <div class="command-item" data-category="economy">
-                <span class="command-name">*j leaderboard</span>
-                <span class="category-tag">Economy</span>
-                <p class="command-desc">View the richest users</p>
-            </div>
-
-            <h2>☕ Starkbucks (SBX)</h2>
-            <div class="command-item" data-category="sbx">
-                <span class="command-name">!sbx wallet</span>
-                <span class="category-tag">SBX</span>
-                <p class="command-desc">View your SBX wallet and balance</p>
-            </div>
-            <div class="command-item" data-category="sbx">
-                <span class="command-name">!sbx buy &lt;amount&gt;</span>
-                <span class="category-tag">SBX</span>
-                <p class="command-desc">Buy SBX with Stark Bucks</p>
-            </div>
-            <div class="command-item" data-category="sbx">
-                <span class="command-name">!sbx sell &lt;amount&gt;</span>
-                <span class="category-tag">SBX</span>
-                <p class="command-desc">Sell SBX for Stark Bucks</p>
-            </div>
-            <div class="command-item" data-category="sbx">
-                <span class="command-name">!sbx invest &lt;amount&gt;</span>
-                <span class="category-tag">SBX</span>
-                <p class="command-desc">Invest SBX for daily returns</p>
-            </div>
-            <div class="command-item" data-category="sbx">
-                <span class="command-name">!sbx store</span>
-                <span class="category-tag">SBX</span>
-                <p class="command-desc">View the SBX store items</p>
-            </div>
-
             <h2>🛡️ Moderation</h2>
             <div class="command-item" data-category="mod">
                 <span class="command-name">*j ban @user [reason]</span>
