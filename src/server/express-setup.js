@@ -233,15 +233,10 @@ function createExpressApp({ webhookRouter, database }) {
         res.type('text/plain').send(`# Jarvis Discord Bot - ${siteBaseUrl}
 User-agent: *
 Allow: /
-Allow: /commands
-Allow: /docs
 Allow: /status
-Allow: /store
-Allow: /leaderboard
-Allow: /sbx
-Allow: /crypto
+Allow: /changelog
 
-# Disallow admin areas
+# Disallow private areas
 Disallow: /dashboard
 Disallow: /dashboard/*
 Disallow: /moderator
@@ -249,13 +244,12 @@ Disallow: /moderator/*
 Disallow: /jarvis
 Disallow: /jarvis/*
 Disallow: /me
+Disallow: /me/*
 Disallow: /api/
+Disallow: /auth/
 
 # Sitemap
 Sitemap: ${siteBaseUrl}/sitemap.xml
-
-# LLMs.txt for AI crawlers
-# See: https://llmstxt.org
 `);
     });
 
@@ -263,13 +257,8 @@ Sitemap: ${siteBaseUrl}/sitemap.xml
         const baseUrl = PUBLIC_CONFIG.baseUrl;
         const pages = [
             { url: '/', priority: '1.0', changefreq: 'weekly' },
-            { url: '/commands', priority: '0.9', changefreq: 'weekly' },
-            { url: '/docs', priority: '0.8', changefreq: 'monthly' },
-            { url: '/store', priority: '0.7', changefreq: 'weekly' },
-            { url: '/leaderboard', priority: '0.6', changefreq: 'daily' },
-            { url: '/sbx', priority: '0.7', changefreq: 'daily' },
-            { url: '/crypto', priority: '0.6', changefreq: 'daily' },
-            { url: '/status', priority: '0.5', changefreq: 'always' },
+            { url: '/status', priority: '0.6', changefreq: 'always' },
+            { url: '/changelog', priority: '0.5', changefreq: 'monthly' },
             { url: '/tos', priority: '0.3', changefreq: 'yearly' },
             { url: '/policy', priority: '0.3', changefreq: 'yearly' }
         ];
