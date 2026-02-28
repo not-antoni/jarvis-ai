@@ -3,7 +3,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
 const database = require('../../services/database');
 const config = require('../../../config');
-const fetch = require('node-fetch');
 const ytSearchUi = require('./yt-search-ui');
 
 // ── Pure functions (no handler dependency) ─────────────────────────────
@@ -24,83 +23,6 @@ function scrambleWord(word) {
         [letters[index], letters[swapIndex]] = [letters[swapIndex], letters[index]];
     }
     return letters.join('');
-}
-
-async function fetchJokeApi() {
-    const response = await fetch('https://v2.jokeapi.dev/joke/Any?safe-mode', {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        timeout: 3_000
-    });
-
-    if (!response.ok) {
-        throw new Error(`JokeAPI responded with ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (data.error) {
-        throw new Error(`JokeAPI reported error: ${data?.message || 'Unknown'}`);
-    }
-
-    if (data.type === 'single' && data.joke) {
-        return data.joke;
-    }
-
-    if (data.type === 'twopart' && data.setup && data.delivery) {
-        return `${data.setup}\n\n${data.delivery}`;
-    }
-
-    return null;
-}
-
-async function fetchOfficialJoke() {
-    const response = await fetch('https://official-joke-api.appspot.com/random_joke', {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-        timeout: 3_000
-    });
-
-    if (!response.ok) {
-        throw new Error(`Official Joke API responded with ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (!data || (!data.joke && !(data.setup && data.punchline))) {
-        return null;
-    }
-
-    if (data.joke) {
-        return data.joke;
-    }
-
-    return `${data.setup}\n\n${data.punchline}`;
-}
-
-async function fetchNinjaJoke() {
-    const apiKey = process.env.NINJA_API_KEY;
-    if (!apiKey) {
-        throw new Error('Ninja API key not configured');
-    }
-
-    const response = await fetch('https://api.api-ninjas.com/v1/jokes', {
-        method: 'GET',
-        headers: {
-            'Accept': 'application/json',
-            'X-Api-Key': apiKey
-        },
-        timeout: 3_000
-    });
-
-    if (!response.ok) {
-        throw new Error(`API Ninjas responded with ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (!Array.isArray(data) || !data.length || !data[0]?.joke) {
-        return null;
-    }
-
-    return data[0].joke;
 }
 
 // ── Handler-dependent functions ────────────────────────────────────────
@@ -261,34 +183,6 @@ async function handleSixSevenCommand(handler, interaction) {
     await interaction.editReply({
         content: payload.join('\n')
     });
-}
-
-async function handleJokeCommand(handler, interaction) {
-    const sources = [
-        { name: 'jokeapi', fetcher: fetchJokeApi },
-        { name: 'official', fetcher: fetchOfficialJoke },
-        { name: 'ninjas', fetcher: fetchNinjaJoke }
-    ];
-
-    // Shuffle sources so we don't always hit the same one first
-    for (let i = sources.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [sources[i], sources[j]] = [sources[j], sources[i]];
-    }
-
-    for (const source of sources) {
-        try {
-            const joke = await source.fetcher();
-            if (joke) {
-                await interaction.editReply({ content: joke });
-                return;
-            }
-        } catch (error) {
-            console.warn(`Joke source ${source.name} failed:`, error);
-        }
-    }
-
-    await interaction.editReply({ content: 'My humor subroutines are buffering, sir. Please try again.' });
 }
 
 async function handleFeaturesCommand(handler, interaction) {
@@ -493,9 +387,8 @@ async function handleComponentInteraction(handler, interaction) {
                 title: 'Fun Commands',
                 description: 'Entertainment and social commands!',
                 fields: [
-                    { name: '\u{1F3B1} Random', value: '`*j 8ball <q>` - Magic 8-ball\n`*j roll [dice]` - Roll dice\n`*j rate <thing>` - Rate something\n`*j dadjoke` - Dad joke', inline: false },
-                    { name: '\u{1F495} Social', value: '`*j hug @user` - Hug someone\n`*j slap @user` - Slap someone\n`*j ship @u1 @u2` - Ship people\n`*j fight @user` - Fight!', inline: false },
-                    { name: '\u{1F4CA} Meters', value: '`*j howgay @user` - Gay meter\n`*j howbased @user` - Based meter\n`*j vibecheck @user` - Vibe check\n`*j roast @user` - Roast someone', inline: false }
+                    { name: '\u{1F3B1} Random', value: '`*j 8ball <q>` - Magic 8-ball\n`*j roll [dice]` - Roll dice\n`*j pickupline` - Pickup line', inline: false },
+                    { name: '\u{1F495} Social', value: '`*j ship @u1 @u2` - Ship people', inline: false }
                 ]
             },
             mod: {
@@ -605,136 +498,6 @@ async function handleComponentInteraction(handler, interaction) {
     }
 }
 
-async function handleEightBallCommand(handler, interaction) {
-    const question = interaction.options.getString('question', true);
-    const responses = [
-        'Absolutely, sir.',
-        'My sensors say no.',
-        'Prospects hazy \u2014 rerun diagnostics.',
-        'Proceed with extreme style.',
-        'I would not bet Stark stock on it.',
-        'All systems green.',
-        'Ask again after a caffeine refill.',
-        'Outcome classified \u2014 sorry, sir.'
-    ];
-    const answer = handler.pickRandom(responses) || 'Systems offline, try later.';
-    await interaction.editReply(`\u{1F3B1} ${answer}`);
-}
-
-async function handleVibeCheckCommand(handler, interaction) {
-    const target = interaction.options.getUser('user') || interaction.user;
-    const score = handler.randomInRange(0, 100);
-    const verdicts = [
-        'Radiant energy detected.',
-        'Stable but watch the sarcasm levels.',
-        'Chaotic neutral vibes.',
-        'Vibe anomaly detected \u2014 recommend snacks.',
-        'Off the charts. Prepare confetti.'
-    ];
-    const verdict = handler.pickRandom(verdicts) || 'Unable to parse vibes.';
-    const embed = new EmbedBuilder()
-        .setTitle('Vibe Diagnostic')
-        .setDescription(`<@${target.id}> registers at **${score}%** vibe integrity. ${verdict}`)
-        .setColor(score > 70 ? 0x22c55e : score > 40 ? 0xfacc15 : 0xef4444);
-    await interaction.editReply({ embeds: [embed] });
-}
-
-async function handleBonkCommand(handler, interaction) {
-    const target = interaction.options.getUser('target');
-    const implementsOfBonk = [
-        'vibranium mallet',
-        'foam hammer',
-        'Stark-brand pool noodle',
-        'holographic newspaper',
-        'Mj\u00F6lnir (training mode)'
-    ];
-    const tool = handler.pickRandom(implementsOfBonk) || 'nanotech boop-stick';
-    await interaction.editReply(`\u{1F528} Bonk delivered to <@${target.id}> with the ${tool}. Order restored, sir.`);
-}
-
-async function handleTemplateCommand(handler, interaction, templates, title, defaultLine, color, optionName = 'target') {
-    const target = interaction.options.getUser(optionName) || interaction.user;
-    const template = handler.pickRandom(templates) || defaultLine;
-    const mention = target ? `<@${target.id}>` : 'sir';
-    const rendered = template.replace(/\{target\}/gi, mention);
-
-    const embed = new EmbedBuilder()
-        .setTitle(title)
-        .setColor(color)
-        .setDescription(rendered);
-
-    await interaction.editReply({ embeds: [embed] });
-}
-
-async function handleRoastCommand(handler, interaction) {
-    await handleTemplateCommand(
-        handler,
-        interaction,
-        handler.roastTemplates,
-        'Combat-Ready Roast',
-        'Diagnostic humour unavailable, sir.',
-        0xf87171
-    );
-}
-
-async function handleFlatterCommand(handler, interaction) {
-    await handleTemplateCommand(
-        handler,
-        interaction,
-        handler.flatterTemplates,
-        'Compliment Cascade',
-        'Flattery circuits cooling, sir.',
-        0x22c55e
-    );
-}
-
-async function handleToastCommand(handler, interaction) {
-    await handleTemplateCommand(
-        handler,
-        interaction,
-        handler.toastTemplates,
-        'Celebratory Toast',
-        'Celebration routines unavailable, sir.',
-        0xfacc15
-    );
-}
-
-async function handleTriviaCommand(handler, interaction) {
-    const entry = handler.pickRandom(handler.triviaQuestions);
-    if (!entry) {
-        await interaction.editReply('Trivia archives offline, sir.');
-        return;
-    }
-
-    const shuffled = entry.choices
-        .map((choice) => ({ id: Math.random(), value: choice }))
-        .sort((a, b) => a.id - b.id)
-        .map(({ value }) => value);
-
-    const correctIndex = shuffled.indexOf(entry.answer);
-    const answerLabel = correctIndex >= 0
-        ? `||${String.fromCharCode(65 + correctIndex)}. ${shuffled[correctIndex]}||`
-        : 'Unavailable';
-
-    const embed = new EmbedBuilder()
-        .setTitle('Stark Trivia Uplink')
-        .setColor(0xf97316)
-        .setDescription(entry.question);
-
-    shuffled.forEach((choice, index) => {
-        embed.addFields({
-            name: `Option ${String.fromCharCode(65 + index)}`,
-            value: choice,
-            inline: true
-        });
-    });
-
-    embed.addFields({ name: 'Answer', value: answerLabel });
-    embed.setFooter({ text: 'Spoiler tags conceal the correct answer. Tap to reveal.' });
-
-    await interaction.editReply({ embeds: [embed] });
-}
-
 async function handleCipherCommand(handler, interaction) {
     const phrase = handler.pickRandom(handler.cipherPhrases) || 'Stark encryption offline';
     const shift = handler.randomInRange(3, 13);
@@ -772,86 +535,14 @@ async function handleScrambleCommand(handler, interaction) {
     await interaction.editReply({ embeds: [embed] });
 }
 
-async function handleMissionCommand(handler, interaction) {
-    const refresh = interaction.options.getBoolean('refresh') || false;
-    const { user } = interaction;
-    const userId = user.id;
-    const userName = user.displayName || user.username;
-
-    if (!database.isConnected) {
-        const fallbackMission = handler.pickRandom(handler.missions) || 'Take five minutes to stretch and hydrate, sir.';
-        await interaction.editReply(`Mission uplink offline. Manual directive: ${fallbackMission}`);
-        return;
-    }
-
-    const profile = await database.getUserProfile(userId, userName);
-    const rawMission = profile?.preferences?.mission;
-    const missionRecord = rawMission && typeof rawMission === 'object' && !Array.isArray(rawMission)
-        ? { ...rawMission }
-        : null;
-
-    const now = Date.now();
-    const assignedAtMs = missionRecord?.assignedAt ? new Date(missionRecord.assignedAt).getTime() : NaN;
-    const hasValidAssignment = Number.isFinite(assignedAtMs);
-    const isExpired = !hasValidAssignment || now - assignedAtMs >= handler.missionCooldownMs;
-
-    if (refresh && !isExpired && hasValidAssignment) {
-        const availableAt = assignedAtMs + handler.missionCooldownMs;
-        await interaction.editReply(`Current directive still in progress, sir. Next rotation <t:${Math.floor(availableAt / 1000)}:R>.`);
-        return;
-    }
-
-    let activeMission = missionRecord;
-    let assignedNew = false;
-
-    if (!missionRecord || isExpired || refresh) {
-        const task = handler.pickRandom(handler.missions) || 'Improvise a heroic act and report back, sir.';
-        activeMission = {
-            task,
-            assignedAt: new Date().toISOString()
-        };
-        assignedNew = true;
-
-        try {
-            await database.setUserPreference(userId, 'mission', activeMission);
-        } catch (error) {
-            console.error('Failed to persist mission preference:', error);
-        }
-    }
-
-    const assignedAt = activeMission.assignedAt ? new Date(activeMission.assignedAt) : new Date();
-    const nextRotation = new Date(assignedAt.getTime() + handler.missionCooldownMs);
-    const embed = new EmbedBuilder()
-        .setTitle(assignedNew ? 'New Directive Deployed' : 'Directive Status')
-        .setColor(assignedNew ? 0x10b981 : 0x0891b2)
-        .setDescription(activeMission.task)
-        .addFields(
-            { name: 'Assigned', value: `<t:${Math.floor(assignedAt.getTime() / 1000)}:R>`, inline: true },
-            { name: 'Next Rotation', value: `<t:${Math.floor(nextRotation.getTime() / 1000)}:R>`, inline: true }
-        )
-        .setFooter({ text: 'Use /mission refresh:true to request a new directive once available.' });
-
-    await interaction.editReply({ embeds: [embed] });
-}
-
 module.exports = {
     caesarShift,
     scrambleWord,
     handleCryptoCommand,
     handleSixSevenCommand,
-    handleJokeCommand,
     handleFeaturesCommand,
     handleOptCommand,
     handleComponentInteraction,
-    handleEightBallCommand,
-    handleVibeCheckCommand,
-    handleBonkCommand,
-    handleTemplateCommand,
-    handleRoastCommand,
-    handleFlatterCommand,
-    handleToastCommand,
-    handleTriviaCommand,
     handleCipherCommand,
-    handleScrambleCommand,
-    handleMissionCommand
+    handleScrambleCommand
 };
