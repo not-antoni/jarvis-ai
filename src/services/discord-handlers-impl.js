@@ -3939,10 +3939,6 @@ class DiscordHandlers {
         return await gameHandlers.handleSixSevenCommand(this, interaction);
     }
 
-    async handleJokeCommand(interaction) {
-        return await gameHandlers.handleJokeCommand(this, interaction);
-    }
-
     async handleFeaturesCommand(interaction) {
         return await gameHandlers.handleFeaturesCommand(this, interaction);
     }
@@ -3953,38 +3949,6 @@ class DiscordHandlers {
 
     async handleComponentInteraction(interaction) {
         return await gameHandlers.handleComponentInteraction(this, interaction);
-    }
-
-    async handleEightBallCommand(interaction) {
-        return await gameHandlers.handleEightBallCommand(this, interaction);
-    }
-
-    async handleVibeCheckCommand(interaction) {
-        return await gameHandlers.handleVibeCheckCommand(this, interaction);
-    }
-
-    async handleBonkCommand(interaction) {
-        return await gameHandlers.handleBonkCommand(this, interaction);
-    }
-
-    async handleTemplateCommand(interaction, templates, title, defaultLine, color, optionName) {
-        return await gameHandlers.handleTemplateCommand(this, interaction, templates, title, defaultLine, color, optionName);
-    }
-
-    async handleRoastCommand(interaction) {
-        return await gameHandlers.handleRoastCommand(this, interaction);
-    }
-
-    async handleFlatterCommand(interaction) {
-        return await gameHandlers.handleFlatterCommand(this, interaction);
-    }
-
-    async handleToastCommand(interaction) {
-        return await gameHandlers.handleToastCommand(this, interaction);
-    }
-
-    async handleTriviaCommand(interaction) {
-        return await gameHandlers.handleTriviaCommand(this, interaction);
     }
 
     caesarShift(text, shift) {
@@ -4001,10 +3965,6 @@ class DiscordHandlers {
 
     async handleScrambleCommand(interaction) {
         return await gameHandlers.handleScrambleCommand(this, interaction);
-    }
-
-    async handleMissionCommand(interaction) {
-        return await gameHandlers.handleMissionCommand(this, interaction);
     }
 
     // ============ MEMORY / PERSONA HANDLERS ============

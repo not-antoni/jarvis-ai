@@ -74,14 +74,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('joke')
-        .setDescription('Pull a random safe-mode joke')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('features')
         .setDescription('Show or toggle Jarvis modules for this server')
         .addStringOption(opt =>
@@ -144,99 +136,26 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('wiki')
-        .setDescription('Generate a fake Wikipedia entry for someone')
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who to wikify').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('vibecheck')
-        .setDescription("Check someone's vibes with detailed stats")
-        .addUserOption(option =>
-            option.setName('user').setDescription('Who to vibe check').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('wyr')
-        .setDescription('Would You Rather - get a random dilemma')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('trial')
-        .setDescription('Put someone on trial for fake crimes')
-        .addUserOption(option =>
-            option.setName('user').setDescription('The defendant').setRequired(true)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('typerace')
         .setDescription('Start a typing race - first to type the phrase wins!')
         .setContexts([InteractionContextType.Guild]),
-    // ============ MORE FUN COMMANDS ============
     new SlashCommandBuilder()
-        .setName('rps')
-        .setDescription('Challenge someone to Rock Paper Scissors!')
+        .setName('ship')
+        .setDescription('Calculate compatibility between two people')
         .addUserOption(option =>
-            option.setName('opponent').setDescription('Who to challenge').setRequired(false)
+            option.setName('person1').setDescription('First person').setRequired(true)
+        )
+        .addUserOption(option =>
+            option.setName('person2').setDescription('Second person').setRequired(false)
         )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
-    // ============ SOCIAL (Consolidated) ============
     new SlashCommandBuilder()
-        .setName('social')
-        .setDescription('Social interaction commands')
-        .addSubcommand(sub =>
-            sub.setName('ship')
-                .setDescription('Calculate compatibility between two people')
-                .addUserOption(opt => opt.setName('person1').setDescription('First person').setRequired(true))
-                .addUserOption(opt => opt.setName('person2').setDescription('Second person').setRequired(false))
-        )
-        .addSubcommand(sub =>
-            sub.setName('howgay')
-                .setDescription('Calculate how gay someone is (just for fun)')
-                .addUserOption(opt => opt.setName('user').setDescription('Who to check').setRequired(false))
-        )
-        .addSubcommand(sub =>
-            sub.setName('howbased')
-                .setDescription('Calculate how based someone is')
-                .addUserOption(opt => opt.setName('user').setDescription('Who to check').setRequired(false))
-        )
-        .addSubcommand(sub => sub.setName('pickupline').setDescription('Get a random pickup line'))
-        .addSubcommand(sub => sub.setName('dadjoke').setDescription('Get a random dad joke'))
-        .addSubcommand(sub =>
-            sub.setName('fight')
-                .setDescription('Start a fight with someone')
-                .addUserOption(opt => opt.setName('opponent').setDescription('Who to fight').setRequired(true))
-        )
-        .addSubcommand(sub =>
-            sub.setName('hug')
-                .setDescription('Give someone a hug')
-                .addUserOption(opt => opt.setName('user').setDescription('Who to hug').setRequired(true))
-        )
-        .addSubcommand(sub =>
-            sub.setName('slap')
-                .setDescription('Slap someone')
-                .addUserOption(opt => opt.setName('user').setDescription('Who to slap').setRequired(true))
-        )
+        .setName('pickupline')
+        .setDescription('Get a random pickup line')
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
@@ -250,17 +169,6 @@ const allCommands = [
                 .setName('dice')
                 .setDescription('Dice notation (e.g., 2d6, 1d20)')
                 .setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('rate')
-        .setDescription('Rate something or someone')
-        .addStringOption(option =>
-            option.setName('thing').setDescription('What to rate').setRequired(true)
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -327,20 +235,6 @@ const allCommands = [
                     { name: 'Opt in to memory storage', value: 'in' },
                     { name: 'Opt out of memory storage', value: 'out' }
                 )
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('mission')
-        .setDescription('Receive a fresh Stark Industries daily directive')
-        .addBooleanOption(option =>
-            option
-                .setName('refresh')
-                .setDescription('Request a new mission (cooldown enforced)')
-                .setRequired(false)
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -534,36 +428,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('bonk')
-        .setDescription('Deliver a comedic corrective bonk')
-        .addUserOption(option =>
-            option.setName('target').setDescription('Who deserves the bonk?').setRequired(true)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('toast')
-        .setDescription('Raise a cinematic toast to an ally')
-        .addUserOption(option =>
-            option.setName('target').setDescription('Optional honoree').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('trivia')
-        .setDescription('Challenge yourself with Stark trivia')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('cipher')
         .setDescription('Crack a rotating Stark cipher')
         .setContexts([
@@ -574,36 +438,6 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('scramble')
         .setDescription('Unscramble a Stark Industries keyword')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    // ============ SOUL & SELFHOST ============
-    new SlashCommandBuilder()
-        .setName('soul')
-        .setDescription("View Jarvis's artificial soul status and evolution")
-        .addSubcommand(sub =>
-            sub.setName('status').setDescription('Check current soul state and traits')
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('evolve')
-                .setDescription('Trigger a soul evolution event')
-                .addStringOption(option =>
-                    option
-                        .setName('type')
-                        .setDescription('Type of evolution')
-                        .setRequired(true)
-                        .addChoices(
-                            { name: 'Joke interaction', value: 'joke' },
-                            { name: 'Deep conversation', value: 'deep_conversation' },
-                            { name: 'Roast session', value: 'roast' },
-                            { name: 'Chaos mode', value: 'chaos' },
-                            { name: 'Helpful moment', value: 'helpful' }
-                        )
-                )
-        )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,

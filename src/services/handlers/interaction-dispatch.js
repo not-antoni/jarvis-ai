@@ -97,7 +97,7 @@ try {
     }
 
     // Check if sentience is enabled for this guild - if so, bypass feature flag check for sentience-related commands
-    const SENTIENCE_COMMANDS = ['soul', 'sentient'];
+    const SENTIENCE_COMMANDS = ['sentient'];
     const isSentienceCommand = SENTIENCE_COMMANDS.includes(commandName);
     
     // Allow owner to bypass sentience whitelist
@@ -290,11 +290,6 @@ try {
             response = await slashUtility.handlePing(interaction);
             break;
         }
-        case 'trivia': {
-            telemetryMetadata.category = 'fun';
-            await handler.handleTriviaCommand(interaction);
-            return;
-        }
         case 'cipher': {
             telemetryMetadata.category = 'fun';
             await handler.handleCipherCommand(interaction);
@@ -303,11 +298,6 @@ try {
         case 'scramble': {
             telemetryMetadata.category = 'fun';
             await handler.handleScrambleCommand(interaction);
-            return;
-        }
-        case 'mission': {
-            telemetryMetadata.category = 'fun';
-            await handler.handleMissionCommand(interaction);
             return;
         }
         case 'crypto': {
@@ -328,11 +318,6 @@ try {
         case '67': {
             telemetryMetadata.category = 'fun';
             await handler.handleSixSevenCommand(interaction);
-            return;
-        }
-        case 'joke': {
-            telemetryMetadata.category = 'fun';
-            await handler.handleJokeCommand(interaction);
             return;
         }
         case 'memory': {
@@ -371,44 +356,14 @@ try {
             return;
         }
         // ============ FUN / SOCIAL COMMANDS ============
-        case 'soul': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleSoul(interaction);
-            break;
-        }
         case 'aatrox': {
             telemetryMetadata.category = 'fun';
             response = await slashSocial.handleAatrox(interaction);
             break;
         }
-        case 'wiki': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleWiki(interaction);
-            break;
-        }
-        case 'vibecheck': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleVibecheck(interaction);
-            break;
-        }
-        case 'wyr': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleWyr(interaction);
-            break;
-        }
-        case 'trial': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleTrial(interaction);
-            break;
-        }
         case 'typerace': {
             telemetryMetadata.category = 'fun';
             response = await slashSocial.handleTyperace(interaction);
-            break;
-        }
-        case 'rps': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleRps(interaction);
             break;
         }
         // ============ CRAFTING & ITEMS ============
@@ -447,25 +402,9 @@ try {
             response = await slashUtility.handleBanner(interaction);
             break;
         }
-        // ============ SOCIAL (Consolidated) ============
-        case 'social': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleSocial(interaction);
-            break;
-        }
         case 'ship': {
             telemetryMetadata.category = 'fun';
             response = await slashSocial.handleShip(interaction);
-            break;
-        }
-        case 'howgay': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleHowgay(interaction);
-            break;
-        }
-        case 'howbased': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleHowbased(interaction);
             break;
         }
         case 'pickupline': {
@@ -473,34 +412,9 @@ try {
             response = await slashSocial.handlePickupline(interaction);
             break;
         }
-        case 'dadjoke': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleDadjoke(interaction);
-            break;
-        }
-        case 'fight': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleFight(interaction);
-            break;
-        }
-        case 'hug': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleHug(interaction);
-            break;
-        }
-        case 'slap': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleSlap(interaction);
-            break;
-        }
         case 'roll': {
             telemetryMetadata.category = 'fun';
             response = await slashSocial.handleDiceRoll(interaction);
-            break;
-        }
-        case 'rate': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleRate(interaction);
             break;
         }
         case '8ball': {
