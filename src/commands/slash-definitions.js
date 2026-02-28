@@ -639,17 +639,6 @@ const allCommands = [
                         .setRequired(true)
                 )
         )
-        .addSubcommand(sub =>
-            sub
-                .setName('agis')
-                .setDescription('A.G.I.S. — Plan and decompose a goal into steps')
-                .addStringOption(option =>
-                    option
-                        .setName('goal')
-                        .setDescription('High-level goal for AGIS to plan')
-                        .setRequired(false)
-                )
-        )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
