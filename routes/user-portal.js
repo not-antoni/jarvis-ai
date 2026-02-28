@@ -78,8 +78,8 @@ async function getUserServers(userId, discordClient) {
 const PORTAL_STYLES = `
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0d0d2b 100%);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #0d0d14;
         color: #e4e4e4;
         min-height: 100vh;
     }
@@ -87,44 +87,44 @@ const PORTAL_STYLES = `
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 1rem 2rem;
-        background: rgba(0,0,0,0.3);
-        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding: 1.25rem 5%;
+        max-width: 1300px;
+        margin: 0 auto;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     .site-nav .logo {
         font-size: 1.5rem;
         font-weight: 700;
-        background: linear-gradient(90deg, #00d4ff, #8a2be2);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #00d4ff;
         text-decoration: none;
     }
     .site-nav .nav-links {
         display: flex;
-        gap: 1.5rem;
+        gap: 1.75rem;
         list-style: none;
     }
     .site-nav .nav-links a {
-        color: #b0b0b0;
+        color: #777;
         text-decoration: none;
         font-weight: 500;
-        transition: color 0.3s;
+        font-size: 0.9rem;
+        transition: color 0.2s;
     }
-    .site-nav .nav-links a:hover { color: #00d4ff; }
+    .site-nav .nav-links a:hover { color: #fff; }
     .site-nav .nav-links a.active { color: #00d4ff; }
-    .portal-container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    .portal-container { max-width: 900px; margin: 0 auto; padding: 2rem; }
     .portal-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 1.5rem 0;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
+        border-bottom: 1px solid rgba(255,255,255,0.06);
         margin-bottom: 2rem;
     }
     .user-info { display: flex; align-items: center; gap: 1rem; }
-    .user-avatar { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #00d4ff; }
-    .user-name { font-size: 1.5rem; font-weight: 600; }
-    .user-id { color: #666; font-size: 0.9rem; }
+    .user-avatar { width: 56px; height: 56px; border-radius: 50%; border: 2px solid rgba(0,212,255,0.4); }
+    .user-name { font-size: 1.25rem; font-weight: 600; color: #fff; }
+    .user-id { color: #555; font-size: 0.8rem; }
     .nav-tabs {
         display: flex;
         gap: 0.5rem;
@@ -132,72 +132,77 @@ const PORTAL_STYLES = `
         flex-wrap: wrap;
     }
     .nav-tab {
-        padding: 0.75rem 1.5rem;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 8px;
-        color: #888;
+        padding: 0.6rem 1.25rem;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 6px;
+        color: #777;
         cursor: pointer;
-        transition: all 0.3s;
+        transition: all 0.2s;
         text-decoration: none;
-        font-size: 0.95rem;
+        font-size: 0.85rem;
+        font-weight: 500;
     }
-    .nav-tab:hover { background: rgba(255,255,255,0.1); color: #fff; }
-    .nav-tab.active { background: rgba(0,212,255,0.2); border-color: #00d4ff; color: #00d4ff; }
+    .nav-tab:hover { background: rgba(255,255,255,0.06); color: #ccc; }
+    .nav-tab.active { background: rgba(0,212,255,0.08); border-color: rgba(0,212,255,0.3); color: #00d4ff; }
     .section { display: none; }
     .section.active { display: block; }
     .card {
-        background: rgba(255,255,255,0.03);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 12px;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
         padding: 1.5rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.25rem;
     }
-    .card h2 { color: #00d4ff; margin-bottom: 1rem; font-size: 1.2rem; }
+    .card h2 { color: #fff; margin-bottom: 1rem; font-size: 1.1rem; font-weight: 600; }
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.75rem;
     }
     .stat-item {
-        background: rgba(0,212,255,0.05);
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
         border-radius: 8px;
         padding: 1rem;
         text-align: center;
     }
-    .stat-value { font-size: 1.75rem; font-weight: 700; color: #00d4ff; }
-    .stat-label { color: #888; font-size: 0.85rem; margin-top: 0.25rem; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #00d4ff; font-variant-numeric: tabular-nums; }
+    .stat-label { color: #555; font-size: 0.8rem; margin-top: 0.25rem; }
     .api-key-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 1rem;
+        padding: 0.85rem 1rem;
         background: rgba(255,255,255,0.02);
-        border: 1px solid rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.06);
         border-radius: 8px;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
+        transition: border-color 0.2s;
     }
+    .api-key-item:hover { border-color: rgba(255,255,255,0.12); }
     .api-key-info { flex: 1; }
-    .api-key-name { font-weight: 500; margin-bottom: 0.25rem; }
-    .api-key-preview { font-family: monospace; color: #888; font-size: 0.9rem; }
-    .api-key-stats { color: #666; font-size: 0.8rem; margin-top: 0.25rem; }
+    .api-key-name { font-weight: 500; font-size: 0.9rem; color: #ccc; margin-bottom: 0.2rem; }
+    .api-key-preview { font-family: 'SF Mono', 'Fira Code', monospace; color: #666; font-size: 0.8rem; }
+    .api-key-stats { color: #555; font-size: 0.75rem; margin-top: 0.2rem; }
     .btn {
         padding: 0.5rem 1rem;
         border-radius: 6px;
         border: none;
         cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.3s;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.2s;
     }
     .btn-primary {
-        background: linear-gradient(90deg, #00d4ff, #8a2be2);
-        color: white;
+        background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%);
+        color: #000;
     }
-    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-    .btn-danger { background: rgba(255,68,68,0.2); color: #ff4444; }
-    .btn-danger:hover { background: rgba(255,68,68,0.3); }
-    .btn-secondary { background: rgba(255,255,255,0.1); color: #888; }
-    .btn-secondary:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .btn-primary:hover { transform: translateY(-1px); }
+    .btn-danger { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.15); }
+    .btn-danger:hover { background: rgba(239,68,68,0.15); }
+    .btn-secondary { background: rgba(255,255,255,0.05); color: #888; border: 1px solid rgba(255,255,255,0.08); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.08); color: #ccc; }
     .create-key-form {
         display: flex;
         gap: 0.5rem;
@@ -205,17 +210,19 @@ const PORTAL_STYLES = `
     }
     .create-key-form input {
         flex: 1;
-        padding: 0.75rem;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.2);
+        padding: 0.65rem 0.85rem;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
         border-radius: 6px;
         color: #fff;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
+        transition: border-color 0.2s;
     }
-    .create-key-form input:focus { outline: none; border-color: #00d4ff; }
+    .create-key-form input:focus { outline: none; border-color: rgba(0,212,255,0.4); }
+    .create-key-form input::placeholder { color: #555; }
     .new-key-display {
-        background: rgba(0,255,136,0.1);
-        border: 1px solid rgba(0,255,136,0.3);
+        background: rgba(0,204,106,0.06);
+        border: 1px solid rgba(0,204,106,0.2);
         border-radius: 8px;
         padding: 1rem;
         margin-bottom: 1rem;
@@ -225,42 +232,52 @@ const PORTAL_STYLES = `
     .new-key-display code {
         display: block;
         background: rgba(0,0,0,0.3);
-        padding: 0.75rem;
+        padding: 0.65rem;
         border-radius: 4px;
-        font-family: monospace;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        font-size: 0.8rem;
         word-break: break-all;
         margin: 0.5rem 0;
     }
     .convo-item {
-        padding: 1rem;
+        padding: 0.85rem 1rem;
         background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
         border-radius: 8px;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
         cursor: pointer;
-        transition: all 0.3s;
+        transition: border-color 0.2s;
     }
-    .convo-item:hover { background: rgba(255,255,255,0.05); }
-    .convo-preview { color: #888; font-size: 0.9rem; margin-top: 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .convo-time { color: #666; font-size: 0.8rem; }
+    .convo-item:hover { border-color: rgba(255,255,255,0.12); }
+    .convo-preview { color: #888; font-size: 0.85rem; margin-top: 0.35rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .convo-time { color: #555; font-size: 0.75rem; }
     .server-item {
         display: flex;
         align-items: center;
-        gap: 1rem;
-        padding: 1rem;
+        gap: 0.85rem;
+        padding: 0.85rem 1rem;
         background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.06);
         border-radius: 8px;
-        margin-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
+        transition: border-color 0.2s;
     }
-    .server-icon { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.1); }
-    .server-name { font-weight: 500; }
-    .server-members { color: #666; font-size: 0.85rem; }
-    .empty-state { text-align: center; color: #666; padding: 3rem; }
-    .message { padding: 1rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
+    .server-item:hover { border-color: rgba(255,255,255,0.12); }
+    .server-icon { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.06); }
+    .server-name { font-weight: 500; font-size: 0.9rem; color: #ccc; }
+    .server-members { color: #555; font-size: 0.8rem; }
+    .empty-state { text-align: center; color: #555; padding: 2.5rem; font-size: 0.85rem; }
+    .message { padding: 0.85rem 1rem; border-radius: 8px; margin-bottom: 1rem; display: none; font-size: 0.85rem; }
     .message.show { display: block; }
-    .message.success { background: rgba(0,255,136,0.1); color: #00ff88; }
-    .message.error { background: rgba(255,68,68,0.1); color: #ff4444; }
-    .logout-btn { color: #888; text-decoration: none; }
-    .logout-btn:hover { color: #ff4444; }
+    .message.success { background: rgba(0,204,106,0.08); color: #00cc6a; border: 1px solid rgba(0,204,106,0.15); }
+    .message.error { background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.15); }
+    .logout-btn { color: #666; text-decoration: none; font-size: 0.85rem; }
+    .logout-btn:hover { color: #ef4444; }
+    @media (max-width: 768px) {
+        .site-nav .nav-links { display: none; }
+        .portal-header { flex-direction: column; gap: 1rem; text-align: center; }
+        .portal-container { padding: 1.5rem; }
+    }
 `;
 
 const PORTAL_PAGE = `
@@ -269,12 +286,15 @@ const PORTAL_PAGE = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Dashboard | Jarvis</title>
+    <title>My Portal | Jarvis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>${PORTAL_STYLES}</style>
 </head>
 <body>
     <nav class="site-nav">
-        <a href="/" class="logo">⚡ Jarvis</a>
+        <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
             <li><a href="/commands">Commands</a></li>
             <li><a href="/status">Status</a></li>
