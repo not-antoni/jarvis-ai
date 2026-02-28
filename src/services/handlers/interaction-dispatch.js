@@ -7,7 +7,6 @@ const { recordCommandRun } = require('../../utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../../core/command-registry');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
 const selfhostFeatures = require('../selfhost-features');
-const slashEconomy = require('./slash-economy');
 const slashSocial = require('./slash-social');
 const slashUtility = require('./slash-utility');
 const slashModeration = require('./slash-moderation');
@@ -32,32 +31,6 @@ let telemetryError = null;
 const telemetryMetadata = {};
 let telemetrySubcommand = null;
 let shouldSetCooldown = false;
-
-// Helper: Parse formatted numbers like "1M", "5K", "1B"
-const parseFormattedNumber = (str) => {
-    if (!str) {return NaN;}
-    str = String(str).trim().toUpperCase();
-    if (str === 'ALL') {return NaN;} // Handle separately
-    str = str.replace(/,/g, '').replace(/\s/g, '');
-    const suffixes = { 'K': 1e3, 'M': 1e6, 'B': 1e9, 'T': 1e12, 'Q': 1e15 };
-    const lastChar = str.slice(-1);
-    if (suffixes[lastChar]) {
-        const num = parseFloat(str.slice(0, -1));
-        return isNaN(num) ? NaN : num * suffixes[lastChar];
-    }
-    return parseFloat(str);
-};
-
-// Helper: Format numbers with K/M/B/T/Q suffixes
-const formatNum = (n) => {
-    n = Math.floor(n);
-    if (n >= 1e15) {return `${(n / 1e15).toFixed(2)  }Q`;}
-    if (n >= 1e12) {return `${(n / 1e12).toFixed(2)  }T`;}
-    if (n >= 1e9) {return `${(n / 1e9).toFixed(2)  }B`;}
-    if (n >= 1e6) {return `${(n / 1e6).toFixed(2)  }M`;}
-    if (n >= 1e3) {return `${(n / 1e3).toFixed(2)  }K`;}
-    return n.toLocaleString('en-US');
-};
 
 const finalizeTelemetry = () => {
     const metadata = telemetryMetadata && Object.keys(telemetryMetadata).length > 0
@@ -366,22 +339,6 @@ try {
             response = await slashSocial.handleTyperace(interaction);
             break;
         }
-        // ============ CRAFTING & ITEMS ============
-        case 'inventory': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleInventory(interaction);
-            break;
-        }
-        case 'tinker': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleTinker(interaction);
-            break;
-        }
-        case 'sbx': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleSbx(interaction);
-            break;
-        }
         case 'caption': {
             telemetryMetadata.category = 'utility';
             await handler.handleCaptionCommand(interaction);
@@ -420,107 +377,6 @@ try {
         case '8ball': {
             telemetryMetadata.category = 'fun';
             response = await slashSocial.handle8ball(interaction);
-            break;
-        }
-        // ============ STARK BUCKS ECONOMY ============
-        case 'economy': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleEconomy(interaction);
-            break;
-        }
-        case 'balance': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleBalance(interaction);
-            break;
-        }
-        case 'daily': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleDaily(interaction);
-            break;
-        }
-        case 'work': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleWork(interaction);
-            break;
-        }
-        case 'gamble': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleGamble(interaction);
-            break;
-        }
-        case 'slots': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleSlots(interaction);
-            break;
-        }
-        case 'coinflip': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleCoinflip(interaction);
-            break;
-        }
-        case 'shop': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleShop(interaction);
-            break;
-        }
-        case 'buy': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleBuy(interaction);
-            break;
-        }
-        case 'leaderboard': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleLeaderboard(interaction);
-            break;
-        }
-        case 'minigame': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleMinigame(interaction);
-            break;
-        }
-        case 'hunt': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleHunt(interaction);
-            break;
-        }
-        case 'fish': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleFish(interaction);
-            break;
-        }
-        case 'dig': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleDig(interaction);
-            break;
-        }
-        case 'beg': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleBeg(interaction);
-            break;
-        }
-        case 'crime': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleCrime(interaction);
-            break;
-        }
-        case 'postmeme': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handlePostmeme(interaction);
-            break;
-        }
-        case 'searchlocation': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleSearchlocation(interaction);
-            break;
-        }
-        case 'give': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleGive(interaction);
-            break;
-        }
-        case 'show': {
-            telemetryMetadata.category = 'economy';
-            response = await slashEconomy.handleShow(interaction);
             break;
         }
         // ============ SELFHOST-ONLY COMMANDS ============

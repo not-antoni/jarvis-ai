@@ -705,45 +705,6 @@ router.get('/soul', async(req, res) => {
     }
 });
 
-/**
- * GET /economy — Economy system stats
- */
-router.get('/economy', async(req, res) => {
-    try {
-        const db = await getDatabase();
-        let stats = { totalUsers: 0, totalBucks: 0, topUsers: [] };
-
-        if (db?.isConnected) {
-            const config = require('../config');
-            const col = db.db.collection(config.database?.collections?.starkEconomy || 'starkEconomy');
-            const totalUsers = await col.countDocuments();
-            const pipeline = [
-                { $group: { _id: null, totalBucks: { $sum: '$balance' } } }
-            ];
-            const agg = await col.aggregate(pipeline).toArray();
-            const topUsers = await col.find({})
-                .sort({ balance: -1 })
-                .limit(10)
-                .project({ username: 1, balance: 1, level: 1 })
-                .toArray();
-
-            stats = {
-                totalUsers,
-                totalBucks: agg[0]?.totalBucks || 0,
-                topUsers: topUsers.map(u => ({
-                    name: u.username || 'Unknown',
-                    balance: u.balance || 0,
-                    level: u.level || 1
-                }))
-            };
-        }
-
-        res.json(stats);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
 // Helper functions
 function formatUptime(ms) {
     const hours = Math.floor(ms / 3600000);

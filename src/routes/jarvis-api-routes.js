@@ -11,7 +11,6 @@ const moderationFilters = require('../services/moderation-filters');
 const subscriptions = require('../services/monitor-subscriptions');
 const dataSync = require('../services/data-sync');
 const ytDlpManager = require('../services/yt-dlp-manager');
-const starkEconomy = require('../services/stark-economy');
 const selfhostFeatures = require('../services/selfhost-features');
 const { musicManager } = require('../core/musicManager');
 const musicGuildWhitelist = require('../utils/musicGuildWhitelist');
@@ -197,13 +196,6 @@ function mountFeatureRoutes(router, ctx) {
             ytdlp = null;
         }
 
-        let multiplier = null;
-        try {
-            multiplier = starkEconomy?.getMultiplierStatus?.() || null;
-        } catch {
-            multiplier = null;
-        }
-
         const logsDir = path.join(__dirname, '..', '..', 'logs');
         let logFiles = [];
         try {
@@ -248,7 +240,6 @@ function mountFeatureRoutes(router, ctx) {
                 agent: agentSummary,
                 monitoring: { subscriptions: subsCount },
                 music: { activeQueues: musicManager?.getActiveGuildIds?.()?.length || 0 },
-                economy: { multiplierActive: Boolean(multiplier?.active) },
                 sync: syncStatus,
                 ytdlp,
                 logs: { files: logFiles.length },
@@ -475,36 +466,8 @@ function mountFeatureRoutes(router, ctx) {
         });
     });
 
-    router.get('/api/economy', requireOwner, async(req, res) => {
-        let multiplier = null;
-        try {
-            multiplier = starkEconomy.getMultiplierStatus();
-        } catch {
-            multiplier = null;
-        }
-
-        let leaderboard = null;
-        const includeLeaderboard = String(req.query.leaderboard || '').toLowerCase() === 'true';
-        if (includeLeaderboard && typeof starkEconomy.getLeaderboard === 'function') {
-            try {
-                leaderboard = await starkEconomy.getLeaderboard(10, getDiscordClient());
-            } catch {
-                leaderboard = null;
-            }
-        }
-
-        const payload = {
-            ok: true,
-            config: starkEconomy.ECONOMY_CONFIG || null,
-            shopItems: Array.isArray(starkEconomy.SHOP_ITEMS) ? starkEconomy.SHOP_ITEMS.length : null,
-            multiplier,
-            leaderboard
-        };
-
-        res.json(payload);
-        saveJarvisSnapshot('economy.leaderboard', payload).catch(err => {
-            console.warn('[Jarvis] Failed to save economy leaderboard snapshot:', err?.message || err);
-        });
+    router.get('/api/economy', requireOwner, (_req, res) => {
+        res.json({ ok: true, removed: true, message: 'Economy system has been removed.' });
     });
 
     router.get('/api/soul', requireOwner, (req, res) => {

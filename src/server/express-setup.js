@@ -184,17 +184,11 @@ function createExpressApp({ webhookRouter, database }) {
     const jarvisOwnerRouter = require('../routes/jarvis');
     app.use('/jarvis', jarvisOwnerRouter);
 
-    const starkbucksRouter = require('../../routes/starkbucks');
-    app.use('/', starkbucksRouter);
-
     const legalRouter = require('../../routes/legal');
     app.use('/', legalRouter);
 
     const userAuthRouter = require('../../routes/user-auth');
     app.use('/', userAuthRouter);
-
-    const userApiRouter = require('../../routes/user-api');
-    app.use('/', userApiRouter);
 
     const userPortalRouter = require('../../routes/user-portal');
     userPortalRouter.init(database);
