@@ -698,8 +698,8 @@ class MusicManager {
     createPlayer(guildId) {
         const player = createAudioPlayer({
             behaviors: {
-                // Use Play instead of Pause to prevent audio interruptions during brief connection drops
-                noSubscriber: NoSubscriberBehavior.Play
+                // Prevent silent "playing" when no voice subscriber is attached.
+                noSubscriber: NoSubscriberBehavior.Pause
             }
         });
 
