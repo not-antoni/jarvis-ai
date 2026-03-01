@@ -512,7 +512,7 @@ const LANDING_PAGE = `
     </nav>
     
     <section class="hero">
-        <img src="/jarvis.gif" alt="Jarvis AI Discord Bot" class="hero-icon">
+        <img src="/jarvis.webp" alt="Jarvis AI Discord Bot" class="hero-icon" loading="eager">
         <h1>The Discord AI with <span class="accent">Actual Personality</span></h1>
         <p>Stop using boring bots. Jarvis brings natural chat, powerful moderation, and music streaming to your server.</p>
         <div class="cta-buttons">
@@ -626,13 +626,13 @@ const LANDING_PAGE = `
         <p class="subtitle">Real conversations from Discord</p>
         <div class="screenshot-grid">
             <div class="screenshot-item">
-                <img src="/screenshot-1.png?v=2" alt="Jarvis AI conversation example" loading="lazy">
+                <img src="/screenshot-1.png?v=3" alt="Jarvis AI conversation example" loading="lazy" onerror="this.onerror=null;this.src='/jarvis.webp'">
             </div>
             <div class="screenshot-item">
-                <img src="/screenshot-2.png?v=2" alt="Jarvis music playback example" loading="lazy">
+                <img src="/screenshot-2.png?v=3" alt="Jarvis music playback example" loading="lazy" onerror="this.onerror=null;this.src='/jarvis.webp'">
             </div>
             <div class="screenshot-item">
-                <img src="/screenshot-3.png?v=2" alt="Jarvis moderation example" loading="lazy">
+                <img src="/screenshot-3.png?v=3" alt="Jarvis moderation example" loading="lazy" onerror="this.onerror=null;this.src='/jarvis.webp'">
             </div>
         </div>
     </section>
