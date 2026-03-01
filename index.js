@@ -220,6 +220,20 @@ const tempSweepJob = cron.schedule(
     { scheduled: false }
 );
 
+// Uptime health snapshots (every 5 minutes)
+const uptimeSnapshotJob = cron.schedule(
+    '*/5 * * * *',
+    async() => {
+        try {
+            const uptimeTracker = require('./src/services/uptime-tracker');
+            await uptimeTracker.recordSnapshot();
+        } catch (error) {
+            console.error('Failed to record uptime snapshot:', error);
+        }
+    },
+    { scheduled: false }
+);
+
 async function registerSlashCommands() {
     const commandData = buildCommandData();
     const commandHash = crypto
@@ -430,10 +444,18 @@ client.once(Events.ClientReady, async() => {
 
     if (databaseConnected) {
         serverStatsRefreshJob.start();
+        uptimeSnapshotJob.start();
         try {
             await discordHandlers.refreshAllServerStats(client);
         } catch (error) {
             console.error('Failed to refresh server stats on startup:', error);
+        }
+        try {
+            const uptimeTracker = require('./src/services/uptime-tracker');
+            await uptimeTracker.ensureIndexes();
+            await uptimeTracker.recordSnapshot();
+        } catch (e) {
+            console.warn('[UptimeTracker] Init failed:', e.message);
         }
     } else {
         console.warn(
@@ -472,7 +494,7 @@ const { wireEventHandlers } = require('./src/server/event-wiring');
 wireEventHandlers({
     client, discordHandlers, dashboardRouter, serverLogger,
     errorLogger, aiManager, database, cron, monitorScheduler,
-    serverStatsRefreshJob, tempSweepJob
+    serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
 });
 
 // Mount 404 error handler (must be last)

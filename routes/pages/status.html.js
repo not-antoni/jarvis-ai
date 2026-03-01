@@ -80,67 +80,90 @@ const STATUS_PAGE = `
             margin-bottom: 1.5rem;
         }
         .uptime-header h2 { margin: 0; }
-        .date-range { color: #555; font-size: 0.8rem; }
+        .date-range { color: #555; font-size: 0.85rem; }
 
         .uptime-component {
-            margin-bottom: 1.25rem;
+            margin-bottom: 1.5rem;
         }
         .uptime-component:last-child { margin-bottom: 0; }
         .uptime-component-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.4rem;
         }
         .uptime-component-name {
-            font-weight: 500;
+            font-weight: 600;
             font-size: 0.9rem;
             display: flex;
             align-items: center;
             gap: 0.5rem;
             color: #ccc;
         }
-        .uptime-component-name .check { font-size: 0.85rem; }
-        .uptime-component-name .check.ok { color: #fff; }
-        .uptime-component-name .check.warn { color: #888; }
-        .component-detail { color: #555; font-size: 0.8rem; }
+        .uptime-component-name .status-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #fff;
+        }
+        .uptime-component-name .status-icon.degraded { background: #888; }
+        .uptime-component-name .status-icon.down { background: #555; }
+        .uptime-pct { color: #666; font-size: 0.85rem; font-weight: 500; }
 
         .uptime-bar {
             display: flex;
-            gap: 1px;
-            height: 28px;
+            gap: 1.5px;
+            height: 32px;
             border-radius: 3px;
             overflow: hidden;
         }
         .uptime-bar .day {
             flex: 1;
-            min-width: 2px;
-            background: #fff;
+            min-width: 0;
+            border-radius: 2px;
             transition: opacity 0.15s;
             cursor: pointer;
             position: relative;
         }
-        .uptime-bar .day:hover { opacity: 0.8; }
-        .uptime-bar .day.degraded { background: #888; }
-        .uptime-bar .day.down { background: #555; }
+        .uptime-bar .day:hover { opacity: 0.7; }
+        .uptime-bar .day.operational { background: #fff; }
+        .uptime-bar .day.degraded { background: #666; }
+        .uptime-bar .day.down { background: #333; }
         .uptime-bar .day.unknown { background: #1a1a1a; }
         .uptime-bar .day .tooltip {
             display: none;
             position: absolute;
-            bottom: 100%;
+            bottom: calc(100% + 6px);
             left: 50%;
             transform: translateX(-50%);
             background: #111;
-            border: 1px solid rgba(255,255,255,0.12);
-            padding: 0.4rem 0.6rem;
+            border: 1px solid rgba(255,255,255,0.15);
+            padding: 0.5rem 0.75rem;
             border-radius: 6px;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             white-space: nowrap;
             z-index: 100;
-            margin-bottom: 4px;
-            color: #aaa;
+            color: #ccc;
+            pointer-events: none;
+        }
+        .uptime-bar .day .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #111;
         }
         .uptime-bar .day:hover .tooltip { display: block; }
+
+        .bar-footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.3rem;
+            font-size: 0.7rem;
+            color: #444;
+        }
 
         /* Services */
         .services-grid {
@@ -239,6 +262,7 @@ const STATUS_PAGE = `
             border-radius: 6px;
             cursor: pointer;
             font-size: 0.8rem;
+            font-family: inherit;
             transition: all 0.2s;
         }
         .refresh-btn:hover { background: rgba(255,255,255,0.08); color: #ccc; }
@@ -284,32 +308,44 @@ const STATUS_PAGE = `
 
         <div class="uptime-section">
             <div class="uptime-header">
-                <h2>Uptime</h2>
+                <h2>System Status</h2>
                 <span class="date-range" id="dateRange"></span>
             </div>
 
-            <div class="uptime-component" id="apiComponent">
+            <div class="uptime-component">
                 <div class="uptime-component-header">
-                    <span class="uptime-component-name"><span class="check ok" id="apiCheck">&#10003;</span> AI Providers</span>
-                    <span class="component-detail" id="apiProviderCount">-- active</span>
+                    <span class="uptime-component-name">
+                        <span class="status-icon" id="aiIcon"></span>
+                        AI Providers
+                    </span>
+                    <span class="uptime-pct" id="aiPct">-- %</span>
                 </div>
-                <div class="uptime-bar" id="apiUptimeBar"></div>
+                <div class="uptime-bar" id="aiBar"></div>
+                <div class="bar-footer"><span>90 days ago</span><span>Today</span></div>
             </div>
 
-            <div class="uptime-component" id="discordComponent">
+            <div class="uptime-component">
                 <div class="uptime-component-header">
-                    <span class="uptime-component-name"><span class="check ok" id="discordCheck">&#10003;</span> Discord Bot</span>
-                    <span class="component-detail" id="discordGuildCount">-- servers</span>
+                    <span class="uptime-component-name">
+                        <span class="status-icon" id="discordIcon"></span>
+                        Discord Bot
+                    </span>
+                    <span class="uptime-pct" id="discordPct">-- %</span>
                 </div>
-                <div class="uptime-bar" id="discordUptimeBar"></div>
+                <div class="uptime-bar" id="discordBar"></div>
+                <div class="bar-footer"><span>90 days ago</span><span>Today</span></div>
             </div>
 
-            <div class="uptime-component" id="dbComponent">
+            <div class="uptime-component">
                 <div class="uptime-component-header">
-                    <span class="uptime-component-name"><span class="check ok" id="dbCheck">&#10003;</span> Database</span>
-                    <span class="component-detail">MongoDB</span>
+                    <span class="uptime-component-name">
+                        <span class="status-icon" id="dbIcon"></span>
+                        Database
+                    </span>
+                    <span class="uptime-pct" id="dbPct">-- %</span>
                 </div>
-                <div class="uptime-bar" id="dbUptimeBar"></div>
+                <div class="uptime-bar" id="dbBar"></div>
+                <div class="bar-footer"><span>90 days ago</span><span>Today</span></div>
             </div>
         </div>
 
@@ -354,16 +390,27 @@ const STATUS_PAGE = `
 
     <script>
         let healthData = null;
+        let historyData = [];
 
         async function fetchStatus() {
             try {
-                const res = await fetch('/api/public/health');
-                if (res.ok) {
-                    healthData = await res.json();
+                const [healthRes, historyRes] = await Promise.all([
+                    fetch('/api/public/health'),
+                    fetch('/api/public/uptime-history')
+                ]);
+
+                if (healthRes.ok) {
+                    healthData = await healthRes.json();
                     updateMetrics(healthData);
                     updateServices(healthData);
-                    updateUptimeBars(healthData);
                 }
+
+                if (historyRes.ok) {
+                    const data = await historyRes.json();
+                    historyData = data.history || [];
+                }
+
+                renderUptimeBars();
             } catch (e) {
                 console.error('Failed to fetch status:', e);
             }
@@ -374,114 +421,168 @@ const STATUS_PAGE = `
             document.getElementById('aiCalls').textContent = (data.aiCalls || 0).toLocaleString();
             document.getElementById('guilds').textContent = data.discord?.guilds || '--';
             document.getElementById('providers').textContent = (data.activeProviders || 0) + '/' + (data.providers || 0);
-
-            document.getElementById('apiProviderCount').textContent = (data.activeProviders || 0) + ' active';
-            document.getElementById('discordGuildCount').textContent = (data.discord?.guilds || 0) + ' servers';
         }
 
         function updateServices(data) {
-            const discordOk = data.discord?.guilds > 0;
-            const aiOk = data.activeProviders > 0;
-            const dbOk = data.status === 'healthy';
+            var discordOk = data.discord?.guilds > 0;
+            var aiOk = data.activeProviders > 0;
+            var dbOk = data.status === 'healthy';
 
-            updateServiceStatus('svcDiscord', discordOk);
-            updateServiceStatus('svcAI', aiOk);
-            updateServiceStatus('svcDB', dbOk);
-            updateServiceStatus('svcWeb', true);
+            setServiceStatus('svcDiscord', discordOk ? 'operational' : 'down');
+            setServiceStatus('svcAI', aiOk ? 'operational' : 'down');
+            setServiceStatus('svcDB', dbOk ? 'operational' : 'down');
+            setServiceStatus('svcWeb', 'operational');
 
-            updateComponentCheck('apiCheck', aiOk);
-            updateComponentCheck('discordCheck', discordOk);
-            updateComponentCheck('dbCheck', dbOk);
-
-            const allOk = discordOk && aiOk && dbOk;
-            const overall = document.getElementById('overallStatus');
-            const subtext = document.getElementById('statusSubtext');
+            var allOk = discordOk && aiOk && dbOk;
+            var overall = document.getElementById('overallStatus');
+            var subtext = document.getElementById('statusSubtext');
             if (allOk) {
                 overall.innerHTML = '<span class="status-dot operational"></span><span>All Systems Operational</span>';
-                subtext.textContent = "No issues detected.";
+                subtext.textContent = 'No issues detected.';
             } else {
                 overall.innerHTML = '<span class="status-dot degraded"></span><span>Some Systems Degraded</span>';
-                subtext.textContent = "Some services may be experiencing issues.";
+                subtext.textContent = 'Some services may be experiencing issues.';
             }
         }
 
-        function updateComponentCheck(id, isOk) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.innerHTML = isOk ? '&#10003;' : '!';
-                el.className = 'check ' + (isOk ? 'ok' : 'warn');
-            }
+        function setServiceStatus(id, status) {
+            var el = document.getElementById(id);
+            var label = status === 'operational' ? 'Operational' : status === 'degraded' ? 'Degraded' : 'Down';
+            el.className = 'service-status ' + status;
+            el.innerHTML = '<span class="dot"></span> ' + label;
         }
 
-        function updateServiceStatus(id, isOk) {
-            const el = document.getElementById(id);
-            if (isOk) {
-                el.className = 'service-status operational';
-                el.innerHTML = '<span class="dot"></span> Operational';
-            } else {
-                el.className = 'service-status degraded';
-                el.innerHTML = '<span class="dot"></span> Degraded';
-            }
-        }
+        function renderUptimeBars() {
+            var now = new Date();
+            var days = 90;
 
-        function updateUptimeBars(data) {
-            const now = new Date();
-            const days = 90;
-
-            const startDate = new Date(now);
-            startDate.setDate(startDate.getDate() - days);
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            // Build date range label
+            var start = new Date(now);
+            start.setDate(start.getDate() - days);
+            var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             document.getElementById('dateRange').textContent =
-                months[startDate.getMonth()] + ' ' + startDate.getDate() + ' - ' +
-                months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+                months[start.getMonth()] + ' ' + start.getFullYear() + ' \\u2014 ' +
+                months[now.getMonth()] + ' ' + now.getFullYear();
 
-            const apiOk = data.activeProviders > 0;
-            const discordOk = data.discord?.guilds > 0;
-            const dbOk = data.status === 'healthy';
+            // Index history by date for fast lookup
+            var historyMap = {};
+            historyData.forEach(function(d) { historyMap[d.date] = d; });
 
-            renderUptimeBar('apiUptimeBar', days, apiOk);
-            renderUptimeBar('discordUptimeBar', days, discordOk);
-            renderUptimeBar('dbUptimeBar', days, dbOk);
-        }
+            // Determine current status from health data
+            var currentAi = healthData && healthData.activeProviders > 0 ? 'operational' : 'down';
+            var currentDiscord = healthData && healthData.discord?.guilds > 0 ? 'operational' : 'down';
+            var currentDb = healthData && healthData.status === 'healthy' ? 'operational' : 'down';
 
-        function renderUptimeBar(containerId, days, currentlyOk) {
-            const container = document.getElementById(containerId);
-            const now = new Date();
-            let html = '';
+            // Build 90-day arrays
+            var aiDays = [], discordDays = [], dbDays = [];
+            var aiUpCount = 0, aiTotal = 0;
+            var discordUpCount = 0, discordTotal = 0;
+            var dbUpCount = 0, dbTotal = 0;
 
-            for (let i = days - 1; i >= 0; i--) {
-                const date = new Date(now);
+            for (var i = days - 1; i >= 0; i--) {
+                var date = new Date(now);
                 date.setDate(date.getDate() - i);
-                const dateStr = date.toLocaleDateString();
+                var dateKey = date.toISOString().slice(0, 10);
+                var dateLabel = months[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
 
-                let status, statusText;
-                if (i === 0) {
-                    status = currentlyOk ? 'operational' : 'degraded';
-                    statusText = currentlyOk ? 'Operational' : 'Degraded';
+                var entry = historyMap[dateKey];
+
+                var aiStatus, discordStatus, dbStatus;
+                var aiUptime, discordUptime, dbUptime;
+
+                if (i === 0 && !entry) {
+                    // Today with no history yet - use live status
+                    aiStatus = currentAi;
+                    discordStatus = currentDiscord;
+                    dbStatus = currentDb;
+                    aiUptime = null;
+                    discordUptime = null;
+                    dbUptime = null;
+                } else if (entry) {
+                    aiStatus = entry.ai.status;
+                    discordStatus = entry.discord.status;
+                    dbStatus = entry.database.status;
+                    aiUptime = entry.ai.uptime;
+                    discordUptime = entry.discord.uptime;
+                    dbUptime = entry.database.uptime;
                 } else {
-                    status = 'unknown';
-                    statusText = 'No data';
+                    aiStatus = 'unknown';
+                    discordStatus = 'unknown';
+                    dbStatus = 'unknown';
+                    aiUptime = null;
+                    discordUptime = null;
+                    dbUptime = null;
                 }
 
-                html += '<div class="day ' + status + '">';
-                html += '<div class="tooltip">' + dateStr + '<br>' + statusText + '</div>';
-                html += '</div>';
+                aiDays.push({ date: dateLabel, status: aiStatus, uptime: aiUptime });
+                discordDays.push({ date: dateLabel, status: discordStatus, uptime: discordUptime });
+                dbDays.push({ date: dateLabel, status: dbStatus, uptime: dbUptime });
+
+                if (aiStatus !== 'unknown') {
+                    aiTotal++;
+                    if (aiStatus === 'operational') aiUpCount++;
+                }
+                if (discordStatus !== 'unknown') {
+                    discordTotal++;
+                    if (discordStatus === 'operational') discordUpCount++;
+                }
+                if (dbStatus !== 'unknown') {
+                    dbTotal++;
+                    if (dbStatus === 'operational') dbUpCount++;
+                }
             }
 
+            // Render bars
+            renderBar('aiBar', aiDays);
+            renderBar('discordBar', discordDays);
+            renderBar('dbBar', dbDays);
+
+            // Update uptime percentages
+            document.getElementById('aiPct').textContent = aiTotal > 0 ? ((aiUpCount / aiTotal) * 100).toFixed(1) + '% uptime' : '-- %';
+            document.getElementById('discordPct').textContent = discordTotal > 0 ? ((discordUpCount / discordTotal) * 100).toFixed(1) + '% uptime' : '-- %';
+            document.getElementById('dbPct').textContent = dbTotal > 0 ? ((dbUpCount / dbTotal) * 100).toFixed(1) + '% uptime' : '-- %';
+
+            // Update status icons
+            updateIcon('aiIcon', currentAi);
+            updateIcon('discordIcon', currentDiscord);
+            updateIcon('dbIcon', currentDb);
+        }
+
+        function renderBar(containerId, dayData) {
+            var container = document.getElementById(containerId);
+            var html = '';
+            for (var i = 0; i < dayData.length; i++) {
+                var d = dayData[i];
+                var statusLabel = d.status === 'operational' ? 'Operational' :
+                    d.status === 'degraded' ? 'Degraded' :
+                    d.status === 'down' ? 'Down' : 'No data';
+                var uptimeLabel = d.uptime !== null ? ' (' + d.uptime + '%)' : '';
+                html += '<div class="day ' + d.status + '">';
+                html += '<div class="tooltip">' + d.date + '<br>' + statusLabel + uptimeLabel + '</div>';
+                html += '</div>';
+            }
             container.innerHTML = html;
         }
 
-        async function fetchCloudflareStatus() {
-            const container = document.getElementById('cloudflareUpdates');
-            try {
-                const res = await fetch('https://www.cloudflarestatus.com/api/v2/summary.json');
-                if (res.ok) {
-                    const data = await res.json();
-                    let html = '';
+        function updateIcon(id, status) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.className = 'status-icon';
+            if (status === 'degraded') el.className += ' degraded';
+            else if (status === 'down') el.className += ' down';
+        }
 
-                    const status = data.status?.indicator || 'none';
-                    const statusDesc = data.status?.description || 'All Systems Operational';
-                    const badgeClass = status === 'none' ? 'ok' : (status === 'critical' ? 'error' : 'warn');
+        async function fetchCloudflareStatus() {
+            var container = document.getElementById('cloudflareUpdates');
+            try {
+                var res = await fetch('https://www.cloudflarestatus.com/api/v2/summary.json');
+                if (res.ok) {
+                    var data = await res.json();
+                    var html = '';
+
+                    var status = data.status?.indicator || 'none';
+                    var statusDesc = data.status?.description || 'All Systems Operational';
+                    var badgeClass = status === 'none' ? 'ok' : (status === 'critical' ? 'error' : 'warn');
 
                     html += '<div style="margin-bottom: 0.75rem;"><span class="cf-badge ' + badgeClass + '">' + escapeHtml(statusDesc) + '</span></div>';
 
@@ -521,7 +622,7 @@ const STATUS_PAGE = `
         }
 
         function escapeHtml(text) {
-            const div = document.createElement('div');
+            var div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
