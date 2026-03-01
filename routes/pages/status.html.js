@@ -250,7 +250,7 @@ const STATUS_PAGE = `
     </style>
 </head>
 <body>
-    \${NAV_HTML}
+    ${NAV_HTML}
     <div class="container">
         <h1>System Status</h1>
         <p style="color: #555; margin-bottom: 2rem; font-size: 0.9rem;">Real-time health of Jarvis services</p>
@@ -357,7 +357,7 @@ const STATUS_PAGE = `
 
         async function fetchStatus() {
             try {
-                const res = await fetch('/api/dashboard/health');
+                const res = await fetch('/api/public/health');
                 if (res.ok) {
                     healthData = await res.json();
                     updateMetrics(healthData);

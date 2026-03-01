@@ -641,7 +641,7 @@ function getGuildPage(session, guild, status, errorCode = '') {
         .muted { color: #888; font-size: 13px; }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .stat-item { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; text-align: center; }
-        .stat-value { font-size: 1.8rem; font-weight: bold; background: #fff; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stat-value { font-size: 1.8rem; font-weight: bold; color: #fff; }
         .stat-label { color: #888; font-size: 12px; margin-top: 5px; }
         .section-title { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .detection-list { max-height: 300px; overflow-y: auto; }
@@ -1305,7 +1305,6 @@ function getDashboardPage(session, guildStats) {
         .stat-value {
             font-size: 2.5rem;
             font-weight: bold;
-            background: #fff;
             color: #fff;
         }
         .stat-label {
