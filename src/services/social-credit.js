@@ -157,6 +157,14 @@ function rollCreditChange(messageContent) {
     return 0;
 }
 
+// ── Passive recovery ──
+
+function getRecoveryBonus(currentScore) {
+    if (currentScore >= 0) { return 0; }
+    // Recover 2% of deficit per message, min 100, max 5000
+    return Math.min(5000, Math.max(100, Math.floor(Math.abs(currentScore) * 0.02)));
+}
+
 // ── Notification logic ──
 
 function shouldNotify(amount, cringeScore) {
@@ -282,6 +290,7 @@ module.exports = {
     shouldNotify,
     shouldReact,
     buildNotifyMessage,
+    getRecoveryBonus,
     formatNumber,
     EMOJI_POSITIVE,
     EMOJI_NEGATIVE,
