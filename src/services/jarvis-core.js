@@ -11,6 +11,7 @@ const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 const mathSolver = require('./math-solver');
 const { getSentiencePrompt, jarvisSoul } = require('./selfhost-features');
+const { EmbedBuilder } = require('discord.js');
 const { buildSupportEmbed, buildHelpPayload, buildSupportLinkRow } = require('./help-builder');
 const {
     decodeInput, encodeInput, formatDecodedOutput, formatEncodedOutput,
