@@ -52,6 +52,8 @@ const DIRECT_PREBUFFER_BYTES = Number(process.env.MUSIC_DIRECT_PREBUFFER_BYTES) 
 const DIRECT_PREBUFFER_TIMEOUT_MS = Number(process.env.MUSIC_DIRECT_PREBUFFER_TIMEOUT_MS) || 9000;
 const DIRECT_OPUS_BITRATE = String(process.env.MUSIC_DIRECT_OPUS_BITRATE || '160k');
 const DIRECT_OPUS_COMPLEXITY = String(process.env.MUSIC_DIRECT_OPUS_COMPLEXITY || '8');
+const OUTPUT_HEADROOM_DB = Number(process.env.MUSIC_OUTPUT_HEADROOM_DB ?? '4');
+const OUTPUT_LIMITER_ENABLED = readBooleanEnv('MUSIC_OUTPUT_LIMITER_ENABLED', true);
 
 function inferSource(videoUrl) {
     const url = String(videoUrl || '').toLowerCase();
@@ -86,6 +88,17 @@ function shouldUseDirectStream(source) {
     }
 
     return DIRECT_STREAM_SOURCES.has(String(source || '').toLowerCase());
+}
+
+function buildOutputFilter() {
+    const filters = [];
+    if (Number.isFinite(OUTPUT_HEADROOM_DB) && OUTPUT_HEADROOM_DB > 0) {
+        filters.push(`volume=-${OUTPUT_HEADROOM_DB}dB`);
+    }
+    if (OUTPUT_LIMITER_ENABLED) {
+        filters.push('alimiter=limit=0.95:level=disabled');
+    }
+    return filters.length ? filters.join(',') : null;
 }
 
 function waitForPrebuffer(stream, targetBytes, timeoutMs) {
@@ -148,6 +161,8 @@ async function tryDirectFfmpegStream(videoId, videoUrl, source, streamState) {
         '2',
         '-ar',
         '48000',
+        '-af',
+        buildOutputFilter() || 'anull',
         '-c:a',
         'libopus',
         '-b:a',
