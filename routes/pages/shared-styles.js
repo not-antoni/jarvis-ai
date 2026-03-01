@@ -9,7 +9,7 @@ const SHARED_STYLES = `
     body {
         font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
         background: #000;
-        color: #e4e4e4;
+        color: #ccc;
         min-height: 100vh;
     }
     .container {
@@ -29,7 +29,7 @@ const SHARED_STYLES = `
     .logo {
         font-size: 1.5rem;
         font-weight: 700;
-        color: #00d4ff;
+        color: #fff;
         text-decoration: none;
     }
     .nav-links {
@@ -38,7 +38,7 @@ const SHARED_STYLES = `
         list-style: none;
     }
     .nav-links a {
-        color: #777;
+        color: #666;
         text-decoration: none;
         font-weight: 500;
         font-size: 0.9rem;
@@ -75,12 +75,12 @@ const SHARED_STYLES = `
         transition: all 0.2s;
     }
     .btn-primary {
-        background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%);
+        background: #fff;
         color: #000;
     }
-    .btn-primary:hover { transform: translateY(-2px); }
+    .btn-primary:hover { transform: translateY(-2px); opacity: 0.9; }
     code {
-        background: rgba(0,212,255,0.08);
+        background: rgba(255,255,255,0.08);
         padding: 0.2rem 0.5rem;
         border-radius: 4px;
         font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
@@ -109,6 +109,7 @@ const NAV_HTML = `
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
             <li><a href="/me">My Portal</a></li>
+            <li><a href="/moderator">Mod Dashboard</a></li>
         </ul>
     </nav>
 `;

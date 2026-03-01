@@ -474,24 +474,24 @@ router.get('/logout', (req, res) => {
 
 function getBaseStyles() {
     return `
+        @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
+            background: #000;
             min-height: 100vh;
-            color: #e4e4e4;
+            color: #ccc;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
         }
         .card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
             padding: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.06);
             margin-bottom: 20px;
         }
         .btn {
@@ -502,56 +502,56 @@ function getBaseStyles() {
             font-weight: 600;
             cursor: pointer;
             border: none;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
         }
         .btn-discord {
-            background: #5865F2;
-            color: white;
+            background: #fff;
+            color: #000;
         }
         .btn-discord:hover {
-            background: #4752C4;
+            opacity: 0.9;
             transform: translateY(-2px);
         }
         .btn-primary {
-            background: #e94560;
-            color: white;
+            background: rgba(255,255,255,0.08);
+            color: #ccc;
         }
         .btn-primary:hover {
-            background: #c73e54;
+            background: rgba(255,255,255,0.12);
+            color: #fff;
         }
         input {
             width: 100%;
             padding: 12px 16px;
             border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
             color: white;
             font-size: 16px;
             margin-bottom: 15px;
         }
         input:focus {
             outline: none;
-            border-color: #e94560;
+            border-color: rgba(255,255,255,0.3);
         }
         .error {
-            background: rgba(233, 69, 96, 0.2);
-            border: 1px solid #e94560;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255,255,255,0.1);
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 20px;
+            color: #aaa;
         }
         .logo {
             font-size: 2.5rem;
             font-weight: bold;
             text-align: center;
             margin-bottom: 10px;
-            background: linear-gradient(135deg, #e94560, #0f3460);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #fff;
         }
         .subtitle {
             text-align: center;
-            color: #888;
+            color: #666;
             margin-bottom: 30px;
         }
     `;
@@ -641,22 +641,22 @@ function getGuildPage(session, guild, status, errorCode = '') {
         .muted { color: #888; font-size: 13px; }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .stat-item { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; text-align: center; }
-        .stat-value { font-size: 1.8rem; font-weight: bold; background: linear-gradient(135deg, #e94560, #0f3460); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .stat-value { font-size: 1.8rem; font-weight: bold; background: #fff; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .stat-label { color: #888; font-size: 12px; margin-top: 5px; }
         .section-title { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
         .detection-list { max-height: 300px; overflow-y: auto; }
         .detection-item { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 3px solid; }
-        .detection-item.critical { border-left-color: #e74c3c; }
-        .detection-item.high { border-left-color: #e67e22; }
-        .detection-item.medium { border-left-color: #f1c40f; }
-        .detection-item.low { border-left-color: #3498db; }
-        .category-tag { display: inline-block; background: rgba(233,69,96,0.2); color: #e94560; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-right: 5px; }
+        .detection-item.critical { border-left-color: #888; }
+        .detection-item.high { border-left-color: #777; }
+        .detection-item.medium { border-left-color: #666; }
+        .detection-item.low { border-left-color: #555; }
+        .category-tag { display: inline-block; background: rgba(255,255,255,0.08); color: #ccc; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-right: 5px; }
         .toggle-section { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
         .toggle-switch { position: relative; width: 50px; height: 26px; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.2); transition: 0.3s; border-radius: 26px; }
         .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; }
-        input:checked + .toggle-slider { background-color: #2ecc71; }
+        input:checked + .toggle-slider { background-color: #fff; }
         input:checked + .toggle-slider:before { transform: translateX(24px); }
     </style>
 </head>
@@ -1305,9 +1305,8 @@ function getDashboardPage(session, guildStats) {
         .stat-value {
             font-size: 2.5rem;
             font-weight: bold;
-            background: linear-gradient(135deg, #e94560, #0f3460);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            background: #fff;
+            color: #fff;
         }
         .stat-label {
             color: #888;
@@ -1333,8 +1332,8 @@ function getDashboardPage(session, guildStats) {
             font-weight: 600;
         }
         .status-enabled {
-            background: rgba(46, 204, 113, 0.2);
-            color: #2ecc71;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
         }
         .status-disabled {
             background: rgba(255, 255, 255, 0.12);
@@ -1455,7 +1454,7 @@ function getDashboardPage(session, guildStats) {
                             ${Object.entries(guild.stats.byCategory)
         .map(
             ([cat, count]) => `
-                                <span style="display: inline-block; background: rgba(233,69,96,0.2); color: #e94560; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin-right: 5px; margin-bottom: 5px;">
+                                <span style="display: inline-block; background: rgba(255,255,255,0.08); color: #ccc; padding: 3px 10px; border-radius: 12px; font-size: 12px; margin-right: 5px; margin-bottom: 5px;">
                                     ${cat}: ${count}
                                 </span>
                             `

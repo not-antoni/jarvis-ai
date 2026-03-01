@@ -32,7 +32,7 @@ const LANDING_PAGE = `
     <meta property="og:image" content="${SITE_BASE_URL}/jarvis.webp">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${SITE_BASE_URL}">
-    <meta name="theme-color" content="#00d4ff">
+    <meta name="theme-color" content="#fff">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="keywords" content="discord bot, ai discord bot, music bot, moderation bot, jarvis">
     <meta name="robots" content="index, follow">
@@ -65,7 +65,7 @@ const LANDING_PAGE = `
         .logo {
             font-size: 1.5rem;
             font-weight: 700;
-            color: #00d4ff;
+            color: #fff;
             text-decoration: none;
         }
         
@@ -95,7 +95,7 @@ const LANDING_PAGE = `
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            border: 2px solid #00d4ff;
+            border: 2px solid rgba(255,255,255,0.2);
         }
         
         .user-name {
@@ -159,7 +159,7 @@ const LANDING_PAGE = `
         }
         
         .hero h1 .accent {
-            color: #00d4ff;
+            color: #fff;
         }
         
         .hero p {
@@ -203,15 +203,13 @@ const LANDING_PAGE = `
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%);
+            background: #fff;
             color: #000;
-            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
         }
-        
+
         .btn-primary:hover {
-            background: linear-gradient(135deg, #00e5ff 0%, #00b8e0 100%);
             transform: translateY(-2px);
-            box-shadow: 0 6px 25px rgba(0, 212, 255, 0.4);
+            opacity: 0.9;
         }
         
         .btn-secondary {
@@ -263,7 +261,7 @@ const LANDING_PAGE = `
         }
         
         .screenshot-item:hover {
-            border-color: rgba(0, 212, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.12);
         }
         
         .screenshot-item img {
@@ -310,17 +308,17 @@ const LANDING_PAGE = `
         
         .feature-card:hover {
             background: rgba(255, 255, 255, 0.04);
-            border-color: rgba(0, 212, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.12);
         }
-        
+
         .feature-card.highlight {
-            border-color: rgba(0, 212, 255, 0.3);
-            background: rgba(0, 212, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.03);
         }
-        
+
         .feature-card .badge {
             display: inline-block;
-            background: #00d4ff;
+            background: #fff;
             color: #000;
             font-size: 0.65rem;
             font-weight: 700;
@@ -346,7 +344,7 @@ const LANDING_PAGE = `
         /* Stats Section */
         .stats {
             padding: 3rem 5%;
-            background: rgba(0, 212, 255, 0.03);
+            background: rgba(255, 255, 255, 0.02);
             border-top: 1px solid rgba(255,255,255,0.04);
             border-bottom: 1px solid rgba(255,255,255,0.04);
         }
@@ -367,7 +365,7 @@ const LANDING_PAGE = `
         .stat-number {
             font-size: 2.25rem;
             font-weight: 800;
-            color: #00d4ff;
+            color: #fff;
         }
         
         .stat-label {
@@ -427,7 +425,7 @@ const LANDING_PAGE = `
         }
         
         .comparison-table th.jarvis-col {
-            color: #00d4ff;
+            color: #fff;
             font-weight: 700;
         }
         
@@ -441,7 +439,7 @@ const LANDING_PAGE = `
         }
         
         .comparison-table .check {
-            color: #00d4ff;
+            color: #fff;
             font-size: 1.1rem;
         }
         
@@ -505,6 +503,7 @@ const LANDING_PAGE = `
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
             <li><a href="/me">My Portal</a></li>
+            <li><a href="/moderator">Mod Dashboard</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
             <a href="/auth/login" class="login-btn" id="loginBtn">Login</a>
@@ -642,6 +641,7 @@ const LANDING_PAGE = `
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
             <a href="${DISCORD_INVITE}" target="_blank">Discord</a>
             <a href="/status">Status</a>
+            <a href="/moderator">Mod Dashboard</a>
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>
             <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
