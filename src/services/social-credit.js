@@ -19,6 +19,18 @@ const NOTIFY_CHANCE = 0.05;
 // Chance to react with social credit emoji on user's message
 const REACT_CHANCE = 0.08;
 
+// ── Number formatting ──
+
+function formatNumber(n) {
+    const abs = Math.abs(n);
+    const sign = n < 0 ? '-' : '';
+    if (abs >= 1e12) { return sign + (abs / 1e12).toFixed(1).replace(/\.0$/, '') + 'T'; }
+    if (abs >= 1e9)  { return sign + (abs / 1e9).toFixed(1).replace(/\.0$/, '') + 'B'; }
+    if (abs >= 1e6)  { return sign + (abs / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'; }
+    if (abs >= 1e4)  { return sign + (abs / 1e3).toFixed(1).replace(/\.0$/, '') + 'k'; }
+    return n.toLocaleString();
+}
+
 // ── Cringe detection ──
 
 // Tier 1: nuclear cringe — instant obliteration
@@ -114,7 +126,17 @@ function rollCreditChange(messageContent) {
 
     // Normal message: standard random roll
     const roll = Math.random();
-    if (roll < 0.02) {
+    if (roll < 0.001) {
+        // 0.1%: catastrophic — up to -1 trillion
+        const magnitude = [1e9, 1e10, 1e11, 1e12];
+        const pick = magnitude[Math.floor(Math.random() * magnitude.length)];
+        return -Math.floor(Math.random() * pick + pick / 10);
+    } else if (roll < 0.002) {
+        // 0.1%: jackpot — up to +1 billion
+        const magnitude = [1e6, 1e7, 1e8, 1e9];
+        const pick = magnitude[Math.floor(Math.random() * magnitude.length)];
+        return Math.floor(Math.random() * pick + pick / 10);
+    } else if (roll < 0.022) {
         // 2%: random big loss (keeps people on their toes)
         return -Math.floor(Math.random() * 15000 + 5000);
     } else if (roll < 0.06) {
@@ -161,18 +183,18 @@ function shouldReact(cringeScore) {
 }
 
 function buildNotifyMessage(amount, newScore) {
-    const absAmount = Math.abs(amount).toLocaleString();
+    const fmtAmount = formatNumber(Math.abs(amount));
     const emoji = amount > 0 ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
-    const spamCount = Math.abs(amount) >= 30000 ? 5 : Math.abs(amount) >= 10000 ? 3 : Math.abs(amount) >= 3000 ? 2 : 1;
+    const spamCount = Math.abs(amount) >= 1e9 ? 7 : Math.abs(amount) >= 1e6 ? 6 : Math.abs(amount) >= 30000 ? 5 : Math.abs(amount) >= 10000 ? 3 : Math.abs(amount) >= 3000 ? 2 : 1;
     const emojiSpam = emoji.repeat(spamCount);
 
     const sign = amount > 0 ? '+' : '-';
-    let msg = `${emojiSpam} ${sign}${absAmount} social credit ${emojiSpam}`;
+    let msg = `${emojiSpam} ${sign}${fmtAmount} social credit ${emojiSpam}`;
 
     if (newScore <= -50000) {
-        msg += `\n*current social credit: ${newScore.toLocaleString()}* ${EMOJI_NEGATIVE}`;
+        msg += `\n*current social credit: ${formatNumber(newScore)}* ${EMOJI_NEGATIVE}`;
     } else if (newScore >= GOOD_THRESHOLD) {
-        msg += `\n*current social credit: ${newScore.toLocaleString()}* ${EMOJI_POSITIVE}`;
+        msg += `\n*current social credit: ${formatNumber(newScore)}* ${EMOJI_POSITIVE}`;
     }
 
     return msg;
@@ -244,7 +266,7 @@ function getBlockMessage(credit) {
 
     return `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}\n\n` +
         `Sorry, you are scheduled to do manual labor in China for 4 weeks.\n` +
-        `Your social credit: **${credit.score.toLocaleString()}**\n` +
+        `Your social credit: **${formatNumber(credit.score)}**\n` +
         `*this rate limit expires in ${timeLeft || '10 minutes'}*\n\n` +
         `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}`;
 }
@@ -260,6 +282,7 @@ module.exports = {
     shouldNotify,
     shouldReact,
     buildNotifyMessage,
+    formatNumber,
     EMOJI_POSITIVE,
     EMOJI_NEGATIVE,
     BLOCK_THRESHOLD,
