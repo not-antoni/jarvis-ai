@@ -3733,7 +3733,7 @@ class DiscordHandlers {
 
                     // Send follow-up notification
                     if (socialCredit.shouldNotify(creditChange, cringeScore)) {
-                        const notifyMsg = socialCredit.buildNotifyMessage(creditChange, newScore, cringeScore);
+                        const notifyMsg = socialCredit.buildNotifyMessage(creditChange, newScore);
                         await message.channel.send({ content: notifyMsg, allowedMentions: { parse: [] } });
                     }
                 }
