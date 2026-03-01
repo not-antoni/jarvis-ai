@@ -233,9 +233,10 @@ async function tryDirectFfmpegStream(videoId, videoUrl, source, streamState) {
     streamState.stream = bufferedStream;
     streamState.method = 'ffmpeg-direct';
 
+    // Measure prebuffer from source to avoid draining playback container headers.
     const prebufferStart = Date.now();
     const bufferedBytes = await waitForPrebuffer(
-        bufferedStream,
+        ffmpeg.stdout || bufferedStream,
         DIRECT_PREBUFFER_BYTES,
         DIRECT_PREBUFFER_TIMEOUT_MS
     );
@@ -315,8 +316,9 @@ async function tryCachedYtDlpStream(videoId, videoUrl, source, streamState, opti
 
     fileStream.pipe(bufferedStream);
 
+    // Measure prebuffer from source stream, not playback stream.
     const prebufferStart = Date.now();
-    const bufferedBytes = await waitForPrebuffer(bufferedStream, PRE_BUFFER_SIZE, PRE_BUFFER_TIMEOUT_MS);
+    const bufferedBytes = await waitForPrebuffer(fileStream, PRE_BUFFER_SIZE, PRE_BUFFER_TIMEOUT_MS);
     const prebufferMs = Date.now() - prebufferStart;
 
     if (streamState.aborted) {
