@@ -54,8 +54,8 @@ const LANDING_PAGE = `
         /* Navigation */
         nav {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 2rem;
             padding: 1.25rem 5%;
             max-width: 1300px;
             margin: 0 auto;
@@ -89,6 +89,7 @@ const LANDING_PAGE = `
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            margin-left: auto;
         }
         
         .user-avatar {
