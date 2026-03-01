@@ -3698,7 +3698,11 @@ class DiscordHandlers {
             let creditSuffix = '';
             try {
                 const cringeScore = socialCredit.getCringeLevel(fullContent);
-                const creditChange = socialCredit.rollCreditChange(fullContent);
+                let creditChange = socialCredit.rollCreditChange(fullContent);
+                // Passive recovery: non-cringe messages heal negative scores
+                if (cringeScore < 15 && userCredit.score < 0) {
+                    creditChange += socialCredit.getRecoveryBonus(userCredit.score);
+                }
                 if (creditChange !== 0) {
                     const newScore = await socialCredit.adjustCredit(message.author.id, creditChange);
 
