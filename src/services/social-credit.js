@@ -160,46 +160,15 @@ function shouldReact(cringeScore) {
     return Math.random() < REACT_CHANCE;
 }
 
-function buildNotifyMessage(amount, newScore, cringeScore) {
+function buildNotifyMessage(amount, newScore) {
     const absAmount = Math.abs(amount).toLocaleString();
     const emoji = amount > 0 ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
     const spamCount = Math.abs(amount) >= 30000 ? 5 : Math.abs(amount) >= 10000 ? 3 : Math.abs(amount) >= 3000 ? 2 : 1;
     const emojiSpam = emoji.repeat(spamCount);
 
-    let msg;
+    const sign = amount > 0 ? '+' : '-';
+    let msg = `${emojiSpam} ${sign}${absAmount} social credit ${emojiSpam}`;
 
-    if (cringeScore >= 100) {
-        // Nuclear cringe messages
-        const nukes = [
-            `${emojiSpam} LMAOOO this prompt just wiped your social credit (-${absAmount}) ${emojiSpam}`,
-            `${emojiSpam} bro what is this 💀💀💀 -${absAmount} social credit ${emojiSpam}`,
-            `${emojiSpam} the CCP has reviewed your message and you have been sentenced to -${absAmount} social credit ${emojiSpam}`,
-            `${emojiSpam} this is why we can't have nice things. -${absAmount} social credit ${emojiSpam}`,
-            `${emojiSpam} go outside. -${absAmount} social credit ${emojiSpam}`,
-        ];
-        msg = nukes[Math.floor(Math.random() * nukes.length)];
-    } else if (cringeScore >= 40) {
-        const heavy = [
-            `${emojiSpam} this prompt made you lose **${absAmount}** social credit ${emojiSpam}`,
-            `${emojiSpam} -${absAmount} social credit, the party is disappointed ${emojiSpam}`,
-            `${emojiSpam} chairman mao is rolling in his grave. -${absAmount} social credit ${emojiSpam}`,
-        ];
-        msg = heavy[Math.floor(Math.random() * heavy.length)];
-    } else if (cringeScore >= 15) {
-        msg = `${emojiSpam} -${absAmount} social credit ${emojiSpam}`;
-    } else if (amount <= -10000) {
-        msg = `${emojiSpam} this prompt made you lose **${absAmount}** social credit ${emojiSpam}`;
-    } else if (amount < 0) {
-        msg = `${emoji} -${absAmount} social credit`;
-    } else if (amount >= 10000) {
-        msg = `${emojiSpam} +${absAmount} social credit, the party is pleased ${emojiSpam}`;
-    } else if (amount >= 3000) {
-        msg = `${emojiSpam} +${absAmount} social credit ${emojiSpam}`;
-    } else {
-        msg = `${emoji} +${absAmount} social credit`;
-    }
-
-    // Score context
     if (newScore <= -50000) {
         msg += `\n*current social credit: ${newScore.toLocaleString()}* ${EMOJI_NEGATIVE}`;
     } else if (newScore >= GOOD_THRESHOLD) {
