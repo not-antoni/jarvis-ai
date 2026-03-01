@@ -276,15 +276,20 @@ ${truncated}`;
 
     try {
         if (ai?.generateResponse) {
-            // New FreeAIProvider
-            summary = await ai.generateResponse(systemPrompt, userPrompt, 400);
-            if (typeof summary === 'object') {
-                summary = summary?.content || summary?.text || JSON.stringify(summary);
+            const response = await ai.generateResponse(systemPrompt, userPrompt, 400);
+            if (typeof response === 'string') {
+                summary = response;
+            } else {
+                summary =
+                    response?.content ||
+                    response?.text ||
+                    response?.choices?.[0]?.message?.content ||
+                    response?.choices?.[0]?.text ||
+                    '';
+                if (!summary && response && typeof response === 'object') {
+                    summary = JSON.stringify(response);
+                }
             }
-        } else if (ai?.generateResponse) {
-            // Old aiManager
-            const resp = await ai.generateResponse(systemPrompt, userPrompt, 400);
-            summary = resp?.choices?.[0]?.message?.content;
         }
     } catch (e) {
         console.warn('AI summarization failed:', e.message);

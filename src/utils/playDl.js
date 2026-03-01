@@ -471,46 +471,7 @@ function cancelStream(videoId) {
     }
 }
 
-/**
- * Search YouTube for videos
- * @param {string} query - Search query
- * @param {number} limit - Max results
- * @returns {Promise<Array<{title: string, url: string, duration: string, thumbnail: string}>>}
- */
-async function searchYouTube(query, limit = 5) {
-    void query;
-    void limit;
-    return [];
-}
-
-/**
- * Get video info without streaming
- * @param {string} url - YouTube URL
- * @returns {Promise<{title: string, duration: number, thumbnail: string}>}
- */
-async function getVideoInfo(url) {
-    void url;
-    throw new Error('Direct metadata lookup is disabled in this build');
-}
-
-/**
- * Check if music system is ready
- */
-async function healthCheck() {
-    return {
-        ready: true,
-        playDlAvailable: false,
-        playDlRateLimited: false,
-        authenticated: false,
-        ytDlpAvailable: true,
-        directStreamEnabled: DIRECT_STREAM_ENABLED
-    };
-}
-
 module.exports = {
     getAudioStream,
-    cancelStream,
-    searchYouTube,
-    getVideoInfo,
-    healthCheck
+    cancelStream
 };
