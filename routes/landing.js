@@ -24,16 +24,16 @@ const LANDING_PAGE = `
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis - The Discord AI with Actual Personality | All-in-One Bot</title>
-    <meta name="description" content="Stop using boring bots. Jarvis brings natural AI chat, powerful moderation, and music streaming to your Discord server. Free forever.">
-    <meta property="og:title" content="Jarvis - The Discord AI with Actual Personality">
-    <meta property="og:description" content="Natural AI chat, moderation, and music in one bot.">
+    <title>Jarvis | Discord AI Bot</title>
+    <meta name="description" content="AI chat, moderation, and music for Discord servers.">
+    <meta property="og:title" content="Jarvis | Discord AI Bot">
+    <meta property="og:description" content="AI chat, moderation, and music for Discord servers.">
     <link rel="icon" type="image/webp" href="/jarvis.webp">
-    <meta property="og:image" content="${SITE_BASE_URL}/jarvis.webp">
+    <meta property="og:site_name" content="Jarvis">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${SITE_BASE_URL}">
     <meta name="theme-color" content="#fff">
-    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:card" content="summary">
     <meta name="keywords" content="discord bot, ai discord bot, music bot, moderation bot, jarvis">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="${SITE_BASE_URL}">
