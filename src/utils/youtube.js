@@ -1,5 +1,5 @@
 const youtubeSearch = require('../services/youtube-search');
-const { searchYouTube, getVideoInfo } = require('./playDl');
+const { searchYouTube } = require('./playDl');
 
 const YOUTUBE_URL_REGEX =
     /^(?:https?:\/\/)?(?:www\.|m\.)?(?:(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/))|(?:youtu\.be\/))([\w-]{11})(?:[?&][^\s]*)?$/i;
@@ -42,10 +42,10 @@ async function getVideo(query) {
             };
         }
     } catch (error) {
-        console.warn('Primary YouTube search failed, trying play-dl:', error?.message);
+        console.warn('Primary YouTube search failed, trying fallback search:', error?.message);
     }
 
-    // Fallback to play-dl search
+    // Fallback search provider
     try {
         const results = await searchYouTube(query, 1);
         if (results && results.length > 0) {
@@ -59,7 +59,7 @@ async function getVideo(query) {
             };
         }
     } catch (error) {
-        console.error('play-dl search also failed:', error?.message);
+        console.error('Fallback search also failed:', error?.message);
     }
 
     return null;

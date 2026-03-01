@@ -61,11 +61,12 @@ Advanced AI-powered moderation system with:
 
 ### Music
 Native Discord voice playback via `@discordjs/voice` + `yt-dlp`.
-- **Sources**: YouTube + SoundCloud (with SoundCloud API fallback for queries)
+- **Sources**: YouTube + SoundCloud (SoundCloud API used for query resolve/autocomplete)
 - **Spotify URLs**: Explicitly unsupported in `/play` (use YouTube/SoundCloud instead)
 - **File Uploads**: Drag & drop MP3/FLAC/OGG files directly into chat to play them
 - **Smart Queue**: Mix YouTube/SoundCloud links and uploaded files seamlessly
-- **Glitch-Free**: Enhanced buffering and fade-in for smooth playback
+- **Fast Start + Quality**: Live `yt-dlp -> ffmpeg` stream path with automatic fallback to cached extraction
+- **Glitch Resistance**: Buffered playback path for unstable sources or long tracks
 
 ---
 
@@ -89,7 +90,8 @@ npm start
 > [!NOTE]
 > **Runtime Requirement**: Discord voice + DAVE support requires **Node 22.12+**.
 >
-> **Python Requirement**: yt-dlp requires **Python 3.10+** for music playback. Amazon Linux users should run:
+> **Python Requirement**: Not required when using the bundled standalone `yt-dlp` binary.  
+> If you override `yt-dlp` with a Python-based build, use **Python 3.10+**:
 > ```bash
 > sudo dnf install -y python3.11
 > sudo alternatives --set python3 /usr/bin/python3.11
@@ -609,44 +611,16 @@ See [SELFHOST.md](SELFHOST.md) for complete documentation.
 
 ## Commands
 
+Slash commands are the primary interface. Use `/help` in Discord for the complete live list.
+
 | Category | Commands |
 |----------|----------|
-| **Economy** | `/balance` `/daily` `/work` `/gamble` `/slots` `/coinflip` `/shop` `/buy` `/give` `/leaderboard` `/vote` |
-| **Minigames** | `/hunt` `/fish` `/dig` `/beg` |
-| **Fun** | `/rapbattle` `/roast` `/soul` `/trivia` `/scramble` `/meme` |
-| **AI** | `/jarvis` `/persona` `/search` |
-| **Music** | `/play` `/skip` `/pause` `/resume` `/stop` `/queue` |
-| **Utility** | `/help` `/ping` `/avatar` `/serverinfo` |
+| **AI / Utility** | `/jarvis` `/search` `/yt` `/math` `/providers` `/features` `/ping` `/status` `/time` |
+| **Music** | `/play` `/skip` `/pause` `/resume` `/stop` `/queue` `/loop` `/dj` |
+| **Moderation** | `/ticket` `/giveaway` |
+| **Fun** | `/akinator` `/quote` `/anime-search` |
 
 ---
-
-## Legacy Text Commands (`*j`)
-
-Legacy text commands use the `*j` prefix and are enabled when Message Content intent is active:
-
-```env
-DISCORD_ENABLE_MESSAGE_CONTENT=true
-```
-
-### Command Categories (6 pages)
-
-| Page | Category | Commands |
-|------|----------|----------|
-| 1 | Fun | `*j roast` `*j soul` `*j 8ball` `*j dadjoke` `*j pickupline` `*j rate` `*j roll` |
-| 2 | Social | `*j ship` `*j hug` `*j slap` `*j fight` `*j howgay` `*j howbased` `*j vibecheck` |
-| 3 | Economy | `*j balance` `*j daily` `*j work` `*j gamble` `*j slots` `*j coinflip` `*j leaderboard` |
-| 4 | Minigames | `*j hunt` `*j fish` `*j dig` `*j beg` `*j tinker` `*j recipes` `*j contract` |
-| 5 | Shop | `*j shop` `*j buy` `*j inventory` `*j reactor` (Arc Reactor perks) |
-| 6 | Utility | `*j help` `*j ping` `*j remind` `*j kick` `*j enable moderation` |
-
-### Arc Reactor (💠)
-
-The legendary 10,000 coin item grants real perks:
-- **+15%** earnings on ALL activities
-- **-25%** cooldown on ALL commands  
-- **+5%** gambling win rate
-- **+500** daily reward bonus
-- **+1%** daily interest on balance
 
 ## Configuration
 
@@ -732,14 +706,11 @@ Jarvis includes a full website at your configured domain (or IP:PORT):
 
 | Page | URL | Description |
 |------|-----|-------------|
-| **Home** | `/` | Landing page with "All-in-One" comparison table, trust signals, and CTAs |
+| **Home** | `/` | Public landing page |
 | **Status** | `/status` | Live bot status, uptime, health |
-| **Commands** | `/commands` | Searchable command list |
-| **Leaderboard** | `/leaderboard` | Public economy rankings |
-| **Store** | `/store` | SBX item shop |
-| **SBX Exchange** | `/sbx` | Starkbucks info & trading |
-| **Crypto** | `/crypto` | Stark Crypto trading |
-| **Docs** | `/docs` | Self-hosting guide |
+| **Changelog** | `/changelog` | Public release/change history |
+| **Moderator Dashboard** | `/moderator` | Web moderation panel and queue management |
+| **Dashboard Redirect** | `/dashboard` | Redirects to moderator auth/login flow |
 
 ### SBX News API
 
