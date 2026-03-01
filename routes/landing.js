@@ -144,13 +144,6 @@ const LANDING_PAGE = `
             margin: 0 auto;
         }
         
-        .hero-icon {
-            width: 100px;
-            height: 100px;
-            margin-bottom: 1.5rem;
-            border-radius: 16px;
-        }
-        
         .hero h1 {
             font-size: 3rem;
             font-weight: 800;
@@ -223,52 +216,6 @@ const LANDING_PAGE = `
             background: rgba(255, 255, 255, 0.05);
             color: #fff;
             border-color: rgba(255, 255, 255, 0.25);
-        }
-        
-        /* Showcase Section */
-        .showcase {
-            padding: 4rem 5%;
-            max-width: 1100px;
-            margin: 0 auto;
-        }
-        
-        .showcase h2 {
-            text-align: center;
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            color: #fff;
-        }
-        
-        .showcase .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 2.5rem;
-            font-size: 0.95rem;
-        }
-        
-        .screenshot-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-        
-        .screenshot-item {
-            background: #0a0a0a;
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 12px;
-            padding: 1.25rem;
-            transition: all 0.2s;
-        }
-        
-        .screenshot-item:hover {
-            border-color: rgba(255, 255, 255, 0.12);
-        }
-        
-        .screenshot-item img {
-            width: 100%;
-            border-radius: 8px;
-            display: block;
         }
         
         /* Features Section */
@@ -512,7 +459,6 @@ const LANDING_PAGE = `
     </nav>
     
     <section class="hero">
-        <img src="/jarvis.webp" alt="Jarvis AI Discord Bot" class="hero-icon" loading="eager">
         <h1>The Discord AI with <span class="accent">Actual Personality</span></h1>
         <p>Stop using boring bots. Jarvis brings natural chat, powerful moderation, and music streaming to your server.</p>
         <div class="cta-buttons">
@@ -619,22 +565,6 @@ const LANDING_PAGE = `
                 </tr>
             </tbody>
         </table>
-    </section>
-    
-    <section class="showcase">
-        <h2>See Jarvis in Action</h2>
-        <p class="subtitle">Real conversations from Discord</p>
-        <div class="screenshot-grid">
-            <div class="screenshot-item">
-                <img src="/screenshot-1.png?v=3" alt="Jarvis AI conversation example" loading="lazy" onerror="this.onerror=null;this.src='/jarvis.webp'">
-            </div>
-            <div class="screenshot-item">
-                <img src="/screenshot-2.png?v=3" alt="Jarvis music playback example" loading="lazy" onerror="this.onerror=null;this.src='/jarvis.webp'">
-            </div>
-            <div class="screenshot-item">
-                <img src="/screenshot-3.png?v=3" alt="Jarvis moderation example" loading="lazy" onerror="this.onerror=null;this.src='/jarvis.webp'">
-            </div>
-        </div>
     </section>
     
     <footer>

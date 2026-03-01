@@ -201,17 +201,6 @@ function createExpressApp({ webhookRouter, database }) {
     app.use('/', pagesRouter);
 
     // ---- Static files ----
-    app.get('/jarvis.gif', (req, res) => {
-        const gifPath = path.join(ROOT_DIR, 'jarvis.gif');
-        const fallbackPath = path.join(ROOT_DIR, 'jarvis.webp');
-        if (fs.existsSync(gifPath)) {
-            res.type('image/gif');
-            res.sendFile(gifPath);
-            return;
-        }
-        res.type('image/webp');
-        res.sendFile(fallbackPath);
-    });
     app.get('/favicon.ico', (req, res) => {
         res.type('image/webp');
         res.sendFile(path.join(ROOT_DIR, 'jarvis.webp'));
@@ -222,26 +211,6 @@ function createExpressApp({ webhookRouter, database }) {
     });
     app.use('/uploads/news', express.static(path.join(ROOT_DIR, 'uploads/news')));
     app.use('/assets', express.static(path.join(ROOT_DIR, 'assets')));
-    const sendScreenshotOrFallback = (res, screenshotName) => {
-        const screenshotPath = path.join(ROOT_DIR, screenshotName);
-        const fallbackPath = path.join(ROOT_DIR, 'jarvis.webp');
-        if (fs.existsSync(screenshotPath)) {
-            res.type('image/png');
-            res.sendFile(screenshotPath);
-            return;
-        }
-        res.type('image/webp');
-        res.sendFile(fallbackPath);
-    };
-    app.get('/screenshot-1.png', (req, res) => {
-        sendScreenshotOrFallback(res, 'screenshot-1.png');
-    });
-    app.get('/screenshot-2.png', (req, res) => {
-        sendScreenshotOrFallback(res, 'screenshot-2.png');
-    });
-    app.get('/screenshot-3.png', (req, res) => {
-        sendScreenshotOrFallback(res, 'screenshot-3.png');
-    });
 
     // ---- SEO ----
     app.get('/robots.txt', (req, res) => {
