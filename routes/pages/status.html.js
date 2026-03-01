@@ -36,9 +36,9 @@ const STATUS_PAGE = `
             border-radius: 50%;
             animation: pulse 2s infinite;
         }
-        .status-dot.operational { background: #00cc6a; box-shadow: 0 0 8px rgba(0,204,106,0.4); }
-        .status-dot.degraded { background: #f59e0b; box-shadow: 0 0 8px rgba(245,158,11,0.4); }
-        .status-dot.down { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+        .status-dot.operational { background: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.3); }
+        .status-dot.degraded { background: #888; box-shadow: 0 0 8px rgba(136,136,136,0.3); }
+        .status-dot.down { background: #555; box-shadow: 0 0 8px rgba(85,85,85,0.3); }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -59,7 +59,7 @@ const STATUS_PAGE = `
         }
         .metric-value {
             font-size: 1.75rem;
-            color: #00d4ff;
+            color: #fff;
             font-weight: 700;
             font-variant-numeric: tabular-nums;
         }
@@ -101,8 +101,8 @@ const STATUS_PAGE = `
             color: #ccc;
         }
         .uptime-component-name .check { font-size: 0.85rem; }
-        .uptime-component-name .check.ok { color: #00cc6a; }
-        .uptime-component-name .check.warn { color: #f59e0b; }
+        .uptime-component-name .check.ok { color: #fff; }
+        .uptime-component-name .check.warn { color: #888; }
         .component-detail { color: #555; font-size: 0.8rem; }
 
         .uptime-bar {
@@ -115,22 +115,22 @@ const STATUS_PAGE = `
         .uptime-bar .day {
             flex: 1;
             min-width: 2px;
-            background: #00cc6a;
+            background: #fff;
             transition: opacity 0.15s;
             cursor: pointer;
             position: relative;
         }
         .uptime-bar .day:hover { opacity: 0.8; }
-        .uptime-bar .day.degraded { background: #f59e0b; }
-        .uptime-bar .day.down { background: #ef4444; }
-        .uptime-bar .day.unknown { background: #2a2a35; }
+        .uptime-bar .day.degraded { background: #888; }
+        .uptime-bar .day.down { background: #555; }
+        .uptime-bar .day.unknown { background: #1a1a1a; }
         .uptime-bar .day .tooltip {
             display: none;
             position: absolute;
             bottom: 100%;
             left: 50%;
             transform: translateX(-50%);
-            background: #1a1a24;
+            background: #111;
             border: 1px solid rgba(255,255,255,0.12);
             padding: 0.4rem 0.6rem;
             border-radius: 6px;
@@ -172,12 +172,12 @@ const STATUS_PAGE = `
             height: 8px;
             border-radius: 50%;
         }
-        .service-status.operational .dot { background: #00cc6a; }
-        .service-status.operational { color: #00cc6a; }
-        .service-status.degraded .dot { background: #f59e0b; }
-        .service-status.degraded { color: #f59e0b; }
-        .service-status.down .dot { background: #ef4444; }
-        .service-status.down { color: #ef4444; }
+        .service-status.operational .dot { background: #fff; }
+        .service-status.operational { color: #fff; }
+        .service-status.degraded .dot { background: #888; }
+        .service-status.degraded { color: #888; }
+        .service-status.down .dot { background: #555; }
+        .service-status.down { color: #555; }
 
         /* Cloudflare */
         .cloudflare-section {
@@ -203,18 +203,18 @@ const STATUS_PAGE = `
             text-transform: uppercase;
             letter-spacing: 0.03em;
         }
-        .cf-badge.ok { background: rgba(0,204,106,0.1); color: #00cc6a; }
-        .cf-badge.warn { background: rgba(245,158,11,0.1); color: #f59e0b; }
-        .cf-badge.error { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .cf-badge.ok { background: rgba(255,255,255,0.1); color: #fff; }
+        .cf-badge.warn { background: rgba(255,255,255,0.06); color: #888; }
+        .cf-badge.error { background: rgba(255,255,255,0.04); color: #555; }
         .cf-incident {
             padding: 0.75rem 1rem;
-            border-left: 3px solid #f59e0b;
-            background: rgba(245,158,11,0.04);
+            border-left: 3px solid #888;
+            background: rgba(255,255,255,0.02);
             margin-bottom: 0.75rem;
             border-radius: 0 6px 6px 0;
             font-size: 0.85rem;
         }
-        .cf-incident.critical { border-left-color: #ef4444; background: rgba(239,68,68,0.04); }
+        .cf-incident.critical { border-left-color: #555; background: rgba(255,255,255,0.02); }
         .cf-incident-title { font-weight: 600; color: #ccc; margin-bottom: 0.25rem; }
         .cf-incident-time { color: #555; font-size: 0.75rem; margin-bottom: 0.25rem; }
         .cf-incident-desc { color: #888; font-size: 0.8rem; line-height: 1.5; }

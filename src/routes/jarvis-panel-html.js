@@ -21,13 +21,13 @@ function getLoginPage({ oauthUrl, errorMsg }) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Jarvis Owner Console</title>
   <style>
-    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background: #0b0f17; color: #e6edf3; display: flex; min-height: 100vh; align-items: center; justify-content: center; }
+    body { margin: 0; font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif; background: #000; color: #ccc; display: flex; min-height: 100vh; align-items: center; justify-content: center; }
     .card { width: min(520px, 92vw); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 20px; box-shadow: 0 12px 40px rgba(0,0,0,0.35); }
     h1 { margin: 0 0 6px; font-size: 20px; }
     p { margin: 0 0 14px; opacity: 0.9; font-size: 13px; }
-    a.btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px; border: 0; cursor: pointer; background: #5865f2; color: white; font-weight: 700; text-decoration: none; }
+    a.btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px; border: 0; cursor: pointer; background: #fff; color: #000; font-weight: 700; text-decoration: none; }
     a.btn[aria-disabled="true"] { opacity: 0.6; pointer-events: none; }
-    .error { margin-top: 10px; color: #ff7b72; min-height: 18px; font-size: 13px; }
+    .error { margin-top: 10px; color: #888; min-height: 18px; font-size: 13px; }
     .hint { margin-top: 12px; opacity: 0.65; font-size: 12px; }
   </style>
 </head>
@@ -58,10 +58,10 @@ function getPanelPage(session) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Jarvis Owner Console</title>
   <style>
-    :root { --bg:#0b0f17; --panel:rgba(255,255,255,0.04); --panel2:rgba(255,255,255,0.06); --border:rgba(255,255,255,0.10); --text:#e6edf3; --muted:rgba(230,237,243,0.72); --good:#2ecc71; --warn:#f1c40f; --bad:#e74c3c; }
+    :root { --bg:#000; --panel:rgba(255,255,255,0.03); --panel2:rgba(255,255,255,0.05); --border:rgba(255,255,255,0.06); --text:#ccc; --muted:rgba(255,255,255,0.5); --good:#fff; --warn:#888; --bad:#555; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; background:var(--bg); color:var(--text); }
-    header { position:sticky; top:0; z-index:5; backdrop-filter: blur(10px); background: rgba(11,15,23,0.75); border-bottom: 1px solid var(--border); }
+    body { margin:0; font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif; background:var(--bg); color:var(--text); }
+    header { position:sticky; top:0; z-index:5; backdrop-filter: blur(10px); background: rgba(0,0,0,0.85); border-bottom: 1px solid var(--border); }
     .wrap { max-width: 1400px; margin:0 auto; padding: 14px 16px; }
     .top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .me { display:flex; align-items:center; gap:10px; min-width: 260px; }
@@ -88,8 +88,8 @@ function getPanelPage(session) {
     select, input { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.25); color: var(--text); }
     .toggle { font-size:12px; color: var(--muted); display:flex; gap:6px; align-items:center; user-select:none; }
     .banner { display:none; margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.06); font-size: 12px; }
-    .banner.good { border-color: rgba(46,204,113,0.45); background: rgba(46,204,113,0.12); }
-    .banner.bad { border-color: rgba(231,76,60,0.45); background: rgba(231,76,60,0.12); }
+    .banner.good { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); }
+    .banner.bad { border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); }
     .kpis { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
     .kpi { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; }
     .kpi .label { font-size: 12px; color: var(--muted); }
