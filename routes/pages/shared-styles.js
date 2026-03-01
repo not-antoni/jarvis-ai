@@ -19,8 +19,8 @@ const SHARED_STYLES = `
     }
     nav {
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        gap: 2rem;
         padding: 1.25rem 5%;
         max-width: 1300px;
         margin: 0 auto;
