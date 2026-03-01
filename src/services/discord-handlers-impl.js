@@ -3718,12 +3718,13 @@ class DiscordHandlers {
 
             // ── Social Credit roll ──
             try {
-                const creditChange = socialCredit.rollCreditChange();
+                const cringeScore = socialCredit.getCringeLevel(fullContent);
+                const creditChange = socialCredit.rollCreditChange(fullContent);
                 if (creditChange !== 0) {
                     const newScore = await socialCredit.adjustCredit(message.author.id, creditChange);
 
                     // React with social credit emoji on user's message
-                    if (socialCredit.shouldReact()) {
+                    if (socialCredit.shouldReact(cringeScore)) {
                         const emojiId = creditChange > 0 ? '1477736880127869039' : '1477737004195123230';
                         try {
                             await message.react(emojiId);
@@ -3731,8 +3732,8 @@ class DiscordHandlers {
                     }
 
                     // Send follow-up notification
-                    if (socialCredit.shouldNotify(creditChange)) {
-                        const notifyMsg = socialCredit.buildNotifyMessage(creditChange, newScore);
+                    if (socialCredit.shouldNotify(creditChange, cringeScore)) {
+                        const notifyMsg = socialCredit.buildNotifyMessage(creditChange, newScore, cringeScore);
                         await message.channel.send({ content: notifyMsg, allowedMentions: { parse: [] } });
                     }
                 }
