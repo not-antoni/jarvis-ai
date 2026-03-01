@@ -132,7 +132,7 @@ class MusicManager {
             const connection = await this.createConnection(guildId, voiceChannel);
             const player = this.createPlayer(guildId);
 
-            connection.subscribe(player);
+            this.safeSubscribe(connection, player);
 
             state = {
                 connection,
@@ -237,6 +237,7 @@ class MusicManager {
 
             this.releaseCurrent(state);
 
+            this.safeSubscribe(state.connection, state.player);
             state.player.play(resource);
             state.currentVideo = video;
             state.currentRelease = streamResult.cleanup;
@@ -654,11 +655,17 @@ class MusicManager {
                 reconnectAttempts = 0;
                 const state = this.queues.get(guildId);
                 if (state?.connection === connection && state.player) {
-                    try {
-                        connection.subscribe(state.player);
-                    } catch (error) {
-                        console.warn('[Voice] Failed to resubscribe player on ready:', error?.message || error);
-                    }
+                    setImmediate(() => {
+                        const latest = this.queues.get(guildId);
+                        if (!latest || latest.connection !== connection || !latest.player) {
+                            return;
+                        }
+                        try {
+                            this.safeSubscribe(connection, latest.player);
+                        } catch (error) {
+                            console.warn('[Voice] Failed to resubscribe player on ready:', error?.message || error);
+                        }
+                    });
                 }
                 return;
             }
@@ -746,6 +753,19 @@ class MusicManager {
         return player;
     }
 
+    safeSubscribe(connection, player) {
+        if (!connection || !player) {
+            return null;
+        }
+
+        const currentSubscription = connection.state?.subscription;
+        if (currentSubscription?.player === player) {
+            return currentSubscription;
+        }
+
+        return connection.subscribe(player);
+    }
+
     async ensureVoiceReady(guildId, state) {
         if (!state?.connection) {
             throw new Error('Voice connection is not initialized.');
@@ -762,7 +782,7 @@ class MusicManager {
                 }
 
                 if (state.player) {
-                    connection.subscribe(state.player);
+                    this.safeSubscribe(connection, state.player);
                 }
                 return;
             } catch (error) {
