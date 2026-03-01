@@ -678,7 +678,8 @@ function getGuildPage(session, guild, status, errorCode = '') {
                     ${userAvatar ? `<img class="user-avatar" src="${userAvatar}" alt="avatar">` : ''}
                     <span>${userLabel}</span>
                 </span>
-                <a href="/moderator/dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: white; padding: 8px 16px; font-size: 14px;">Back</a>
+                <a href="/" class="btn" style="background: rgba(255,255,255,0.08); color: #ccc; padding: 8px 16px; font-size: 14px;">Home</a>
+                <a href="/moderator/dashboard" class="btn" style="background: rgba(255,255,255,0.08); color: white; padding: 8px 16px; font-size: 14px; margin-left: 8px;">Back</a>
                 <a href="/moderator/logout" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px; margin-left: 8px;">Logout</a>
             </div>
         </div>
@@ -1368,6 +1369,7 @@ function getDashboardPage(session, guildStats) {
                     ${userAvatar ? `<img class="user-avatar" src="${userAvatar}" alt="avatar">` : ''}
                     <span>${userLabel}</span>
                 </span>
+                <a href="/" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px; background: rgba(255,255,255,0.08); color: #ccc; margin-right: 8px;">Home</a>
                 <a href="/moderator/logout" class="btn btn-primary" style="padding: 8px 16px; font-size: 14px;">Logout</a>
             </div>
         </div>
