@@ -569,7 +569,7 @@ function getOAuthLoginPage(oauthUrl, error = '') {
 <body>
     <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
         <div class="card" style="max-width: 400px; text-align: center;">
-            <div class="logo">🛡️ JARVIS</div>
+            <a href="/" class="logo" style="text-decoration:none;">🛡️ JARVIS</a>
             <p class="subtitle">Moderator Dashboard</p>
             
             ${error ? `<div class="error">${error}</div>` : ''}
@@ -1183,7 +1183,7 @@ function getSelfhostLoginPage(error = '') {
 <body>
     <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
         <div class="card" style="max-width: 400px;">
-            <div class="logo">🛡️ JARVIS</div>
+            <a href="/" class="logo" style="text-decoration:none;">🛡️ JARVIS</a>
             <p class="subtitle">Moderator Dashboard (Selfhost)</p>
             
             ${error ? `<div class="error">${error}</div>` : ''}
@@ -1221,7 +1221,7 @@ function getSetupPage(userData, error = '') {
 <body>
     <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
         <div class="card" style="max-width: 400px;">
-            <div class="logo">🔐 JARVIS</div>
+            <a href="/" class="logo" style="text-decoration:none;">🔐 JARVIS</a>
             <p class="subtitle">Set Your Dashboard Password</p>
             
             ${error ? `<div class="error">${error}</div>` : ''}
@@ -1360,7 +1360,7 @@ function getDashboardPage(session, guildStats) {
     <div class="container">
         <div class="header">
             <div>
-                <h1 style="font-size: 1.5rem;">🛡️ Jarvis Moderator Dashboard</h1>
+                <h1 style="font-size: 1.5rem;"><a href="/" style="color: inherit; text-decoration: none;">🛡️ Jarvis Moderator Dashboard</a></h1>
                 <p style="color: #888; font-size: 14px;">Security System Status Overview</p>
             </div>
             <div>

@@ -109,7 +109,7 @@ const NAV_HTML = `
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
             <li><a href="/me">My Portal</a></li>
-            <li><a href="/moderator">Mod Dashboard</a></li>
+            <li><a href="/moderator/dashboard">Mod Dashboard</a></li>
         </ul>
     </nav>
 `;

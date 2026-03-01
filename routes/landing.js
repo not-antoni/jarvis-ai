@@ -504,7 +504,7 @@ const LANDING_PAGE = `
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
             <li><a href="/me">My Portal</a></li>
-            <li><a href="/moderator">Mod Dashboard</a></li>
+            <li><a href="/moderator/dashboard">Mod Dashboard</a></li>
         </ul>
         <div class="user-menu" id="userMenu">
             <a href="/auth/login" class="login-btn" id="loginBtn">Login</a>
@@ -642,7 +642,7 @@ const LANDING_PAGE = `
             <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
             <a href="${DISCORD_INVITE}" target="_blank">Discord</a>
             <a href="/status">Status</a>
-            <a href="/moderator">Mod Dashboard</a>
+            <a href="/moderator/dashboard">Mod Dashboard</a>
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>
             <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
