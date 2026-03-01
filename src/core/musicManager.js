@@ -703,6 +703,20 @@ class MusicManager {
             }
         });
 
+        player.on(AudioPlayerStatus.AutoPaused, () => {
+            const state = this.queues.get(guildId);
+            if (!state?.connection) {
+                return;
+            }
+
+            try {
+                this.safeSubscribe(state.connection, player);
+                player.unpause();
+            } catch (error) {
+                console.warn('[Voice] Failed to recover from auto-paused state:', error?.message || error);
+            }
+        });
+
         player.on(AudioPlayerStatus.Idle, async() => {
             const state = this.queues.get(guildId);
             if (!state) {
@@ -759,11 +773,21 @@ class MusicManager {
         }
 
         const currentSubscription = connection.state?.subscription;
-        if (currentSubscription?.player === player) {
-            return currentSubscription;
+        const subscription =
+            currentSubscription?.player === player
+                ? currentSubscription
+                : connection.subscribe(player);
+
+        const status = player.state?.status;
+        if (status === AudioPlayerStatus.AutoPaused || status === AudioPlayerStatus.Paused) {
+            try {
+                player.unpause();
+            } catch (error) {
+                console.warn('[Voice] Failed to unpause player after subscribe:', error?.message || error);
+            }
         }
 
-        return connection.subscribe(player);
+        return subscription;
     }
 
     async ensureVoiceReady(guildId, state) {
