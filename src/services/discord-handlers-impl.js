@@ -3690,9 +3690,30 @@ class DiscordHandlers {
                 reactCandidates = parsedReactionDirective.reactionCandidates;
             }
 
+            // ── Social Credit roll (compute before sending so we can append) ──
+            let creditSuffix = '';
+            try {
+                const cringeScore = socialCredit.getCringeLevel(fullContent);
+                const creditChange = socialCredit.rollCreditChange(fullContent);
+                if (creditChange !== 0) {
+                    const newScore = await socialCredit.adjustCredit(message.author.id, creditChange);
+
+                    if (socialCredit.shouldReact(cringeScore)) {
+                        const emojiId = creditChange > 0 ? '1477736880127869039' : '1477737004195123230';
+                        try {
+                            await message.react(emojiId);
+                        } catch (_) { /* emoji not available */ }
+                    }
+
+                    if (socialCredit.shouldNotify(creditChange, cringeScore)) {
+                        creditSuffix = '\n' + socialCredit.buildNotifyMessage(creditChange, newScore);
+                    }
+                }
+            } catch (_) { /* social credit non-critical */ }
+
             if (typeof cleanResponse === 'string' && cleanResponse.trim()) {
                 const safe = this.sanitizePings(cleanResponse);
-                const chunks = splitMessage(safe);
+                const chunks = splitMessage(safe + creditSuffix);
                 for (let i = 0; i < chunks.length; i++) {
                     if (i === 0) {
                         await message.reply({ content: chunks[i], allowedMentions: { parse: [] } });
@@ -3701,7 +3722,7 @@ class DiscordHandlers {
                     }
                 }
             } else {
-                await message.reply({ content: 'Response circuits tangled, sir. Clarify your request?', allowedMentions: { parse: [] } });
+                await message.reply({ content: 'Response circuits tangled, sir. Clarify your request?' + creditSuffix, allowedMentions: { parse: [] } });
             }
 
             // Apply emoji reaction if the AI suggested one
@@ -3715,29 +3736,6 @@ class DiscordHandlers {
                     }
                 }
             }
-
-            // ── Social Credit roll ──
-            try {
-                const cringeScore = socialCredit.getCringeLevel(fullContent);
-                const creditChange = socialCredit.rollCreditChange(fullContent);
-                if (creditChange !== 0) {
-                    const newScore = await socialCredit.adjustCredit(message.author.id, creditChange);
-
-                    // React with social credit emoji on user's message
-                    if (socialCredit.shouldReact(cringeScore)) {
-                        const emojiId = creditChange > 0 ? '1477736880127869039' : '1477737004195123230';
-                        try {
-                            await message.react(emojiId);
-                        } catch (_) { /* emoji not available */ }
-                    }
-
-                    // Send follow-up notification
-                    if (socialCredit.shouldNotify(creditChange, cringeScore)) {
-                        const notifyMsg = socialCredit.buildNotifyMessage(creditChange, newScore);
-                        await message.channel.send({ content: notifyMsg, allowedMentions: { parse: [] } });
-                    }
-                }
-            } catch (_) { /* social credit non-critical */ }
         } catch (error) {
             // Generate unique error code for debugging
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
