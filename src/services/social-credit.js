@@ -219,8 +219,7 @@ async function adjustCredit(userId, amount) {
 }
 
 function isBlocked(credit) {
-    if (credit.score > BLOCK_THRESHOLD) { return false; }
-    if (!credit.blockedUntil) { return true; }
+    if (!credit.blockedUntil) { return false; }
     if (new Date() < new Date(credit.blockedUntil)) { return true; }
     return false;
 }
