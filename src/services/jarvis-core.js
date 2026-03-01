@@ -893,6 +893,22 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 // Emoji instruction not critical
             }
 
+            // Inject social credit score into context
+            try {
+                const socialCredit = require('./social-credit');
+                const credit = await socialCredit.getCredit(userId);
+                const score = credit.score || 0;
+                let level;
+                if (score >= socialCredit.GOOD_THRESHOLD) { level = 'Excellent standing'; }
+                else if (score >= socialCredit.ACCEPTABLE_THRESHOLD) { level = 'Acceptable'; }
+                else if (score >= 0) { level = 'Neutral'; }
+                else if (score > socialCredit.BLOCK_THRESHOLD) { level = 'Low - at risk'; }
+                else { level = 'BLOCKED'; }
+                systemPrompt += `\n\n[SOCIAL CREDIT SYSTEM: This user's social credit score is ${score.toLocaleString()} (${level}). If they ask about their social credit or credit score, tell them the exact number and status. Social credit emojis: positive ${socialCredit.EMOJI_POSITIVE} negative ${socialCredit.EMOJI_NEGATIVE}. The system penalizes cringe, uwu, and roleplay behavior.]`;
+            } catch (e) {
+                // Social credit not critical
+            }
+
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
