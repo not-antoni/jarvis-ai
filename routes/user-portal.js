@@ -95,7 +95,7 @@ const PORTAL_STYLES = `
     .site-nav .logo {
         font-size: 1.5rem;
         font-weight: 700;
-        color: #00d4ff;
+        color: #fff;
         text-decoration: none;
     }
     .site-nav .nav-links {
@@ -111,7 +111,7 @@ const PORTAL_STYLES = `
         transition: color 0.2s;
     }
     .site-nav .nav-links a:hover { color: #fff; }
-    .site-nav .nav-links a.active { color: #00d4ff; }
+    .site-nav .nav-links a.active { color: #fff; }
     .portal-container { max-width: 900px; margin: 0 auto; padding: 2rem; }
     .portal-header {
         display: flex;
@@ -122,7 +122,7 @@ const PORTAL_STYLES = `
         margin-bottom: 2rem;
     }
     .user-info { display: flex; align-items: center; gap: 1rem; }
-    .user-avatar { width: 56px; height: 56px; border-radius: 50%; border: 2px solid rgba(0,212,255,0.4); }
+    .user-avatar { width: 56px; height: 56px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); }
     .user-name { font-size: 1.25rem; font-weight: 600; color: #fff; }
     .user-id { color: #555; font-size: 0.8rem; }
     .nav-tabs {
@@ -144,7 +144,7 @@ const PORTAL_STYLES = `
         font-weight: 500;
     }
     .nav-tab:hover { background: rgba(255,255,255,0.06); color: #ccc; }
-    .nav-tab.active { background: rgba(0,212,255,0.08); border-color: rgba(0,212,255,0.3); color: #00d4ff; }
+    .nav-tab.active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); color: #fff; }
     .section { display: none; }
     .section.active { display: block; }
     .card {
@@ -167,7 +167,7 @@ const PORTAL_STYLES = `
         padding: 1rem;
         text-align: center;
     }
-    .stat-value { font-size: 1.5rem; font-weight: 700; color: #00d4ff; font-variant-numeric: tabular-nums; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
     .stat-label { color: #555; font-size: 0.8rem; margin-top: 0.25rem; }
     .api-key-item {
         display: flex;
@@ -195,12 +195,12 @@ const PORTAL_STYLES = `
         transition: all 0.2s;
     }
     .btn-primary {
-        background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%);
+        background: #fff;
         color: #000;
     }
     .btn-primary:hover { transform: translateY(-1px); }
-    .btn-danger { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.15); }
-    .btn-danger:hover { background: rgba(239,68,68,0.15); }
+    .btn-danger { background: rgba(255,255,255,0.04); color: #888; border: 1px solid rgba(255,255,255,0.08); }
+    .btn-danger:hover { background: rgba(255,255,255,0.08); color: #ccc; }
     .btn-secondary { background: rgba(255,255,255,0.05); color: #888; border: 1px solid rgba(255,255,255,0.08); }
     .btn-secondary:hover { background: rgba(255,255,255,0.08); color: #ccc; }
     .create-key-form {
@@ -218,11 +218,11 @@ const PORTAL_STYLES = `
         font-size: 0.9rem;
         transition: border-color 0.2s;
     }
-    .create-key-form input:focus { outline: none; border-color: rgba(0,212,255,0.4); }
+    .create-key-form input:focus { outline: none; border-color: rgba(255,255,255,0.3); }
     .create-key-form input::placeholder { color: #555; }
     .new-key-display {
-        background: rgba(0,204,106,0.06);
-        border: 1px solid rgba(0,204,106,0.2);
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.12);
         border-radius: 8px;
         padding: 1rem;
         margin-bottom: 1rem;
@@ -269,10 +269,10 @@ const PORTAL_STYLES = `
     .empty-state { text-align: center; color: #555; padding: 2.5rem; font-size: 0.85rem; }
     .message { padding: 0.85rem 1rem; border-radius: 8px; margin-bottom: 1rem; display: none; font-size: 0.85rem; }
     .message.show { display: block; }
-    .message.success { background: rgba(0,204,106,0.08); color: #00cc6a; border: 1px solid rgba(0,204,106,0.15); }
-    .message.error { background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.15); }
+    .message.success { background: rgba(255,255,255,0.04); color: #ccc; border: 1px solid rgba(255,255,255,0.1); }
+    .message.error { background: rgba(255,255,255,0.03); color: #888; border: 1px solid rgba(255,255,255,0.08); }
     .logout-btn { color: #666; text-decoration: none; font-size: 0.85rem; }
-    .logout-btn:hover { color: #ef4444; }
+    .logout-btn:hover { color: #fff; }
     @media (max-width: 768px) {
         .site-nav .nav-links { display: none; }
         .portal-header { flex-direction: column; gap: 1rem; text-align: center; }
@@ -298,6 +298,7 @@ const PORTAL_PAGE = `
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
             <li><a href="/me" class="active">My Portal</a></li>
+            <li><a href="/moderator">Mod Dashboard</a></li>
         </ul>
     </nav>
     <div class="portal-container">

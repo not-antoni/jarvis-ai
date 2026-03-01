@@ -28,7 +28,7 @@ const CHANGELOG_PAGE = `
         }
         .version-number {
             font-size: 1.25rem;
-            color: #00d4ff;
+            color: #fff;
             font-weight: 700;
         }
         .version-date { color: #555; font-size: 0.85rem; }
@@ -44,10 +44,10 @@ const CHANGELOG_PAGE = `
             text-transform: uppercase;
             letter-spacing: 0.03em;
         }
-        .tag-new { background: rgba(0,204,106,0.1); color: #00cc6a; }
-        .tag-fix { background: rgba(239,68,68,0.1); color: #ef4444; }
-        .tag-improve { background: rgba(0,212,255,0.1); color: #00d4ff; }
-        .tag-remove { background: rgba(245,158,11,0.1); color: #f59e0b; }
+        .tag-new { background: rgba(255,255,255,0.1); color: #fff; }
+        .tag-fix { background: rgba(255,255,255,0.06); color: #aaa; }
+        .tag-improve { background: rgba(255,255,255,0.08); color: #ccc; }
+        .tag-remove { background: rgba(255,255,255,0.04); color: #888; }
     </style>
 </head>
 <body>
