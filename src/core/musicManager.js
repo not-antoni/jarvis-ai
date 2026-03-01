@@ -19,6 +19,7 @@ const VOICE_JOIN_RETRIES = Number(process.env.MUSIC_VOICE_JOIN_RETRIES) || 4;
 const VOICE_RECONNECT_ATTEMPTS = Number(process.env.MUSIC_VOICE_RECONNECT_ATTEMPTS) || 10;
 const VOICE_RECONNECT_DELAY_MS = Number(process.env.MUSIC_VOICE_RECONNECT_DELAY_MS) || 1_500;
 const VOICE_JOIN_RETRY_DELAY_MS = Number(process.env.MUSIC_VOICE_JOIN_RETRY_DELAY_MS) || 1_500;
+const VOICE_ENSURE_READY_RETRIES = Number(process.env.MUSIC_VOICE_ENSURE_READY_RETRIES) || 3;
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -178,6 +179,20 @@ class MusicManager {
         if (state.timeout) {
             clearTimeout(state.timeout);
             state.timeout = null;
+        }
+
+        try {
+            await this.ensureVoiceReady(guildId, state);
+        } catch (error) {
+            const reason = normalizePlaybackFailureReason(error?.message);
+            const failureMessage = queueAdvance
+                ? `⚠️ Skipping **${video.title}**: ${reason}`
+                : `⚠️ Unable to play **${video.title}**: ${reason}`;
+
+            if (announce === 'channel' && state.textChannel) {
+                safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => { });
+            }
+            return failureMessage;
         }
 
         const videoId = extractVideoId(video.url) ?? video.url;
@@ -637,6 +652,14 @@ class MusicManager {
         connection.on('stateChange', (_, newState) => {
             if (newState.status === VoiceConnectionStatus.Ready) {
                 reconnectAttempts = 0;
+                const state = this.queues.get(guildId);
+                if (state?.connection === connection && state.player) {
+                    try {
+                        connection.subscribe(state.player);
+                    } catch (error) {
+                        console.warn('[Voice] Failed to resubscribe player on ready:', error?.message || error);
+                    }
+                }
                 return;
             }
 
@@ -721,6 +744,39 @@ class MusicManager {
         });
 
         return player;
+    }
+
+    async ensureVoiceReady(guildId, state) {
+        if (!state?.connection) {
+            throw new Error('Voice connection is not initialized.');
+        }
+
+        const connection = state.connection;
+        for (let attempt = 1; attempt <= VOICE_ENSURE_READY_RETRIES; attempt += 1) {
+            try {
+                if (connection.state.status !== VoiceConnectionStatus.Ready) {
+                    try {
+                        connection.rejoin();
+                    } catch (_e) { }
+                    await entersState(connection, VoiceConnectionStatus.Ready, VOICE_READY_TIMEOUT_MS);
+                }
+
+                if (state.player) {
+                    connection.subscribe(state.player);
+                }
+                return;
+            } catch (error) {
+                console.warn(
+                    `[Voice] ensure-ready attempt ${attempt}/${VOICE_ENSURE_READY_RETRIES} failed for guild ${guildId}:`,
+                    error?.message || error
+                );
+                if (attempt < VOICE_ENSURE_READY_RETRIES) {
+                    await delay(VOICE_JOIN_RETRY_DELAY_MS * attempt);
+                }
+            }
+        }
+
+        throw new Error('Voice connection is unstable right now. Please try again in a few seconds.');
     }
 
     releaseCurrent(state) {
