@@ -330,6 +330,16 @@ ${pages.map(p => `  <url>
         }
     });
 
+    app.get('/api/public/uptime-history', async(req, res) => {
+        try {
+            const uptimeTracker = require('../services/uptime-tracker');
+            const history = await uptimeTracker.getDailyHistory(90);
+            res.json({ history });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     app.use('/api/dashboard', dashboardAuthMiddleware, dashboardRouter);
 
     const dashboardDistPath = path.join(ROOT_DIR, 'dashboard', 'dist');
