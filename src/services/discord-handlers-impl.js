@@ -3678,6 +3678,10 @@ class DiscordHandlers {
                 this.setCooldown(message.author.id, messageScope);
                 return;
             }
+            // Clear expired block so it doesn't re-trigger on next adjustCredit
+            if (userCredit.blockedUntil && new Date() >= new Date(userCredit.blockedUntil)) {
+                socialCredit.clearBlock(message.author.id).catch(() => {});
+            }
 
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
 
