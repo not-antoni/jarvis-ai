@@ -10,8 +10,8 @@ const BLOCK_THRESHOLD = -100000;    // -100k = blocked
 const ACCEPTABLE_THRESHOLD = 20000; // 20k = acceptable
 const GOOD_THRESHOLD = 100000;      // 100k = fine
 
-// Block duration: 1 hour
-const BLOCK_DURATION_MS = 60 * 60 * 1000;
+// Block duration: 10 minutes
+const BLOCK_DURATION_MS = 10 * 60 * 1000;
 
 // Chance to show credit notification (5%)
 const NOTIFY_CHANCE = 0.05;
@@ -246,7 +246,7 @@ function getBlockMessage(credit) {
     return `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}\n\n` +
         `Sorry, you are scheduled to do manual labor in China for 4 weeks.\n` +
         `Your social credit: **${credit.score.toLocaleString()}**\n` +
-        `*this rate limit expires in ${timeLeft || '1 hour'}*\n\n` +
+        `*this rate limit expires in ${timeLeft || '10 minutes'}*\n\n` +
         `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}`;
 }
 
