@@ -28,6 +28,7 @@ const pdfParse = require('pdf-parse');
 const embeddingSystem = require('./embedding-system');
 const { commandMap: musicCommandMap } = require('../commands/music');
 const CooldownManager = require('../core/cooldown-manager');
+const socialCredit = require('./social-credit');
 const { recordCommandRun } = require('../utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('../core/feature-flags');
@@ -3667,6 +3668,17 @@ class DiscordHandlers {
                 });
             }
 
+            // ── Social Credit check ──
+            const userCredit = await socialCredit.getCredit(message.author.id);
+            if (socialCredit.isBlocked(userCredit)) {
+                await message.reply({ content: socialCredit.getBlockMessage(userCredit), allowedMentions: { parse: [] } });
+                try {
+                    await message.react('1477737004195123230');
+                } catch (_) { /* emoji not available */ }
+                this.setCooldown(message.author.id, messageScope);
+                return;
+            }
+
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
 
             // Parse optional emoji reaction tag from AI response
@@ -3703,6 +3715,28 @@ class DiscordHandlers {
                     }
                 }
             }
+
+            // ── Social Credit roll ──
+            try {
+                const creditChange = socialCredit.rollCreditChange();
+                if (creditChange !== 0) {
+                    const newScore = await socialCredit.adjustCredit(message.author.id, creditChange);
+
+                    // React with social credit emoji on user's message
+                    if (socialCredit.shouldReact()) {
+                        const emojiId = creditChange > 0 ? '1477736880127869039' : '1477737004195123230';
+                        try {
+                            await message.react(emojiId);
+                        } catch (_) { /* emoji not available */ }
+                    }
+
+                    // Send follow-up notification
+                    if (socialCredit.shouldNotify(creditChange)) {
+                        const notifyMsg = socialCredit.buildNotifyMessage(creditChange, newScore);
+                        await message.channel.send({ content: notifyMsg, allowedMentions: { parse: [] } });
+                    }
+                }
+            } catch (_) { /* social credit non-critical */ }
         } catch (error) {
             // Generate unique error code for debugging
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
