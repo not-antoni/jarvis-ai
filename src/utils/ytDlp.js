@@ -44,6 +44,53 @@ const DOCUMENTARY_OPENER =
 const cache = new Map(); // videoId -> { path, refs, timer, lastAccess }
 const pendingDownloads = new Map(); // videoId -> { promise, cancel }
 
+function readBooleanEnv(key, defaultValue) {
+    const raw = process.env[key];
+    if (!raw) {
+        return defaultValue;
+    }
+
+    return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase());
+}
+
+const FAST_START_MODE = readBooleanEnv('MUSIC_FAST_START_MODE', true);
+
+function inferSourceFromUrl(videoUrl) {
+    const value = String(videoUrl || '').toLowerCase();
+    if (value.includes('youtube.com') || value.includes('youtu.be')) {
+        return 'youtube';
+    }
+    if (value.includes('soundcloud.com')) {
+        return 'soundcloud';
+    }
+    return 'unknown';
+}
+
+function normalizeSource(source, videoUrl) {
+    const normalized = String(source || '').trim().toLowerCase();
+    return normalized || inferSourceFromUrl(videoUrl);
+}
+
+function isYouTubeSource(source, videoUrl) {
+    return normalizeSource(source, videoUrl) === 'youtube';
+}
+
+function isSoundCloudSource(source, videoUrl) {
+    return normalizeSource(source, videoUrl) === 'soundcloud';
+}
+
+function shouldRunPreLimitCheck(source, videoUrl) {
+    if (!FAST_START_MODE) {
+        return true;
+    }
+
+    return !isSoundCloudSource(source, videoUrl);
+}
+
+function shouldUseYouTubeCookies(source, videoUrl) {
+    return isYouTubeSource(source, videoUrl);
+}
+
 function buildDurationLimitReason(durationSeconds) {
     const minutes = Math.max(1, Math.floor(durationSeconds / 60));
     const maxMinutes = Math.max(1, Math.floor(MAX_DURATION_SECONDS / 60));
@@ -361,10 +408,14 @@ function readCookiesFromEnv() {
     return null;
 }
 
-function buildExtractorArgs(hasCookies) {
+function buildExtractorArgs({ hasCookies, source, videoUrl }) {
     const override = process.env.YTDLP_EXTRACTOR_ARGS;
     if (override && override.trim().length) {
         return override.trim();
+    }
+
+    if (!isYouTubeSource(source, videoUrl)) {
+        return null;
     }
 
     const clients = [...DEFAULT_CLIENTS];
@@ -555,38 +606,46 @@ async function cleanupArtifacts(base) {
  * Check video duration/size limits BEFORE downloading
  * Returns { allowed: true } or { allowed: false, reason: string }
  */
-async function checkVideoLimits(videoId, videoUrl) {
+async function checkVideoLimits(videoId, videoUrl, options = {}) {
+    const source = normalizeSource(options.source, videoUrl);
+    if (!shouldRunPreLimitCheck(source, videoUrl)) {
+        return { allowed: true, skipped: true };
+    }
+
+    const startedAt = Date.now();
+
     try {
         const binaryPath = await ensureBinary();
-        const cookieFile = await ensureCookiesFile();
-        const extractorArgs = buildExtractorArgs(Boolean(cookieFile));
-        
-        // Get video info without downloading
-        const result = await new Promise((resolve, reject) => {
-            const args = [
-                '-j',
-                '--no-warnings',
-                '--no-playlist',
-                '--extractor-args',
-                extractorArgs,
-                videoUrl
-            ];
+        const canUseCookies = shouldUseYouTubeCookies(source, videoUrl);
+        const cookieFile = canUseCookies ? await ensureCookiesFile() : null;
+        const extractorArgs = buildExtractorArgs({
+            hasCookies: Boolean(cookieFile),
+            source,
+            videoUrl
+        });
 
-            if (cookieFile) {
-                args.splice(args.length - 1, 0, '--cookies', cookieFile);
+        const result = await new Promise((resolve, reject) => {
+            const args = ['-j', '--no-warnings', '--no-playlist'];
+
+            if (extractorArgs) {
+                args.push('--extractor-args', extractorArgs);
             }
+            if (cookieFile) {
+                args.push('--cookies', cookieFile);
+            }
+            args.push(videoUrl);
 
             const proc = spawn(binaryPath, args, {
                 timeout: 30000,
                 env: { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' }
             });
-            
+
             let stdout = '';
             let stderr = '';
-            
+
             proc.stdout.on('data', data => { stdout += data.toString(); });
             proc.stderr.on('data', data => { stderr += data.toString(); });
-            
+
             proc.on('close', code => {
                 if (code === 0 && stdout.trim()) {
                     try {
@@ -602,41 +661,186 @@ async function checkVideoLimits(videoId, videoUrl) {
             });
             proc.on('error', reject);
         });
-        
+
         const durationSec = result.duration || 0;
         const filesizeApprox = result.filesize_approx || result.filesize || 0;
         const filesizeMB = filesizeApprox / (1024 * 1024);
-        
-        // Check duration limit
+
         if (durationSec > MAX_DURATION_SECONDS) {
             return {
                 allowed: false,
                 reason: buildDurationLimitReason(durationSec)
             };
         }
-        
-        // Check file size limit (if we can estimate it)
+
         if (filesizeMB > MAX_FILESIZE_MB) {
             return {
                 allowed: false,
                 reason: buildFilesizeLimitReason(filesizeMB)
             };
         }
-        
+
+        console.log(
+            `[yt-dlp][limits] source=${source} id=${videoId} checkedMs=${Date.now() - startedAt}`
+        );
+
         return { allowed: true, duration: durationSec, title: result.title };
     } catch (error) {
         const normalized = normalizeYtDlpError(error);
         if (normalized?.message && normalized.message.includes('National Geographic documentaries')) {
             return { allowed: false, reason: normalized.message };
         }
-        // If we can't check, allow it (fail open for edge cases)
+
+        console.warn(
+            `[yt-dlp][limits] source=${source} id=${videoId} skippedOnErrorMs=${Date.now() - startedAt} reason=${normalized?.message || error?.message}`
+        );
+
         return { allowed: true, error: normalized?.message || error?.message };
     }
 }
 
-async function createDownloadTask(videoId, videoUrl) {
-    // Check limits BEFORE downloading
-    const limitCheck = await checkVideoLimits(videoId, videoUrl);
+async function getDirectStreamUrl(videoId, videoUrl, options = {}) {
+    const source = normalizeSource(options.source, videoUrl);
+    const startedAt = Date.now();
+    const binaryPath = await ensureBinary();
+    const canUseCookies = shouldUseYouTubeCookies(source, videoUrl);
+    const cookieFile = canUseCookies ? await ensureCookiesFile() : null;
+    const extractorArgs = buildExtractorArgs({
+        hasCookies: Boolean(cookieFile),
+        source,
+        videoUrl
+    });
+
+    const streamUrl = await new Promise((resolve, reject) => {
+        const args = [
+            '--force-ipv4',
+            '--no-warnings',
+            '--no-playlist',
+            '-f',
+            'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio',
+            '-g'
+        ];
+
+        if (extractorArgs) {
+            args.push('--extractor-args', extractorArgs);
+        }
+        if (cookieFile) {
+            args.push('--cookies', cookieFile);
+        }
+        args.push(videoUrl);
+
+        const proc = spawn(binaryPath, args, {
+            timeout: 30000,
+            env: { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' }
+        });
+
+        let stdout = '';
+        let stderr = '';
+        proc.stdout.on('data', data => { stdout += data.toString(); });
+        proc.stderr.on('data', data => { stderr += data.toString(); });
+
+        proc.on('close', code => {
+            if (code !== 0) {
+                const err = new Error(`yt-dlp exited with code ${code}`);
+                err.stderr = stderr;
+                reject(normalizeYtDlpError(err));
+                return;
+            }
+
+            const firstUrl = stdout
+                .split('\n')
+                .map(line => line.trim())
+                .find(Boolean);
+
+            if (!firstUrl) {
+                const err = new Error('No playback URL returned by yt-dlp.');
+                err.stderr = stderr;
+                reject(normalizeYtDlpError(err));
+                return;
+            }
+
+            resolve(firstUrl);
+        });
+
+        proc.on('error', reject);
+    });
+
+    console.log(
+        `[yt-dlp][direct] source=${source} id=${videoId} cookieMode=${cookieFile ? 'on' : 'off'} resolvedMs=${Date.now() - startedAt}`
+    );
+
+    return {
+        streamUrl,
+        source,
+        usedCookies: Boolean(cookieFile)
+    };
+}
+
+async function createLiveAudioStream(videoId, videoUrl, options = {}) {
+    const source = normalizeSource(options.source, videoUrl);
+    const startedAt = Date.now();
+    const binaryPath = await ensureBinary();
+    const canUseCookies = shouldUseYouTubeCookies(source, videoUrl);
+    const cookieFile = canUseCookies ? await ensureCookiesFile() : null;
+    const extractorArgs = buildExtractorArgs({
+        hasCookies: Boolean(cookieFile),
+        source,
+        videoUrl
+    });
+
+    const args = [
+        '--force-ipv4',
+        '--ignore-errors',
+        '--no-playlist',
+        '--no-progress',
+        '-f',
+        'bestaudio/best',
+        '-o',
+        '-'
+    ];
+
+    if (extractorArgs) {
+        args.push('--extractor-args', extractorArgs);
+    }
+    if (cookieFile) {
+        args.push('--cookies', cookieFile);
+    }
+    args.push(videoUrl);
+
+    const stderrChunks = [];
+    const proc = spawn(binaryPath, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' }
+    });
+
+    if (proc.stderr) {
+        proc.stderr.on('data', chunk => {
+            if (stderrChunks.length < 80) {
+                stderrChunks.push(chunk.toString());
+            }
+        });
+    }
+
+    console.log(
+        `[yt-dlp][live] source=${source} id=${videoId} cookieMode=${cookieFile ? 'on' : 'off'} spawnMs=${Date.now() - startedAt}`
+    );
+
+    return {
+        process: proc,
+        stream: proc.stdout,
+        source,
+        usedCookies: Boolean(cookieFile),
+        getStderr: () => stderrChunks.join('')
+    };
+}
+
+async function createDownloadTask(videoId, videoUrl, options = {}) {
+    const source = normalizeSource(options.source, videoUrl);
+    const canUseCookies = shouldUseYouTubeCookies(source, videoUrl);
+    const skipLimitCheck = options.skipLimitCheck === true;
+    const limitCheck = skipLimitCheck
+        ? { allowed: true }
+        : await checkVideoLimits(videoId, videoUrl, { source });
     if (!limitCheck.allowed) {
         throw new Error(limitCheck.reason);
     }
@@ -647,10 +851,15 @@ async function createDownloadTask(videoId, videoUrl) {
     let currentChild = null;
 
     const runOnce = async useCookies => {
+        const startedAt = Date.now();
         await cleanupArtifacts(base);
 
-        const cookieFile = useCookies ? await ensureCookiesFile() : null;
-        const extractorArgs = buildExtractorArgs(Boolean(cookieFile));
+        const cookieFile = canUseCookies && useCookies ? await ensureCookiesFile() : null;
+        const extractorArgs = buildExtractorArgs({
+            hasCookies: Boolean(cookieFile),
+            source,
+            videoUrl
+        });
 
         const args = [
             '--force-ipv4',
@@ -673,17 +882,23 @@ async function createDownloadTask(videoId, videoUrl) {
             '--concurrent-fragments',
             '4',
             // Enforce max file size during download as backup
-            '--max-filesize', `${MAX_FILESIZE_MB}M`,
-            '--extractor-args',
-            extractorArgs,
+            '--max-filesize',
+            `${MAX_FILESIZE_MB}M`
+        ];
+
+        if (extractorArgs) {
+            args.push('--extractor-args', extractorArgs);
+        }
+
+        if (cookieFile) {
+            args.push('--cookies', cookieFile);
+        }
+
+        args.push(
             '--ffmpeg-location',
             ffmpegPath,
             videoUrl
-        ];
-
-        if (cookieFile) {
-            args.splice(args.length - 1, 0, '--cookies', cookieFile);
-        }
+        );
 
         const envVars = { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' };
         if (ffprobePath) {
@@ -737,6 +952,9 @@ async function createDownloadTask(videoId, videoUrl) {
                         }
 
                         await fs.promises.rename(output, finalPath);
+                        console.log(
+                            `[yt-dlp][download] source=${source} id=${videoId} cookieMode=${cookieFile ? 'on' : 'off'} doneMs=${Date.now() - startedAt}`
+                        );
                         resolve(finalPath);
                     } catch (error) {
                         await handleError(error);
@@ -755,7 +973,10 @@ async function createDownloadTask(videoId, videoUrl) {
         try {
             return await runOnce(true);
         } catch (error) {
-            if (shouldRetryWithoutCookies(error)) {
+            if (canUseCookies && shouldRetryWithoutCookies(error)) {
+                console.warn(
+                    `[yt-dlp][download] source=${source} id=${videoId} retrying-without-cookies`
+                );
                 return runOnce(false);
             }
             throw error;
@@ -796,7 +1017,7 @@ function cancelCleanup(entry) {
     }
 }
 
-async function acquireAudio(videoId, videoUrl) {
+async function acquireAudio(videoId, videoUrl, options = {}) {
     let entry = cache.get(videoId);
 
     if (entry && entry.path) {
@@ -827,7 +1048,7 @@ async function acquireAudio(videoId, videoUrl) {
         };
     }
 
-    const task = await createDownloadTask(videoId, videoUrl);
+    const task = await createDownloadTask(videoId, videoUrl, options);
     const wrappedPromise = task.promise
         .then(path => {
             const cacheEntry = {
@@ -899,6 +1120,9 @@ function shouldRetryWithoutCookies(error) {
 module.exports = {
     acquireAudio,
     cancelDownload,
+    checkVideoLimits,
+    createLiveAudioStream,
+    getDirectStreamUrl,
     isNetscapeFormat,
     parseNetscapeCookies,
     COOKIE_ENV_KEYS

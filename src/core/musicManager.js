@@ -173,18 +173,22 @@ class MusicManager {
 
         const videoId = extractVideoId(video.url) ?? video.url;
         state.pendingVideoId = videoId;
+        const playStart = Date.now();
 
         let streamResult;
         try {
-            // Get stream directly - no download wait!
-            streamResult = await getAudioStream(videoId, video.url);
+            streamResult = await getAudioStream({
+                id: videoId,
+                url: video.url,
+                source: video.source || null
+            });
             state.pendingVideoId = null;
         } catch (error) {
             state.pendingVideoId = null;
             if (error.message === 'Stream cancelled') {
                 return null;
             }
-            console.error('play-dl stream failed:', error.message);
+            console.error('music stream failed:', error.message);
             const reason = normalizePlaybackFailureReason(error.message);
             const failureMessage = queueAdvance
                 ? `⚠️ Skipping **${video.title}**: ${reason}`
@@ -212,6 +216,9 @@ class MusicManager {
             state.player.play(resource);
             state.currentVideo = video;
             state.currentRelease = streamResult.cleanup;
+            console.log(
+                `[music][play] guild=${guildId} source=${video.source || 'unknown'} id=${videoId} ttfbMs=${Date.now() - playStart}`
+            );
 
             const message = this.buildNowPlayingAnnouncement(video);
 

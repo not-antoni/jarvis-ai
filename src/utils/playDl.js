@@ -1,205 +1,326 @@
 'use strict';
 
 /**
- * Hybrid YouTube audio streaming - tries play-dl first (fast), falls back to yt-dlp (reliable)
+ * Music streaming pipeline:
+ * 1) direct yt-dlp URL + ffmpeg transcode (fast start)
+ * 2) cached yt-dlp download + local buffered read (reliable fallback)
  */
 
-// play-dl disabled - too unreliable on shared IPs, yt-dlp works better
-const play = null;
-
-const {
-    acquireAudio,
-    cancelDownload,
-    isNetscapeFormat,
-    parseNetscapeCookies,
-    COOKIE_ENV_KEYS
-} = require('./ytDlp');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const { PassThrough } = require('stream');
 const { StreamType } = require('@discordjs/voice');
 
-// Track active streams for cancellation
-const activeStreams = new Map(); // videoId -> { stream, aborted, method }
+const {
+    acquireAudio,
+    cancelDownload,
+    checkVideoLimits,
+    createLiveAudioStream
+} = require('./ytDlp');
+const { ensureFfmpeg } = require('./ffmpeg');
 
-// Track 429 errors to skip play-dl when rate limited
-let playDlRateLimited = false;
-let rateLimitResetTime = 0;
-const RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+// videoId -> { stream, aborted, method, childProcess, source }
+const activeStreams = new Map();
 
-/**
- * Convert cookies to the string format play-dl expects
- */
-function cookiesToString(cookies) {
-    return cookies.map(c => `${c.name}=${c.value}`).join('; ');
+function readBooleanEnv(key, defaultValue) {
+    const raw = process.env[key];
+    if (!raw) {
+        return defaultValue;
+    }
+
+    return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase());
 }
 
-/**
- * Initialize play-dl with YouTube cookies if available
- */
-async function initializePlayDl() {
-    if (!play) {return false;}
+const FAST_START_MODE = readBooleanEnv('MUSIC_FAST_START_MODE', true);
+const DIRECT_STREAM_ENABLED = readBooleanEnv('MUSIC_DIRECT_STREAM_ENABLED', true);
+const DIRECT_STREAM_SOURCES = new Set(
+    String(process.env.MUSIC_DIRECT_STREAM_SOURCES || 'youtube,soundcloud')
+        .split(',')
+        .map(value => value.trim().toLowerCase())
+        .filter(Boolean)
+);
 
-    for (const key of COOKIE_ENV_KEYS) {
-        const raw = process.env[key];
-        if (!raw || !raw.trim()) {continue;}
+const BUFFER_SIZE = Number(process.env.MUSIC_STREAM_BUFFER_BYTES) || (2 * 1024 * 1024);
+const PRE_BUFFER_SIZE = Number(process.env.MUSIC_PREBUFFER_BYTES) || (
+    FAST_START_MODE ? 512 * 1024 : 4 * 1024 * 1024
+);
+const PRE_BUFFER_TIMEOUT_MS = Number(process.env.MUSIC_PREBUFFER_TIMEOUT_MS) || (
+    FAST_START_MODE ? 1500 : 5000
+);
 
-        let cookieString = null;
+const DIRECT_PREBUFFER_BYTES = Number(process.env.MUSIC_DIRECT_PREBUFFER_BYTES) || (192 * 1024);
+const DIRECT_PREBUFFER_TIMEOUT_MS = Number(process.env.MUSIC_DIRECT_PREBUFFER_TIMEOUT_MS) || 9000;
+const DIRECT_OPUS_BITRATE = String(process.env.MUSIC_DIRECT_OPUS_BITRATE || '160k');
+const DIRECT_OPUS_COMPLEXITY = String(process.env.MUSIC_DIRECT_OPUS_COMPLEXITY || '8');
 
-        // Check if Netscape format
-        if (isNetscapeFormat(raw)) {
-            const cookies = parseNetscapeCookies(raw);
-            if (cookies.length > 0) {
-                cookieString = cookiesToString(cookies);
-                console.log(
-                    `play-dl: Parsed ${cookies.length} cookies from Netscape format (${key})`
-                );
-            }
-        } else if (raw.includes('=') && raw.includes(';')) {
-            // Already in cookie string format
-            cookieString = raw.trim();
-            console.log(`play-dl: Using cookie string from ${key}`);
-        }
-
-        if (cookieString) {
-            try {
-                await play.setToken({
-                    youtube: {
-                        cookie: cookieString
-                    }
-                });
-                console.log(`play-dl: Initialized with cookies from ${key}`);
-                return true;
-            } catch (error) {
-                console.warn('play-dl: Cookie init failed:', error.message);
-            }
-        }
+function inferSource(videoUrl) {
+    const url = String(videoUrl || '').toLowerCase();
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        return 'youtube';
     }
-
-    console.log('play-dl: No cookies set, will be rate-limited on shared IPs');
-    return false;
+    if (url.includes('soundcloud.com')) {
+        return 'soundcloud';
+    }
+    return 'unknown';
 }
 
-// Initialize on module load
-let authInitialized = false;
-const initPromise = initializePlayDl()
-    .then(result => {
-        authInitialized = result;
-    })
-    .catch(error => {
-        console.warn('play-dl init failed:', error.message);
-    });
-
-/**
- * Try to get stream via play-dl (fast, but can be rate-limited)
- */
-async function tryPlayDl(videoUrl, streamState) {
-    if (!play) {throw new Error('play-dl not available');}
-
-    // Check if we're in rate limit cooldown
-    if (playDlRateLimited && Date.now() < rateLimitResetTime) {
-        throw new Error('play-dl rate limited, skipping');
+function normalizeStreamRequest(inputOrVideoId, maybeUrl, maybeOptions = {}) {
+    if (inputOrVideoId && typeof inputOrVideoId === 'object') {
+        const id = String(inputOrVideoId.id || '').trim();
+        const url = String(inputOrVideoId.url || '').trim();
+        const source = String(
+            inputOrVideoId.source || maybeOptions.source || inferSource(inputOrVideoId.url)
+        ).trim().toLowerCase() || 'unknown';
+        return { id, url, source };
     }
 
-    // Normalize URL - play-dl can be picky about format
-    let normalizedUrl = videoUrl;
+    const id = String(inputOrVideoId || '').trim();
+    const url = String(maybeUrl || '').trim();
+    const source = String(maybeOptions.source || inferSource(maybeUrl)).trim().toLowerCase() || 'unknown';
+    return { id, url, source };
+}
 
-    // Extract video ID and rebuild clean URL
-    const videoIdMatch = videoUrl.match(/(?:v=|\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-    if (videoIdMatch) {
-        normalizedUrl = `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
+function shouldUseDirectStream(source) {
+    if (!DIRECT_STREAM_ENABLED) {
+        return false;
     }
 
-    // Skip validation - just try to stream directly
-    // play-dl's validate() can fail even for valid videos
-    const streamResult = await play.stream(normalizedUrl, {
-        quality: 2,
-        discordPlayerCompatibility: true
+    return DIRECT_STREAM_SOURCES.has(String(source || '').toLowerCase());
+}
+
+function waitForPrebuffer(stream, targetBytes, timeoutMs) {
+    let buffered = 0;
+
+    return new Promise(resolve => {
+        const timeout = setTimeout(() => {
+            cleanup();
+            resolve(buffered);
+        }, timeoutMs);
+
+        const onData = chunk => {
+            buffered += chunk.length;
+            if (buffered >= targetBytes) {
+                cleanup();
+                resolve(buffered);
+            }
+        };
+
+        const onEnd = () => {
+            cleanup();
+            resolve(buffered);
+        };
+
+        const cleanup = () => {
+            clearTimeout(timeout);
+            stream.off('data', onData);
+            stream.off('end', onEnd);
+            stream.off('close', onEnd);
+        };
+
+        stream.on('data', onData);
+        stream.once('end', onEnd);
+        stream.once('close', onEnd);
     });
+}
+
+async function tryDirectFfmpegStream(videoId, videoUrl, source, streamState) {
+    const streamLookupStart = Date.now();
+    const live = await createLiveAudioStream(videoId, videoUrl, { source });
+    const lookupMs = Date.now() - streamLookupStart;
 
     if (streamState.aborted) {
-        streamResult.stream.destroy();
+        try {
+            live.process.kill('SIGKILL');
+        } catch (_e) { }
         throw new Error('Stream cancelled');
     }
 
-    // Clear rate limit flag on success
-    playDlRateLimited = false;
+    const { ffmpegPath } = await ensureFfmpeg();
 
-    streamState.stream = streamResult.stream;
-    streamState.method = 'play-dl';
+    const ffmpegArgs = [
+        '-hide_banner',
+        '-loglevel',
+        'warning',
+        '-i',
+        'pipe:0',
+        '-vn',
+        '-ac',
+        '2',
+        '-ar',
+        '48000',
+        '-c:a',
+        'libopus',
+        '-b:a',
+        DIRECT_OPUS_BITRATE,
+        '-vbr',
+        'on',
+        '-compression_level',
+        DIRECT_OPUS_COMPLEXITY,
+        '-application',
+        'audio',
+        '-f',
+        'ogg',
+        'pipe:1'
+    ];
+
+    const ffmpeg = spawn(ffmpegPath, ffmpegArgs, {
+        stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    const stderrChunks = [];
+    if (ffmpeg.stderr) {
+        ffmpeg.stderr.on('data', chunk => {
+            if (stderrChunks.length < 40) {
+                stderrChunks.push(chunk.toString());
+            }
+        });
+    }
+
+    if (live.stream && ffmpeg.stdin) {
+        ffmpeg.stdin.on('error', err => {
+            if (err?.code !== 'EPIPE') {
+                console.warn(`[music][direct] stdin pipe error: ${err?.message || err}`);
+            }
+        });
+        live.stream.on('error', err => {
+            if (err?.code !== 'EPIPE') {
+                console.warn(`[music][direct] yt-dlp stream error: ${err?.message || err}`);
+            }
+        });
+        live.stream.pipe(ffmpeg.stdin);
+    }
+
+    let ytDlpExitCode = null;
+    live.process.once('close', (code) => {
+        ytDlpExitCode = code;
+        if (code !== 0 && ffmpeg && !ffmpeg.killed) {
+            try {
+                ffmpeg.kill('SIGKILL');
+            } catch (_e) { }
+        }
+    });
+
+    const bufferedStream = new PassThrough({
+        highWaterMark: BUFFER_SIZE,
+        readableHighWaterMark: BUFFER_SIZE,
+        writableHighWaterMark: BUFFER_SIZE
+    });
+
+    let hadOutput = false;
+    if (ffmpeg.stdout) {
+        ffmpeg.stdout.on('data', () => {
+            hadOutput = true;
+        });
+        ffmpeg.stdout.pipe(bufferedStream);
+    }
+
+    streamState.childProcess = ffmpeg;
+    streamState.stream = bufferedStream;
+    streamState.method = 'ffmpeg-direct';
+
+    const prebufferStart = Date.now();
+    const bufferedBytes = await waitForPrebuffer(
+        bufferedStream,
+        DIRECT_PREBUFFER_BYTES,
+        DIRECT_PREBUFFER_TIMEOUT_MS
+    );
+    const prebufferMs = Date.now() - prebufferStart;
+
+    if (streamState.aborted) {
+        try {
+            ffmpeg.kill('SIGKILL');
+        } catch (_e) { }
+        throw new Error('Stream cancelled');
+    }
+
+    if (!hadOutput) {
+        const stderr = [
+            stderrChunks.join(' ').trim(),
+            live.getStderr()
+        ].filter(Boolean).join(' ');
+        if (live.process && !live.process.killed) {
+            try {
+                live.process.kill('SIGKILL');
+            } catch (_e) { }
+        }
+        try {
+            ffmpeg.kill('SIGKILL');
+        } catch (_e) { }
+        throw new Error(stderr || 'ffmpeg direct stream produced no output');
+    }
+
+    console.log(
+        `[music][direct] source=${source} id=${videoId} lookupMs=${lookupMs} prebufferBytes=${bufferedBytes} prebufferMs=${prebufferMs} ytdlpExit=${ytDlpExitCode ?? 'running'}`
+    );
 
     return {
-        stream: streamResult.stream,
-        type: streamResult.type,
+        stream: bufferedStream,
+        type: StreamType.OggOpus,
         cleanup: () => {
             try {
-                streamResult.stream.destroy();
-            } catch (e) { }
+                if (live.process && !live.process.killed) {
+                    live.process.kill('SIGKILL');
+                }
+            } catch (_e) { }
+            try {
+                if (ffmpeg && !ffmpeg.killed) {
+                    ffmpeg.kill('SIGKILL');
+                }
+            } catch (_e) { }
+            try {
+                bufferedStream.destroy();
+            } catch (_e) { }
             activeStreams.delete(streamState.videoId);
         }
     };
 }
 
-/**
- * Fallback to yt-dlp (slower but more reliable with cookies)
- * Uses pre-buffering to prevent audio glitches on long tracks
- */
-async function tryYtDlp(videoId, videoUrl, streamState) {
-    console.log(`Falling back to yt-dlp for ${videoId}`);
-
-    const ticket = await acquireAudio(videoId, videoUrl);
+async function tryCachedYtDlpStream(videoId, videoUrl, source, streamState, options = {}) {
+    const acquireStart = Date.now();
+    const ticket = await acquireAudio(videoId, videoUrl, {
+        source,
+        skipLimitCheck: options.skipLimitCheck === true
+    });
+    const acquireMs = Date.now() - acquireStart;
 
     if (streamState.aborted) {
         ticket.release();
         throw new Error('Stream cancelled');
     }
 
-    // Create a PassThrough stream with large buffer for sustained playback
-    // This maintains a buffer throughout the track, not just at the start
-    const BUFFER_SIZE = 2 * 1024 * 1024; // 2MB sustained buffer
-    const PRE_BUFFER_SIZE = 4 * 1024 * 1024; // Pre-buffer 4MB before starting
-
     const bufferedStream = new PassThrough({
         highWaterMark: BUFFER_SIZE,
-        // Allow more data to be buffered before backpressure kicks in
         readableHighWaterMark: BUFFER_SIZE,
         writableHighWaterMark: BUFFER_SIZE
     });
 
-    // Read file with large chunks for efficient I/O
     const fileStream = fs.createReadStream(ticket.filePath, {
-        highWaterMark: 512 * 1024 // Read in 512KB chunks
+        highWaterMark: 512 * 1024
     });
 
-    // Pre-buffer: wait for initial data before returning the stream
-    let preBuffered = 0;
-    let preBufferResolve;
-    const preBufferPromise = new Promise(resolve => { preBufferResolve = resolve; });
-
-    const onData = (chunk) => {
-        preBuffered += chunk.length;
-        if (preBuffered >= PRE_BUFFER_SIZE) {
-            fileStream.off('data', onData);
-            preBufferResolve();
-        }
-    };
-
-    // Start piping file to buffered stream
     fileStream.pipe(bufferedStream);
 
-    // Listen for pre-buffer completion (but don't block indefinitely for small files)
-    fileStream.on('data', onData);
-    fileStream.once('end', () => preBufferResolve()); // Resolve if file ends before pre-buffer target
+    const prebufferStart = Date.now();
+    const bufferedBytes = await waitForPrebuffer(bufferedStream, PRE_BUFFER_SIZE, PRE_BUFFER_TIMEOUT_MS);
+    const prebufferMs = Date.now() - prebufferStart;
 
-    // Wait for pre-buffer (max 5 seconds to prevent hanging)
-    await Promise.race([
-        preBufferPromise,
-        new Promise(resolve => setTimeout(resolve, 5000))
-    ]);
-
-    console.log(`Pre-buffered ${Math.round(preBuffered / 1024)}KB for ${videoId}`);
+    if (streamState.aborted) {
+        try {
+            fileStream.destroy();
+        } catch (_e) { }
+        try {
+            bufferedStream.destroy();
+        } catch (_e) { }
+        ticket.release();
+        throw new Error('Stream cancelled');
+    }
 
     streamState.stream = bufferedStream;
-    streamState.method = 'yt-dlp';
+    streamState.method = 'yt-dlp-cache';
+
+    console.log(
+        `[music][cache] source=${source} id=${videoId} acquireMs=${acquireMs} prebufferBytes=${bufferedBytes} prebufferMs=${prebufferMs}`
+    );
 
     return {
         stream: bufferedStream,
@@ -207,57 +328,69 @@ async function tryYtDlp(videoId, videoUrl, streamState) {
         cleanup: () => {
             try {
                 fileStream.destroy();
-            } catch (e) { }
+            } catch (_e) { }
             try {
                 bufferedStream.destroy();
-            } catch (e) { }
+            } catch (_e) { }
             try {
                 ticket.release();
-            } catch (e) { }
+            } catch (_e) { }
             activeStreams.delete(streamState.videoId);
         }
     };
 }
 
 /**
- * Get audio stream for a YouTube video - hybrid approach
- * @param {string} videoId - YouTube video ID
- * @param {string} videoUrl - Full YouTube URL
+ * Get audio stream for a track.
+ * @param {{id: string, url: string, source?: string}|string} inputOrVideoId
+ * @param {string=} maybeUrl
+ * @param {{source?: string}=} maybeOptions
  * @returns {Promise<{stream: Readable, type: StreamType, cleanup: Function}>}
  */
-async function getAudioStream(videoId, videoUrl) {
-    await initPromise;
+async function getAudioStream(inputOrVideoId, maybeUrl, maybeOptions = {}) {
+    const request = normalizeStreamRequest(inputOrVideoId, maybeUrl, maybeOptions);
+    const { id: videoId, url: videoUrl, source } = request;
+
+    if (!videoId || !videoUrl) {
+        throw new Error('Invalid stream request');
+    }
 
     cancelStream(videoId);
 
-    const streamState = { stream: null, aborted: false, videoId, method: null };
+    const streamState = {
+        stream: null,
+        aborted: false,
+        videoId,
+        method: null,
+        childProcess: null,
+        source
+    };
     activeStreams.set(videoId, streamState);
 
-    // Try play-dl first (fast)
-    if (play && !playDlRateLimited) {
-        try {
-            const result = await tryPlayDl(videoUrl, streamState);
-            console.log(`Stream started via play-dl for ${videoId}`);
-            return result;
-        } catch (error) {
-            const msg = error.message || String(error);
-
-            // Mark rate limited and set cooldown
-            if (msg.includes('429') || msg.includes('rate')) {
-                console.warn('play-dl hit 429, switching to yt-dlp for next 10 minutes');
-                playDlRateLimited = true;
-                rateLimitResetTime = Date.now() + RATE_LIMIT_COOLDOWN_MS;
-            }
-
-            console.warn(`play-dl failed: ${msg}, trying yt-dlp...`);
-        }
-    }
-
-    // Fallback to yt-dlp (reliable)
     try {
-        const result = await tryYtDlp(videoId, videoUrl, streamState);
-        console.log(`Stream started via yt-dlp for ${videoId}`);
-        return result;
+        const limitCheck = await checkVideoLimits(videoId, videoUrl, { source });
+        if (!limitCheck.allowed) {
+            throw new Error(limitCheck.reason);
+        }
+
+        if (shouldUseDirectStream(source)) {
+            try {
+                const directResult = await tryDirectFfmpegStream(videoId, videoUrl, source, streamState);
+                console.log(`[music][stream] ready source=${source} id=${videoId} method=ffmpeg-direct`);
+                return directResult;
+            } catch (error) {
+                const message = String(error?.message || error);
+                console.warn(
+                    `[music][direct] source=${source} id=${videoId} failed="${message}" -> fallback=yt-dlp-cache`
+                );
+            }
+        }
+
+        const fallback = await tryCachedYtDlpStream(videoId, videoUrl, source, streamState, {
+            skipLimitCheck: true
+        });
+        console.log(`[music][stream] ready source=${source} id=${videoId} method=yt-dlp-cache`);
+        return fallback;
     } catch (error) {
         activeStreams.delete(videoId);
 
@@ -300,15 +433,23 @@ function cancelStream(videoId) {
     const state = activeStreams.get(videoId);
     if (state) {
         state.aborted = true;
+
+        if (state.childProcess) {
+            try {
+                state.childProcess.kill('SIGKILL');
+            } catch (_e) { }
+        }
+
         if (state.stream) {
             try {
                 state.stream.destroy();
-            } catch (e) { }
+            } catch (_e) { }
         }
-        // Also cancel yt-dlp download if in progress
+
         try {
             cancelDownload(videoId);
-        } catch (e) { }
+        } catch (_e) { }
+
         activeStreams.delete(videoId);
     }
 }
@@ -320,26 +461,9 @@ function cancelStream(videoId) {
  * @returns {Promise<Array<{title: string, url: string, duration: string, thumbnail: string}>>}
  */
 async function searchYouTube(query, limit = 5) {
-    if (!play) {return [];}
-    await initPromise;
-
-    try {
-        const results = await play.search(query, {
-            source: { youtube: 'video' },
-            limit
-        });
-
-        return results.map(video => ({
-            title: video.title || 'Unknown Title',
-            url: video.url,
-            duration: video.durationRaw || '0:00',
-            thumbnail: video.thumbnails?.[0]?.url || null,
-            channel: video.channel?.name || 'Unknown'
-        }));
-    } catch (error) {
-        console.error('play-dl search error:', error.message);
-        return [];
-    }
+    void query;
+    void limit;
+    return [];
 }
 
 /**
@@ -348,47 +472,22 @@ async function searchYouTube(query, limit = 5) {
  * @returns {Promise<{title: string, duration: number, thumbnail: string}>}
  */
 async function getVideoInfo(url) {
-    if (!play) {throw new Error('play-dl not available');}
-    await initPromise;
-
-    try {
-        const info = await play.video_info(url);
-        const details = info.video_details;
-
-        return {
-            title: details.title || 'Unknown Title',
-            duration: details.durationInSec || 0,
-            durationFormatted: details.durationRaw || '0:00',
-            thumbnail: details.thumbnails?.[0]?.url || null,
-            channel: details.channel?.name || 'Unknown',
-            url: details.url || url
-        };
-    } catch (error) {
-        console.error('play-dl video info error:', error.message);
-        throw error;
-    }
+    void url;
+    throw new Error('Direct metadata lookup is disabled in this build');
 }
 
 /**
  * Check if music system is ready
  */
 async function healthCheck() {
-    try {
-        await initPromise;
-
-        return {
-            ready: true,
-            playDlAvailable: !!play,
-            playDlRateLimited,
-            authenticated: authInitialized,
-            ytDlpAvailable: true // Always available as fallback
-        };
-    } catch (error) {
-        return {
-            ready: false,
-            error: error.message
-        };
-    }
+    return {
+        ready: true,
+        playDlAvailable: false,
+        playDlRateLimited: false,
+        authenticated: false,
+        ytDlpAvailable: true,
+        directStreamEnabled: DIRECT_STREAM_ENABLED
+    };
 }
 
 module.exports = {
