@@ -14,6 +14,15 @@ const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
 const { safeSend } = require('../utils/discord-safe-send');
 
 const LOOP_MODES = ['off', 'song', 'queue'];
+const VOICE_READY_TIMEOUT_MS = Number(process.env.MUSIC_VOICE_READY_TIMEOUT_MS) || 30_000;
+const VOICE_JOIN_RETRIES = Number(process.env.MUSIC_VOICE_JOIN_RETRIES) || 4;
+const VOICE_RECONNECT_ATTEMPTS = Number(process.env.MUSIC_VOICE_RECONNECT_ATTEMPTS) || 10;
+const VOICE_RECONNECT_DELAY_MS = Number(process.env.MUSIC_VOICE_RECONNECT_DELAY_MS) || 1_500;
+const VOICE_JOIN_RETRY_DELAY_MS = Number(process.env.MUSIC_VOICE_JOIN_RETRY_DELAY_MS) || 1_500;
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 function cloneTrack(track) {
     return track ? { ...track } : null;
@@ -503,64 +512,157 @@ class MusicManager {
     }
 
     async createConnection(guildId, voiceChannel) {
-        try {
-            const connection = joinVoiceChannel({
+        const buildConnection = () =>
+            joinVoiceChannel({
                 channelId: voiceChannel.id,
                 guildId: voiceChannel.guild.id,
                 adapterCreator: voiceChannel.guild.voiceAdapterCreator,
                 selfDeaf: true
             });
 
-            await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+        let connection = null;
+        let joined = false;
+        let lastJoinError = null;
 
-            connection.on('stateChange', (_, newState) => {
-                if (newState.status === VoiceConnectionStatus.Disconnected) {
-                    const closeCode = extractVoiceCloseCode(newState);
-                    if (closeCode === 4017) {
-                        console.error(
-                            '[Voice] Disconnected with close code 4017 (DAVE required). ' +
-                            'Voice library/runtime may be out of date for Discord E2EE.'
-                        );
-                    }
-                    setTimeout(() => {
-                        const state = this.queues.get(guildId);
-                        if (
-                            state?.connection === connection &&
-                            newState.status === VoiceConnectionStatus.Disconnected
-                        ) {
-                            if (closeCode === 4017 && state.textChannel) {
-                                safeSend(
-                                    state.textChannel,
-                                    {
-                                        content:
-                                            '⚠️ Voice session rejected (Discord close code 4017: DAVE/E2EE required). ' +
-                                            'Please update voice runtime and try again.'
-                                    },
-                                    this.client
-                                ).catch(() => { });
-                            }
-                            this.cleanup(guildId);
-                        }
-                    }, 5000);
+        for (let attempt = 1; attempt <= VOICE_JOIN_RETRIES; attempt += 1) {
+            connection = buildConnection();
+            try {
+                await entersState(connection, VoiceConnectionStatus.Ready, VOICE_READY_TIMEOUT_MS);
+                joined = true;
+                if (attempt > 1) {
+                    console.warn(`[Voice] Connected on retry ${attempt}/${VOICE_JOIN_RETRIES} for guild ${guildId}`);
                 }
-            });
+                break;
+            } catch (error) {
+                lastJoinError = error;
+                console.warn(
+                    `[Voice] Join attempt ${attempt}/${VOICE_JOIN_RETRIES} failed for guild ${guildId}:`,
+                    error?.message || error
+                );
+                try {
+                    connection.destroy();
+                } catch (_e) { }
 
-            connection.on('error', error => {
-                console.error('Voice connection error:', error);
-                const state = this.queues.get(guildId);
-                if (state?.textChannel) {
-                    state.textChannel
-                        .send('⚠️ Voice connection error, leaving channel.')
-                        .catch(() => { });
+                if (attempt < VOICE_JOIN_RETRIES) {
+                    await delay(VOICE_JOIN_RETRY_DELAY_MS * attempt);
                 }
-                this.cleanup(guildId);
-            });
+            }
+        }
 
-            return connection;
-        } catch (error) {
-            console.error('Failed to join voice channel:', error);
+        if (!joined || !connection) {
+            console.error('Failed to join voice channel:', lastJoinError);
             throw new Error('Unable to join the voice channel.');
         }
+
+        let reconnectAttempts = 0;
+        let recovering = false;
+        let leaving = false;
+
+        const notifyAndLeave = async message => {
+            if (leaving) {
+                return;
+            }
+            leaving = true;
+            const state = this.queues.get(guildId);
+            if (state?.connection === connection && state.textChannel && message) {
+                await safeSend(state.textChannel, { content: message }, this.client).catch(() => { });
+            }
+            this.cleanup(guildId);
+        };
+
+        const attemptRecovery = async(trigger, closeCode = null) => {
+            if (leaving || recovering) {
+                return;
+            }
+
+            recovering = true;
+            reconnectAttempts += 1;
+            const attempt = reconnectAttempts;
+
+            try {
+                const state = this.queues.get(guildId);
+                if (!state || state.connection !== connection) {
+                    return;
+                }
+
+                if (attempt > VOICE_RECONNECT_ATTEMPTS) {
+                    await notifyAndLeave('⚠️ Voice connection error, leaving channel.');
+                    return;
+                }
+
+                const delayMs = VOICE_RECONNECT_DELAY_MS * Math.min(attempt, 4);
+                console.warn(
+                    `[Voice] Recovery attempt ${attempt}/${VOICE_RECONNECT_ATTEMPTS} for guild ${guildId} (trigger=${trigger}, code=${closeCode ?? 'n/a'})`
+                );
+                await delay(delayMs);
+
+                const liveState = this.queues.get(guildId);
+                if (!liveState || liveState.connection !== connection || leaving) {
+                    return;
+                }
+
+                try {
+                    connection.rejoin();
+                } catch (_error) {
+                    // Fall through and let entersState determine readiness.
+                }
+
+                await entersState(connection, VoiceConnectionStatus.Ready, VOICE_READY_TIMEOUT_MS);
+                reconnectAttempts = 0;
+                console.log(`[Voice] Recovered voice connection for guild ${guildId}`);
+            } catch (error) {
+                console.warn(
+                    `[Voice] Recovery failed for guild ${guildId}:`,
+                    error?.message || error
+                );
+
+                if (reconnectAttempts >= VOICE_RECONNECT_ATTEMPTS) {
+                    await notifyAndLeave('⚠️ Voice connection error, leaving channel.');
+                    return;
+                }
+            } finally {
+                recovering = false;
+            }
+
+            const stateAfter = this.queues.get(guildId);
+            if (
+                !leaving &&
+                stateAfter?.connection === connection &&
+                connection.state.status === VoiceConnectionStatus.Disconnected
+            ) {
+                attemptRecovery('still-disconnected', closeCode).catch(() => { });
+            }
+        };
+
+        connection.on('stateChange', (_, newState) => {
+            if (newState.status === VoiceConnectionStatus.Ready) {
+                reconnectAttempts = 0;
+                return;
+            }
+
+            if (newState.status === VoiceConnectionStatus.Disconnected) {
+                const closeCode = extractVoiceCloseCode(newState);
+                if (closeCode === 4017) {
+                    console.error(
+                        '[Voice] Disconnected with close code 4017 (DAVE required). ' +
+                        'Voice library/runtime may be out of date for Discord E2EE.'
+                    );
+                    notifyAndLeave(
+                        '⚠️ Voice session rejected (Discord close code 4017: DAVE/E2EE required). Please update voice runtime and try again.'
+                    ).catch(() => { });
+                    return;
+                }
+
+                attemptRecovery('disconnected', closeCode).catch(() => { });
+            }
+        });
+
+        connection.on('error', error => {
+            console.error('Voice connection error:', error);
+            attemptRecovery('error').catch(() => { });
+        });
+
+        return connection;
     }
 
     createPlayer(guildId) {
