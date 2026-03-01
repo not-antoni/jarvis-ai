@@ -779,7 +779,7 @@ function renderStatusPage(data) {
         </div>
         <div class="btn-row">
             <button class="btn btn-primary" onclick="location.reload()">🔄 Refresh Status</button>
-            <a href="/moderator" class="btn btn-secondary">🛡️ Moderator Dashboard</a>
+            <a href="/moderator/dashboard" class="btn btn-secondary">🛡️ Moderator Dashboard</a>
             <a href="/" class="btn btn-secondary">🏠 Home</a>
         </div>
     </div>

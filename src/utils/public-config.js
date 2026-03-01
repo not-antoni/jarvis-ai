@@ -47,7 +47,7 @@ function parseDomain(raw) {
 function buildBotInviteUrl(clientId) {
     const id = String(clientId || '').trim();
     if (!id) {return '';}
-    return `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(id)}&permissions=8&scope=bot%20applications.commands`;
+    return `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(id)}`;
 }
 
 function parseCsv(raw) {

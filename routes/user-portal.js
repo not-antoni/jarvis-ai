@@ -298,7 +298,7 @@ const PORTAL_PAGE = `
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
             <li><a href="/me" class="active">My Portal</a></li>
-            <li><a href="/moderator">Mod Dashboard</a></li>
+            <li><a href="/moderator/dashboard">Mod Dashboard</a></li>
         </ul>
     </nav>
     <div class="portal-container">
