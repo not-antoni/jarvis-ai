@@ -11,7 +11,7 @@ const ACCEPTABLE_THRESHOLD = 20000; // 20k = acceptable
 const GOOD_THRESHOLD = 100000;      // 100k = fine
 
 // Block duration: 10 minutes
-const BLOCK_DURATION_MS = 10 * 60 * 1000;
+const BLOCK_DURATION_MS = 2 * 60 * 1000;
 
 // Chance to show credit notification (5%)
 const NOTIFY_CHANCE = 0.05;
