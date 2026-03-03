@@ -182,6 +182,7 @@ class AIProviderManager {
 
         // Each Google key gets multiple models — rate limits are per-model
         const googleModels = [
+            `gemini-3-flash-preview`,
             'gemini-2.5-flash',        // Primary — best quality, 250 RPD
             'gemini-2.5-flash-lite',   // Lightweight, 1000 RPD
             'gemini-2.5-pro',          // Most capable, 100 RPD
