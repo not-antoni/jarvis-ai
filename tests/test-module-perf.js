@@ -120,8 +120,7 @@ ${colors.cyan}${colors.bright}╔═══════════════�
         'math-engine.js',
         'embedding-system.js',
         'moderation-filters.js',
-        'crypto-client.js',
-        'agent-cli.js'
+        'crypto-client.js'
     ];
     
     for (const mod of rootModules) {
