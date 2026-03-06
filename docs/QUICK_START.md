@@ -274,9 +274,9 @@ Tests:
   test-smart-tools.js
 
 Docs:
-  SYSTEM_COMPLETE.md
-  VALIDATION_REPORT.md
-  docs/SMART_TOOLS_COMPLETE.md
+  API_REFERENCE.md
+  docs/INTEGRATION_GUIDE.md
+  docs/QUICK_START.md
 ```
 
 ---

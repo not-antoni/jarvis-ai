@@ -17,12 +17,15 @@ provider-state.json
 # Build output
 build/
 .cache/
+config/data/mongo-exports/
+scripts/.chrome-session/
 
 # Keep dashboard dist (needed for deployment)
 !dashboard/dist/
 
 # Logs
 *.log
+logs/
 npm-debug.log*
 
 # OS files
