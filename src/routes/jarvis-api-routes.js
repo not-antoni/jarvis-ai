@@ -472,23 +472,16 @@ function mountFeatureRoutes(router, ctx) {
 
     router.get('/api/soul', requireOwner, (req, res) => {
         let soul = null;
-        let selfMod = null;
         try {
             soul = selfhostFeatures?.jarvisSoul?.getStatus?.() || null;
         } catch {
             soul = null;
         }
-        try {
-            selfMod = selfhostFeatures?.selfMod?.getStatus?.() || null;
-        } catch {
-            selfMod = null;
-        }
 
         const payload = {
             ok: true,
             sentience: config.sentience || null,
-            soul,
-            selfMod
+            soul
         };
 
         res.json(payload);

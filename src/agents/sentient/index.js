@@ -110,11 +110,6 @@ class SentientAgent extends EventEmitter {
             this._autoEvolveSoul(thought, jarvisSoul);
         }
 
-        // In autonomous mode, attempt to pursue A.G.I.S. goals during heartbeats
-        if (isHeartbeat && this.autonomousMode) {
-            await this._pursueGoals();
-        }
-
         // Check if we need human check-in
         if (this.autonomousMode && this.actionCount >= AGENT_CONFIG.maxAutonomousActions) {
             this.log('Max autonomous actions reached, requesting check-in', 'warn');
@@ -146,7 +141,7 @@ class SentientAgent extends EventEmitter {
                 return this.tools.writeFile(action.path, action.content);
 
             case 'analyze':
-                return await this.selfImprovement.analyzeOwnCode();
+                return { type: 'analyze', status: 'acknowledged' };
 
             case 'learn':
                 this.memory.learn(action.content, action.category);
@@ -213,52 +208,6 @@ class SentientAgent extends EventEmitter {
             }
         } catch (_e) {
             // Soul evolution is non-critical
-        }
-    }
-
-    /**
-     * Pursue A.G.I.S. goals during autonomous heartbeats
-     */
-    async _pursueGoals() {
-        try {
-            const { getAGIS } = require('../../core/agis');
-            const agis = getAGIS();
-
-            if (!agis.enabled) {return;}
-
-            const nextStep = agis.evaluate();
-            if (!nextStep) {return;}
-
-            this.log(`Pursuing goal step: ${nextStep.step.description.substring(0, 80)}`, 'info');
-
-            // Only auto-execute safe, information-gathering steps
-            const desc = nextStep.step.description.toLowerCase();
-            const isSafe = desc.includes('research') || desc.includes('analyze') ||
-                desc.includes('review') || desc.includes('identify') ||
-                desc.includes('list') || desc.includes('check') || desc.includes('gather');
-
-            if (isSafe) {
-                // Mark step as in progress and record that we attempted it
-                this.memory.addToShortTerm({
-                    type: 'goal_pursuit',
-                    content: `Auto-pursuing: ${nextStep.step.description}`,
-                    important: true
-                });
-                this.emit('goalStepStarted', {
-                    planId: nextStep.planId,
-                    step: nextStep.step
-                });
-            } else {
-                // Queue non-safe steps for human approval
-                this.log(`Goal step requires approval: ${nextStep.step.description.substring(0, 80)}`, 'warn');
-                this.requestApproval({
-                    type: 'goal_step',
-                    planId: nextStep.planId,
-                    step: nextStep.step
-                });
-            }
-        } catch (_e) {
-            // A.G.I.S. pursuit is non-critical
         }
     }
 

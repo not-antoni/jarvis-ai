@@ -445,30 +445,6 @@ const allCommands = [
         ]),
     // ============ SELFHOST-ONLY COMMANDS ============
     new SlashCommandBuilder()
-        .setName('selfmod')
-        .setDescription('Jarvis self-modification analysis (read-only)')
-        .addSubcommand(sub =>
-            sub.setName('status').setDescription('Check self-modification system status')
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('analyze')
-                .setDescription('Analyze a source file for improvements')
-                .addStringOption(option =>
-                    option
-                        .setName('file')
-                        .setDescription(
-                            'Relative file path to analyze (e.g., src/services/jarvis-core.js)'
-                        )
-                        .setRequired(true)
-                )
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('sentient')
         .setDescription('Jarvis Sentient Agent System (selfhost only)')
         .addSubcommand(sub => sub.setName('status').setDescription('View sentient agent status'))

@@ -1,6 +1,5 @@
 'use strict';
 
-const { EmbedBuilder } = require('discord.js');
 const config = require('../../../config');
 const appContext = require('../../core/app-context');
 const selfhostFeatures = require('../selfhost-features');
@@ -46,59 +45,6 @@ async function sendChunkedInteractionResponse(interaction, content) {
             allowedMentions: { parse: [] }
         });
     }
-}
-
-async function handleSelfmodCommand(interaction) {
-    if (!selfhostFeatures.isSelfhost) {
-        return 'This feature requires selfhost mode (filesystem access), sir.';
-    }
-
-    const subcommand = interaction.options.getSubcommand();
-    let response;
-
-    if (subcommand === 'status') {
-        const status = selfhostFeatures.selfMod.getStatus();
-
-        const statusEmbed = new EmbedBuilder()
-            .setTitle('🔧 Self-Modification System')
-            .setDescription(status.reason)
-            .setColor(0xe74c3c)
-            .addFields(
-                { name: '📊 Analyses Performed', value: String(status.analysisCount), inline: true },
-                { name: '🔒 Can Modify', value: status.canModify ? 'Yes' : 'No (Safety Lock)', inline: true }
-            )
-            .setFooter({ text: 'Selfhost Experimental • Self-Modification System' })
-            .setTimestamp();
-
-        response = { embeds: [statusEmbed] };
-    } else if (subcommand === 'analyze') {
-        const filePath = interaction.options.getString('file');
-        const analysis = await selfhostFeatures.selfMod.analyzeFile(filePath);
-
-        if (analysis.error) {
-            response = `❌ Analysis failed: ${analysis.error}`;
-        } else {
-            const suggestionText = analysis.suggestions.length > 0
-                ? analysis.suggestions.map(s => `• Line ${s.line}: [${s.severity.toUpperCase()}] ${s.message}`).join('\n')
-                : 'No suggestions - code looks clean! 🎉';
-
-            const analysisEmbed = new EmbedBuilder()
-                .setTitle('🔍 Code Analysis Report')
-                .setDescription(`Analyzed: \`${analysis.file}\``)
-                .setColor(0x3498db)
-                .addFields(
-                    { name: '📄 Lines of Code', value: String(analysis.lineCount), inline: true },
-                    { name: '💡 Suggestions', value: String(analysis.suggestions.length), inline: true },
-                    { name: '📝 Details', value: suggestionText.substring(0, 1000), inline: false }
-                )
-                .setFooter({ text: 'Self-Modification System • Read-Only Analysis' })
-                .setTimestamp();
-
-            response = { embeds: [analysisEmbed] };
-        }
-    }
-
-    return response;
 }
 
 async function handleSentientCommand(interaction, handler, guild) {
@@ -491,4 +437,4 @@ ${(result.output || 'No output').substring(0, 1800)}
     return response;
 }
 
-module.exports = { handleSelfmodCommand, handleSentientCommand };
+module.exports = { handleSentientCommand };

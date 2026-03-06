@@ -1141,11 +1141,10 @@ function getPanelPage(session) {
           showRaw(data);
           updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
           renderKpis([
-            { label: 'Soul', value: data.soul && data.soul.enabled ? 'Enabled' : '—', sub: data.soul && data.soul.mode ? String(data.soul.mode) : '' },
-            { label: 'Self-mod', value: data.selfMod && data.selfMod.enabled ? 'Enabled' : '—', sub: '' }
+            { label: 'Soul', value: data.soul && data.soul.enabled ? 'Enabled' : '—', sub: data.soul && data.soul.mode ? String(data.soul.mode) : '' }
           ]);
           var pre = document.createElement('pre');
-          pre.textContent = JSON.stringify({ soul: data.soul || null, selfMod: data.selfMod || null }, null, 2);
+          pre.textContent = JSON.stringify({ soul: data.soul || null }, null, 2);
           viewEl.appendChild(pre);
         }
 
