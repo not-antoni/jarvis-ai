@@ -492,50 +492,20 @@ router.get('/agents', async(req, res) => {
         let agents = [];
         let agentMetrics = {};
 
-        try {
-            const AgentMonitor = require('../src/agents/agentMonitor');
-            const monitor = AgentMonitor.getInstance();
-            const health = monitor.getHealthReport();
-
-            agentMetrics = {
-                memory: {
-                    value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
-                    status: process.memoryUsage().heapUsed < 500 * 1024 * 1024 ? 'good' : 'warning',
-                    details: `${Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100)}% of heap`
-                },
-                cpu: {
-                    value: `${((os.loadavg()[0] * 100) / os.cpus().length).toFixed(0)}%`,
-                    status: os.loadavg()[0] < os.cpus().length ? 'good' : 'warning',
-                    details: `${os.cpus().length} cores available`
-                },
-                activeTasks: {
-                    value: health.operations?.length || 0,
-                    status: 'good',
-                    details: 'Active operations'
-                },
-                errors: {
-                    value: health.alerts?.filter(a => a.level === 'ERROR').length || 0,
-                    status: health.alerts?.some(a => a.level === 'ERROR') ? 'warning' : 'good',
-                    details: 'Last 24 hours'
-                }
-            };
-        } catch (err) {
-            // Default metrics if agent monitor not available
-            agentMetrics = {
-                memory: {
-                    value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
-                    status: 'good',
-                    details: 'Node.js heap'
-                },
-                cpu: {
-                    value: `${(os.loadavg()[0] * 10).toFixed(0)}%`,
-                    status: 'good',
-                    details: `${os.cpus().length} cores`
-                },
-                activeTasks: { value: 0, status: 'good', details: 'No active tasks' },
-                errors: { value: 0, status: 'good', details: 'No errors' }
-            };
-        }
+        agentMetrics = {
+            memory: {
+                value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+                status: 'good',
+                details: 'Node.js heap'
+            },
+            cpu: {
+                value: `${(os.loadavg()[0] * 10).toFixed(0)}%`,
+                status: 'good',
+                details: `${os.cpus().length} cores`
+            },
+            activeTasks: { value: 0, status: 'good', details: 'No active tasks' },
+            errors: { value: 0, status: 'good', details: 'No errors' }
+        };
 
         // Default agent list
         agents = [
