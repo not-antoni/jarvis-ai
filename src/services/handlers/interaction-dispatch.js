@@ -11,7 +11,7 @@ const slashSocial = require('./slash-social');
 const slashUtility = require('./slash-utility');
 const slashModeration = require('./slash-moderation');
 const moderationFilters = require('../moderation-filters');
-const { handleSelfmodCommand, handleSentientCommand } = require('./slash-experimental');
+const { handleSentientCommand } = require('./slash-experimental');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -380,11 +380,6 @@ try {
             break;
         }
         // ============ SELFHOST-ONLY COMMANDS ============
-        case 'selfmod': {
-            telemetryMetadata.category = 'experimental';
-            response = await handleSelfmodCommand(interaction);
-            break;
-        }
         case 'sentient': {
             telemetryMetadata.category = 'experimental';
             response = await handleSentientCommand(interaction, this, guild);
@@ -524,7 +519,7 @@ try {
         }
     }
 
-    if (response === '__RAP_BATTLE_HANDLED__' || response === '__QUOTE_HANDLED__' || response === '__SENTIENT_HANDLED__' || response === '__TYPERACE_HANDLED__' || response === '__JARVIS_HANDLED__') {
+    if (response === '__QUOTE_HANDLED__' || response === '__SENTIENT_HANDLED__' || response === '__TYPERACE_HANDLED__' || response === '__JARVIS_HANDLED__') {
         // These handlers manage their own responses, skip normal handling
         
     } else if (response === undefined || response === null) {
