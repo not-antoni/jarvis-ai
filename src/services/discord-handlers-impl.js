@@ -47,7 +47,6 @@ const ytDlpManager = require('./yt-dlp-manager');
 const guildModeration = require('./GUILDS_FEATURES/moderation');
 const clankerGif = require('../utils/clanker-gif');
 const guildConfigDiskCache = require('./guild-config-cache');
-const { handleSentientCommand } = require('./handlers/slash-experimental');
 const slashSocial = require('./handlers/slash-social');
 const slashUtility = require('./handlers/slash-utility');
 const slashModeration = require('./handlers/slash-moderation');

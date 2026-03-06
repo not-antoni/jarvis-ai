@@ -247,7 +247,7 @@ function mountFeatureRoutes(router, ctx) {
                 errorLogger: {
                     pendingQueue: Array.isArray(errorLogger?.pendingQueue) ? errorLogger.pendingQueue.length : null
                 },
-                soul: { enabled: Boolean(selfhostFeatures?.jarvisSoul), mood: selfhostFeatures?.jarvisSoul?.mood || null }
+                soul: null
             }
         };
 
@@ -470,24 +470,8 @@ function mountFeatureRoutes(router, ctx) {
         res.json({ ok: true, removed: true, message: 'Economy system has been removed.' });
     });
 
-    router.get('/api/soul', requireOwner, (req, res) => {
-        let soul = null;
-        try {
-            soul = selfhostFeatures?.jarvisSoul?.getStatus?.() || null;
-        } catch {
-            soul = null;
-        }
-
-        const payload = {
-            ok: true,
-            sentience: config.sentience || null,
-            soul
-        };
-
-        res.json(payload);
-        saveJarvisSnapshot('soul', payload).catch(err => {
-            console.warn('[Jarvis] Failed to save soul snapshot:', err?.message || err);
-        });
+    router.get('/api/soul', requireOwner, (_req, res) => {
+        res.json({ ok: true, soul: null });
     });
 
     router.get('/api/sync', requireOwner, (req, res) => {

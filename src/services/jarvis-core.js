@@ -10,7 +10,6 @@ const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 const mathSolver = require('./math-solver');
-const { getSentiencePrompt, jarvisSoul } = require('./selfhost-features');
 const { EmbedBuilder } = require('discord.js');
 const { buildSupportEmbed, buildHelpPayload, buildSupportLinkRow } = require('./help-builder');
 const {
@@ -854,14 +853,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             const userProfile = await database.getUserProfile(userId, userName);
             let systemPrompt = this.personality.basePrompt;
 
-            // Inject sentience enhancement for whitelisted guilds (selfhost only)
-            const guildId = interaction?.guildId || interaction?.guild?.id;
-            const sentiencePrompt = getSentiencePrompt(guildId);
-            if (sentiencePrompt) {
-                systemPrompt = `${systemPrompt  }\n\n${  sentiencePrompt}`;
-                // Evolve soul based on interaction
-                jarvisSoul.evolve('helpful', 'positive');
-            }
 
             // Mood detection - adjust tone based on user's emotional state
             try {

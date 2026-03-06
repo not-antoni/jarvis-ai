@@ -1,8 +1,5 @@
 import {
   Activity,
-  Bot,
-  Brain,
-  HardDrive,
   LayoutDashboard,
   ScrollText,
   Settings,
@@ -14,9 +11,6 @@ import { NavLink, Outlet } from 'react-router-dom';
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
   { to: '/providers', icon: Sparkles, label: 'AI Providers' },
-  { to: '/agents', icon: Bot, label: 'Agents' },
-  { to: '/soul', icon: Brain, label: 'Soul & A.G.I.S.' },
-  { to: '/local-ai', icon: HardDrive, label: 'Local AI', badge: 'GPU' },
   { to: '/logs', icon: ScrollText, label: 'Logs' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
