@@ -35,7 +35,6 @@ const aiManager = require('./src/services/ai-providers');
 const discordHandlers = require('./src/services/discord-handlers');
 const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
-const { createAgentDiagnosticsRouter } = require('./src/utils/agent-diagnostics');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
 const errorLogger = require('./src/services/error-logger');
 const serverLogger = require('./src/services/server-logger');
@@ -297,7 +296,7 @@ async function registerSlashCommands() {
 
 // ------------------------ Express Server ------------------------
 const {
-    app, dashboardRouter, publicApiRouter, setDiagnosticsRouter
+    app, dashboardRouter, publicApiRouter
 } = createExpressApp({ webhookRouter, database });
 
 // ------------------------ Event Handlers ------------------------
@@ -351,9 +350,6 @@ client.once(Events.ClientReady, async() => {
             return null;
         }
     })();
-
-    // Initialize diagnostics router now that discordHandlers is ready
-    setDiagnosticsRouter(createAgentDiagnosticsRouter(discordHandlers));
 
     // Initialize dashboard with Discord client for real-time stats
     dashboardRouter.setDiscordClient(client);
