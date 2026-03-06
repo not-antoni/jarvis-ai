@@ -6,12 +6,10 @@ const { stripReactionDirectives } = require('../../utils/react-tags');
 const { recordCommandRun } = require('../../utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../../core/command-registry');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
-const selfhostFeatures = require('../selfhost-features');
 const slashSocial = require('./slash-social');
 const slashUtility = require('./slash-utility');
 const slashModeration = require('./slash-moderation');
 const moderationFilters = require('../moderation-filters');
-const { handleSentientCommand } = require('./slash-experimental');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -69,24 +67,7 @@ try {
         return;
     }
 
-    // Check if sentience is enabled for this guild - if so, bypass feature flag check for sentience-related commands
-    const SENTIENCE_COMMANDS = ['sentient'];
-    const isSentienceCommand = SENTIENCE_COMMANDS.includes(commandName);
-    
-    // Allow owner to bypass sentience whitelist
-    const { isOwner } = require('../../utils/owner-check');
-    const isOwnerUser = isOwner(interaction.user.id);
-    
-    const sentienceEnabled = isOwnerUser || (guild && isSentienceCommand ? selfhostFeatures.isSentienceEnabled(guild.id) : false);
-    
-    // Debug logging for sentience check
-    if (isSentienceCommand && guild) {
-        console.log(`[Sentience] Command: ${commandName}, Guild: ${guild.id}, Enabled: ${sentienceEnabled}`);
-    }
-    
-    const featureAllowed = sentienceEnabled && isSentienceCommand 
-        ? true 
-        : await handler.isCommandFeatureEnabled(commandName, guild);
+    const featureAllowed = await handler.isCommandFeatureEnabled(commandName, guild);
     if (!featureAllowed) {
         telemetryStatus = 'error';
         telemetryMetadata.reason = 'feature-disabled-guild';
@@ -141,11 +122,7 @@ try {
         return;
     }
 
-    // Check if sentience is enabled - if so, make sentience commands non-ephemeral
-    // Reuse the sentience check variables already declared above
-    const shouldBeEphemeral = sentienceEnabled && isSentienceCommand 
-        ? false 
-        : SLASH_EPHEMERAL_COMMANDS.has(commandName);
+    const shouldBeEphemeral = SLASH_EPHEMERAL_COMMANDS.has(commandName);
     const canUseEphemeral = Boolean(guild);
     const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
 
@@ -379,12 +356,6 @@ try {
             response = await slashSocial.handle8ball(interaction);
             break;
         }
-        // ============ SELFHOST-ONLY COMMANDS ============
-        case 'sentient': {
-            telemetryMetadata.category = 'experimental';
-            response = await handleSentientCommand(interaction, this, guild);
-            break;
-        }
         // ============ UTILITY COMMANDS ============
         case 't': {
             telemetryMetadata.category = 'utilities';
@@ -519,7 +490,7 @@ try {
         }
     }
 
-    if (response === '__QUOTE_HANDLED__' || response === '__SENTIENT_HANDLED__' || response === '__TYPERACE_HANDLED__' || response === '__JARVIS_HANDLED__') {
+    if (response === '__QUOTE_HANDLED__' || response === '__TYPERACE_HANDLED__' || response === '__JARVIS_HANDLED__') {
         // These handlers manage their own responses, skip normal handling
         
     } else if (response === undefined || response === null) {

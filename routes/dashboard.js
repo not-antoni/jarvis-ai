@@ -647,32 +647,8 @@ router.get('/settings', async(req, res) => {
     }
 });
 
-/**
- * GET /soul — Artificial soul state and sentient agent status
- */
-router.get('/soul', async(req, res) => {
-    try {
-        const selfhostFeatures = require('../src/services/selfhost-features');
-        const soul = selfhostFeatures.jarvisSoul?.getStatus?.() || null;
-        let agentStatus = null;
-        let agisStatus = null;
-
-        try {
-            const { getSentientAgent } = require('../src/agents/sentient-core');
-            const agent = getSentientAgent();
-            agentStatus = agent.getStatus();
-        } catch (_e) { /* not available */ }
-
-        try {
-            const { getAGIS } = require('../src/core/agis');
-            const agis = getAGIS();
-            agisStatus = agis.getStatus();
-        } catch (_e) { /* not available */ }
-
-        res.json({ soul, agent: agentStatus, agis: agisStatus });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+router.get('/soul', (_req, res) => {
+    res.json({ soul: null, agent: null, agis: null });
 });
 
 // Helper functions
