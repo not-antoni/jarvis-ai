@@ -37,13 +37,6 @@ const cryptoClient = require('./crypto-client');
 const vaultClient = require('./vault-client');
 const moderationFilters = require('./moderation-filters');
 const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
-const BrowserAgent = require('../agents/browserAgent');
-const AgentMonitor = require('../agents/agentMonitor');
-const AgentConfig = require('../agents/agentConfig');
-const RetryPolicy = require('../agents/retryPolicy');
-const AutoHealer = require('../agents/autoHealer');
-const CaptchaHandler = require('../agents/captchaHandler');
-const RobustnessEnhancer = require('../agents/robustnessEnhancer');
 const tempFiles = require('../utils/temp-files');
 const { extractReactionDirective } = require('../utils/react-tags');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
@@ -141,21 +134,6 @@ class DiscordHandlers {
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
         this.crypto = cryptoClient;
         
-        // Initialize agent config from environment
-        this.agentConfig = AgentConfig.loadFromEnv();
-        this.browserAgent = new BrowserAgent(config);
-        this.agentMonitor = new AgentMonitor(this.agentConfig);
-        this.retryPolicy = new RetryPolicy(this.agentConfig);
-        this.autoHealer = new AutoHealer(this.agentConfig);
-        
-        // Initialize captcha and robustness
-        this.captchaHandler = new CaptchaHandler({
-            solvingService: process.env.CAPTCHA_SERVICE || 'none', // 'none', '2captcha', 'anticaptcha'
-            apiKey: process.env.CAPTCHA_API_KEY || null,
-            timeout: 120000,
-            retries: 3
-        });
-        this.robustnessEnhancer = new RobustnessEnhancer();
         
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
