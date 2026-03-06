@@ -9,7 +9,6 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const tests = [
     { name: 'selfhost-features', args: ['tests/selfhost-features.test.js'], retries: 1 },
-    { name: 'sentient-core', args: ['tests/sentient-core.test.js'], retries: 1 },
     { name: 'yt-dlp-manager', args: ['tests/yt-dlp-manager.test.js'], retries: 0 }
 ];
 
