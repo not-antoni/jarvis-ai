@@ -331,29 +331,6 @@ ${pages.map(p => `  <url>
     const dashboardAccessRouter = createDashboardAccessRouter(dashboardDistPath);
     app.use('/dashboard', dashboardAccessRouter);
 
-    // ---- Diagnostics ----
-    let diagnosticsRouter = null;
-
-    app.use('/diagnostics', (req, res, next) => {
-        if (HEALTH_TOKEN) {
-            const providedToken = extractBearerToken(req);
-            if (providedToken !== HEALTH_TOKEN) {
-                return res.status(401).json({ error: 'Unauthorized' });
-            }
-        } else if (isProductionLike()) {
-            return res.status(403).json({ error: 'Diagnostics disabled (set HEALTH_TOKEN)' });
-        }
-
-        if (!diagnosticsRouter) {
-            return res.status(503).json({ error: 'Diagnostics not yet initialized' });
-        }
-        diagnosticsRouter(req, res, next);
-    });
-
-    function setDiagnosticsRouter(router) {
-        diagnosticsRouter = router;
-    }
-
     // ---- Status page ----
     app.get('/status', async(req, res) => {
         if (isRenderHealthUserAgent(req)) {
@@ -572,7 +549,7 @@ ${pages.map(p => `  <url>
         }
     });
 
-    return { app, dashboardRouter, publicApiRouter, setDiagnosticsRouter };
+    return { app, dashboardRouter, publicApiRouter };
 }
 
 function mount404Handler(app) {
