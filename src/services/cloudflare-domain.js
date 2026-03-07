@@ -1,24 +1,9 @@
-/**
- * Cloudflare Domain Management
- * Auto-configure domain for Jarvis on Render or Selfhost
- * 
- * Features:
- * - Auto-register custom domain with Cloudflare
- * - Manage DNS records for the domain
- * - SSL certificate management
- * - Works for both Render and Selfhost deployments
- * - Caches config to avoid unnecessary API calls on restart
- */
-
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
 
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
 
 const CLOUDFLARE_API_BASE = 'https://api.cloudflare.com/client/v4';
 const CONFIG_CACHE_FILE = path.join(process.cwd(), 'data', 'cloudflare-config.json');
@@ -32,13 +17,6 @@ const NGINX_ENABLED_DIR = isRhel ? null : '/etc/nginx/sites-enabled'; // RHEL in
 const NGINX_CONFIG_FILE = isRhel ? path.join(NGINX_DIR, 'jarvis.conf') : path.join(NGINX_DIR, 'jarvis');
 const CLOUDFLARE_IPS_FILE = '/etc/nginx/cloudflare-ips.conf';
 
-// ============================================================================
-// NGINX AUTO-SETUP
-// ============================================================================
-
-/**
- * Check if a command exists
- */
 function commandExists(cmd) {
     try {
         const result = spawnSync('which', [cmd], { encoding: 'utf8', timeout: 5000 });
@@ -48,9 +26,6 @@ function commandExists(cmd) {
     }
 }
 
-/**
- * Check if running as root or can sudo
- */
 function canSudo() {
     try {
         execSync('sudo -n true 2>/dev/null', { encoding: 'utf8', timeout: 5000 });
@@ -60,9 +35,6 @@ function canSudo() {
     }
 }
 
-/**
- * Generate Cloudflare IP allowlist config (fallback list).
- */
 function generateCloudflareIpsConfig() {
     const ipv4 = [
         '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
@@ -95,9 +67,6 @@ deny all;
     return config;
 }
 
-/**
- * Ensure Cloudflare IP allowlist config exists on disk.
- */
 function ensureCloudflareIpsConfig() {
     if (fs.existsSync(CLOUDFLARE_IPS_FILE)) {
         return true;
@@ -292,9 +261,6 @@ function ensureNginxEnsureTimer(projectRoot) {
     }
 }
 
-/**
- * Generate Nginx config for domain (with optional SSL)
- */
 function generateNginxConfig(domain, ssl = false, cloudflareOnly = true) {
     const redirectBlock = ssl ? `
 server {
@@ -363,9 +329,6 @@ ${cloudflareAllowList}
 }`;
 }
 
-/**
- * Check if Nginx is configured for our domain
- */
 function isNginxConfigured(domain) {
     try {
         if (!fs.existsSync(NGINX_CONFIG_FILE)) {
@@ -378,9 +341,6 @@ function isNginxConfigured(domain) {
     }
 }
 
-/**
- * Check if SSL certificates exist for domain
- */
 function sslCertsExist(domain) {
     const certPath = `${SSL_CERT_DIR}/${domain}.pem`;
     const keyPath = `${SSL_CERT_DIR}/${domain}.key`;
@@ -397,9 +357,6 @@ function sslCertsExist(domain) {
     }
 }
 
-/**
- * Load SSL config cache
- */
 function loadSslCache() {
     try {
         if (fs.existsSync(SSL_CACHE_FILE)) {
@@ -411,9 +368,6 @@ function loadSslCache() {
     return null;
 }
 
-/**
- * Save SSL config cache
- */
 function saveSslCache(config) {
     try {
         const dir = path.dirname(SSL_CACHE_FILE);
@@ -426,9 +380,6 @@ function saveSslCache(config) {
     }
 }
 
-/**
- * Create Cloudflare Origin Certificate via API
- */
 async function createOriginCertificate(domain) {
     const config = getConfig();
 
@@ -459,9 +410,6 @@ async function createOriginCertificate(domain) {
     }
 }
 
-/**
- * Save SSL certificates to disk
- */
 async function saveSslCertificates(domain, certificate, privateKey) {
     if (!canSudo()) {
         return { success: false, error: 'Cannot run sudo to save certificates' };
@@ -493,9 +441,6 @@ async function saveSslCertificates(domain, certificate, privateKey) {
     }
 }
 
-/**
- * Auto-setup SSL with Cloudflare Origin Certificate
- */
 async function autoSetupSsl(domain) {
     if (!domain) {
         return { success: false, error: 'No domain provided' };
@@ -565,9 +510,6 @@ async function autoSetupSsl(domain) {
     return { success: true, domain, expiresOn: certResult.expiresOn };
 }
 
-/**
- * Auto-setup Nginx reverse proxy (with optional SSL)
- */
 async function autoSetupNginx(domain, enableSsl = true, force = false) {
     if (!domain) {
         return { success: false, error: 'No domain provided' };
@@ -666,9 +608,6 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
     }
 }
 
-/**
- * Load cached Cloudflare configuration
- */
 function loadCachedConfig() {
     try {
         if (fs.existsSync(CONFIG_CACHE_FILE)) {
@@ -680,9 +619,6 @@ function loadCachedConfig() {
     return null;
 }
 
-/**
- * Save Cloudflare configuration to cache
- */
 function saveCachedConfig(config) {
     try {
         const dir = path.dirname(CONFIG_CACHE_FILE);
@@ -709,9 +645,6 @@ function getConfig() {
     };
 }
 
-// ============================================================================
-// AUTH HELPERS
-// ============================================================================
 
 function getAuthHeaders() {
     const config = getConfig();
@@ -759,13 +692,7 @@ async function cfFetch(endpoint, options = {}) {
     return data;
 }
 
-// ============================================================================
-// ZONE OPERATIONS
-// ============================================================================
 
-/**
- * Get zone details
- */
 async function getZone(zoneId = null) {
     const config = getConfig();
     const id = zoneId || config.zoneId;
@@ -778,30 +705,18 @@ async function getZone(zoneId = null) {
     return data.result;
 }
 
-/**
- * List zones for account
- */
 async function listZones() {
     const config = getConfig();
     const data = await cfFetch(`/zones?account.id=${config.accountId}`);
     return data.result || [];
 }
 
-/**
- * Find zone by domain name
- */
 async function findZoneByDomain(domain) {
     const data = await cfFetch(`/zones?name=${domain}`);
     return data.result?.[0] || null;
 }
 
-// ============================================================================
-// DNS OPERATIONS
-// ============================================================================
 
-/**
- * List DNS records for zone
- */
 async function listDnsRecords(zoneId = null) {
     const config = getConfig();
     const id = zoneId || config.zoneId;
@@ -810,9 +725,6 @@ async function listDnsRecords(zoneId = null) {
     return data.result || [];
 }
 
-/**
- * Get DNS record by name and type
- */
 async function getDnsRecord(name, type = 'A', zoneId = null) {
     const config = getConfig();
     const id = zoneId || config.zoneId;
@@ -821,9 +733,6 @@ async function getDnsRecord(name, type = 'A', zoneId = null) {
     return data.result?.[0] || null;
 }
 
-/**
- * Create DNS record
- */
 async function createDnsRecord(record, zoneId = null) {
     const config = getConfig();
     const id = zoneId || config.zoneId;
@@ -836,9 +745,6 @@ async function createDnsRecord(record, zoneId = null) {
     return data.result;
 }
 
-/**
- * Update DNS record
- */
 async function updateDnsRecord(recordId, record, zoneId = null) {
     const config = getConfig();
     const id = zoneId || config.zoneId;
@@ -851,9 +757,6 @@ async function updateDnsRecord(recordId, record, zoneId = null) {
     return data.result;
 }
 
-/**
- * Upsert DNS record (create or update)
- */
 async function upsertDnsRecord(name, type, content, options = {}, zoneId = null) {
     const existing = await getDnsRecord(name, type, zoneId);
 
@@ -873,14 +776,7 @@ async function upsertDnsRecord(name, type, content, options = {}, zoneId = null)
     
 }
 
-// ============================================================================
-// RENDER INTEGRATION
-// ============================================================================
 
-/**
- * Configure domain for Render deployment
- * Points the domain to Render's servers
- */
 async function configureForRender(subdomain = null) {
     const config = getConfig();
     const { domain } = config;
@@ -935,14 +831,7 @@ async function configureForRender(subdomain = null) {
     };
 }
 
-// ============================================================================
-// SELFHOST INTEGRATION
-// ============================================================================
 
-/**
- * Configure domain for selfhost deployment
- * Points the domain to a specific IP or hostname
- */
 async function configureForSelfhost(target, subdomain = null) {
     const config = getConfig();
     const { domain } = config;
@@ -996,20 +885,10 @@ async function configureForSelfhost(target, subdomain = null) {
     };
 }
 
-// ============================================================================
-// AUTO-CONFIGURE
-// ============================================================================
-
-/**
- * Detect if running on Render (checks for Render-specific env vars)
- */
 function isRunningOnRender() {
     return !!(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID);
 }
 
-/**
- * Extract hostname from URL or return as-is if already a hostname/IP
- */
 function extractHostname(urlOrHost) {
     if (!urlOrHost) { return null; }
 
@@ -1032,9 +911,6 @@ function extractHostname(urlOrHost) {
     }
 }
 
-/**
- * Detect the best target for DNS configuration
- */
 function detectTarget() {
     const config = getConfig();
 
@@ -1072,11 +948,6 @@ function detectTarget() {
     return null;
 }
 
-/**
- * Auto-detect deployment mode and configure domain
- * Supports: render, selfhost, hybrid (auto-detect)
- * Caches config to skip unnecessary API calls on restart
- */
 async function autoConfigure(options = {}) {
     const config = getConfig();
     const forceReconfigure = options.force === true;
@@ -1135,47 +1006,6 @@ async function autoConfigure(options = {}) {
     }
 }
 
-/**
- * Force reconfigure (bypass cache)
- */
-/**
- * Set SSL mode (off, flexible, full, strict)
- */
-async function setSSLMode(mode, zoneId = null) {
-    const config = getConfig();
-    const id = zoneId || config.zoneId;
-
-    const validModes = ['off', 'flexible', 'full', 'strict'];
-    if (!validModes.includes(mode)) {
-        throw new Error(`Invalid SSL mode. Must be one of: ${validModes.join(', ')}`);
-    }
-
-    const data = await cfFetch(`/zones/${id}/settings/ssl`, {
-        method: 'PATCH',
-        body: JSON.stringify({ value: mode })
-    });
-
-    return data.result;
-}
-
-/**
- * Enable "Always Use HTTPS"
- */
-async function enableAlwaysHttps(zoneId = null) {
-    const config = getConfig();
-    const id = zoneId || config.zoneId;
-
-    const data = await cfFetch(`/zones/${id}/settings/always_use_https`, {
-        method: 'PATCH',
-        body: JSON.stringify({ value: 'on' })
-    });
-
-    return data.result;
-}
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
 
 module.exports = {
     getConfig,

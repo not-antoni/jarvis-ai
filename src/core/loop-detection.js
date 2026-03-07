@@ -1,9 +1,3 @@
-/**
- * Loop Detection Service
- * Detects when AI responses are stuck in unproductive loops
- * Inspired by Google's Gemini CLI implementation
- */
-
 const { LRUCache } = require('lru-cache');
 const crypto = require('crypto');
 
@@ -26,9 +20,6 @@ const loopResultsCache = new LRUCache({
     ttl: 1000 * 60 * 5 // 5 minute cache
 });
 
-/**
- * Loop types that can be detected
- */
 const LoopType = {
     NONE: 'none',
     REPETITIVE_CONTENT: 'repetitive_content',
@@ -37,19 +28,12 @@ const LoopType = {
     SEMANTIC_LOOP: 'semantic_loop'
 };
 
-/**
- * Hash content for quick comparison
- */
 function hashContent(content) {
     if (!content || typeof content !== 'string') {return '';}
     const normalized = content.toLowerCase().trim().replace(/\s+/g, ' ');
     return crypto.createHash('md5').update(normalized).digest('hex');
 }
 
-/**
- * Calculate simple similarity between two strings
- * Uses character-level Jaccard similarity for speed
- */
 function calculateSimilarity(str1, str2) {
     if (!str1 || !str2) {return 0;}
 
@@ -83,9 +67,6 @@ function calculateSimilarity(str1, str2) {
     return union > 0 ? intersection / union : 0;
 }
 
-/**
- * Extract key patterns from response for comparison
- */
 function extractPatterns(content) {
     if (!content || typeof content !== 'string') {return [];}
 
@@ -107,16 +88,10 @@ class LoopDetectionService {
         this.enabled = true;
     }
 
-    /**
-     * Get conversation key for user/channel
-     */
     getKey(userId, channelId) {
         return `${userId}:${channelId}`;
     }
 
-    /**
-     * Get or create conversation history for user/channel
-     */
     getHistory(userId, channelId) {
         const key = this.getKey(userId, channelId);
         let history = conversationHistory.get(key);
@@ -133,9 +108,6 @@ class LoopDetectionService {
         return history;
     }
 
-    /**
-     * Record an AI response turn
-     */
     recordTurn(userId, channelId, content, metadata = {}) {
         const history = this.getHistory(userId, channelId);
 
@@ -159,10 +131,6 @@ class LoopDetectionService {
         return turn;
     }
 
-    /**
-     * Check if the conversation is in a loop
-     * @returns {Object} { isLoop: boolean, type: LoopType, confidence: number, message: string }
-     */
     checkForLoop(userId, channelId, newContent = null) {
         if (!this.enabled) {
             return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };
@@ -222,9 +190,6 @@ class LoopDetectionService {
         return result;
     }
 
-    /**
-     * Check for exact content repetition
-     */
     checkExactRepetition(turns) {
         const recent = turns.slice(-10);
         const hashCounts = new Map();
@@ -247,9 +212,6 @@ class LoopDetectionService {
         return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };
     }
 
-    /**
-     * Check for alternating patterns (A-B-A-B or A-B-C-A-B-C)
-     */
     checkAlternatingPattern(turns) {
         const recent = turns.slice(-12);
         if (recent.length < 4)
@@ -286,9 +248,6 @@ class LoopDetectionService {
         return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };
     }
 
-    /**
-     * Check for semantic similarity loops (similar but not identical content)
-     */
     checkSemanticLoop(turns) {
         const recent = turns.slice(-8);
         if (recent.length < 4)
@@ -316,24 +275,15 @@ class LoopDetectionService {
         return { isLoop: false, type: LoopType.NONE, confidence: 0, message: null };
     }
 
-    /**
-     * Clear history for a user/channel (call when conversation resets)
-     */
     clearHistory(userId, channelId) {
         conversationHistory.delete(this.getKey(userId, channelId));
     }
 
-    /**
-     * Clear all conversation histories (call on bot restart or memory pressure)
-     */
     clearAll() {
         conversationHistory.clear();
         loopResultsCache.clear();
     }
 
-    /**
-     * Get a recovery prompt to help break out of a loop
-     */
     getRecoveryPrompt(loopType) {
         const prompts = {
             [LoopType.REPETITIVE_CONTENT]:
@@ -349,16 +299,10 @@ class LoopDetectionService {
         return prompts[loopType] || 'Let me try a different approach.';
     }
 
-    /**
-     * Enable/disable loop detection
-     */
     setEnabled(enabled) {
         this.enabled = enabled;
     }
 
-    /**
-     * Get stats for debugging
-     */
     getStats() {
         return {
             enabled: this.enabled,
@@ -369,7 +313,5 @@ class LoopDetectionService {
 }
 
 module.exports = {
-    loopDetection: new LoopDetectionService(),
-    LoopType,
-    calculateSimilarity
+    loopDetection: new LoopDetectionService()
 };

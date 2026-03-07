@@ -1,8 +1,3 @@
-/**
- * Lightweight telemetry helper for structured command logging.
- * Emits JSON lines to stdout so external systems can ingest easily.
- */
-
 const os = require('node:os');
 const database = require('../services/database');
 
