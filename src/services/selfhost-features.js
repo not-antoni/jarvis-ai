@@ -23,19 +23,6 @@ console.log(
     `[Selfhost] Mode: ${checkSelfhost() ? 'ENABLED' : 'disabled'}, Sentience: enabled=${config?.sentience?.enabled}, guilds: ${config?.sentience?.whitelistedGuilds?.join(', ') || 'none'}`
 );
 
-// Export as getter for backward compatibility
-const isSelfhost = {
-    get value() {
-        return checkSelfhost();
-    },
-    valueOf() {
-        return checkSelfhost();
-    },
-    toString() {
-        return String(checkSelfhost());
-    }
-};
-
 // Make it work with boolean checks like: if (isSelfhost)
 Object.defineProperty(module.exports, 'isSelfhost', {
     get: () => checkSelfhost(),

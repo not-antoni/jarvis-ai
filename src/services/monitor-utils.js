@@ -1,8 +1,6 @@
 'use strict';
 
-const config = require('../../config');
 const { fetch } = require('undici');
-const fetchNode = require('node-fetch');
 const cheerio = require('cheerio');
 
 // Simple rate limiter for external API calls
@@ -286,7 +284,6 @@ function getStatusText(code) {
 // ============================================================================
 
 const CLOUDFLARE_STATUS_URL = 'https://www.cloudflarestatus.com/api/v2/summary.json';
-const CLOUDFLARE_COMPONENTS_URL = 'https://www.cloudflarestatus.com/api/v2/components.json';
 const CLOUDFLARE_INCIDENTS_URL = 'https://www.cloudflarestatus.com/api/v2/incidents/unresolved.json';
 
 async function fetchCloudflareStatus() {

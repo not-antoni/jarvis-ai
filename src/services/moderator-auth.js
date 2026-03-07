@@ -1,6 +1,4 @@
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
 
 // Check mode
 const SELFHOST_MODE = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
@@ -11,9 +9,6 @@ const sessions = new Map();
 const revokedSessions = new Map();
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-// Pending password setups (userId -> { token, expires })
-const pendingSetups = new Map();
-
 const AUTH_PRUNE_INTERVAL_MS = Math.max(
     60 * 1000,
     Number(process.env.MODERATOR_AUTH_PRUNE_INTERVAL_MS || '') || 5 * 60 * 1000
@@ -22,11 +17,6 @@ const SESSION_CACHE_MAX = Math.max(
     500,
     Number(process.env.MODERATOR_SESSION_CACHE_MAX || '') || 5000
 );
-const PENDING_SETUP_MAX = Math.max(
-    100,
-    Number(process.env.MODERATOR_PENDING_SETUP_MAX || '') || 1000
-);
-
 let lastAuthPruneAt = 0;
 
 function pruneAuthMaps(force = false) {
@@ -50,28 +40,11 @@ function pruneAuthMaps(force = false) {
         }
     }
 
-    for (const [userId, setup] of pendingSetups.entries()) {
-        const expires = Number(setup?.expires || 0);
-        if (!expires || !Number.isFinite(expires) || now > expires) {
-            pendingSetups.delete(userId);
-        }
-    }
-
     if (sessions.size > SESSION_CACHE_MAX) {
         const overflow = sessions.size - SESSION_CACHE_MAX;
         let i = 0;
         for (const key of sessions.keys()) {
             sessions.delete(key);
-            i += 1;
-            if (i >= overflow) {break;}
-        }
-    }
-
-    if (pendingSetups.size > PENDING_SETUP_MAX) {
-        const overflow = pendingSetups.size - PENDING_SETUP_MAX;
-        let i = 0;
-        for (const key of pendingSetups.keys()) {
-            pendingSetups.delete(key);
             i += 1;
             if (i >= overflow) {break;}
         }
@@ -83,21 +56,13 @@ if (typeof authPruneTimer.unref === 'function') {
     authPruneTimer.unref();
 }
 
-// Database
-let database = null;
-const COLLECTION_NAME = 'moderatorAuth';
-
 // Discord OAuth configuration (client id can be derived from the bot if not set)
 let discordClientId = null;
-
-// Local file storage for selfhost
-const DATA_DIR = path.join(__dirname, '../../data');
-const AUTH_FILE = path.join(DATA_DIR, 'moderator-auth.json');
 
 async function initDatabase() {
     try {
         if (!SELFHOST_MODE && !LOCAL_DB_MODE) {
-            database = require('./database');
+            require('./database');
         }
     } catch (error) {
         console.error('[ModeratorAuth] Failed to initialize database:', error);
@@ -106,21 +71,6 @@ async function initDatabase() {
 
 // Initialize on load
 initDatabase();
-
-function hashPassword(password, salt = null) {
-    salt = salt || crypto.randomBytes(16).toString('hex');
-    const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
-    return { hash, salt };
-}
-
-function verifyPassword(password, storedHash, salt) {
-    const { hash } = hashPassword(password, salt);
-    return hash === storedHash;
-}
-
-function generateSessionToken() {
-    return crypto.randomBytes(32).toString('hex');
-}
 
 function base64urlEncode(input) {
     const buffer = Buffer.isBuffer(input) ? input : Buffer.from(String(input));
@@ -202,94 +152,6 @@ function parseSignedSessionToken(token) {
     } catch {
         return null;
     }
-}
-
-function generateSetupToken(userId) {
-    pruneAuthMaps();
-    const token = crypto.randomBytes(16).toString('hex');
-    pendingSetups.set(userId, {
-        token,
-        expires: Date.now() + 30 * 60 * 1000 // 30 minutes
-    });
-    return token;
-}
-
-function verifySetupToken(userId, token) {
-    pruneAuthMaps();
-    const setup = pendingSetups.get(userId);
-    if (!setup) {return false;}
-    if (Date.now() > setup.expires) {
-        pendingSetups.delete(userId);
-        return false;
-    }
-    if (setup.token !== token) {return false;}
-    pendingSetups.delete(userId);
-    return true;
-}
-
-// Data sync service for robust MongoDB ↔ local migration
-const dataSync = require('./data-sync');
-
-async function loadAuthData() {
-    try {
-        const preferLocal = SELFHOST_MODE || LOCAL_DB_MODE;
-        const data = await dataSync.smartRead(COLLECTION_NAME, preferLocal);
-
-        // Handle different data formats
-        if (data) {
-            if (Array.isArray(data) && data.length > 0) {
-                // MongoDB array format - find authData doc
-                const authDoc = data.find(d => d._id === 'authData');
-                return authDoc || { users: {} };
-            }
-            return data;
-        }
-    } catch (error) {
-        console.error('[ModeratorAuth] Failed to load auth data:', error);
-    }
-    return { users: {} };
-}
-
-async function saveAuthData(data) {
-    try {
-        // Add _id for MongoDB compatibility
-        const dataWithId = { ...data, _id: 'authData' };
-        await dataSync.smartWrite(COLLECTION_NAME, dataWithId);
-    } catch (error) {
-        console.error('[ModeratorAuth] Failed to save auth data:', error);
-    }
-}
-
-async function hasPassword(userId) {
-    const data = await loadAuthData();
-    return !!data.users[userId]?.passwordHash;
-}
-
-async function setPassword(userId, password) {
-    const data = await loadAuthData();
-    const { hash, salt } = hashPassword(password);
-
-    if (!data.users[userId]) {
-        data.users[userId] = {};
-    }
-
-    data.users[userId].passwordHash = hash;
-    data.users[userId].passwordSalt = salt;
-    data.users[userId].passwordSetAt = new Date().toISOString();
-
-    await saveAuthData(data);
-    return true;
-}
-
-async function verifyUserPassword(userId, password) {
-    const data = await loadAuthData();
-    const user = data.users[userId];
-
-    if (!user?.passwordHash || !user?.passwordSalt) {
-        return false;
-    }
-
-    return verifyPassword(password, user.passwordHash, user.passwordSalt);
 }
 
 function createSession(userId, discordData = null) {
@@ -474,23 +336,6 @@ async function getDiscordUser(accessToken) {
     }
 
     return response.json();
-}
-
-async function isAuthorizedModerator(userId, guildId) {
-    const moderation = require('./GUILDS_FEATURES/moderation');
-    const status = moderation.getStatus(guildId);
-
-    if (!status.isEnabled) {return false;}
-
-    // Check if user is in pingUsers
-    if (status.settings.pingUsers?.includes(userId)) {
-        return true;
-    }
-
-    // Owner always has access
-    // (This would need guild data to check, handled in route)
-
-    return false;
 }
 
 module.exports = {

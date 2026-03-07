@@ -1,6 +1,5 @@
 'use strict';
 
-const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const config = require('../../config');
@@ -11,7 +10,6 @@ const moderationFilters = require('../services/moderation-filters');
 const subscriptions = require('../services/monitor-subscriptions');
 const dataSync = require('../services/data-sync');
 const ytDlpManager = require('../services/yt-dlp-manager');
-const selfhostFeatures = require('../services/selfhost-features');
 const { musicManager } = require('../core/musicManager');
 const musicGuildWhitelist = require('../utils/musicGuildWhitelist');
 const commandRegistry = require('../core/command-registry');

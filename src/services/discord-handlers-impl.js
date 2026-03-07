@@ -14,16 +14,14 @@ const JarvisAI = require('./jarvis-core');
 const config = require('../../config');
 const { LRUCache } = require('lru-cache');
 const braveSearch = require('./brave-search');
-const { createCanvas, loadImage, registerFont } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 const sharp = require('sharp');
-const fs = require('fs');
-const path = require('path');
 const database = require('./database');
 const fetch = require('node-fetch');
 const embeddingSystem = require('./embedding-system');
 const CooldownManager = require('../core/cooldown-manager');
 const socialCredit = require('./social-credit');
-const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../core/command-registry');
+const { commandFeatureMap } = require('../core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('../core/feature-flags');
 const cryptoClient = require('./crypto-client');
 const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
@@ -47,10 +45,6 @@ const messageProcessing = require('./handlers/message-processing');
 const mediaRendering = require('./handlers/media-rendering');
 const templates = require('./handlers/templates');
 
-function isCommandEnabled(commandName) {
-    const featureKey = commandFeatureMap.get(commandName);
-    return isFeatureGloballyEnabled(featureKey);
-}
 
 const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
@@ -1397,8 +1391,6 @@ class DiscordHandlers {
     parseDiscordTimestamp(message) {
         try {
             // Get the Discord timestamp format
-            const discordTimestamp = this.getDiscordTimestamp(message);
-            
             // For Canvas rendering, we need the actual time string
             // Use the message's createdAt Date object with proper formatting
             const date = message.createdAt;
@@ -1801,7 +1793,6 @@ class DiscordHandlers {
         // Calculate centered positioning with more space for avatar and text
         const avatarSize = 48;
         const contentWidth = width - 80; // More margin
-        const contentHeight = totalHeight - 20;
         const avatarX = 50; // Moved further to the right
         const avatarY = 20; // Top-aligned padding instead of vertical centering
 

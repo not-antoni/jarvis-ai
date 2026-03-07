@@ -381,13 +381,6 @@ function saveSslCache(config) {
 }
 
 async function createOriginCertificate(domain) {
-    const config = getConfig();
-
-    // Origin CA does not strictly require Zone ID for generation
-    // if (!config.zoneId) {
-    //    return { success: false, error: 'CLOUDFLARE_ZONE_ID required for SSL' };
-    // }
-
     try {
         const response = await cfFetch('/certificates', {
             method: 'POST',
@@ -692,37 +685,9 @@ async function cfFetch(endpoint, options = {}) {
     return data;
 }
 
-
-async function getZone(zoneId = null) {
-    const config = getConfig();
-    const id = zoneId || config.zoneId;
-
-    if (!id) {
-        throw new Error('Zone ID not configured');
-    }
-
-    const data = await cfFetch(`/zones/${id}`);
-    return data.result;
-}
-
-async function listZones() {
-    const config = getConfig();
-    const data = await cfFetch(`/zones?account.id=${config.accountId}`);
-    return data.result || [];
-}
-
 async function findZoneByDomain(domain) {
     const data = await cfFetch(`/zones?name=${domain}`);
     return data.result?.[0] || null;
-}
-
-
-async function listDnsRecords(zoneId = null) {
-    const config = getConfig();
-    const id = zoneId || config.zoneId;
-
-    const data = await cfFetch(`/zones/${id}/dns_records`);
-    return data.result || [];
 }
 
 async function getDnsRecord(name, type = 'A', zoneId = null) {

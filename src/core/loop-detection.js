@@ -2,7 +2,6 @@ const { LRUCache } = require('lru-cache');
 const crypto = require('crypto');
 
 // Configuration
-const TOOL_CALL_LOOP_THRESHOLD = 5; // Same tool called 5+ times
 const CONTENT_LOOP_THRESHOLD = 4; // Same content 4+ times
 const ALTERNATING_LOOP_THRESHOLD = 3; // A-B-A-B pattern 3+ times
 const MAX_HISTORY_LENGTH = 50; // Max turns to track
