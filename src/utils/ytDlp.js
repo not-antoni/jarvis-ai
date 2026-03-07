@@ -285,36 +285,6 @@ function isNetscapeFormat(str) {
     );
 }
 
-/**
- * Parse Netscape format cookies to array
- */
-function parseNetscapeCookies(str) {
-    const cookies = [];
-    const lines = str.split('\n');
-
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) {continue;}
-
-        const parts = trimmed.split('\t');
-        if (parts.length < 7) {continue;}
-
-        const [domain, , cookiePath, secure, expiry, name, value] = parts;
-        if (!name || !value) {continue;}
-
-        cookies.push({
-            domain,
-            path: cookiePath,
-            secure: secure === 'TRUE',
-            expires: parseInt(expiry, 10) || 0,
-            name,
-            value
-        });
-    }
-
-    return cookies;
-}
-
 async function ensureCookiesFile() {
     await ensureDirectories();
     const filePath = path.join(BIN_DIR, COOKIE_FILE_NAME);
@@ -699,83 +669,6 @@ async function checkVideoLimits(videoId, videoUrl, options = {}) {
     }
 }
 
-async function getDirectStreamUrl(videoId, videoUrl, options = {}) {
-    const source = normalizeSource(options.source, videoUrl);
-    const startedAt = Date.now();
-    const binaryPath = await ensureBinary();
-    const canUseCookies = shouldUseYouTubeCookies(source, videoUrl);
-    const cookieFile = canUseCookies ? await ensureCookiesFile() : null;
-    const extractorArgs = buildExtractorArgs({
-        hasCookies: Boolean(cookieFile),
-        source,
-        videoUrl
-    });
-
-    const streamUrl = await new Promise((resolve, reject) => {
-        const args = [
-            '--force-ipv4',
-            '--no-warnings',
-            '--no-playlist',
-            '-f',
-            'bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio',
-            '-g'
-        ];
-
-        if (extractorArgs) {
-            args.push('--extractor-args', extractorArgs);
-        }
-        if (cookieFile) {
-            args.push('--cookies', cookieFile);
-        }
-        args.push(videoUrl);
-
-        const proc = spawn(binaryPath, args, {
-            timeout: 30000,
-            env: { ...process.env, YTDLP_NO_CHECK: '1', YTDL_NO_UPDATE: '1' }
-        });
-
-        let stdout = '';
-        let stderr = '';
-        proc.stdout.on('data', data => { stdout += data.toString(); });
-        proc.stderr.on('data', data => { stderr += data.toString(); });
-
-        proc.on('close', code => {
-            if (code !== 0) {
-                const err = new Error(`yt-dlp exited with code ${code}`);
-                err.stderr = stderr;
-                reject(normalizeYtDlpError(err));
-                return;
-            }
-
-            const firstUrl = stdout
-                .split('\n')
-                .map(line => line.trim())
-                .find(Boolean);
-
-            if (!firstUrl) {
-                const err = new Error('No playback URL returned by yt-dlp.');
-                err.stderr = stderr;
-                reject(normalizeYtDlpError(err));
-                return;
-            }
-
-            resolve(firstUrl);
-        });
-
-        proc.on('error', reject);
-    });
-
-    console.log(
-        `[yt-dlp][direct] source=${source} id=${videoId} cookieMode=${cookieFile ? 'on' : 'off'} resolvedMs=${Date.now() - startedAt}`
-    );
-
-    return {
-        streamUrl,
-        source,
-        usedCookies: Boolean(cookieFile)
-    };
-}
-
 async function createLiveAudioStream(videoId, videoUrl, options = {}) {
     const source = normalizeSource(options.source, videoUrl);
     const startedAt = Date.now();
@@ -1122,8 +1015,5 @@ module.exports = {
     cancelDownload,
     checkVideoLimits,
     createLiveAudioStream,
-    getDirectStreamUrl,
-    isNetscapeFormat,
-    parseNetscapeCookies,
     COOKIE_ENV_KEYS
 };

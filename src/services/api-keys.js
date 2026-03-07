@@ -515,7 +515,6 @@ async function enableKey(userId, keyId) {
 
 module.exports = {
     init,
-    generateKey,
     createKey,
     getUserKeys,
     revokeKey,

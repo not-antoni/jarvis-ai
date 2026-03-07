@@ -852,20 +852,6 @@ async function updateDnsRecord(recordId, record, zoneId = null) {
 }
 
 /**
- * Delete DNS record
- */
-async function deleteDnsRecord(recordId, zoneId = null) {
-    const config = getConfig();
-    const id = zoneId || config.zoneId;
-
-    await cfFetch(`/zones/${id}/dns_records/${recordId}`, {
-        method: 'DELETE'
-    });
-
-    return true;
-}
-
-/**
  * Upsert DNS record (create or update)
  */
 async function upsertDnsRecord(name, type, content, options = {}, zoneId = null) {
@@ -1152,40 +1138,6 @@ async function autoConfigure(options = {}) {
 /**
  * Force reconfigure (bypass cache)
  */
-async function forceReconfigure(options = {}) {
-    return autoConfigure({ ...options, force: true });
-}
-
-/**
- * Clear cached configuration
- */
-function clearConfigCache() {
-    try {
-        if (fs.existsSync(CONFIG_CACHE_FILE)) {
-            fs.unlinkSync(CONFIG_CACHE_FILE);
-            return true;
-        }
-    } catch {
-        // Ignore
-    }
-    return false;
-}
-
-// ============================================================================
-// SSL / ORIGIN CERTIFICATES
-// ============================================================================
-
-/**
- * Get zone SSL settings
- */
-async function getSSLSettings(zoneId = null) {
-    const config = getConfig();
-    const id = zoneId || config.zoneId;
-
-    const data = await cfFetch(`/zones/${id}/settings/ssl`);
-    return data.result;
-}
-
 /**
  * Set SSL mode (off, flexible, full, strict)
  */
@@ -1222,119 +1174,14 @@ async function enableAlwaysHttps(zoneId = null) {
 }
 
 // ============================================================================
-// DIAGNOSTICS
-// ============================================================================
-
-/**
- * Get domain configuration status
- */
-async function getDomainStatus() {
-    const config = getConfig();
-    const status = {
-        configured: false,
-        domain: config.domain,
-        zoneId: config.zoneId,
-        deployTarget: config.deployTarget,
-        hasCredentials: !!getAuthHeaders(),
-        zone: null,
-        dnsRecords: [],
-        ssl: null,
-        errors: []
-    };
-
-    if (!config.domain && !config.zoneId) {
-        status.errors.push('No domain or zone ID configured');
-        return status;
-    }
-
-    if (!getAuthHeaders()) {
-        status.errors.push('Cloudflare credentials not configured');
-        return status;
-    }
-
-    try {
-        if (config.zoneId) {
-            status.zone = await getZone();
-            status.configured = true;
-        }
-    } catch (e) {
-        status.errors.push(`Zone error: ${e.message}`);
-    }
-
-    try {
-        if (config.zoneId) {
-            status.dnsRecords = await listDnsRecords();
-        }
-    } catch (e) {
-        status.errors.push(`DNS error: ${e.message}`);
-    }
-
-    try {
-        if (config.zoneId) {
-            status.ssl = await getSSLSettings();
-        }
-    } catch (e) {
-        status.errors.push(`SSL error: ${e.message}`);
-    }
-
-    return status;
-}
-
-// ============================================================================
 // EXPORTS
 // ============================================================================
 
 module.exports = {
-    // Config
     getConfig,
-
-    // Zone operations
-    getZone,
-    listZones,
-    findZoneByDomain,
-
-    // DNS operations
-    listDnsRecords,
-    getDnsRecord,
-    createDnsRecord,
-    updateDnsRecord,
-    deleteDnsRecord,
-    upsertDnsRecord,
-
-    // Deployment configuration
-    configureForRender,
-    configureForSelfhost,
     autoConfigure,
-    forceReconfigure,
-
-    // Cache management
-    loadCachedConfig,
-    saveCachedConfig,
-    clearConfigCache,
-
-    // Detection helpers
-    isRunningOnRender,
-    detectTarget,
-
-    // Nginx auto-setup
     autoSetupNginx,
-    isNginxConfigured,
-    generateNginxConfig,
     ensureCloudflareIpsConfig,
     ensureCloudflareIpsTimer,
     ensureNginxEnsureTimer,
-
-    // SSL auto-setup
-    autoSetupSsl,
-    sslCertsExist,
-    createOriginCertificate,
-    saveSslCertificates,
-
-    // SSL
-    getSSLSettings,
-    setSSLMode,
-    enableAlwaysHttps,
-
-    // Diagnostics
-    getDomainStatus
 };
