@@ -1,12 +1,6 @@
-/**
- * Structured Logging Utility
- * Provides consistent, structured logging across the application
- */
-
 const path = require('path');
 const fs = require('fs');
 
-// Simple structured logger (Winston can be added later if needed)
 class Logger {
     constructor() {
         this.logLevel = process.env.LOG_LEVEL || 'info';
@@ -36,16 +30,10 @@ class Logger {
         this._fileWriteQueue = Promise.resolve();
     }
 
-    /**
-     * Check if log level should be logged
-     */
     shouldLog(level) {
         return this.levels[level] <= this.levels[this.logLevel];
     }
 
-    /**
-     * Format log entry
-     */
     format(level, message, meta = {}) {
         const timestamp = new Date().toISOString();
         const entry = {
@@ -58,9 +46,6 @@ class Logger {
         return JSON.stringify(entry);
     }
 
-    /**
-     * Write to file
-     */
     writeToFile(level, formatted) {
         if (!this.enableFileLogging) {return;}
 
@@ -80,9 +65,6 @@ class Logger {
             });
     }
 
-    /**
-     * Write to console
-     */
     writeToConsole(level, message, meta) {
         if (!this.enableConsoleLogging) {return;}
 
@@ -106,9 +88,6 @@ class Logger {
         }
     }
 
-    /**
-     * Log error
-     */
     error(message, meta = {}) {
         if (!this.shouldLog('error')) {return;}
 
@@ -117,9 +96,6 @@ class Logger {
         this.writeToConsole('error', message, meta);
     }
 
-    /**
-     * Log warning
-     */
     warn(message, meta = {}) {
         if (!this.shouldLog('warn')) {return;}
 
@@ -128,9 +104,6 @@ class Logger {
         this.writeToConsole('warn', message, meta);
     }
 
-    /**
-     * Log info
-     */
     info(message, meta = {}) {
         if (!this.shouldLog('info')) {return;}
 
@@ -139,9 +112,6 @@ class Logger {
         this.writeToConsole('info', message, meta);
     }
 
-    /**
-     * Log debug
-     */
     debug(message, meta = {}) {
         if (!this.shouldLog('debug')) {return;}
 
@@ -150,9 +120,6 @@ class Logger {
         this.writeToConsole('debug', message, meta);
     }
 
-    /**
-     * Create child logger with additional context
-     */
     child(defaultMeta = {}) {
         const childLogger = Object.create(this);
         childLogger.defaultMeta = { ...this.defaultMeta, ...defaultMeta };
@@ -165,9 +132,6 @@ class Logger {
         return childLogger;
     }
 
-    /**
-     * Flush pending file writes - call before shutdown
-     */
     async flush() {
         if (!this.enableFileLogging) {return;}
         await this._fileWriteQueue;
