@@ -1,8 +1,3 @@
-/**
- * User Features Service
- * Handles conversation threading, timezone, reminders, custom wake words, stats, and mood detection
- */
-
 const { LRUCache } = require('lru-cache');
 const { safeSend, safeDM } = require('../utils/discord-safe-send');
 
@@ -122,11 +117,6 @@ class UserFeaturesService {
         this._lastReminderLoadAt = 0;
     }
 
-    /**
-     * Initialize with database and Discord client references
-     * @param {Object} database - Database service
-     * @param {Object} discordClient - Discord.js client for sending DMs
-     */
     init(database, discordClient = null) {
         if (this.isInitialized) {
             console.log('[UserFeatures] Already initialized, skipping');
@@ -144,17 +134,11 @@ class UserFeaturesService {
         );
     }
 
-    /**
-     * Set Discord client (can be called after init)
-     */
     setDiscordClient(client) {
         this.discordClient = client;
         console.log('[UserFeatures] Discord client attached');
     }
 
-    /**
-     * Load reminders from database on startup
-     */
     async loadRemindersFromDatabase() {
         if (!this.database) {return;}
 
@@ -198,9 +182,6 @@ class UserFeaturesService {
 
     // ==================== CONVERSATION THREADING ====================
 
-    /**
-     * Get or create a conversation session for a user in a channel
-     */
     getSession(userId, channelId) {
         const key = `${userId}:${channelId}`;
         let session = conversationSessions.get(key);
@@ -220,9 +201,6 @@ class UserFeaturesService {
         return session;
     }
 
-    /**
-     * Add a message to the conversation session
-     */
     addToSession(userId, channelId, role, content) {
         const session = this.getSession(userId, channelId);
         session.messages.push({
@@ -247,9 +225,6 @@ class UserFeaturesService {
         return session;
     }
 
-    /**
-     * Get conversation context for AI
-     */
     getConversationContext(userId, channelId) {
         const session = this.getSession(userId, channelId);
 
@@ -269,18 +244,12 @@ class UserFeaturesService {
         };
     }
 
-    /**
-     * Clear a conversation session
-     */
     clearSession(userId, channelId) {
         conversationSessions.delete(`${userId}:${channelId}`);
     }
 
     // ==================== TIMEZONE ====================
 
-    /**
-     * Set user timezone
-     */
     async setTimezone(userId, timezone) {
         try {
             // Validate timezone
@@ -299,17 +268,11 @@ class UserFeaturesService {
         return { success: true, timezone };
     }
 
-    /**
-     * Get user timezone
-     */
     async getTimezone(userId) {
         const prefs = await this.getUserPrefs(userId);
         return prefs.timezone || 'UTC';
     }
 
-    /**
-     * Format time for user's timezone
-     */
     async formatTimeForUser(userId, date = new Date()) {
         const timezone = await this.getTimezone(userId);
         return new Intl.DateTimeFormat('en-US', {
@@ -325,9 +288,6 @@ class UserFeaturesService {
 
     // ==================== REMINDERS ====================
 
-    /**
-     * Parse reminder time from natural language
-     */
     parseReminderTime(input, userTimezone = 'UTC') {
         const now = new Date();
         let targetTime = null;
@@ -391,9 +351,6 @@ class UserFeaturesService {
         return targetTime ? { time: targetTime, humanReadable } : null;
     }
 
-    /**
-     * Create a reminder
-     */
     async createReminder(userId, channelId, message, timeInput) {
         const timezone = await this.getTimezone(userId);
         const parsed = this.parseReminderTime(timeInput, timezone);
@@ -442,9 +399,6 @@ class UserFeaturesService {
         };
     }
 
-    /**
-     * Get user's reminders
-     */
     async getUserReminders(userId) {
         const reminders = [];
         for (const [id, rem] of activeReminders) {
@@ -455,9 +409,6 @@ class UserFeaturesService {
         return reminders.sort((a, b) => a.scheduledFor - b.scheduledFor);
     }
 
-    /**
-     * Cancel a reminder
-     */
     async cancelReminder(userId, reminderId) {
         const reminder = activeReminders.get(reminderId);
         if (!reminder || reminder.userId !== userId) {
@@ -484,9 +435,6 @@ class UserFeaturesService {
         return { success: true };
     }
 
-    /**
-     * Start the reminder checker interval
-     */
     startReminderChecker() {
         if (this.reminderCheckInterval) {return;}
 
@@ -498,9 +446,6 @@ class UserFeaturesService {
         console.log('[UserFeatures] Reminder checker started (15s interval)');
     }
 
-    /**
-     * Stop the reminder checker
-     */
     stopReminderChecker() {
         if (this.reminderCheckInterval) {
             clearInterval(this.reminderCheckInterval);
@@ -509,9 +454,6 @@ class UserFeaturesService {
         }
     }
 
-    /**
-     * Check for due reminders and deliver them via DM
-     */
     async checkAndDeliverReminders() {
         if (this.database?.isConnected && typeof this.database.getActiveReminders === 'function') {
             const now = Date.now();
@@ -567,9 +509,6 @@ class UserFeaturesService {
         }
     }
 
-    /**
-     * Deliver a single reminder to the user via DM
-     */
     async deliverReminder(reminder) {
         if (!this.discordClient) {
             console.warn('[UserFeatures] Cannot deliver reminder - no Discord client');
@@ -631,9 +570,6 @@ class UserFeaturesService {
         }
     }
 
-    /**
-     * Format relative time (e.g., "2 hours ago")
-     */
     formatRelativeTime(timestamp) {
         const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
@@ -643,18 +579,12 @@ class UserFeaturesService {
         return `${Math.floor(seconds / 86400)} day(s) ago`;
     }
 
-    /**
-     * Get count of active reminders (for health checks)
-     */
     getActiveReminderCount() {
         return activeReminders.size;
     }
 
     // ==================== CUSTOM WAKE WORDS ====================
 
-    /**
-     * Set custom wake word for user
-     */
     async setWakeWord(userId, wakeWord) {
         if (!wakeWord || wakeWord.length < 2 || wakeWord.length > 20) {
             return { success: false, error: 'Wake word must be 2-20 characters.' };
@@ -673,9 +603,6 @@ class UserFeaturesService {
         return { success: true, wakeWord: sanitized };
     }
 
-    /**
-     * Remove custom wake word for user
-     */
     async clearWakeWord(userId) {
         const prefs = await this.getUserPrefs(userId);
         prefs.customWakeWord = null;
@@ -683,17 +610,11 @@ class UserFeaturesService {
         return { success: true };
     }
 
-    /**
-     * Get user's custom wake word
-     */
     async getWakeWord(userId) {
         const prefs = await this.getUserPrefs(userId);
         return prefs.customWakeWord || null;
     }
 
-    /**
-     * Check if message contains user's wake word
-     */
     async matchesWakeWord(userId, content) {
         const customWord = await this.getWakeWord(userId);
         if (!customWord) {return false;}
@@ -704,9 +625,6 @@ class UserFeaturesService {
 
     // ==================== GUILD WAKE WORDS ====================
 
-    /**
-     * Set a server-level custom wake word (admin only — checked by caller)
-     */
     async setGuildWakeWord(guildId, wakeWord) {
         if (!wakeWord || wakeWord.length < 2 || wakeWord.length > 20) {
             return { success: false, error: 'Wake word must be 2-20 characters.' };
@@ -722,9 +640,6 @@ class UserFeaturesService {
         return { success: true, wakeWord: sanitized };
     }
 
-    /**
-     * Get guild's custom wake word from guild config
-     */
     async getGuildWakeWord(guildId) {
         const database = require('./database');
         if (!database.isConnected) {return null;}
@@ -732,18 +647,12 @@ class UserFeaturesService {
         return guildConfig?.customWakeWord || null;
     }
 
-    /**
-     * Remove guild wake word
-     */
     async removeGuildWakeWord(guildId) {
         const database = require('./database');
         await database.setGuildWakeWord(guildId, null);
         return { success: true };
     }
 
-    /**
-     * Check if message contains the guild's custom wake word
-     */
     async matchesGuildWakeWord(guildId, content) {
         if (!guildId) {return false;}
         const guildWord = await this.getGuildWakeWord(guildId);
@@ -755,18 +664,12 @@ class UserFeaturesService {
 
     // ==================== STATS ====================
 
-    /**
-     * Increment a stat for user
-     */
     incrementStat(userId, statName, amount = 1) {
         const key = `${userId}:${statName}`;
         const current = sessionStats.get(key) || 0;
         sessionStats.set(key, current + amount);
     }
 
-    /**
-     * Get user stats
-     */
     async getUserStats(userId) {
         const prefs = await this.getUserPrefs(userId);
 
@@ -791,9 +694,6 @@ class UserFeaturesService {
         return stats;
     }
 
-    /**
-     * Persist session stats to database
-     */
     async flushStats(userId) {
         if (!this.database) {return;}
 
@@ -814,9 +714,6 @@ class UserFeaturesService {
 
     // ==================== MOOD DETECTION ====================
 
-    /**
-     * Detect user mood from message
-     */
     detectMood(content) {
         if (!content || typeof content !== 'string') {return 'neutral';}
 
@@ -863,16 +760,10 @@ class UserFeaturesService {
         return detectedMood;
     }
 
-    /**
-     * Get tone adjustment prompt based on mood
-     */
     getToneAdjustment(mood) {
         return TONE_ADJUSTMENTS[mood] || '';
     }
 
-    /**
-     * Analyze message and return mood context for AI
-     */
     analyzeMoodContext(content) {
         const mood = this.detectMood(content);
         const adjustment = this.getToneAdjustment(mood);
@@ -886,9 +777,6 @@ class UserFeaturesService {
 
     // ==================== USER PREFERENCES ====================
 
-    /**
-     * Get user preferences
-     */
     async getUserPrefs(userId) {
         // Check cache first
         let prefs = userPrefsCache.get(userId);
@@ -910,9 +798,6 @@ class UserFeaturesService {
         return prefs;
     }
 
-    /**
-     * Save user preferences
-     */
     async saveUserPrefs(userId, prefs) {
         userPrefsCache.set(userId, prefs);
 

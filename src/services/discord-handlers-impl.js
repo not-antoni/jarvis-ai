@@ -8,9 +8,6 @@ const {
     UserFlags,
     PermissionsBitField,
     EmbedBuilder,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
     parseEmoji
 } = require('discord.js');
 const JarvisAI = require('./jarvis-core');

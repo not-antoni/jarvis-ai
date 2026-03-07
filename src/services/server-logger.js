@@ -1,9 +1,3 @@
-/**
- * Server Logger Service
- * Handles comprehensive moderation logging (bans, kicks, edits, deletions, role changes)
- * Targeted for specific guild/channel configuration.
- */
-
 const { EmbedBuilder, AuditLogEvent, Colors, PermissionFlagsBits } = require('discord.js');
 
 // Load guild->channel mapping from env: LOG_CHANNELS=guildId:channelId,guildId:channelId
@@ -15,9 +9,6 @@ const LOG_CONFIG = {};
 
 class ServerLogger {
 
-    /**
-     * Get the log channel for a guild if configured
-     */
     getLogChannel(guild) {
         if (!guild) {return null;}
         const channelId = LOG_CONFIG[guild.id];
@@ -25,9 +16,6 @@ class ServerLogger {
         return guild.channels.cache.get(channelId);
     }
 
-    /**
-     * Helper to send log embed
-     */
     async sendLog(guild, embed) {
         const channel = this.getLogChannel(guild);
         if (!channel) {return;}
@@ -38,9 +26,6 @@ class ServerLogger {
         }
     }
 
-    /**
-     * Fetch the executor of an action from audit logs
-     */
     async getExecutor(guild, type, targetId) {
         try {
             // Check permissions first to avoid error spam
@@ -71,13 +56,6 @@ class ServerLogger {
         }
     }
 
-    // =========================================================================
-    // EVENT HANDLERS
-    // =========================================================================
-
-    /**
-     * Log Message Delete
-     */
     async logMessageDelete(message) {
         if (!message.guild || !message.author || message.author.bot) {return;} // Ignore bots or uncached messages
 
@@ -109,9 +87,6 @@ class ServerLogger {
         await this.sendLog(message.guild, embed);
     }
 
-    /**
-     * Log Message Edit
-     */
     async logMessageUpdate(oldMessage, newMessage) {
         if (!oldMessage.guild || !oldMessage.author || oldMessage.author.bot) {return;}
         if (oldMessage.content === newMessage.content) {return;} // Ignore embed updates/non-content changes
@@ -130,9 +105,6 @@ class ServerLogger {
         await this.sendLog(newMessage.guild, embed);
     }
 
-    /**
-     * Log Guild Member Join
-     */
     async logMemberJoin(member) {
         const embed = new EmbedBuilder()
             .setAuthor({ name: `${member.user.tag}`, iconURL: member.user.displayAvatarURL() })
@@ -149,9 +121,6 @@ class ServerLogger {
         await this.sendLog(member.guild, embed);
     }
 
-    /**
-     * Log Guild Member Leave / Kick
-     */
     async logMemberLeave(member) {
         // Check if it was a Kick
         const kicker = await this.getExecutor(member.guild, AuditLogEvent.MemberKick, member.id);
@@ -176,9 +145,6 @@ class ServerLogger {
         await this.sendLog(member.guild, embed);
     }
 
-    /**
-     * Log Ban
-     */
     async logBan(ban) {
         const executor = await this.getExecutor(ban.guild, AuditLogEvent.MemberBanAdd, ban.user.id);
 
@@ -192,9 +158,6 @@ class ServerLogger {
         await this.sendLog(ban.guild, embed);
     }
 
-    /**
-     * Log Unban
-     */
     async logUnban(ban) {
         const executor = await this.getExecutor(ban.guild, AuditLogEvent.MemberBanRemove, ban.user.id);
 
@@ -208,9 +171,6 @@ class ServerLogger {
         await this.sendLog(ban.guild, embed);
     }
 
-    /**
-     * Log Member Update (Nickname, Roles)
-     */
     async logMemberUpdate(oldMember, newMember) {
         // Nickname Change
         if (oldMember.nickname !== newMember.nickname) {
@@ -261,9 +221,6 @@ class ServerLogger {
         }
     }
 
-    /**
-     * Log Role Create
-     */
     async logRoleCreate(role) {
         const executor = await this.getExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
         const embed = new EmbedBuilder()
@@ -274,9 +231,6 @@ class ServerLogger {
         await this.sendLog(role.guild, embed);
     }
 
-    /**
-     * Log Role Delete
-     */
     async logRoleDelete(role) {
         const executor = await this.getExecutor(role.guild, AuditLogEvent.RoleDelete, role.id);
         const embed = new EmbedBuilder()
@@ -287,9 +241,6 @@ class ServerLogger {
         await this.sendLog(role.guild, embed);
     }
 
-    /**
-     * Log Role Update
-     */
     async logRoleUpdate(oldRole, newRole) {
         if (oldRole.name === newRole.name && oldRole.color === newRole.color && oldRole.permissions.bitfield === newRole.permissions.bitfield) {return;}
 
@@ -308,13 +259,6 @@ class ServerLogger {
     }
 
 
-    // ===========================================
-    // EXTENDED LOGGING (Mee6/Sapphire Style)
-    // ===========================================
-
-    /**
-     * Log Channel Create
-     */
     async logChannelCreate(channel) {
         if (!channel.guild) {return;}
         const executor = await this.getExecutor(channel.guild, AuditLogEvent.ChannelCreate, channel.id);
@@ -327,9 +271,6 @@ class ServerLogger {
         await this.sendLog(channel.guild, embed);
     }
 
-    /**
-     * Log Channel Delete
-     */
     async logChannelDelete(channel) {
         if (!channel.guild) {return;}
         const executor = await this.getExecutor(channel.guild, AuditLogEvent.ChannelDelete, channel.id);
@@ -342,9 +283,6 @@ class ServerLogger {
         await this.sendLog(channel.guild, embed);
     }
 
-    /**
-     * Log Channel Update
-     */
     async logChannelUpdate(oldChannel, newChannel) {
         if (!newChannel.guild) {return;}
         // Ignore permission overwrites for now to reduce spam, or just checking name/topic
@@ -364,9 +302,6 @@ class ServerLogger {
         await this.sendLog(newChannel.guild, embed);
     }
 
-    /**
-     * Log Voice State Update
-     */
     async logVoiceStateUpdate(oldState, newState) {
         const member = newState.member || oldState.member;
         if (!member || !member.guild) {return;}
@@ -398,9 +333,6 @@ class ServerLogger {
         }
     }
 
-    /**
-     * Log Emoji Create
-     */
     async logEmojiCreate(emoji) {
         const executor = await this.getExecutor(emoji.guild, AuditLogEvent.EmojiCreate, emoji.id);
         const embed = new EmbedBuilder()
@@ -412,9 +344,6 @@ class ServerLogger {
         await this.sendLog(emoji.guild, embed);
     }
 
-    /**
-     * Log Emoji Delete
-     */
     async logEmojiDelete(emoji) {
         const executor = await this.getExecutor(emoji.guild, AuditLogEvent.EmojiDelete, emoji.id);
         const embed = new EmbedBuilder()
@@ -426,9 +355,6 @@ class ServerLogger {
         await this.sendLog(emoji.guild, embed);
     }
 
-    /**
-     * Log Emoji Update
-     */
     async logEmojiUpdate(oldEmoji, newEmoji) {
         if (oldEmoji.name === newEmoji.name) {return;}
         const executor = await this.getExecutor(newEmoji.guild, AuditLogEvent.EmojiUpdate, newEmoji.id);
@@ -441,9 +367,6 @@ class ServerLogger {
         await this.sendLog(newEmoji.guild, embed);
     }
 
-    /**
-     * Log Guild Update
-     */
     async logGuildUpdate(oldGuild, newGuild) {
         if (oldGuild.name === newGuild.name && oldGuild.icon === newGuild.icon && oldGuild.banner === newGuild.banner) {return;}
 
@@ -466,9 +389,6 @@ class ServerLogger {
         await this.sendLog(newGuild, embed);
     }
 
-    /**
-     * Helper for Channel Types
-     */
     getChannelTypeName(type) {
         // Simple mapping, can be expanded
         const types = {
@@ -476,9 +396,6 @@ class ServerLogger {
         };
         return types[type] || 'Unknown';
     }
-    /**
-     * Log Bulk Message Delete (Purge)
-     */
     async logBulkDelete(messages, channel) {
         if (!channel.guild) {return;}
         
