@@ -9,11 +9,11 @@ const tempFiles = require('../utils/temp-files');
 const { getPublicConfig } = require('../utils/public-config');
 const { gatherHealthSnapshot } = require('../services/diagnostics');
 const {
-    safeReadJson, writeJsonAtomic, extractBearerToken,
+    extractBearerToken,
     isRenderHealthCheck, isRenderHealthUserAgent, buildProviderDigestResponse
 } = require('./health-helpers');
 const {
-    isProductionLike, isDashboardAuthed, dashboardAuthMiddleware,
+    isDashboardAuthed, dashboardAuthMiddleware,
     createDashboardAccessRouter
 } = require('./dashboard-auth');
 

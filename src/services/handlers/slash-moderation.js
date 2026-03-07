@@ -2,7 +2,7 @@
 
 const { EmbedBuilder } = require('discord.js');
 const { resolveUser } = require('../../utils/resolve-user');
-const { parseDuration, formatDuration, MAX_TIMEOUT_MS } = require('../../utils/parse-duration');
+const { parseDuration } = require('../../utils/parse-duration');
 const database = require('../database');
 
 async function handleBan(interaction) {
@@ -183,7 +183,7 @@ async function handleWarn(interaction) {
 
     if (!interaction.guild) { return 'This command only works in servers.'; }
 
-    const { user: targetUser, member: targetMember, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
+    const { user: targetUser, error: resolveError } = await resolveUser(interaction.client, interaction.guild, userInput);
     if (!targetUser) { return `❌ ${resolveError || 'User not found.'}`; }
 
     // Store warning in database

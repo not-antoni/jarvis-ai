@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const VAULT_DIR = path.join(DATA_DIR, 'vault');
 const LOCAL_DB_FILE = path.join(DATA_DIR, 'local-db.json');
 const LOCAL_DIR = path.join(DATA_DIR, 'collections'); // Per-collection JSON files
 const EXPORTS_DIR = path.join(DATA_DIR, 'mongo-exports'); // MongoDB exports

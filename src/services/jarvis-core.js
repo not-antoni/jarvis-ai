@@ -11,15 +11,12 @@ const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 const mathSolver = require('./math-solver');
 const { EmbedBuilder } = require('discord.js');
-const { buildSupportEmbed, buildHelpPayload, buildSupportLinkRow } = require('./help-builder');
+const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const {
     decodeInput, encodeInput, formatDecodedOutput, formatEncodedOutput,
-    decoderFormatKeys, encoderFormatKeys, sanitizeForCodeBlock, isMostlyPrintable
+    decoderFormatKeys, encoderFormatKeys
 } = require('./codec-system');
 const { isGarbageOutput } = require('../utils/garbage-detection');
-
-const SUPPORT_SERVER_URL = 'https://discord.gg/ksXzuBtmK5';
-
 
 class JarvisAI {
     constructor() {

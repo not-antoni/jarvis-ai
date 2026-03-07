@@ -1,6 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const database = require('../../services/database');
-const { isDjAdmin, isDj, isBlocked } = require('../../utils/dj-system');
+const { isDjAdmin, isBlocked } = require('../../utils/dj-system');
 
 module.exports = {
     data: new SlashCommandBuilder()

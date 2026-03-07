@@ -401,7 +401,7 @@ class UserFeaturesService {
 
     async getUserReminders(userId) {
         const reminders = [];
-        for (const [id, rem] of activeReminders) {
+        for (const [, rem] of activeReminders) {
             if (rem.userId === userId && rem.scheduledFor > Date.now()) {
                 reminders.push(rem);
             }
