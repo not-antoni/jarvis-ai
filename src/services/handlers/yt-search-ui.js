@@ -1,7 +1,6 @@
 'use strict';
 
 const {
-    EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
@@ -82,23 +81,6 @@ function buildButtons(sessionId, index, total) {
             .setEmoji('🗑️')
             .setStyle(ButtonStyle.Danger)
     );
-}
-
-function buildEmbed(query, video) {
-    const embed = new EmbedBuilder()
-        .setColor(0xff0000)
-        .setAuthor({ name: 'YouTube' })
-        .setTitle(video.title || 'Untitled Video')
-        .setURL(video.url || null)
-        .setDescription(video.channel ? `**${video.channel}**` : '**Unknown channel**');
-
-    if (video.thumbnail) {
-        embed.setImage(video.thumbnail);
-    }
-    if (query) {
-        embed.setFooter({ text: `Search: ${query}` });
-    }
-    return embed;
 }
 
 function buildPayload(sessionId, session) {

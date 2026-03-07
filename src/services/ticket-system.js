@@ -4,8 +4,7 @@ const {
     ButtonBuilder,
     ButtonStyle,
     ChannelType,
-    PermissionFlagsBits,
-    AttachmentBuilder
+    PermissionFlagsBits
 } = require('discord.js');
 
 class TicketSystem {
@@ -41,7 +40,7 @@ class TicketSystem {
     async handleInteraction(interaction) {
         if (!interaction.isButton()) {return;}
 
-        const { customId, guild, user, channel } = interaction;
+        const { customId } = interaction;
 
         if (customId === 'ticket_create') {
             await this.createTicket(interaction);

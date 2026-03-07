@@ -11,7 +11,6 @@ function getDiscordAvatarUrl(discordUser) {
 
 function getLoginPage({ oauthUrl, errorMsg }) {
     const safeError = errorMsg ? String(errorMsg).replace(/[<>]/g, '') : '';
-    const buttonDisabled = oauthUrl ? '' : 'disabled';
     const buttonText = oauthUrl ? 'Login with Discord' : 'Discord OAuth not configured';
 
     return `<!doctype html>

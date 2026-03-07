@@ -210,8 +210,6 @@ function buildAlertEmbed(message, result, contentType, context, riskData) {
  * @param {object} settings - Guild moderation settings (passed by caller to avoid circular dependency)
  */
 async function sendAlert(message, result, contentType, client, context, riskData, settings) {
-    const guildId = message.guild.id;
-
     // Build pings
     const pings = [];
     if (settings.pingOwner) {pings.push(`<@${message.guild.ownerId}>`);}

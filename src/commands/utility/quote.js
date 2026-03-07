@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder, ApplicationIntegrationType, InteractionContextType } = require('discord.js');
+const { ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder, ApplicationIntegrationType, InteractionContextType } = require('discord.js');
 const { generateQuoteImage } = require('../../utils/quote-generator');
 
 function escapeRegExp(string) {
@@ -37,67 +37,6 @@ async function resolveMentions(text, interaction) {
     }
     return text;
 }
-
-const quoteSlash = {
-    data: new SlashCommandBuilder()
-        .setName('quote')
-        .setDescription('Generate a fake quote image')
-        .setIntegrationTypes([
-            ApplicationIntegrationType.GuildInstall,
-            ApplicationIntegrationType.UserInstall
-        ])
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ])
-        .addUserOption(option =>
-            option.setName('user')
-                .setDescription('The user to quote (defaults to you)')
-                .setRequired(false))
-        .addStringOption(option =>
-            option.setName('text')
-                .setDescription('The text to quote')
-                .setRequired(false))
-        .addAttachmentOption(option =>
-            option.setName('image')
-                .setDescription('Attach an image or gif')
-                .setRequired(false)),
-    async execute(interaction) {
-        const targetUser = interaction.options.getUser('user') || interaction.user;
-        const rawText = interaction.options.getString('text');
-
-        const text = await resolveMentions(rawText, interaction);
-
-        const attachment = interaction.options.getAttachment('image');
-
-        const attachmentUrl = attachment ? attachment.url : null;
-
-        if (!text && !attachmentUrl) {
-            await interaction.editReply('⚠️ Please provide text or an image to quote, sir.');
-            return;
-        }
-
-        try {
-            const avatarUrl = targetUser.displayAvatarURL({ extension: 'png', size: 256 });
-            const buffer = await generateQuoteImage(
-                text || '',
-                targetUser.displayName || targetUser.username,
-                avatarUrl,
-                new Date(),
-                attachmentUrl,
-                targetUser.username  // Pass actual username for grey display
-            );
-
-            const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.gif' });
-            await interaction.editReply({ files: [attachmentFile] });
-
-        } catch (error) {
-            console.error('Quote generation failed:', error);
-            await interaction.editReply('❌ Failed to generate quote image.');
-        }
-    }
-};
 
 const quoteContext = {
     data: new ContextMenuCommandBuilder()

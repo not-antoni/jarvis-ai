@@ -19,7 +19,6 @@ const MAX_IMPORT_LINES = 500;
 const DELETE_LIMIT_PER_MIN = 20;
 const SPAM_WINDOW_MS = 3000;
 const SPAM_THRESHOLD = 5;
-const TIMEOUT_MS = 30 * 1000;
 const TIMEOUT_ESCALATION = [30 * 1000, 5 * 60 * 1000, 60 * 60 * 1000]; // 30s, 5m, 1h
 const DM_THROTTLE_MS = 60 * 1000;
 const ATTACHMENT_SIZE_LIMIT = 512 * 1024;
@@ -835,7 +834,6 @@ async function handleCommand(interaction) {
 
 function cleanupOldEntries() {
     const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
 
     // Clean up deleteRate entries older than 1 hour
     for (const [guildId, entry] of deleteRate.entries()) {

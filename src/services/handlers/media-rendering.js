@@ -1,10 +1,8 @@
 'use strict';
 
 const { AttachmentBuilder } = require('discord.js');
-const clankerGif = require('../../utils/clanker-gif');
 
 async function handleClipCommand(handler, message, client) {
-    const path = require('path');
 // Check if message starts with "jarvis clip"
 const content = message.content.trim().toLowerCase();
 if (!content.startsWith('jarvis clip')) {
