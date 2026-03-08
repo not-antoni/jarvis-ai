@@ -162,7 +162,7 @@ const client = new Client({
 const PRESENCE_ROTATION_INTERVAL_MS = 20 * 60 * 1000; // 20 minutes
 
 // ------------------------ Slash Command Registration ------------------------
-const { allCommands, commands, buildCommandData } = require('./src/commands/slash-definitions');
+const { buildCommandData } = require('./src/commands/slash-definitions');
 
 
 function ensureCommandSyncState() {
@@ -490,10 +490,8 @@ async function startBot() {
         });
 
         // Warm up MongoDB before we touch Discord (optional in local dev)
-        let databaseConnected = false;
         try {
             await database.connect();
-            databaseConnected = true;
         } catch (err) {
             const allowNoDb =
                 String(process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
