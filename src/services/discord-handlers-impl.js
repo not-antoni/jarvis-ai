@@ -1312,7 +1312,7 @@ class DiscordHandlers {
 
     // Format timestamp to actual readable time
     // Uses Discord.js Message.createdAt (Date object) for proper timezone handling
-    formatTimestamp(timestamp, userTimezone = 'UTC') {
+    formatTimestamp(timestamp, _userTimezone = 'UTC') {
         try {
             // Handle both Date objects and timestamp numbers
             const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
@@ -1575,7 +1575,7 @@ class DiscordHandlers {
         return baseHeight + (lineCount * lineHeight);
     }
 
-    hasImagesOrEmojis(message) {
+    hasImagesOrEmojis(_message) {
         // Allow all content now - images and emojis are supported
         return false;
     }
@@ -2170,7 +2170,7 @@ class DiscordHandlers {
     }
 
     // Draw a single line with formatting applied
-    drawFormattedLine(ctx, line, x, y, formatting) {
+    drawFormattedLine(ctx, line, x, y, _formatting) {
         // Remove formatting markers and apply styles
         let processedLine = line.trim();
         
