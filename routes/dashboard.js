@@ -495,13 +495,13 @@ router.get('/agents', async(req, res) => {
         agentMetrics = {
             memory: {
                 value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
-                status: 'good',
-                details: 'Node.js heap'
+                status: process.memoryUsage().heapUsed < 500 * 1024 * 1024 ? 'good' : 'warning',
+                details: `${Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100)}% of heap`
             },
             cpu: {
-                value: `${(os.loadavg()[0] * 10).toFixed(0)}%`,
-                status: 'good',
-                details: `${os.cpus().length} cores`
+                value: `${((os.loadavg()[0] * 100) / os.cpus().length).toFixed(0)}%`,
+                status: os.loadavg()[0] < os.cpus().length ? 'good' : 'warning',
+                details: `${os.cpus().length} cores available`
             },
             activeTasks: { value: 0, status: 'good', details: 'No active tasks' },
             errors: { value: 0, status: 'good', details: 'No errors' }
