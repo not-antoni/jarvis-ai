@@ -171,30 +171,6 @@ async function handleSearch(interaction, jarvis) {
     }
 }
 
-async function handleMath(interaction, jarvis) {
-    const expression = (interaction.options.getString('expression') || '').trim();
-    if (!expression.length) {
-        return 'Please provide something to calculate, sir.';
-    }
-
-    try {
-        const result = await jarvis.handleMathCommand(expression);
-        const embed = new EmbedBuilder()
-            .setColor(0x0078d4)
-            .setTitle('📐 Mathematics')
-            .addFields(
-                { name: 'Input', value: `\`\`\`${expression}\`\`\``, inline: false },
-                { name: 'Result', value: `\`\`\`${result}\`\`\``, inline: false }
-            )
-            .setFooter({ text: 'Jarvis Math Engine • Powered by Nerdamer' })
-            .setTimestamp();
-        return { embeds: [embed] };
-    } catch (error) {
-        console.error('Math command failed:', error);
-        return 'Mathematics subsystem encountered an error, sir. Please verify the expression.';
-    }
-}
-
 async function handleJarvis(interaction, jarvis) {
     let prompt = interaction.options.getString('prompt') || '';
 
@@ -326,18 +302,6 @@ async function handleJarvis(interaction, jarvis) {
     } catch (_) { /* social credit non-critical */ }
 
     return aiResponse;
-}
-
-async function handleRoll(interaction, jarvis, userId, guildId) {
-    const sides = interaction.options.getInteger('sides') || 6;
-    return await jarvis.handleUtilityCommand(
-        `roll ${sides}`,
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
 }
 
 async function handleTime(interaction, jarvis, userId, guildId) {
@@ -631,9 +595,7 @@ module.exports = {
     handleT,
     handleYt,
     handleSearch,
-    handleMath,
     handleJarvis,
-    handleRoll,
     handleTime,
     handleClear,
     handleHelp,

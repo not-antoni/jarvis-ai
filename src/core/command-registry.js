@@ -93,14 +93,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'math',
-        description: 'Evaluate a mathematical expression or equation.',
-        category: 'Utilities',
-        usage: '/math <expression>',
-        feature: 'utilities',
-        ephemeral: false
-    },
-    {
         name: 'crypto',
         description: 'Retrieve live market data for popular cryptocurrencies.',
         category: 'Utilities',
@@ -205,14 +197,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'roll',
-        description: 'Roll a virtual die.',
-        category: 'Utilities',
-        usage: '/roll [sides]',
-        feature: 'utilities',
-        ephemeral: false
-    },
-    {
         name: 'time',
         description: 'Render a Discord timestamp in your timezone.',
         category: 'Utilities',
@@ -302,15 +286,6 @@ const commandDefinitions = [
     },
     // ============ FUN COMMANDS ============
     {
-        name: 'aatrox',
-        description: 'GYAATROX',
-        category: 'Fun',
-        usage: '/aatrox',
-        feature: 'funUtilities',
-        ephemeral: false,
-        dmPermission: true
-    },
-    {
         name: 'typerace',
         description: 'Typing race - first to type the phrase wins!',
         category: 'Fun',
@@ -323,22 +298,6 @@ const commandDefinitions = [
         description: 'Calculate compatibility between two people',
         category: 'Fun',
         usage: '/ship <person1> [person2]',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
-        name: 'pickupline',
-        description: 'Get a cringe pickup line',
-        category: 'Fun',
-        usage: '/pickupline',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
-        name: '8ball',
-        description: 'Ask the magic 8-ball',
-        category: 'Fun',
-        usage: '/8ball <question>',
         feature: 'funUtilities',
         ephemeral: false
     },

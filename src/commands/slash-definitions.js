@@ -115,26 +115,7 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
-    new SlashCommandBuilder()
-        .setName('math')
-        .setDescription('Solve a math expression or equation')
-        .addStringOption(option =>
-            option.setName('expression').setDescription('Expression to evaluate').setRequired(true)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
     // ============ FUN COMMANDS ============
-    new SlashCommandBuilder()
-        .setName('aatrox')
-        .setDescription('GYAATROX')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
     new SlashCommandBuilder()
         .setName('typerace')
         .setDescription('Start a typing race - first to type the phrase wins!')
@@ -147,39 +128,6 @@ const allCommands = [
         )
         .addUserOption(option =>
             option.setName('person2').setDescription('Second person').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('pickupline')
-        .setDescription('Get a random pickup line')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('roll')
-        .setDescription('Roll dice (e.g., 2d6, 1d20)')
-        .addStringOption(option =>
-            option
-                .setName('dice')
-                .setDescription('Dice notation (e.g., 2d6, 1d20)')
-                .setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('8ball')
-        .setDescription('Ask the magic 8-ball a question')
-        .addStringOption(option =>
-            option.setName('question').setDescription('Your question').setRequired(true)
         )
         .setContexts([
             InteractionContextType.Guild,
