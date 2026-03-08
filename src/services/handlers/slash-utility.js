@@ -4,6 +4,7 @@ const { EmbedBuilder } = require('discord.js');
 const config = require('../../../config');
 const youtubeSearch = require('../youtube-search');
 const ytSearchUi = require('./yt-search-ui');
+const { formatUptime, getProcessUptimeSeconds } = require('../../utils/uptime');
 
 async function handlePing(interaction) {
     const sent = await interaction.editReply({ content: 'Pinging system...', fetchReply: true });
@@ -77,8 +78,7 @@ async function handlePing(interaction) {
     const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
     const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
 
-    const uptimeSeconds = process.uptime();
-    const uptime = `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m ${Math.floor(uptimeSeconds % 60)}s`;
+    const uptime = formatUptime(getProcessUptimeSeconds());
 
     const embed = new EmbedBuilder()
         .setTitle('🏓 Pong!')

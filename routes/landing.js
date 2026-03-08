@@ -424,7 +424,7 @@ const LANDING_PAGE = `
                 <div class="stat-label">AI Models</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number">100+</div>
+                <div class="stat-number">50</div>
                 <div class="stat-label">Commands</div>
             </div>
             <div class="stat-item">
