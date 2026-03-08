@@ -25,8 +25,6 @@ tags:
     description: Bot owner dashboard endpoints
   - name: Moderator
     description: Guild moderator panel endpoints
-  - name: Economy
-    description: Stark Bucks economy endpoints
   - name: Health
     description: System health and status
 
@@ -48,10 +46,10 @@ paths:
                   uptime: { type: number, example: 3600 }
                   memory: { type: object }
 
-  /api/dashboard/overview:
+  /api/dashboard/health:
     get:
       tags: [Dashboard]
-      summary: Dashboard overview
+      summary: Dashboard health summary
       security: [cookieAuth: []]
       responses:
         '200':
@@ -62,21 +60,6 @@ paths:
                 $ref: '#/components/schemas/DashboardOverview'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
-  /api/dashboard/guilds:
-    get:
-      tags: [Dashboard]
-      summary: List bot guilds
-      security: [cookieAuth: []]
-      responses:
-        '200':
-          description: List of guilds
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Guild'
 
   /api/dashboard/providers:
     get:
@@ -89,9 +72,32 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Provider'
+                $ref: '#/components/schemas/DashboardProvidersResponse'
+
+  /api/dashboard/logs:
+    get:
+      tags: [Dashboard]
+      summary: Recent dashboard logs
+      security: [cookieAuth: []]
+      responses:
+        '200':
+          description: Recent runtime logs
+
+  /api/dashboard/settings:
+    get:
+      tags: [Dashboard]
+      summary: Current dashboard settings
+      security: [cookieAuth: []]
+      responses:
+        '200':
+          description: Persisted dashboard settings
+    post:
+      tags: [Dashboard]
+      summary: Update dashboard settings
+      security: [cookieAuth: []]
+      responses:
+        '200':
+          description: Settings updated
 
   /moderator/api/stats/{guildId}:
     get:
@@ -166,24 +172,6 @@ paths:
         '200':
           description: Threat reported
 
-  /api/economy/leaderboard:
-    get:
-      tags: [Economy]
-      summary: Stark Bucks leaderboard
-      parameters:
-        - name: limit
-          in: query
-          schema: { type: integer, default: 10, maximum: 100 }
-      responses:
-        '200':
-          description: Top players by balance
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/LeaderboardEntry'
-
 components:
   securitySchemes:
     cookieAuth:
@@ -204,27 +192,75 @@ components:
     DashboardOverview:
       type: object
       properties:
-        guildCount: { type: integer }
-        userCount: { type: integer }
-        commandsToday: { type: integer }
-        uptime: { type: number }
-        memory: { type: object }
+        status: { type: string, enum: [healthy, degraded] }
+        degradedReasons:
+          type: array
+          items: { type: string }
+        uptime: { type: string }
+        uptimeMs: { type: number }
+        requests: { type: integer }
+        aiCalls: { type: integer }
+        aiSuccess: { type: integer }
+        aiFailed: { type: integer }
+        successRate: { type: number }
+        tokensIn: { type: integer }
+        tokensOut: { type: integer }
+        totalTokens: { type: integer }
+        commandsExecuted: { type: integer }
+        messagesProcessed: { type: integer }
+        lastProvider: { type: string, nullable: true }
+        providers: { type: integer }
+        activeProviders: { type: integer }
+        cpu: { type: string }
+        platform: { type: string }
+        nodeVersion: { type: string }
+        deploymentMode: { type: string }
+        discord:
+          type: object
+          properties:
+            ready: { type: boolean }
+            guilds: { type: integer }
+            users: { type: integer }
+            channels: { type: integer }
+        database:
+          type: object
+          properties:
+            connected: { type: boolean }
+        memory:
+          type: object
+          properties:
+            used: { type: integer }
+            total: { type: integer }
+            system: { type: integer }
+            rss: { type: integer }
 
-    Guild:
+    DashboardProvidersResponse:
       type: object
       properties:
-        id: { type: string }
-        name: { type: string }
-        memberCount: { type: integer }
-        icon: { type: string, nullable: true }
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Provider'
+        count: { type: integer }
+        active: { type: integer }
 
     Provider:
       type: object
       properties:
         name: { type: string }
-        status: { type: string, enum: [online, offline, degraded] }
-        latencyMs: { type: number }
-        requestsToday: { type: integer }
+        type: { type: string }
+        family: { type: string, nullable: true }
+        model: { type: string, nullable: true }
+        costTier: { type: string, nullable: true }
+        hasError: { type: boolean }
+        isDisabled: { type: boolean }
+        lastError: { type: string, nullable: true }
+        metrics:
+          type: object
+          properties:
+            avgLatencyMs: { type: number, nullable: true }
+            totalRequests: { type: integer }
+            successRate: { type: number, nullable: true }
 
     ModerationStats:
       type: object
@@ -252,14 +288,6 @@ components:
         severity: { type: string }
         reportedAt: { type: string, format: date-time }
         reportedBy: { type: string }
-
-    LeaderboardEntry:
-      type: object
-      properties:
-        userId: { type: string }
-        username: { type: string }
-        balance: { type: integer }
-        rank: { type: integer }
 
   responses:
     Unauthorized:

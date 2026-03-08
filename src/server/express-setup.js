@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const appContext = require('../core/app-context');
 const tempFiles = require('../utils/temp-files');
 const { getPublicConfig } = require('../utils/public-config');
+const { formatUptime, getProcessUptimeSeconds } = require('../utils/uptime');
 const { gatherHealthSnapshot } = require('../services/diagnostics');
 const {
     extractBearerToken,
@@ -271,9 +272,7 @@ ${pages.map(p => `  <url>
     // Public health endpoint for /status page
     app.get('/api/public/health', async(req, res) => {
         try {
-            const uptime = Date.now() - (dashboardRouter.getBotStartTime?.() || Date.now());
-            const hours = Math.floor(uptime / 3600000);
-            const minutes = Math.floor((uptime % 3600000) / 60000);
+            const uptimeSeconds = getProcessUptimeSeconds();
 
             let discordStats = { guilds: 0, users: 0, channels: 0 };
             if (appContext.getClient() && appContext.getClient().isReady()) {
@@ -294,7 +293,8 @@ ${pages.map(p => `  <url>
 
             res.json({
                 status: 'healthy',
-                uptime: `${hours}h ${minutes}m`,
+                uptime: formatUptime(uptimeSeconds),
+                uptimeMs: uptimeSeconds * 1000,
                 aiCalls: aiStats.totalRequests || 0,
                 discord: discordStats,
                 providers: aiStats.providers || 0,

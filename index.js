@@ -352,7 +352,6 @@ client.once(Events.ClientReady, async() => {
 
     // Initialize dashboard with Discord client for real-time stats
     dashboardRouter.setDiscordClient(client);
-    dashboardRouter.initBotStartTime();
     dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
     dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
 
