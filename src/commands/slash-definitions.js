@@ -2,6 +2,7 @@
 
 const {
     SlashCommandBuilder,
+    ChannelType,
     InteractionContextType,
     ApplicationIntegrationType,
     PermissionFlagsBits
