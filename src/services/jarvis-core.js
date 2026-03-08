@@ -9,7 +9,6 @@ const config = require('../../config');
 const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
-const mathSolver = require('./math-solver');
 const { EmbedBuilder } = require('discord.js');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const {
@@ -159,15 +158,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         } catch (error) {
             console.error('YouTube search error:', error);
             return 'YouTube search is currently unavailable, sir. Technical difficulties.';
-        }
-    }
-
-    async handleMathCommand(expression) {
-        try {
-            return await mathSolver.solve(expression);
-        } catch (error) {
-            console.error('Math solver error:', error);
-            return error?.message || 'Mathematics subsystem encountered an error, sir.';
         }
     }
 

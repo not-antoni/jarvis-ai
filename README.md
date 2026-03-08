@@ -37,10 +37,10 @@ Native Discord voice playback via `@discordjs/voice` + `yt-dlp`.
 `/monitor` tracks RSS feeds, websites, YouTube channels, Twitch streams, Cloudflare status, and status pages with Discord notifications.
 
 ### Utility
-`/jarvis` `/ask` `/search` `/yt` `/math` `/news` `/remind` `/time` `/timezone` `/encode` `/decode` `/cipher` `/caption` `/gif` `/avatar` `/banner` `/clip` `/profile` `/history` `/recap` `/digest` `/help` `/pwdgen` `/qrcode` `/mystats` `/wakeword`
+`/jarvis` `/ask` `/search` `/yt` `/news` `/remind` `/time` `/timezone` `/encode` `/decode` `/cipher` `/caption` `/gif` `/avatar` `/banner` `/clip` `/profile` `/history` `/recap` `/digest` `/help` `/pwdgen` `/qrcode` `/mystats` `/wakeword`
 
 ### Fun
-`/aatrox` `/typerace` `/ship` `/pickupline` `/roll` `/8ball` `/scramble` `/crypto`
+`/typerace` `/ship` `/scramble` `/crypto`
 
 ---
 

@@ -32,7 +32,7 @@ try {
     // Will proceed without DB when local mode
 }
 const aiManager = require('./src/services/ai-providers');
-const discordHandlers = require('./src/services/discord-handlers');
+const discordHandlers = require('./src/services/discord-handlers-impl');
 const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const ytDlpManager = require('./src/services/yt-dlp-manager');

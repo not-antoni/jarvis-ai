@@ -2580,11 +2580,9 @@ class DiscordHandlers {
         }
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
-        const mathTriggerPattern = /\bjarvis\s+math\b/i;
         // Require "search" with context - either "jarvis search" or just "search" when Jarvis was mentioned/invoked
         // But avoid triggering on casual uses like "I was searching for my keys"
         const searchTriggerPattern = /\b(?:jarvis\s+)?search\s+(?:for\s+)?(?:the\s+)?(?:web\s+)?(.+)/i;
-        const hasMathTrigger = mathTriggerPattern.test(cleanContent);
         const ytMatch = cleanContent.match(ytCommandPattern);
         const hasSearchTrigger = searchTriggerPattern.test(cleanContent);
         let braveInvocation = defaultBraveInvocation;
@@ -2622,12 +2620,6 @@ class DiscordHandlers {
                     explicit: false
                 };
             }
-        }
-
-        if (hasMathTrigger) {
-            await message.reply('Mathematics routines are now available via `/math`, sir.');
-            this.setCooldown(message.author.id, messageScope);
-            return;
         }
 
         if (ytMatch) {

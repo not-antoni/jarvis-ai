@@ -306,11 +306,6 @@ try {
             return;
         }
         // ============ FUN / SOCIAL COMMANDS ============
-        case 'aatrox': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleAatrox(interaction);
-            break;
-        }
         case 'typerace': {
             telemetryMetadata.category = 'fun';
             response = await slashSocial.handleTyperace(interaction);
@@ -341,21 +336,6 @@ try {
             response = await slashSocial.handleShip(interaction);
             break;
         }
-        case 'pickupline': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handlePickupline(interaction);
-            break;
-        }
-        case 'roll': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleDiceRoll(interaction);
-            break;
-        }
-        case '8ball': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handle8ball(interaction);
-            break;
-        }
         // ============ UTILITY COMMANDS ============
         case 't': {
             telemetryMetadata.category = 'utilities';
@@ -370,11 +350,6 @@ try {
         case 'search': {
             telemetryMetadata.category = 'search';
             response = await slashUtility.handleSearch(interaction, handler.jarvis);
-            break;
-        }
-        case 'math': {
-            telemetryMetadata.category = 'utilities';
-            response = await slashUtility.handleMath(interaction, handler.jarvis);
             break;
         }
         case 'jarvis': {
