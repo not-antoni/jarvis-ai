@@ -52,23 +52,6 @@ const triviaQuestions = [
     }
 ];
 
-const cipherPhrases = [
-    'Arc reactor diagnostics nominal',
-    'Stark Expo security override',
-    'Deploy the Hall of Armor',
-    'Engage satellite uplink now',
-    'Initiate Mark Seven extraction'
-];
-
-const scrambleWords = [
-    'repulsor',
-    'vibranium',
-    'arcforge',
-    'nanotech',
-    'ultrasonic',
-    'starkware'
-];
-
 const missions = [
     'Share a photo of your current setup\u2014Jarvis will rate the chaos.',
     'Teach the channel one obscure fact. Bonus points for science fiction.',
@@ -85,7 +68,5 @@ module.exports = {
     flatterTemplates,
     toastTemplates,
     triviaQuestions,
-    cipherPhrases,
-    scrambleWords,
     missions
 };

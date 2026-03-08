@@ -1,6 +1,6 @@
 'use strict';
 
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 const config = require('../../../config');
 const youtubeSearch = require('../youtube-search');
 const ytSearchUi = require('./yt-search-ui');
@@ -96,33 +96,6 @@ async function handlePing(interaction) {
         .setTimestamp();
 
     return { embeds: [embed] };
-}
-
-async function handleT(interaction, jarvis, userId, guildId) {
-    const query = (interaction.options.getString('query') || '').trim();
-
-    if (!query.length) {
-        return 'Please provide a search query, sir.';
-    }
-
-    const allowedChannelIds = (config.commands?.whitelistedChannelIds || []).map((id) => String(id));
-    if (interaction.guild && !allowedChannelIds.includes(String(interaction.channelId))) {
-        return 'This command is restricted to authorised channels, sir.';
-    }
-
-    try {
-        return await jarvis.handleUtilityCommand(
-            `!t ${query}`,
-            interaction.user.username,
-            userId,
-            true,
-            interaction,
-            guildId
-        );
-    } catch (error) {
-        console.error('Knowledge search command failed:', error);
-        return 'Knowledge archives are unreachable right now, sir.';
-    }
 }
 
 async function handleYt(interaction, _jarvis) {
@@ -304,17 +277,6 @@ async function handleJarvis(interaction, jarvis) {
     return aiResponse;
 }
 
-async function handleTime(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'time',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
-
 async function handleClear(interaction, jarvis, userId, guildId) {
     return await jarvis.handleUtilityCommand(
         'reset',
@@ -359,17 +321,6 @@ async function handleHistory(interaction, jarvis, userId, guildId) {
     );
 }
 
-async function handleRecap(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'recap',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
-
 async function handleDigest(interaction, jarvis, userId, guildId) {
     return await jarvis.handleUtilityCommand(
         'digest',
@@ -379,145 +330,6 @@ async function handleDigest(interaction, jarvis, userId, guildId) {
         interaction,
         guildId
     );
-}
-
-async function handleEncode(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'encode',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
-
-async function handleDecode(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'decode',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
-
-async function handlePwdgen(interaction) {
-    try {
-        const crypto = require('crypto');
-        const lengthRaw = interaction.options.getInteger('length');
-        const length = Math.max(8, Math.min(64, Number.isFinite(lengthRaw) ? lengthRaw : 16));
-        const includeSymbols = interaction.options.getBoolean('symbols') !== false;
-
-        const lowers = 'abcdefghijklmnopqrstuvwxyz';
-        const uppers = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        const digits = '0123456789';
-        const symbols = '!@#$%^&*()-_=+[]{};:,.?/';
-
-        let pool = lowers + uppers + digits;
-        if (includeSymbols) {pool += symbols;}
-
-        // Ensure at least one from each required class
-        const required = [
-            lowers[crypto.randomInt(lowers.length)],
-            uppers[crypto.randomInt(uppers.length)],
-            digits[crypto.randomInt(digits.length)]
-        ];
-        if (includeSymbols) {
-            required.push(symbols[crypto.randomInt(symbols.length)]);
-        }
-
-        if (length < required.length) {
-            return 'Length too short for the selected character requirements, sir.';
-        }
-
-        const chars = [...required];
-        while (chars.length < length) {
-            chars.push(pool[crypto.randomInt(pool.length)]);
-        }
-
-        // Fisher-Yates shuffle
-        for (let i = chars.length - 1; i > 0; i--) {
-            const j = crypto.randomInt(i + 1);
-            [chars[i], chars[j]] = [chars[j], chars[i]];
-        }
-
-        const password = chars.join('');
-        return {
-            content: `Here is your generated password (keep it private), sir:\n\n\`\`\`${password}\`\`\``
-        };
-    } catch (error) {
-        try {
-            const errorLogger = require('../error-logger');
-            await errorLogger.log({
-                error,
-                context: {
-                    location: 'slash:pwdgen',
-                    user: `${interaction.user.username} (${interaction.user.id})`,
-                    guild: interaction.guild ? `${interaction.guild.name} (${interaction.guild.id})` : 'DM',
-                    channel: `${interaction.channelId}`,
-                    command: 'pwdgen'
-                }
-            });
-        } catch (_logErr) { /* error logger failed */ }
-        return 'Password generator failed, sir.';
-    }
-}
-
-async function handleQrcode(interaction) {
-    try {
-        const text = (interaction.options.getString('text') || '').trim();
-        if (!text.length) {
-            return 'Provide text to encode, sir.';
-        }
-
-        // Prefer local qrcode library if installed, fallback to a remote QR image endpoint.
-        let pngBuffer = null;
-        try {
-            const qrcode = require('qrcode');
-            pngBuffer = await qrcode.toBuffer(text, {
-                type: 'png',
-                errorCorrectionLevel: 'M',
-                margin: 2,
-                width: 512
-            });
-        } catch {
-            const allowExternalFallback = String(process.env.ALLOW_QR_EXTERNAL_FALLBACK || '1').toLowerCase() === '1';
-            if (!allowExternalFallback) {
-                throw new Error('External QR fallback disabled');
-            }
-            const fetch = require('node-fetch');
-            const url = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(text)}`;
-            const res = await fetch(url);
-            if (!res.ok) {
-                throw new Error(`QR service failed: ${res.status}`);
-            }
-            const arr = await res.arrayBuffer();
-            pngBuffer = Buffer.from(arr);
-        }
-
-        const attachment = new AttachmentBuilder(pngBuffer, { name: 'qrcode.png' });
-        return {
-            content: 'QR code generated, sir.',
-            files: [attachment]
-        };
-    } catch (error) {
-        try {
-            const errorLogger = require('../error-logger');
-            await errorLogger.log({
-                error,
-                context: {
-                    location: 'slash:qrcode',
-                    user: `${interaction.user.username} (${interaction.user.id})`,
-                    guild: interaction.guild ? `${interaction.guild.name} (${interaction.guild.id})` : 'DM',
-                    channel: `${interaction.channelId}`,
-                    command: 'qrcode'
-                }
-            });
-        } catch (_logErr) { /* error logger failed */ }
-        return 'QR code generation failed, sir.';
-    }
 }
 
 async function handleAvatar(interaction) {
@@ -592,21 +404,14 @@ async function handleBanner(interaction) {
 
 module.exports = {
     handlePing,
-    handleT,
     handleYt,
     handleSearch,
     handleJarvis,
-    handleTime,
     handleClear,
     handleHelp,
     handleProfile,
     handleHistory,
-    handleRecap,
     handleDigest,
-    handleEncode,
-    handleDecode,
-    handlePwdgen,
-    handleQrcode,
     handleAvatar,
     handleBanner
 };

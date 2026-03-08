@@ -187,13 +187,6 @@ function createExpressApp({ webhookRouter, database }) {
     const legalRouter = require('../../routes/legal');
     app.use('/', legalRouter);
 
-    const userAuthRouter = require('../../routes/user-auth');
-    app.use('/', userAuthRouter);
-
-    const userPortalRouter = require('../../routes/user-portal');
-    userPortalRouter.init(database);
-    app.use('/me', userPortalRouter);
-
     const publicApiRouter = require('../../routes/public-api');
     app.use('/api/v1', publicApiRouter);
 
@@ -228,10 +221,7 @@ Disallow: /moderator
 Disallow: /moderator/*
 Disallow: /jarvis
 Disallow: /jarvis/*
-Disallow: /me
-Disallow: /me/*
 Disallow: /api/
-Disallow: /auth/
 
 # Sitemap
 Sitemap: ${siteBaseUrl}/sitemap.xml

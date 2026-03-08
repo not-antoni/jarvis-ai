@@ -670,30 +670,6 @@ class UserFeaturesService {
         sessionStats.set(key, current + amount);
     }
 
-    async getUserStats(userId) {
-        const prefs = await this.getUserPrefs(userId);
-
-        // Combine persisted stats with session stats
-        const stats = {
-            messageCount:
-                (prefs.stats?.messageCount || 0) +
-                (sessionStats.get(`${userId}:messageCount`) || 0),
-            remindersCreated:
-                (prefs.stats?.remindersCreated || 0) +
-                (sessionStats.get(`${userId}:remindersCreated`) || 0),
-            searchesPerformed:
-                (prefs.stats?.searchesPerformed || 0) +
-                (sessionStats.get(`${userId}:searchesPerformed`) || 0),
-            commandsUsed:
-                (prefs.stats?.commandsUsed || 0) +
-                (sessionStats.get(`${userId}:commandsUsed`) || 0),
-            firstInteraction: prefs.stats?.firstInteraction || Date.now(),
-            favoriteHour: prefs.stats?.favoriteHour || null
-        };
-
-        return stats;
-    }
-
     async flushStats(userId) {
         if (!this.database) {return;}
 

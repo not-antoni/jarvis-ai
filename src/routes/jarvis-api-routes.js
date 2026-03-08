@@ -7,7 +7,6 @@ const aiManager = require('../services/ai-providers');
 const { gatherHealthSnapshot } = require('../services/diagnostics');
 const moderation = require('../services/GUILDS_FEATURES/moderation');
 const moderationFilters = require('../services/moderation-filters');
-const subscriptions = require('../services/monitor-subscriptions');
 const dataSync = require('../services/data-sync');
 const ytDlpManager = require('../services/yt-dlp-manager');
 const { musicManager } = require('../core/musicManager');
@@ -89,7 +88,6 @@ function mountFeatureRoutes(router, ctx) {
             sentience: config.sentience,
             youtube: { apiKeyConfigured: Boolean(config.youtube?.apiKey) },
             brave: { apiKeyConfigured: Boolean(config.brave?.apiKey) },
-            crypto: { apiKeyConfigured: Boolean(config.crypto?.apiKey) },
             admin: { userId: config.admin?.userId },
             server: { port: config.server?.port }
         };
@@ -172,14 +170,6 @@ function mountFeatureRoutes(router, ctx) {
             // agentSummary stays as-is on failure
         }
 
-        let subsCount = 0;
-        try {
-            const all = await subscriptions.get_all_subscriptions().catch(() => []);
-            subsCount = Array.isArray(all) ? all.length : 0;
-        } catch {
-            subsCount = 0;
-        }
-
         let syncStatus = null;
         try {
             syncStatus = typeof dataSync.getSyncStatus === 'function' ? dataSync.getSyncStatus() : null;
@@ -236,7 +226,6 @@ function mountFeatureRoutes(router, ctx) {
                     health: providerHealth
                 },
                 agent: agentSummary,
-                monitoring: { subscriptions: subsCount },
                 music: { activeQueues: musicManager?.getActiveGuildIds?.()?.length || 0 },
                 sync: syncStatus,
                 ytdlp,
@@ -431,25 +420,6 @@ function mountFeatureRoutes(router, ctx) {
         saveJarvisSnapshot(`filters.page.${page}`, payload).catch(err => {
             console.warn(`[Jarvis] Failed to save filters page ${page} snapshot:`, err?.message || err);
         });
-    });
-
-    router.get('/api/monitoring/subscriptions', requireOwner, async(req, res) => {
-        try {
-            const all = await subscriptions.get_all_subscriptions().catch(() => []);
-            const subs = Array.isArray(all) ? all : [];
-            const byType = subs.reduce((acc, s) => {
-                const t = String(s?.monitor_type || 'unknown');
-                acc[t] = (acc[t] || 0) + 1;
-                return acc;
-            }, {});
-            const payload = { ok: true, count: subs.length, byType, subscriptions: subs };
-            res.json(payload);
-            saveJarvisSnapshot('monitoring.subscriptions', payload).catch(err => {
-                console.warn('[Jarvis] Failed to save monitoring subscriptions snapshot:', err?.message || err);
-            });
-        } catch (e) {
-            res.status(500).json({ ok: false, error: e?.message || 'failed' });
-        }
     });
 
     router.get('/api/music', requireOwner, (req, res) => {

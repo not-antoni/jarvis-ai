@@ -38,7 +38,6 @@ const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
 const errorLogger = require('./src/services/error-logger');
 const serverLogger = require('./src/services/server-logger');
-const monitorScheduler = require('./src/services/monitor-scheduler');
 const { printSelfhostStatus } = require('./scripts/selfhost-check');
 const { printRenderStatus } = require('./scripts/render-check');
 const { safeReadJson, writeJsonAtomic } = require('./src/server/health-helpers');
@@ -357,15 +356,6 @@ client.once(Events.ClientReady, async() => {
     dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
     dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
 
-    // Initialize Cloudflare status notifier for Discord alerts
-    try {
-        const cloudflareNotifier = require('./src/services/cloudflare-status-notifier');
-        cloudflareNotifier.init(client);
-        dashboardRouter.addLog('info', 'System', 'Cloudflare status notifier initialized');
-    } catch (e) {
-        console.warn('[CloudflareStatus] Failed to initialize:', e.message);
-    }
-
     // Initialize public API with AI manager and database
     try {
         const aiManager = require('./src/services/ai-providers');
@@ -412,12 +402,6 @@ client.once(Events.ClientReady, async() => {
         } catch (e) {
             console.warn('[UserFeatures] Failed to initialize:', e.message);
         }
-    }
-
-    try {
-        monitorScheduler.init({ client });
-    } catch (e) {
-        console.warn('[Monitor] Failed to start scheduler:', e.message);
     }
 
     if (databaseConnected) {
@@ -489,7 +473,7 @@ client.once(Events.ClientReady, async() => {
 const { wireEventHandlers } = require('./src/server/event-wiring');
 wireEventHandlers({
     client, discordHandlers, dashboardRouter, serverLogger,
-    errorLogger, aiManager, database, cron, monitorScheduler,
+    errorLogger, aiManager, database, cron,
     serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
 });
 

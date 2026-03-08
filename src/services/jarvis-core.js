@@ -11,10 +11,6 @@ const youtubeSearch = require('./youtube-search');
 const braveSearch = require('./brave-search');
 const { EmbedBuilder } = require('discord.js');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
-const {
-    decodeInput, encodeInput, formatDecodedOutput, formatEncodedOutput,
-    decoderFormatKeys, encoderFormatKeys
-} = require('./codec-system');
 const { isGarbageOutput } = require('../utils/garbage-detection');
 
 class JarvisAI {
@@ -279,7 +275,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         input,
         userName,
         userId = null,
-        isSlash = false,
+        _isSlash = false,
         interaction = null,
         guildId = null
     ) {
@@ -327,32 +323,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             }
             return `sir!!! services are disrupted:skull:, ${working} of ${status.length} AI providers active.${extra}`;
             
-        }
-
-        if (cmd === 'time' || cmd.startsWith('time')) {
-            if (isSlash && interaction) {
-                const format = interaction.options?.getString('format') || 'f';
-                const now = Math.floor(Date.now() / 1000);
-
-                const formatDescriptions = {
-                    t: 'time',
-                    T: 'precise time',
-                    d: 'date',
-                    D: 'full date',
-                    f: 'date and time',
-                    F: 'complete timestamp',
-                    R: 'relative time'
-                };
-
-                return `The current ${formatDescriptions[format] || 'time'} is <t:${now}:${format}>, sir.\n`;
-            } 
-            const now = Math.floor(Date.now() / 1000);
-            return `Current time: <t:${now}:f> (shows in your timezone), sir.`;
-            
-        }
-
-        if (cmd === 'providers') {
-            return "Sir, I'd rather keep that info to myself.";
         }
 
         if (cmd === 'invite') {
@@ -522,64 +492,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             ].join('\n');
         }
 
-        if (cmd === 'recap' || cmd.startsWith('recap')) {
-            if (!database.isConnected) {
-                return 'Unable to produce a recap, sir. Database offline.';
-            }
-
-            const timeframeOptions = {
-                '6h': 6 * 60 * 60 * 1000,
-                '12h': 12 * 60 * 60 * 1000,
-                '24h': 24 * 60 * 60 * 1000,
-                '7d': 7 * 24 * 60 * 60 * 1000
-            };
-
-            let timeframe = '24h';
-
-            if (isSlash && interaction?.commandName === 'recap') {
-                timeframe = interaction.options.getString('window') || timeframe;
-            } else {
-                const match = rawInput.match(/recap\s+(6h|12h|24h|7d)/i);
-                if (match) {
-                    timeframe = match[1].toLowerCase();
-                }
-            }
-
-            const duration = timeframeOptions[timeframe] || timeframeOptions['24h'];
-            const since = new Date(Date.now() - duration);
-            const conversations = await database.getConversationsSince(userId, since);
-
-            if (!conversations.length) {
-                return `Nothing to report from the last ${timeframe}, sir.`;
-            }
-
-            const first = conversations[0];
-            const last = conversations[conversations.length - 1];
-            const uniquePrompts = new Set(
-                conversations.map(conv => (conv.userMessage || '').toLowerCase()).filter(Boolean)
-            );
-
-            const highlightLines = conversations.slice(-5).map(conv => {
-                const timestamp = Math.floor(new Date(conv.timestamp).getTime() / 1000);
-                const userMessage = conv.userMessage
-                    ? conv.userMessage.replace(/\s+/g, ' ').trim()
-                    : '(no prompt)';
-                return `• <t:${timestamp}:t> — ${userMessage.substring(0, 100)}${userMessage.length > 100 ? '…' : ''}`;
-            });
-
-            return [
-                `Activity summary for the past ${timeframe}, sir:`,
-                `• Interactions: ${conversations.length}`,
-                `• Distinct prompts: ${uniquePrompts.size}`,
-                `• First prompt: <t:${Math.floor(new Date(first.timestamp).getTime() / 1000)}:R>`,
-                `• Most recent: <t:${Math.floor(new Date(last.timestamp).getTime() / 1000)}:R>`,
-                highlightLines.length ? '• Highlights:' : null,
-                highlightLines.length ? highlightLines.join('\n') : null
-            ]
-                .filter(Boolean)
-                .join('\n');
-        }
-
         if (cmd === 'digest' || cmd.startsWith('digest')) {
             if (!database.isConnected) {
                 return 'Unable to compile a digest, sir. Database offline.';
@@ -704,90 +616,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             } catch (error) {
                 console.error('Failed to generate digest:', error);
                 return 'I could not synthesize a digest at this time, sir.';
-            }
-        }
-
-        if (cmd === 'encode' || cmd.startsWith('encode ')) {
-            let format = 'base64';
-            let payload = '';
-
-            if (isSlash && interaction?.commandName === 'encode') {
-                format = interaction.options.getString('format') || 'base64';
-                payload = interaction.options.getString('text') || '';
-            } else {
-                const afterCommand = rawInput.replace(/^encode/i, '').trim();
-                if (afterCommand) {
-                    const parts = afterCommand.split(/\s+/);
-                    if (parts.length > 1 && encoderFormatKeys.has(parts[0].toLowerCase())) {
-                        format = parts[0].toLowerCase();
-                        payload = afterCommand.slice(parts[0].length).trim();
-                    } else if (
-                        parts.length > 1 &&
-                        encoderFormatKeys.has(parts[parts.length - 1].toLowerCase())
-                    ) {
-                        const last = parts[parts.length - 1];
-                        format = last.toLowerCase();
-                        payload = afterCommand.slice(0, afterCommand.length - last.length).trim();
-                    } else {
-                        payload = afterCommand;
-                    }
-                }
-            }
-
-            if (!payload) {
-                return 'Please provide text to encode, sir.';
-            }
-
-            try {
-                const { label, output } = encodeInput(format, payload);
-                return formatEncodedOutput(label, output);
-            } catch (error) {
-                return `Unable to encode that, sir. ${error.message}`;
-            }
-        }
-
-        if (cmd === 'decode' || cmd.startsWith('decode ')) {
-            let format = 'auto';
-            let payload = '';
-
-            if (isSlash && interaction?.commandName === 'decode') {
-                format = interaction.options.getString('format') || 'auto';
-                payload = interaction.options.getString('text') || '';
-            } else {
-                const afterCommand = rawInput.replace(/^decode/i, '').trim();
-                if (afterCommand) {
-                    const parts = afterCommand.split(/\s+/);
-                    if (parts.length > 1 && decoderFormatKeys.has(parts[0].toLowerCase())) {
-                        format = parts[0].toLowerCase();
-                        payload = afterCommand.slice(parts[0].length).trim();
-                    } else if (
-                        parts.length > 1 &&
-                        decoderFormatKeys.has(parts[parts.length - 1].toLowerCase())
-                    ) {
-                        const last = parts[parts.length - 1];
-                        format = last.toLowerCase();
-                        payload = afterCommand.slice(0, afterCommand.length - last.length).trim();
-                    } else if (
-                        parts.length === 1 &&
-                        decoderFormatKeys.has(parts[0].toLowerCase())
-                    ) {
-                        format = parts[0].toLowerCase();
-                        payload = '';
-                    } else {
-                        payload = afterCommand;
-                    }
-                }
-            }
-
-            if (!payload) {
-                return 'Please provide text to decode, sir.';
-            }
-
-            try {
-                const { label, buffer } = decodeInput(format, payload);
-                return formatDecodedOutput(label, buffer);
-            } catch (error) {
-                return `Unable to decode that, sir. ${error.message}`;
             }
         }
 

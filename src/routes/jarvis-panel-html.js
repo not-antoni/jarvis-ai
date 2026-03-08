@@ -139,7 +139,6 @@ function getPanelPage(session) {
           <a href="#agent" data-route="agent">Agent <span class="badge" id="b-agent">—</span></a>
           <a href="#moderation" data-route="moderation">Moderation</a>
           <a href="#filters" data-route="filters">Filters</a>
-          <a href="#monitoring" data-route="monitoring">Monitoring</a>
           <a href="#music" data-route="music">Music</a>
           <a href="#economy" data-route="economy">Economy</a>
           <a href="#soul" data-route="soul">Soul</a>
@@ -652,7 +651,6 @@ function getPanelPage(session) {
             { label: 'Discord', value: o.discord && o.discord.ready ? 'Ready' : 'Not ready', sub: 'Guilds: ' + o.discord.guilds + ' • Users: ' + o.discord.users },
             { label: 'AI Providers', value: String(o.providers.active) + '/' + String(o.providers.total), sub: 'Mode: ' + o.providers.selectionMode + ' • Type: ' + o.providers.providerType },
             { label: 'Agent', value: o.agent && o.agent.ok ? String(o.agent.health) : 'Unavailable', sub: 'Circuit: ' + (o.agent.circuit || '—') + ' • Sessions: ' + String(o.agent.activeSessions || 0) },
-            { label: 'Monitoring', value: String(o.monitoring.subscriptions || 0), sub: 'Subscriptions' },
             { label: 'Music', value: String(o.music.activeQueues || 0), sub: 'Active queues' },
             { label: 'Economy', value: o.economy && o.economy.multiplierActive ? 'Boost' : '—', sub: 'Multiplier' },
             { label: 'Logs', value: String(o.logs.files || 0), sub: 'Files' },
@@ -989,48 +987,6 @@ function getPanelPage(session) {
         }
 
         return loadSection(cacheKey, url, paint).catch(function (e) {
-          clearView();
-          showRaw({ ok: false, error: e.message });
-          setBanner('bad', e.message);
-        });
-      }
-
-      function renderMonitoring() {
-        titleEl.textContent = 'Monitoring';
-        subtitleEl.textContent = 'Subscriptions.';
-        setActive('monitoring');
-        setBanner('', '');
-        clearControls();
-        clearView();
-
-        function paint(data, meta) {
-          clearView();
-          showRaw(data);
-          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
-          renderKpis([
-            { label: 'Total', value: String(data.count || 0), sub: 'Subscriptions' }
-          ]);
-          var subs = Array.isArray(data.subscriptions) ? data.subscriptions : [];
-          renderTable(
-            subs.slice(0, 250).map(function (s) {
-              return {
-                type: s.monitor_type || 'unknown',
-                source: s.source_id || '',
-                guild: s.guild_id || '',
-                channel: s.channel_id || ''
-              };
-            }),
-            [
-              { label: 'Type', key: 'type' },
-              { label: 'Source', key: 'source' },
-              { label: 'Guild', key: 'guild', render: function (row) { var c = document.createElement('code'); c.textContent = row.guild; return c; } },
-              { label: 'Channel', key: 'channel', render: function (row) { var c2 = document.createElement('code'); c2.textContent = row.channel; return c2; } }
-            ],
-            { pageSize: 25 }
-          );
-        }
-
-        return loadSection('monitoring.subscriptions', '/jarvis/api/monitoring/subscriptions', paint).catch(function (e) {
           clearView();
           showRaw({ ok: false, error: e.message });
           setBanner('bad', e.message);
@@ -1445,7 +1401,6 @@ function getPanelPage(session) {
         if (r === 'agent') return renderAgent();
         if (r === 'moderation') return renderModeration();
         if (r === 'filters') return renderFilters();
-        if (r === 'monitoring') return renderMonitoring();
         if (r === 'music') return renderMusic();
         if (r === 'economy') return renderEconomy();
         if (r === 'soul') return renderSoul();

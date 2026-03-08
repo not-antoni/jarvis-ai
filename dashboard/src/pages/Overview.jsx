@@ -1,22 +1,22 @@
 import {
-    Activity,
-    CheckCircle2,
-    Clock,
-    MessageSquare,
-    RefreshCw,
-    Server,
-    TrendingUp,
-    Users,
-    Zap
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Database,
+  MessageSquare,
+  RefreshCw,
+  Server,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-function StatCard({ icon: Icon, label, value, subtext, trend, color = 'accent' }) {
+function StatCard({ icon, label, value, subtext, color = 'accent' }) {
+  const Icon = icon;
   const colors = {
     accent: 'from-[#0078d4] to-[#00bcf2]',
     success: 'from-[#4ec9b0] to-[#3da88a]',
     warning: 'from-[#dcdcaa] to-[#c4b466]',
-    error: 'from-[#f14c4c] to-[#d93e3e]',
   };
 
   return (
@@ -25,138 +25,192 @@ function StatCard({ icon: Icon, label, value, subtext, trend, color = 'accent' }
         <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors[color]} flex items-center justify-center`}>
           <Icon className="w-5 h-5 text-white" />
         </div>
-        {trend && (
-          <div className={`flex items-center gap-1 text-xs ${trend > 0 ? 'text-[#4ec9b0]' : 'text-[#f14c4c]'}`}>
-            <TrendingUp className={`w-3 h-3 ${trend < 0 ? 'rotate-180' : ''}`} />
-            {Math.abs(trend)}%
-          </div>
-        )}
       </div>
       <div className="mt-3">
         <p className="text-2xl font-semibold text-[#cccccc]">{value}</p>
         <p className="text-xs text-[#858585] mt-1">{label}</p>
-        {subtext && <p className="text-[10px] text-[#6e6e6e] mt-0.5">{subtext}</p>}
+        {subtext ? <p className="text-[10px] text-[#6e6e6e] mt-0.5">{subtext}</p> : null}
       </div>
     </div>
   );
 }
 
-function ProviderStatus({ provider }) {
+function StatusRow({ icon, label, tone, detail }) {
+  const Icon = icon;
+  const tones = {
+    healthy: {
+      icon: 'text-[#4ec9b0]',
+      badge: 'text-[#4ec9b0]',
+      label: 'Healthy',
+    },
+    degraded: {
+      icon: 'text-[#dcdcaa]',
+      badge: 'text-[#dcdcaa]',
+      label: 'Degraded',
+    },
+    offline: {
+      icon: 'text-[#f14c4c]',
+      badge: 'text-[#f14c4c]',
+      label: 'Offline',
+    },
+    unknown: {
+      icon: 'text-[#858585]',
+      badge: 'text-[#858585]',
+      label: 'Unknown',
+    },
+  };
+
+  const current = tones[tone] || tones.unknown;
+
   return (
-    <div className="flex items-center justify-between py-2 px-3 rounded bg-[#2d2d2d] card-hover">
-      <div className="flex items-center gap-3">
-        <div className={`w-2 h-2 rounded-full ${provider.status === 'online' ? 'bg-[#4ec9b0]' : 'bg-[#f14c4c]'}`} />
-        <div>
-          <p className="text-sm text-[#cccccc]">{provider.name}</p>
-          <p className="text-[10px] text-[#6e6e6e]">{provider.model}</p>
+    <div className="flex items-center gap-3 rounded bg-[#2d2d2d] p-3">
+      <Icon className={`w-5 h-5 ${current.icon}`} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-[#cccccc]">{label}</p>
+          <span className={`text-[10px] uppercase tracking-[0.12em] ${current.badge}`}>
+            {current.label}
+          </span>
         </div>
-      </div>
-      <div className="text-right">
-        <p className="text-xs text-[#858585]">{provider.latency}ms</p>
-        <p className="text-[10px] text-[#6e6e6e]">{provider.requests} req</p>
+        <p className="text-[10px] text-[#6e6e6e] mt-1">{detail}</p>
       </div>
     </div>
   );
 }
+
+const EMPTY_STATS = {
+  status: 'unknown',
+  degradedReasons: [],
+  uptime: '0h 0m',
+  uptimeMs: 0,
+  aiCalls: 0,
+  successRate: 0,
+  tokensIn: 0,
+  tokensOut: 0,
+  totalTokens: 0,
+  commandsExecuted: 0,
+  messagesProcessed: 0,
+  providers: 0,
+  activeProviders: 0,
+  deploymentMode: 'unknown',
+  discord: {
+    ready: false,
+    guilds: 0,
+    users: 0,
+    channels: 0,
+  },
+  database: {
+    connected: false,
+  },
+};
 
 export default function Overview() {
-  const [stats, setStats] = useState({
-    uptime: '0h 0m',
-    uptimeMs: 0,
-    requests: 0,
-    aiCalls: 0,
-    successRate: 0,
-    tokensIn: 0,
-    tokensOut: 0,
-    totalTokens: 0,
-    discord: { guilds: 0, users: 0, channels: 0 },
-    providers: 0,
-    activeProviders: 0,
-    commandsExecuted: 0,
-    messagesProcessed: 0,
-    deploymentMode: 'render',
-  });
-
-  // Calculate tokens per hour
-  const tokensPerHour = stats.uptimeMs > 0 
-    ? Math.round(((stats.tokensIn || 0) + (stats.tokensOut || 0)) / (stats.uptimeMs / 3600000))
-    : 0;
-
+  const [stats, setStats] = useState(EMPTY_STATS);
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [lastUpdate, setLastUpdate] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = async ({ quiet = false } = {}) => {
+    if (quiet) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
-      // Fetch from backend API
       const [healthRes, providersRes] = await Promise.all([
-        fetch('/api/dashboard/health').catch(() => null),
-        fetch('/api/dashboard/providers').catch(() => null),
+        fetch('/api/dashboard/health'),
+        fetch('/api/dashboard/providers'),
       ]);
 
-      if (healthRes?.ok) {
-        const health = await healthRes.json();
-        setStats(prev => ({ ...prev, ...health }));
+      if (!healthRes.ok) {
+        throw new Error(`Health request failed (${healthRes.status})`);
+      }
+      if (!providersRes.ok) {
+        throw new Error(`Provider request failed (${providersRes.status})`);
       }
 
-      if (providersRes?.ok) {
-        const data = await providersRes.json();
-        setProviders(data.providers || []);
-      }
+      const [health, providerData] = await Promise.all([
+        healthRes.json(),
+        providersRes.json(),
+      ]);
 
+      setStats({ ...EMPTY_STATS, ...health });
+      setProviders(Array.isArray(providerData.providers) ? providerData.providers : []);
+      setError('');
       setLastUpdate(new Date());
     } catch (err) {
-      console.error('Failed to fetch data:', err);
+      setError(err.message || 'Failed to load dashboard overview.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000); // Refresh every 10s
+
+    const interval = setInterval(() => {
+      fetchData({ quiet: true });
+    }, 15000);
+
     return () => clearInterval(interval);
   }, []);
 
-  // Transform provider data for display
-  const displayProviders = providers.map(p => ({
-    name: p.name,
-    model: p.model || 'Unknown',
-    status: p.isDisabled ? 'offline' : (p.hasError ? 'error' : 'online'),
-    latency: p.metrics?.avgLatencyMs ? Math.round(p.metrics.avgLatencyMs) : 0,
-    requests: (p.metrics?.successes || 0) + (p.metrics?.failures || 0),
-  })).slice(0, 10); // Show top 10 providers
+  const totalTokens = (stats.tokensIn || 0) + (stats.tokensOut || 0);
+  const tokensPerHour = stats.uptimeMs > 0
+    ? Math.round(totalTokens / (stats.uptimeMs / 3600000))
+    : 0;
+  const providerRows = providers.slice(0, 6);
+  const providerStatusTone = stats.activeProviders > 0 ? 'healthy' : 'offline';
+  const systemTone = stats.status === 'healthy' ? 'healthy' : stats.status === 'degraded' ? 'degraded' : 'unknown';
+  const providerDetail = stats.providers > 0
+    ? `${stats.activeProviders}/${stats.providers} active providers`
+    : 'No providers reported by the backend';
 
   return (
     <div className="p-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-[#cccccc]">Dashboard Overview</h1>
-          <p className="text-sm text-[#858585]">Monitor your Jarvis instance</p>
+          <p className="text-sm text-[#858585]">Operational state pulled from the live backend.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs text-[#6e6e6e]">
-            <Clock className="w-3 h-3" />
-            Last updated: {lastUpdate.toLocaleTimeString()}
+            <Clock3 className="w-3 h-3" />
+            {lastUpdate ? `Updated ${lastUpdate.toLocaleTimeString()}` : 'Waiting for first sync'}
           </div>
-          <button 
-            onClick={fetchData}
+          <button
+            type="button"
+            onClick={() => fetchData({ quiet: true })}
             className="p-2 rounded bg-[#2d2d2d] hover:bg-[#3c3c3c] transition-colors"
+            aria-label="Refresh overview"
           >
-            <RefreshCw className={`w-4 h-4 text-[#858585] ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-[#858585] ${(loading || refreshing) ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {error ? (
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-[#f14c4c]/40 bg-[#f14c4c]/10 px-4 py-3 text-sm text-[#f5b7b7]">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
-          icon={Activity}
-          label="Uptime"
-          value={stats.uptime || '—'}
-          subtext="Since last restart"
-          color="success"
+          icon={Sparkles}
+          label="System State"
+          value={stats.status === 'healthy' ? 'Healthy' : stats.status === 'degraded' ? 'Degraded' : 'Unknown'}
+          subtext={
+            stats.degradedReasons?.length
+              ? `Watch: ${stats.degradedReasons.join(', ')}`
+              : 'Discord, database, and providers look healthy'
+          }
+          color={stats.status === 'healthy' ? 'success' : 'warning'}
         />
         <StatCard
           icon={Zap}
@@ -166,123 +220,129 @@ export default function Overview() {
           color="success"
         />
         <StatCard
+          icon={MessageSquare}
+          label="Commands"
+          value={(stats.commandsExecuted || 0).toLocaleString()}
+          subtext={`${(stats.messagesProcessed || 0).toLocaleString()} messages processed`}
+        />
+        <StatCard
+          icon={Server}
+          label="Uptime"
+          value={stats.uptime || '0h 0m'}
+          subtext={stats.deploymentMode === 'selfhost' ? 'Self-hosted runtime' : 'Render deployment'}
+          color="accent"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard
           icon={Zap}
           label="Tokens In"
           value={(stats.tokensIn || 0).toLocaleString()}
-          subtext={`~${Math.round(tokensPerHour * 0.6).toLocaleString()}/hr`}
-          color="accent"
+          subtext={tokensPerHour > 0 ? `~${tokensPerHour.toLocaleString()}/hr total throughput` : 'No token throughput yet'}
         />
         <StatCard
           icon={Zap}
           label="Tokens Out"
           value={(stats.tokensOut || 0).toLocaleString()}
-          subtext={`~${Math.round(tokensPerHour * 0.4).toLocaleString()}/hr`}
-          color="accent"
-        />
-      </div>
-
-      {/* Secondary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          icon={MessageSquare}
-          label="Commands"
-          value={(stats.commandsExecuted || 0).toLocaleString()}
-          subtext="Slash commands executed"
-          color="accent"
-        />
-        <StatCard
-          icon={MessageSquare}
-          label="Messages"
-          value={(stats.messagesProcessed || 0).toLocaleString()}
-          subtext="Messages processed"
-          color="accent"
+          subtext={`${(stats.totalTokens || totalTokens).toLocaleString()} total tokens`}
         />
         <StatCard
           icon={Server}
           label="Guilds"
-          value={stats.discord?.guilds || 0}
-          subtext={`${(stats.discord?.users || 0).toLocaleString()} users`}
-          color="accent"
+          value={(stats.discord?.guilds || 0).toLocaleString()}
+          subtext={`${(stats.discord?.users || 0).toLocaleString()} members across cached guilds`}
         />
         <StatCard
-          icon={Users}
+          icon={Database}
           label="Providers"
           value={`${stats.activeProviders || 0}/${stats.providers || 0}`}
-          subtext="Active AI providers"
-          color="success"
+          subtext={providerDetail}
+          color={stats.activeProviders > 0 ? 'success' : 'warning'}
         />
       </div>
 
-      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Provider Status */}
         <div className="lg:col-span-2 bg-[#252526] border border-[#3c3c3c] rounded-lg p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-[#cccccc]">AI Provider Status</h2>
-            <span className="text-xs text-[#858585]">{displayProviders.filter(p => p.status === 'online').length} online</span>
+            <h2 className="text-sm font-medium text-[#cccccc]">Provider Snapshot</h2>
+            <span className="text-xs text-[#858585]">{providerDetail}</span>
           </div>
-          <div className="space-y-2">
-            {displayProviders.map((provider, i) => (
-              <ProviderStatus key={i} provider={provider} />
-            ))}
-          </div>
+
+          {loading && !lastUpdate ? (
+            <div className="text-sm text-[#858585]">Loading provider telemetry…</div>
+          ) : providerRows.length === 0 ? (
+            <div className="rounded bg-[#2d2d2d] px-3 py-4 text-sm text-[#858585]">
+              No provider records are available yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {providerRows.map(provider => {
+                const statusColor = provider.isDisabled
+                  ? 'text-[#f14c4c]'
+                  : provider.hasError
+                    ? 'text-[#dcdcaa]'
+                    : 'text-[#4ec9b0]';
+
+                return (
+                  <div
+                    key={provider.name}
+                    className="flex items-center justify-between rounded bg-[#2d2d2d] px-3 py-2 card-hover"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm text-[#cccccc] truncate">{provider.name}</p>
+                      <p className="text-[10px] text-[#6e6e6e] truncate">{provider.model || 'Unknown model'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-xs ${statusColor}`}>
+                        {provider.isDisabled ? 'Disabled' : provider.hasError ? 'Errored' : 'Healthy'}
+                      </p>
+                      <p className="text-[10px] text-[#6e6e6e]">
+                        {provider.metrics?.totalRequests || 0} calls
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Quick Actions */}
         <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4">
-          <h2 className="text-sm font-medium text-[#cccccc] mb-4">System Status</h2>
+          <h2 className="text-sm font-medium text-[#cccccc] mb-4">Subsystem Status</h2>
           <div className="space-y-3">
-            <div className="flex items-center gap-3 p-3 rounded bg-[#2d2d2d]">
-              <CheckCircle2 className={`w-5 h-5 ${stats.discord?.guilds > 0 ? 'text-[#4ec9b0]' : 'text-[#dcdcaa]'}`} />
-              <div>
-                <p className="text-sm text-[#cccccc]">Discord</p>
-                <p className="text-[10px] text-[#6e6e6e]">{stats.discord?.guilds > 0 ? `${stats.discord.guilds} guilds connected` : 'Connecting...'}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded bg-[#2d2d2d]">
-              <CheckCircle2 className="w-5 h-5 text-[#4ec9b0]" />
-              <div>
-                <p className="text-sm text-[#cccccc]">Database</p>
-                <p className="text-[10px] text-[#6e6e6e]">MongoDB connected</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded bg-[#2d2d2d]">
-              <CheckCircle2 className={`w-5 h-5 ${stats.activeProviders > 0 ? 'text-[#4ec9b0]' : 'text-[#f14c4c]'}`} />
-              <div>
-                <p className="text-sm text-[#cccccc]">AI Providers</p>
-                <p className="text-[10px] text-[#6e6e6e]">{stats.activeProviders}/{stats.providers} active</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded bg-[#2d2d2d]">
-              <Server className="w-5 h-5 text-[#9cdcfe]" />
-              <div>
-                <p className="text-sm text-[#cccccc]">Deployment</p>
-                <p className="text-[10px] text-[#6e6e6e]">{stats.deploymentMode === 'selfhost' ? 'Self-hosted' : 'Render Cloud'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Token Summary */}
-      <div className="mt-6 bg-[#252526] border border-[#3c3c3c] rounded-lg p-4">
-        <h2 className="text-sm font-medium text-[#cccccc] mb-4">Token Usage Summary</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-3 rounded bg-[#2d2d2d]">
-            <p className="text-lg font-semibold text-[#0078d4]">{((stats.tokensIn || 0) + (stats.tokensOut || 0)).toLocaleString()}</p>
-            <p className="text-xs text-[#858585]">Total Tokens</p>
-          </div>
-          <div className="p-3 rounded bg-[#2d2d2d]">
-            <p className="text-lg font-semibold text-[#4ec9b0]">{tokensPerHour.toLocaleString()}</p>
-            <p className="text-xs text-[#858585]">Tokens/Hour</p>
-          </div>
-          <div className="p-3 rounded bg-[#2d2d2d]">
-            <p className="text-lg font-semibold text-[#dcdcaa]">{stats.aiCalls > 0 ? Math.round(((stats.tokensIn || 0) + (stats.tokensOut || 0)) / stats.aiCalls) : 0}</p>
-            <p className="text-xs text-[#858585]">Avg Tokens/Request</p>
-          </div>
-          <div className="p-3 rounded bg-[#2d2d2d]">
-            <p className="text-lg font-semibold text-[#9cdcfe]">{stats.deploymentMode === 'selfhost' ? 'Self-hosted' : 'Render'}</p>
-            <p className="text-xs text-[#858585]">Deployment Mode</p>
+            <StatusRow
+              icon={Sparkles}
+              label="Jarvis Runtime"
+              tone={systemTone}
+              detail={
+                stats.degradedReasons?.length
+                  ? `Degraded because: ${stats.degradedReasons.join(', ')}`
+                  : 'No degraded subsystems reported'
+              }
+            />
+            <StatusRow
+              icon={CheckCircle2}
+              label="Discord"
+              tone={stats.discord?.ready ? 'healthy' : 'offline'}
+              detail={
+                stats.discord?.ready
+                  ? `${stats.discord.guilds} guilds and ${stats.discord.channels} channels cached`
+                  : 'Discord client is not ready'
+              }
+            />
+            <StatusRow
+              icon={Database}
+              label="Database"
+              tone={stats.database?.connected ? 'healthy' : 'offline'}
+              detail={stats.database?.connected ? 'Primary database connection is up' : 'Database connection is not established'}
+            />
+            <StatusRow
+              icon={Zap}
+              label="AI Providers"
+              tone={providerStatusTone}
+              detail={providerDetail}
+            />
           </div>
         </div>
       </div>

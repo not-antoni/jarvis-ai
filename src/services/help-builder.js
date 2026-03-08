@@ -39,8 +39,8 @@ function buildSupportEmbed(includeGuide = false) {
                     value: [
                         '`/profile show` Review your dossier.',
                         '`/profile set` Update preferences.',
-                        '`/history` & `/recap` Catch up on recent chats.',
-                        '`/time` Handy utilities on demand.'
+                        '`/history` Review recent chats.',
+                        '`/wakeword` Tune your summon phrase.'
                     ].join('\n')
                 },
                 {
@@ -55,8 +55,8 @@ function buildSupportEmbed(includeGuide = false) {
                 {
                     name: 'Power Tools',
                     value: [
-                        '`/encode` & `/decode` Convert text effortlessly.',
-                        '`/providers` Check AI provider status.',
+                        '`/search` Pull live web results.',
+                        '`/clip` Render a message as an image.',
                         '`/clear` Wipe conversations when needed.'
                     ].join('\n')
                 }
