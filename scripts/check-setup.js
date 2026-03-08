@@ -231,35 +231,6 @@ async function checkOptionalServices() {
     }
 }
 
-async function checkNewAgentSystem() {
-    log.header('New Agent System (Codex-inspired)');
-
-    const coreFiles = [
-        'src/core/ToolHandler.js',
-        'src/core/AgentToolRegistry.js',
-        'src/core/AgentOrchestrator.js',
-        'src/core/AgentCore.js',
-        'src/core/FreeAIProvider.js',
-        'src/core/tools/ScreenshotTool.js'
-    ];
-
-    let allPresent = true;
-    for (const file of coreFiles) {
-        const fullPath = path.join(__dirname, '..', file);
-        if (fs.existsSync(fullPath)) {
-            pass(path.basename(file));
-        } else {
-            fail(`Missing: ${file}`);
-            allPresent = false;
-        }
-    }
-
-    if (allPresent) {
-        log.info('\nNew agent system is fully installed!');
-        log.info('Test it with: node test-new-agent.js');
-    }
-}
-
 async function checkProjectStructure() {
     log.header('Project Structure');
 
@@ -297,7 +268,6 @@ ${colors.reset}`);
     await checkAIProviders();
     await checkAgentFeatures();
     await checkOptionalServices();
-    await checkNewAgentSystem();
     await checkProjectStructure();
 
     // Summary
