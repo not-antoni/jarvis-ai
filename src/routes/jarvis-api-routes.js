@@ -233,8 +233,7 @@ function mountFeatureRoutes(router, ctx) {
                 commands: { defined: Array.isArray(commandRegistry?.commandDefinitions) ? commandRegistry.commandDefinitions.length : 0 },
                 errorLogger: {
                     pendingQueue: Array.isArray(errorLogger?.pendingQueue) ? errorLogger.pendingQueue.length : null
-                },
-                soul: null
+                }
             }
         };
 
@@ -432,14 +431,6 @@ function mountFeatureRoutes(router, ctx) {
         saveJarvisSnapshot('music', payload).catch(err => {
             console.warn('[Jarvis] Failed to save music snapshot:', err?.message || err);
         });
-    });
-
-    router.get('/api/economy', requireOwner, (_req, res) => {
-        res.json({ ok: true, removed: true, message: 'Economy system has been removed.' });
-    });
-
-    router.get('/api/soul', requireOwner, (_req, res) => {
-        res.json({ ok: true, soul: null });
     });
 
     router.get('/api/sync', requireOwner, (req, res) => {

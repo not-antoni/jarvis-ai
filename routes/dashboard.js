@@ -9,6 +9,7 @@ const router = express.Router();
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const { formatUptime, getProcessUptimeSeconds } = require('../src/utils/uptime');
 
 // Determine storage mode
 const IS_SELFHOST = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
@@ -75,7 +76,6 @@ function getDashboardSettingsPayload() {
 
 // Runtime metrics store (persists across requests)
 const metrics = {
-    botStartTime: Date.now(),
     requestCount: 0,
     aiCallCount: 0,
     aiSuccessCount: 0,
@@ -116,7 +116,7 @@ async function loadMetrics() {
         try {
             if (fs.existsSync(METRICS_FILE_PATH)) {
                 const data = JSON.parse(fs.readFileSync(METRICS_FILE_PATH, 'utf8'));
-                Object.assign(metrics, data, { recentLogs: [], botStartTime: Date.now() });
+                Object.assign(metrics, data, { recentLogs: [] });
                 console.log('Loaded dashboard metrics from file');
             }
         } catch (e) {
@@ -129,7 +129,7 @@ async function loadMetrics() {
             if (db && db.db) {
                 const doc = await db.db.collection(METRICS_COLLECTION).findOne({ _id: 'metrics' });
                 if (doc) {
-                    Object.assign(metrics, doc, { recentLogs: [], botStartTime: Date.now() });
+                    Object.assign(metrics, doc, { recentLogs: [] });
                     console.log('Loaded dashboard metrics from MongoDB');
                 }
             }
@@ -366,9 +366,8 @@ router.getMetrics = () => ({
  */
 router.get('/health', async(req, res) => {
     try {
-        const uptime = Date.now() - metrics.botStartTime;
-        const hours = Math.floor(uptime / 3600000);
-        const minutes = Math.floor((uptime % 3600000) / 60000);
+        const uptimeSeconds = getProcessUptimeSeconds();
+        const uptimeMs = uptimeSeconds * 1000;
 
         // Get Discord stats if client available
         let discordStats = { ready: false, guilds: 0, users: 0, channels: 0 };
@@ -424,8 +423,8 @@ router.get('/health', async(req, res) => {
         res.json({
             status,
             degradedReasons,
-            uptime: `${hours}h ${minutes}m`,
-            uptimeMs: uptime,
+            uptime: formatUptime(uptimeSeconds),
+            uptimeMs,
             requests: metrics.requestCount,
             aiCalls: aiStats.totalRequests,
             aiSuccess: aiStats.successfulRequests,
@@ -523,38 +522,6 @@ router.post('/providers/test', async(req, res) => {
 });
 
 /**
- * POST /api/dashboard/providers/reinitialize
- * Force reinitialize all providers (recovery from corrupted state)
- */
-router.post('/providers/reinitialize', async(req, res) => {
-    try {
-        const aiManager = require('../src/services/ai-providers');
-        const count = aiManager.forceReinitialize();
-        res.json({
-            success: true,
-            message: `Reinitialized ${count} AI providers`,
-            count
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-/**
- * GET /api/dashboard/providers/health
- * Get provider health summary
- */
-router.get('/providers/health', async(req, res) => {
-    try {
-        const aiManager = require('../src/services/ai-providers');
-        const health = aiManager.getHealthSummary();
-        res.json(health);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-/**
  * GET /api/dashboard/logs
  * Returns recent logs
  */
@@ -575,43 +542,6 @@ router.get('/logs', async(req, res) => {
             logs,
             total: metrics.recentLogs.length
         });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-/**
- * GET /api/dashboard/local-ai/status
- * Returns local AI (Ollama) status
- */
-router.get('/local-ai/status', async(req, res) => {
-    try {
-        let status = 'not_installed';
-        const gpus = [];
-        let models = [];
-
-        // Check if Ollama is running
-        try {
-            const response = await fetch('http://localhost:11434/api/tags', {
-                signal: AbortSignal.timeout(2000)
-            });
-            if (response.ok) {
-                status = 'running';
-                const data = await response.json();
-                models = (data.models || []).map(m => ({
-                    name: m.name,
-                    size: formatBytes(m.size),
-                    quantization: m.details?.quantization_level || 'unknown',
-                    context: 8,
-                    speed: '~50',
-                    loaded: false
-                }));
-            }
-        } catch {
-            // Ollama not running or not installed
-        }
-
-        res.json({ status, gpus, models });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -654,18 +584,5 @@ router.get('/settings', async(req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
-function formatBytes(bytes) {
-    if (bytes < 1024) {return `${bytes  }B`;}
-    if (bytes < 1024 * 1024) {return `${(bytes / 1024).toFixed(1)  }KB`;}
-    if (bytes < 1024 * 1024 * 1024) {return `${(bytes / 1024 / 1024).toFixed(1)  }MB`;}
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)  }GB`;
-}
-
-// Export initialization function for bot start time
-router.initBotStartTime = () => {
-    metrics.botStartTime = Date.now();
-    addLog('info', 'System', 'Bot started - metrics reset');
-};
 
 module.exports = router;

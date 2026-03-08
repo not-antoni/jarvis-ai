@@ -140,8 +140,6 @@ function getPanelPage(session) {
           <a href="#moderation" data-route="moderation">Moderation</a>
           <a href="#filters" data-route="filters">Filters</a>
           <a href="#music" data-route="music">Music</a>
-          <a href="#economy" data-route="economy">Economy</a>
-          <a href="#soul" data-route="soul">Soul</a>
           <a href="#sync" data-route="sync">Data Sync</a>
           <a href="#ytdlp" data-route="ytdlp">yt-dlp</a>
           <a href="#logs" data-route="logs">Logs</a>
@@ -652,7 +650,6 @@ function getPanelPage(session) {
             { label: 'AI Providers', value: String(o.providers.active) + '/' + String(o.providers.total), sub: 'Mode: ' + o.providers.selectionMode + ' • Type: ' + o.providers.providerType },
             { label: 'Agent', value: o.agent && o.agent.ok ? String(o.agent.health) : 'Unavailable', sub: 'Circuit: ' + (o.agent.circuit || '—') + ' • Sessions: ' + String(o.agent.activeSessions || 0) },
             { label: 'Music', value: String(o.music.activeQueues || 0), sub: 'Active queues' },
-            { label: 'Economy', value: o.economy && o.economy.multiplierActive ? 'Boost' : '—', sub: 'Multiplier' },
             { label: 'Logs', value: String(o.logs.files || 0), sub: 'Files' },
             { label: 'Errors', value: o.errorLogger && o.errorLogger.pendingQueue != null ? String(o.errorLogger.pendingQueue) : '—', sub: 'Pending error queue' }
           ]);
@@ -1038,78 +1035,6 @@ function getPanelPage(session) {
         });
       }
 
-      function renderEconomy() {
-        titleEl.textContent = 'Economy';
-        subtitleEl.textContent = 'Multiplier + leaderboard.';
-        setActive('economy');
-        setBanner('', '');
-        clearControls();
-        clearView();
-
-        function paint(data, meta) {
-          clearView();
-          showRaw(data);
-          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
-          var m = data.multiplier || {};
-          renderKpis([
-            { label: 'Multiplier', value: m && m.active ? String(m.multiplier) + 'x' : '1x', sub: m && m.active ? 'Active' : 'Inactive' },
-            { label: 'Shop items', value: data.shopItems != null ? String(data.shopItems) : '—', sub: 'Configured' }
-          ]);
-
-          var lb = data.leaderboard && Array.isArray(data.leaderboard.entries) ? data.leaderboard.entries : null;
-          if (lb) {
-            renderTable(
-              lb.map(function (e) {
-                return {
-                  rank: e.rank,
-                  user: e.username || e.userId,
-                  balance: e.balance
-                };
-              }),
-              [
-                { label: '#', key: 'rank' },
-                { label: 'User', key: 'user' },
-                { label: 'Balance', key: 'balance' }
-              ],
-              { pageSize: 10 }
-            );
-          }
-        }
-
-        return loadSection('economy.leaderboard', '/jarvis/api/economy?leaderboard=true', paint).catch(function (e) {
-          clearView();
-          showRaw({ ok: false, error: e.message });
-          setBanner('bad', e.message);
-        });
-      }
-
-      function renderSoul() {
-        titleEl.textContent = 'Soul';
-        subtitleEl.textContent = 'Soul + sentience + self-mod.';
-        setActive('soul');
-        setBanner('', '');
-        clearControls();
-        clearView();
-
-        function paint(data, meta) {
-          clearView();
-          showRaw(data);
-          updateLastUpdated(lastUpdatedPrefix(meta), meta && meta.ts ? meta.ts : null);
-          renderKpis([
-            { label: 'Soul', value: data.soul && data.soul.enabled ? 'Enabled' : '—', sub: data.soul && data.soul.mode ? String(data.soul.mode) : '' }
-          ]);
-          var pre = document.createElement('pre');
-          pre.textContent = JSON.stringify({ soul: data.soul || null }, null, 2);
-          viewEl.appendChild(pre);
-        }
-
-        return loadSection('soul', '/jarvis/api/soul', paint).catch(function (e) {
-          clearView();
-          showRaw({ ok: false, error: e.message });
-          setBanner('bad', e.message);
-        });
-      }
-
       function renderSync() {
         titleEl.textContent = 'Data Sync';
         subtitleEl.textContent = 'Local/Mongo sync status.';
@@ -1402,8 +1327,6 @@ function getPanelPage(session) {
         if (r === 'moderation') return renderModeration();
         if (r === 'filters') return renderFilters();
         if (r === 'music') return renderMusic();
-        if (r === 'economy') return renderEconomy();
-        if (r === 'soul') return renderSoul();
         if (r === 'sync') return renderSync();
         if (r === 'ytdlp') return renderYtdlp();
         if (r === 'logs') return renderLogs();
