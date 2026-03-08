@@ -45,7 +45,6 @@
     "dotenv": "^17.2.3",
     "emoji-regex": "^10.6.0",
     "express": "^4.18.2",
-    "express-rate-limit": "^7.5.0",
     "extract-zip": "^2.0.1",
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.0.0",
@@ -53,18 +52,15 @@
     "helmet": "^8.0.0",
     "lru-cache": "^10.2.2",
     "mongodb": "^6.19.0",
-    "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "node-fetch": "^2.6.7",
     "openai": "^5.20.1",
     "opusscript": "^0.1.1",
-    "pdf-parse": "^1.1.2",
     "puppeteer": "^24.34.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "sharp": "^0.34.4",
     "tar": "^7.5.2",
-    "tweetnacl": "^1.0.3",
-    "zod": "^3.25.76"
+    "tweetnacl": "^1.0.3"
   }
 }

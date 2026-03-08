@@ -8,8 +8,6 @@ const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../../core/comm
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
 const slashSocial = require('./slash-social');
 const slashUtility = require('./slash-utility');
-const slashModeration = require('./slash-moderation');
-const moderationFilters = require('../moderation-filters');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
@@ -240,34 +238,9 @@ try {
             response = await slashUtility.handlePing(interaction);
             break;
         }
-        case 'cipher': {
-            telemetryMetadata.category = 'fun';
-            await handler.handleCipherCommand(interaction);
-            return;
-        }
-        case 'scramble': {
-            telemetryMetadata.category = 'fun';
-            await handler.handleScrambleCommand(interaction);
-            return;
-        }
-        case 'crypto': {
-            telemetryMetadata.category = 'crypto';
-            await handler.handleCryptoCommand(interaction);
-            return;
-        }
         case 'features': {
             telemetryMetadata.category = 'utilities';
             await handler.handleFeaturesCommand(interaction);
-            return;
-        }
-        case 'filter': {
-            telemetryMetadata.category = 'moderation';
-            await moderationFilters.handleCommand(interaction);
-            return;
-        }
-        case '67': {
-            telemetryMetadata.category = 'fun';
-            await handler.handleSixSevenCommand(interaction);
             return;
         }
         case 'memory': {
@@ -285,11 +258,6 @@ try {
             await handler.handleTimezoneCommand(interaction);
             return;
         }
-        case 'monitor': {
-            telemetryMetadata.category = 'utilities';
-            await handler.handleMonitorCommand(interaction);
-            return;
-        }
         case 'opt': {
             telemetryMetadata.category = 'utilities';
             await handler.handleOptCommand(interaction);
@@ -300,17 +268,7 @@ try {
             await handler.handleWakewordCommand(interaction);
             return;
         }
-        case 'mystats': {
-            telemetryMetadata.category = 'utilities';
-            await handler.handleMyStatsCommand(interaction);
-            return;
-        }
         // ============ FUN / SOCIAL COMMANDS ============
-        case 'typerace': {
-            telemetryMetadata.category = 'fun';
-            response = await slashSocial.handleTyperace(interaction);
-            break;
-        }
         case 'caption': {
             telemetryMetadata.category = 'utility';
             await handler.handleCaptionCommand(interaction);
@@ -336,12 +294,6 @@ try {
             response = await slashSocial.handleShip(interaction);
             break;
         }
-        // ============ UTILITY COMMANDS ============
-        case 't': {
-            telemetryMetadata.category = 'utilities';
-            response = await slashUtility.handleT(interaction, handler.jarvis, userId, guildId);
-            break;
-        }
         case 'yt': {
             telemetryMetadata.category = 'search';
             response = await slashUtility.handleYt(interaction, handler.jarvis);
@@ -354,10 +306,6 @@ try {
         }
         case 'jarvis': {
             response = await slashUtility.handleJarvis(interaction, handler.jarvis);
-            break;
-        }
-        case 'time': {
-            response = await slashUtility.handleTime(interaction, handler.jarvis, userId, guildId);
             break;
         }
         case 'clear': {
@@ -376,81 +324,8 @@ try {
             response = await slashUtility.handleHistory(interaction, handler.jarvis, userId, guildId);
             break;
         }
-        case 'recap': {
-            response = await slashUtility.handleRecap(interaction, handler.jarvis, userId, guildId);
-            break;
-        }
         case 'digest': {
             response = await slashUtility.handleDigest(interaction, handler.jarvis, userId, guildId);
-            break;
-        }
-        case 'encode': {
-            response = await slashUtility.handleEncode(interaction, handler.jarvis, userId, guildId);
-            break;
-        }
-        case 'decode': {
-            response = await slashUtility.handleDecode(interaction, handler.jarvis, userId, guildId);
-            break;
-        }
-        case 'pwdgen': {
-            telemetryMetadata.category = 'utilities';
-            response = await slashUtility.handlePwdgen(interaction);
-            break;
-        }
-        case 'qrcode': {
-            telemetryMetadata.category = 'utilities';
-            response = await slashUtility.handleQrcode(interaction);
-            break;
-        }
-        // ============ MODERATION SLASH COMMANDS ============
-        case 'ban': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handleBan(interaction);
-            break;
-        }
-        case 'unban': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handleUnban(interaction);
-            break;
-        }
-        case 'kick': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handleKick(interaction);
-            break;
-        }
-        case 'mute': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handleMute(interaction);
-            break;
-        }
-        case 'unmute': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handleUnmute(interaction);
-            break;
-        }
-        case 'warn': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handleWarn(interaction);
-            break;
-        }
-        case 'purge': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handlePurge(interaction);
-            break;
-        }
-        case 'slowmode': {
-            telemetryMetadata.category = 'moderation';
-            response = await slashModeration.handleSlowmode(interaction);
-            break;
-        }
-        case 'userinfo': {
-            telemetryMetadata.category = 'utility';
-            response = await slashModeration.handleUserinfo(interaction);
-            break;
-        }
-        case 'serverinfo': {
-            telemetryMetadata.category = 'utility';
-            response = await slashModeration.handleServerinfo(interaction);
             break;
         }
         default: {
@@ -465,7 +340,7 @@ try {
         }
     }
 
-    if (response === '__QUOTE_HANDLED__' || response === '__TYPERACE_HANDLED__' || response === '__JARVIS_HANDLED__') {
+    if (response === '__QUOTE_HANDLED__' || response === '__JARVIS_HANDLED__') {
         // These handlers manage their own responses, skip normal handling
         
     } else if (response === undefined || response === null) {

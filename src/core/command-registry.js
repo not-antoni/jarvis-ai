@@ -13,22 +13,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'filter',
-        description: 'Advanced moderation: blocked words, regex patterns, and link safety.',
-        category: 'Moderation',
-        usage: '/filter <subcommand>',
-        feature: 'moderationFilters',
-        ephemeral: true
-    },
-    {
-        name: '67',
-        description: '6 7',
-        category: 'Fun',
-        usage: '/67',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
         name: 'help',
         description: 'Show command categories and support resources.',
         category: 'Core Systems',
@@ -61,14 +45,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'providers',
-        description: 'List available AI providers and rotation status.',
-        category: 'Core Systems',
-        usage: '/providers',
-        feature: 'providers',
-        ephemeral: false
-    },
-    {
         name: 'features',
         description: 'Inspect which Jarvis modules are enabled globally and for the current guild.',
         category: 'Core Systems',
@@ -90,14 +66,6 @@ const commandDefinitions = [
         category: 'Utilities',
         usage: '/search <query>',
         feature: 'utilities',
-        ephemeral: false
-    },
-    {
-        name: 'crypto',
-        description: 'Retrieve live market data for popular cryptocurrencies.',
-        category: 'Utilities',
-        usage: '/crypto coin:<symbol> convert:<currency>',
-        feature: 'crypto',
         ephemeral: false
     },
     {
@@ -141,22 +109,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'mystats',
-        description: 'View your Jarvis interaction statistics.',
-        category: 'Personal Tools',
-        usage: '/mystats',
-        feature: 'utilities',
-        ephemeral: true
-    },
-    {
-        name: 'monitor',
-        description: 'Monitor websites, feeds, and channels.',
-        category: 'Utilities',
-        usage: '/monitor <rss|website|youtube|twitch|remove>',
-        feature: 'utilities',
-        ephemeral: true
-    },
-    {
         name: 'clear',
         description: 'Clear your conversation history with Jarvis.',
         category: 'Core Systems',
@@ -181,60 +133,12 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'recap',
-        description: 'Summary of recent conversations.',
-        category: 'Personal Tools',
-        usage: '/recap [window]',
-        feature: 'coreChat',
-        ephemeral: true
-    },
-    {
         name: 'digest',
         description: 'Summarize recent server activity.',
         category: 'Personal Tools',
         usage: '/digest [window] [highlights]',
         feature: 'digests',
         ephemeral: true
-    },
-    {
-        name: 'time',
-        description: 'Render a Discord timestamp in your timezone.',
-        category: 'Utilities',
-        usage: '/time [format]',
-        feature: 'utilities',
-        ephemeral: false
-    },
-    {
-        name: 'encode',
-        description: 'Encode plain text in various formats.',
-        category: 'Utilities',
-        usage: '/encode text:<value> format:<type>',
-        feature: 'utilities',
-        ephemeral: false
-    },
-    {
-        name: 'decode',
-        description: 'Decode text back to plaintext.',
-        category: 'Utilities',
-        usage: '/decode text:<value> format:<type>',
-        feature: 'utilities',
-        ephemeral: false
-    },
-    {
-        name: 'pwdgen',
-        description: 'Generate a secure password.',
-        category: 'Utilities',
-        usage: '/pwdgen [length] [symbols]',
-        feature: 'utilitiesExtras',
-        ephemeral: true
-    },
-    {
-        name: 'qrcode',
-        description: 'Generate a QR code image for a text payload.',
-        category: 'Utilities',
-        usage: '/qrcode text:<value>',
-        feature: 'utilitiesExtras',
-        ephemeral: false
     },
     {
         name: 'news',
@@ -269,6 +173,15 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'Make it a Quote',
+        description: 'Render a quoted message as an image.',
+        category: 'Meme Lab',
+        usage: 'Message context menu -> Make it a Quote',
+        feature: 'memeTools',
+        ephemeral: false,
+        hidden: true
+    },
+    {
         name: 'avatar',
         description: "Get a user's avatar.",
         category: 'Utilities',
@@ -286,14 +199,6 @@ const commandDefinitions = [
     },
     // ============ FUN COMMANDS ============
     {
-        name: 'typerace',
-        description: 'Typing race - first to type the phrase wins!',
-        category: 'Fun',
-        usage: '/typerace',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
         name: 'ship',
         description: 'Calculate compatibility between two people',
         category: 'Fun',
@@ -301,40 +206,6 @@ const commandDefinitions = [
         feature: 'funUtilities',
         ephemeral: false
     },
-    {
-        name: 'cipher',
-        description: 'Decode a rotating Stark cipher.',
-        category: 'Fun',
-        usage: '/cipher',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    {
-        name: 'scramble',
-        description: 'Unscramble a Stark Industries keyword.',
-        category: 'Fun',
-        usage: '/scramble',
-        feature: 'funUtilities',
-        ephemeral: false
-    },
-    // ============ SELFHOST-ONLY COMMANDS ============
-    {
-        name: 'selfmod',
-        description: 'Jarvis self-modification analysis.',
-        category: 'Experimental',
-        usage: '/selfmod analyze',
-        feature: 'selfhostExperimental',
-        ephemeral: true
-    },
-    {
-        name: 'sentient',
-        description: 'Sentient agent system controls.',
-        category: 'Experimental',
-        usage: '/sentient status',
-        feature: 'selfhostExperimental',
-        ephemeral: true
-    },
-    // ============ END SELFHOST-ONLY COMMANDS ============
     {
         name: 'reactionrole',
         description: 'Configure reaction role menus.',
@@ -432,6 +303,38 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'dj',
+        description: 'Manage DJ-only controls and blocked listeners.',
+        category: 'Music',
+        usage: '/dj <toggle|user|role|block|unblock|list>',
+        feature: 'music',
+        ephemeral: false
+    },
+    {
+        name: 'ban',
+        description: 'Ban a member from the server.',
+        category: 'Moderation',
+        usage: '/ban <user> [duration] [reason]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'unban',
+        description: 'Unban a user from the server.',
+        category: 'Moderation',
+        usage: '/unban <user> [reason]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'kick',
+        description: 'Kick a member from the server.',
+        category: 'Moderation',
+        usage: '/kick <user> [reason]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
         name: 'mute',
         description: 'Timeout a user (e.g., 10m, 6h, 1d).',
         category: 'Moderation',
@@ -445,6 +348,38 @@ const commandDefinitions = [
         category: 'Moderation',
         usage: '/unmute <user> [reason]',
         feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'warn',
+        description: 'Warn a member and store the warning count in memory.',
+        category: 'Moderation',
+        usage: '/warn <user> <reason>',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'purge',
+        description: 'Bulk delete messages from the current channel.',
+        category: 'Moderation',
+        usage: '/purge <count> [user]',
+        feature: 'moderation',
+        ephemeral: false
+    },
+    {
+        name: 'userinfo',
+        description: 'Get detailed information about a member.',
+        category: 'Utilities',
+        usage: '/userinfo [user]',
+        feature: 'utilities',
+        ephemeral: false
+    },
+    {
+        name: 'serverinfo',
+        description: 'Get detailed information about the current server.',
+        category: 'Utilities',
+        usage: '/serverinfo',
+        feature: 'utilities',
         ephemeral: false
     }
 ];

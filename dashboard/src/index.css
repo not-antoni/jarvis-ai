@@ -46,27 +46,8 @@ body {
   min-height: 100vh;
 }
 
-/* Custom utility classes */
-.glass-panel {
-  background: rgba(37, 37, 38, 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
-}
-
-.glow-accent {
-  box-shadow: 0 0 20px rgba(0, 120, 212, 0.3);
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+#root {
+  min-height: 100vh;
 }
 
 .card-hover {

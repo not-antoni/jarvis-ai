@@ -7,7 +7,7 @@
 function wireEventHandlers(ctx) {
     const {
         client, discordHandlers, dashboardRouter, serverLogger,
-        errorLogger, aiManager, database, cron, monitorScheduler,
+        errorLogger, aiManager, database, cron,
         serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
     } = ctx;
 
@@ -208,7 +208,6 @@ function wireEventHandlers(ctx) {
         console.log(`Jarvis received ${signal}, shutting down gracefully...`);
         try {
             serverStatsRefreshJob.stop();
-            try { monitorScheduler.stop(); } catch (_) { }
             try { tempSweepJob.stop(); } catch (_) { }
             try { uptimeSnapshotJob.stop(); } catch (_) { }
             await database.disconnect();

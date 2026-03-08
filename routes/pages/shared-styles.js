@@ -108,7 +108,6 @@ const NAV_HTML = `
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
-            <li><a href="/me">My Portal</a></li>
             <li><a href="/moderator/dashboard">Mod Dashboard</a></li>
         </ul>
     </nav>
