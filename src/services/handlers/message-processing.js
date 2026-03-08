@@ -395,27 +395,6 @@ if (strippedContent && /do\s+we\s+deserve\s+destruction\?/i.test(strippedContent
     }
 }
 
-// ============ AATROX MESSAGE DETECTION ============
-if (strippedContent && /\baatrox\b/i.test(strippedContent)) {
-    const { limited } = handler.hitCooldown(userId, messageScope);
-    if (limited) {return;}
-
-    try {
-        const gifPath = path.join(process.cwd(), 'aatrox.gif');
-        const attachment = new AttachmentBuilder(gifPath, { name: 'aatrox.gif' });
-        await message.reply({ files: [attachment], allowedMentions: { parse: [] } });
-        
-        // React in order: ✅, 🔥, bot emoji
-        await message.react('✅').catch(() => {});
-        await message.react('🔥').catch(() => {});
-        await message.react('1472278085373137048').catch(() => {});
-        
-        return; // Exit early
-    } catch (error) {
-        console.error('[Aatrox] Failed to send response:', error);
-    }
-}
-
 if (!isMentioned && !isRoleMentioned && !isReplyToJarvis && !containsWakeWord) {
     return;
 }

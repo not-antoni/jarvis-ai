@@ -333,18 +333,6 @@ async function handleComponentInteraction(handler, interaction) {
         return;
     }
 
-    // Ticket System
-    if (interaction.customId.startsWith('ticket_')) {
-        try {
-            const ticketSystem = require('../ticket-system');
-            await ticketSystem.handleInteraction(interaction);
-        } catch (e) {
-            console.error('Ticket System Error:', e);
-            if (!interaction.replied) {await interaction.reply({ content: '\u274C Ticket system error.', ephemeral: true });}
-        }
-        return;
-    }
-
     // Help menu category buttons
     if (interaction.customId.startsWith('help_')) {
         const categoryKey = interaction.customId.replace('help_', '');
@@ -364,8 +352,8 @@ async function handleComponentInteraction(handler, interaction) {
                 title: 'Fun Commands',
                 description: 'Entertainment and social commands!',
                 fields: [
-                    { name: '\u{1F3B1} Random', value: '`*j 8ball <q>` - Magic 8-ball\n`*j roll [dice]` - Roll dice\n`*j pickupline` - Pickup line', inline: false },
-                    { name: '\u{1F495} Social', value: '`*j ship @u1 @u2` - Ship people', inline: false }
+                    { name: '\u{1F3C1} Arcade', value: '`/typerace` - Race the channel\n`/scramble` - Unscramble a word', inline: false },
+                    { name: '\u{1F495} Social', value: '`/ship @u1 @u2` - Ship people', inline: false }
                 ]
             },
             mod: {

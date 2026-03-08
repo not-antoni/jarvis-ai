@@ -1,14 +1,7 @@
 'use strict';
 
-const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const path = require('path');
+const { EmbedBuilder } = require('discord.js');
 const funFeatures = require('../fun-features');
-
-async function handleAatrox(interaction) {
-    const gifPath = path.join(process.cwd(), 'aatrox.gif');
-    const attachment = new AttachmentBuilder(gifPath, { name: 'aatrox.gif' });
-    return { files: [attachment] };
-}
 
 async function handleTyperace(interaction) {
     const phrase = funFeatures.getRandomTypingPhrase();
@@ -79,48 +72,7 @@ async function handleShip(interaction) {
     return { embeds: [embed] };
 }
 
-async function handlePickupline(interaction) {
-    const line = funFeatures.getPickupLine();
-    return `\uD83D\uDC95 **Pickup Line**\n\n${line}`;
-}
-
-async function handleDiceRoll(interaction) {
-    const diceNotation = interaction.options.getString('dice') || '1d6';
-    const result = funFeatures.rollDice(diceNotation);
-
-    if (!result) {
-        return '\u274C Invalid dice notation! Use format like `2d6` or `1d20+5`';
-    }
-
-    const embed = new EmbedBuilder()
-        .setTitle('\uD83C\uDFB2 Dice Roll')
-        .setColor(0x9b59b6)
-        .addFields(
-            { name: 'Dice', value: result.notation, inline: true },
-            { name: 'Rolls', value: result.rolls.join(', '), inline: true },
-            { name: 'Total', value: `**${result.total}**`, inline: true }
-        );
-    return { embeds: [embed] };
-}
-
-async function handle8ball(interaction) {
-    const question = interaction.options.getString('question');
-    const answer = funFeatures.get8BallResponse();
-    const embed = new EmbedBuilder()
-        .setTitle('\uD83C\uDFB1 Magic 8-Ball')
-        .setColor(0x000000)
-        .addFields(
-            { name: '\u2753 Question', value: question, inline: false },
-            { name: '\uD83D\uDD2E Answer', value: answer, inline: false }
-        );
-    return { embeds: [embed] };
-}
-
 module.exports = {
-    handleAatrox,
     handleTyperace,
-    handleShip,
-    handlePickupline,
-    handleDiceRoll,
-    handle8ball
+    handleShip
 };

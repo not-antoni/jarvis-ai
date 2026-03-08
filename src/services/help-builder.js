@@ -40,7 +40,7 @@ function buildSupportEmbed(includeGuide = false) {
                         '`/profile show` Review your dossier.',
                         '`/profile set` Update preferences.',
                         '`/history` & `/recap` Catch up on recent chats.',
-                        '`/time` | `/roll` Handy utilities on demand.'
+                        '`/time` Handy utilities on demand.'
                     ].join('\n')
                 },
                 {
