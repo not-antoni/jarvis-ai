@@ -3,39 +3,6 @@
 const { EmbedBuilder } = require('discord.js');
 const funFeatures = require('../fun-features');
 
-async function handleTyperace(interaction) {
-    const phrase = funFeatures.getRandomTypingPhrase();
-    const embed = new EmbedBuilder()
-        .setTitle('\u2328\uFE0F TYPING RACE \u2328\uFE0F')
-        .setDescription('First person to type the phrase correctly wins!')
-        .setColor(0xf1c40f)
-        .addFields({ name: '\uD83D\uDCDD Type this:', value: `\`\`\`${phrase}\`\`\``, inline: false })
-        .setFooter({ text: 'GO GO GO!' });
-
-    await interaction.editReply({ embeds: [embed] });
-
-    // Set up collector for the race
-    const filter = m => m.content.toLowerCase() === phrase.toLowerCase() && !m.author.bot;
-    const collector = interaction.channel.createMessageCollector({ filter, time: 30000, max: 1 });
-
-    collector.on('collect', async(msg) => {
-        const winEmbed = new EmbedBuilder()
-            .setTitle('\uD83C\uDFC6 WINNER! \uD83C\uDFC6')
-            .setDescription(`<@${msg.author.id}> typed it first!`)
-            .setColor(0x2ecc71)
-            .setFooter({ text: 'Speed demon!' });
-        await interaction.channel.send({ embeds: [winEmbed] });
-    });
-
-    collector.on('end', (collected) => {
-        if (collected.size === 0) {
-            interaction.channel.send('\u23F0 Time\'s up! Nobody typed it correctly.').catch(() => {});
-        }
-    });
-
-    return '__TYPERACE_HANDLED__';
-}
-
 async function handleShip(interaction) {
     const person1 = interaction.options.getUser('person1');
     const person2 = interaction.options.getUser('person2') || interaction.user;
@@ -73,6 +40,5 @@ async function handleShip(interaction) {
 }
 
 module.exports = {
-    handleTyperace,
     handleShip
 };

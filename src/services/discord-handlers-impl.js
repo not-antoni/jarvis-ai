@@ -23,7 +23,6 @@ const CooldownManager = require('../core/cooldown-manager');
 const socialCredit = require('./social-credit');
 const { commandFeatureMap } = require('../core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('../core/feature-flags');
-const cryptoClient = require('./crypto-client');
 const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
 const tempFiles = require('../utils/temp-files');
 const { extractReactionDirective } = require('../utils/react-tags');
@@ -35,7 +34,6 @@ const automodUtils = require('./handlers/automod-utils');
 const serverStats = require('./handlers/server-stats');
 const memberLog = require('./handlers/member-log');
 const reactionRoleHandler = require('./handlers/reaction-role-handler');
-const monitorHandler = require('./handlers/monitor-handler');
 const mediaHandlers = require('./handlers/media-handlers');
 const gameHandlers = require('./handlers/game-handlers');
 const memoryHandler = require('./handlers/memory-handler');
@@ -107,7 +105,6 @@ class DiscordHandlers {
     constructor() {
         this.jarvis = new JarvisAI();
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
-        this.crypto = cryptoClient;
 
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
@@ -146,8 +143,6 @@ class DiscordHandlers {
         this.flatterTemplates = templates.flatterTemplates;
         this.toastTemplates = templates.toastTemplates;
         this.triviaQuestions = templates.triviaQuestions;
-        this.cipherPhrases = templates.cipherPhrases;
-        this.scrambleWords = templates.scrambleWords;
         this.missions = templates.missions;
 
         this.afkUsers = new LRUCache({ max: DISCORD_AFK_USERS_MAX, ttl: DISCORD_AFK_USERS_TTL_MS });
@@ -3193,12 +3188,6 @@ class DiscordHandlers {
         return await reactionRoleHandler.handleTrackedMessageDelete(this, message);
     }
 
-    // ============ MONITOR HANDLER ============
-
-    async handleMonitorCommand(interaction) {
-        return await monitorHandler.handleMonitorCommand(interaction);
-    }
-
     // ============ MEDIA HANDLERS ============
 
     async handleSlashCommandClip(interaction) {
@@ -3227,14 +3216,6 @@ class DiscordHandlers {
 
     // ============ GAME / FUN HANDLERS ============
 
-    async handleCryptoCommand(interaction) {
-        return await gameHandlers.handleCryptoCommand(this, interaction);
-    }
-
-    async handleSixSevenCommand(interaction) {
-        return await gameHandlers.handleSixSevenCommand(this, interaction);
-    }
-
     async handleFeaturesCommand(interaction) {
         return await gameHandlers.handleFeaturesCommand(this, interaction);
     }
@@ -3245,22 +3226,6 @@ class DiscordHandlers {
 
     async handleComponentInteraction(interaction) {
         return await gameHandlers.handleComponentInteraction(this, interaction);
-    }
-
-    caesarShift(text, shift) {
-        return gameHandlers.caesarShift(text, shift);
-    }
-
-    async handleCipherCommand(interaction) {
-        return await gameHandlers.handleCipherCommand(this, interaction);
-    }
-
-    scrambleWord(word) {
-        return gameHandlers.scrambleWord(word);
-    }
-
-    async handleScrambleCommand(interaction) {
-        return await gameHandlers.handleScrambleCommand(this, interaction);
     }
 
     // ============ MEMORY / PERSONA HANDLERS ============
@@ -3469,40 +3434,6 @@ class DiscordHandlers {
         }
     }
 
-    async handleMyStatsCommand(interaction) {
-        const userFeatures = require('./user-features');
-        const userId = interaction.user.id;
-
-        try {
-            const stats = await userFeatures.getUserStats(userId);
-            const timezone = await userFeatures.getTimezone(userId);
-            const wakeWord = await userFeatures.getWakeWord(userId);
-            
-            const firstDate = new Date(stats.firstInteraction);
-            const daysSince = Math.floor((Date.now() - stats.firstInteraction) / (1000 * 60 * 60 * 24));
-            
-            const embed = {
-                color: 0x3498db,
-                title: `📊 ${interaction.user.username}'s Jarvis Stats`,
-                fields: [
-                    { name: '💬 Messages', value: `${stats.messageCount || 0}`, inline: true },
-                    { name: '🔍 Searches', value: `${stats.searchesPerformed || 0}`, inline: true },
-                    { name: '⚡ Commands', value: `${stats.commandsUsed || 0}`, inline: true },
-                    { name: '⏰ Reminders Created', value: `${stats.remindersCreated || 0}`, inline: true },
-                    { name: '🌍 Timezone', value: timezone, inline: true },
-                    { name: '🎯 Wake Word', value: wakeWord || 'None set', inline: true },
-                    { name: '📅 First Interaction', value: `${firstDate.toLocaleDateString()} (${daysSince} days ago)`, inline: false }
-                ],
-                footer: { text: 'Stats are approximate and may reset periodically' },
-                timestamp: new Date().toISOString()
-            };
-
-            await interaction.editReply({ embeds: [embed] });
-        } catch (error) {
-            console.error('[/mystats] Error:', error);
-            await interaction.editReply('Failed to retrieve stats, sir.');
-        }
-    }
 }
 
 module.exports = new DiscordHandlers();

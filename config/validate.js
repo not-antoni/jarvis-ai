@@ -55,7 +55,6 @@ const envSchema = (
             SOUNDCLOUD_API_TIMEOUT_MS: z.string().optional(),
             SOUNDCLOUD_TOKEN_REFRESH_SKEW_MS: z.string().optional(),
             BRAVE_API_KEY: z.string().optional(),
-            CRYPTO_API_KEY: z.string().optional(),
             HEALTH_TOKEN: z.string().optional()
         })
         : z.object({
@@ -93,7 +92,6 @@ const envSchema = (
             SOUNDCLOUD_API_TIMEOUT_MS: z.string().optional(),
             SOUNDCLOUD_TOKEN_REFRESH_SKEW_MS: z.string().optional(),
             BRAVE_API_KEY: z.string().optional(),
-            CRYPTO_API_KEY: z.string().optional(),
             HEALTH_TOKEN: z.string().optional()
         })
 ).passthrough();
@@ -185,10 +183,6 @@ function validateConfig(rawConfig) {
         console.warn('Warning: SOUNDCLOUD_CLIENT_ID is not set. SoundCloud search/resolve fallback will be disabled.');
     } else if (!env.SOUNDCLOUD_CLIENT_SECRET) {
         console.warn('Warning: SOUNDCLOUD_CLIENT_SECRET is not set. SoundCloud OAuth token flow will be unavailable; using client_id fallback only.');
-    }
-
-    if (!env.CRYPTO_API_KEY) {
-        console.warn('Warning: CRYPTO_API_KEY is not set. /crypto command will be unavailable.');
     }
 
     const commands = rawConfig.commands || {};

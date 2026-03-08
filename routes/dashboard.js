@@ -17,6 +17,13 @@ const SETTINGS_FILE_PATH = path.join(__dirname, '..', 'data', 'dashboard-setting
 const METRICS_COLLECTION = 'dashboard_metrics';
 const SETTINGS_COLLECTION = 'dashboard_settings';
 const TOKEN_CLEAR_THRESHOLD = 10_000_000; // 10 million tokens
+const DASHBOARD_SETTING_KEYS = [
+    'defaultProvider',
+    'maxTokens',
+    'temperature',
+    'debugMode',
+    'notificationsEnabled'
+];
 
 // Dashboard settings store
 const dashboardSettings = {
@@ -26,6 +33,45 @@ const dashboardSettings = {
     debugMode: false,
     notificationsEnabled: true
 };
+
+function normalizeDashboardSetting(key, value) {
+    switch (key) {
+        case 'defaultProvider':
+            return String(value || 'auto').trim() || 'auto';
+        case 'maxTokens': {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : dashboardSettings.maxTokens;
+        }
+        case 'temperature': {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? Math.max(0, parsed) : dashboardSettings.temperature;
+        }
+        case 'debugMode':
+        case 'notificationsEnabled':
+            return Boolean(value);
+        default:
+            return undefined;
+    }
+}
+
+function applyDashboardSettings(input) {
+    if (!input || typeof input !== 'object') {
+        return;
+    }
+
+    for (const key of DASHBOARD_SETTING_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(input, key)) {
+            dashboardSettings[key] = normalizeDashboardSetting(key, input[key]);
+        }
+    }
+}
+
+function getDashboardSettingsPayload() {
+    return DASHBOARD_SETTING_KEYS.reduce((acc, key) => {
+        acc[key] = dashboardSettings[key];
+        return acc;
+    }, {});
+}
 
 // Runtime metrics store (persists across requests)
 const metrics = {
@@ -148,7 +194,7 @@ async function loadSettings() {
         try {
             if (fs.existsSync(SETTINGS_FILE_PATH)) {
                 const data = JSON.parse(fs.readFileSync(SETTINGS_FILE_PATH, 'utf8'));
-                Object.assign(dashboardSettings, data);
+                applyDashboardSettings(data);
             }
         } catch (e) {
             // Settings file doesn't exist or is invalid, use defaults
@@ -159,8 +205,7 @@ async function loadSettings() {
             if (db && db.db) {
                 const doc = await db.db.collection(SETTINGS_COLLECTION).findOne({ _id: 'settings' });
                 if (doc) {
-                    const { _id, ...settings } = doc;
-                    Object.assign(dashboardSettings, settings);
+                    applyDashboardSettings(doc);
                 }
             }
         } catch (e) {
@@ -170,7 +215,10 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
-    const payload = { ...dashboardSettings, savedAt: new Date().toISOString() };
+    const payload = {
+        ...getDashboardSettingsPayload(),
+        savedAt: new Date().toISOString()
+    };
 
     if (IS_SELFHOST) {
         try {
@@ -288,7 +336,7 @@ router.trackTokens = (tokensIn, tokensOut) => {
     scheduleSave();
 };
 
-router.trackCommand = (commandName, userId) => {
+router.trackCommand = (commandName, _userId) => {
     metrics.commandsExecuted++;
     addLog('info', 'Discord', `Command executed: ${commandName}`);
     scheduleSave();
@@ -323,9 +371,10 @@ router.get('/health', async(req, res) => {
         const minutes = Math.floor((uptime % 3600000) / 60000);
 
         // Get Discord stats if client available
-        let discordStats = { guilds: 0, users: 0, channels: 0 };
+        let discordStats = { ready: false, guilds: 0, users: 0, channels: 0 };
         if (discordClient && discordClient.isReady()) {
             discordStats = {
+                ready: true,
                 guilds: discordClient.guilds.cache.size,
                 users: discordClient.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0),
                 channels: discordClient.channels.cache.size
@@ -351,8 +400,30 @@ router.get('/health', async(req, res) => {
             // Use defaults if AI manager not available
         }
 
+        let databaseConnected = false;
+        try {
+            const database = require('../src/services/database');
+            databaseConnected = Boolean(database?.isConnected);
+        } catch (e) {
+            databaseConnected = false;
+        }
+
+        const degradedReasons = [];
+        if (!discordStats.ready) {
+            degradedReasons.push('discord');
+        }
+        if (!databaseConnected) {
+            degradedReasons.push('database');
+        }
+        if (aiStats.providers <= 0 || aiStats.activeProviders <= 0) {
+            degradedReasons.push('providers');
+        }
+
+        const status = degradedReasons.length ? 'degraded' : 'healthy';
+
         res.json({
-            status: 'healthy',
+            status,
+            degradedReasons,
             uptime: `${hours}h ${minutes}m`,
             uptimeMs: uptime,
             requests: metrics.requestCount,
@@ -367,6 +438,7 @@ router.get('/health', async(req, res) => {
             messagesProcessed: metrics.messagesProcessed,
             lastProvider: metrics.lastProviderUsed,
             discord: discordStats,
+            database: { connected: databaseConnected },
             providers: aiStats.providers,
             activeProviders: aiStats.activeProviders,
             memory: {
@@ -483,65 +555,6 @@ router.get('/providers/health', async(req, res) => {
 });
 
 /**
- * GET /api/dashboard/agents
- * Returns agent status and metrics
- */
-router.get('/agents', async(req, res) => {
-    try {
-        // Try to load agent components
-        let agents = [];
-        let agentMetrics = {};
-
-        agentMetrics = {
-            memory: {
-                value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
-                status: process.memoryUsage().heapUsed < 500 * 1024 * 1024 ? 'good' : 'warning',
-                details: `${Math.round((process.memoryUsage().heapUsed / process.memoryUsage().heapTotal) * 100)}% of heap`
-            },
-            cpu: {
-                value: `${((os.loadavg()[0] * 100) / os.cpus().length).toFixed(0)}%`,
-                status: os.loadavg()[0] < os.cpus().length ? 'good' : 'warning',
-                details: `${os.cpus().length} cores available`
-            },
-            activeTasks: { value: 0, status: 'good', details: 'No active tasks' },
-            errors: { value: 0, status: 'good', details: 'No errors' }
-        };
-
-        // Default agent list
-        agents = [
-            {
-                name: 'BrowserAgent',
-                type: 'Web Automation',
-                status: 'idle',
-                sessions: 0,
-                tasks: 0,
-                uptime: '—'
-            },
-            {
-                name: 'ProductionAgent',
-                type: 'Task Orchestration',
-                status: 'running',
-                sessions: 1,
-                tasks: metrics.requestCount,
-                uptime: formatUptime(Date.now() - metrics.botStartTime)
-            },
-            {
-                name: 'ScraperAgent',
-                type: 'Data Collection',
-                status: 'idle',
-                sessions: 0,
-                tasks: 0,
-                uptime: '—'
-            }
-        ];
-
-        res.json({ agents, metrics: agentMetrics });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-/**
  * GET /api/dashboard/logs
  * Returns recent logs
  */
@@ -610,20 +623,21 @@ router.get('/local-ai/status', async(req, res) => {
  */
 router.post('/settings', async(req, res) => {
     try {
-        const settings = req.body;
-        
-        // Validate and update settings
-        const allowedKeys = ['defaultProvider', 'maxTokens', 'temperature', 'debugMode', 'notificationsEnabled'];
-        for (const key of allowedKeys) {
-            if (settings[key] !== undefined) {
-                dashboardSettings[key] = settings[key];
+        const settings = req.body || {};
+
+        for (const key of DASHBOARD_SETTING_KEYS) {
+            if (Object.prototype.hasOwnProperty.call(settings, key)) {
+                dashboardSettings[key] = normalizeDashboardSetting(key, settings[key]);
             }
         }
-        
-        // Persist settings
+
         await saveSettings();
-        
-        res.json({ success: true, message: 'Settings saved', settings: dashboardSettings });
+
+        res.json({
+            success: true,
+            message: 'Settings saved',
+            settings: getDashboardSettingsPayload()
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -635,28 +649,11 @@ router.post('/settings', async(req, res) => {
  */
 router.get('/settings', async(req, res) => {
     try {
-        const config = require('../config');
-        res.json({
-            port: config.server?.port || 3000,
-            selfhostMode: config.deployment?.selfhostMode || false,
-            // Include persisted settings
-            ...dashboardSettings
-        });
+        res.json(getDashboardSettingsPayload());
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
-
-router.get('/soul', (_req, res) => {
-    res.json({ soul: null, agent: null, agis: null });
-});
-
-// Helper functions
-function formatUptime(ms) {
-    const hours = Math.floor(ms / 3600000);
-    const minutes = Math.floor((ms % 3600000) / 60000);
-    return `${hours}h ${minutes}m`;
-}
 
 function formatBytes(bytes) {
     if (bytes < 1024) {return `${bytes  }B`;}

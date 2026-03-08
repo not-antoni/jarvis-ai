@@ -1,20 +1,29 @@
 import {
-    Bot,
-    Database,
-    RotateCcw,
-    Save,
-    Server,
-    Shield,
-    Terminal
+  Bot,
+  RefreshCcw,
+  Save,
+  Shield,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-function SettingSection({ icon: Icon, title, children }) {
+const DEFAULT_SETTINGS = {
+  defaultProvider: 'auto',
+  maxTokens: 500,
+  temperature: 1,
+  debugMode: false,
+  notificationsEnabled: true,
+};
+
+function SettingSection({ icon, title, description, children }) {
+  const Icon = icon;
   return (
-    <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4 mb-4">
-      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#3c3c3c]">
-        <Icon className="w-4 h-4 text-[#0078d4]" />
-        <h2 className="text-sm font-medium text-[#cccccc]">{title}</h2>
+    <div className="mb-4 rounded-lg border border-[#3c3c3c] bg-[#252526] p-4">
+      <div className="mb-4 border-b border-[#3c3c3c] pb-3">
+        <div className="flex items-center gap-2">
+          <Icon className="w-4 h-4 text-[#0078d4]" />
+          <h2 className="text-sm font-medium text-[#cccccc]">{title}</h2>
+        </div>
+        {description ? <p className="mt-1 text-xs text-[#6e6e6e]">{description}</p> : null}
       </div>
       {children}
     </div>
@@ -23,19 +32,20 @@ function SettingSection({ icon: Icon, title, children }) {
 
 function Toggle({ label, description, checked, onChange }) {
   return (
-    <div className="flex items-center justify-between py-2">
+    <div className="flex items-center justify-between gap-4 py-2">
       <div>
         <p className="text-sm text-[#cccccc]">{label}</p>
-        {description && <p className="text-xs text-[#6e6e6e]">{description}</p>}
+        {description ? <p className="text-xs text-[#6e6e6e]">{description}</p> : null}
       </div>
       <button
+        type="button"
         onClick={() => onChange(!checked)}
-        className={`relative w-10 h-5 rounded-full transition-colors ${
+        className={`relative h-5 w-10 rounded-full transition-colors ${
           checked ? 'bg-[#0078d4]' : 'bg-[#3c3c3c]'
         }`}
       >
-        <span 
-          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+        <span
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
             checked ? 'left-5' : 'left-0.5'
           }`}
         />
@@ -44,250 +54,206 @@ function Toggle({ label, description, checked, onChange }) {
   );
 }
 
-function Input({ label, description, value, onChange, type = 'text', placeholder }) {
+function Field({ label, description, children }) {
   return (
     <div className="py-2">
       <label className="text-sm text-[#cccccc]">{label}</label>
-      {description && <p className="text-xs text-[#6e6e6e] mb-1">{description}</p>}
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full mt-1 px-3 py-2 rounded bg-[#2d2d2d] border border-[#3c3c3c] text-sm text-[#cccccc] placeholder-[#6e6e6e] focus:border-[#0078d4] focus:outline-none"
-      />
+      {description ? <p className="mb-1 text-xs text-[#6e6e6e]">{description}</p> : null}
+      {children}
     </div>
   );
 }
 
-function Select({ label, description, value, onChange, options }) {
-  return (
-    <div className="py-2">
-      <label className="text-sm text-[#cccccc]">{label}</label>
-      {description && <p className="text-xs text-[#6e6e6e] mb-1">{description}</p>}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full mt-1 px-3 py-2 rounded bg-[#2d2d2d] border border-[#3c3c3c] text-sm text-[#cccccc] focus:border-[#0078d4] focus:outline-none"
-      >
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </div>
-  );
+function normalizeSettings(input) {
+  return {
+    defaultProvider: String(input?.defaultProvider || DEFAULT_SETTINGS.defaultProvider),
+    maxTokens: Number.isFinite(Number(input?.maxTokens)) ? Number(input.maxTokens) : DEFAULT_SETTINGS.maxTokens,
+    temperature: Number.isFinite(Number(input?.temperature)) ? Number(input.temperature) : DEFAULT_SETTINGS.temperature,
+    debugMode: Boolean(input?.debugMode),
+    notificationsEnabled: Boolean(
+      input?.notificationsEnabled ?? DEFAULT_SETTINGS.notificationsEnabled
+    ),
+  };
 }
 
 export default function Settings() {
-  const [settings, setSettings] = useState({
-    // Server
-    port: '3000',
-    dashboardPort: '3001',
-    selfhostMode: true,
-    
-    // AI
-    defaultProvider: 'auto',
-    fallbackEnabled: true,
-    maxTokens: '500',
-    temperature: '1.0',
-    
-    // Database
-    mongoUri: 'mongodb://localhost:27017',
-    dbName: 'jarvis_ai',
-    autoExport: false,
-    
-    // Bot
-    adminUserId: '',
-    cooldownMs: '3000',
-    maxInputLength: '250',
-    
-    // Features
-    debugMode: false,
-    metricsEnabled: true,
-    rateLimiting: true,
-    
-    // Local AI
-    ollamaUrl: 'http://localhost:11434',
-    preferLocal: false,
-    gpuLayers: '35',
-  });
-
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [loadedSettings, setLoadedSettings] = useState(DEFAULT_SETTINGS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadSettings = async () => {
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/dashboard/settings');
+      if (!res.ok) {
+        throw new Error(`Settings request failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      const normalized = normalizeSettings(data);
+      setSettings(normalized);
+      setLoadedSettings(normalized);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Failed to load settings.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
 
   const updateSetting = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings(current => ({ ...current, [key]: value }));
     setSaved(false);
   };
 
   const handleSave = async () => {
+    setSaving(true);
+
     try {
-      await fetch('/api/dashboard/settings', {
+      const res = await fetch('/api/dashboard/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
+
+      if (!res.ok) {
+        throw new Error(`Save failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      const normalized = normalizeSettings(data.settings);
+      setSettings(normalized);
+      setLoadedSettings(normalized);
       setSaved(true);
+      setError('');
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      console.error('Failed to save settings:', err);
+      setError(err.message || 'Failed to save settings.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleReset = () => {
-    // Reset to defaults
-    window.location.reload();
-  };
-
   return (
-    <div className="p-6 max-w-4xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-4xl p-6">
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-[#cccccc]">Settings</h1>
-          <p className="text-sm text-[#858585]">Configure your Jarvis instance</p>
+          <p className="text-sm text-[#858585]">Only persisted dashboard settings are exposed here.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={handleReset}
-            className="flex items-center gap-2 px-3 py-2 rounded text-xs bg-[#2d2d2d] text-[#cccccc] hover:bg-[#3c3c3c] transition-colors"
+          <button
+            type="button"
+            onClick={() => {
+              setSettings(loadedSettings);
+              setSaved(false);
+            }}
+            className="flex items-center gap-2 rounded bg-[#2d2d2d] px-3 py-2 text-xs text-[#cccccc] transition-colors hover:bg-[#3c3c3c]"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RefreshCcw className="w-3 h-3" />
             Reset
           </button>
-          <button 
+          <button
+            type="button"
             onClick={handleSave}
-            className={`flex items-center gap-2 px-4 py-2 rounded text-xs transition-colors ${
+            disabled={loading || saving}
+            className={`flex items-center gap-2 rounded px-4 py-2 text-xs transition-colors ${
               saved ? 'bg-[#4ec9b0] text-black' : 'bg-[#0078d4] text-white hover:bg-[#1e8ad4]'
-            }`}
+            } disabled:cursor-not-allowed disabled:opacity-50`}
           >
             <Save className="w-3 h-3" />
-            {saved ? 'Saved!' : 'Save Changes'}
+            {saving ? 'Saving…' : saved ? 'Saved' : 'Save Changes'}
           </button>
         </div>
       </div>
 
-      {/* Server Settings */}
-      <SettingSection icon={Server} title="Server Configuration">
-        <div className="grid grid-cols-2 gap-4">
-          <Input 
-            label="Bot Port" 
-            value={settings.port}
-            onChange={(v) => updateSetting('port', v)}
-          />
-          <Input 
-            label="Dashboard Port" 
-            value={settings.dashboardPort}
-            onChange={(v) => updateSetting('dashboardPort', v)}
-          />
+      {error ? (
+        <div className="mb-4 rounded-lg border border-[#f14c4c]/40 bg-[#f14c4c]/10 px-4 py-3 text-sm text-[#f5b7b7]">
+          {error}
         </div>
-        <Toggle
-          label="Selfhost Mode"
-          description="Enable local deployment features"
-          checked={settings.selfhostMode}
-          onChange={(v) => updateSetting('selfhostMode', v)}
-        />
-      </SettingSection>
+      ) : null}
 
-      {/* AI Settings */}
-      <SettingSection icon={Bot} title="AI Configuration">
-        <Select
+      <SettingSection
+        icon={Bot}
+        title="AI Routing"
+        description="These values are persisted by the dashboard backend today."
+      >
+        <Field
           label="Default Provider"
-          description="Primary AI provider selection strategy"
-          value={settings.defaultProvider}
-          onChange={(v) => updateSetting('defaultProvider', v)}
-          options={[
-            { value: 'auto', label: 'Auto (Random)' },
-            { value: 'groq', label: 'Groq' },
-            { value: 'openrouter', label: 'OpenRouter' },
-            { value: 'google', label: 'Google AI' },
-            { value: 'openai', label: 'OpenAI' },
-            { value: 'local', label: 'Local (Ollama)' },
-          ]}
-        />
-        <div className="grid grid-cols-2 gap-4">
-          <Input 
-            label="Max Tokens" 
-            type="number"
-            value={settings.maxTokens}
-            onChange={(v) => updateSetting('maxTokens', v)}
-          />
-          <Input 
-            label="Temperature" 
-            type="number"
-            value={settings.temperature}
-            onChange={(v) => updateSetting('temperature', v)}
-          />
+          description="The backend stores this value as the preferred provider selector."
+        >
+          <select
+            value={settings.defaultProvider}
+            onChange={event => updateSetting('defaultProvider', event.target.value)}
+            disabled={loading}
+            className="mt-1 w-full rounded border border-[#3c3c3c] bg-[#2d2d2d] px-3 py-2 text-sm text-[#cccccc] focus:border-[#0078d4] focus:outline-none"
+          >
+            <option value="auto">Auto</option>
+            <option value="groq">Groq</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="google">Google AI</option>
+            <option value="openai">OpenAI</option>
+            <option value="local">Local / Ollama</option>
+          </select>
+        </Field>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field
+            label="Max Tokens"
+            description="Persisted numeric ceiling for dashboard-managed requests."
+          >
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={settings.maxTokens}
+              onChange={event => updateSetting('maxTokens', Number(event.target.value))}
+              disabled={loading}
+              className="mt-1 w-full rounded border border-[#3c3c3c] bg-[#2d2d2d] px-3 py-2 text-sm text-[#cccccc] focus:border-[#0078d4] focus:outline-none"
+            />
+          </Field>
+
+          <Field
+            label="Temperature"
+            description="Persisted generation temperature."
+          >
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={settings.temperature}
+              onChange={event => updateSetting('temperature', Number(event.target.value))}
+              disabled={loading}
+              className="mt-1 w-full rounded border border-[#3c3c3c] bg-[#2d2d2d] px-3 py-2 text-sm text-[#cccccc] focus:border-[#0078d4] focus:outline-none"
+            />
+          </Field>
         </div>
-        <Toggle
-          label="Fallback Enabled"
-          description="Automatically try other providers on failure"
-          checked={settings.fallbackEnabled}
-          onChange={(v) => updateSetting('fallbackEnabled', v)}
-        />
       </SettingSection>
 
-      {/* Database Settings */}
-      <SettingSection icon={Database} title="Database Configuration">
-        <Input 
-          label="MongoDB URI" 
-          value={settings.mongoUri}
-          onChange={(v) => updateSetting('mongoUri', v)}
-          placeholder="mongodb://localhost:27017"
-        />
-        <Input 
-          label="Database Name" 
-          value={settings.dbName}
-          onChange={(v) => updateSetting('dbName', v)}
-        />
-        <Toggle
-          label="Auto Export"
-          description="Automatically backup database on startup"
-          checked={settings.autoExport}
-          onChange={(v) => updateSetting('autoExport', v)}
-        />
-      </SettingSection>
-
-      {/* Local AI Settings */}
-      <SettingSection icon={Terminal} title="Local AI (GPU)">
-        <Input 
-          label="Ollama URL" 
-          value={settings.ollamaUrl}
-          onChange={(v) => updateSetting('ollamaUrl', v)}
-          placeholder="http://localhost:11434"
-        />
-        <Input 
-          label="GPU Layers" 
-          type="number"
-          value={settings.gpuLayers}
-          onChange={(v) => updateSetting('gpuLayers', v)}
-        />
-        <Toggle
-          label="Prefer Local Models"
-          description="Use local GPU models before external providers"
-          checked={settings.preferLocal}
-          onChange={(v) => updateSetting('preferLocal', v)}
-        />
-      </SettingSection>
-
-      {/* Feature Toggles */}
-      <SettingSection icon={Shield} title="Features & Security">
+      <SettingSection
+        icon={Shield}
+        title="Operator Flags"
+        description="These toggles are real persisted backend settings, not placeholders."
+      >
         <Toggle
           label="Debug Mode"
-          description="Enable verbose logging"
+          description="Persist verbose dashboard-side diagnostics."
           checked={settings.debugMode}
-          onChange={(v) => updateSetting('debugMode', v)}
+          onChange={value => updateSetting('debugMode', value)}
         />
         <Toggle
-          label="Metrics Collection"
-          description="Collect performance metrics"
-          checked={settings.metricsEnabled}
-          onChange={(v) => updateSetting('metricsEnabled', v)}
-        />
-        <Toggle
-          label="Rate Limiting"
-          description="Enable request rate limiting"
-          checked={settings.rateLimiting}
-          onChange={(v) => updateSetting('rateLimiting', v)}
+          label="Notifications Enabled"
+          description="Keep dashboard notifications enabled for supported features."
+          checked={settings.notificationsEnabled}
+          onChange={value => updateSetting('notificationsEnabled', value)}
         />
       </SettingSection>
     </div>

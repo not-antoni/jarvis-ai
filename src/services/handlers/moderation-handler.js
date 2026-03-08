@@ -286,45 +286,6 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
             break;
         }
 
-        case 'slowmode': {
-            telemetryMetadata.category = 'moderation';
-            const durationStr = interaction.options.getString('duration', true);
-
-            if (!interaction.guild) { response = 'This command only works in servers.'; break; }
-            if (!interaction.channel || !interaction.channel.setRateLimitPerUser) {
-                response = '❌ Cannot modify this channel type.';
-                break;
-            }
-
-            // Parse duration (0 to disable)
-            let seconds = 0;
-            if (durationStr !== '0' && durationStr !== 'off') {
-                const { parseDuration } = require('../../utils/parse-duration');
-                const ms = parseDuration(durationStr);
-                if (!ms) {
-                    response = '❌ Invalid duration. Use format like `5s`, `1m`, `0` to disable.';
-                    break;
-                }
-                seconds = Math.floor(ms / 1000);
-                if (seconds > 21600) { // 6 hours max
-                    response = '❌ Maximum slowmode is 6 hours (21600 seconds).';
-                    break;
-                }
-            }
-
-            try {
-                await interaction.channel.setRateLimitPerUser(seconds);
-                if (seconds === 0) {
-                    response = '⚡ Slowmode disabled for this channel.';
-                } else {
-                    response = `🐌 Slowmode set to **${durationStr}** for this channel.`;
-                }
-            } catch (error) {
-                response = `❌ Failed to set slowmode: ${error.message}`;
-            }
-            break;
-        }
-
         case 'userinfo': {
             telemetryMetadata.category = 'utility';
             const targetUser = interaction.options.getUser('user') || interaction.user;
@@ -410,7 +371,7 @@ async function handleModerationCommand(command, interaction, telemetryMetadata) 
 // List of commands this module handles
 const MODERATION_COMMANDS = [
     'ban', 'unban', 'kick', 'mute', 'unmute',
-    'warn', 'purge', 'slowmode',
+    'warn', 'purge',
     'userinfo', 'serverinfo'
 ];
 

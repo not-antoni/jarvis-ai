@@ -1,127 +1,130 @@
 import {
-    CheckCircle2,
-    ChevronDown,
-    Clock,
-    Cpu,
-    Pause,
-    Play,
-    RefreshCw,
-    TrendingUp,
-    XCircle,
-    Zap
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  Cpu,
+  RefreshCw,
+  TriangleAlert,
+  XCircle,
+  Zap,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-function ProviderCard({ provider, onToggle, onTest }) {
+function ProviderCard({ provider, onTest }) {
   const [expanded, setExpanded] = useState(false);
-  
+
   const familyColors = {
     groq: 'from-orange-500 to-orange-600',
-    openrouter: 'from-purple-500 to-purple-600',
+    openrouter: 'from-sky-500 to-cyan-600',
     google: 'from-blue-500 to-blue-600',
-    openai: 'from-green-500 to-green-600',
+    openai: 'from-emerald-500 to-emerald-600',
     deepseek: 'from-cyan-500 to-cyan-600',
     local: 'from-yellow-500 to-yellow-600',
   };
 
+  const state = provider.isDisabled ? 'disabled' : provider.hasError ? 'errored' : 'healthy';
+
   return (
     <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg overflow-hidden">
-      <div 
-        className="p-4 cursor-pointer hover:bg-[#2d2d2d] transition-colors"
-        onClick={() => setExpanded(!expanded)}
+      <button
+        type="button"
+        className="w-full p-4 text-left hover:bg-[#2d2d2d] transition-colors"
+        onClick={() => setExpanded(current => !current)}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${familyColors[provider.family] || 'from-gray-500 to-gray-600'} flex items-center justify-center`}>
               <Cpu className="w-5 h-5 text-white" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-[#cccccc]">{provider.name}</h3>
-                {provider.costTier === 'free' && (
-                  <span className="px-1.5 py-0.5 text-[9px] rounded bg-[#4ec9b0]/20 text-[#4ec9b0]">FREE</span>
-                )}
+                <h3 className="text-sm font-medium text-[#cccccc] truncate">{provider.name}</h3>
+                {provider.costTier === 'free' ? (
+                  <span className="px-1.5 py-0.5 text-[9px] rounded bg-[#4ec9b0]/20 text-[#4ec9b0]">
+                    FREE
+                  </span>
+                ) : null}
               </div>
-              <p className="text-xs text-[#858585]">{provider.model}</p>
+              <p className="text-xs text-[#858585] truncate">{provider.model || 'Unknown model'}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-1.5 ${provider.isDisabled ? 'text-[#f14c4c]' : 'text-[#4ec9b0]'}`}>
-              {provider.isDisabled ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-              <span className="text-xs">{provider.isDisabled ? 'Disabled' : 'Active'}</span>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <div className={`flex items-center gap-1.5 text-xs ${
+              state === 'healthy'
+                ? 'text-[#4ec9b0]'
+                : state === 'errored'
+                  ? 'text-[#dcdcaa]'
+                  : 'text-[#f14c4c]'
+            }`}>
+              {state === 'healthy' ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+              <span>{state === 'healthy' ? 'Healthy' : state === 'errored' ? 'Errored' : 'Disabled'}</span>
             </div>
             <ChevronDown className={`w-4 h-4 text-[#858585] transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </div>
         </div>
 
-        {/* Quick stats */}
-        <div className="flex gap-4 mt-3 pt-3 border-t border-[#3c3c3c]">
-          <div className="flex items-center gap-1.5 text-xs text-[#858585]">
+        <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-[#3c3c3c] text-xs text-[#858585]">
+          <div className="flex items-center gap-1.5">
             <Clock className="w-3 h-3" />
             {provider.metrics?.avgLatencyMs?.toFixed(0) || '—'}ms avg
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-[#858585]">
-            <TrendingUp className="w-3 h-3" />
-            {provider.metrics?.successRate?.toFixed(1) || '—'}% success
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-[#858585]">
+          <div className="flex items-center gap-1.5">
             <Zap className="w-3 h-3" />
             {provider.metrics?.totalRequests || 0} calls
           </div>
+          <div className="flex items-center gap-1.5">
+            <TriangleAlert className="w-3 h-3" />
+            {provider.metrics?.successRate?.toFixed(1) || '—'}% success
+          </div>
         </div>
-      </div>
+      </button>
 
-      {/* Expanded details */}
-      {expanded && (
-        <div className="px-4 pb-4 border-t border-[#3c3c3c] bg-[#2d2d2d]">
-          <div className="grid grid-cols-2 gap-4 py-4">
+      {expanded ? (
+        <div className="border-t border-[#3c3c3c] bg-[#2d2d2d] px-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] text-[#6e6e6e] uppercase tracking-wide mb-1">Type</p>
-              <p className="text-sm text-[#cccccc]">{provider.type}</p>
+              <p className="text-[10px] uppercase tracking-wide text-[#6e6e6e] mb-1">Type</p>
+              <p className="text-sm text-[#cccccc]">{provider.type || 'Unknown'}</p>
             </div>
             <div>
-              <p className="text-[10px] text-[#6e6e6e] uppercase tracking-wide mb-1">Family</p>
-              <p className="text-sm text-[#cccccc] capitalize">{provider.family}</p>
+              <p className="text-[10px] uppercase tracking-wide text-[#6e6e6e] mb-1">Family</p>
+              <p className="text-sm text-[#cccccc] capitalize">{provider.family || 'Unknown'}</p>
             </div>
             <div>
-              <p className="text-[10px] text-[#6e6e6e] uppercase tracking-wide mb-1">Priority</p>
-              <p className="text-sm text-[#cccccc]">{provider.priority}</p>
+              <p className="text-[10px] uppercase tracking-wide text-[#6e6e6e] mb-1">Priority</p>
+              <p className="text-sm text-[#cccccc]">{provider.priority ?? '—'}</p>
             </div>
             <div>
-              <p className="text-[10px] text-[#6e6e6e] uppercase tracking-wide mb-1">Cost Tier</p>
-              <p className="text-sm text-[#cccccc] capitalize">{provider.costTier}</p>
+              <p className="text-[10px] uppercase tracking-wide text-[#6e6e6e] mb-1">Cost Tier</p>
+              <p className="text-sm text-[#cccccc] capitalize">{provider.costTier || 'Unknown'}</p>
             </div>
-            {provider.lastError && (
-              <div className="col-span-2">
-                <p className="text-[10px] text-[#6e6e6e] uppercase tracking-wide mb-1">Last Error</p>
-                <p className="text-xs text-[#f14c4c] font-mono bg-[#1e1e1e] p-2 rounded">{provider.lastError}</p>
-              </div>
-            )}
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-2">
-            <button 
-              onClick={(e) => { e.stopPropagation(); onToggle(provider); }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs transition-colors ${
-                provider.isDisabled 
-                  ? 'bg-[#4ec9b0] text-black hover:bg-[#3da88a]' 
-                  : 'bg-[#f14c4c] text-white hover:bg-[#d93e3e]'
-              }`}
-            >
-              {provider.isDisabled ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-              {provider.isDisabled ? 'Enable' : 'Disable'}
-            </button>
-            <button 
-              onClick={(e) => { e.stopPropagation(); onTest(provider); }}
+          {provider.lastError ? (
+            <div className="mt-4">
+              <p className="text-[10px] uppercase tracking-wide text-[#6e6e6e] mb-1">Last Error</p>
+              <p className="rounded bg-[#1e1e1e] p-2 text-xs font-mono text-[#f14c4c]">
+                {provider.lastError}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onTest(provider);
+              }}
               className="flex items-center gap-2 px-3 py-1.5 rounded text-xs bg-[#0078d4] text-white hover:bg-[#1e8ad4] transition-colors"
             >
               <Zap className="w-3 h-3" />
-              Test
+              Test Provider
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -129,29 +132,33 @@ function ProviderCard({ provider, onToggle, onTest }) {
 export default function Providers() {
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [error, setError] = useState('');
   const [testResult, setTestResult] = useState(null);
 
-  const fetchProviders = async () => {
-    setLoading(true);
+  const fetchProviders = async ({ quiet = false } = {}) => {
+    if (quiet) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const res = await fetch('/api/dashboard/providers');
-      if (res.ok) {
-        const data = await res.json();
-        setProviders(data.providers || []);
+      if (!res.ok) {
+        throw new Error(`Provider request failed (${res.status})`);
       }
+
+      const data = await res.json();
+      setProviders(Array.isArray(data.providers) ? data.providers : []);
+      setError('');
     } catch (err) {
-      console.error('Failed to fetch providers:', err);
-      // Mock data for demo
-      setProviders([
-        { name: 'Groq1', model: 'llama-3.3-70b-versatile', type: 'openai-chat', family: 'groq', costTier: 'free', priority: 0, isDisabled: false, metrics: { totalRequests: 1247, successRate: 98.5, avgLatencyMs: 245 } },
-        { name: 'OpenRouter3', model: 'nvidia/nemotron-nano-9b-v2:free', type: 'openai-chat', family: 'openrouter', costTier: 'free', priority: 0, isDisabled: false, metrics: { totalRequests: 892, successRate: 97.2, avgLatencyMs: 312 } },
-        { name: 'GoogleAI1', model: 'gemini-2.5-flash', type: 'google', family: 'google', costTier: 'free', priority: 0, isDisabled: false, metrics: { totalRequests: 456, successRate: 99.1, avgLatencyMs: 189 } },
-        { name: 'GPT5Nano', model: 'gpt-4o-mini', type: 'openai-chat', family: 'openai', costTier: 'paid', priority: 2, isDisabled: false, metrics: { totalRequests: 234, successRate: 99.8, avgLatencyMs: 156 } },
-        { name: 'deepseek-gateway-1', model: 'deepseek/deepseek-v3.2-exp', type: 'openai-chat', family: 'deepseek', costTier: 'paid', priority: 2, isDisabled: false, metrics: { totalRequests: 123, successRate: 96.5, avgLatencyMs: 420 } },
-      ]);
+      setProviders([]);
+      setError(err.message || 'Failed to load providers.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -159,77 +166,98 @@ export default function Providers() {
     fetchProviders();
   }, []);
 
-  const handleToggle = async (provider) => {
-    // API call to toggle provider
-    console.log('Toggle provider:', provider.name);
-  };
-
   const handleTest = async (provider) => {
     setTestResult({ provider: provider.name, status: 'testing' });
+
     try {
       const res = await fetch('/api/dashboard/providers/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: provider.name }),
       });
+
+      if (!res.ok) {
+        throw new Error(`Provider test failed (${res.status})`);
+      }
+
       const data = await res.json();
-      setTestResult({ provider: provider.name, status: 'success', latency: data.latency, response: data.response });
+
+      if (data.success) {
+        setTestResult({
+          provider: provider.name,
+          status: 'success',
+          message: `${provider.name} responded in ${data.latency}ms.`,
+        });
+      } else {
+        setTestResult({
+          provider: provider.name,
+          status: 'error',
+          message: data.error || `${provider.name} test failed.`,
+        });
+      }
     } catch (err) {
-      setTestResult({ provider: provider.name, status: 'error', error: err.message });
+      setTestResult({
+        provider: provider.name,
+        status: 'error',
+        message: err.message || `${provider.name} test failed.`,
+      });
     }
+
     setTimeout(() => setTestResult(null), 5000);
   };
 
-  const families = [...new Set(providers.map(p => p.family))];
-  const filteredProviders = filter === 'all' ? providers : providers.filter(p => p.family === filter);
+  const families = [...new Set(providers.map(provider => provider.family).filter(Boolean))].sort();
+  const filteredProviders = filter === 'all'
+    ? providers
+    : providers.filter(provider => provider.family === filter);
+  const activeProviders = providers.filter(provider => !provider.isDisabled).length;
 
   return (
     <div className="p-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-[#cccccc]">AI Providers</h1>
-          <p className="text-sm text-[#858585]">Manage and monitor AI provider connections</p>
+          <p className="text-sm text-[#858585]">Provider status without mock fallbacks or no-op controls.</p>
         </div>
-        <button 
-          onClick={fetchProviders}
+        <button
+          type="button"
+          onClick={() => fetchProviders({ quiet: true })}
           className="flex items-center gap-2 px-3 py-2 rounded bg-[#2d2d2d] hover:bg-[#3c3c3c] transition-colors"
         >
-          <RefreshCw className={`w-4 h-4 text-[#858585] ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 text-[#858585] ${(loading || refreshing) ? 'animate-spin' : ''}`} />
           <span className="text-sm text-[#cccccc]">Refresh</span>
         </button>
       </div>
 
-      {/* Test result toast */}
-      {testResult && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center gap-3 ${
-          testResult.status === 'testing' ? 'bg-[#0078d4]/20 border border-[#0078d4]' :
-          testResult.status === 'success' ? 'bg-[#4ec9b0]/20 border border-[#4ec9b0]' :
-          'bg-[#f14c4c]/20 border border-[#f14c4c]'
-        }`}>
-          {testResult.status === 'testing' && <RefreshCw className="w-4 h-4 text-[#0078d4] animate-spin" />}
-          {testResult.status === 'success' && <CheckCircle2 className="w-4 h-4 text-[#4ec9b0]" />}
-          {testResult.status === 'error' && <XCircle className="w-4 h-4 text-[#f14c4c]" />}
-          <span className="text-sm text-[#cccccc]">
-            {testResult.status === 'testing' && `Testing ${testResult.provider}...`}
-            {testResult.status === 'success' && `${testResult.provider} responded in ${testResult.latency}ms`}
-            {testResult.status === 'error' && `${testResult.provider} failed: ${testResult.error}`}
-          </span>
+      {error ? (
+        <div className="mb-4 rounded-lg border border-[#f14c4c]/40 bg-[#f14c4c]/10 px-4 py-3 text-sm text-[#f5b7b7]">
+          {error}
         </div>
-      )}
+      ) : null}
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {testResult ? (
+        <div className={`mb-4 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+          testResult.status === 'testing'
+            ? 'border-[#0078d4] bg-[#0078d4]/10 text-[#9cdcfe]'
+            : testResult.status === 'success'
+              ? 'border-[#4ec9b0] bg-[#4ec9b0]/10 text-[#b8f0df]'
+              : 'border-[#f14c4c] bg-[#f14c4c]/10 text-[#f5b7b7]'
+        }`}>
+          <span>{testResult.message || `Testing ${testResult.provider}...`}</span>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4">
           <p className="text-2xl font-semibold text-[#cccccc]">{providers.length}</p>
-          <p className="text-xs text-[#858585]">Total Providers</p>
+          <p className="text-xs text-[#858585]">Registered Providers</p>
         </div>
         <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4">
-          <p className="text-2xl font-semibold text-[#4ec9b0]">{providers.filter(p => !p.isDisabled).length}</p>
-          <p className="text-xs text-[#858585]">Active</p>
+          <p className="text-2xl font-semibold text-[#4ec9b0]">{activeProviders}</p>
+          <p className="text-xs text-[#858585]">Active Providers</p>
         </div>
         <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4">
-          <p className="text-2xl font-semibold text-[#9cdcfe]">{providers.filter(p => p.costTier === 'free').length}</p>
+          <p className="text-2xl font-semibold text-[#9cdcfe]">{providers.filter(provider => provider.costTier === 'free').length}</p>
           <p className="text-xs text-[#858585]">Free Tier</p>
         </div>
         <div className="bg-[#252526] border border-[#3c3c3c] rounded-lg p-4">
@@ -238,9 +266,9 @@ export default function Providers() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 mb-4">
-        <button 
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          type="button"
           onClick={() => setFilter('all')}
           className={`px-3 py-1.5 rounded text-xs transition-colors ${
             filter === 'all' ? 'bg-[#0078d4] text-white' : 'bg-[#2d2d2d] text-[#cccccc] hover:bg-[#3c3c3c]'
@@ -249,8 +277,9 @@ export default function Providers() {
           All
         </button>
         {families.map(family => (
-          <button 
+          <button
             key={family}
+            type="button"
             onClick={() => setFilter(family)}
             className={`px-3 py-1.5 rounded text-xs capitalize transition-colors ${
               filter === family ? 'bg-[#0078d4] text-white' : 'bg-[#2d2d2d] text-[#cccccc] hover:bg-[#3c3c3c]'
@@ -261,17 +290,25 @@ export default function Providers() {
         ))}
       </div>
 
-      {/* Provider List */}
-      <div className="space-y-3">
-        {filteredProviders.map((provider, i) => (
-          <ProviderCard 
-            key={provider.name || i} 
-            provider={provider} 
-            onToggle={handleToggle}
-            onTest={handleTest}
-          />
-        ))}
-      </div>
+      {loading && providers.length === 0 ? (
+        <div className="rounded-lg border border-[#3c3c3c] bg-[#252526] px-4 py-6 text-sm text-[#858585]">
+          Loading provider list…
+        </div>
+      ) : filteredProviders.length === 0 ? (
+        <div className="rounded-lg border border-[#3c3c3c] bg-[#252526] px-4 py-6 text-sm text-[#858585]">
+          No providers match the current filter.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredProviders.map(provider => (
+            <ProviderCard
+              key={provider.name}
+              provider={provider}
+              onTest={handleTest}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

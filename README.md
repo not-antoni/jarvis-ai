@@ -27,20 +27,17 @@ Native Discord voice playback via `@discordjs/voice` + `yt-dlp`.
 
 ### Moderation
 - **Auto-Moderation**: AI-powered with batch analysis, auto-escalation, cross-guild threat sharing
-- **Manual**: `/ban` `/unban` `/kick` `/mute` `/unmute` `/warn` `/purge` `/slowmode`
+- **Manual**: `/ban` `/unban` `/kick` `/mute` `/unmute` `/warn` `/purge`
 - **Reaction Roles**: `/reactionrole` panel builder
 - **Server Stats**: Auto-updating stat channels
 - **Member Log**: Join/leave announcements
 - **Web Dashboard**: `/moderator` control panel
 
-### Monitoring
-`/monitor` tracks RSS feeds, websites, YouTube channels, Twitch streams, Cloudflare status, and status pages with Discord notifications.
-
 ### Utility
-`/jarvis` `/ask` `/search` `/yt` `/news` `/remind` `/time` `/timezone` `/encode` `/decode` `/cipher` `/caption` `/gif` `/avatar` `/banner` `/clip` `/profile` `/history` `/recap` `/digest` `/help` `/pwdgen` `/qrcode` `/mystats` `/wakeword`
+`/jarvis` `/ask` `/search` `/yt` `/news` `/remind` `/timezone` `/caption` `/gif` `/avatar` `/banner` `/clip` `/profile` `/history` `/digest` `/help` `/wakeword`
 
 ### Fun
-`/typerace` `/ship` `/scramble` `/crypto`
+`/ship`
 
 ---
 
@@ -69,7 +66,7 @@ MASTER_KEY_BASE64=base64_32_byte_key
 ### Optional
 
 ```env
-# Dashboard / monitoring
+# Dashboard / health
 DASHBOARD_PASSWORD=...
 HEALTH_TOKEN=...
 

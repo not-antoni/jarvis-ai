@@ -4,7 +4,6 @@ const {
     SlashCommandBuilder,
     InteractionContextType,
     ApplicationIntegrationType,
-    ChannelType,
     PermissionFlagsBits
 } = require('discord.js');
 const { commandList: musicCommandList } = require('./music');
@@ -41,33 +40,6 @@ const allCommands = [
     new SlashCommandBuilder()
         .setName('ping')
         .setDescription('Check bot latency and system vitals')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('time')
-        .setDescription('Get the current time in your timezone')
-        .addStringOption(option =>
-            option
-                .setName('format')
-                .setDescription('Time format to display')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Time only', value: 't' },
-                    { name: 'Time with seconds', value: 'T' },
-                    { name: 'Short date', value: 'd' },
-                    { name: 'Long date', value: 'D' },
-                    { name: 'Short date/time', value: 'f' },
-                    { name: 'Long date/time', value: 'F' },
-                    { name: 'Relative time', value: 'R' }
-                )
-        )
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
-        .setName('providers')
-        .setDescription('List available AI providers')
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
@@ -117,10 +89,6 @@ const allCommands = [
         ]),
     // ============ FUN COMMANDS ============
     new SlashCommandBuilder()
-        .setName('typerace')
-        .setDescription('Start a typing race - first to type the phrase wins!')
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
         .setName('ship')
         .setDescription('Calculate compatibility between two people')
         .addUserOption(option =>
@@ -128,43 +96,6 @@ const allCommands = [
         )
         .addUserOption(option =>
             option.setName('person2').setDescription('Second person').setRequired(false)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('crypto')
-        .setDescription('Retrieve live cryptocurrency market data')
-        .addStringOption(option =>
-            option
-                .setName('coin')
-                .setDescription('Which asset should I analyse?')
-                .setRequired(true)
-                .addChoices(
-                    { name: 'Bitcoin (BTC)', value: 'BTC' },
-                    { name: 'Ethereum (ETH)', value: 'ETH' },
-                    { name: 'BNB (BNB)', value: 'BNB' },
-                    { name: 'Solana (SOL)', value: 'SOL' },
-                    { name: 'XRP (XRP)', value: 'XRP' },
-                    { name: 'Cardano (ADA)', value: 'ADA' },
-                    { name: 'Dogecoin (DOGE)', value: 'DOGE' },
-                    { name: 'Polygon (MATIC)', value: 'MATIC' }
-                )
-        )
-        .addStringOption(option =>
-            option
-                .setName('convert')
-                .setDescription('Fiat currency to convert into (defaults to USD)')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'US Dollar (USD)', value: 'USD' },
-                    { name: 'Euro (EUR)', value: 'EUR' },
-                    { name: 'British Pound (GBP)', value: 'GBP' },
-                    { name: 'Japanese Yen (JPY)', value: 'JPY' },
-                    { name: 'Australian Dollar (AUD)', value: 'AUD' }
-                )
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -272,26 +203,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('recap')
-        .setDescription('Get a quick activity summary')
-        .addStringOption(option =>
-            option
-                .setName('window')
-                .setDescription('How far back to look')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Last 6 hours', value: '6h' },
-                    { name: 'Last 12 hours', value: '12h' },
-                    { name: 'Last 24 hours', value: '24h' },
-                    { name: 'Last 7 days', value: '7d' }
-                )
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
         .setName('digest')
         .setDescription('Summarize recent activity for this server')
         .addStringOption(option =>
@@ -313,79 +224,6 @@ const allCommands = [
                 .setMinValue(3)
                 .setMaxValue(10)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('decode')
-        .setDescription('Decode encoded text')
-        .addStringOption(option =>
-            option.setName('text').setDescription('The text to decode').setRequired(true)
-        )
-        .addStringOption(option =>
-            option
-                .setName('format')
-                .setDescription('Encoding to decode from (default: auto)')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Auto detect', value: 'auto' },
-                    { name: 'Base64', value: 'base64' },
-                    { name: 'Base32', value: 'base32' },
-                    { name: 'Base58', value: 'base58' },
-                    { name: 'Hexadecimal', value: 'hex' },
-                    { name: 'Binary', value: 'binary' },
-                    { name: 'URL-encoded', value: 'url' },
-                    { name: 'ROT13', value: 'rot13' },
-                    { name: 'Punycode', value: 'punycode' },
-                    { name: 'Morse code', value: 'morse' }
-                )
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('encode')
-        .setDescription('Encode plain text')
-        .addStringOption(option =>
-            option.setName('text').setDescription('The text to encode').setRequired(true)
-        )
-        .addStringOption(option =>
-            option
-                .setName('format')
-                .setDescription('Encoding format (default: base64)')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Base64', value: 'base64' },
-                    { name: 'Base32', value: 'base32' },
-                    { name: 'Base58', value: 'base58' },
-                    { name: 'Hexadecimal', value: 'hex' },
-                    { name: 'Binary', value: 'binary' },
-                    { name: 'URL-encoded', value: 'url' },
-                    { name: 'ROT13', value: 'rot13' },
-                    { name: 'Punycode', value: 'punycode' },
-                    { name: 'Morse code', value: 'morse' }
-                )
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('cipher')
-        .setDescription('Crack a rotating Stark cipher')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('scramble')
-        .setDescription('Unscramble a Stark Industries keyword')
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
@@ -907,123 +745,6 @@ const allCommands = [
             InteractionContextType.PrivateChannel
         ]),
     new SlashCommandBuilder()
-        .setName('monitor')
-        .setDescription('Monitor websites, feeds, and channels.')
-        .addSubcommand(sub =>
-            sub
-                .setName('rss')
-                .setDescription('Monitor a general RSS or Atom feed for new items.')
-                .addStringOption(opt =>
-                    opt.setName('url').setDescription('RSS/Atom feed URL').setRequired(true)
-                )
-                .addChannelOption(opt =>
-                    opt
-                        .setName('channel')
-                        .setDescription('Channel for alerts (defaults to current channel)')
-                        .setRequired(false)
-                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('website')
-                .setDescription('Monitor a URL for uptime (HTTP 200) and recovery.')
-                .addStringOption(opt =>
-                    opt.setName('url').setDescription('Website URL').setRequired(true)
-                )
-                .addChannelOption(opt =>
-                    opt
-                        .setName('channel')
-                        .setDescription('Channel for alerts (defaults to current channel)')
-                        .setRequired(false)
-                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('youtube')
-                .setDescription('Monitor a YouTube channel for new videos.')
-                .addStringOption(opt =>
-                    opt
-                        .setName('channel_id')
-                        .setDescription('YouTube Channel ID (UC...)')
-                        .setRequired(true)
-                )
-                .addChannelOption(opt =>
-                    opt
-                        .setName('channel')
-                        .setDescription('Channel for alerts')
-                        .setRequired(true)
-                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('twitch')
-                .setDescription('Monitor a Twitch streamer for when they go live.')
-                .addStringOption(opt =>
-                    opt
-                        .setName('username')
-                        .setDescription("Streamer's username")
-                        .setRequired(true)
-                )
-                .addChannelOption(opt =>
-                    opt
-                        .setName('channel')
-                        .setDescription('Channel for alerts')
-                        .setRequired(true)
-                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('cloudflare')
-                .setDescription('Monitor Cloudflare status (components + incidents).')
-                .addChannelOption(opt =>
-                    opt
-                        .setName('channel')
-                        .setDescription('Channel for alerts (defaults to current channel)')
-                        .setRequired(false)
-                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-                )
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('statuspage')
-                .setDescription('Monitor a Statuspage.io status page for updates.')
-                .addStringOption(opt =>
-                    opt
-                        .setName('url')
-                        .setDescription('Status page base URL (e.g. https://status.openai.com)')
-                        .setRequired(true)
-                )
-                .addChannelOption(opt =>
-                    opt
-                        .setName('channel')
-                        .setDescription('Channel for alerts (defaults to current channel)')
-                        .setRequired(false)
-                        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-                )
-        )
-        .addSubcommand(sub =>
-            sub.setName('list').setDescription('List active monitors for this server.')
-        )
-        .addSubcommand(sub =>
-            sub.setName('status').setDescription('Show monitor scheduler status and active monitor counts.')
-        )
-        .addSubcommand(sub =>
-            sub
-                .setName('remove')
-                .setDescription('Stop monitoring a specific source.')
-                .addStringOption(opt =>
-                    opt
-                        .setName('source')
-                        .setDescription('The URL / channel ID / username to remove')
-                        .setRequired(true)
-                )
-        )
-        .setContexts([InteractionContextType.Guild]),
-    new SlashCommandBuilder()
         .setName('timezone')
         .setDescription('Set your timezone for reminders and time displays')
         .addStringOption(opt =>
@@ -1064,14 +785,6 @@ const allCommands = [
                 .setDescription('Remove your (or server) wake word')
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('mystats')
-        .setDescription('View your Jarvis interaction statistics')
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
@@ -1129,12 +842,6 @@ const allCommands = [
         .setContexts([InteractionContextType.Guild])
         .addIntegerOption(o => o.setName('count').setDescription('Number of messages to delete (1-100)').setRequired(true).setMinValue(1).setMaxValue(100))
         .addUserOption(o => o.setName('user').setDescription('Only delete messages from this user')),
-    new SlashCommandBuilder()
-        .setName('slowmode')
-        .setDescription('Set channel slowmode delay')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-        .setContexts([InteractionContextType.Guild])
-        .addStringOption(o => o.setName('duration').setDescription('Slowmode duration (e.g., 5s, 1m, 0 to disable)').setRequired(true)),
     new SlashCommandBuilder()
         .setName('userinfo')
         .setDescription('Get detailed information about a user')

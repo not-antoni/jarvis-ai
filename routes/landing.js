@@ -85,57 +85,6 @@ const LANDING_PAGE = `
         
         .nav-links a:hover { color: #fff; }
         
-        .user-menu {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-left: auto;
-        }
-        
-        .user-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.2);
-        }
-        
-        .user-name {
-            color: #fff;
-            font-weight: 500;
-            font-size: 0.9rem;
-        }
-        
-        .login-btn {
-            padding: 0.5rem 1rem;
-            background: rgba(255,255,255,0.08);
-            color: #aaa;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.85rem;
-            transition: all 0.2s;
-        }
-        
-        .login-btn:hover {
-            background: rgba(255,255,255,0.12);
-            color: #fff;
-        }
-        
-        .logout-btn {
-            padding: 0.4rem 0.8rem;
-            background: rgba(255,255,255,0.08);
-            color: #888;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85rem;
-        }
-        
-        .logout-btn:hover {
-            background: rgba(255,255,255,0.12);
-            color: #fff;
-        }
-        
         /* Hero Section */
         .hero {
             text-align: center;
@@ -450,12 +399,8 @@ const LANDING_PAGE = `
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
-            <li><a href="/me">My Portal</a></li>
             <li><a href="/moderator/dashboard">Mod Dashboard</a></li>
         </ul>
-        <div class="user-menu" id="userMenu">
-            <a href="/auth/login" class="login-btn" id="loginBtn">Login</a>
-        </div>
     </nav>
     
     <section class="hero">
@@ -581,22 +526,6 @@ const LANDING_PAGE = `
     </footer>
     
     <script>
-        async function checkAuth() {
-            try {
-                const res = await fetch('/api/user');
-                const data = await res.json();
-                const userMenu = document.getElementById('userMenu');
-                
-                if (data.authenticated && data.user) {
-                    userMenu.innerHTML = \`
-                        <img src="\${data.user.avatar}" class="user-avatar" alt="">
-                        <span class="user-name">\${data.user.globalName || data.user.username}</span>
-                        <a href="/auth/logout" class="logout-btn">Logout</a>
-                    \`;
-                }
-            } catch (e) {}
-        }
-        
         // Fetch real server count
         async function fetchStats() {
             try {
@@ -612,12 +541,6 @@ const LANDING_PAGE = `
             } catch (e) {}
         }
         
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('login') === 'success' || params.get('error')) {
-            history.replaceState({}, '', '/');
-        }
-        
-        checkAuth();
         fetchStats();
     </script>
 </body>
