@@ -275,7 +275,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         input,
         userName,
         userId = null,
-        _isSlash = false,
+        isSlash = false,
         interaction = null,
         guildId = null
     ) {
@@ -648,7 +648,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
     async generateResponse(
         interaction,
         userInput,
-        isSlash = false,
+        _isSlash = false,
         contextualMemory = null,
         images = null
     ) {
