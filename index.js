@@ -36,7 +36,6 @@ const discordHandlers = require('./src/services/discord-handlers-impl');
 const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
-const serverLogger = require('./src/services/server-logger');
 const { printSelfhostStatus } = require('./scripts/selfhost-check');
 const { safeReadJson, writeJsonAtomic } = require('./src/server/health-helpers');
 const { createExpressApp, mount404Handler } = require('./src/server/express-setup');
@@ -436,7 +435,7 @@ client.once(Events.ClientReady, async() => {
 
 const { wireEventHandlers } = require('./src/server/event-wiring');
 wireEventHandlers({
-    client, discordHandlers, dashboardRouter, serverLogger,
+    client, discordHandlers, dashboardRouter,
     aiManager, database, cron,
     serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
 });
