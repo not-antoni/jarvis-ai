@@ -275,8 +275,7 @@ class AIProviderManager {
                 type: 'ollama',
                 family: 'ollama',
                 costTier: 'free',
-                supportsImages: true,
-                moderationOnly: true // Ollama reserved for guild moderation only
+                supportsImages: true
             });
         });
 
@@ -483,8 +482,8 @@ class AIProviderManager {
     }
 
     _filterProvidersByType(providers, options = {}) {
-        // By default, exclude moderationOnly providers (like Ollama) from casual chat
-        // Set options.allowModerationOnly = true to include them (for guild moderation)
+        // By default, exclude moderationOnly providers from casual chat.
+        // Set options.allowModerationOnly = true to include them (if any are configured).
         const allowModerationOnly = options.allowModerationOnly === true;
 
         let filtered = providers;
