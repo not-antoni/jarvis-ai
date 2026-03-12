@@ -7,7 +7,7 @@
 function wireEventHandlers(ctx) {
     const {
         client, discordHandlers, dashboardRouter, serverLogger,
-        errorLogger, aiManager, database, cron,
+        aiManager, database, cron,
         serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
     } = ctx;
 
@@ -158,48 +158,14 @@ function wireEventHandlers(ctx) {
 
     client.on('error', err => {
         console.error('Discord client error:', err);
-        try {
-            errorLogger.log({
-                error: err,
-                context: {
-                    location: 'discord.client.error',
-                    command: 'client.error',
-                    extra: { message: err?.message }
-                }
-            });
-        } catch {
-            // ignore
-        }
     });
 
     process.on('unhandledRejection', err => {
         console.error('Unhandled promise rejection:', err);
-        try {
-            errorLogger.log({
-                error: err,
-                context: {
-                    location: 'process.unhandledRejection',
-                    command: 'unhandledRejection'
-                }
-            });
-        } catch {
-            // ignore
-        }
     });
 
     process.on('uncaughtException', err => {
         console.error('Uncaught exception:', err);
-        try {
-            errorLogger.log({
-                error: err,
-                context: {
-                    location: 'process.uncaughtException',
-                    command: 'uncaughtException'
-                }
-            });
-        } catch {
-            // ignore
-        }
     });
 
     // ─── Graceful Shutdown ───────────────────────────────────────────────────

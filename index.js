@@ -36,7 +36,6 @@ const discordHandlers = require('./src/services/discord-handlers-impl');
 const webhookRouter = require('./routes/webhook');
 const { exportAllCollections } = require('./src/utils/mongo-exporter');
 const ytDlpManager = require('./src/services/yt-dlp-manager');
-const errorLogger = require('./src/services/error-logger');
 const serverLogger = require('./src/services/server-logger');
 const { printSelfhostStatus } = require('./scripts/selfhost-check');
 const { safeReadJson, writeJsonAtomic } = require('./src/server/health-helpers');
@@ -314,13 +313,6 @@ client.once(Events.ClientReady, async() => {
         console.warn('[ModeratorAuth] Failed to attach Discord client:', e.message);
     }
 
-    // Attach Discord client for error logging + queued flush
-    try {
-        errorLogger.setClient(client);
-    } catch (e) {
-        console.warn('[ErrorLogger] Failed to attach client:', e.message);
-    }
-
     // Initialize musicManager with client
     try {
         const { musicManager } = require('./src/core/musicManager');
@@ -445,7 +437,7 @@ client.once(Events.ClientReady, async() => {
 const { wireEventHandlers } = require('./src/server/event-wiring');
 wireEventHandlers({
     client, discordHandlers, dashboardRouter, serverLogger,
-    errorLogger, aiManager, database, cron,
+    aiManager, database, cron,
     serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
 });
 
