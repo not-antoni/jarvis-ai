@@ -767,6 +767,12 @@ const allCommands = [
                 .setDescription('Remove your (or server) wake word')
                 .setRequired(false)
         )
+        .addBooleanOption(opt =>
+            opt
+                .setName('disable_defaults')
+                .setDescription('Disable default wake words (jarvis/garmin) for this server')
+                .setRequired(false)
+        )
         .setContexts([
             InteractionContextType.Guild,
             InteractionContextType.BotDM,
