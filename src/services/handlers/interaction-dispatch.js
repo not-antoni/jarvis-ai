@@ -361,28 +361,6 @@ try {
     const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     console.error(`[${errorId}] Error processing interaction:`, error);
 
-    // Report to error log channel for production triage
-    try {
-        const errorLogger = require('../error-logger');
-        await errorLogger.log({
-            error,
-            errorId,
-            context: {
-                location: 'slash:handleSlashCommand',
-                user: `${interaction.user?.username || 'unknown'} (${interaction.user?.id || 'unknown'})`,
-                guild: interaction.guild ? `${interaction.guild.name} (${interaction.guild.id})` : 'DM',
-                channel: `${interaction.channelId || 'unknown'}`,
-                command: `${interaction.commandName || 'unknown'}`,
-                extra: {
-                    customId: interaction.customId,
-                    options: interaction.options?._hoistedOptions || null
-                }
-            }
-        });
-    } catch {
-        // ignore
-    }
-    
     try {
         const errorMessage = `Technical difficulties, sir. (${errorId}) Please try again shortly.`;
         if (!interaction.replied && !interaction.deferred) {
