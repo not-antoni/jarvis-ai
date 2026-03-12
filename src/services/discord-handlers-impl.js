@@ -10,7 +10,7 @@ const {
     EmbedBuilder,
     parseEmoji
 } = require('discord.js');
-const JarvisAI = require('./jarvis-core');
+const KefirAI = require('./kefir-core');
 const config = require('../../config');
 const { LRUCache } = require('lru-cache');
 const { createCanvas, loadImage } = require('canvas');
@@ -101,7 +101,7 @@ function buildUnicodeEmojiAsset(emoji) {
 
 class DiscordHandlers {
     constructor() {
-        this.jarvis = new JarvisAI();
+        this.jarvis = new KefirAI();
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
 
         this.guildConfigCache = new Map();
