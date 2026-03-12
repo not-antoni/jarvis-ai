@@ -824,6 +824,37 @@ class DatabaseManager {
         return this.getGuildConfig(guildId);
     }
 
+    async setGuildWakeWordsDisabled(guildId, disabled) {
+        if (!this.isConnected) {throw new Error('Database not connected');}
+
+        const collection = this.db.collection(config.database.collections.guildConfigs);
+        const now = new Date();
+
+        if (disabled) {
+            await collection.updateOne(
+                { guildId },
+                {
+                    $set: { wakeWordsDisabled: true, updatedAt: now },
+                    $setOnInsert: { createdAt: now }
+                },
+                { upsert: true }
+            );
+        } else {
+            await collection.updateOne(
+                { guildId },
+                {
+                    $unset: { wakeWordsDisabled: 1 },
+                    $set: { updatedAt: now },
+                    $setOnInsert: { createdAt: now }
+                },
+                { upsert: true }
+            );
+        }
+
+        this._invalidateGuildConfigCache(guildId);
+        return this.getGuildConfig(guildId);
+    }
+
     async removeGuildBlockedUser(guildId, userId) {
         if (!this.isConnected) {throw new Error('Database not connected');}
         

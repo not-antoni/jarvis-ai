@@ -2313,6 +2313,7 @@ class DiscordHandlers {
 
         // Check custom guild/user wake words first — guild custom wake word replaces defaults
         let guildHasCustomWord = false;
+        let guildWakeWordsDisabled = false;
         try {
             const userFeatures = require('./user-features');
             if (message.guild) {
@@ -2321,6 +2322,7 @@ class DiscordHandlers {
                     guildHasCustomWord = true;
                     containsJarvis = await userFeatures.matchesGuildWakeWord(message.guild.id, lowerContent);
                 }
+                guildWakeWordsDisabled = await userFeatures.isGuildWakeWordsDisabled(message.guild.id);
             }
             if (!containsJarvis) {
                 const userMatch = await userFeatures.matchesWakeWord(message.author.id, lowerContent);
@@ -2331,7 +2333,7 @@ class DiscordHandlers {
         }
 
         // Only use default wake words if guild has no custom one
-        if (!containsJarvis && !guildHasCustomWord) {
+        if (!containsJarvis && !guildHasCustomWord && !guildWakeWordsDisabled) {
             containsJarvis = config.wakeWords.some(trigger =>
                 lowerContent.includes(trigger)
             );
@@ -3074,6 +3076,7 @@ class DiscordHandlers {
         const word = interaction.options.getString('word');
         const scope = interaction.options.getString('scope') || 'personal';
         const clear = interaction.options.getBoolean('clear') || false;
+        const disableDefaults = interaction.options.getBoolean('disable_defaults');
 
         try {
             // Server scope — requires admin/manage guild
@@ -3095,22 +3098,49 @@ class DiscordHandlers {
 
                 const guildId = interaction.guild.id;
 
+                if (disableDefaults !== null) {
+                    await userFeatures.setGuildWakeWordsDisabled(guildId, disableDefaults);
+                    // Flush handler-level cache so the change takes effect immediately
+                    this.guildConfigCache.delete(guildId);
+                    const guildConfigDiskCache = require('./guild-config-cache');
+                    guildConfigDiskCache.invalidate(guildId);
+
+                    if (disableDefaults) {
+                        await interaction.editReply('Default wake words disabled for this server. I will only respond to custom wake words, personal wake words, or mentions.');
+                    } else {
+                        await interaction.editReply('Default wake words enabled for this server. I will respond to "jarvis" / "garmin" when no server wake word is set.');
+                    }
+                    return;
+                }
+
                 if (clear) {
                     await userFeatures.removeGuildWakeWord(guildId);
                     // Flush handler-level cache so the change takes effect immediately
                     this.guildConfigCache.delete(guildId);
                     const guildConfigDiskCache = require('./guild-config-cache');
                     guildConfigDiskCache.invalidate(guildId);
-                    await interaction.editReply('Server wake word removed. I\'ll respond to the default triggers ("jarvis" / "garmin") and personal wake words now.');
+                    const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(guildId);
+                    if (defaultsDisabled) {
+                        await interaction.editReply('Server wake word removed. Default wake words are still disabled for this server; I will respond to personal wake words or mentions.');
+                    } else {
+                        await interaction.editReply('Server wake word removed. I\'ll respond to the default triggers ("jarvis" / "garmin") and personal wake words now.');
+                    }
                     return;
                 }
 
                 if (!word) {
                     const currentGuildWord = await userFeatures.getGuildWakeWord(guildId);
+                    const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(guildId);
                     if (currentGuildWord) {
-                        await interaction.editReply(`🏠 **Server Wake Word:** "${currentGuildWord}"\n\nAnyone in this server can say "${currentGuildWord}" to summon me.\nUse \`/wakeword word:newword scope:Server\` to change, or \`/wakeword scope:Server clear:True\` to remove.`);
+                        const defaultsLine = defaultsDisabled
+                            ? '\nDefault wake words are disabled.'
+                            : '\nDefault wake words are enabled when no server wake word is set.';
+                        await interaction.editReply(`🏠 **Server Wake Word:** "${currentGuildWord}"\n\nAnyone in this server can say "${currentGuildWord}" to summon me.\nUse \`/wakeword word:newword scope:Server\` to change, or \`/wakeword scope:Server clear:True\` to remove.${defaultsLine}`);
                     } else {
-                        await interaction.editReply('No server wake word set.\n\nUse `/wakeword word:yourword scope:Server` to set one for the whole server.');
+                        const defaultsLine = defaultsDisabled
+                            ? '\nDefault wake words are currently disabled.'
+                            : '\nDefault wake words are currently enabled.';
+                        await interaction.editReply(`No server wake word set.\n\nUse \`/wakeword word:yourword scope:Server\` to set one for the whole server.${defaultsLine}`);
                     }
                     return;
                 }
@@ -3131,6 +3161,11 @@ class DiscordHandlers {
             }
 
             // Personal scope
+            if (disableDefaults !== null) {
+                await interaction.editReply('`disable_defaults` is a server-only option, sir.');
+                return;
+            }
+
             if (clear) {
                 await userFeatures.clearWakeWord(userId);
                 await interaction.editReply('Your personal wake word has been removed.');
