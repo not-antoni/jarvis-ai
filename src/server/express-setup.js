@@ -179,17 +179,8 @@ function createExpressApp({ webhookRouter, database }) {
     app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
     // ---- Route mounts ----
-    const moderatorRouter = require('../routes/moderator');
-    app.use('/moderator', moderatorRouter);
-
-    const jarvisOwnerRouter = require('../routes/jarvis');
-    app.use('/jarvis', jarvisOwnerRouter);
-
     const legalRouter = require('../../routes/legal');
     app.use('/', legalRouter);
-
-    const publicApiRouter = require('../../routes/public-api');
-    app.use('/api/v1', publicApiRouter);
 
     const pagesRouter = require('../../routes/pages');
     app.use('/', pagesRouter);
@@ -218,10 +209,6 @@ Allow: /changelog
 # Disallow private areas
 Disallow: /dashboard
 Disallow: /dashboard/*
-Disallow: /moderator
-Disallow: /moderator/*
-Disallow: /jarvis
-Disallow: /jarvis/*
 Disallow: /api/
 
 # Sitemap
@@ -539,7 +526,7 @@ ${pages.map(p => `  <url>
         }
     });
 
-    return { app, dashboardRouter, publicApiRouter };
+    return { app, dashboardRouter };
 }
 
 function mount404Handler(app) {
@@ -731,7 +718,6 @@ function renderStatusPage(data) {
         </div>
         <div class="btn-row">
             <button class="btn btn-primary" onclick="location.reload()">🔄 Refresh Status</button>
-            <a href="/moderator/dashboard" class="btn btn-secondary">🛡️ Moderator Dashboard</a>
             <a href="/" class="btn btn-secondary">🏠 Home</a>
         </div>
     </div>

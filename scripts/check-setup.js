@@ -218,12 +218,6 @@ async function checkOptionalServices() {
         log.info('YouTube API not configured');
     }
 
-    if (process.env.BRAVE_API_KEY) {
-        pass('Brave Search API configured');
-    } else {
-        log.info('Brave Search not configured');
-    }
-
     if (process.env.CRYPTO_API_KEY) {
         pass('Crypto API configured');
     } else {

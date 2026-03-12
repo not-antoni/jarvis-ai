@@ -154,13 +154,6 @@ try {
 
     let response;
 
-    // Ticket and KB commands removed - features disabled
-
-    if (commandName === 'ask') {
-        await handler.handleAskCommand(interaction);
-        return;
-    }
-
     if (commandName === 'reactionrole') {
         await handler.handleReactionRoleCommand(interaction);
         return;
@@ -184,45 +177,6 @@ try {
     if (commandName === 'news') {
         await handler.handleNewsCommand(interaction);
         return;
-    }
-
-    // Delegate moderation commands to specialized handler
-    const { handleModerationCommand, MODERATION_COMMANDS } = require('./moderation-handler');
-    if (MODERATION_COMMANDS.includes(commandName)) {
-        const result = await handleModerationCommand(commandName, interaction, telemetryMetadata);
-        if (result.handled && result.response !== null) {
-            response = result.response;
-            // Skip to response handling section
-            if (response === undefined || response === null) {
-                console.warn(`[/jarvis] Empty response from moderation handler; commandName=${  commandName}`);
-                try {
-                    await interaction.editReply('Response circuits tangled, sir. Try again?');
-                } catch (e) {
-                    await interaction.followUp('Response circuits tangled, sir. Try again?');
-                }
-            } else if (typeof response === 'string') {
-                const cleanedModResponse = stripReactionDirectives(response);
-                const trimmed = cleanedModResponse.trim();
-                const safe = handler.sanitizePings(trimmed);
-                const msg = safe.length > 2000 ? `${safe.slice(0, 1997)  }...` : (safe.length ? safe : 'Response circuits tangled, sir. Try again?');
-                try {
-                    await interaction.editReply({ content: msg, allowedMentions: { parse: [] } });
-                } catch (e) {
-                    try { await interaction.followUp({ content: msg, allowedMentions: { parse: [] } }); } catch (_fe) { console.warn('[slash] followUp fallback failed:', _fe.message); }
-                }
-            } else {
-                // Object response (embeds, etc.)
-                try {
-                    const payload = { ...response };
-                    payload.allowedMentions = payload.allowedMentions || { parse: [] };
-                    await interaction.editReply(payload);
-                } catch (e) {
-                    try { await interaction.followUp(response); } catch (_fe) { console.warn('[slash] followUp fallback failed:', _fe.message); }
-                }
-            }
-            finalizeTelemetry();
-            return;
-        }
     }
 
     switch (commandName) {
@@ -297,11 +251,6 @@ try {
         case 'yt': {
             telemetryMetadata.category = 'search';
             response = await slashUtility.handleYt(interaction, handler.jarvis);
-            break;
-        }
-        case 'search': {
-            telemetryMetadata.category = 'search';
-            response = await slashUtility.handleSearch(interaction, handler.jarvis);
             break;
         }
         case 'jarvis': {

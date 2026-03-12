@@ -2,7 +2,6 @@
 
 const config = require('../../../config');
 const moderationFilters = require('../moderation-filters');
-const guildModeration = require('../GUILDS_FEATURES/moderation');
 const clankerGif = require('../../utils/clanker-gif');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
 
@@ -33,18 +32,6 @@ try {
     const activityTracker = require('../GUILDS_FEATURES/activity-tracker');
     activityTracker.recordMessage(message.guild.id, message.channel.id, message.author.id);
 } catch (_e) { /* activity tracker not available */ }
-
-// ============ AI CONTENT MODERATION ============
-// Check messages from tracked members for suspicious content
-if (message.guild && config.discord?.messageContent?.enabled) {
-    try {
-        await guildModeration.handleMessage(message, client);
-    } catch (error) {
-        // Silently fail - don't block normal message processing
-    }
-}
-
-
 
 const chatEnabled = await handler.isCommandFeatureEnabled('jarvis', message.guild);
 if (!chatEnabled || !isFeatureGloballyEnabled('coreChat')) {
@@ -111,12 +98,6 @@ if (allowWakeWords && normalizedContent) {
 // Only fall back to default wake words if the guild has NO custom wake word
 if (!containsWakeWord && !guildHasCustomWakeWord && allowWakeWords && normalizedContent) {
     containsWakeWord = config.wakeWords.some((trigger) => normalizedContent.includes(trigger));
-}
-
-const braveGuardedEarly = await handler.enforceImmediateBraveGuard(message);
-if (braveGuardedEarly) {
-    handler.setCooldown(userId, messageScope);
-    return;
 }
 
 if (message.mentions.everyone) {

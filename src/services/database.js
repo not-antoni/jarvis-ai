@@ -2,7 +2,6 @@
  * Database connection and operations for Jarvis Bot
  */
 
-const { ObjectId } = require('mongodb');
 const config = require('../../config');
 const vaultClient = require('./vault-client');
 const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
@@ -104,7 +103,6 @@ class DatabaseManager {
             serverStats: this.db.collection(config.database.collections.serverStats),
             tickets: this.db.collection(config.database.collections.tickets),
             ticketTranscripts: this.db.collection(config.database.collections.ticketTranscripts),
-            knowledgeBase: this.db.collection(config.database.collections.knowledgeBase),
             counters: this.db.collection(config.database.collections.counters),
             newsCache: this.db.collection(config.database.collections.newsCache),
             migrations: this.db.collection(config.database.collections.migrations),
@@ -190,14 +188,6 @@ class DatabaseManager {
                 label: 'ticketTranscripts',
                 collection: collections.ticketTranscripts,
                 definitions: [{ key: { ticketId: 1 }, unique: true }]
-            },
-            {
-                label: 'knowledgeBase',
-                collection: collections.knowledgeBase,
-                definitions: [
-                    { key: { guildId: 1, createdAt: -1 } },
-                    { key: { guildId: 1, tags: 1 } }
-                ]
             },
             {
                 label: 'counters',
@@ -995,82 +985,6 @@ class DatabaseManager {
         if (!this.isConnected) {throw new Error('Database not connected');}
 
         await this.db.collection(config.database.collections.autoModeration).deleteOne({ guildId });
-    }
-
-    async saveKnowledgeEntry(entry) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-
-        const now = new Date();
-        const payload = {
-            ...entry,
-            createdAt: entry.createdAt || now,
-            updatedAt: now
-        };
-
-        const result = await this.db
-            .collection(config.database.collections.knowledgeBase)
-            .insertOne(payload);
-
-        return { ...payload, _id: result.insertedId };
-    }
-
-    async getKnowledgeEntriesForGuild(guildId) {
-        if (!this.isConnected) {return [];}
-
-        return this.db
-            .collection(config.database.collections.knowledgeBase)
-            .find({ guildId })
-            .sort({ createdAt: -1 })
-            .toArray();
-    }
-
-    async getRecentKnowledgeEntries(guildId, limit = 5) {
-        if (!this.isConnected) {return [];}
-
-        const sanitizedLimit = Math.max(1, Math.min(Number(limit) || 5, 25));
-
-        return this.db
-            .collection(config.database.collections.knowledgeBase)
-            .find({ guildId })
-            .sort({ createdAt: -1 })
-            .limit(sanitizedLimit)
-            .toArray();
-    }
-
-    async getKnowledgeEntriesByTag(guildId, tag, limit = 10) {
-        if (!this.isConnected || !tag) {return [];}
-
-        return this.db
-            .collection(config.database.collections.knowledgeBase)
-            .find({
-                guildId,
-                tags: tag
-            })
-            .sort({ updatedAt: -1, createdAt: -1 })
-            .limit(limit)
-            .toArray();
-    }
-
-    async getKnowledgeEntryById(guildId, entryId) {
-        if (!this.isConnected) {return null;}
-
-        const id = typeof entryId === 'string' ? new ObjectId(entryId) : entryId;
-
-        return this.db
-            .collection(config.database.collections.knowledgeBase)
-            .findOne({ _id: id, guildId });
-    }
-
-    async deleteKnowledgeEntry(guildId, entryId) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-
-        const id = typeof entryId === 'string' ? new ObjectId(entryId) : entryId;
-
-        const result = await this.db
-            .collection(config.database.collections.knowledgeBase)
-            .deleteOne({ _id: id, guildId });
-
-        return result.deletedCount > 0;
     }
 
     async getNewsDigest(topic) {

@@ -23,14 +23,4 @@ router.get('/status', (req, res) => {
     res.type('html').send(STATUS_PAGE);
 });
 
-// Dashboard redirect to moderator login
-router.get('/dashboard', (req, res, next) => {
-    // Check if already handled by dashboard route
-    if (req.originalUrl.startsWith('/dashboard/')) {
-        return next();
-    }
-    // Redirect to moderator dashboard login
-    res.redirect('/moderator/login');
-});
-
 module.exports = router;
