@@ -223,17 +223,6 @@ async function handleComponentInteraction(handler, interaction) {
         return;
     }
 
-    // Error log status buttons
-    try {
-        const errorLogger = require('../error-logger');
-        const handled = await errorLogger.handleStatusButton(interaction);
-        if (handled) {
-            return;
-        }
-    } catch (e) {
-        // ignore
-    }
-
     if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: 'Interactive controls are currently unavailable, sir.', ephemeral: true });
     }
