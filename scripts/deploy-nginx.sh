@@ -9,6 +9,21 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Detect OS for nginx paths
+if [ -f /etc/redhat-release ] || [ -f /etc/amazon-linux-release ]; then
+    NGINX_DIR="/etc/nginx/conf.d"
+    NGINX_CONF="$NGINX_DIR/jarvis.conf"
+    NGINX_ENABLED_DIR=""
+    NGINX_ALT_CONF="/etc/nginx/sites-available/jarvis"
+    NGINX_ALT_ENABLED="/etc/nginx/sites-enabled/jarvis"
+else
+    NGINX_DIR="/etc/nginx/sites-available"
+    NGINX_CONF="$NGINX_DIR/jarvis"
+    NGINX_ENABLED_DIR="/etc/nginx/sites-enabled"
+    NGINX_ALT_CONF="/etc/nginx/conf.d/jarvis.conf"
+    NGINX_ALT_ENABLED=""
+fi
+
 # Default domain or use argument
 DOMAIN="${1:-jorvis.org}"
 
@@ -143,13 +158,23 @@ server {
 }
 EOF
 
-sudo mv /tmp/jarvis.conf /etc/nginx/conf.d/jarvis.conf
-sudo chmod 644 /etc/nginx/conf.d/jarvis.conf
+sudo mv /tmp/jarvis.conf "$NGINX_CONF"
+sudo chmod 644 "$NGINX_CONF"
+if [ -n "$NGINX_ENABLED_DIR" ]; then
+    sudo ln -sf "$NGINX_CONF" "$NGINX_ENABLED_DIR/jarvis"
+fi
+# Remove conflicting config to avoid duplicate default_server blocks
+if [ -n "$NGINX_ALT_CONF" ] && [ -f "$NGINX_ALT_CONF" ]; then
+    sudo rm -f "$NGINX_ALT_CONF"
+fi
+if [ -n "$NGINX_ALT_ENABLED" ] && [ -e "$NGINX_ALT_ENABLED" ]; then
+    sudo rm -f "$NGINX_ALT_ENABLED"
+fi
 echo "✓ Nginx config deployed"
 
 # 3. Disable default nginx server if it exists
-if [ -f /etc/nginx/sites-enabled/default ]; then
-    sudo rm -f /etc/nginx/sites-enabled/default
+if [ -n "$NGINX_ENABLED_DIR" ] && [ -f "$NGINX_ENABLED_DIR/default" ]; then
+    sudo rm -f "$NGINX_ENABLED_DIR/default"
     echo "✓ Disabled default nginx site"
 fi
 
@@ -196,7 +221,7 @@ echo "  • Unknown hostnames:       BLOCKED (returns 444)"
 echo "  • $DOMAIN via Cloudflare:  ALLOWED"
 echo ""
 echo "Files:"
-echo "  • /etc/nginx/conf.d/jarvis.conf"
+echo "  • $NGINX_CONF"
 echo "  • /etc/nginx/cloudflare-ips.conf"
 echo ""
 echo "Cron: Cloudflare IPs auto-update every Sunday at 3 AM"

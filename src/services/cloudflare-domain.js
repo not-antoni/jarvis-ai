@@ -15,6 +15,8 @@ const isRhel = fs.existsSync('/etc/redhat-release') || fs.existsSync('/etc/amazo
 const NGINX_DIR = isRhel ? '/etc/nginx/conf.d' : '/etc/nginx/sites-available';
 const NGINX_ENABLED_DIR = isRhel ? null : '/etc/nginx/sites-enabled'; // RHEL includes conf.d automatically
 const NGINX_CONFIG_FILE = isRhel ? path.join(NGINX_DIR, 'jarvis.conf') : path.join(NGINX_DIR, 'jarvis');
+const NGINX_ALT_CONFIG_FILE = isRhel ? '/etc/nginx/sites-available/jarvis' : '/etc/nginx/conf.d/jarvis.conf';
+const NGINX_ALT_ENABLED_FILE = isRhel ? '/etc/nginx/sites-enabled/jarvis' : null;
 const CLOUDFLARE_IPS_FILE = '/etc/nginx/cloudflare-ips.conf';
 
 function commandExists(cmd) {
@@ -304,8 +306,8 @@ server {
         : '';
 
     return `${cloudflareDefaultBlock}${redirectBlock}server {
-    listen ${ssl ? '443 ssl http2' : '80'};
-    server_name ${domain} www.${domain};
+    listen ${ssl ? '443 ssl' : '80'};
+${ssl ? '    http2 on;\n' : ''}    server_name ${domain} www.${domain};
 ${ssl ? `
     ssl_certificate /etc/ssl/cloudflare/${domain}.pem;
     ssl_certificate_key /etc/ssl/cloudflare/${domain}.key;
@@ -382,20 +384,59 @@ function saveSslCache(config) {
 
 async function createOriginCertificate(domain) {
     try {
+        if (!/^[A-Za-z0-9.-]+$/.test(domain)) {
+            return { success: false, error: 'Invalid domain for CSR generation' };
+        }
+
+        if (!commandExists('openssl')) {
+            return { success: false, error: 'OpenSSL not available for CSR generation' };
+        }
+
+        const keyPath = `/tmp/jarvis-origin-${Date.now()}.key`;
+        const csrPath = `/tmp/jarvis-origin-${Date.now()}.csr`;
+        const csrArgs = [
+            'req',
+            '-new',
+            '-newkey',
+            'rsa:2048',
+            '-nodes',
+            '-keyout',
+            keyPath,
+            '-out',
+            csrPath,
+            '-subj',
+            `/CN=${domain}`,
+            '-addext',
+            `subjectAltName=DNS:${domain},DNS:*.${domain}`
+        ];
+
+        const csrResult = spawnSync('openssl', csrArgs, { encoding: 'utf8' });
+        if (csrResult.status !== 0) {
+            return {
+                success: false,
+                error: `OpenSSL CSR generation failed: ${csrResult.stderr || csrResult.stdout || 'unknown error'}`
+            };
+        }
+
+        const csr = fs.readFileSync(csrPath, 'utf8');
+        const privateKey = fs.readFileSync(keyPath, 'utf8');
+        fs.unlinkSync(csrPath);
+        fs.unlinkSync(keyPath);
+
         const response = await cfFetch('/certificates', {
             method: 'POST',
             body: JSON.stringify({
+                csr,
                 hostnames: [domain, `*.${domain}`],
                 requested_validity: 5475, // 15 years
-                request_type: 'origin-rsa',
-                csr: null
+                request_type: 'origin-rsa'
             })
         });
 
         return {
             success: true,
             certificate: response.result.certificate,
-            privateKey: response.result.private_key,
+            privateKey,
             expiresOn: response.result.expires_on
         };
     } catch (err) {
@@ -519,6 +560,7 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
 
     // Check if SSL should be enabled
     let useSSL = false;
+    let sslError = null;
     if (enableSsl) {
         const sslResult = await autoSetupSsl(domain);
         if (sslResult.success) {
@@ -526,13 +568,22 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
             if (!sslResult.cached && !sslResult.fromCache) {
                 console.log(`[SSL] ✅ Created Origin Certificate for ${domain}`);
             }
-        } else if (process.env.VERBOSE_LOGS === 'true') {
-            console.log(`[SSL] ⚠️ ${sslResult.error} - falling back to HTTP`);
+        } else {
+            sslError = sslResult.error || 'SSL setup failed';
+            if (process.env.VERBOSE_LOGS === 'true') {
+                console.log(`[SSL] ⚠️ ${sslError} - falling back to HTTP`);
+            }
         }
     }
 
     const wantsCloudflareOnly =
         String(process.env.CLOUDFLARE_ONLY || '').toLowerCase() !== 'false';
+    if (enableSsl && !useSSL && wantsCloudflareOnly) {
+        return {
+            success: false,
+            error: `SSL setup failed (${sslError || 'unknown'}) and CLOUDFLARE_ONLY is enabled. Install a valid origin certificate before enabling Cloudflare-only.`
+        };
+    }
     const cloudflareOnlyReady = wantsCloudflareOnly ? ensureCloudflareIpsConfig() : false;
     const enforceCloudflareOnly = wantsCloudflareOnly && cloudflareOnlyReady;
     const projectRoot = process.cwd();
@@ -572,6 +623,14 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
                 timeout: 120000,
                 stdio: 'pipe'
             });
+        }
+
+        // Remove conflicting config to avoid duplicate default_server blocks
+        if (NGINX_ALT_CONFIG_FILE && fs.existsSync(NGINX_ALT_CONFIG_FILE)) {
+            execSync(`sudo rm -f ${NGINX_ALT_CONFIG_FILE}`, { encoding: 'utf8' });
+        }
+        if (NGINX_ALT_ENABLED_FILE && fs.existsSync(NGINX_ALT_ENABLED_FILE)) {
+            execSync(`sudo rm -f ${NGINX_ALT_ENABLED_FILE}`, { encoding: 'utf8' });
         }
 
         // Generate and write config

@@ -7,9 +7,23 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-NGINX_CONF="/etc/nginx/conf.d/jarvis.conf"
 PROJECT_NGINX="$PROJECT_DIR/nginx/jarvis.conf"
 CF_IPS_CONF="/etc/nginx/cloudflare-ips.conf"
+
+# Detect OS for nginx paths
+if [ -f /etc/redhat-release ] || [ -f /etc/amazon-linux-release ]; then
+    NGINX_DIR="/etc/nginx/conf.d"
+    NGINX_CONF="$NGINX_DIR/jarvis.conf"
+    NGINX_ENABLED_DIR=""
+    NGINX_ALT_CONF="/etc/nginx/sites-available/jarvis"
+    NGINX_ALT_ENABLED="/etc/nginx/sites-enabled/jarvis"
+else
+    NGINX_DIR="/etc/nginx/sites-available"
+    NGINX_CONF="$NGINX_DIR/jarvis"
+    NGINX_ENABLED_DIR="/etc/nginx/sites-enabled"
+    NGINX_ALT_CONF="/etc/nginx/conf.d/jarvis.conf"
+    NGINX_ALT_ENABLED=""
+fi
 
 # Only run if we have sudo access and nginx is installed
 if ! command -v nginx &> /dev/null; then
@@ -17,14 +31,26 @@ if ! command -v nginx &> /dev/null; then
 fi
 
 # Check if current nginx config has the default_server block (our security config)
-if ! grep -q "default_server" "$NGINX_CONF" 2>/dev/null; then
+if [ ! -f "$NGINX_CONF" ] || ! grep -q "default_server" "$NGINX_CONF" 2>/dev/null; then
     echo "[Nginx] Security config missing, restoring..."
     
     # Copy the project's nginx config
     if [ -f "$PROJECT_NGINX" ]; then
         sudo cp "$PROJECT_NGINX" "$NGINX_CONF"
+        if [ -n "$NGINX_ENABLED_DIR" ]; then
+            sudo ln -sf "$NGINX_CONF" "$NGINX_ENABLED_DIR/jarvis"
+            sudo rm -f "$NGINX_ENABLED_DIR/default" 2>/dev/null || true
+        fi
         echo "[Nginx] Restored jarvis.conf from project"
     fi
+fi
+
+# Remove conflicting config to avoid duplicate default_server blocks
+if [ -n "$NGINX_ALT_CONF" ] && [ -f "$NGINX_ALT_CONF" ]; then
+    sudo rm -f "$NGINX_ALT_CONF"
+fi
+if [ -n "$NGINX_ALT_ENABLED" ] && [ -e "$NGINX_ALT_ENABLED" ]; then
+    sudo rm -f "$NGINX_ALT_ENABLED"
 fi
 
 # Ensure Cloudflare IPs config exists
