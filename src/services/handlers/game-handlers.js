@@ -165,7 +165,6 @@ async function handleComponentInteraction(handler, interaction) {
                 description: 'Welcome to Jarvis Legacy Commands!\nSelect a category below to see commands.',
                 fields: [
                     { name: '\u{1F3AE} Fun', value: '`*j help fun`', inline: true },
-                    { name: '\u{1F6E1}\uFE0F Moderation', value: '`*j help mod`', inline: true },
                     { name: '\u2699\uFE0F Utility', value: '`*j help utility`', inline: true }
                 ]
             },
@@ -175,17 +174,6 @@ async function handleComponentInteraction(handler, interaction) {
                 description: 'Entertainment and social commands!',
                 fields: [
                     { name: '\u{1F495} Social', value: '`/ship @u1 @u2` - Ship people', inline: false }
-                ]
-            },
-            mod: {
-                emoji: '\u{1F6E1}\uFE0F',
-                title: 'Moderation Commands',
-                description: 'Server moderation tools (requires permissions)',
-                fields: [
-                    { name: '\u{1F528} Actions', value: '`*j kick @user [reason]` - Kick member\n`*j ban @user [time] [reason]` - Ban member\n`*j unban <id>` - Unban by ID', inline: false },
-                    { name: '\u{1F507} Timeout', value: '`*j mute @user <time>` - Timeout user\n`*j unmute @user` - Remove timeout', inline: false },
-                    { name: '\u26A0\uFE0F Warnings', value: '`*j warn @user <reason>` - Warn user\n`*j warnings @user` - View warnings\n`*j clearwarnings @user` - Clear warns', inline: false },
-                    { name: '\u{1F916} AI Moderation', value: '`*j enable moderation` - Enable AI mod\n`*j moderation status` - View settings', inline: false }
                 ]
             },
             utility: {
@@ -219,11 +207,6 @@ async function handleComponentInteraction(handler, interaction) {
                 .setLabel('Fun')
                 .setEmoji('\u{1F3AE}')
                 .setStyle(categoryKey === 'fun' ? ButtonStyle.Primary : ButtonStyle.Secondary),
-            new ButtonBuilder()
-                .setCustomId('help_mod')
-                .setLabel('Moderation')
-                .setEmoji('\u{1F6E1}\uFE0F')
-                .setStyle(categoryKey === 'mod' ? ButtonStyle.Primary : ButtonStyle.Secondary),
             new ButtonBuilder()
                 .setCustomId('help_utility')
                 .setLabel('Utility')

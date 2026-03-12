@@ -34,7 +34,7 @@ Native Discord voice playback via `@discordjs/voice` + `yt-dlp`.
 - **Web Dashboard**: `/moderator` control panel
 
 ### Utility
-`/jarvis` `/ask` `/search` `/yt` `/news` `/remind` `/timezone` `/caption` `/gif` `/avatar` `/banner` `/clip` `/profile` `/history` `/digest` `/help` `/wakeword`
+`/jarvis` `/yt` `/news` `/remind` `/timezone` `/caption` `/gif` `/avatar` `/banner` `/clip` `/profile` `/history` `/digest` `/help` `/wakeword`
 
 ### Fun
 `/ship`

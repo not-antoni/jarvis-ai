@@ -48,7 +48,8 @@ const LANDING_PAGE = `
             background: #000;
             color: #e4e4e4;
             min-height: 100vh;
-            overflow-x: hidden;
+            height: 100vh;
+            overflow: hidden;
         }
         
         /* Navigation */
@@ -167,77 +168,6 @@ const LANDING_PAGE = `
             border-color: rgba(255, 255, 255, 0.25);
         }
         
-        /* Features Section */
-        .features {
-            padding: 4rem 5%;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        
-        .features h2 {
-            text-align: center;
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            color: #fff;
-        }
-        
-        .features .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 2.5rem;
-            font-size: 0.95rem;
-        }
-        
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.25rem;
-        }
-        
-        .feature-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 10px;
-            padding: 1.5rem;
-            transition: all 0.2s ease;
-        }
-        
-        .feature-card:hover {
-            background: rgba(255, 255, 255, 0.04);
-            border-color: rgba(255, 255, 255, 0.12);
-        }
-
-        .feature-card.highlight {
-            border-color: rgba(255, 255, 255, 0.15);
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .feature-card .badge {
-            display: inline-block;
-            background: #fff;
-            color: #000;
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-        }
-        
-        .feature-card h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: #fff;
-        }
-        
-        .feature-card p {
-            color: #666;
-            line-height: 1.5;
-            font-size: 0.9rem;
-        }
-        
         /* Stats Section */
         .stats {
             padding: 3rem 5%;
@@ -271,117 +201,8 @@ const LANDING_PAGE = `
             margin-top: 0.25rem;
         }
         
-        /* Comparison Section */
-        .comparison {
-            padding: 4rem 5%;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        
-        .comparison h2 {
-            text-align: center;
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            color: #fff;
-        }
-        
-        .comparison .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 2rem;
-            font-size: 0.95rem;
-        }
-        
-        .comparison-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #0a0a0a;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        
-        .comparison-table th,
-        .comparison-table td {
-            padding: 1rem;
-            text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-        
-        .comparison-table th {
-            background: rgba(255,255,255,0.03);
-            color: #888;
-            font-weight: 500;
-            font-size: 0.85rem;
-        }
-        
-        .comparison-table th:first-child,
-        .comparison-table td:first-child {
-            text-align: left;
-            padding-left: 1.5rem;
-        }
-        
-        .comparison-table th.jarvis-col {
-            color: #fff;
-            font-weight: 700;
-        }
-        
-        .comparison-table td {
-            color: #666;
-            font-size: 0.9rem;
-        }
-        
-        .comparison-table td:first-child {
-            color: #aaa;
-        }
-        
-        .comparison-table .check {
-            color: #fff;
-            font-size: 1.1rem;
-        }
-        
-        .comparison-table .cross {
-            color: #444;
-        }
-        
-        /* Footer */
-        footer {
-            padding: 2.5rem 5%;
-            text-align: center;
-        }
-        
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 1.5rem;
-            margin-bottom: 1.25rem;
-            flex-wrap: wrap;
-        }
-        
-        .footer-links a {
-            color: #555;
-            text-decoration: none;
-            font-size: 0.85rem;
-            transition: color 0.2s;
-        }
-        
-        .footer-links a:hover {
-            color: #888;
-        }
-        
-        .footer-copy {
-            color: #444;
-            font-size: 0.8rem;
-        }
-        
         /* Responsive */
         @media (max-width: 900px) {
-            .features-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            .comparison-table {
-                font-size: 0.85rem;
-            }
         }
         
         @media (max-width: 768px) {
@@ -389,8 +210,6 @@ const LANDING_PAGE = `
             .hero p { font-size: 1rem; }
             .nav-links { display: none; }
             .stats-grid { gap: 2rem; }
-            .features-grid { grid-template-columns: 1fr; }
-            .comparison-table th, .comparison-table td { padding: 0.75rem 0.5rem; font-size: 0.8rem; }
         }
     </style>
 </head>
@@ -399,7 +218,6 @@ const LANDING_PAGE = `
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
             <li><a href="/status">Status</a></li>
-            <li><a href="/moderator/dashboard">Mod Dashboard</a></li>
         </ul>
     </nav>
     
@@ -437,93 +255,6 @@ const LANDING_PAGE = `
             </div>
         </div>
     </section>
-    
-    <section class="features" id="features">
-        <h2>Everything Your Server Needs</h2>
-        <p class="subtitle">One bot to replace them all</p>
-        <div class="features-grid">
-            <div class="feature-card">
-                <h3>🤖 AI Chat</h3>
-                <p>Natural conversations with context memory. 50+ AI models including GPT-4, Claude, Gemini, and open-source alternatives.</p>
-            </div>
-            <div class="feature-card">
-                <h3>🛡️ Moderation</h3>
-                <p>AI-powered auto-mod, word filters, anti-spam, raid protection, and detailed logging to keep your server safe.</p>
-            </div>
-            <div class="feature-card highlight">
-                <span class="badge">Popular</span>
-                <h3>🎵 Music</h3>
-                <p>Play from YouTube, Spotify, SoundCloud, and direct file uploads. Advanced audio effects, queues, filters, and 24/7 mode. <strong>Works reliably in 2026!</strong></p>
-            </div>
-            <div class="feature-card">
-                <h3>📊 Server Stats</h3>
-                <p>Track activity, messages, and voice time. Live member counters and beautiful generated stat cards.</p>
-            </div>
-            <div class="feature-card">
-                <h3>⚙️ Fully Customizable</h3>
-                <p>Custom AI personalities, per-guild settings, welcome messages, reaction roles, and auto-responses.</p>
-            </div>
-        </div>
-    </section>
-    
-    <section class="comparison">
-        <h2>The All-in-One Replacement</h2>
-        <p class="subtitle">Why install 5 bots when one does it all?</p>
-        <table class="comparison-table">
-            <thead>
-                <tr>
-                    <th>Feature</th>
-                    <th class="jarvis-col">Jarvis</th>
-                    <th>MEE6</th>
-                    <th>Rythm</th>
-                    <th>Dyno</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>AI Chat</td>
-                    <td class="check">✓</td>
-                    <td class="cross">✗</td>
-                    <td class="cross">✗</td>
-                    <td class="cross">✗</td>
-                </tr>
-                <tr>
-                    <td>Music Playback</td>
-                    <td class="check">✓</td>
-                    <td class="cross">✗</td>
-                    <td class="check">✓</td>
-                    <td class="cross">✗</td>
-                </tr>
-                <tr>
-                    <td>Moderation</td>
-                    <td class="check">✓</td>
-                    <td class="check">✓</td>
-                    <td class="cross">✗</td>
-                    <td class="check">✓</td>
-                </tr>
-                <tr>
-                    <td>100% Free</td>
-                    <td class="check">✓</td>
-                    <td class="cross">✗</td>
-                    <td class="cross">✗</td>
-                    <td class="cross">✗</td>
-                </tr>
-            </tbody>
-        </table>
-    </section>
-    
-    <footer>
-        <div class="footer-links">
-            <a href="${BOT_INVITE}" target="_blank">Add Bot</a>
-            <a href="${DISCORD_INVITE}" target="_blank">Discord</a>
-            <a href="/status">Status</a>
-            <a href="/moderator/dashboard">Mod Dashboard</a>
-            <a href="/tos">Terms</a>
-            <a href="/policy">Privacy</a>
-            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>
-        </div>
-        <p class="footer-copy">© 2026 Jarvis • Made with ❤️ for Discord</p>
-    </footer>
     
     <script>
         // Fetch real server count

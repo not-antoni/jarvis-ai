@@ -13,12 +13,10 @@ const {
 const JarvisAI = require('./jarvis-core');
 const config = require('../../config');
 const { LRUCache } = require('lru-cache');
-const braveSearch = require('./brave-search');
 const { createCanvas, loadImage } = require('canvas');
 const sharp = require('sharp');
 const database = require('./database');
 const fetch = require('node-fetch');
-const embeddingSystem = require('./embedding-system');
 const CooldownManager = require('../core/cooldown-manager');
 const socialCredit = require('./social-credit');
 const { commandFeatureMap } = require('../core/command-registry');
@@ -681,46 +679,6 @@ class DiscordHandlers {
             }));
     }
 
-    async handleAskCommand(interaction) {
-        const { guild } = interaction;
-
-        if (!guild) {
-            await interaction.editReply('This command only works within a server, sir.');
-            return;
-        }
-
-        if (!database.isConnected) {
-            await interaction.editReply('Database uplink offline, sir. I cannot consult the archives.');
-            return;
-        }
-
-        if (!embeddingSystem.isAvailable) {
-            await interaction.editReply('OPENAI is not configured, sir. I cannot search the knowledge base.');
-            return;
-        }
-
-        const query = interaction.options.getString('query', true);
-
-        try {
-            const { answer, sources } = await embeddingSystem.answerGuildQuestion({
-                guildId: guild.id,
-                userId: interaction.user.id,
-                query
-            });
-
-            const lines = [answer];
-            if (sources.length) {
-                lines.push('\nSources:', ...sources.map((source) => `${source.label} (ID: ${source.id})`));
-            }
-
-            const safe = this.sanitizePings(lines.join('\n'));
-            await interaction.editReply({ content: safe, allowedMentions: { parse: [] } });
-        } catch (error) {
-            console.error('Knowledge answer generation failed:', error);
-            await interaction.editReply('My knowledge synthesis failed, sir. Please try again later.');
-        }
-    }
-
     async handleNewsCommand(interaction) {
         const topic = interaction.options.getString('topic') || 'technology';
         const fresh = interaction.options.getBoolean('fresh') || false;
@@ -754,10 +712,6 @@ class DiscordHandlers {
             try {
                 if (NEWS_API_KEY) {
                     articles = await this.fetchNewsFromTheNewsApi(normalizedTopic, 5);
-                }
-
-                if (!articles.length && braveSearch.apiKey) {
-                    articles = await braveSearch.fetchNews(normalizedTopic, { count: 5 });
                 }
 
                 if (database.isConnected) {
@@ -2340,70 +2294,6 @@ class DiscordHandlers {
         }
     }
 
-    async enforceImmediateBraveGuard(message) {
-        if (!message || typeof message.content !== 'string' || !message.content.length) {
-            return false;
-        }
-
-        if (typeof braveSearch.extractSearchInvocation !== 'function' || typeof braveSearch.isExplicitQuery !== 'function') {
-            return false;
-        }
-
-        const rawContent = message.content;
-
-        try {
-            const invocation = braveSearch.extractSearchInvocation(rawContent);
-
-            if (!invocation || invocation.triggered !== true) {
-                return false;
-            }
-
-            const segments = [];
-
-            if (typeof invocation.query === 'string' && invocation.query.length > 0) {
-                segments.push({ text: invocation.query, raw: typeof invocation.rawQuery === 'string' && invocation.rawQuery.length > 0 ? invocation.rawQuery : invocation.query });
-            }
-
-            if (typeof invocation.rawQuery === 'string' && invocation.rawQuery.length > 0) {
-                segments.push({ text: invocation.rawQuery, raw: invocation.rawQuery });
-            }
-
-            if (typeof invocation.invocation === 'string' && invocation.invocation.length > 0) {
-                segments.push({ text: invocation.invocation, raw: invocation.invocation });
-            }
-
-            segments.push({ text: rawContent, raw: rawContent });
-
-            const isExplicit = invocation.explicit === true || segments.some(({ text, raw }) => {
-                try {
-                    return braveSearch.isExplicitQuery(text, { rawSegment: raw });
-                } catch (error) {
-                    console.error('Failed explicit check during Brave guard:', error);
-                    return false;
-                }
-            });
-
-            if (!isExplicit) {
-                return false;
-            }
-
-            const blockMessage = braveSearch.getExplicitQueryMessage
-                ? braveSearch.getExplicitQueryMessage()
-                : 'I must decline that request, sir. My safety filters forbid it.';
-
-            try {
-                await message.reply({ content: blockMessage, allowedMentions: { parse: [] } });
-            } catch (error) {
-                console.error('Failed to send Brave explicit guard reply:', error);
-            }
-
-            return true;
-        } catch (error) {
-            console.error('Failed to run Brave pre-flight guard:', error);
-            return false;
-        }
-    }
-
     async handleMessage(message, client) {
         return await messageProcessing.handleMessage(this, message, client);
     }
@@ -2488,40 +2378,6 @@ class DiscordHandlers {
             }
         }
 
-        const defaultBraveInvocation = { triggered: false, query: null, rawQuery: null, invocation: null, explicit: false };
-        let rawBraveInvocation = defaultBraveInvocation;
-
-        if (rawContent && typeof braveSearch.extractSearchInvocation === 'function') {
-            try {
-                const extracted = braveSearch.extractSearchInvocation(rawContent);
-                if (extracted && typeof extracted === 'object') {
-                    rawBraveInvocation = {
-                        ...defaultBraveInvocation,
-                        ...extracted
-                    };
-                }
-            } catch (error) {
-                console.error('Failed to parse raw Brave invocation:', error);
-                rawBraveInvocation = defaultBraveInvocation;
-            }
-        }
-
-        if (rawBraveInvocation.triggered && rawBraveInvocation.explicit) {
-            try {
-                await message.reply({
-                    content: braveSearch.getExplicitQueryMessage
-                        ? braveSearch.getExplicitQueryMessage()
-                        : 'I must decline that request, sir. My safety filters forbid it.'
-                    ,
-                    allowedMentions: { parse: [] }
-                });
-            } catch (error) {
-                console.error('Failed to reply to explicit Brave request:', error);
-            }
-            this.setCooldown(message.author.id, messageScope);
-            return;
-        }
-
         // 🧠 Preserve mention context: replace mentions with display names (nicknames) instead of stripping them.
         // Only remove Jarvis' own mention and @everyone/@here.
         let cleanContent = typeof message.content === 'string' ? message.content : '';
@@ -2575,128 +2431,12 @@ class DiscordHandlers {
         }
 
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
-        // Require "search" with context - either "jarvis search" or just "search" when Jarvis was mentioned/invoked
-        // But avoid triggering on casual uses like "I was searching for my keys"
-        const searchTriggerPattern = /\b(?:jarvis\s+)?search\s+(?:for\s+)?(?:the\s+)?(?:web\s+)?(.+)/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
-        const hasSearchTrigger = searchTriggerPattern.test(cleanContent);
-        let braveInvocation = defaultBraveInvocation;
-
-        if (typeof braveSearch.extractSearchInvocation === 'function') {
-            try {
-                const extracted = braveSearch.extractSearchInvocation(cleanContent);
-                if (extracted && typeof extracted === 'object') {
-                    braveInvocation = {
-                        ...defaultBraveInvocation,
-                        ...extracted
-                    };
-                }
-            } catch (error) {
-                console.error('Failed to parse cleaned Brave invocation:', error);
-                braveInvocation = defaultBraveInvocation;
-            }
-        }
-
-        // If the user said "search [query]" but didn't use the explicit "jarvis search" phrase,
-        // synthesize a Brave invocation so the search pipeline still works.
-        // The new pattern captures the query after "search" to avoid false positives.
-        if (hasSearchTrigger && !braveInvocation.triggered && !rawBraveInvocation.triggered) {
-            const searchMatch = cleanContent.match(searchTriggerPattern);
-            const extractedQuery = searchMatch?.[1]?.trim() || '';
-            
-            // Only trigger if we actually have a query (avoids "I was searching" false positives)
-            if (extractedQuery.length > 2) {
-                braveInvocation = {
-                    ...defaultBraveInvocation,
-                    triggered: true,
-                    query: extractedQuery,
-                    rawQuery: extractedQuery,
-                    invocation: cleanContent,
-                    explicit: false
-                };
-            }
-        }
 
         if (ytMatch) {
             await message.reply('For video reconnaissance, deploy `/yt` instead, sir.');
             this.setCooldown(message.author.id, messageScope);
             return;
-        }
-
-        if (braveInvocation.triggered || rawBraveInvocation.triggered) {
-
-            // Web search support via keyword trigger ("jarvis search ...")
-            // Uses existing Brave integration for stability.
-            const activeInvocation = braveInvocation.triggered ? braveInvocation : rawBraveInvocation;
-            const querySource = activeInvocation?.query || '';
-            const invocationContext = activeInvocation?.invocation || null;
-            const rawSegmentCandidate = activeInvocation?.rawQuery || activeInvocation?.invocation || rawContent;
-            const explicitDetected = Boolean(activeInvocation?.explicit);
-
-            if (explicitDetected) {
-                await message.reply({
-                    content: braveSearch.getExplicitQueryMessage
-                        ? braveSearch.getExplicitQueryMessage()
-                        : 'I must decline that request, sir. My safety filters forbid it.'
-                    ,
-                    allowedMentions: { parse: [] }
-                });
-                this.setCooldown(message.author.id, messageScope);
-                return;
-            }
-
-            const preparedQuery = typeof braveSearch.prepareQueryForApi === 'function'
-                ? braveSearch.prepareQueryForApi(querySource)
-                : (querySource || '').trim();
-
-            if (preparedQuery) {
-                try {
-                    const rawSegmentForCheck = (typeof rawSegmentCandidate === 'string' && rawSegmentCandidate.length > 0)
-                        ? rawSegmentCandidate
-                        : ((typeof invocationContext === 'string' && invocationContext.length > 0)
-                            ? invocationContext
-                            : preparedQuery);
-
-                    if (braveSearch.isExplicitQuery && (
-                        braveSearch.isExplicitQuery(preparedQuery, { rawSegment: rawSegmentForCheck }) ||
-                        (rawSegmentForCheck && braveSearch.isExplicitQuery(rawSegmentForCheck, { rawSegment: rawSegmentForCheck }))
-                    )) {
-                        await message.reply({
-                            content: braveSearch.getExplicitQueryMessage
-                                ? braveSearch.getExplicitQueryMessage()
-                                : 'I must decline that request, sir. My safety filters forbid it.'
-                            ,
-                            allowedMentions: { parse: [] }
-                        });
-                        this.setCooldown(message.author.id, messageScope);
-                        return;
-                    }
-
-                    await message.channel.sendTyping();
-                    const response = await this.jarvis.handleBraveSearch({
-                        raw: rawSegmentForCheck,
-                        prepared: preparedQuery,
-                        invocation: invocationContext,
-                        content: cleanContent,
-                        rawMessage: rawContent,
-                        rawInvocation: rawBraveInvocation.invocation,
-                        explicit: explicitDetected
-                    });
-                    const safe = this.sanitizePings(typeof response === 'string' ? response : String(response || ''));
-                    await message.reply({ content: safe, allowedMentions: { parse: [] } });
-                    this.setCooldown(message.author.id, messageScope);
-                    return;
-                } catch (error) {
-                    console.error('Brave search error:', error);
-                    await message.reply({ content: 'Web search failed, sir. Technical difficulties.', allowedMentions: { parse: [] } });
-                    this.setCooldown(message.author.id, messageScope);
-                    return;
-                }
-            } else {
-                await message.reply({ content: "Please provide a web search query after 'jarvis search', sir.", allowedMentions: { parse: [] } });
-                this.setCooldown(message.author.id, messageScope);
-                return;
-            }
         }
 
         if (!cleanContent) {

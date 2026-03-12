@@ -55,7 +55,6 @@ function buildSupportEmbed(includeGuide = false) {
                 {
                     name: 'Power Tools',
                     value: [
-                        '`/search` Pull live web results.',
                         '`/clip` Render a message as an image.',
                         '`/clear` Wipe conversations when needed.'
                     ].join('\n')

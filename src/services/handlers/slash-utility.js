@@ -122,28 +122,6 @@ async function handleYt(interaction, _jarvis) {
     }
 }
 
-async function handleSearch(interaction, jarvis) {
-    const query = (interaction.options.getString('query') || '').trim();
-    if (!query.length) {
-        return 'Please provide a web search query, sir.';
-    }
-
-    try {
-        return await jarvis.handleBraveSearch({
-            raw: query,
-            prepared: query,
-            invocation: query,
-            content: query,
-            rawMessage: query,
-            rawInvocation: query,
-            explicit: false
-        });
-    } catch (error) {
-        console.error('Web search command failed:', error);
-        return 'Web search is currently unavailable, sir. Technical difficulties.';
-    }
-}
-
 async function handleJarvis(interaction, jarvis) {
     let prompt = interaction.options.getString('prompt') || '';
 
@@ -405,7 +383,6 @@ async function handleBanner(interaction) {
 module.exports = {
     handlePing,
     handleYt,
-    handleSearch,
     handleJarvis,
     handleClear,
     handleHelp,
