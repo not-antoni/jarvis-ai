@@ -10,7 +10,7 @@ const {
     EmbedBuilder,
     parseEmoji
 } = require('discord.js');
-const BlobfishAI = require('../../blobfish-core');
+const JarvisAI = require('./jarvis-core');
 const config = require('../../config');
 const { LRUCache } = require('lru-cache');
 const { createCanvas, loadImage } = require('canvas');
@@ -101,7 +101,7 @@ function buildUnicodeEmojiAsset(emoji) {
 
 class DiscordHandlers {
     constructor() {
-        this.jarvis = new BlobfishAI();
+        this.jarvis = new JarvisAI();
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
 
         this.guildConfigCache = new Map();
