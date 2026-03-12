@@ -6,7 +6,7 @@
  */
 function wireEventHandlers(ctx) {
     const {
-        client, discordHandlers, dashboardRouter, serverLogger,
+        client, discordHandlers, dashboardRouter,
         aiManager, database, cron,
         serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
     } = ctx;
@@ -53,8 +53,6 @@ function wireEventHandlers(ctx) {
 
     client.on('voiceStateUpdate', async(oldState, newState) => {
         await discordHandlers.handleVoiceStateUpdate(oldState, newState);
-        await serverLogger.logVoiceStateUpdate(oldState, newState);
-
         try {
             const voiceMaster = require('../services/voice-master');
             await voiceMaster.handleVoiceStateUpdate(oldState, newState);
@@ -73,77 +71,59 @@ function wireEventHandlers(ctx) {
 
     client.on('messageDelete', async message => {
         await discordHandlers.handleTrackedMessageDelete(message);
-        await serverLogger.logMessageDelete(message);
     });
 
     client.on('messageUpdate', async(oldMessage, newMessage) => {
-        await serverLogger.logMessageUpdate(oldMessage, newMessage);
     });
 
     client.on('messageDeleteBulk', async(messages, channel) => {
-        await serverLogger.logBulkDelete(messages, channel);
     });
 
     client.on('guildMemberAdd', async member => {
         await discordHandlers.handleGuildMemberAdd(member, client);
-        await serverLogger.logMemberJoin(member);
     });
 
     client.on('guildMemberRemove', async member => {
         await discordHandlers.handleGuildMemberRemove(member);
-        await serverLogger.logMemberLeave(member);
     });
 
     client.on('guildMemberUpdate', async(oldMember, newMember) => {
-        await serverLogger.logMemberUpdate(oldMember, newMember);
     });
 
     client.on('guildBanAdd', async ban => {
-        await serverLogger.logBan(ban);
     });
 
     client.on('guildBanRemove', async ban => {
-        await serverLogger.logUnban(ban);
     });
 
     client.on('roleCreate', async role => {
-        await serverLogger.logRoleCreate(role);
     });
 
     client.on('roleDelete', async role => {
-        await serverLogger.logRoleDelete(role);
     });
 
     client.on('roleUpdate', async(oldRole, newRole) => {
-        await serverLogger.logRoleUpdate(oldRole, newRole);
     });
 
     client.on('channelCreate', async channel => {
-        await serverLogger.logChannelCreate(channel);
     });
 
     client.on('channelDelete', async channel => {
-        await serverLogger.logChannelDelete(channel);
     });
 
     client.on('channelUpdate', async(oldChannel, newChannel) => {
-        await serverLogger.logChannelUpdate(oldChannel, newChannel);
     });
 
     client.on('emojiCreate', async emoji => {
-        await serverLogger.logEmojiCreate(emoji);
     });
 
     client.on('emojiDelete', async emoji => {
-        await serverLogger.logEmojiDelete(emoji);
     });
 
     client.on('emojiUpdate', async(oldEmoji, newEmoji) => {
-        await serverLogger.logEmojiUpdate(oldEmoji, newEmoji);
     });
 
     client.on('guildUpdate', async(oldGuild, newGuild) => {
-        await serverLogger.logGuildUpdate(oldGuild, newGuild);
     });
 
     // ─── Cleanup Cron ────────────────────────────────────────────────────────
