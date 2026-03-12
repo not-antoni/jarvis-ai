@@ -108,7 +108,7 @@ const PRIVACY_POLICY = `
         <h1>Privacy Policy</h1>
 
         <h2>Overview</h2>
-        <p>Jarvis ("we," or "the bot") is a Discord application offering AI-powered chat, moderation, and utility features. This Privacy Policy outlines what data we collect, how we use it, and your rights as a user.</p>
+        <p>Jarvis ("we," or "the bot") is a Discord application offering AI-powered chat, AutoMod, and utility features. This Privacy Policy outlines what data we collect, how we use it, and your rights as a user.</p>
 
         <h2>What We Collect</h2>
         <ul>
@@ -116,7 +116,6 @@ const PRIVACY_POLICY = `
             <li><strong>Conversation History ("Memories")</strong> – Includes your messages, Jarvis's replies, timestamps, and basic identifiers to maintain context.</li>
             <li><strong>Operational Metadata</strong> – Usage data and event logs for reliability and performance. (TTL)</li>
             <li><strong>Member Data</strong> – Used only for status-related channels and not stored long-term.</li>
-            <li><strong>Moderation Database</strong> – Used for moderation filters across servers (these contain regex filters and blacklisted words)</li>
         </ul>
 
         <h2>How We Use It</h2>
@@ -124,7 +123,7 @@ const PRIVACY_POLICY = `
         <ul>
             <li>Generate relevant AI responses.</li>
             <li>Maintain conversation memory and personalization.</li>
-            <li>Support moderation, statistics, and other bot functions.</li>
+            <li>Support AutoMod, statistics, and other bot functions.</li>
             <li>Improve stability and detect abuse.</li>
         </ul>
 
@@ -184,7 +183,7 @@ const TERMS_OF_SERVICE = `
         <p>By using Jarvis ("we," "our," or "the bot"), you agree to these Terms of Service. If you disagree, do not use Jarvis.</p>
 
         <h2>2. Description of Service</h2>
-        <p>Jarvis is a Discord assistant that provides AI-powered chat, moderation tools, server statistics, and direct message (DM) interaction. Some responses are generated through external AI services (such as OpenRouter).</p>
+        <p>Jarvis is a Discord assistant that provides AI-powered chat, AutoMod tools, server statistics, and direct message (DM) interaction. Some responses are generated through external AI services (such as OpenRouter).</p>
 
         <h2>3. Usage Requirements</h2>
         <p>You must comply with Discord's Terms of Service and Community Guidelines. Do not use Jarvis for spam, harassment, or any unlawful activity.</p>

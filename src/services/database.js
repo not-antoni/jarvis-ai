@@ -99,7 +99,6 @@ class DatabaseManager {
             memberLogs: this.db.collection(config.database.collections.memberLogs),
             reactionRoles: this.db.collection(config.database.collections.reactionRoles),
             autoModeration: this.db.collection(config.database.collections.autoModeration),
-            moderationFilters: this.db.collection(config.database.collections.moderationFilters),
             serverStats: this.db.collection(config.database.collections.serverStats),
             tickets: this.db.collection(config.database.collections.tickets),
             ticketTranscripts: this.db.collection(config.database.collections.ticketTranscripts),
@@ -143,11 +142,6 @@ class DatabaseManager {
             {
                 label: 'autoModeration',
                 collection: collections.autoModeration,
-                definitions: [{ key: { guildId: 1 }, unique: true }]
-            },
-            {
-                label: 'moderationFilters',
-                collection: collections.moderationFilters,
                 definitions: [{ key: { guildId: 1 }, unique: true }]
             },
             {
