@@ -2,8 +2,6 @@
 
 const { ChannelType, PermissionsBitField } = require('discord.js');
 const database = require('../database');
-const guildModeration = require('../GUILDS_FEATURES/moderation');
-const antiScam = require('../GUILDS_FEATURES/anti-scam');
 
 function createDefaultMemberLogConfig(guildId = null) {
     return {
@@ -280,20 +278,6 @@ async function sendMemberLogEvent(handler, member, type) {
 
 async function handleGuildMemberAdd(handler, member, client) {
     await sendMemberLogEvent(handler, member, 'join');
-
-    // Run guild moderation checks if enabled
-    try {
-        await guildModeration.handleMemberJoin(member, client);
-    } catch (error) {
-        console.error('[GuildModeration] Error in handleMemberJoin:', error);
-    }
-
-    // Run anti-scam checks for new members
-    try {
-        await antiScam.handleMemberJoin(member);
-    } catch (error) {
-        console.error('[AntiScam] Error in handleMemberJoin:', error);
-    }
 
     // Send welcome message if configured for this guild
     try {

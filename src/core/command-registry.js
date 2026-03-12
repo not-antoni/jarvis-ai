@@ -61,14 +61,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'search',
-        description: 'Perform a safety-filtered Brave web search.',
-        category: 'Utilities',
-        usage: '/search <query>',
-        feature: 'utilities',
-        ephemeral: false
-    },
-    {
         name: 'opt',
         description: 'Control whether Jarvis stores your conversation history.',
         category: 'Utilities',
@@ -142,7 +134,7 @@ const commandDefinitions = [
     },
     {
         name: 'news',
-        description: 'Fetch curated headlines via Brave Search.',
+        description: 'Fetch curated headlines for a topic.',
         category: 'Utilities',
         usage: '/news <topic>',
         feature: 'newsBriefings',
@@ -239,14 +231,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'ask',
-        description: 'Query the knowledge base.',
-        category: 'Operations',
-        usage: '/ask <question>',
-        feature: 'knowledgeAsk',
-        ephemeral: false
-    },
-    {
         name: 'play',
         description: 'Queue music from YouTube, SoundCloud, or audio file uploads.',
         category: 'Music',
@@ -308,62 +292,6 @@ const commandDefinitions = [
         category: 'Music',
         usage: '/dj <toggle|user|role|block|unblock|list>',
         feature: 'music',
-        ephemeral: false
-    },
-    {
-        name: 'ban',
-        description: 'Ban a member from the server.',
-        category: 'Moderation',
-        usage: '/ban <user> [duration] [reason]',
-        feature: 'moderation',
-        ephemeral: false
-    },
-    {
-        name: 'unban',
-        description: 'Unban a user from the server.',
-        category: 'Moderation',
-        usage: '/unban <user> [reason]',
-        feature: 'moderation',
-        ephemeral: false
-    },
-    {
-        name: 'kick',
-        description: 'Kick a member from the server.',
-        category: 'Moderation',
-        usage: '/kick <user> [reason]',
-        feature: 'moderation',
-        ephemeral: false
-    },
-    {
-        name: 'mute',
-        description: 'Timeout a user (e.g., 10m, 6h, 1d).',
-        category: 'Moderation',
-        usage: '/mute <user> <duration> [reason]',
-        feature: 'moderation',
-        ephemeral: false
-    },
-    {
-        name: 'unmute',
-        description: 'Remove a timeout from a user.',
-        category: 'Moderation',
-        usage: '/unmute <user> [reason]',
-        feature: 'moderation',
-        ephemeral: false
-    },
-    {
-        name: 'warn',
-        description: 'Warn a member and store the warning count in memory.',
-        category: 'Moderation',
-        usage: '/warn <user> <reason>',
-        feature: 'moderation',
-        ephemeral: false
-    },
-    {
-        name: 'purge',
-        description: 'Bulk delete messages from the current channel.',
-        category: 'Moderation',
-        usage: '/purge <count> [user]',
-        feature: 'moderation',
         ephemeral: false
     },
     {

@@ -120,7 +120,6 @@ const rawConfig = {
             memberLogs: 'memberLogs',
             tickets: 'tickets',
             ticketTranscripts: 'ticketTranscripts',
-            knowledgeBase: 'knowledgeBaseEntries',
             counters: 'counters',
             newsCache: 'newsCache',
             migrations: 'migrations',
@@ -234,11 +233,6 @@ const rawConfig = {
         clientSecret: process.env.SOUNDCLOUD_CLIENT_SECRET || null
     },
 
-    // Brave Search API Configuration
-    brave: {
-        apiKey: process.env.BRAVE_API_KEY
-    },
-
     // Feature Toggles (can be overridden via FEATURE_* environment variables)
     features: {
         coreChat: true,
@@ -252,8 +246,6 @@ const rawConfig = {
         serverStats: true,
         memberLog: true,
         tickets: false,
-        knowledgeBase: false,
-        knowledgeAsk: false,
         digests: true,
         newsBriefings: true,
         macroReplies: true,

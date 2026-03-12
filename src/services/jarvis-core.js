@@ -6,9 +6,7 @@ const aiManager = require('./ai-providers');
 const database = require('./database');
 const vaultClient = require('./vault-client');
 const config = require('../../config');
-const embeddingSystem = require('./embedding-system');
 const youtubeSearch = require('./youtube-search');
-const braveSearch = require('./brave-search');
 const { EmbedBuilder } = require('discord.js');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const { isGarbageOutput } = require('../utils/garbage-detection');
@@ -154,116 +152,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         } catch (error) {
             console.error('YouTube search error:', error);
             return 'YouTube search is currently unavailable, sir. Technical difficulties.';
-        }
-    }
-
-    async handleBraveSearch(query) {
-        const payload =
-            query && typeof query === 'object'
-                ? query
-                : {
-                    raw: typeof query === 'string' ? query : '',
-                    prepared: typeof query === 'string' ? query : '',
-                    explicit: false
-                };
-
-        const rawInput = typeof payload.raw === 'string' ? payload.raw : '';
-        const invocationSegment = typeof payload.invocation === 'string' ? payload.invocation : '';
-        const messageContent = typeof payload.content === 'string' ? payload.content : '';
-        const rawMessageContent = typeof payload.rawMessage === 'string' ? payload.rawMessage : '';
-        const rawInvocationSegment =
-            typeof payload.rawInvocation === 'string' ? payload.rawInvocation : '';
-
-        const initialPrepared =
-            typeof payload.prepared === 'string' && payload.prepared.length > 0
-                ? payload.prepared
-                : rawInput;
-
-        const preparedQuery =
-            typeof braveSearch.prepareQueryForApi === 'function'
-                ? braveSearch.prepareQueryForApi(initialPrepared)
-                : typeof initialPrepared === 'string'
-                    ? initialPrepared.trim()
-                    : '';
-
-        const buildExplicitBlock = () => ({
-            content: braveSearch.getExplicitQueryMessage
-                ? braveSearch.getExplicitQueryMessage()
-                : 'I must decline that request, sir. My safety filters forbid it.'
-        });
-
-        const isExplicitSegment = (text, rawSegmentOverride = null) => {
-            if (
-                !text ||
-                typeof text !== 'string' ||
-                !text.length ||
-                typeof braveSearch.isExplicitQuery !== 'function'
-            ) {
-                return false;
-            }
-
-            const rawSegment =
-                typeof rawSegmentOverride === 'string' && rawSegmentOverride.length > 0
-                    ? rawSegmentOverride
-                    : text;
-
-            try {
-                return braveSearch.isExplicitQuery(text, { rawSegment });
-            } catch (error) {
-                console.error('Explicit segment detection failed:', error);
-                return false;
-            }
-        };
-
-        if (
-            payload.explicit ||
-            isExplicitSegment(rawInput) ||
-            isExplicitSegment(invocationSegment) ||
-            isExplicitSegment(messageContent) ||
-            isExplicitSegment(rawMessageContent) ||
-            isExplicitSegment(rawInvocationSegment)
-        ) {
-            return buildExplicitBlock();
-        }
-
-        if (!preparedQuery) {
-            return {
-                content: 'Please provide a web search query, sir.'
-            };
-        }
-
-        const rawSegmentForCheck =
-            rawInput ||
-            invocationSegment ||
-            rawInvocationSegment ||
-            messageContent ||
-            rawMessageContent ||
-            preparedQuery;
-
-        if (
-            isExplicitSegment(preparedQuery, rawSegmentForCheck) ||
-            isExplicitSegment(rawSegmentForCheck, rawSegmentForCheck)
-        ) {
-            return buildExplicitBlock();
-        }
-
-        try {
-            const results = await braveSearch.searchWeb(preparedQuery, {
-                rawSegment: rawSegmentForCheck
-            });
-            return braveSearch.formatSearchResponse(preparedQuery, results);
-        } catch (error) {
-            if (error && error.isSafeSearchBlock) {
-                return {
-                    content:
-                        error.message || 'Those results were blocked by my safety filters, sir.'
-                };
-            }
-
-            console.error('Brave search error:', error);
-            return {
-                content: 'Web search is currently unavailable, sir. Technical difficulties.'
-            };
         }
     }
 
@@ -430,29 +318,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             return isSlash
                 ? `You rolled a ${result}! 🎲`
                 : `Quite right, sir, you rolled a ${result}! 🎲`;
-        }
-
-        const guildIdFromInteraction = interaction?.guildId || null;
-
-        if (cmd.startsWith('!t ')) {
-            const query = rawInput.substring(3).trim(); // Remove "!t " prefix
-            if (!query) {return 'Please provide a search query, sir.';}
-
-            if (!guildIdFromInteraction) {
-                return 'Knowledge base search is only available inside a server, sir.';
-            }
-
-            try {
-                const searchResults = await embeddingSystem.searchAndFormat(
-                    query,
-                    3,
-                    guildIdFromInteraction
-                );
-                return searchResults;
-            } catch (error) {
-                console.error('Embedding search error:', error);
-                return 'Search system unavailable, sir. Technical difficulties.';
-            }
         }
 
         if (cmd === 'history' || cmd.startsWith('history')) {
@@ -732,30 +597,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                         return [];
                     });
             }
-            let embeddingContext = '';
-            let processedInput = userInput;
-
-            if (userInput.startsWith('!t ')) {
-                const query = userInput.substring(3).trim();
-                if (query) {
-                    try {
-                        const guildId = interaction?.guildId || null;
-                        if (!guildId) {
-                            throw new Error('Guild context missing');
-                        }
-                        const searchResults = await embeddingSystem.searchAndFormat(
-                            query,
-                            3,
-                            guildId
-                        );
-                        embeddingContext = `\n\nKNOWLEDGE BASE SEARCH RESULTS (to help answer the user's question):\n${searchResults}\n\n`;
-                        processedInput = userInput;
-                    } catch {
-                        embeddingContext =
-                            '\n\n[Knowledge base search failed - proceeding without context]\n\n';
-                    }
-                }
-            }
+            const processedInput = userInput;
 
             const calledGarmin = /garmin/i.test(userInput);
             const nameUsed = calledGarmin ? 'Garmin' : this.personality.name;
@@ -842,7 +684,6 @@ User Profile - ${userName}:
 
 Recent conversation history:
 ${historyBlock}
-${embeddingContext}
 ${contextualBlock}
 ${recentJarvisResponses.length ? `[Vary your phrasing — your recent responses started with: ${recentJarvisResponses.map(r => `"${  r.slice(0, 40)  }..."`).join(', ')}]` : ''}
 Current message: "${processedInput}"`;

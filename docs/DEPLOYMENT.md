@@ -23,13 +23,9 @@
 - `GOOGLE_AI_API_KEY` - Google AI API key
 - `MIXTRAL_API_KEY` - Mixtral API key
 - `HF_TOKEN` - HuggingFace API key
-- `OPENAI` / `OPENAI_API_KEY` - OpenAI API key (used for OpenAI chat + embeddings)
-- `LOCAL_EMBEDDING_URL` - Optional HTTP endpoint for local embedding service (Ollama, Sentence Transformers, etc.)
-
-> **Note:** Configure at least one of `OPENAI` / `OPENAI_API_KEY` or `LOCAL_EMBEDDING_URL` to enable knowledge base embeddings and document summaries.
+- `OPENAI` / `OPENAI_API_KEY` - OpenAI API key (used for OpenAI chat)
 
 #### Additional (Optional):
-- `BRAVE_API_KEY` - Enables the `jarvis search` wake phrase using Brave Search with strict safe search and aggressive Jarvis-side explicit filtering (leetspeak/spacing detection, Unicode confusable/zero-width scrubbing, punycode decoding, NSFW domain/URL blocks, flexible regex / wordlist checks, and educational-context allowlists) plus an immediate Discord pre-flight guard so blocked phrases never reach Brave.
 - `SOUNDCLOUD_CLIENT_ID` - Enables SoundCloud URL resolve + search fallback for `/play`.
 - `SOUNDCLOUD_CLIENT_SECRET` - Enables OAuth token flow for SoundCloud API (recommended).
 - `SOUNDCLOUD_API_TIMEOUT_MS` - Optional SoundCloud API timeout override (default `8000`).

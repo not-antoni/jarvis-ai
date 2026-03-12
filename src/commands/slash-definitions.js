@@ -4,8 +4,7 @@ const {
     SlashCommandBuilder,
     ChannelType,
     InteractionContextType,
-    ApplicationIntegrationType,
-    PermissionFlagsBits
+    ApplicationIntegrationType
 } = require('discord.js');
 const { commandList: musicCommandList } = require('./music');
 const { commandFeatureMap } = require('../core/command-registry');
@@ -71,17 +70,6 @@ const allCommands = [
         .setDescription('Search YouTube for a video')
         .addStringOption(option =>
             option.setName('query').setDescription('Video search terms').setRequired(true)
-        )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
-        .setName('search')
-        .setDescription('Run a Jarvis web search')
-        .addStringOption(option =>
-            option.setName('query').setDescription('What should I look up?').setRequired(true)
         )
         .setContexts([
             InteractionContextType.Guild,
@@ -347,13 +335,6 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
-    new SlashCommandBuilder()
-        .setName('ask')
-        .setDescription('Query the server knowledge base for an answer')
-        .addStringOption(option =>
-            option.setName('query').setDescription('What would you like to know?').setRequired(true)
-        )
-        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName('reactionrole')
         .setDescription('Manage reaction role panels')
@@ -791,58 +772,6 @@ const allCommands = [
             InteractionContextType.BotDM,
             InteractionContextType.PrivateChannel
         ]),
-    // ============ MODERATION SLASH COMMANDS ============
-    new SlashCommandBuilder()
-        .setName('ban')
-        .setDescription('Ban a member from the server')
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
-        .setContexts([InteractionContextType.Guild])
-        .addStringOption(o => o.setName('user').setDescription('User ID, @mention, or username to ban').setRequired(true))
-        .addStringOption(o => o.setName('duration').setDescription('Ban duration (e.g. 10m, 1h, 7d, or leave empty for permanent)'))
-        .addStringOption(o => o.setName('reason').setDescription('Reason for ban')),
-    new SlashCommandBuilder()
-        .setName('unban')
-        .setDescription('Unban a user from the server')
-        .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
-        .setContexts([InteractionContextType.Guild])
-        .addStringOption(o => o.setName('user').setDescription('User ID to unban').setRequired(true))
-        .addStringOption(o => o.setName('reason').setDescription('Reason for unban')),
-    new SlashCommandBuilder()
-        .setName('kick')
-        .setDescription('Kick a member from the server')
-        .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
-        .setContexts([InteractionContextType.Guild])
-        .addStringOption(o => o.setName('user').setDescription('User ID, @mention, or username to kick').setRequired(true))
-        .addStringOption(o => o.setName('reason').setDescription('Reason for kick')),
-    new SlashCommandBuilder()
-        .setName('mute')
-        .setDescription('Timeout a member')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
-        .setContexts([InteractionContextType.Guild])
-        .addStringOption(o => o.setName('user').setDescription('User ID, @mention, or username to mute').setRequired(true))
-        .addStringOption(o => o.setName('duration').setDescription('Mute duration (e.g. 30s, 10m, 1h, 1d)').setRequired(true))
-        .addStringOption(o => o.setName('reason').setDescription('Reason for mute')),
-    new SlashCommandBuilder()
-        .setName('unmute')
-        .setDescription('Remove a timeout from a member')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
-        .setContexts([InteractionContextType.Guild])
-        .addStringOption(o => o.setName('user').setDescription('User ID, @mention, or username to unmute').setRequired(true))
-        .addStringOption(o => o.setName('reason').setDescription('Reason for unmute')),
-    new SlashCommandBuilder()
-        .setName('warn')
-        .setDescription('Warn a member')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
-        .setContexts([InteractionContextType.Guild])
-        .addStringOption(o => o.setName('user').setDescription('User ID, @mention, or username to warn').setRequired(true))
-        .addStringOption(o => o.setName('reason').setDescription('Reason for warning').setRequired(true)),
-    new SlashCommandBuilder()
-        .setName('purge')
-        .setDescription('Bulk delete messages from a channel')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-        .setContexts([InteractionContextType.Guild])
-        .addIntegerOption(o => o.setName('count').setDescription('Number of messages to delete (1-100)').setRequired(true).setMinValue(1).setMaxValue(100))
-        .addUserOption(o => o.setName('user').setDescription('Only delete messages from this user')),
     new SlashCommandBuilder()
         .setName('userinfo')
         .setDescription('Get detailed information about a user')

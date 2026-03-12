@@ -295,7 +295,7 @@ async function registerSlashCommands() {
 
 // ------------------------ Express Server ------------------------
 const {
-    app, dashboardRouter, publicApiRouter
+    app, dashboardRouter
 } = createExpressApp({ webhookRouter, database });
 
 // ------------------------ Event Handlers ------------------------
@@ -354,20 +354,6 @@ client.once(Events.ClientReady, async() => {
     dashboardRouter.setDiscordClient(client);
     dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
     dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
-
-    // Initialize public API with AI manager and database
-    try {
-        const aiManager = require('./src/services/ai-providers');
-        publicApiRouter.init({
-            aiManager,
-            database,
-            discordClient: client,
-            ownerId: process.env.OWNER_ID || process.env.DISCORD_OWNER_ID
-        });
-        dashboardRouter.addLog('info', 'System', 'Public API v1 initialized');
-    } catch (e) {
-        console.warn('[PublicAPI] Failed to initialize:', e.message);
-    }
 
     // Initialize yt-dlp for YouTube fallback (auto-updates from GitHub)
     try {

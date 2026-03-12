@@ -48,13 +48,11 @@ const envSchema = (
                 }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
             OPENAI: z.string().optional(),
             OPENAI_API_KEY: z.string().optional(),
-            LOCAL_EMBEDDING_URL: z.string().optional(),
             YOUTUBE_API_KEY: z.string().optional(),
             SOUNDCLOUD_CLIENT_ID: z.string().optional(),
             SOUNDCLOUD_CLIENT_SECRET: z.string().optional(),
             SOUNDCLOUD_API_TIMEOUT_MS: z.string().optional(),
             SOUNDCLOUD_TOKEN_REFRESH_SKEW_MS: z.string().optional(),
-            BRAVE_API_KEY: z.string().optional(),
             HEALTH_TOKEN: z.string().optional()
         })
         : z.object({
@@ -85,13 +83,11 @@ const envSchema = (
                 }, 'MASTER_KEY_BASE64 must decode to exactly 32 bytes'),
             OPENAI: z.string().optional(),
             OPENAI_API_KEY: z.string().optional(),
-            LOCAL_EMBEDDING_URL: z.string().optional(),
             YOUTUBE_API_KEY: z.string().optional(),
             SOUNDCLOUD_CLIENT_ID: z.string().optional(),
             SOUNDCLOUD_CLIENT_SECRET: z.string().optional(),
             SOUNDCLOUD_API_TIMEOUT_MS: z.string().optional(),
             SOUNDCLOUD_TOKEN_REFRESH_SKEW_MS: z.string().optional(),
-            BRAVE_API_KEY: z.string().optional(),
             HEALTH_TOKEN: z.string().optional()
         })
 ).passthrough();
@@ -166,18 +162,9 @@ function validateConfig(rawConfig) {
         }
     }
 
-    const openAiKey = env.OPENAI || process.env.OPENAI_API_KEY;
-    if (!openAiKey && !env.LOCAL_EMBEDDING_URL) {
-        console.warn(
-            'Warning: Neither OPENAI nor LOCAL_EMBEDDING_URL is configured. Embedding features will be unavailable.'
-        );
+    if (!env.YOUTUBE_API_KEY) {
+        console.warn('Warning: YOUTUBE_API_KEY is not set. Related features may be disabled.');
     }
-
-    ['YOUTUBE_API_KEY', 'BRAVE_API_KEY'].forEach(optionalKey => {
-        if (!env[optionalKey]) {
-            console.warn(`Warning: ${optionalKey} is not set. Related features may be disabled.`);
-        }
-    });
 
     if (!env.SOUNDCLOUD_CLIENT_ID) {
         console.warn('Warning: SOUNDCLOUD_CLIENT_ID is not set. SoundCloud search/resolve fallback will be disabled.');
@@ -196,10 +183,6 @@ function validateConfig(rawConfig) {
         youtube: {
             ...rawConfig.youtube,
             apiKey: env.YOUTUBE_API_KEY
-        },
-        brave: {
-            ...rawConfig.brave,
-            apiKey: env.BRAVE_API_KEY
         },
         database: {
             ...rawConfig.database,
