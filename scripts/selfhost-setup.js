@@ -310,10 +310,20 @@ ${enableCloudflareOnly ? `
         // Escape for shell and write via tee
         const escaped = nginxConfig.replace(/'/g, "'\\''");
 
-        // Always use conf.d for consistency
-        const configPath = '/etc/nginx/conf.d/jarvis.conf';
-
-        let cmd = `echo '${escaped}' | sudo tee ${configPath} > /dev/null`;
+        // Use OS-appropriate nginx config path
+        const isRhel = fs.existsSync('/etc/redhat-release') || fs.existsSync('/etc/amazon-linux-release');
+        const configPath = isRhel ? '/etc/nginx/conf.d/jarvis.conf' : '/etc/nginx/sites-available/jarvis';
+        const cleanupCommands = isRhel
+            ? ['sudo rm -f /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/jarvis']
+            : ['sudo rm -f /etc/nginx/conf.d/jarvis.conf'];
+        const commands = [
+            ...cleanupCommands,
+            `echo '${escaped}' | sudo tee ${configPath} > /dev/null`
+        ];
+        if (!isRhel) {
+            commands.push(`sudo ln -sf ${configPath} /etc/nginx/sites-enabled/jarvis`);
+        }
+        let cmd = commands.join(' && ');
 
         if (hasCert) {
             // Add commands to create dir and copy certs
