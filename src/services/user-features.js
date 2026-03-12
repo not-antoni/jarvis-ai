@@ -653,6 +653,19 @@ class UserFeaturesService {
         return { success: true };
     }
 
+    async setGuildWakeWordsDisabled(guildId, disabled) {
+        const database = require('./database');
+        await database.setGuildWakeWordsDisabled(guildId, Boolean(disabled));
+        return { success: true, disabled: Boolean(disabled) };
+    }
+
+    async isGuildWakeWordsDisabled(guildId) {
+        const database = require('./database');
+        if (!database.isConnected) {return false;}
+        const guildConfig = await database.getGuildConfig(guildId);
+        return Boolean(guildConfig?.wakeWordsDisabled);
+    }
+
     async matchesGuildWakeWord(guildId, content) {
         if (!guildId) {return false;}
         const guildWord = await this.getGuildWakeWord(guildId);

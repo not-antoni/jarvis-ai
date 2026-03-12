@@ -94,9 +94,9 @@ const commandDefinitions = [
     },
     {
         name: 'wakeword',
-        description: 'Set a custom wake word that triggers Jarvis (personal or server-wide).',
+        description: 'Set a custom wake word or disable defaults (personal or server-wide).',
         category: 'Personal Tools',
-        usage: '/wakeword word:hey scope:personal',
+        usage: '/wakeword word:hey scope:personal OR /wakeword scope:server disable_defaults:true',
         feature: 'utilities',
         ephemeral: true
     },

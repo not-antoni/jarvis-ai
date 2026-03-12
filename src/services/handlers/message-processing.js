@@ -69,6 +69,7 @@ let containsWakeWord = false;
 // wake word, it REPLACES the defaults (jarvis/garmin) for that server.
 let customWakeWordTriggered = false;
 let guildHasCustomWakeWord = false;
+let guildWakeWordsDisabled = false;
 if (allowWakeWords && normalizedContent) {
     try {
         const userFeatures = require('../user-features');
@@ -79,6 +80,7 @@ if (allowWakeWords && normalizedContent) {
                 guildHasCustomWakeWord = true;
                 customWakeWordTriggered = await userFeatures.matchesGuildWakeWord(message.guild.id, normalizedContent);
             }
+            guildWakeWordsDisabled = await userFeatures.isGuildWakeWordsDisabled(message.guild.id);
         }
         // Also check personal user wake word
         if (!customWakeWordTriggered) {
@@ -93,7 +95,7 @@ if (allowWakeWords && normalizedContent) {
 }
 
 // Only fall back to default wake words if the guild has NO custom wake word
-if (!containsWakeWord && !guildHasCustomWakeWord && allowWakeWords && normalizedContent) {
+if (!containsWakeWord && !guildHasCustomWakeWord && !guildWakeWordsDisabled && allowWakeWords && normalizedContent) {
     containsWakeWord = config.wakeWords.some((trigger) => normalizedContent.includes(trigger));
 }
 
