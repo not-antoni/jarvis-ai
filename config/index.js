@@ -164,8 +164,8 @@ const rawConfig = {
     ai: {
         cooldownMs: process.env.AI_COOLDOWN_MS ? Number(process.env.AI_COOLDOWN_MS) : 5000,
         maxTokens: 2500,
-        maxInputLength: 2000,  // Increased to allow longer user input
-        maxSlashInputLength: 2000,
+        maxInputLength: 2500,
+        maxSlashInputLength: 2500,
         temperature: 1,
         retryAttempts: 0,
         fallbackChance: 0.12,
