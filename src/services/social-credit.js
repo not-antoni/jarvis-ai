@@ -273,7 +273,7 @@ function getBlockMessage(credit) {
     }
 
     return `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}\n\n` +
-        `Sorry, you are scheduled to do manual labor in China for 4 weeks.\n` +
+        `Not enough social credit.\n` +
         `Your social credit: **${formatNumber(credit.score)}**\n` +
         `*this rate limit expires in ${timeLeft || '10 minutes'}*\n\n` +
         `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}`;
