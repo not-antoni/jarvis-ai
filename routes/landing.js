@@ -25,16 +25,16 @@ const LANDING_PAGE = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jarvis | Discord AI Bot</title>
-    <meta name="description" content="AI chat, moderation, and music for Discord servers.">
+    <meta name="description" content="AI chat, AutoMod, and music for Discord servers.">
     <meta property="og:title" content="Jarvis | Discord AI Bot">
-    <meta property="og:description" content="AI chat, moderation, and music for Discord servers.">
+    <meta property="og:description" content="AI chat, AutoMod, and music for Discord servers.">
     <link rel="icon" type="image/webp" href="/jarvis.webp">
     <meta property="og:site_name" content="Jarvis">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${SITE_BASE_URL}">
     <meta name="theme-color" content="#fff">
     <meta name="twitter:card" content="summary">
-    <meta name="keywords" content="discord bot, ai discord bot, music bot, moderation bot, jarvis">
+    <meta name="keywords" content="discord bot, ai discord bot, music bot, automod bot, jarvis">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="${SITE_BASE_URL}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -50,6 +50,8 @@ const LANDING_PAGE = `
             min-height: 100vh;
             height: 100vh;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
         
         /* Navigation */
@@ -85,11 +87,17 @@ const LANDING_PAGE = `
         }
         
         .nav-links a:hover { color: #fff; }
+
+        .page {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
         
         /* Hero Section */
         .hero {
             text-align: center;
-            padding: 5rem 5% 3rem;
+            padding: 4rem 5% 2rem;
             max-width: 800px;
             margin: 0 auto;
         }
@@ -170,7 +178,7 @@ const LANDING_PAGE = `
         
         /* Stats Section */
         .stats {
-            padding: 3rem 5%;
+            padding: 2rem 5%;
             background: rgba(255, 255, 255, 0.02);
             border-top: 1px solid rgba(255,255,255,0.04);
             border-bottom: 1px solid rgba(255,255,255,0.04);
@@ -200,6 +208,36 @@ const LANDING_PAGE = `
             font-size: 0.85rem;
             margin-top: 0.25rem;
         }
+
+        footer {
+            margin-top: auto;
+            padding: 1.25rem 5% 1.5rem;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-links a {
+            color: #555;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: #888;
+        }
+
+        .footer-copy {
+            color: #444;
+            font-size: 0.8rem;
+        }
         
         /* Responsive */
         @media (max-width: 900px) {
@@ -220,41 +258,51 @@ const LANDING_PAGE = `
             <li><a href="/status">Status</a></li>
         </ul>
     </nav>
-    
-    <section class="hero">
-        <h1>The Discord AI with <span class="accent">Actual Personality</span></h1>
-        <p>Stop using boring bots. Jarvis brings natural chat, powerful moderation, and music streaming to your server.</p>
-        <div class="cta-buttons">
-            <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">➕ Add to Discord</a>
-            <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join Support Server</a>
+
+    <main class="page">
+        <section class="hero">
+            <h1>The Discord AI with <span class="accent">Actual Personality</span></h1>
+            <p>Stop using boring bots. Jarvis brings natural chat, AutoMod filtering, and music streaming to your server.</p>
+            <div class="cta-buttons">
+                <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">➕ Add to Discord</a>
+                <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join Support Server</a>
+            </div>
+            <p class="cta-subtext">
+                <span>✓ Free forever</span>
+                <span>✓ No credit card</span>
+                <span>✓ Set up in 2 mins</span>
+            </p>
+        </section>
+
+        <section class="stats">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number">50+</div>
+                    <div class="stat-label">AI Models</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">50</div>
+                    <div class="stat-label">Commands</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="serverCount">1K+</div>
+                    <div class="stat-label">Servers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">99.9%</div>
+                    <div class="stat-label">Uptime</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-links">
+            <a href="/tos">Terms</a>
+            <a href="/policy">Privacy</a>
         </div>
-        <p class="cta-subtext">
-            <span>✓ Free forever</span>
-            <span>✓ No credit card</span>
-            <span>✓ Set up in 2 mins</span>
-        </p>
-    </section>
-    
-    <section class="stats">
-        <div class="stats-grid">
-            <div class="stat-item">
-                <div class="stat-number">50+</div>
-                <div class="stat-label">AI Models</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">50</div>
-                <div class="stat-label">Commands</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="serverCount">1K+</div>
-                <div class="stat-label">Servers</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number">99.9%</div>
-                <div class="stat-label">Uptime</div>
-            </div>
-        </div>
-    </section>
+        <p class="footer-copy">© 2026 Jarvis • Made with love for Discord</p>
+    </footer>
     
     <script>
         // Fetch real server count

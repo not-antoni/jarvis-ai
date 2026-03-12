@@ -1,7 +1,6 @@
 'use strict';
 
 const config = require('../../../config');
-const moderationFilters = require('../moderation-filters');
 const clankerGif = require('../../utils/clanker-gif');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
 
@@ -24,8 +23,6 @@ if (!message.guild) {
     }
     return;
 }
-
-await moderationFilters.handleMessage(message);
 
 // Track guild activity
 try {
