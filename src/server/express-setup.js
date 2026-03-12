@@ -204,7 +204,6 @@ function createExpressApp({ webhookRouter, database }) {
 User-agent: *
 Allow: /
 Allow: /status
-Allow: /changelog
 
 # Disallow private areas
 Disallow: /dashboard
@@ -221,7 +220,6 @@ Sitemap: ${siteBaseUrl}/sitemap.xml
         const pages = [
             { url: '/', priority: '1.0', changefreq: 'weekly' },
             { url: '/status', priority: '0.6', changefreq: 'always' },
-            { url: '/changelog', priority: '0.5', changefreq: 'monthly' },
             { url: '/tos', priority: '0.3', changefreq: 'yearly' },
             { url: '/policy', priority: '0.3', changefreq: 'yearly' }
         ];

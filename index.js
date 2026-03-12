@@ -39,7 +39,6 @@ const ytDlpManager = require('./src/services/yt-dlp-manager');
 const errorLogger = require('./src/services/error-logger');
 const serverLogger = require('./src/services/server-logger');
 const { printSelfhostStatus } = require('./scripts/selfhost-check');
-const { printRenderStatus } = require('./scripts/render-check');
 const { safeReadJson, writeJsonAtomic } = require('./src/server/health-helpers');
 const { createExpressApp, mount404Handler } = require('./src/server/express-setup');
 const {
@@ -48,9 +47,6 @@ const {
 
 // Run deployment environment check early
 const selfhostResult = printSelfhostStatus();
-if (!selfhostResult.isSelfhost) {
-    printRenderStatus();
-}
 
 const configuredThreadpoolSize = Number(process.env.UV_THREADPOOL_SIZE || 0);
 if (configuredThreadpoolSize) {
@@ -440,15 +436,6 @@ client.once(Events.ClientReady, async() => {
         memeSender.start(client);
     } catch (e) {
         console.warn('Failed to start meme sender:', e);
-    }
-
-    // Initialize Giveaways
-    try {
-        const giveawayService = require('./src/services/giveaways');
-        giveawayService.init(client);
-        console.log('[Giveaways] Manager initialized 🎁');
-    } catch (e) {
-        console.warn('Failed to start giveaway manager:', e);
     }
 
     console.log('Provider status on startup:', aiManager.getProviderStatus());

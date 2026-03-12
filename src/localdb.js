@@ -121,9 +121,6 @@ function syncFromLatestExport() {
             vault: {
                 userKeys: normalizeExtendedJson(vaultUserKeysRaw),
                 memories: normalizeExtendedJson(vaultMemoriesRaw)
-            },
-            moderation: {
-                filters: normalizeExtendedJson(content.moderationFilters || [])
             }
         };
 

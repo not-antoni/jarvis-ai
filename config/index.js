@@ -115,7 +115,6 @@ const rawConfig = {
             guildConfigs: 'guildConfigs',
             reactionRoles: 'reactionRoles',
             autoModeration: 'autoModerationRules',
-            moderationFilters: 'moderationFilters',
             serverStats: 'serverStats',
             memberLogs: 'memberLogs',
             tickets: 'tickets',
@@ -252,7 +251,6 @@ const rawConfig = {
         music: true,
         memeTools: true,
         funUtilities: true,
-        moderationFilters: true,
         codeExecution: true,
         // Selfhost-only experimental features
         selfhostExperimental: selfhostMode || deploymentTarget === 'selfhost'

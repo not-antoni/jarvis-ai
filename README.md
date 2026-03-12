@@ -244,7 +244,6 @@ Login is required if `DASHBOARD_PASSWORD` is set. Use `DASHBOARD_PASSWORD` over 
 |------|-----|-------------|
 | **Home** | `/` | Public landing page |
 | **Status** | `/status` | Live bot status and uptime |
-| **Changelog** | `/changelog` | Release history |
 | **Moderator** | `/moderator` | Web moderation panel |
 
 ### Cloudflare-Only Access
