@@ -1170,70 +1170,6 @@ class DiscordHandlers {
         }
         return currentY;
     }
-    async getContextualMemory(message, client) {
-        try {
-            const messages = await message.channel.messages.fetch({ limit: 20 });
-            const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-            const referencedMessageId = message.reference?.messageId;
-            let conversationStart = -1;
-            let referencedMessage = null;
-            for (let i = 0; i < sortedMessages.size; i++) {
-                const msg = Array.from(sortedMessages.values())[i];
-                if (msg.id === referencedMessageId) {
-                    conversationStart = i;
-                    referencedMessage = msg;
-                    break;
-                }
-            }
-            if (conversationStart === -1) {
-                return null;
-            }
-            const contextualMessages = [];
-            const threadMessages = Array.from(sortedMessages.values()).slice(conversationStart);
-            if (referencedMessage.author.id === client.user.id) {
-                contextualMessages.push({
-                    role: 'assistant',
-                    content: referencedMessage.content,
-                    timestamp: referencedMessage.createdTimestamp
-                });
-            } else {
-                contextualMessages.push({
-                    role: 'user',
-                    content: referencedMessage.content,
-                    username: referencedMessage.author.username,
-                    timestamp: referencedMessage.createdTimestamp,
-                    isReferencedMessage: true
-                });
-            }
-            for (const msg of threadMessages) {
-                if (msg.id === referencedMessageId) {continue;}
-                if (msg.author.bot && msg.author.id === client.user.id) {
-                    contextualMessages.push({
-                        role: 'assistant',
-                        content: msg.content,
-                        timestamp: msg.createdTimestamp
-                    });
-                } else if (!msg.author.bot) {
-                    contextualMessages.push({
-                        role: 'user',
-                        content: msg.content,
-                        username: msg.author.username,
-                        timestamp: msg.createdTimestamp
-                    });
-                }
-            }
-            const recentContext = contextualMessages.slice(-10);
-            return {
-                type: 'contextual',
-                messages: recentContext,
-                threadStart: referencedMessageId,
-                isReplyToUser: referencedMessage.author.id !== client.user.id
-            };
-        } catch (error) {
-            console.warn('Failed to build contextual memory:', error);
-            return null;
-        }
-    }
     async handleJarvisInteraction(message, client) {
         if (!this.canSendInChannel(message.channel)) {return;}
         const isMentioned = message.mentions.has(client.user);
@@ -1269,7 +1205,7 @@ class DiscordHandlers {
         }
         let isReplyToJarvis = false;
         let isReplyToUser = false;
-        let contextualMemory = null;
+        const contextualMemory = null;
         const rawContent = typeof message.content === 'string' ? message.content : '';
         const messageScope = 'message:jarvis';
         if (message.reference && message.reference.messageId) {
@@ -1277,12 +1213,8 @@ class DiscordHandlers {
                 const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
                 if (referencedMessage.author.id === client.user.id) {
                     isReplyToJarvis = true;
-                    contextualMemory = await this.getContextualMemory(message, client);
                 } else if (!referencedMessage.author.bot) {
                     isReplyToUser = true;
-                    if (isMentioned || containsJarvis) {
-                        contextualMemory = await this.getContextualMemory(message, client);
-                    }
                 }
             } catch (error) {
                 if (error.code !== 10008) {
