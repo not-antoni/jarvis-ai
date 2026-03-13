@@ -323,6 +323,7 @@ module.exports = {
     buildNotifyMessage,
     getRecoveryBonus,
     formatNumber,
+    formatFullNumber,
     EMOJI_POSITIVE,
     EMOJI_NEGATIVE,
     BLOCK_THRESHOLD,
