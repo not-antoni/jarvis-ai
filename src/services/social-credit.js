@@ -180,27 +180,27 @@ function rollCreditChange(messageContent) {
         // 0.1%: catastrophic — up to -1 trillion
         const magnitude = [1e9, 1e10, 1e11, 1e12];
         const pick = magnitude[Math.floor(Math.random() * magnitude.length)];
-        socialCreditChange -= Math.floor(Math.random() * pick + pick / 10);
+        socialCreditChange -= BigInt(Math.floor(Math.random() * pick + pick / 10));
     } else if (roll < 0.002) {
         // 0.1%: jackpot — up to +1 billion
         const magnitude = [1e6, 1e7, 1e8, 1e9];
         const pick = magnitude[Math.floor(Math.random() * magnitude.length)];
-        socialCreditChange += Math.floor(Math.random() * pick + pick / 10);
+        socialCreditChange += BigInt(Math.floor(Math.random() * pick + pick / 10));
     } else if (roll < 0.022) {
         // 2%: random big loss (keeps people on their toes)
-        socialCreditChange -= Math.floor(Math.random() * 15000 + 5000);
+        socialCreditChange -= BigInt(Math.floor(Math.random() * 15000 + 5000));
     } else if (roll < 0.06) {
         // 4%: small loss
-        socialCreditChange -= Math.floor(Math.random() * 500 + 50);
+        socialCreditChange -= BigInt(Math.floor(Math.random() * 500 + 50));
     } else if (roll < 0.12) {
         // 6%: big gain
-        socialCreditChange += Math.floor(Math.random() * 20000 + 5000);
+        socialCreditChange += BigInt(Math.floor(Math.random() * 20000 + 5000));
     } else if (roll < 0.30) {
         // 18%: moderate gain
-        socialCreditChange += Math.floor(Math.random() * 2000 + 200);
+        socialCreditChange += BigInt(Math.floor(Math.random() * 2000 + 200));
     } else if (roll < 0.50) {
         // 20%: small gain
-        socialCreditChange += Math.floor(Math.random() * 100 + 10);
+        socialCreditChange += BigInt(Math.floor(Math.random() * 100 + 10));
     }
 
     // 50%: no change
@@ -241,12 +241,13 @@ function shouldReact(cringeScore) {
 }
 
 function buildNotifyMessage(amount, newScore) {
-    const fmtAmount = formatNumber(Math.abs(amount));
-    const emoji = amount > 0 ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
-    const spamCount = Math.abs(amount) >= 1e9 ? 7 : Math.abs(amount) >= 1e6 ? 6 : Math.abs(amount) >= 30000 ? 5 : Math.abs(amount) >= 10000 ? 3 : Math.abs(amount) >= 3000 ? 2 : 1;
+    const absAmount = amount < 0n ? -amount : amount;
+    const fmtAmount = formatNumber(absAmount);
+    const emoji = amount > 0n ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
+    const spamCount = absAmount >= 1000000000n ? 7 : absAmount >= 1000000n ? 6 : absAmount >= 30000n ? 5 : absAmount >= 10000n ? 3 : absAmount >= 3000n ? 2 : 1;
     const emojiSpam = emoji.repeat(spamCount);
 
-    const sign = amount > 0 ? '+' : '-';
+    const sign = amount > 0n ? '+' : '-';
     let msg = `${emojiSpam} ${sign}${fmtAmount} social credit ${emojiSpam}`;
 
     if (newScore <= -50000) {
