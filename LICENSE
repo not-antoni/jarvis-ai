@@ -7,9 +7,11 @@ Unauthorized use, copying, modification, distribution, or sublicensing of
 this software, in whole or in part, is strictly prohibited.
 
 EXPLICIT PERMISSION REQUIREMENT
+
 Any use of this software or its source code beyond what is permitted below
 requires explicit written permission from the owner (not-antoni). This includes
 but is not limited to:
+
 - Using any portion of the code in another project
 - Redistributing or publishing the code in any form
 - Creating derivative works based on this software
@@ -17,27 +19,49 @@ but is not limited to:
 To request permission, contact the project owner directly.
 
 CONTRIBUTOR ACCESS
+
 Contributors and collaborators who have been explicitly granted access by the
-owner (not-antoni) may view and modify the code solely for the purpose of
-contributing to this project. This access does not grant any ownership,
-licensing rights, or permission to use the code outside of this project.
+owner (not-antoni) may:
+
+- View, modify, and experiment with the code for the purpose of contributing
+  to this project
+- Fork the repository privately for development and testing purposes related
+  to this project
+- Reuse small portions of the code (utility functions, helpers, etc.) in their
+  own non-commercial personal projects, provided they include clear attribution
+  to this project
+- Suggest or implement structural changes, refactors, or new features without
+  requiring prior written approval for each individual change
+
+This access does not grant:
+
+- Ownership or licensing rights over the codebase as a whole
+- Permission to publish, redistribute, or commercially use the code outside
+  of this project
+- The right to sublicense the code to third parties
+
 The explicit permission requirement above does not apply to contributors
 acting within the scope of their contribution.
 
 TRADEMARKS NOTICE
+
 "J.A.R.V.I.S." and Iron Man/Marvel references are used for fan purposes only
 and are trademarks of Marvel Entertainment, LLC.
+
 This project is not affiliated with or endorsed by Marvel, Disney, or any
 of their subsidiaries.
 
 NO MALICIOUS USE
+
 This software may not be used for:
+
 - Spam, harassment, or abuse
 - Unauthorized data collection or scraping
 - Any activity violating Discord's Terms of Service
 - Impersonation of any official bot or service
 
 DISCLAIMER
+
 This software is provided "as is" without warranty of any kind. The owner
 is not responsible for any misuse of this software or any damages resulting
 from its use.
