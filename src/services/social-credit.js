@@ -6,11 +6,11 @@ const EMOJI_POSITIVE = '<a:socialcredit:1477736880127869039>';
 const EMOJI_NEGATIVE = '<:nosocialcredit:1477737004195123230>';
 
 // Thresholds
-const BLOCK_THRESHOLD = -100000;    // -100k = blocked
-const ACCEPTABLE_THRESHOLD = 20000; // 20k = acceptable
-const GOOD_THRESHOLD = 100000;      // 100k = fine
+const BLOCK_THRESHOLD      = -100000; // -100k = blocked
+const ACCEPTABLE_THRESHOLD =  20000;  // 20k = acceptable
+const GOOD_THRESHOLD       =  100000; // 100k = fine
 
-// Block duration: 10 minutes 
+// Block duration: 10 minutes
 const BLOCK_DURATION_MS = 2 * 60 * 1000;
 
 // Chance to show credit notification (5%)
@@ -19,73 +19,69 @@ const NOTIFY_CHANCE = 0.05;
 // Chance to react with social credit emoji on user's message
 const REACT_CHANCE = 0.08;
 
-// ── Number formatting ──
+// ── Number formatting ──────────────────────────────────────────────────────────
 
 const SUFFIXES = [
-  { value: 10n**3n,  symbol: "k" },   // thousand
-  { value: 10n**6n,  symbol: "M" },   // million
-  { value: 10n**9n,  symbol: "B" },   // billion
-  { value: 10n**12n, symbol: "T" },   // trillion
-  { value: 10n**15n, symbol: "Qa" },  // quadrillion
-  { value: 10n**18n, symbol: "Qi" },  // quintillion
-  { value: 10n**21n, symbol: "Sx" },  // sextillion
-  { value: 10n**24n, symbol: "Sp" },  // septillion
-  { value: 10n**27n, symbol: "Oc" },  // octillion
-  { value: 10n**30n, symbol: "No" },  // nonillion
-  { value: 10n**33n, symbol: "De" },  // decillion
-  { value: 10n**36n, symbol: "UDe" }, // undecillion
-  { value: 10n**39n, symbol: "DDe" }, // duodecillion
-  { value: 10n**42n, symbol: "TDe" }, // tredecillion
-  { value: 10n**45n, symbol: "QaDe" },// quattuordecillion
-  { value: 10n**48n, symbol: "QiDe" },// quindecillion
-  { value: 10n**51n, symbol: "SxDe" },// sexdecillion
-  { value: 10n**54n, symbol: "SpDe" },// septendecillion
-  { value: 10n**57n, symbol: "OcDe" },// octodecillion
-  { value: 10n**60n, symbol: "NoDe" },// novemdecillion
-  { value: 10n**63n, symbol: "Vg" },  // vigintillion
-  { value: 10n**66n, symbol: "UVg" }, // unvigintillion
-  { value: 10n**69n, symbol: "DVg" }, // duovigintillion
-  { value: 10n**72n, symbol: "TVg" }, // trevigintillion
-  { value: 10n**75n, symbol: "QaVg" },// quattuorvigintillion
-  { value: 10n**78n, symbol: "QiVg" },// quinvigintillion
-  { value: 10n**81n, symbol: "SxVg" },// sexvigintillion
-  { value: 10n**84n, symbol: "SpVg" },// septenvigintillion
-  { value: 10n**87n, symbol: "OcVg" },// octovigintillion
-  { value: 10n**90n, symbol: "NoVg" },// novemvigintillion
-  { value: 10n**93n, symbol: "Tg" },  // trigintillion
+    { value: 10n**3n,  symbol: 'k'    },
+    { value: 10n**6n,  symbol: 'M'    },
+    { value: 10n**9n,  symbol: 'B'    },
+    { value: 10n**12n, symbol: 'T'    },
+    { value: 10n**15n, symbol: 'Qa'   },
+    { value: 10n**18n, symbol: 'Qi'   },
+    { value: 10n**21n, symbol: 'Sx'   },
+    { value: 10n**24n, symbol: 'Sp'   },
+    { value: 10n**27n, symbol: 'Oc'   },
+    { value: 10n**30n, symbol: 'No'   },
+    { value: 10n**33n, symbol: 'De'   },
+    { value: 10n**36n, symbol: 'UDe'  },
+    { value: 10n**39n, symbol: 'DDe'  },
+    { value: 10n**42n, symbol: 'TDe'  },
+    { value: 10n**45n, symbol: 'QaDe' },
+    { value: 10n**48n, symbol: 'QiDe' },
+    { value: 10n**51n, symbol: 'SxDe' },
+    { value: 10n**54n, symbol: 'SpDe' },
+    { value: 10n**57n, symbol: 'OcDe' },
+    { value: 10n**60n, symbol: 'NoDe' },
+    { value: 10n**63n, symbol: 'Vg'   },
+    { value: 10n**66n, symbol: 'UVg'  },
+    { value: 10n**69n, symbol: 'DVg'  },
+    { value: 10n**72n, symbol: 'TVg'  },
+    { value: 10n**75n, symbol: 'QaVg' },
+    { value: 10n**78n, symbol: 'QiVg' },
+    { value: 10n**81n, symbol: 'SxVg' },
+    { value: 10n**84n, symbol: 'SpVg' },
+    { value: 10n**87n, symbol: 'OcVg' },
+    { value: 10n**90n, symbol: 'NoVg' },
+    { value: 10n**93n, symbol: 'Tg'   },
 ];
 
 function formatNumber(value) {
-  // normalize input
-  let n = typeof value === "bigint" ? value : BigInt(value);
+    // ✅ FIX: null-safe conversion before BigInt
+    if (value == null) return '0';
+    let n = typeof value === 'bigint' ? value : BigInt(value);
 
-  const sign = n < 0n ? "-" : "";
-  if (n < 0n) n = -n;
+    const sign = n < 0n ? '-' : '';
+    if (n < 0n) n = -n;
 
-  // choose the largest applicable suffix by iterating in reverse order
-  for (let i = SUFFIXES.length - 1; i >= 0; --i) {
-    const { value: threshold, symbol } = SUFFIXES[i];
-    if (n >= threshold) {
-      const whole = n / threshold;
-      const remainder = n % threshold;
-
-      // compute first decimal digit using integer math
-      const decimal = (remainder * 10n) / threshold;
-
-      return (
-        sign +
-        whole.toString() +
-        (decimal > 0n ? "." + decimal.toString() : "") +
-        symbol
-      );
+    for (let i = SUFFIXES.length - 1; i >= 0; --i) {
+        const { value: threshold, symbol } = SUFFIXES[i];
+        if (n >= threshold) {
+            const whole     = n / threshold;
+            const remainder = n % threshold;
+            const decimal   = (remainder * 10n) / threshold;
+            return (
+                sign +
+                whole.toString() +
+                (decimal > 0n ? '.' + decimal.toString() : '') +
+                symbol
+            );
+        }
     }
-  }
 
-  // small numbers → locale formatting
-  return sign + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return sign + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-// ── Cringe detection ──
+// ── Cringe detection ───────────────────────────────────────────────────────────
 
 // Tier 1: nuclear cringe — instant obliteration
 const CRINGE_NUCLEAR = [
@@ -101,7 +97,7 @@ const CRINGE_NUCLEAR = [
 
 // Tier 2: high cringe — heavy penalty
 const CRINGE_HIGH = [
-    /\*[^*]{3,60}\*(?:\s*\*[^*]{3,60}\*)/,  // multiple roleplay asterisk actions
+    /\*[^*]{3,60}\*(?:\s*\*[^*]{3,60}\*)/,
     /(?:chan|kun|sama|oni+chan)\b/i,
     /(?:b-?baka|tsundere|yandere|waifu|husbando)/i,
     /(?:notices?\s*(?:your|ur)\s*bulge|pounces?\s*on\s*you)/i,
@@ -114,7 +110,7 @@ const CRINGE_HIGH = [
 
 // Tier 3: moderate cringe — noticeable penalty
 const CRINGE_MODERATE = [
-    /\*[^*]{3,80}\*/,  // single roleplay asterisk action
+    /\*[^*]{3,80}\*/,
     /(?:>_<|>\.<|;-;|T_T|TwT|QwQ|UwU|OwO)/,
     /(?:meow|woof|bark)\s*[~!]{2,}/i,
     /(?:so\s*(?:kawaii|sugoi|desu))/i,
@@ -124,7 +120,7 @@ const CRINGE_MODERATE = [
 ];
 
 function getCringeLevel(text) {
-    if (!text || typeof text !== 'string') { return 0; }
+    if (!text || typeof text !== 'string') { return 0n; }
     const lower = text.toLowerCase();
 
     let score = 0n;
@@ -150,119 +146,96 @@ function getCringeLevel(text) {
         }
     }
 
-    // Bonus multiplier: tilde spam
     const tildeCount = (text.match(/~/g) || []).length;
     if (tildeCount > 1) {
-        score *= (BigInt(tildeCount - 1) ** 2n) // exponential multiplier the more tildes you have
+        score *= (BigInt(tildeCount - 1) ** 2n);
     }
 
-    // Bonus: excessive exclamation/question marks with uwu-adjacent text
-    if (/[!?]{4,}/.test(text) && score > 0) { score += 15n; }
+    if (/[!?]{4,}/.test(text) && score > 0n) { score += 15n; }
 
-    if (text.includes("Glory to Stark Industries!")) {
-        score *= -1n // Glory to Stark Industries!
+    if (text.includes('Glory to Stark Industries!')) {
+        score *= -1n;
     }
 
     return score;
 }
 
-// ── Credit calculation ──
+// ── Credit calculation ─────────────────────────────────────────────────────────
 
 function rollCreditChange(messageContent) {
+    let socialCreditChange = 0n;
 
-    let socialCreditChange = 0n // BIGINT TIME BABYEE
+    socialCreditChange -= getCringeLevel(messageContent);
 
-    socialCreditChange -= getCringeLevel(messageContent)
-
-    // Normal message: standard random roll
     const roll = Math.random();
     if (roll < 0.001) {
-        // 0.1%: catastrophic — up to -1 trillion
         const magnitude = [1e9, 1e10, 1e11, 1e12];
         const pick = magnitude[Math.floor(Math.random() * magnitude.length)];
         socialCreditChange -= BigInt(Math.floor(Math.random() * pick + pick / 10));
     } else if (roll < 0.002) {
-        // 0.1%: jackpot — up to +1 billion
         const magnitude = [1e6, 1e7, 1e8, 1e9];
         const pick = magnitude[Math.floor(Math.random() * magnitude.length)];
         socialCreditChange += BigInt(Math.floor(Math.random() * pick + pick / 10));
     } else if (roll < 0.022) {
-        // 2%: random big loss (keeps people on their toes)
         socialCreditChange -= BigInt(Math.floor(Math.random() * 15000 + 5000));
     } else if (roll < 0.06) {
-        // 4%: small loss
         socialCreditChange -= BigInt(Math.floor(Math.random() * 500 + 50));
     } else if (roll < 0.12) {
-        // 6%: big gain
         socialCreditChange += BigInt(Math.floor(Math.random() * 20000 + 5000));
     } else if (roll < 0.30) {
-        // 18%: moderate gain
         socialCreditChange += BigInt(Math.floor(Math.random() * 2000 + 200));
     } else if (roll < 0.50) {
-        // 20%: small gain
         socialCreditChange += BigInt(Math.floor(Math.random() * 100 + 10));
     }
 
-    // 50%: no change
     return socialCreditChange;
 }
 
-// ── Passive recovery ──
+// ── Passive recovery ───────────────────────────────────────────────────────────
 
 function getRecoveryBonus(currentScore) {
-    if (currentScore >= 0) { return 0n; }
-    // Recover 2% of deficit per message, min 100, max 5000
+    if (currentScore >= 0n) { return 0n; }
     const absScore = -currentScore;
     const recovery = Number(absScore) * 0.02;
     return BigInt(Math.min(5000, Math.max(100, Math.floor(recovery))));
 }
 
-// ── Notification logic ──
+// ── Notification logic ─────────────────────────────────────────────────────────
 
 function shouldNotify(amount, cringeScore) {
     if (amount === 0n) { return false; }
-
-    // Always notify on cringe detections
-    if (cringeScore >= 15) { return true; }
-
-    // Always notify on extreme changes
+    if (cringeScore >= 15n) { return true; }
     const absAmount = amount < 0n ? -amount : amount;
     if (absAmount >= 10000n) { return true; }
-
-    // 5% chance for normal changes
     return Math.random() < NOTIFY_CHANCE;
 }
 
 function shouldReact(cringeScore) {
-    // Always react on cringe
-    if (cringeScore >= 40) { return true; }
-
-    // 50% chance on moderate cringe
-    if (cringeScore >= 15) { return Math.random() < 0.5; }
-
+    if (cringeScore >= 40n) { return true; }
+    if (cringeScore >= 15n) { return Math.random() < 0.5; }
     return Math.random() < REACT_CHANCE;
 }
 
 function buildNotifyMessage(amount, newScore) {
-    const absAmount = amount < 0n ? -amount : amount;
-    const fmtAmount = formatNumber(absAmount);
-    const emoji = amount > 0n ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
-    const spamCount = absAmount >= 1000000000n ? 7 : absAmount >= 1000000n ? 6 : absAmount >= 30000n ? 5 : absAmount >= 10000n ? 3 : absAmount >= 3000n ? 2 : 1;
-    const emojiSpam = emoji.repeat(spamCount);
+    const absAmount  = amount < 0n ? -amount : amount;
+    const fmtAmount  = formatNumber(absAmount);
+    const emoji      = amount > 0n ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
+    const spamCount  = absAmount >= 1000000000n ? 7 : absAmount >= 1000000n ? 6 : absAmount >= 30000n ? 5 : absAmount >= 10000n ? 3 : absAmount >= 3000n ? 2 : 1;
+    const emojiSpam  = emoji.repeat(spamCount);
+    const sign       = amount > 0n ? '+' : '-';
 
-    const sign = amount > 0n ? '+' : '-';
     let msg = `${emojiSpam} ${sign}${fmtAmount} social credit ${emojiSpam}`;
 
-    if (newScore <= -50000) {
+    if (newScore <= -50000n) {
         msg += `\n*current social credit: ${formatNumber(newScore)}* ${EMOJI_NEGATIVE}`;
-    } else if (newScore >= GOOD_THRESHOLD) {
+    } else if (newScore >= BigInt(GOOD_THRESHOLD)) {
         msg += `\n*current social credit: ${formatNumber(newScore)}* ${EMOJI_POSITIVE}`;
     }
 
     return msg;
 }
 
-// ── Database operations ──
+// ── Database operations ────────────────────────────────────────────────────────
 
 async function getCredit(userId) {
     if (!database.isConnected) { return { score: 0n, blockedUntil: null }; }
@@ -271,7 +244,10 @@ async function getCredit(userId) {
 
     const doc = await col.findOne({ userId });
     if (!doc) { return { score: 0n, blockedUntil: null }; }
-    return { score: BigInt(doc.score) || 0n, blockedUntil: doc.blockedUntil || null };
+
+    // ✅ FIX 1: null-safe BigInt conversion — BigInt(undefined/null) throws
+    const score = doc.score != null ? BigInt(doc.score) : 0n;
+    return { score, blockedUntil: doc.blockedUntil || null };
 }
 
 async function adjustCredit(userId, amount) {
@@ -279,26 +255,27 @@ async function adjustCredit(userId, amount) {
     const col = database.getCollection('socialCredit');
     if (!col) { return 0n; }
 
-    const doc = await col.findOne({ userId });
-    const currentScore = doc ? BigInt(doc.score) : 0n;
+    const doc          = await col.findOne({ userId });
+    const currentScore = doc?.score != null ? BigInt(doc.score) : 0n;
     const newSocialCredit = currentScore + BigInt(amount);
 
     console.log(currentScore, BigInt(amount));
 
+    // ✅ FIX 2: merged $set — duplicate $set keys silently drop the first one (score was never saving)
     const result = await col.findOneAndUpdate(
         { userId },
         {
-            $set: { score: newSocialCredit.toString() },
-            $set: { lastUpdated: new Date() },
+            $set: { score: newSocialCredit.toString(), lastUpdated: new Date() },
             $setOnInsert: { userId, createdAt: new Date() }
         },
         { upsert: true, returnDocument: 'after' }
     );
 
-    const newScore = BigInt(result?.score ?? result?.value?.score ?? 0n);
+    // ✅ FIX 3: null-safe BigInt on result — driver version differences affect result shape
+    const raw      = result?.score ?? result?.value?.score;
+    const newScore = raw != null ? BigInt(raw) : newSocialCredit;
 
-    // If they crossed -100k, set the block timer
-    if (newScore <= BLOCK_THRESHOLD) {
+    if (newScore <= BigInt(BLOCK_THRESHOLD)) {
         await col.updateOne(
             { userId, blockedUntil: null },
             { $set: { blockedUntil: new Date(Date.now() + BLOCK_DURATION_MS) } }
@@ -310,8 +287,7 @@ async function adjustCredit(userId, amount) {
 
 function isBlocked(credit) {
     if (!credit.blockedUntil) { return false; }
-    if (new Date() < new Date(credit.blockedUntil)) { return true; }
-    return false;
+    return new Date() < new Date(credit.blockedUntil);
 }
 
 async function clearBlock(userId) {
@@ -335,7 +311,7 @@ function getBlockMessage(credit) {
     return `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}\n\n` +
         `Not enough social credit.\n` +
         `Your social credit: **${formatNumber(credit.score)}**\n` +
-        `*this rate limit expires in ${timeLeft || '10 minutes'}*\n\n`
+        `*this rate limit expires in ${timeLeft || '10 minutes'}*\n\n`;
 }
 
 module.exports = {
@@ -355,5 +331,5 @@ module.exports = {
     EMOJI_NEGATIVE,
     BLOCK_THRESHOLD,
     ACCEPTABLE_THRESHOLD,
-    GOOD_THRESHOLD
+    GOOD_THRESHOLD,
 };
