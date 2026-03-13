@@ -255,7 +255,6 @@ const LANDING_PAGE = `
     <nav>
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
-            <li><a href="/status">Status</a></li>
         </ul>
     </nav>
 
