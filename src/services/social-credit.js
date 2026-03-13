@@ -278,6 +278,8 @@ async function adjustCredit(userId, amount) {
     const credit = await col.findOne({ userId })
     var newSocialCredit = BigInt(doc.score) += BigInt(amount)
 
+    console.logg(BigInt(doc.score), BigInt(amount))
+
     const result = await col.findOneAndUpdate(
         { userId },
         {
