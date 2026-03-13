@@ -106,9 +106,7 @@ const SHARED_STYLES = `
 const NAV_HTML = `
     <nav>
         <a href="/" class="logo">Jarvis</a>
-        <ul class="nav-links">
-            <li><a href="/status">Status</a></li>
-        </ul>
+        <ul class="nav-links"></ul>
     </nav>
 `;
 
