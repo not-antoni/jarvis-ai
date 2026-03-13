@@ -24,12 +24,8 @@ const config = require('./config');
 const database = require('./src/services/database');
 const LOCAL_DB_MODE = String(process.env.LOCAL_DB_MODE || '').toLowerCase() === '1';
 let initializeDatabaseClients = null;
-try {
-    if (!LOCAL_DB_MODE) {
-        ({ initializeDatabaseClients } = require('./src/services/db'));
-    }
-} catch (e) {
-    // Will proceed without DB when local mode
+if (!LOCAL_DB_MODE && typeof database.initializeDatabaseClients === 'function') {
+    initializeDatabaseClients = database.initializeDatabaseClients;
 }
 const aiManager = require('./src/services/ai-providers');
 const discordHandlers = require('./src/services/discord-handlers-impl');
