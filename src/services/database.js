@@ -1,16 +1,216 @@
 /**
  * Database connection and operations for Jarvis Bot
  */
+const { MongoClient } = require('mongodb');
 const config = require('../../config');
-const vaultClient = require('./vault-client');
-const { connectMain, getJarvisDb, mainClient, closeMain } = require('./db');
 const localdb = require('../localdb');
-const { LRUCache } = require('../utils/lru-cache');
-const guildConfigDiskCache = require('./guild-config-cache');
+const { LRUCache } = require('lru-cache');
 const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
+const IS_SELFHOST = !IS_RENDER && (
+    process.env.DEPLOY_TARGET === 'selfhost' ||
+    process.env.SELFHOST_MODE === 'true'
+);
 const LOCAL_DB_MODE =
     !IS_RENDER &&
     String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
+const {
+    database: {
+        mainUri,
+        vaultUri,
+        names: { main: mainDbName, vault: vaultDbName }
+    }
+} = config;
+if (!mainUri || !vaultUri) {
+    if (!LOCAL_DB_MODE) {
+        if (!mainUri) {throw new Error('MONGO_URI_MAIN is not configured');}
+        if (!vaultUri) {throw new Error('MONGO_URI_VAULT is not configured');}
+    }
+}
+const mongoOptions = {
+    maxPoolSize: IS_SELFHOST ? 10 : 25,
+    minPoolSize: IS_SELFHOST ? 1 : 2,
+    serverSelectionTimeoutMS: IS_SELFHOST ? 10000 : 5000,
+    socketTimeoutMS: 45000,
+    retryWrites: true,
+    retryReads: true,
+    connectTimeoutMS: 10000,
+    heartbeatFrequencyMS: IS_SELFHOST ? 10000 : 30000,
+    maxIdleTimeMS: IS_SELFHOST ? 60000 : 120000
+};
+let mainClient =
+    !LOCAL_DB_MODE && mainUri
+        ? new MongoClient(mainUri, mongoOptions)
+        : null;
+let vaultMongoClient =
+    !LOCAL_DB_MODE && vaultUri
+        ? new MongoClient(vaultUri, { ...mongoOptions, maxPoolSize: IS_SELFHOST ? 5 : 20 })
+        : null;
+let mainDb = null;
+let vaultDb = null;
+let mainConnectPromise = null;
+let vaultConnectPromise = null;
+let connectionMonitorInterval = null;
+let lastConnectionCheck = 0;
+const CONNECTION_CHECK_INTERVAL = 30 * 1000;
+const RECONNECT_DELAY = 5 * 1000;
+
+async function connectMain() {
+    if (LOCAL_DB_MODE) {
+        return null;
+    }
+    if (mainDb) {
+        if (IS_SELFHOST) {
+            try {
+                await mainClient.db('admin').command({ ping: 1 });
+            } catch (pingErr) {
+                console.warn('[DB] Main connection lost, reconnecting...');
+                mainDb = null;
+                mainConnectPromise = null;
+            }
+        }
+        if (mainDb) {return mainDb;}
+    }
+    if (!mainConnectPromise) {
+        mainConnectPromise = mainClient
+            .connect()
+            .then(client => {
+                mainDb = client.db(mainDbName);
+                console.log('[DB] Main database connected:', mainDbName);
+                if (IS_SELFHOST) {
+                    setupConnectionMonitoring();
+                }
+                return mainDb;
+            })
+            .catch(error => {
+                mainConnectPromise = null;
+                console.error('[DB] Main connection failed:', error.message);
+                throw error;
+            });
+    }
+    return mainConnectPromise;
+}
+
+async function connectVault() {
+    if (LOCAL_DB_MODE) {
+        return null;
+    }
+    if (vaultDb) {
+        return vaultDb;
+    }
+    if (!vaultConnectPromise) {
+        vaultConnectPromise = vaultMongoClient
+            .connect()
+            .then(client => {
+                vaultDb = client.db(vaultDbName);
+                return vaultDb;
+            })
+            .catch(error => {
+                vaultConnectPromise = null;
+                throw error;
+            });
+    }
+    return vaultConnectPromise;
+}
+
+async function initializeDatabaseClients() {
+    if (LOCAL_DB_MODE) {
+        return { jarvisDB: null, vaultDB: null };
+    }
+    await Promise.all([connectMain(), connectVault()]);
+    return { jarvisDB: mainDb, vaultDB: vaultDb };
+}
+
+function getJarvisDb() {
+    if (LOCAL_DB_MODE) {return null;}
+    if (!mainDb) {
+        throw new Error(
+            'Main database not connected. Call connectMain or initializeDatabaseClients first.'
+        );
+    }
+    return mainDb;
+}
+
+function getVaultDb() {
+    if (LOCAL_DB_MODE) {return null;}
+    if (!vaultDb) {
+        throw new Error(
+            'Vault database not connected. Call connectVault or initializeDatabaseClients first.'
+        );
+    }
+    return vaultDb;
+}
+
+async function closeMain() {
+    if (mainClient) {
+        await mainClient.close();
+        mainDb = null;
+        mainConnectPromise = null;
+    }
+}
+
+async function closeVault() {
+    if (vaultMongoClient) {
+        await vaultMongoClient.close();
+        vaultDb = null;
+        vaultConnectPromise = null;
+    }
+}
+
+function setupConnectionMonitoring() {
+    if (connectionMonitorInterval) {
+        return;
+    }
+    console.log('[DB] Starting connection monitor for selfhost mode');
+    connectionMonitorInterval = setInterval(async() => {
+        const now = Date.now();
+        if (now - lastConnectionCheck < CONNECTION_CHECK_INTERVAL) {
+            return;
+        }
+        lastConnectionCheck = now;
+        if (mainClient && mainDb) {
+            try {
+                await mainClient.db('admin').command({ ping: 1 });
+            } catch (err) {
+                console.warn('[DB] Main connection check failed, attempting reconnect...');
+                mainDb = null;
+                mainConnectPromise = null;
+                setTimeout(async() => {
+                    try {
+                        await connectMain();
+                        console.log('[DB] Main database reconnected successfully');
+                    } catch (reconnectErr) {
+                        console.error('[DB] Main reconnect failed:', reconnectErr.message);
+                    }
+                }, RECONNECT_DELAY);
+            }
+        }
+        if (vaultMongoClient && vaultDb) {
+            try {
+                await vaultMongoClient.db('admin').command({ ping: 1 });
+            } catch (err) {
+                console.warn('[DB] Vault connection check failed, attempting reconnect...');
+                vaultDb = null;
+                vaultConnectPromise = null;
+                setTimeout(async() => {
+                    try {
+                        await connectVault();
+                        console.log('[DB] Vault database reconnected successfully');
+                    } catch (reconnectErr) {
+                        console.error('[DB] Vault reconnect failed:', reconnectErr.message);
+                    }
+                }, RECONNECT_DELAY);
+            }
+        }
+    }, CONNECTION_CHECK_INTERVAL);
+    connectionMonitorInterval.unref();
+}
+
+function stopConnectionMonitoring() {
+    if (connectionMonitorInterval) {
+        clearInterval(connectionMonitorInterval);
+        connectionMonitorInterval = null;
+    }
+}
 // Cache configuration
 const GUILD_CONFIG_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const GUILD_CONFIG_CACHE_MAX = 200; // Max 200 guilds cached
@@ -373,7 +573,8 @@ class DatabaseManager {
             .collection(config.database.collections.userProfiles)
             .deleteOne({ userId });
         try {
-            await vaultClient.purgeUserMemories(userId);
+            const vaultService = require('./vault-client');
+            await vaultService.purgeUserMemories(userId);
         } catch (error) {
             console.error('Failed to purge vault memories for user', userId, error);
         }
@@ -465,7 +666,8 @@ class DatabaseManager {
             console.error('Failed to purge stored conversations for user', userId, error);
         }
         try {
-            await vaultClient.purgeUserMemories(userId);
+            const vaultService = require('./vault-client');
+            await vaultService.purgeUserMemories(userId);
         } catch (error) {
             console.error('Failed to purge secure memories for user', userId, error);
         }
@@ -584,8 +786,6 @@ class DatabaseManager {
         if (this.guildConfigCache) {
             this.guildConfigCache.delete(guildId);
         }
-        // Also invalidate disk cache
-        guildConfigDiskCache.invalidate(guildId);
     }
     async _patchGuildConfig(guildId, update, options = { upsert: true }) {
         if (!this.isConnected) {throw new Error('Database not connected');}
@@ -986,4 +1186,10 @@ class DatabaseManager {
         }
     }
 }
-module.exports = new DatabaseManager();
+const databaseManager = new DatabaseManager();
+databaseManager.initializeDatabaseClients = initializeDatabaseClients;
+databaseManager.connectVault = connectVault;
+databaseManager.getVaultDb = getVaultDb;
+databaseManager.closeVault = closeVault;
+databaseManager.stopConnectionMonitoring = stopConnectionMonitoring;
+module.exports = databaseManager;

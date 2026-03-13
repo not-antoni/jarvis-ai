@@ -24,7 +24,6 @@ const tempFiles = require('../utils/temp-files');
 const { extractReactionDirective } = require('../utils/react-tags');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
 const { splitMessage } = require('../utils/discord-safe-send');
-const guildConfigDiskCache = require('./guild-config-cache');
 const serverStats = require('./handlers/server-stats');
 const mediaRendering = require('./handlers/media-rendering');
 const templates = require('./handlers/templates');
@@ -84,8 +83,6 @@ class DiscordHandlers {
     constructor() {
         this.jarvis = new JarvisAI();
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
-        this.guildConfigCache = new Map();
-        this.guildConfigTtlMs = 60 * 1000;
         this.autoModRuleName = 'Jarvis Blacklist Filter';
         this.maxAutoModKeywordsPerRule = 1000;
         this.defaultAutoModMessage = 'Jarvis blocked this message for containing prohibited language.';
@@ -300,33 +297,15 @@ class DiscordHandlers {
         return perms.has(PermissionsBitField.Flags.SendMessages) &&
                perms.has(PermissionsBitField.Flags.ViewChannel);
     }
-    invalidateGuildConfig(guildId) {
-        if (guildId) {
-            this.guildConfigCache.delete(guildId);
-        }
-    }
     async getGuildConfig(guild) {
         if (!guild) {
             return null;
-        }
-        const guildId = guild.id;
-        const cached = this.guildConfigCache.get(guildId);
-        if (cached && (Date.now() - cached.fetchedAt) < this.guildConfigTtlMs) {
-            return cached.config;
-        }
-        const diskCached = guildConfigDiskCache.get(guildId);
-        if (diskCached) {
-            this.guildConfigCache.set(guildId, { config: diskCached, fetchedAt: Date.now() });
-            return diskCached;
         }
         if (!database.isConnected) {
             return null;
         }
         try {
-            const guildConfig = await database.getGuildConfig(guild.id, guild.ownerId);
-            this.guildConfigCache.set(guildId, { config: guildConfig, fetchedAt: Date.now() });
-            guildConfigDiskCache.set(guildId, guildConfig);
-            return guildConfig;
+            return await database.getGuildConfig(guild.id, guild.ownerId);
         } catch (error) {
             console.error('Failed to fetch guild configuration:', error);
             return null;
@@ -2117,9 +2096,6 @@ class DiscordHandlers {
                 const guildId = interaction.guild.id;
                 if (disableDefaults !== null) {
                     await userFeatures.setGuildWakeWordsDisabled(guildId, disableDefaults);
-                    this.guildConfigCache.delete(guildId);
-                    const guildConfigDiskCache = require('./guild-config-cache');
-                    guildConfigDiskCache.invalidate(guildId);
                     if (disableDefaults) {
                         await interaction.editReply('Default wake words disabled for this server. I will only respond to custom wake words, personal wake words, or mentions.');
                     } else {
@@ -2129,9 +2105,6 @@ class DiscordHandlers {
                 }
                 if (clear) {
                     await userFeatures.removeGuildWakeWord(guildId);
-                    this.guildConfigCache.delete(guildId);
-                    const guildConfigDiskCache = require('./guild-config-cache');
-                    guildConfigDiskCache.invalidate(guildId);
                     const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(guildId);
                     if (defaultsDisabled) {
                         await interaction.editReply('Server wake word removed. Default wake words are still disabled for this server; I will respond to personal wake words or mentions.');
@@ -2161,9 +2134,6 @@ class DiscordHandlers {
                     await interaction.editReply(result.error);
                     return;
                 }
-                this.guildConfigCache.delete(guildId);
-                const guildConfigDiskCache = require('./guild-config-cache');
-                guildConfigDiskCache.invalidate(guildId);
                 await interaction.editReply(`Server wake word set to **"${result.wakeWord}"**\n\nAnyone in this server can now summon me by saying "${result.wakeWord}". Default triggers ("jarvis" / "garmin") are now disabled for this server.`);
                 return;
             }

@@ -1,6 +1,6 @@
 const crypto = require('crypto');
-const { LRUCache } = require('../utils/lru-cache');
-const { connectVault, getVaultDb } = require('./db');
+const { LRUCache } = require('lru-cache');
+const { connectVault, getVaultDb } = require('./database');
 const config = require('../../config');
 
 // Lazy-loaded master key to avoid crash on startup for selfhosters without vault
