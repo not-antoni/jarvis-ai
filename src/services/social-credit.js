@@ -10,7 +10,7 @@ const BLOCK_THRESHOLD = -100000;    // -100k = blocked
 const ACCEPTABLE_THRESHOLD = 20000; // 20k = acceptable
 const GOOD_THRESHOLD = 100000;      // 100k = fine
 
-// Block duration: 10 minutes
+// Block duration: 10 minutes 
 const BLOCK_DURATION_MS = 2 * 60 * 1000;
 
 // Chance to show credit notification (5%)
@@ -21,14 +21,68 @@ const REACT_CHANCE = 0.08;
 
 // ── Number formatting ──
 
-function formatNumber(n) {
-    const abs = Math.abs(n);
-    const sign = n < 0 ? '-' : '';
-    if (abs >= 1e12) { return sign + (abs / 1e12).toFixed(1).replace(/\.0$/, '') + 'T'; }
-    if (abs >= 1e9)  { return sign + (abs / 1e9).toFixed(1).replace(/\.0$/, '') + 'B'; }
-    if (abs >= 1e6)  { return sign + (abs / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'; }
-    if (abs >= 1e4)  { return sign + (abs / 1e3).toFixed(1).replace(/\.0$/, '') + 'k'; }
-    return n.toLocaleString();
+const SUFFIXES = [
+  { value: 10n**3n,  symbol: "k" },   // thousand
+  { value: 10n**6n,  symbol: "M" },   // million
+  { value: 10n**9n,  symbol: "B" },   // billion
+  { value: 10n**12n, symbol: "T" },   // trillion
+  { value: 10n**15n, symbol: "Qa" },  // quadrillion
+  { value: 10n**18n, symbol: "Qi" },  // quintillion
+  { value: 10n**21n, symbol: "Sx" },  // sextillion
+  { value: 10n**24n, symbol: "Sp" },  // septillion
+  { value: 10n**27n, symbol: "Oc" },  // octillion
+  { value: 10n**30n, symbol: "No" },  // nonillion
+  { value: 10n**33n, symbol: "De" },  // decillion
+  { value: 10n**36n, symbol: "UDe" }, // undecillion
+  { value: 10n**39n, symbol: "DDe" }, // duodecillion
+  { value: 10n**42n, symbol: "TDe" }, // tredecillion
+  { value: 10n**45n, symbol: "QaDe" },// quattuordecillion
+  { value: 10n**48n, symbol: "QiDe" },// quindecillion
+  { value: 10n**51n, symbol: "SxDe" },// sexdecillion
+  { value: 10n**54n, symbol: "SpDe" },// septendecillion
+  { value: 10n**57n, symbol: "OcDe" },// octodecillion
+  { value: 10n**60n, symbol: "NoDe" },// novemdecillion
+  { value: 10n**63n, symbol: "Vg" },  // vigintillion
+  { value: 10n**66n, symbol: "UVg" }, // unvigintillion
+  { value: 10n**69n, symbol: "DVg" }, // duovigintillion
+  { value: 10n**72n, symbol: "TVg" }, // trevigintillion
+  { value: 10n**75n, symbol: "QaVg" },// quattuorvigintillion
+  { value: 10n**78n, symbol: "QiVg" },// quinvigintillion
+  { value: 10n**81n, symbol: "SxVg" },// sexvigintillion
+  { value: 10n**84n, symbol: "SpVg" },// septenvigintillion
+  { value: 10n**87n, symbol: "OcVg" },// octovigintillion
+  { value: 10n**90n, symbol: "NoVg" },// novemvigintillion
+  { value: 10n**93n, symbol: "Tg" },  // trigintillion
+];
+
+function formatNumber(value) {
+  // normalize input
+  let n = typeof value === "bigint" ? value : BigInt(value);
+
+  const sign = n < 0n ? "-" : "";
+  if (n < 0n) n = -n;
+
+  // choose the largest applicable suffix by iterating in reverse order
+  for (let i = SUFFIXES.length - 1; i >= 0; --i) {
+    const { value: threshold, symbol } = SUFFIXES[i];
+    if (n >= threshold) {
+      const whole = n / threshold;
+      const remainder = n % threshold;
+
+      // compute first decimal digit using integer math
+      const decimal = (remainder * 10n) / threshold;
+
+      return (
+        sign +
+        whole.toString() +
+        (decimal > 0n ? "." + decimal.toString() : "") +
+        symbol
+      );
+    }
+  }
+
+  // small numbers → locale formatting
+  return sign + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 // ── Cringe detection ──
@@ -73,33 +127,41 @@ function getCringeLevel(text) {
     if (!text || typeof text !== 'string') { return 0; }
     const lower = text.toLowerCase();
 
-    let score = 0;
+    let score = 0n;
 
     for (const pattern of CRINGE_NUCLEAR) {
         if (pattern.test(text) || pattern.test(lower)) {
-            score += 100;
+            score += 10n;
+            score *= 1000n;
         }
     }
 
     for (const pattern of CRINGE_HIGH) {
         if (pattern.test(text) || pattern.test(lower)) {
-            score += 40;
+            score += 5n;
+            score *= 100n;
         }
     }
 
     for (const pattern of CRINGE_MODERATE) {
         if (pattern.test(text) || pattern.test(lower)) {
-            score += 15;
+            score += 1n;
+            score *= 50n;
         }
     }
 
     // Bonus multiplier: tilde spam
     const tildeCount = (text.match(/~/g) || []).length;
-    if (tildeCount >= 5) { score += 30; }
-    else if (tildeCount >= 2) { score += 10; }
+    if (tildeCount > 1) {
+        score *= (BigInt(tildeCount - 1) ** 2n) // exponential multiplier the more tildes you have
+    }
 
     // Bonus: excessive exclamation/question marks with uwu-adjacent text
-    if (/[!?]{4,}/.test(text) && score > 0) { score += 15; }
+    if (/[!?]{4,}/.test(text) && score > 0) { score += 15n; }
+
+    if (text.includes("Glory to Stark Industries!")) {
+        score *= -1n // Glory to Stark Industries!
+    }
 
     return score;
 }
@@ -107,22 +169,10 @@ function getCringeLevel(text) {
 // ── Credit calculation ──
 
 function rollCreditChange(messageContent) {
-    const cringeScore = getCringeLevel(messageContent);
 
-    // Nuclear cringe: instant obliteration
-    if (cringeScore >= 100) {
-        return -Math.floor(Math.random() * 80000 + 50000); // -50k to -130k
-    }
+    let socialCreditChange = 0n // BIGINT TIME BABYEE
 
-    // High cringe: heavy hit
-    if (cringeScore >= 40) {
-        return -Math.floor(Math.random() * 30000 + 15000); // -15k to -45k
-    }
-
-    // Moderate cringe: noticeable loss
-    if (cringeScore >= 15) {
-        return -Math.floor(Math.random() * 8000 + 2000); // -2k to -10k
-    }
+    socialCreditChange -= getCringeLevel(messageContent)
 
     // Normal message: standard random roll
     const roll = Math.random();
@@ -130,31 +180,31 @@ function rollCreditChange(messageContent) {
         // 0.1%: catastrophic — up to -1 trillion
         const magnitude = [1e9, 1e10, 1e11, 1e12];
         const pick = magnitude[Math.floor(Math.random() * magnitude.length)];
-        return -Math.floor(Math.random() * pick + pick / 10);
+        socialCreditChange -= Math.floor(Math.random() * pick + pick / 10);
     } else if (roll < 0.002) {
         // 0.1%: jackpot — up to +1 billion
         const magnitude = [1e6, 1e7, 1e8, 1e9];
         const pick = magnitude[Math.floor(Math.random() * magnitude.length)];
-        return Math.floor(Math.random() * pick + pick / 10);
+        socialCreditChange += Math.floor(Math.random() * pick + pick / 10);
     } else if (roll < 0.022) {
         // 2%: random big loss (keeps people on their toes)
-        return -Math.floor(Math.random() * 15000 + 5000);
+        socialCreditChange -= Math.floor(Math.random() * 15000 + 5000);
     } else if (roll < 0.06) {
         // 4%: small loss
-        return -Math.floor(Math.random() * 500 + 50);
+        socialCreditChange -= Math.floor(Math.random() * 500 + 50);
     } else if (roll < 0.12) {
         // 6%: big gain
-        return Math.floor(Math.random() * 20000 + 5000);
+        socialCreditChange += Math.floor(Math.random() * 20000 + 5000);
     } else if (roll < 0.30) {
         // 18%: moderate gain
-        return Math.floor(Math.random() * 2000 + 200);
+        socialCreditChange += Math.floor(Math.random() * 2000 + 200);
     } else if (roll < 0.50) {
         // 20%: small gain
-        return Math.floor(Math.random() * 100 + 10);
+        socialCreditChange += Math.floor(Math.random() * 100 + 10);
     }
 
     // 50%: no change
-    return 0;
+    return socialCreditChange;
 }
 
 // ── Passive recovery ──
@@ -211,31 +261,31 @@ function buildNotifyMessage(amount, newScore) {
 // ── Database operations ──
 
 async function getCredit(userId) {
-    if (!database.isConnected) { return { score: 0, blockedUntil: null }; }
+    if (!database.isConnected) { return { score: 0n, blockedUntil: null }; }
     const col = database.getCollection('socialCredit');
-    if (!col) { return { score: 0, blockedUntil: null }; }
+    if (!col) { return { score: 0n, blockedUntil: null }; }
 
     const doc = await col.findOne({ userId });
-    if (!doc) { return { score: 0, blockedUntil: null }; }
-    return { score: doc.score || 0, blockedUntil: doc.blockedUntil || null };
+    if (!doc) { return { score: 0n, blockedUntil: null }; }
+    return { score: BigInt(doc.score) || 0n, blockedUntil: doc.blockedUntil || null };
 }
 
 async function adjustCredit(userId, amount) {
-    if (!database.isConnected) { return 0; }
+    if (!database.isConnected) { return 0n; }
     const col = database.getCollection('socialCredit');
-    if (!col) { return 0; }
+    if (!col) { return 0n; }
 
     const result = await col.findOneAndUpdate(
         { userId },
         {
-            $inc: { score: amount },
+            $inc: { score: BigInt(amount) },
             $set: { lastUpdated: new Date() },
             $setOnInsert: { userId, createdAt: new Date() }
         },
         { upsert: true, returnDocument: 'after' }
     );
 
-    const newScore = result?.score ?? result?.value?.score ?? 0;
+    const newScore = BigInt(result?.score ?? result?.value?.score ?? 0n);
 
     // If they crossed -100k, set the block timer
     if (newScore <= BLOCK_THRESHOLD) {
@@ -258,7 +308,7 @@ async function clearBlock(userId) {
     if (!database.isConnected) { return; }
     const col = database.getCollection('socialCredit');
     if (!col) { return; }
-    await col.updateOne({ userId }, { $set: { blockedUntil: null, score: 0 } });
+    await col.updateOne({ userId }, { $set: { blockedUntil: null, score: 0n } });
 }
 
 function getBlockMessage(credit) {
