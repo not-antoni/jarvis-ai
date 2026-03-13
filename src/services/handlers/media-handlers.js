@@ -86,7 +86,7 @@ async function handleSlashCommandClip(handler, interaction) {
     }
 }
 
-async function fetchAttachmentBuffer(_handler, attachment) {
+async function fetchAttachmentBuffer(attachment) {
     if (!attachment?.url) {
         throw new Error('Attachment missing URL');
     }
@@ -100,7 +100,7 @@ async function fetchAttachmentBuffer(_handler, attachment) {
     return Buffer.from(arrayBuffer);
 }
 
-async function fetchImageFromUrl(_handler, rawUrl, { maxBytes } = {}) {
+async function fetchImageFromUrl(rawUrl, { maxBytes } = {}) {
     if (!rawUrl) {throw new Error('URL required');}
     let url;
     try { url = new URL(rawUrl); } catch { throw new Error('Invalid URL'); }
@@ -211,7 +211,7 @@ async function resolveSlashMediaInput(handler, interaction, { maxBytes = TEN_MB 
             await interaction.editReply(NITRO_LIMIT_MESSAGE);
             return null;
         }
-        const buffer = await handler.fetchAttachmentBuffer(attachment);
+        const buffer = await fetchAttachmentBuffer(attachment);
         if (buffer.length > maxBytes) {
             await interaction.editReply(NITRO_LIMIT_MESSAGE);
             return null;
@@ -220,7 +220,7 @@ async function resolveSlashMediaInput(handler, interaction, { maxBytes = TEN_MB 
     }
 
     if (urlOpt) {
-        const fetched = await handler.fetchImageFromUrl(urlOpt, { maxBytes });
+        const fetched = await fetchImageFromUrl(urlOpt, { maxBytes });
         if (fetched.tooLarge) {
             await interaction.editReply(NITRO_LIMIT_MESSAGE);
             return null;
@@ -365,9 +365,9 @@ async function handleMemeCommand(handler, interaction) {
                 await interaction.editReply("MY poor CPU can't handle that, sir.");
                 return;
             }
-            buffer = await handler.fetchAttachmentBuffer(attachment);
+            buffer = await fetchAttachmentBuffer(attachment);
         } else if (urlOpt) {
-            const fetched = await handler.fetchImageFromUrl(urlOpt, { maxBytes: handler.maxInputBytes });
+            const fetched = await fetchImageFromUrl(urlOpt, { maxBytes: handler.maxInputBytes });
             if (fetched.tooLarge) {
                 await interaction.editReply("MY poor CPU can't handle that, sir.");
                 return;

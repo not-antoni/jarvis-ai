@@ -1,5 +1,11 @@
 'use strict';
 
+const interactionAutocomplete = require('../services/handlers/interaction-autocomplete');
+const interactionDispatch = require('../services/handlers/interaction-dispatch');
+const gameHandlers = require('../services/handlers/game-handlers');
+const memberLog = require('../services/handlers/member-log');
+const messageProcessing = require('../services/handlers/message-processing');
+
 /**
  * Wire Discord client event handlers and process error/shutdown handlers.
  * Called from index.js after client creation.
@@ -22,17 +28,17 @@ function wireEventHandlers(ctx) {
     });
 
     client.on('messageCreate', async message => {
-        await discordHandlers.handleMessage(message, client);
+        await messageProcessing.handleMessage(discordHandlers, message, client);
     });
 
     client.on('interactionCreate', async interaction => {
         try {
             if (interaction.isChatInputCommand() || interaction.isContextMenuCommand()) {
-                await discordHandlers.handleSlashCommand(interaction);
+                await interactionDispatch.handle(discordHandlers, interaction);
             } else if (interaction.isAutocomplete()) {
-                await discordHandlers.handleAutocomplete(interaction);
+                await interactionAutocomplete.handle(discordHandlers, interaction);
             } else if (interaction.isButton() || interaction.isModalSubmit()) {
-                await discordHandlers.handleComponentInteraction(interaction);
+                await gameHandlers.handleComponentInteraction(discordHandlers, interaction);
             }
         } catch (error) {
             console.error('Interaction handler error:', error);
@@ -66,11 +72,11 @@ function wireEventHandlers(ctx) {
     });
 
     client.on('guildMemberAdd', async member => {
-        await discordHandlers.handleGuildMemberAdd(member, client);
+        await memberLog.handleGuildMemberAdd(discordHandlers, member, client);
     });
 
     client.on('guildMemberRemove', async member => {
-        await discordHandlers.handleGuildMemberRemove(member);
+        await memberLog.handleGuildMemberRemove(discordHandlers, member);
     });
 
     client.on('guildMemberUpdate', async(oldMember, newMember) => {

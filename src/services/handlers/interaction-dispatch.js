@@ -6,6 +6,11 @@ const { stripReactionDirectives } = require('../../utils/react-tags');
 const { recordCommandRun } = require('../../utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../../core/command-registry');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
+const automodSlash = require('./automod-slash');
+const gameHandlers = require('./game-handlers');
+const mediaHandlers = require('./media-handlers');
+const memberLog = require('./member-log');
+const memoryHandler = require('./memory-handler');
 const slashSocial = require('./slash-social');
 const slashUtility = require('./slash-utility');
 
@@ -91,7 +96,7 @@ try {
 
     if (commandName === 'clip') {
         shouldSetCooldown = true;
-        const handled = await handler.handleSlashCommandClip(interaction);
+        const handled = await mediaHandlers.handleSlashCommandClip(handler, interaction);
         telemetryMetadata.handled = Boolean(handled);
         return;
     }
@@ -155,7 +160,7 @@ try {
     let response;
 
     if (commandName === 'automod') {
-        await handler.handleAutoModCommand(interaction);
+        await automodSlash.handleAutoModCommand(handler, interaction);
         return;
     }
 
@@ -165,7 +170,7 @@ try {
     }
 
     if (commandName === 'memberlog') {
-        await handler.handleMemberLogCommand(interaction);
+        await memberLog.handleMemberLogCommand(handler, interaction);
         return;
     }
 
@@ -189,12 +194,12 @@ try {
         }
         case 'features': {
             telemetryMetadata.category = 'utilities';
-            await handler.handleFeaturesCommand(interaction);
+            await gameHandlers.handleFeaturesCommand(handler, interaction);
             return;
         }
         case 'memory': {
             telemetryMetadata.category = 'utilities';
-            await handler.handleMemoryCommand(interaction);
+            await memoryHandler.handleMemoryCommand(handler, interaction);
             return;
         }
         case 'remind': {
@@ -209,7 +214,7 @@ try {
         }
         case 'opt': {
             telemetryMetadata.category = 'utilities';
-            await handler.handleOptCommand(interaction);
+            await gameHandlers.handleOptCommand(handler, interaction);
             return;
         }
         case 'wakeword': {
@@ -220,12 +225,12 @@ try {
         // ============ FUN / SOCIAL COMMANDS ============
         case 'caption': {
             telemetryMetadata.category = 'utility';
-            await handler.handleCaptionCommand(interaction);
+            await mediaHandlers.handleCaptionCommand(handler, interaction);
             return;
         }
         case 'gif': {
             telemetryMetadata.category = 'utility';
-            await handler.handleGifCommand(interaction);
+            await mediaHandlers.handleGifCommand(handler, interaction);
             return;
         }
         case 'avatar': {

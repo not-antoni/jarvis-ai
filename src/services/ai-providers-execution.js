@@ -1,38 +1,29 @@
 'use strict';
-
 const sharp = require('sharp');
 const config = require('../../config');
 const { getAIFetch } = require('./ai-proxy');
-
 const aiFetch = getAIFetch();
-
 // ============ OUTPUT SANITIZATION HELPERS ============
-
 function sanitizeModelOutput(text) {
     if (!text || typeof text !== 'string') {return text;}
-
     // 1) Normalize line endings
     let out = text.replace(/\r\n?/g, '\n');
-
     // 2) Remove exact dangerous markup patterns
     out = out.replace(
         /<\/message>\s*<\/start>\s*assistant\s*<\/channel>\s*final\s*<\/message>/gi,
         ' '
     );
     out = out.replace(/<\/channel>\s*final\s*<\/message>/gi, ' ');
-
     // 3) Remove stray partial markers
     out = out.replace(/<start>\s*assistant\b[^>]*>/gi, ' ');
     out = out.replace(/<\/start>\s*assistant\b[^>]*>/gi, ' ');
     out = out.replace(/<\s*\/?channel\b[^>]*>/gi, ' ');
     out = out.replace(/<\s*\/?message\b[^>]*>/gi, ' ');
-
     // 4) Remove suspicious long token ladders
     out = out.replace(
         /\b(Certainly|Absolutely|Certainly!|Sure|Affirmative)[\s\p{P}\-]{0,40}(?:(Certainly|Absolutely|Sure|Affirmative)[\s\p{P}\-]*){1,}/giu,
         '$1'
     );
-
     // 5) Transliterate common Unicode punctuation to ASCII equivalents
     out = out
         .replace(/[\u2018\u2019]/g, "'")
@@ -47,18 +38,14 @@ function sanitizeModelOutput(text) {
         .replace(/\u2260/g, '!=')
         .replace(/\u2264/g, '<=')
         .replace(/\u2265/g, '>=');
-
     // 6) Strip control characters but keep Unicode text and emojis
     out = out.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-
     // 7) Collapse multiple spaces on same line, but preserve single newlines
     out = out.replace(/[^\S\n]+/g, ' ');
     out = out.replace(/\n{3,}/g, '\n\n');
     out = out.trim();
-
     return out;
 }
-
 function cleanThinkingOutput(text) {
     if (!text || typeof text !== 'string') {return text;}
     return text
@@ -68,17 +55,14 @@ function cleanThinkingOutput(text) {
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 }
-
 function extractFinalPayload(text) {
     if (!text || typeof text !== 'string') {return text;}
     return text.trim();
 }
-
 function stripWrappingQuotes(text) {
     if (!text || typeof text !== 'string') {return text;}
     const trimmed = text.trim();
     if (!trimmed) {return trimmed;}
-
     const pairs = [
         ['"', '"'],
         ['\u201C', '\u201D'],
@@ -86,18 +70,14 @@ function stripWrappingQuotes(text) {
         ['\u00AB', '\u00BB'],
         ["'", "'"]
     ];
-
     for (const [start, end] of pairs) {
         if (!trimmed.startsWith(start) || !trimmed.endsWith(end)) {
             continue;
         }
-
         if (trimmed.length < start.length + end.length) {
             continue;
         }
-
         const inner = trimmed.slice(start.length, trimmed.length - end.length);
-
         // Only strip if the outer quotes are the only instances of this quote pair.
         if (start === end) {
             const occurrences = trimmed.split(start).length - 1;
@@ -111,13 +91,10 @@ function stripWrappingQuotes(text) {
                 continue;
             }
         }
-
         return inner.trim();
     }
-
     return trimmed;
 }
-
 function stripJarvisSpeakerPrefix(text) {
     if (!text || typeof text !== 'string') {return text;}
     let trimmed = text.trim();
@@ -130,7 +107,6 @@ function stripJarvisSpeakerPrefix(text) {
     }
     return trimmed;
 }
-
 function stripTrailingChannelArtifacts(text) {
     if (!text || typeof text !== 'string') {return text;}
     let trimmed = text.trim();
@@ -140,7 +116,6 @@ function stripTrailingChannelArtifacts(text) {
     }
     return trimmed;
 }
-
 function stripLeadingPromptLeaks(text) {
     if (!text || typeof text !== 'string') {return text;}
     let trimmed = text.trim();
@@ -158,7 +133,6 @@ function stripLeadingPromptLeaks(text) {
     }
     return trimmed;
 }
-
 function sanitizeAssistantMessage(text) {
     if (!text || typeof text !== 'string') {return text;}
     const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(text);
@@ -170,9 +144,7 @@ function sanitizeAssistantMessage(text) {
         : withoutPrefix;
     return stripWrappingQuotes(withoutChannelArtifacts);
 }
-
 // ============ EXECUTION ENGINE ============
-
 /**
  * Core generation execution - tries each provider in order with retry logic.
  * @param {AIProviderManager} manager - The provider manager instance
@@ -187,7 +159,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
         }
         console.log(`Reinitialized ${manager.providers.length} AI providers`);
     }
-
     let candidates;
     if (manager.useRandomSelection) {
         const randomProvider = manager._getRandomProvider();
@@ -198,9 +169,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
     } else {
         candidates = manager._rankedProviders();
     }
-
     let lastError = null;
-
     for (const provider of candidates) {
         const started = Date.now();
         const selectionType =
@@ -212,11 +181,9 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
         console.log(
             `Attempting AI request with ${provider.name} (${provider.model}) [${selectionType}] ${providerTypeInfo}`
         );
-
         const callOnce = async() => {
             if (provider.type === 'google') {
                 const model = provider.client.getGenerativeModel({ model: provider.model });
-
                 let result;
                 try {
                     result = await model.generateContent({
@@ -243,30 +210,25 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                                 : 502);
                     throw Object.assign(new Error(`Gemini error: ${errorMessage}`), { status });
                 }
-
                 const response = result?.response;
-
                 const blockReason = response?.promptFeedback?.blockReason;
                 if (blockReason) {
                     throw Object.assign(new Error(`Gemini blocked: ${blockReason}`), {
                         status: 400
                     });
                 }
-
                 const finishReason = response?.candidates?.[0]?.finishReason;
                 if (finishReason === 'SAFETY') {
                     throw Object.assign(new Error('Gemini safety filter triggered'), {
                         status: 400
                     });
                 }
-
                 let text = null;
                 try {
                     text = typeof response?.text === 'function' ? response.text() : null;
                 } catch (textError) {
                     console.warn(`Gemini text() extraction failed: ${textError.message}`);
                 }
-
                 if (!text || !text.trim()) {
                     const fallbackParts =
                         response?.candidates?.flatMap(
@@ -288,7 +250,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                         .join('\n')
                         .trim();
                 }
-
                 if (!text) {
                     const debugInfo = finishReason ? ` (finishReason: ${finishReason})` : '';
                     throw Object.assign(
@@ -298,7 +259,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                         { status: 502 }
                     );
                 }
-
                 let cleaned = sanitizeAssistantMessage(text);
                 if (!cleaned && text) {
                     cleaned = text.trim();
@@ -309,19 +269,15 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                         { status: 502 }
                     );
                 }
-
                 return { choices: [{ message: { content: cleaned } }] };
             }
-
             // ---------- Ollama native API handler ----------
             if (provider.type === 'ollama') {
                 const ollamaEndpoint = `${provider.baseURL}/chat`;
-
                 const messages = [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
                 ];
-
                 const requestBody = {
                     model: provider.model,
                     messages,
@@ -332,31 +288,25 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                         num_predict: maxTokens
                     }
                 };
-
                 const headers = {
                     'Content-Type': 'application/json'
                 };
-
                 if (provider.apiKey) {
                     headers['Authorization'] = `Bearer ${provider.apiKey}`;
                 }
-
                 const response = await aiFetch(ollamaEndpoint, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify(requestBody)
                 });
-
                 if (!response.ok) {
                     const errorText = await response.text().catch(() => 'Unknown error');
                     throw Object.assign(new Error(`Ollama error: ${errorText}`), {
                         status: response.status
                     });
                 }
-
                 const ollamaResp = await response.json();
                 const ollamaContent = ollamaResp?.message?.content;
-
                 if (!ollamaContent || !String(ollamaContent).trim()) {
                     console.warn(
                         `[Ollama] Empty response from ${provider.name}:`,
@@ -367,7 +317,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                         { status: 502, transient: true }
                     );
                 }
-
                 const cleaned = sanitizeAssistantMessage(String(ollamaContent));
                 if (!cleaned) {
                     throw Object.assign(
@@ -375,7 +324,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                         { status: 502, transient: true }
                     );
                 }
-
                 return {
                     choices: [{ message: { content: cleaned } }],
                     usage: {
@@ -384,16 +332,13 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                     }
                 };
             }
-
             // ---------- Cloudflare Workers AI handler ----------
             if (provider.type === 'cloudflare-worker') {
                 const cfEndpoint = `${provider.workerUrl}/api/chat`;
-
                 const messages = [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
                 ];
-
                 const response = await aiFetch(cfEndpoint, {
                     method: 'POST',
                     headers: {
@@ -402,18 +347,15 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                     },
                     body: JSON.stringify({ messages, max_tokens: maxTokens })
                 });
-
                 if (!response.ok) {
                     const errorText = await response.text().catch(() => 'Unknown error');
                     throw Object.assign(new Error(`Cloudflare AI error: ${errorText}`), {
                         status: response.status
                     });
                 }
-
                 // Handle SSE stream - collect all chunks
                 const text = await response.text();
                 let fullContent = '';
-
                 const lines = text.split('\n');
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
@@ -427,21 +369,18 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                         } catch { }
                     }
                 }
-
                 if (!fullContent.trim()) {
                     throw Object.assign(
                         new Error('Empty response from Cloudflare AI'),
                         { status: 502, transient: true }
                     );
                 }
-
                 const cleaned = sanitizeAssistantMessage(fullContent);
                 return {
                     choices: [{ message: { content: cleaned } }],
                     usage: { prompt_tokens: 0, completion_tokens: 0 }
                 };
             }
-
             // OpenAI-compatible providers (OpenRouter, Groq, DeepSeek via Vercel AI Gateway)
             const resp = await provider.client.chat.completions.create({
                 model: provider.model,
@@ -459,7 +398,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                     status: 502
                 });
             }
-
             const sanitized = sanitizeAssistantMessage(String(text));
             if (!sanitized) {
                 throw Object.assign(
@@ -470,7 +408,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
             resp.choices[0].message.content = sanitized;
             return resp;
         };
-
         try {
             const retryAttempts = Math.max(0, Number(config.ai?.retryAttempts || 0));
             const resp = await manager._retry(callOnce, {
@@ -479,21 +416,16 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                 jitter: retryAttempts > 0,
                 providerName: provider.name
             });
-
             const latency = Date.now() - started;
             manager._recordMetric(provider.name, true, latency);
-
             if (provider.name.startsWith('OpenRouter')) {
                 manager.openRouterFailureCount = 0;
             }
-
             // Reset failure count on success (for exponential backoff)
             if (manager.providerFailureCounts.has(provider.name)) {
                 manager.providerFailureCounts.delete(provider.name);
             }
-
             console.log(`Success with ${provider.name} (${provider.model}) in ${latency}ms`);
-
             // Track tokens from response
             manager.totalRequests++;
             manager.successfulRequests++;
@@ -504,7 +436,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                 manager.totalTokensOut += tokensOut;
             }
             manager.scheduleStateSave();
-
             const raw =
                 resp &&
                     resp.choices &&
@@ -514,14 +445,12 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                     ? String(resp.choices[0].message.content)
                     : '';
             const cleaned = sanitizeAssistantMessage(raw);
-
             // Detect truncated responses (hit max_tokens limit)
             const finishReason = resp?.choices?.[0]?.finish_reason;
             const wasTruncated = finishReason === 'length';
             if (wasTruncated) {
                 console.warn(`[AIProviderManager] Response from ${provider.name} was truncated (finish_reason=length)`);
             }
-
             return {
                 content: cleaned,
                 provider: provider.name,
@@ -540,18 +469,15 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                 status: error.status
             });
             manager.scheduleStateSave();
-
             console.error(
                 `Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`
             );
             lastError = error;
-
             // Disable logic (circuit breaker) - uses exponential backoff
             const shouldDisable = !error.transient;
             if (shouldDisable) {
                 const currentFailures = (manager.providerFailureCounts.get(provider.name) || 0) + 1;
                 manager.providerFailureCounts.set(provider.name, currentFailures);
-
                 const backoffDurations = [
                     5 * 60 * 1000,      // 1st failure: 5 minutes
                     15 * 60 * 1000,     // 2nd failure: 15 minutes
@@ -563,12 +489,10 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                 const durationLabel = disableDuration >= 60 * 60 * 1000
                     ? `${disableDuration / (60 * 60 * 1000)}h`
                     : `${disableDuration / (60 * 1000)}m`;
-
                 manager.disabledProviders.set(provider.name, Date.now() + disableDuration);
                 manager.scheduleStateSave();
                 console.log(`${provider.name} disabled for ${durationLabel} (failure #${currentFailures})`);
             }
-
             // Track OpenRouter consecutive empties to toggle global failure
             const isEmptyResponse = String(error.message || '')
                 .toLowerCase()
@@ -590,7 +514,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                         );
                         manager.scheduleStateSave();
                     };
-
                     // Canary after 5 minutes to re-enable sooner if transient
                     setTimeout(
                         () => {
@@ -620,12 +543,9 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
             }
         }
     }
-
     throw new Error(`All AI providers failed: ${lastError?.message || 'Unknown error'}`);
 }
-
 // ============ IMAGE/VISION PIPELINE ============
-
 /**
  * Generate a response with image support (for vision-capable models like Ollama).
  * @param {AIProviderManager} manager - The provider manager instance
@@ -645,16 +565,13 @@ async function generateResponseWithImages(
     options = {}
 ) {
     const { allowModerationOnly = false } = options;
-
     // If no images, fall back to regular generateResponse
     if (!images || images.length === 0) {
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);
     }
-
     // Ensure prompts are strings
     systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
     userPrompt = userPrompt != null ? String(userPrompt) : '';
-
     // Safety check: reinitialize providers if somehow empty
     if (manager.providers.length === 0) {
         console.warn('Provider list was empty - reinitializing providers...');
@@ -663,19 +580,16 @@ async function generateResponseWithImages(
             throw new Error('No AI providers available - check API key configuration');
         }
     }
-
     // Filter for providers that support images (Ollama with vision models)
     const imageCapableProviders = manager.providers.filter(
         p => p.supportsImages && p.type === 'ollama' && (allowModerationOnly || !p.moderationOnly)
     );
-
     if (imageCapableProviders.length === 0) {
         console.warn(
             `No image-capable providers available (moderationOnly=${  allowModerationOnly  }), falling back to text-only response`
         );
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);
     }
-
     // Download and convert images to base64
     const base64Images = [];
     for (const image of images) {
@@ -689,23 +603,19 @@ async function generateResponseWithImages(
                 'image/gif'
             ];
             const contentType = image.contentType || '';
-
             const response = await aiFetch(imageUrl);
             if (!response.ok) {
                 console.warn(`Failed to fetch image: ${imageUrl}`);
                 continue;
             }
-
             const arrayBuffer = await response.arrayBuffer();
             let buffer = Buffer.from(arrayBuffer);
-
             // Prevent OOM from malicious large images (10MB limit)
             const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
             if (buffer.length > MAX_IMAGE_SIZE_BYTES) {
                 console.warn(`Image too large (${(buffer.length / 1024 / 1024).toFixed(1)}MB), skipping: ${imageUrl}`);
                 continue;
             }
-
             // Check content type from response or URL extension
             let mimeType = response.headers.get('content-type') || contentType;
             if (!mimeType) {
@@ -719,12 +629,10 @@ async function generateResponseWithImages(
                 };
                 mimeType = extMap[ext] || 'image/jpeg';
             }
-
             if (!supportedTypes.some(t => mimeType.includes(t.split('/')[1]))) {
                 console.warn(`Unsupported image type: ${mimeType}`);
                 continue;
             }
-
             // For GIFs, extract the first frame and convert to PNG
             if (mimeType.includes('gif')) {
                 try {
@@ -736,27 +644,22 @@ async function generateResponseWithImages(
                     console.warn(`Failed to extract GIF frame: ${gifErr.message}`);
                 }
             }
-
             const base64 = buffer.toString('base64');
             base64Images.push(base64);
         } catch (err) {
             console.warn(`Error processing image: ${err.message}`);
         }
     }
-
     if (base64Images.length === 0) {
         console.warn('No valid images could be processed, falling back to text-only response');
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);
     }
-
     let lastError = null;
-
     // Check how many are actually available (not disabled)
     const availableProviders = imageCapableProviders.filter(p => {
         const disabledUntil = manager.disabledProviders.get(p.name);
         return !disabledUntil || disabledUntil <= Date.now();
     });
-
     if (availableProviders.length === 0 && imageCapableProviders.length > 0) {
         console.warn(
             `All ${imageCapableProviders.length} Ollama providers are temporarily disabled, clearing disabled state...`
@@ -765,25 +668,20 @@ async function generateResponseWithImages(
             manager.disabledProviders.delete(p.name);
         }
     }
-
     for (const provider of imageCapableProviders) {
         const started = Date.now();
         const disabledUntil = manager.disabledProviders.get(provider.name);
         if (disabledUntil && disabledUntil > Date.now()) {continue;}
-
         console.log(
             `Attempting image request with ${provider.name} (${provider.model}) [${base64Images.length} image(s)]`
         );
-
         try {
             if (provider.type === 'ollama') {
                 const ollamaEndpoint = `${provider.baseURL}/chat`;
-
                 const messages = [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt, images: base64Images }
                 ];
-
                 const requestBody = {
                     model: provider.model,
                     messages,
@@ -794,27 +692,21 @@ async function generateResponseWithImages(
                         num_predict: maxTokens
                     }
                 };
-
                 const headers = {
                     'Content-Type': 'application/json'
                 };
-
                 if (provider.apiKey) {
                     headers['Authorization'] = `Bearer ${provider.apiKey}`;
                 }
-
                 console.log(
                     `[Ollama Vision] POST ${ollamaEndpoint} | model: ${provider.model} | images: ${base64Images.length} | img size: ${base64Images[0]?.length || 0} chars`
                 );
-
                 const response = await aiFetch(ollamaEndpoint, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify(requestBody)
                 });
-
                 console.log(`[Ollama Vision] Response status: ${response.status}`);
-
                 if (!response.ok) {
                     const errorText = await response.text().catch(() => 'Unknown error');
                     console.error(`[Ollama Vision] Error: ${errorText.slice(0, 500)}`);
@@ -822,10 +714,8 @@ async function generateResponseWithImages(
                         status: response.status
                     });
                 }
-
                 const ollamaResp = await response.json();
                 const ollamaContent = ollamaResp?.message?.content;
-
                 if (!ollamaContent || !String(ollamaContent).trim()) {
                     console.warn(
                         `[Ollama Vision] Empty response from ${provider.name}:`,
@@ -836,9 +726,7 @@ async function generateResponseWithImages(
                         { status: 502, transient: true }
                     );
                 }
-
                 console.log(`[Ollama Vision] Success, content length: ${ollamaContent.length}`);
-
                 const cleaned = sanitizeAssistantMessage(String(ollamaContent));
                 if (!cleaned) {
                     throw Object.assign(
@@ -846,22 +734,18 @@ async function generateResponseWithImages(
                         { status: 502 }
                     );
                 }
-
                 const latency = Date.now() - started;
                 manager._recordMetric(provider.name, true, latency);
                 manager.totalRequests++;
                 manager.successfulRequests++;
-
                 const tokensIn = ollamaResp?.prompt_eval_count || 0;
                 const tokensOut = ollamaResp?.eval_count || 0;
                 manager.totalTokensIn += tokensIn;
                 manager.totalTokensOut += tokensOut;
                 manager.scheduleStateSave();
-
                 console.log(
                     `Success with ${provider.name} (${provider.model}) [image] in ${latency}ms`
                 );
-
                 return {
                     content: cleaned,
                     provider: provider.name,
@@ -881,19 +765,16 @@ async function generateResponseWithImages(
                 status: error.status
             });
             manager.scheduleStateSave();
-
             console.error(
                 `Failed with ${provider.name} (${provider.model}) [image] after ${latency}ms: ${error.message}`
             );
             lastError = error;
-
             // Only disable provider for hard failures, not transient ones
             if (!error.transient) {
                 manager.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
             }
         }
     }
-
     // If all image providers failed, try without images as fallback
     console.warn(
         `All image-capable providers failed (last error: ${lastError?.message}), attempting text-only fallback`
@@ -904,7 +785,6 @@ async function generateResponseWithImages(
         maxTokens
     );
 }
-
 module.exports = {
     executeGeneration,
     generateResponseWithImages,

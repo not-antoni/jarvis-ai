@@ -10,9 +10,16 @@ const { commandList: musicCommandList } = require('./music');
 const { commandFeatureMap } = require('../core/command-registry');
 const { isFeatureGloballyEnabled } = require('../core/feature-flags');
 
+const DEFAULT_CONTEXTS = [
+    InteractionContextType.Guild,
+    InteractionContextType.BotDM,
+    InteractionContextType.PrivateChannel
+];
+const withCtx = builder => builder.setContexts(DEFAULT_CONTEXTS);
+
 // ------------------------ Slash Command Registration ------------------------
 const allCommands = [
-    new SlashCommandBuilder()
+    withCtx(new SlashCommandBuilder()
         .setName('jarvis')
         .setDescription("Interact with Jarvis, Tony Stark's AI assistant")
         .addStringOption(option =>
@@ -24,28 +31,16 @@ const allCommands = [
                 .setDescription('Optional image for Jarvis to analyze (jpg, png, webp)')
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('status')
         .setDescription("Check Jarvis's system status")
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('ping')
         .setDescription('Check bot latency and system vitals')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('features')
         .setDescription('Show or toggle Jarvis modules for this server')
         .addStringOption(opt =>
@@ -60,24 +55,16 @@ const allCommands = [
                 .setDescription('Enable or disable the feature (used with toggle)')
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('yt')
         .setDescription('Search YouTube for a video')
         .addStringOption(option =>
             option.setName('query').setDescription('Video search terms').setRequired(true)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
+    ),
     // ============ FUN COMMANDS ============
-    new SlashCommandBuilder()
+    withCtx(new SlashCommandBuilder()
         .setName('ship')
         .setDescription('Calculate compatibility between two people')
         .addUserOption(option =>
@@ -86,12 +73,8 @@ const allCommands = [
         .addUserOption(option =>
             option.setName('person2').setDescription('Second person').setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('opt')
         .setDescription('Manage whether Jarvis retains your memories')
         .addStringOption(option =>
@@ -104,12 +87,8 @@ const allCommands = [
                     { name: 'Opt out of memory storage', value: 'out' }
                 )
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('memory')
         .setDescription('Inspect your stored Jarvis memories')
         .addIntegerOption(option =>
@@ -120,36 +99,20 @@ const allCommands = [
                 .setMinValue(1)
                 .setMaxValue(30)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('clear')
         .setDescription('Clear your conversation history with Jarvis')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('help')
         .setDescription('Show Jarvis command overview')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('invite')
         .setDescription('Grab the Jarvis HQ support server invite')
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('profile')
         .setDescription('View or update your Jarvis profile')
         .addSubcommand(subcommand =>
@@ -172,12 +135,8 @@ const allCommands = [
                         .setRequired(true)
                 )
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('history')
         .setDescription('Review your recent prompts')
         .addIntegerOption(option =>
@@ -186,12 +145,8 @@ const allCommands = [
                 .setDescription('How many prompts to show (max 20)')
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('digest')
         .setDescription('Summarize recent activity for this server')
         .addStringOption(option =>
@@ -213,12 +168,8 @@ const allCommands = [
                 .setMinValue(3)
                 .setMaxValue(10)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('news')
         .setDescription('Fetch curated headlines for a topic')
         .addStringOption(option =>
@@ -241,12 +192,8 @@ const allCommands = [
                 .setDescription('Bypass cache and fetch fresh headlines')
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('clip')
         .setDescription('Clip a message into an image')
         .addStringOption(option =>
@@ -255,12 +202,8 @@ const allCommands = [
                 .setDescription('ID of the message to clip')
                 .setRequired(true)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('caption')
         .setDescription('Add a meme caption above an image')
         .addStringOption(option =>
@@ -279,12 +222,8 @@ const allCommands = [
         .addAttachmentOption(option =>
             option.setName('image').setDescription('Image to caption').setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('gif')
         .setDescription('Convert an image or GIF into a GIF file')
         .addStringOption(option =>
@@ -296,12 +235,8 @@ const allCommands = [
         .addAttachmentOption(option =>
             option.setName('image').setDescription('Image to convert').setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('avatar')
         .setDescription("Get a user's avatar")
         .addUserOption(option =>
@@ -313,12 +248,8 @@ const allCommands = [
                 .setDescription('Use server avatar (guild only)')
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('banner')
         .setDescription("Get a user's banner")
         .addUserOption(option =>
@@ -330,11 +261,7 @@ const allCommands = [
                 .setDescription('Use server banner (guild only)')
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
+    ),
     new SlashCommandBuilder()
         .setName('automod')
         .setDescription('Configure Jarvis auto moderation')
@@ -565,7 +492,7 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild]),
     // ============ USER FEATURES ============
-    new SlashCommandBuilder()
+    withCtx(new SlashCommandBuilder()
         .setName('remind')
         .setDescription('Set a reminder for later')
         .addSubcommand(sub =>
@@ -594,12 +521,8 @@ const allCommands = [
                     opt.setName('id').setDescription('Reminder ID to cancel').setRequired(true)
                 )
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('timezone')
         .setDescription('Set your timezone for reminders and time displays')
         .addStringOption(opt =>
@@ -610,12 +533,8 @@ const allCommands = [
                 )
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
-    new SlashCommandBuilder()
+    ),
+    withCtx(new SlashCommandBuilder()
         .setName('wakeword')
         .setDescription('Set a custom wake word that triggers Jarvis for you or your server')
         .addStringOption(opt =>
@@ -646,11 +565,7 @@ const allCommands = [
                 .setDescription('Disable default wake words (jarvis/garmin) for this server')
                 .setRequired(false)
         )
-        .setContexts([
-            InteractionContextType.Guild,
-            InteractionContextType.BotDM,
-            InteractionContextType.PrivateChannel
-        ]),
+    ),
     new SlashCommandBuilder()
         .setName('userinfo')
         .setDescription('Get detailed information about a user')
