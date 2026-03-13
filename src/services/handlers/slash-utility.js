@@ -236,8 +236,10 @@ async function handleJarvis(interaction, jarvis) {
 
     // ── Social Credit roll ──
     try {
-        const cringeScore = socialCredit.getCringeLevel(prompt);
-        let creditChange = socialCredit.rollCreditChange(prompt);
+        const rawPrompt = typeof prompt === 'string' ? prompt : '';
+        const cringeInput = socialCredit.stripBotMentions(rawPrompt, interaction.client);
+        const cringeScore = socialCredit.getCringeLevel(cringeInput);
+        let creditChange = socialCredit.rollCreditChange(rawPrompt, interaction.client);
         if (cringeScore < 15 && userCredit.score < 0) {
             creditChange += socialCredit.getRecoveryBonus(userCredit.score);
         }
