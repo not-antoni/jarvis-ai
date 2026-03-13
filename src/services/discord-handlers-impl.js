@@ -2698,7 +2698,7 @@ class DiscordHandlers {
                 if (cringeScore < 15 && userCredit.score < 0) {
                     creditChange += socialCredit.getRecoveryBonus(userCredit.score);
                 }
-                if (creditChange !== 0n) {
+                if (creditChange != 0n) {
                     const newScore = await socialCredit.adjustCredit(message.author.id, creditChange);
 
                     if (socialCredit.shouldReact(cringeScore)) {

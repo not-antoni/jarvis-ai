@@ -212,19 +212,22 @@ function rollCreditChange(messageContent) {
 function getRecoveryBonus(currentScore) {
     if (currentScore >= 0) { return 0n; }
     // Recover 2% of deficit per message, min 100, max 5000
-    return BigInt(Math.min(5000, Math.max(100, Math.floor(Math.abs(currentScore) * 0.02))));
+    const absScore = -currentScore;
+    const recovery = Number(absScore) * 0.02;
+    return BigInt(Math.min(5000, Math.max(100, Math.floor(recovery))));
 }
 
 // ── Notification logic ──
 
 function shouldNotify(amount, cringeScore) {
-    if (amount === 0) { return false; }
+    if (amount === 0n) { return false; }
 
     // Always notify on cringe detections
     if (cringeScore >= 15) { return true; }
 
     // Always notify on extreme changes
-    if (Math.abs(amount) >= 10000) { return true; }
+    const absAmount = amount < 0n ? -amount : amount;
+    if (absAmount >= 10000n) { return true; }
 
     // 5% chance for normal changes
     return Math.random() < NOTIFY_CHANCE;
@@ -241,12 +244,13 @@ function shouldReact(cringeScore) {
 }
 
 function buildNotifyMessage(amount, newScore) {
-    const fmtAmount = formatNumber(Math.abs(amount));
-    const emoji = amount > 0 ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
-    const spamCount = Math.abs(amount) >= 1e9 ? 7 : Math.abs(amount) >= 1e6 ? 6 : Math.abs(amount) >= 30000 ? 5 : Math.abs(amount) >= 10000 ? 3 : Math.abs(amount) >= 3000 ? 2 : 1;
+    const absAmount = amount < 0n ? -amount : amount;
+    const fmtAmount = formatNumber(absAmount);
+    const emoji = amount > 0n ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
+    const spamCount = absAmount >= 1000000000n ? 7 : absAmount >= 1000000n ? 6 : absAmount >= 30000n ? 5 : absAmount >= 10000n ? 3 : absAmount >= 3000n ? 2 : 1;
     const emojiSpam = emoji.repeat(spamCount);
 
-    const sign = amount > 0 ? '+' : '-';
+    const sign = amount > 0n ? '+' : '-';
     let msg = `${emojiSpam} ${sign}${fmtAmount} social credit ${emojiSpam}`;
 
     if (newScore <= -50000) {
@@ -275,10 +279,11 @@ async function adjustCredit(userId, amount) {
     const col = database.getCollection('socialCredit');
     if (!col) { return 0n; }
 
-    const credit = await col.findOne({ userId })
-    var newSocialCredit = BigInt(doc.score) += BigInt(amount)
+    const doc = await col.findOne({ userId });
+    const currentScore = doc ? BigInt(doc.score) : 0n;
+    const newSocialCredit = currentScore + BigInt(amount);
 
-    console.logg(BigInt(doc.score), BigInt(amount))
+    console.log(currentScore, BigInt(amount));
 
     const result = await col.findOneAndUpdate(
         { userId },
