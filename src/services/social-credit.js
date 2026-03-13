@@ -311,7 +311,7 @@ async function clearBlock(userId) {
     if (!database.isConnected) { return; }
     const col = database.getCollection('socialCredit');
     if (!col) { return; }
-    await col.updateOne({ userId }, { $set: { blockedUntil: null, score: 0n } });
+    await col.updateOne({ userId }, { $set: { blockedUntil: null, score: (0n).toString() } });
 }
 
 function getBlockMessage(credit) {
