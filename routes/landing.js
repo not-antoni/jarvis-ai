@@ -281,7 +281,7 @@ const LANDING_PAGE = `
                     <div class="stat-label">AI Models</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number">50</div>
+                    <div class="stat-number">30+</div>
                     <div class="stat-label">Commands</div>
                 </div>
                 <div class="stat-item">
@@ -300,6 +300,7 @@ const LANDING_PAGE = `
         <div class="footer-links">
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>
+            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank" rel="noreferrer">Repo</a>
         </div>
         <p class="footer-copy">© 2026 Jarvis • Made with love for Discord</p>
     </footer>

@@ -288,9 +288,7 @@ async function registerSlashCommands() {
 }
 
 // ------------------------ Express Server ------------------------
-const {
-    app, dashboardRouter
-} = createExpressApp({ webhookRouter, database });
+const { app } = createExpressApp({ webhookRouter, database });
 
 // ------------------------ Event Handlers ------------------------
 client.once(Events.ClientReady, async() => {
@@ -328,24 +326,16 @@ client.once(Events.ClientReady, async() => {
         }
     })();
 
-    // Initialize dashboard with Discord client for real-time stats
-    dashboardRouter.setDiscordClient(client);
-    dashboardRouter.addLog('success', 'Discord', `Bot online: ${client.user.tag}`);
-    dashboardRouter.addLog('info', 'System', `Serving ${client.guilds.cache.size} guilds`);
-
     // Initialize yt-dlp for YouTube fallback (auto-updates from GitHub)
     try {
         const ytDlpReady = await ytDlpManager.initialize();
         if (ytDlpReady) {
             const status = ytDlpManager.getStatus();
-            dashboardRouter.addLog('success', 'yt-dlp', `Ready: ${status.currentVersion}`);
             console.log(`[yt-dlp] Initialized successfully: ${status.currentVersion}`);
         } else {
-            dashboardRouter.addLog('warning', 'yt-dlp', 'Failed to initialize');
         }
     } catch (error) {
         console.error('[yt-dlp] Initialization error:', error.message);
-        dashboardRouter.addLog('error', 'yt-dlp', error.message);
     }
 
     let databaseConnected = database.isConnected;
@@ -426,7 +416,7 @@ client.once(Events.ClientReady, async() => {
 
 const { wireEventHandlers } = require('./src/server/event-wiring');
 wireEventHandlers({
-    client, discordHandlers, dashboardRouter,
+    client, discordHandlers,
     aiManager, database, cron,
     serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
 });

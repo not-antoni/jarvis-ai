@@ -6,20 +6,6 @@ const { getAIFetch } = require('./ai-proxy');
 
 const aiFetch = getAIFetch();
 
-// Lazy-loaded dashboard module for token tracking (avoids require in hot path)
-let _dashboard = null;
-function getDashboard() {
-    if (_dashboard === undefined) {return null;} // Already tried and failed
-    if (_dashboard) {return _dashboard;}
-    try {
-        _dashboard = require('../../routes/dashboard');
-        return _dashboard;
-    } catch (e) {
-        _dashboard = undefined; // Mark as unavailable
-        return null;
-    }
-}
-
 // ============ OUTPUT SANITIZATION HELPERS ============
 
 function sanitizeModelOutput(text) {
@@ -518,12 +504,6 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
                 manager.totalTokensOut += tokensOut;
             }
             manager.scheduleStateSave();
-
-            // Notify dashboard of token usage
-            const dashboard = getDashboard();
-            if (dashboard?.trackTokens) {
-                dashboard.trackTokens(tokensIn, tokensOut);
-            }
 
             const raw =
                 resp &&
