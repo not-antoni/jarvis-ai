@@ -26,7 +26,6 @@ Native Discord voice playback via `@discordjs/voice` + `yt-dlp`.
 - **Fast Start**: Live `yt-dlp -> ffmpeg` stream path with automatic fallback
 
 ### Moderation
-- **Auto-Moderation**: AI-powered with batch analysis, auto-escalation, cross-guild threat sharing
 - **Server Stats**: Auto-updating stat channels
 - **Member Log**: Join/leave announcements
 
@@ -177,12 +176,6 @@ node scripts/migrate-to-local.js --clone    # Full clone: Remote -> Local
 ---
 
 ## Troubleshooting
-
-### Leaderboard "Squares" (Missing Fonts)
-```bash
-sudo dnf install -y google-noto-sans-fonts dejavu-sans-fonts google-noto-emoji-fonts
-fc-cache -fv && pm2 restart jarvis
-```
 
 ### Music - Python Version Error
 yt-dlp requires Python 3.10+. Fix: `sudo dnf install -y python3.11 && sudo alternatives --set python3 /usr/bin/python3.11`
