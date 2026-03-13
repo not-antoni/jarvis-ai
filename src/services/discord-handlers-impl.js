@@ -1838,9 +1838,10 @@ class DiscordHandlers {
             }
             let creditSuffix = '';
             try {
-                const cringeInput = socialCredit.stripBotMentions(fullContent, client);
+                const rawCreditContent = typeof message.content === 'string' ? message.content : '';
+                const cringeInput = socialCredit.stripBotMentions(rawCreditContent, client);
                 const cringeScore = socialCredit.getCringeLevel(cringeInput);
-                let creditChange = socialCredit.rollCreditChange(cringeInput);
+                let creditChange = socialCredit.rollCreditChange(rawCreditContent, client);
                 if (cringeScore < 15 && userCredit.score < 0) {
                     creditChange += socialCredit.getRecoveryBonus(userCredit.score);
                 }
