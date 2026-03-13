@@ -22,39 +22,8 @@ const REACT_CHANCE = 0.08;
 
 // ── Number formatting ──────────────────────────────────────────────────────────
 
-const SUFFIXES = [
-    { value: 10n**3n,  symbol: 'k'    },
-    { value: 10n**6n,  symbol: 'M'    },
-    { value: 10n**9n,  symbol: 'B'    },
-    { value: 10n**12n, symbol: 'T'    },
-    { value: 10n**15n, symbol: 'Qa'   },
-    { value: 10n**18n, symbol: 'Qi'   },
-    { value: 10n**21n, symbol: 'Sx'   },
-    { value: 10n**24n, symbol: 'Sp'   },
-    { value: 10n**27n, symbol: 'Oc'   },
-    { value: 10n**30n, symbol: 'No'   },
-    { value: 10n**33n, symbol: 'De'   },
-    { value: 10n**36n, symbol: 'UDe'  },
-    { value: 10n**39n, symbol: 'DDe'  },
-    { value: 10n**42n, symbol: 'TDe'  },
-    { value: 10n**45n, symbol: 'QaDe' },
-    { value: 10n**48n, symbol: 'QiDe' },
-    { value: 10n**51n, symbol: 'SxDe' },
-    { value: 10n**54n, symbol: 'SpDe' },
-    { value: 10n**57n, symbol: 'OcDe' },
-    { value: 10n**60n, symbol: 'NoDe' },
-    { value: 10n**63n, symbol: 'Vg'   },
-    { value: 10n**66n, symbol: 'UVg'  },
-    { value: 10n**69n, symbol: 'DVg'  },
-    { value: 10n**72n, symbol: 'TVg'  },
-    { value: 10n**75n, symbol: 'QaVg' },
-    { value: 10n**78n, symbol: 'QiVg' },
-    { value: 10n**81n, symbol: 'SxVg' },
-    { value: 10n**84n, symbol: 'SpVg' },
-    { value: 10n**87n, symbol: 'OcVg' },
-    { value: 10n**90n, symbol: 'NoVg' },
-    { value: 10n**93n, symbol: 'Tg'   },
-];
+const SUFFIX_SYMBOLS = ['k','M','B','T','Qa','Qi','Sx','Sp','Oc','No','De','UDe','DDe','TDe','QaDe','QiDe','SxDe','SpDe','OcDe','NoDe','Vg','UVg','DVg','TVg','QaVg','QiVg','SxVg','SpVg','OcVg','NoVg','Tg'];
+const SUFFIXES = SUFFIX_SYMBOLS.map((symbol, i) => ({ value: 10n ** BigInt((i + 1) * 3), symbol }));
 
 function formatNumber(value) {
     // ✅ FIX: null-safe conversion before BigInt
@@ -135,24 +104,9 @@ function getCringeLevel(text) {
 
     let score = 0n;
 
-    for (const pattern of CRINGE_NUCLEAR) {
-        if (pattern.test(text) || pattern.test(lower)) {
-            score += 10n;
-            score *= 1000n;
-        }
-    }
-
-    for (const pattern of CRINGE_HIGH) {
-        if (pattern.test(text) || pattern.test(lower)) {
-            score += 5n;
-            score *= 100n;
-        }
-    }
-
-    for (const pattern of CRINGE_MODERATE) {
-        if (pattern.test(text) || pattern.test(lower)) {
-            score += 1n;
-            score *= 50n;
+    for (const [patterns, add, mul] of [[CRINGE_NUCLEAR, 10n, 1000n], [CRINGE_HIGH, 5n, 100n], [CRINGE_MODERATE, 1n, 50n]]) {
+        for (const pattern of patterns) {
+            if (pattern.test(text) || pattern.test(lower)) { score += add; score *= mul; }
         }
     }
 

@@ -123,17 +123,8 @@ function buildInitialResponse({ ownerId, query, results }) {
     return buildPayload(sessionId, sessions.get(sessionId));
 }
 
-async function replyNotOwner(interaction) {
-    const payload = { content: "This isn't your interaction, sir.", ephemeral: true };
-    if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply(payload).catch(() => {});
-    } else {
-        await interaction.followUp(payload).catch(() => {});
-    }
-}
-
-async function replyExpired(interaction) {
-    const payload = { content: 'That YouTube search session expired, sir. Run `/yt` again.', ephemeral: true };
+async function ephemeralReply(interaction, content) {
+    const payload = { content, ephemeral: true };
     if (!interaction.replied && !interaction.deferred) {
         await interaction.reply(payload).catch(() => {});
     } else {
@@ -158,12 +149,12 @@ async function resolveMessageForSession(interaction, session) {
 async function handleButton(interaction, action, sessionId) {
     const session = getSession(sessionId);
     if (!session) {
-        await replyExpired(interaction);
+        await ephemeralReply(interaction, 'That YouTube search session expired, sir. Run `/yt` again.');
         return true;
     }
 
     if (interaction.user.id !== session.ownerId) {
-        await replyNotOwner(interaction);
+        await ephemeralReply(interaction, "This isn't your interaction, sir.");
         return true;
     }
 
@@ -220,12 +211,12 @@ async function handleButton(interaction, action, sessionId) {
 async function handleJumpModal(interaction, sessionId) {
     const session = getSession(sessionId);
     if (!session) {
-        await replyExpired(interaction);
+        await ephemeralReply(interaction, 'That YouTube search session expired, sir. Run `/yt` again.');
         return true;
     }
 
     if (interaction.user.id !== session.ownerId) {
-        await replyNotOwner(interaction);
+        await ephemeralReply(interaction, "This isn't your interaction, sir.");
         return true;
     }
 

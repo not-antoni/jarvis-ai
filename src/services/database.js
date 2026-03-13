@@ -899,32 +899,25 @@ class DatabaseManager {
         if (!this.isConnected) {return null;}
         return this.db.collection(config.database.collections.autoModeration).findOne({ guildId });
     }
-    async saveAutoModConfig(guildId, data) {
+    async _upsertGuildDoc(collectionName, guildId, data, extraFields = {}) {
         if (!this.isConnected) {throw new Error('Database not connected');}
-        const collection = this.db.collection(config.database.collections.autoModeration);
+        const collection = this.db.collection(collectionName);
         const now = new Date();
         const sanitized = { ...data };
         delete sanitized._id;
         delete sanitized.createdAt;
         delete sanitized.updatedAt;
         delete sanitized.isConfig;
-        const update = {
-            ...sanitized,
-            guildId,
-            updatedAt: now,
-            isConfig: true
-        };
+        const update = { ...sanitized, guildId, updatedAt: now, ...extraFields };
         const result = await collection.findOneAndUpdate(
             { guildId },
-            {
-                $set: update,
-                $setOnInsert: {
-                    createdAt: now
-                }
-            },
+            { $set: update, $setOnInsert: { createdAt: now } },
             { upsert: true, returnDocument: 'after' }
         );
         return result || update;
+    }
+    async saveAutoModConfig(guildId, data) {
+        return this._upsertGuildDoc(config.database.collections.autoModeration, guildId, data, { isConfig: true });
     }
     async getNewsDigest(topic) {
         if (!this.isConnected || !topic) {return null;}
@@ -953,31 +946,7 @@ class DatabaseManager {
         return this.db.collection(config.database.collections.serverStats).findOne({ guildId });
     }
     async saveServerStatsConfig(guildId, data) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-        const collection = this.db.collection(config.database.collections.serverStats);
-        const now = new Date();
-        const sanitized = { ...data };
-        delete sanitized._id;
-        delete sanitized.createdAt;
-        delete sanitized.updatedAt;
-        delete sanitized.isConfig;
-        const update = {
-            ...sanitized,
-            guildId,
-            updatedAt: now,
-            isConfig: true
-        };
-        const result = await collection.findOneAndUpdate(
-            { guildId },
-            {
-                $set: update,
-                $setOnInsert: {
-                    createdAt: now
-                }
-            },
-            { upsert: true, returnDocument: 'after' }
-        );
-        return result || update;
+        return this._upsertGuildDoc(config.database.collections.serverStats, guildId, data, { isConfig: true });
     }
     async deleteServerStatsConfig(guildId) {
         if (!this.isConnected) {throw new Error('Database not connected');}
@@ -992,29 +961,7 @@ class DatabaseManager {
         return this.db.collection(config.database.collections.memberLogs).findOne({ guildId });
     }
     async saveMemberLogConfig(guildId, data) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-        const collection = this.db.collection(config.database.collections.memberLogs);
-        const now = new Date();
-        const sanitized = { ...data };
-        delete sanitized._id;
-        delete sanitized.createdAt;
-        delete sanitized.updatedAt;
-        const update = {
-            ...sanitized,
-            guildId,
-            updatedAt: now
-        };
-        const result = await collection.findOneAndUpdate(
-            { guildId },
-            {
-                $set: update,
-                $setOnInsert: {
-                    createdAt: now
-                }
-            },
-            { upsert: true, returnDocument: 'after' }
-        );
-        return result || update;
+        return this._upsertGuildDoc(config.database.collections.memberLogs, guildId, data);
     }
     async recordCommandMetric({
         command,

@@ -338,29 +338,20 @@ try {
             }
         }
     } else {
+        const buildPayload = () => {
+            const p = response && typeof response === 'object' ? { ...response } : { content: String(response || '') };
+            p.allowedMentions = p.allowedMentions || { parse: [] };
+            p.allowedMentions.parse = Array.isArray(p.allowedMentions.parse) ? p.allowedMentions.parse : [];
+            return p;
+        };
         try {
-            const payload = response && typeof response === 'object'
-                ? { ...response }
-                : { content: String(response || '') };
-            payload.allowedMentions = payload.allowedMentions || { parse: [] };
-            payload.allowedMentions.parse = Array.isArray(payload.allowedMentions.parse) ? payload.allowedMentions.parse : [];
-
-            const sendPromise = interaction.editReply(payload);
             await Promise.race([
-                sendPromise,
+                interaction.editReply(buildPayload()),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('editReply timeout')), 5000))
             ]);
         } catch (e) {
-            try {
-                const payload = response && typeof response === 'object'
-                    ? { ...response }
-                    : { content: String(response || '') };
-                payload.allowedMentions = payload.allowedMentions || { parse: [] };
-                payload.allowedMentions.parse = Array.isArray(payload.allowedMentions.parse) ? payload.allowedMentions.parse : [];
-                await interaction.followUp(payload);
-            } catch (followUpError) {
-                console.error('[/jarvis] Embed send failed:', e.message, followUpError.message);
-            }
+            try { await interaction.followUp(buildPayload()); }
+            catch (followUpError) { console.error('[/jarvis] Embed send failed:', e.message, followUpError.message); }
         }
     }
 } catch (error) {

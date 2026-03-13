@@ -22,77 +22,20 @@ const sessionStats = new Map();
 // Mood patterns for detection
 const MOOD_PATTERNS = {
     frustrated: {
-        keywords: [
-            'ugh',
-            'annoying',
-            'frustrated',
-            'angry',
-            'mad',
-            'stupid',
-            'broken',
-            "doesn't work",
-            'not working',
-            'hate',
-            'useless',
-            'trash',
-            'garbage',
-            'wtf',
-            'ffs',
-            'damn',
-            'dammit'
-        ],
-        punctuation: /[!?]{2,}|\.{3,}/,
-        caps: 0.5 // 50% caps threshold
+        keywords: ['ugh', 'annoying', 'frustrated', 'angry', 'mad', 'stupid', 'broken', "doesn't work", 'not working', 'hate', 'useless', 'trash', 'garbage', 'wtf', 'ffs', 'damn', 'dammit'],
+        punctuation: /[!?]{2,}|\.{3,}/, caps: 0.5
     },
     excited: {
-        keywords: [
-            'awesome',
-            'amazing',
-            'incredible',
-            'love',
-            'great',
-            'fantastic',
-            'wonderful',
-            'perfect',
-            'yay',
-            'woohoo',
-            'omg',
-            'wow'
-        ],
-        punctuation: /!{2,}/,
-        caps: 0.4
+        keywords: ['awesome', 'amazing', 'incredible', 'love', 'great', 'fantastic', 'wonderful', 'perfect', 'yay', 'woohoo', 'omg', 'wow'],
+        punctuation: /!{2,}/, caps: 0.4
     },
     sad: {
-        keywords: [
-            'sad',
-            'depressed',
-            'unhappy',
-            'crying',
-            'tears',
-            'lonely',
-            'alone',
-            'miss',
-            'lost',
-            'heartbroken',
-            'devastated'
-        ],
-        punctuation: /\.{3,}/,
-        caps: 0
+        keywords: ['sad', 'depressed', 'unhappy', 'crying', 'tears', 'lonely', 'alone', 'miss', 'lost', 'heartbroken', 'devastated'],
+        punctuation: /\.{3,}/, caps: 0
     },
     confused: {
-        keywords: [
-            'confused',
-            "don't understand",
-            'what do you mean',
-            'huh',
-            'what?',
-            'how?',
-            'why?',
-            'makes no sense',
-            'lost'
-        ],
-        punctuation: /\?{2,}/,
-        caps: 0
+        keywords: ['confused', "don't understand", 'what do you mean', 'huh', 'what?', 'how?', 'why?', 'makes no sense', 'lost'],
+        punctuation: /\?{2,}/, caps: 0
     }
 };
 
@@ -585,22 +528,26 @@ class UserFeaturesService {
 
     // ==================== CUSTOM WAKE WORDS ====================
 
-    async setWakeWord(userId, wakeWord) {
+    _validateWakeWord(wakeWord) {
         if (!wakeWord || wakeWord.length < 2 || wakeWord.length > 20) {
-            return { success: false, error: 'Wake word must be 2-20 characters.' };
+            return { valid: false, error: 'Wake word must be 2-20 characters.' };
         }
-
-        // Sanitize - alphanumeric only
         const sanitized = wakeWord.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         if (sanitized.length < 2) {
-            return { success: false, error: 'Wake word must contain letters or numbers.' };
+            return { valid: false, error: 'Wake word must contain letters or numbers.' };
         }
+        return { valid: true, sanitized };
+    }
+
+    async setWakeWord(userId, wakeWord) {
+        const v = this._validateWakeWord(wakeWord);
+        if (!v.valid) { return { success: false, error: v.error }; }
 
         const prefs = await this.getUserPrefs(userId);
-        prefs.customWakeWord = sanitized;
+        prefs.customWakeWord = v.sanitized;
         await this.saveUserPrefs(userId, prefs);
 
-        return { success: true, wakeWord: sanitized };
+        return { success: true, wakeWord: v.sanitized };
     }
 
     async clearWakeWord(userId) {
@@ -626,18 +573,12 @@ class UserFeaturesService {
     // ==================== GUILD WAKE WORDS ====================
 
     async setGuildWakeWord(guildId, wakeWord) {
-        if (!wakeWord || wakeWord.length < 2 || wakeWord.length > 20) {
-            return { success: false, error: 'Wake word must be 2-20 characters.' };
-        }
-
-        const sanitized = wakeWord.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        if (sanitized.length < 2) {
-            return { success: false, error: 'Wake word must contain letters or numbers.' };
-        }
+        const v = this._validateWakeWord(wakeWord);
+        if (!v.valid) { return { success: false, error: v.error }; }
 
         const database = require('./database');
-        await database.setGuildWakeWord(guildId, sanitized);
-        return { success: true, wakeWord: sanitized };
+        await database.setGuildWakeWord(guildId, v.sanitized);
+        return { success: true, wakeWord: v.sanitized };
     }
 
     async getGuildWakeWord(guildId) {

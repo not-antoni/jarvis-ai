@@ -13,12 +13,13 @@ const { extractVideoId } = require('../utils/youtube');
 const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
 const { safeSend } = require('../utils/discord-safe-send');
 const LOOP_MODES = ['off', 'song', 'queue'];
-const VOICE_READY_TIMEOUT_MS = Number(process.env.MUSIC_VOICE_READY_TIMEOUT_MS) || 30_000;
-const VOICE_JOIN_RETRIES = Number(process.env.MUSIC_VOICE_JOIN_RETRIES) || 4;
-const VOICE_RECONNECT_ATTEMPTS = Number(process.env.MUSIC_VOICE_RECONNECT_ATTEMPTS) || 10;
-const VOICE_RECONNECT_DELAY_MS = Number(process.env.MUSIC_VOICE_RECONNECT_DELAY_MS) || 1_500;
-const VOICE_JOIN_RETRY_DELAY_MS = Number(process.env.MUSIC_VOICE_JOIN_RETRY_DELAY_MS) || 1_500;
-const VOICE_ENSURE_READY_RETRIES = Number(process.env.MUSIC_VOICE_ENSURE_READY_RETRIES) || 3;
+const envNum = (k, d) => Number(process.env[k]) || d;
+const VOICE_READY_TIMEOUT_MS = envNum('MUSIC_VOICE_READY_TIMEOUT_MS', 30_000);
+const VOICE_JOIN_RETRIES = envNum('MUSIC_VOICE_JOIN_RETRIES', 4);
+const VOICE_RECONNECT_ATTEMPTS = envNum('MUSIC_VOICE_RECONNECT_ATTEMPTS', 10);
+const VOICE_RECONNECT_DELAY_MS = envNum('MUSIC_VOICE_RECONNECT_DELAY_MS', 1_500);
+const VOICE_JOIN_RETRY_DELAY_MS = envNum('MUSIC_VOICE_JOIN_RETRY_DELAY_MS', 1_500);
+const VOICE_ENSURE_READY_RETRIES = envNum('MUSIC_VOICE_ENSURE_READY_RETRIES', 3);
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }

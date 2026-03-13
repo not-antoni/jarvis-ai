@@ -142,9 +142,7 @@ async function tryDirectFfmpegStream(videoId, videoUrl, source, streamState) {
     const lookupMs = Date.now() - streamLookupStart;
 
     if (streamState.aborted) {
-        try {
-            live.process.kill('SIGKILL');
-        } catch (_e) { }
+        safeKill(live.process);
         throw new Error('Stream cancelled');
     }
 
@@ -215,11 +213,7 @@ async function tryDirectFfmpegStream(videoId, videoUrl, source, streamState) {
         }
     });
 
-    const bufferedStream = new PassThrough({
-        highWaterMark: BUFFER_SIZE,
-        readableHighWaterMark: BUFFER_SIZE,
-        writableHighWaterMark: BUFFER_SIZE
-    });
+    const bufferedStream = createBufferedStream();
 
     let hadOutput = false;
     if (ffmpeg.stdout) {
@@ -243,9 +237,7 @@ async function tryDirectFfmpegStream(videoId, videoUrl, source, streamState) {
     const prebufferMs = Date.now() - prebufferStart;
 
     if (streamState.aborted) {
-        try {
-            ffmpeg.kill('SIGKILL');
-        } catch (_e) { }
+        safeKill(ffmpeg);
         throw new Error('Stream cancelled');
     }
 
@@ -254,14 +246,8 @@ async function tryDirectFfmpegStream(videoId, videoUrl, source, streamState) {
             stderrChunks.join(' ').trim(),
             live.getStderr()
         ].filter(Boolean).join(' ');
-        if (live.process && !live.process.killed) {
-            try {
-                live.process.kill('SIGKILL');
-            } catch (_e) { }
-        }
-        try {
-            ffmpeg.kill('SIGKILL');
-        } catch (_e) { }
+        safeKill(live.process);
+        safeKill(ffmpeg);
         throw new Error(stderr || 'ffmpeg direct stream produced no output');
     }
 
@@ -273,19 +259,9 @@ async function tryDirectFfmpegStream(videoId, videoUrl, source, streamState) {
         stream: bufferedStream,
         type: StreamType.OggOpus,
         cleanup: () => {
-            try {
-                if (live.process && !live.process.killed) {
-                    live.process.kill('SIGKILL');
-                }
-            } catch (_e) { }
-            try {
-                if (ffmpeg && !ffmpeg.killed) {
-                    ffmpeg.kill('SIGKILL');
-                }
-            } catch (_e) { }
-            try {
-                bufferedStream.destroy();
-            } catch (_e) { }
+            safeKill(live.process);
+            safeKill(ffmpeg);
+            safeDestroy(bufferedStream);
             activeStreams.delete(streamState.videoId);
         }
     };
@@ -304,11 +280,7 @@ async function tryCachedYtDlpStream(videoId, videoUrl, source, streamState, opti
         throw new Error('Stream cancelled');
     }
 
-    const bufferedStream = new PassThrough({
-        highWaterMark: BUFFER_SIZE,
-        readableHighWaterMark: BUFFER_SIZE,
-        writableHighWaterMark: BUFFER_SIZE
-    });
+    const bufferedStream = createBufferedStream();
 
     const fileStream = fs.createReadStream(ticket.filePath, {
         highWaterMark: 512 * 1024
@@ -322,12 +294,8 @@ async function tryCachedYtDlpStream(videoId, videoUrl, source, streamState, opti
     const prebufferMs = Date.now() - prebufferStart;
 
     if (streamState.aborted) {
-        try {
-            fileStream.destroy();
-        } catch (_e) { }
-        try {
-            bufferedStream.destroy();
-        } catch (_e) { }
+        safeDestroy(fileStream);
+        safeDestroy(bufferedStream);
         ticket.release();
         throw new Error('Stream cancelled');
     }
@@ -343,15 +311,9 @@ async function tryCachedYtDlpStream(videoId, videoUrl, source, streamState, opti
         stream: bufferedStream,
         type: StreamType.OggOpus,
         cleanup: () => {
-            try {
-                fileStream.destroy();
-            } catch (_e) { }
-            try {
-                bufferedStream.destroy();
-            } catch (_e) { }
-            try {
-                ticket.release();
-            } catch (_e) { }
+            safeDestroy(fileStream);
+            safeDestroy(bufferedStream);
+            try { ticket.release(); } catch (_e) { }
             activeStreams.delete(streamState.videoId);
         }
     };
@@ -451,17 +413,8 @@ function cancelStream(videoId) {
     if (state) {
         state.aborted = true;
 
-        if (state.childProcess) {
-            try {
-                state.childProcess.kill('SIGKILL');
-            } catch (_e) { }
-        }
-
-        if (state.stream) {
-            try {
-                state.stream.destroy();
-            } catch (_e) { }
-        }
+        safeKill(state.childProcess);
+        safeDestroy(state.stream);
 
         try {
             cancelDownload(videoId);

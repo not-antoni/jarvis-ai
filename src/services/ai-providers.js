@@ -10,6 +10,13 @@ const aiFetch = getAIFetch();
 const fsp = fs.promises;
 const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
+function discoverEnvKeys(prefix) {
+    return Object.keys(process.env)
+        .filter(key => new RegExp(`^${prefix}\\d*$`).test(key))
+        .sort((a, b) => parseInt(a.replace(prefix, '') || '1', 10) - parseInt(b.replace(prefix, '') || '1', 10))
+        .map(key => process.env[key])
+        .filter(Boolean);
+}
 // Determine storage mode: MongoDB for Render, file for selfhost
 const IS_SELFHOST = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
 const PROVIDER_STATE_COLLECTION = 'provider_state';
@@ -74,15 +81,7 @@ class AIProviderManager {
     setupProviders() {
         // ---------- OpenRouter providers ----------
         // Auto-discover all OPENROUTER_API_KEY, OPENROUTER_API_KEY2, etc.
-        const openRouterKeys = Object.keys(process.env)
-            .filter(key => /^OPENROUTER_API_KEY\d*$/.test(key))
-            .sort((a, b) => {
-                const numA = parseInt(a.replace('OPENROUTER_API_KEY', '') || '1', 10);
-                const numB = parseInt(b.replace('OPENROUTER_API_KEY', '') || '1', 10);
-                return numA - numB;
-            })
-            .map(key => process.env[key])
-            .filter(Boolean);
+        const openRouterKeys = discoverEnvKeys('OPENROUTER_API_KEY');
         // Each OpenRouter key gets multiple free models — rate limits are per-model
         const openRouterModels = [
             'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
@@ -113,15 +112,7 @@ class AIProviderManager {
         });
         // ---------- Groq providers (OpenAI-compatible) ----------
         // Auto-discover all GROQ_API_KEY, GROQ_API_KEY2, etc.
-        const groqKeys = Object.keys(process.env)
-            .filter(key => /^GROQ_API_KEY\d*$/.test(key))
-            .sort((a, b) => {
-                const numA = parseInt(a.replace('GROQ_API_KEY', '') || '1', 10);
-                const numB = parseInt(b.replace('GROQ_API_KEY', '') || '1', 10);
-                return numA - numB;
-            })
-            .map(key => process.env[key])
-            .filter(Boolean);
+        const groqKeys = discoverEnvKeys('GROQ_API_KEY');
         // Each Groq key gets multiple model providers — rate limits are per-model
         const groqModels = [
             'moonshotai/kimi-k2-instruct',    // Primary — best quality
@@ -147,15 +138,7 @@ class AIProviderManager {
         });
         // ---------- Google AI (native SDK) ----------
         // Auto-discover all GOOGLE_AI_API_KEY, GOOGLE_AI_API_KEY2, etc.
-        const googleKeys = Object.keys(process.env)
-            .filter(key => /^GOOGLE_AI_API_KEY\d*$/.test(key))
-            .sort((a, b) => {
-                const numA = parseInt(a.replace('GOOGLE_AI_API_KEY', '') || '1', 10);
-                const numB = parseInt(b.replace('GOOGLE_AI_API_KEY', '') || '1', 10);
-                return numA - numB;
-            })
-            .map(key => process.env[key])
-            .filter(Boolean);
+        const googleKeys = discoverEnvKeys('GOOGLE_AI_API_KEY');
         // Each Google key gets multiple models — rate limits are per-model
         const googleModels = [
             `gemini-3-flash-preview`,
@@ -180,15 +163,7 @@ class AIProviderManager {
         });
         // ---------- DeepSeek via Vercel AI Gateway (OpenAI-compatible) ----------
         // Auto-discover all AI_GATEWAY_API_KEY, AI_GATEWAY_API_KEY2, etc.
-        const deepseekGatewayKeys = Object.keys(process.env)
-            .filter(key => /^AI_GATEWAY_API_KEY\d*$/.test(key))
-            .sort((a, b) => {
-                const numA = parseInt(a.replace('AI_GATEWAY_API_KEY', '') || '1', 10);
-                const numB = parseInt(b.replace('AI_GATEWAY_API_KEY', '') || '1', 10);
-                return numA - numB;
-            })
-            .map(key => process.env[key])
-            .filter(Boolean);
+        const deepseekGatewayKeys = discoverEnvKeys('AI_GATEWAY_API_KEY');
         deepseekGatewayKeys.forEach((key, index) => {
             this.providers.push({
                 name: `deepseek-gateway-${index + 1}`,
@@ -224,15 +199,7 @@ class AIProviderManager {
         }
         // ---------- Ollama providers (native API with vision support) ----------
         // Auto-discover all OLLAMA_API_KEY, OLLAMA_API_KEY2, OLLAMA_API_KEY3, etc.
-        const ollamaKeys = Object.keys(process.env)
-            .filter(key => /^OLLAMA_API_KEY\d*$/.test(key))
-            .sort((a, b) => {
-                const numA = parseInt(a.replace('OLLAMA_API_KEY', '') || '1', 10);
-                const numB = parseInt(b.replace('OLLAMA_API_KEY', '') || '1', 10);
-                return numA - numB;
-            })
-            .map(key => process.env[key])
-            .filter(Boolean);
+        const ollamaKeys = discoverEnvKeys('OLLAMA_API_KEY');
         const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
         const ollamaModel = process.env.OLLAMA_MODEL || 'qwen3-vl:235b-instruct-cloud';
         ollamaKeys.forEach((key, index) => {
@@ -343,24 +310,9 @@ class AIProviderManager {
         if (typeof data.openRouterGlobalFailure === 'boolean') {
             this.openRouterGlobalFailure = data.openRouterGlobalFailure;
         }
-        if (typeof data.openRouterFailureCount === 'number') {
-            this.openRouterFailureCount = data.openRouterFailureCount;
-        }
-        // Restore token metrics
-        if (typeof data.totalTokensIn === 'number') {
-            this.totalTokensIn = data.totalTokensIn;
-        }
-        if (typeof data.totalTokensOut === 'number') {
-            this.totalTokensOut = data.totalTokensOut;
-        }
-        if (typeof data.totalRequests === 'number') {
-            this.totalRequests = data.totalRequests;
-        }
-        if (typeof data.successfulRequests === 'number') {
-            this.successfulRequests = data.successfulRequests;
-        }
-        if (typeof data.failedRequests === 'number') {
-            this.failedRequests = data.failedRequests;
+        // Restore numeric metrics
+        for (const key of ['openRouterFailureCount', 'totalTokensIn', 'totalTokensOut', 'totalRequests', 'successfulRequests', 'failedRequests']) {
+            if (typeof data[key] === 'number') { this[key] = data[key]; }
         }
     }
     // Get stats for dashboard
@@ -463,16 +415,17 @@ class AIProviderManager {
             }
         });
     }
-    _rankedProviders(options = {}) {
+    _availableProviders(options = {}) {
         const now = Date.now();
-        const filteredProviders = this._filterProvidersByType(this.providers, options);
-        return filteredProviders
-            .filter(p => {
-                const disabledUntil = this.disabledProviders.get(p.name);
-                const isDisabled = disabledUntil && disabledUntil > now;
-                if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {return false;}
-                return !isDisabled;
-            })
+        return this._filterProvidersByType(this.providers, options).filter(p => {
+            const disabledUntil = this.disabledProviders.get(p.name);
+            if (disabledUntil && disabledUntil > now) {return false;}
+            if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {return false;}
+            return true;
+        });
+    }
+    _rankedProviders(options = {}) {
+        return this._availableProviders(options)
             .sort((a, b) => {
                 const ma = this.metrics.get(a.name) || {
                     successes: 0,
@@ -496,14 +449,7 @@ class AIProviderManager {
             });
     }
     _getRandomProvider(options = {}) {
-        const now = Date.now();
-        const filteredProviders = this._filterProvidersByType(this.providers, options);
-        const availableProviders = filteredProviders.filter(p => {
-            const disabledUntil = this.disabledProviders.get(p.name);
-            const isDisabled = disabledUntil && disabledUntil > now;
-            if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {return false;}
-            return !isDisabled;
-        });
+        const availableProviders = this._availableProviders(options);
         if (availableProviders.length === 0) {return null;}
         const minPriority = Math.min(...availableProviders.map(p => resolveCostPriority(p)));
         const preferred = availableProviders.filter(p => resolveCostPriority(p) === minPriority);
