@@ -743,28 +743,17 @@ Current message: "${processedInput}"`;
             }
 
             if (allowsLongTermMemory) {
-                await database.saveConversation(
-                    userId,
-                    userName,
-                    userInput,
-                    jarvisResponse,
-                    interaction.guild?.id
-                );
-            }
-
-            if (allowsLongTermMemory && jarvisResponse) {
-                const secureRecord = {
-                    userName,
-                    userMessage: userInput,
-                    jarvisResponse,
-                    guildId: interaction.guild?.id || null,
-                    timestamp: new Date().toISOString()
-                };
-
-                try {
-                    await vaultClient.encryptMemory(userId, secureRecord);
-                } catch (error) {
-                    console.error('Failed to persist secure memory for user', userId, error);
+                const guildId = interaction.guild?.id || null;
+                await database.saveConversation(userId, userName, userInput, jarvisResponse, guildId);
+                if (jarvisResponse) {
+                    try {
+                        await vaultClient.encryptMemory(userId, {
+                            userName, userMessage: userInput, jarvisResponse,
+                            guildId, timestamp: new Date().toISOString()
+                        });
+                    } catch (error) {
+                        console.error('Failed to persist secure memory for user', userId, error);
+                    }
                 }
             }
             this.lastActivity = Date.now();

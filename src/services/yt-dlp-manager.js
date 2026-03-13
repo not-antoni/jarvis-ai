@@ -199,89 +199,26 @@ class YtDlpManager {
      * Download file with redirect following
      */
     downloadFile(url, destPath) {
-        return new Promise((resolve, reject) => {
-            const file = fs.createWriteStream(destPath);
-            const protocol = url.startsWith('https') ? https : http;
+        const downloadHeaders = { 'User-Agent': 'Jarvis-Discord-Bot/1.0' };
+        if (GITHUB_TOKEN) { downloadHeaders['Authorization'] = `token ${GITHUB_TOKEN}`; }
 
-            // Build headers with optional auth
-            const downloadHeaders = { 'User-Agent': 'Jarvis-Discord-Bot/1.0' };
-            if (GITHUB_TOKEN) {
-                downloadHeaders['Authorization'] = `token ${GITHUB_TOKEN}`;
-            }
-
-            const request = downloadUrl => {
-                protocol
-                    .get(
-                        downloadUrl,
-                        {
-                            headers: downloadHeaders
-                        },
-                        response => {
-                            // Handle redirects
-                            if (response.statusCode === 302 || response.statusCode === 301) {
-                                file.close();
-                                fs.unlinkSync(destPath);
-                                const newFile = fs.createWriteStream(destPath);
-                                const redirectProtocol = response.headers.location.startsWith(
-                                    'https'
-                                )
-                                    ? https
-                                    : http;
-
-                                redirectProtocol
-                                    .get(
-                                        response.headers.location,
-                                        {
-                                            headers: downloadHeaders
-                                        },
-                                        redirectRes => {
-                                            if (redirectRes.statusCode !== 200) {
-                                                newFile.close();
-                                                reject(
-                                                    new Error(
-                                                        `Download failed: ${redirectRes.statusCode}`
-                                                    )
-                                                );
-                                                return;
-                                            }
-                                            redirectRes.pipe(newFile);
-                                            newFile.on('finish', () => {
-                                                newFile.close();
-                                                resolve();
-                                            });
-                                        }
-                                    )
-                                    .on('error', err => {
-                                        newFile.close();
-                                        fs.unlinkSync(destPath);
-                                        reject(err);
-                                    });
-                                return;
-                            }
-
-                            if (response.statusCode !== 200) {
-                                file.close();
-                                fs.unlinkSync(destPath);
-                                reject(new Error(`Download failed: ${response.statusCode}`));
-                                return;
-                            }
-
-                            response.pipe(file);
-                            file.on('finish', () => {
-                                file.close();
-                                resolve();
-                            });
-                        }
-                    )
-                    .on('error', err => {
-                        file.close();
-                        fs.unlinkSync(destPath);
-                        reject(err);
-                    });
-            };
-
-            request(url);
+        const pipeToFile = (downloadUrl) => new Promise((resolve, reject) => {
+            const proto = downloadUrl.startsWith('https') ? https : http;
+            const outFile = fs.createWriteStream(destPath);
+            const cleanup = (err) => { outFile.close(); try { fs.unlinkSync(destPath); } catch (_) {} reject(err); };
+            proto.get(downloadUrl, { headers: downloadHeaders }, res => {
+                if (res.statusCode === 301 || res.statusCode === 302) {
+                    outFile.close();
+                    try { fs.unlinkSync(destPath); } catch (_) {}
+                    return resolve(pipeToFile(res.headers.location));
+                }
+                if (res.statusCode !== 200) { return cleanup(new Error(`Download failed: ${res.statusCode}`)); }
+                res.pipe(outFile);
+                outFile.on('finish', () => { outFile.close(); resolve(); });
+            }).on('error', cleanup);
         });
+
+        return pipeToFile(url);
     }
 
     /**
@@ -419,181 +356,87 @@ class YtDlpManager {
     }
 
     /**
+     * Spawn yt-dlp with given args and collect stdout/stderr
+     */
+    _spawnCollect(args) {
+        return new Promise((resolve, reject) => {
+            const proc = spawn(this.executablePath, args, { timeout: 30000 });
+            let stdout = '';
+            let stderr = '';
+            proc.stdout.on('data', data => { stdout += data.toString(); });
+            proc.stderr.on('data', data => { stderr += data.toString(); });
+            proc.on('close', code => {
+                if (code === 0 && stdout.trim()) { resolve(stdout.trim()); }
+                else { reject(new Error(stderr || `yt-dlp exited with code ${code}`)); }
+            });
+            proc.on('error', reject);
+        });
+    }
+
+    /**
      * Get audio stream URL for a video
      */
     async getAudioUrl(videoUrl, skipLimitCheck = false) {
-        if (!this.ready) {
-            throw new Error('yt-dlp not initialized');
-        }
+        if (!this.ready) { throw new Error('yt-dlp not initialized'); }
 
-        // Check limits first unless explicitly skipped
         if (!skipLimitCheck) {
             const limitCheck = await this.checkVideoLimits(videoUrl);
-            if (!limitCheck.allowed) {
-                throw new Error(limitCheck.reason);
-            }
+            if (!limitCheck.allowed) { throw new Error(limitCheck.reason); }
         }
 
-        return new Promise((resolve, reject) => {
-            const args = [
-                '-f',
-                'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio',
-                '-g', // Get URL only
-                '--no-warnings',
-                '--no-playlist',
-                '--max-filesize', `${MAX_FILESIZE_MB}M`
-            ];
-            
-            // Add ffmpeg path if configured (suppresses warnings)
-            if (FFMPEG_PATH) {
-                args.push('--ffmpeg-location', FFMPEG_PATH);
-            }
-            
-            args.push(videoUrl);
+        const args = ['-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio', '-g', '--no-warnings', '--no-playlist', '--max-filesize', `${MAX_FILESIZE_MB}M`];
+        if (FFMPEG_PATH) { args.push('--ffmpeg-location', FFMPEG_PATH); }
+        args.push(videoUrl);
 
-            const proc = spawn(this.executablePath, args, {
-                timeout: 30000
-            });
-
-            let stdout = '';
-            let stderr = '';
-
-            proc.stdout.on('data', data => {
-                stdout += data.toString();
-            });
-
-            proc.stderr.on('data', data => {
-                stderr += data.toString();
-            });
-
-            proc.on('close', code => {
-                if (code === 0 && stdout.trim()) {
-                    resolve(stdout.trim().split('\n')[0]);
-                } else {
-                    reject(new Error(stderr || `yt-dlp exited with code ${code}`));
-                }
-            });
-
-            proc.on('error', reject);
-        });
+        const output = await this._spawnCollect(args);
+        return output.split('\n')[0];
     }
 
     /**
      * Get video info (title, duration, etc)
      */
     async getVideoInfo(videoUrl) {
-        if (!this.ready) {
-            throw new Error('yt-dlp not initialized');
+        if (!this.ready) { throw new Error('yt-dlp not initialized'); }
+
+        const output = await this._spawnCollect(['-j', '--no-warnings', '--no-playlist', videoUrl]);
+        try {
+            const info = JSON.parse(output);
+            return {
+                title: info.title || 'Unknown',
+                author: info.uploader || info.channel || 'Unknown',
+                duration: (info.duration || 0) * 1000,
+                url: info.webpage_url || videoUrl,
+                identifier: info.id || null,
+                thumbnail: info.thumbnail || null
+            };
+        } catch (error) {
+            throw new Error('Failed to parse video info');
         }
-
-        return new Promise((resolve, reject) => {
-            const args = [
-                '-j', // JSON output
-                '--no-warnings',
-                '--no-playlist',
-                videoUrl
-            ];
-
-            const proc = spawn(this.executablePath, args, {
-                timeout: 30000
-            });
-
-            let stdout = '';
-            let stderr = '';
-
-            proc.stdout.on('data', data => {
-                stdout += data.toString();
-            });
-
-            proc.stderr.on('data', data => {
-                stderr += data.toString();
-            });
-
-            proc.on('close', code => {
-                if (code === 0 && stdout.trim()) {
-                    try {
-                        const info = JSON.parse(stdout);
-                        resolve({
-                            title: info.title || 'Unknown',
-                            author: info.uploader || info.channel || 'Unknown',
-                            duration: (info.duration || 0) * 1000, // Convert to ms
-                            url: info.webpage_url || videoUrl,
-                            identifier: info.id || null,
-                            thumbnail: info.thumbnail || null
-                        });
-                    } catch (error) {
-                        reject(new Error('Failed to parse video info'));
-                    }
-                } else {
-                    reject(new Error(stderr || `yt-dlp exited with code ${code}`));
-                }
-            });
-
-            proc.on('error', reject);
-        });
     }
 
     /**
      * Search YouTube for videos
      */
     async search(query, limit = 5) {
-        if (!this.ready) {
-            throw new Error('yt-dlp not initialized');
+        if (!this.ready) { throw new Error('yt-dlp not initialized'); }
+
+        const output = await this._spawnCollect([`ytsearch${limit}:${query}`, '-j', '--flat-playlist', '--no-warnings']);
+        try {
+            return output.split('\n').filter(line => line.trim()).map(line => {
+                try {
+                    const info = JSON.parse(line);
+                    return {
+                        title: info.title || 'Unknown',
+                        author: info.uploader || info.channel || 'Unknown',
+                        duration: (info.duration || 0) * 1000,
+                        url: info.url || `https://www.youtube.com/watch?v=${info.id}`,
+                        identifier: info.id || null
+                    };
+                } catch { return null; }
+            }).filter(Boolean);
+        } catch (error) {
+            throw new Error('Failed to parse search results');
         }
-
-        return new Promise((resolve, reject) => {
-            const args = [`ytsearch${limit}:${query}`, '-j', '--flat-playlist', '--no-warnings'];
-
-            const proc = spawn(this.executablePath, args, {
-                timeout: 30000
-            });
-
-            let stdout = '';
-            let stderr = '';
-
-            proc.stdout.on('data', data => {
-                stdout += data.toString();
-            });
-
-            proc.stderr.on('data', data => {
-                stderr += data.toString();
-            });
-
-            proc.on('close', code => {
-                if (code === 0 && stdout.trim()) {
-                    try {
-                        const results = stdout
-                            .trim()
-                            .split('\n')
-                            .filter(line => line.trim())
-                            .map(line => {
-                                try {
-                                    const info = JSON.parse(line);
-                                    return {
-                                        title: info.title || 'Unknown',
-                                        author: info.uploader || info.channel || 'Unknown',
-                                        duration: (info.duration || 0) * 1000,
-                                        url:
-                                            info.url ||
-                                            `https://www.youtube.com/watch?v=${info.id}`,
-                                        identifier: info.id || null
-                                    };
-                                } catch {
-                                    return null;
-                                }
-                            })
-                            .filter(Boolean);
-                        resolve(results);
-                    } catch (error) {
-                        reject(new Error('Failed to parse search results'));
-                    }
-                } else {
-                    reject(new Error(stderr || `yt-dlp exited with code ${code}`));
-                }
-            });
-
-            proc.on('error', reject);
-        });
     }
 
     /**

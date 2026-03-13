@@ -17,6 +17,14 @@ const ROOT_DIR = path.join(__dirname, '..', '..');
 const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
 const PUBLIC_CONFIG = getPublicConfig();
 
+function requireHealthToken(req, res, { allowRender = false } = {}) {
+    if (!HEALTH_TOKEN) {return true;}
+    if (allowRender && isRenderHealthCheck(req)) {return true;}
+    if (extractBearerToken(req) === HEALTH_TOKEN) {return true;}
+    res.status(401).json({ status: 'unauthorized', error: 'Valid bearer token required' });
+    return false;
+}
+
 function normalizeHostValue(raw) {
     const value = String(raw || '').trim().toLowerCase();
     if (!value) {return '';}
@@ -239,14 +247,7 @@ ${pages.map(p => `  <url>
 
     // ---- Command metrics ----
     app.get('/metrics/commands', async(req, res) => {
-        if (HEALTH_TOKEN) {
-            const providedToken = extractBearerToken(req);
-            if (providedToken !== HEALTH_TOKEN) {
-                return res
-                    .status(401)
-                    .json({ status: 'unauthorized', error: 'Valid bearer token required' });
-            }
-        }
+        if (!requireHealthToken(req, res)) {return;}
 
         const limitParam = Number.parseInt(req.query?.limit, 10);
         const limit = Math.max(1, Math.min(Number.isFinite(limitParam) ? limitParam : 25, 200));
@@ -272,15 +273,7 @@ ${pages.map(p => `  <url>
 
     // ---- Health check endpoint ----
     app.get('/health', async(req, res) => {
-        if (HEALTH_TOKEN && !isRenderHealthCheck(req)) {
-            const providedToken = extractBearerToken(req);
-            if (providedToken !== HEALTH_TOKEN) {
-                return res.status(401).json({
-                    status: 'unauthorized',
-                    error: 'Valid bearer token required'
-                });
-            }
-        }
+        if (!requireHealthToken(req, res, { allowRender: true })) {return;}
 
         if (isRenderHealthUserAgent(req) && !req.query.deep) {
             return res.status(200).json({ status: 'ok' });

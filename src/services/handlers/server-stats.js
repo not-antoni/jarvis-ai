@@ -202,17 +202,13 @@ async function ensureServerStatsChannels(handler, guild, existingConfig = null, 
     };
 }
 
+function countOnlineUsers(members) {
+    return members.filter(m => !m.user?.bot && ['online', 'idle', 'dnd'].includes(m.presence?.status)).size;
+}
+
 async function collectGuildMemberStats(guild) {
     if (!guild) {
-        return {
-            total: 0,
-            botCount: 0,
-            userCount: 0,
-            channelCount: 0,
-            roleCount: 0,
-            onlineUserCount: 0,
-            offlineUserCount: 0
-        };
+        return { total: 0, botCount: 0, userCount: 0, channelCount: 0, roleCount: 0, onlineUserCount: 0, offlineUserCount: 0 };
     }
 
     let total = typeof guild.memberCount === 'number' ? guild.memberCount : 0;
@@ -232,15 +228,7 @@ async function collectGuildMemberStats(guild) {
             total = members.size;
             botCount = members.filter(member => member.user.bot).size;
             userCount = total - botCount;
-
-            onlineUserCount = members.filter(member => {
-                if (member.user?.bot) {
-                    return false;
-                }
-
-                const status = member.presence?.status;
-                return status === 'online' || status === 'idle' || status === 'dnd';
-            }).size;
+            onlineUserCount = countOnlineUsers(members);
         } catch (error) {
             // Silently fall back to cached - timeout/permission errors are expected
         }
@@ -252,14 +240,7 @@ async function collectGuildMemberStats(guild) {
             total = cachedMembers.size;
             botCount = cachedMembers.filter(member => member.user?.bot).size;
             userCount = total - botCount;
-            onlineUserCount = cachedMembers.filter(member => {
-                if (member.user?.bot) {
-                    return false;
-                }
-
-                const status = member.presence?.status;
-                return status === 'online' || status === 'idle' || status === 'dnd';
-            }).size;
+            onlineUserCount = countOnlineUsers(cachedMembers);
         } else {
             botCount = guild.members.cache.filter(member => member.user?.bot).size;
             userCount = Math.max(0, total - botCount);

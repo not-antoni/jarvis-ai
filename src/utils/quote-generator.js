@@ -60,58 +60,23 @@ async function loadGifFrame(url) {
 function normalizeNitroFonts(text) {
     if (!text) {return text;}
 
-    // Unicode ranges for fancy fonts -> ASCII mappings
-    const fontRanges = [
-        // Mathematical Bold (𝐀-𝐙, 𝐚-𝐳)
-        { start: 0x1D400, end: 0x1D419, baseChar: 'A' },
-        { start: 0x1D41A, end: 0x1D433, baseChar: 'a' },
-        // Mathematical Italic (𝐴-𝑍, 𝑎-𝑧)
-        { start: 0x1D434, end: 0x1D44D, baseChar: 'A' },
-        { start: 0x1D44E, end: 0x1D467, baseChar: 'a' },
-        // Mathematical Bold Italic (𝑨-𝒁, 𝒂-𝒛)
-        { start: 0x1D468, end: 0x1D481, baseChar: 'A' },
-        { start: 0x1D482, end: 0x1D49B, baseChar: 'a' },
-        // Mathematical Script (𝒜-𝒵, 𝒶-𝓏)
-        { start: 0x1D49C, end: 0x1D4B5, baseChar: 'A' },
-        { start: 0x1D4B6, end: 0x1D4CF, baseChar: 'a' },
-        // Mathematical Bold Script (𝓐-𝓩, 𝓪-𝔃)
-        { start: 0x1D4D0, end: 0x1D4E9, baseChar: 'A' },
-        { start: 0x1D4EA, end: 0x1D503, baseChar: 'a' },
-        // Mathematical Fraktur (𝔄-𝔜, 𝔞-𝔷)
-        { start: 0x1D504, end: 0x1D51C, baseChar: 'A' },
-        { start: 0x1D51E, end: 0x1D537, baseChar: 'a' },
-        // Mathematical Double-Struck (𝔸-𝕐, 𝕒-𝕫)
-        { start: 0x1D538, end: 0x1D550, baseChar: 'A' },
-        { start: 0x1D552, end: 0x1D56B, baseChar: 'a' },
-        // Mathematical Bold Fraktur (𝕬-𝖅, 𝖆-𝖟)
-        { start: 0x1D56C, end: 0x1D585, baseChar: 'A' },
-        { start: 0x1D586, end: 0x1D59F, baseChar: 'a' },
-        // Mathematical Sans-Serif (𝖠-𝖹, 𝖺-𝗓)
-        { start: 0x1D5A0, end: 0x1D5B9, baseChar: 'A' },
-        { start: 0x1D5BA, end: 0x1D5D3, baseChar: 'a' },
-        // Mathematical Sans-Serif Bold (𝗔-𝗭, 𝗮-𝘇)
-        { start: 0x1D5D4, end: 0x1D5ED, baseChar: 'A' },
-        { start: 0x1D5EE, end: 0x1D607, baseChar: 'a' },
-        // Mathematical Sans-Serif Italic (𝘈-𝘡, 𝘢-𝘻)
-        { start: 0x1D608, end: 0x1D621, baseChar: 'A' },
-        { start: 0x1D622, end: 0x1D63B, baseChar: 'a' },
-        // Mathematical Sans-Serif Bold Italic (𝘼-𝙕, 𝙖-𝙯)
-        { start: 0x1D63C, end: 0x1D655, baseChar: 'A' },
-        { start: 0x1D656, end: 0x1D66F, baseChar: 'a' },
-        // Mathematical Monospace (𝙰-𝚉, 𝚊-𝚣)
-        { start: 0x1D670, end: 0x1D689, baseChar: 'A' },
-        { start: 0x1D68A, end: 0x1D6A3, baseChar: 'a' },
-        // Mathematical Bold Digits (𝟎-𝟗)
-        { start: 0x1D7CE, end: 0x1D7D7, baseChar: '0' },
-        // Mathematical Double-Struck Digits (𝟘-𝟡)
-        { start: 0x1D7D8, end: 0x1D7E1, baseChar: '0' },
-        // Mathematical Sans-Serif Digits (𝟢-𝟫)
-        { start: 0x1D7E2, end: 0x1D7EB, baseChar: '0' },
-        // Mathematical Sans-Serif Bold Digits (𝟬-𝟵)
-        { start: 0x1D7EC, end: 0x1D7F5, baseChar: '0' },
-        // Mathematical Monospace Digits (𝟶-𝟿)
-        { start: 0x1D7F6, end: 0x1D7FF, baseChar: '0' }
+    // Unicode math font ranges -> ASCII. Letter pairs: [upperStart, lowerStart] (26 chars each).
+    // Fraktur/Double-Struck lower starts are +1 offset due to Unicode gaps.
+    const letterBases = [
+        [0x1D400, 0x1D41A], [0x1D434, 0x1D44E], [0x1D468, 0x1D482], // Bold, Italic, Bold Italic
+        [0x1D49C, 0x1D4B6], [0x1D4D0, 0x1D4EA], [0x1D504, 0x1D51E], // Script, Bold Script, Fraktur
+        [0x1D538, 0x1D552], [0x1D56C, 0x1D586], [0x1D5A0, 0x1D5BA], // Double-Struck, Bold Fraktur, Sans
+        [0x1D5D4, 0x1D5EE], [0x1D608, 0x1D622], [0x1D63C, 0x1D656], // Sans Bold, Sans Italic, Sans Bold Italic
+        [0x1D670, 0x1D68A]  // Monospace
     ];
+    const digitBases = [0x1D7CE, 0x1D7D8, 0x1D7E2, 0x1D7EC, 0x1D7F6]; // Bold, Double-Struck, Sans, Sans Bold, Mono
+    const fontRanges = [];
+    for (const [upper, lower] of letterBases) {
+        fontRanges.push({ start: upper, end: upper + 25, baseChar: 'A' }, { start: lower, end: lower + 25, baseChar: 'a' });
+    }
+    for (const base of digitBases) {
+        fontRanges.push({ start: base, end: base + 9, baseChar: '0' });
+    }
 
     let result = '';
     for (const char of text) {
@@ -253,6 +218,38 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
 }
 
 /**
+ * Load emoji image assets for an array of tokens (custom Discord emojis + unicode Twemoji).
+ * Mutates tokens in-place: sets .image on success, converts to text fallback on failure.
+ */
+function loadTokenEmojiAssets(tokens) {
+    const tasks = [];
+    for (const t of tokens) {
+        if (t.type === 'custom') {
+            tasks.push((async () => {
+                for (const format of ['webp', 'gif', 'png']) {
+                    try { t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.${format}?size=96`); return; } catch (_) {}
+                }
+                t.type = 'text'; t.content = `:${t.name}:`;
+            })());
+        } else if (t.type === 'unicode') {
+            tasks.push((async () => {
+                const code = getTwemojiCode(t.content);
+                const urls = [
+                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${code}.png`,
+                    `https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`,
+                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${[...t.content].map(c => c.codePointAt(0).toString(16)).join('-')}.png`
+                ];
+                for (const url of urls) {
+                    try { t.image = await loadImage(url); return; } catch (_) {}
+                }
+                t.failed = true; t.type = 'text';
+            })());
+        }
+    }
+    return tasks;
+}
+
+/**
  * Generate Quote Image
  */
 async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attachmentImageUrl, actualUsername = null) {
@@ -273,55 +270,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     const cleanText = sanitizeQuoteText(normalizedText);
     const tokens = tokenizeText(cleanText);
 
-    const assetsToLoad = [];
-
-    // Emojis
-    tokens.forEach(t => {
-        if (t.type === 'custom') {
-            assetsToLoad.push((async() => {
-                // Try webp first (Discord's preferred format), then gif for animated, then png
-                const formats = ['webp', 'gif', 'png'];
-                for (const format of formats) {
-                    try {
-                        t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.${format}?size=96`);
-                        return; // Success!
-                    } catch (e) {
-                        // Try next format
-                    }
-                }
-                // All failed - fallback to text
-                t.type = 'text';
-                t.content = `:${t.name}:`;
-            })());
-        } else if (t.type === 'unicode') {
-            assetsToLoad.push((async() => {
-                // Try multiple URL patterns for Twemoji
-                const code = getTwemojiCode(t.content);
-
-                // Different Twemoji URL patterns to try (they changed hosting)
-                const urls = [
-                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${code}.png`,
-                    `https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`,
-                    // Some ZWJ emojis need the full codepoints including fe0f
-                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${[...t.content].map(c => c.codePointAt(0).toString(16)).join('-')}.png`
-                ];
-
-                for (const url of urls) {
-                    try {
-                        t.image = await loadImage(url);
-                        return; // Success, stop trying
-                    } catch (e) {
-                        // Try next URL
-                    }
-                }
-
-                // All URLs failed - mark as text fallback (will render the actual emoji character)
-                t.failed = true;
-                t.type = 'text';
-                // t.content already holds the original emoji — render as text
-            })());
-        }
-    });
+    const assetsToLoad = loadTokenEmojiAssets(tokens);
 
     // Attachment
     let attachmentImage = null;
@@ -524,48 +473,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     const normalizedDisplayName = normalizeNitroFonts(displayName).replace(/[\r\n]+/g, ' ');
     const nameTokens = tokenizeText(normalizedDisplayName);
 
-    // Load emoji assets for displayName
-    const nameAssets = [];
-    nameTokens.forEach(t => {
-        if (t.type === 'custom') {
-            nameAssets.push((async() => {
-                // Try webp first, then gif for animated, then png
-                const formats = ['webp', 'gif', 'png'];
-                for (const format of formats) {
-                    try {
-                        t.image = await loadImage(`https://cdn.discordapp.com/emojis/${t.id}.${format}?size=96`);
-                        return;
-                    } catch (e) {
-                        // Try next format
-                    }
-                }
-                t.type = 'text';
-                t.content = `:${t.name}:`;
-            })());
-        } else if (t.type === 'unicode') {
-            nameAssets.push((async() => {
-                const code = getTwemojiCode(t.content);
-                const urls = [
-                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${code}.png`,
-                    `https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/${code}.png`,
-                    `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${[...t.content].map(c => c.codePointAt(0).toString(16)).join('-')}.png`
-                ];
-                for (const url of urls) {
-                    try {
-                        t.image = await loadImage(url);
-                        return;
-                    } catch (e) {
-                        // Try next URL
-                    }
-                }
-                t.failed = true;
-                t.type = 'text';
-                // t.content already holds the original emoji — render as text
-            })());
-        }
-    });
-
-    await Promise.all(nameAssets);
+    await Promise.all(loadTokenEmojiAssets(nameTokens));
 
     ctx.textAlign = 'left'; // Helper calculates positions, we draw manually
     ctx.fillStyle = '#ffffff';

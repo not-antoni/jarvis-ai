@@ -142,31 +142,16 @@ async function handleJarvis(interaction, jarvis) {
             : null);
 
         if (guild) {
-            const userIds = Array.from(prompt.matchAll(/<@!?(\d{17,20})>/g)).map(match => match[1]);
-            for (const mentionedUserId of new Set(userIds)) {
-                const member = guild.members.cache.get(mentionedUserId)
-                    || await guild.members.fetch(mentionedUserId).catch(() => null);
-                const displayName = member?.displayName
-                    || member?.user?.globalName
-                    || member?.user?.username
-                    || 'user';
-                prompt = prompt.replace(new RegExp(`<@!?${mentionedUserId}>`, 'g'), `@${displayName}`);
-            }
-
-            const roleIds = Array.from(prompt.matchAll(/<@&(\d{17,20})>/g)).map(match => match[1]);
-            for (const mentionedRoleId of new Set(roleIds)) {
-                const role = guild.roles.cache.get(mentionedRoleId)
-                    || await guild.roles.fetch(mentionedRoleId).catch(() => null);
-                const roleName = role?.name || 'role';
-                prompt = prompt.replace(new RegExp(`<@&${mentionedRoleId}>`, 'g'), `@${roleName}`);
-            }
-
-            const channelIds = Array.from(prompt.matchAll(/<#(\d{17,20})>/g)).map(match => match[1]);
-            for (const mentionedChannelId of new Set(channelIds)) {
-                const channel = guild.channels.cache.get(mentionedChannelId)
-                    || await guild.channels.fetch(mentionedChannelId).catch(() => null);
-                const channelName = channel?.name || 'channel';
-                prompt = prompt.replace(new RegExp(`<#${mentionedChannelId}>`, 'g'), `#${channelName}`);
+            const mentionTypes = [
+                { regex: /<@!?(\d{17,20})>/g, pattern: id => `<@!?${id}>`, prefix: '@', resolve: id => guild.members.cache.get(id) || guild.members.fetch(id).catch(() => null), name: m => m?.displayName || m?.user?.globalName || m?.user?.username || 'user' },
+                { regex: /<@&(\d{17,20})>/g, pattern: id => `<@&${id}>`, prefix: '@', resolve: id => guild.roles.cache.get(id) || guild.roles.fetch(id).catch(() => null), name: r => r?.name || 'role' },
+                { regex: /<#(\d{17,20})>/g, pattern: id => `<#${id}>`, prefix: '#', resolve: id => guild.channels.cache.get(id) || guild.channels.fetch(id).catch(() => null), name: c => c?.name || 'channel' }
+            ];
+            for (const { regex, pattern, prefix, resolve, name } of mentionTypes) {
+                for (const id of new Set(Array.from(prompt.matchAll(regex)).map(m => m[1]))) {
+                    const entity = await resolve(id);
+                    prompt = prompt.replace(new RegExp(pattern(id), 'g'), `${prefix}${name(entity)}`);
+                }
             }
         }
     } catch (error) {
@@ -257,60 +242,13 @@ async function handleJarvis(interaction, jarvis) {
     return aiResponse;
 }
 
-async function handleClear(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'reset',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
-
-async function handleHelp(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'help',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
-
-async function handleProfile(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'profile',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
-
-async function handleHistory(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'history',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
-
-async function handleDigest(interaction, jarvis, userId, guildId) {
-    return await jarvis.handleUtilityCommand(
-        'digest',
-        interaction.user.username,
-        userId,
-        true,
-        interaction,
-        guildId
-    );
-}
+const makeUtilityHandler = cmd => (interaction, jarvis, userId, guildId) =>
+    jarvis.handleUtilityCommand(cmd, interaction.user.username, userId, true, interaction, guildId);
+const handleClear = makeUtilityHandler('reset');
+const handleHelp = makeUtilityHandler('help');
+const handleProfile = makeUtilityHandler('profile');
+const handleHistory = makeUtilityHandler('history');
+const handleDigest = makeUtilityHandler('digest');
 
 async function handleAvatar(interaction) {
     const targetUser = interaction.options.getUser('user') || interaction.user;
