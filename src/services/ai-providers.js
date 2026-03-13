@@ -1,25 +1,18 @@
 'use strict';
-
 const execution = require('./ai-providers-execution');
-
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../../config');
 const { getAIFetch } = require('./ai-proxy');
-
 const aiFetch = getAIFetch();
-
 const fsp = fs.promises;
-
 const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
-
 // Determine storage mode: MongoDB for Render, file for selfhost
 const IS_SELFHOST = String(process.env.SELFHOST_MODE || '').toLowerCase() === 'true';
 const PROVIDER_STATE_COLLECTION = 'provider_state';
-
 // MongoDB helper for provider state (lazy loaded)
 let _database = null;
 async function getDatabase() {
@@ -36,7 +29,6 @@ async function getDatabase() {
     }
     return _database;
 }
-
 function resolveCostPriority(provider) {
     const tier = provider.costTier || 'paid';
     if (Object.prototype.hasOwnProperty.call(COST_PRIORITY, tier)) {
@@ -44,37 +36,30 @@ function resolveCostPriority(provider) {
     }
     return COST_PRIORITY.paid;
 }
-
 class AIProviderManager {
     constructor() {
         this.providers = [];
         this.providerErrors = new Map();
         this.metrics = new Map();
         this.disabledProviders = new Map();
-
         // Selection & routing flags
         this.useRandomSelection = true; // Default to random selection
         this.selectedProviderType = config.ai?.provider || 'auto'; // 'auto' | 'openai' | 'groq' | 'openrouter' | 'google' | 'deepseek'
-
         // OpenRouter rolling outage guardrails
         this.openRouterGlobalFailure = false;
         this.openRouterFailureCount = 0;
-
         // Per-provider failure tracking for exponential backoff
         this.providerFailureCounts = new Map();
-
         // Persistence (5s debounce to reduce I/O)
         this.stateSaveTimer = null;
         this.stateSaveDebounceMs = 5000;
         this.stateDirty = false;
-
         // Token tracking
         this.totalTokensIn = 0;
         this.totalTokensOut = 0;
         this.totalRequests = 0;
         this.successfulRequests = 0;
         this.failedRequests = 0;
-
         // Dynamic load tracking
         this.activeRequests = 0;
         this.activeRequestsPeak = 0;
@@ -83,11 +68,9 @@ class AIProviderManager {
             softCap: Number(process.env.AI_SOFT_CAP) || 10,
             rejectThreshold: Number(process.env.AI_REJECT_THRESHOLD) || 30
         };
-
         this.setupProviders();
         this.loadState();
     }
-
     setupProviders() {
         // ---------- OpenRouter providers ----------
         // Auto-discover all OPENROUTER_API_KEY, OPENROUTER_API_KEY2, etc.
@@ -100,7 +83,6 @@ class AIProviderManager {
             })
             .map(key => process.env[key])
             .filter(Boolean);
-
         // Each OpenRouter key gets multiple free models — rate limits are per-model
         const openRouterModels = [
             'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
@@ -108,7 +90,6 @@ class AIProviderManager {
             'nvidia/nemotron-3-nano-30b-a3b:free',
             'google/gemma-3-27b-it:free'
         ];
-
         openRouterKeys.forEach((key, keyIndex) => {
             openRouterModels.forEach((model) => {
                 const shortName = model.split('/').pop().replace(':free', '');
@@ -130,7 +111,6 @@ class AIProviderManager {
                 });
             });
         });
-
         // ---------- Groq providers (OpenAI-compatible) ----------
         // Auto-discover all GROQ_API_KEY, GROQ_API_KEY2, etc.
         const groqKeys = Object.keys(process.env)
@@ -142,14 +122,12 @@ class AIProviderManager {
             })
             .map(key => process.env[key])
             .filter(Boolean);
-
         // Each Groq key gets multiple model providers — rate limits are per-model
         const groqModels = [
             'moonshotai/kimi-k2-instruct',    // Primary — best quality
             'llama-3.3-70b-versatile',         // Fallback — separate rate limit
             'llama3-70b-8192'                  // Second fallback — separate rate limit
         ];
-
         groqKeys.forEach((key, keyIndex) => {
             groqModels.forEach((model) => {
                 const shortName = model.includes('/') ? model.split('/').pop() : model;
@@ -167,7 +145,6 @@ class AIProviderManager {
                 });
             });
         });
-
         // ---------- Google AI (native SDK) ----------
         // Auto-discover all GOOGLE_AI_API_KEY, GOOGLE_AI_API_KEY2, etc.
         const googleKeys = Object.keys(process.env)
@@ -179,7 +156,6 @@ class AIProviderManager {
             })
             .map(key => process.env[key])
             .filter(Boolean);
-
         // Each Google key gets multiple models — rate limits are per-model
         const googleModels = [
             `gemini-3-flash-preview`,
@@ -190,7 +166,6 @@ class AIProviderManager {
             'gemini-2.0-flash-lite',   // Separate rate limit, high throughput
             'gemma-3-27b-it'           // Replacement for deprecated Gemini 1.5 models
         ];
-
         googleKeys.forEach((key, keyIndex) => {
             googleModels.forEach((model) => {
                 this.providers.push({
@@ -203,7 +178,6 @@ class AIProviderManager {
                 });
             });
         });
-
         // ---------- DeepSeek via Vercel AI Gateway (OpenAI-compatible) ----------
         // Auto-discover all AI_GATEWAY_API_KEY, AI_GATEWAY_API_KEY2, etc.
         const deepseekGatewayKeys = Object.keys(process.env)
@@ -215,7 +189,6 @@ class AIProviderManager {
             })
             .map(key => process.env[key])
             .filter(Boolean);
-
         deepseekGatewayKeys.forEach((key, index) => {
             this.providers.push({
                 name: `deepseek-gateway-${index + 1}`,
@@ -235,7 +208,6 @@ class AIProviderManager {
                 costTier: 'paid'
             });
         });
-
         // ---------- OpenAI lightweight (replace GPT-5 Nano → GPT-4o-mini) ----------
         const openAiKey = process.env.OPENAI || process.env.OPENAI_API_KEY;
         if (openAiKey) {
@@ -250,7 +222,6 @@ class AIProviderManager {
                 costTier: 'paid'
             });
         }
-
         // ---------- Ollama providers (native API with vision support) ----------
         // Auto-discover all OLLAMA_API_KEY, OLLAMA_API_KEY2, OLLAMA_API_KEY3, etc.
         const ollamaKeys = Object.keys(process.env)
@@ -262,10 +233,8 @@ class AIProviderManager {
             })
             .map(key => process.env[key])
             .filter(Boolean);
-
         const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
         const ollamaModel = process.env.OLLAMA_MODEL || 'qwen3-vl:235b-instruct-cloud';
-
         ollamaKeys.forEach((key, index) => {
             this.providers.push({
                 name: `Ollama${index + 1}`,
@@ -278,7 +247,6 @@ class AIProviderManager {
                 supportsImages: true
             });
         });
-
         // ---------- Cloudflare Workers AI (via deployed worker) ----------
         // Uses AI_PROXY_TOKEN for authentication (same as other proxies)
         const cfWorkerUrl = process.env.CLOUDFLARE_WORKER_URL;
@@ -295,15 +263,12 @@ class AIProviderManager {
             });
             console.log('Cloudflare Workers AI provider configured');
         }
-
         // Rank cheapest first by default
         this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
-
         console.log(`Initialized ${this.providers.length} AI providers`);
         console.log(`Provider selection mode: ${this.useRandomSelection ? 'Random' : 'Ranked'}`);
         console.log(`Selected provider type: ${this.selectedProviderType}`);
     }
-
     loadState() {
         // For Render, load async from MongoDB after startup
         if (!IS_SELFHOST) {
@@ -312,7 +277,6 @@ class AIProviderManager {
             );
             return;
         }
-
         // Selfhost: load from file
         try {
             if (!fs.existsSync(PROVIDER_STATE_PATH)) {return;}
@@ -324,11 +288,9 @@ class AIProviderManager {
             console.warn('Failed to restore AI provider cache:', error);
         }
     }
-
     async _loadStateFromMongo() {
         const db = await getDatabase();
         if (!db || !db.db) {return;}
-
         try {
             const doc = await db.db
                 .collection(PROVIDER_STATE_COLLECTION)
@@ -341,10 +303,8 @@ class AIProviderManager {
             console.warn('MongoDB provider state load failed:', e.message);
         }
     }
-
     _applyStateData(data) {
         if (!data) {return;}
-
         if (data.metrics && typeof data.metrics === 'object') {
             for (const [name, metric] of Object.entries(data.metrics)) {
                 if (this.providers.find(p => p.name === name) && metric) {
@@ -356,7 +316,6 @@ class AIProviderManager {
                 }
             }
         }
-
         if (data.disabledProviders && typeof data.disabledProviders === 'object') {
             const now = Date.now();
             for (const [name, disabledUntil] of Object.entries(data.disabledProviders)) {
@@ -370,7 +329,6 @@ class AIProviderManager {
                 }
             }
         }
-
         if (data.providerErrors && typeof data.providerErrors === 'object') {
             for (const [name, errorInfo] of Object.entries(data.providerErrors)) {
                 if (
@@ -382,15 +340,12 @@ class AIProviderManager {
                 }
             }
         }
-
         if (typeof data.openRouterGlobalFailure === 'boolean') {
             this.openRouterGlobalFailure = data.openRouterGlobalFailure;
         }
-
         if (typeof data.openRouterFailureCount === 'number') {
             this.openRouterFailureCount = data.openRouterFailureCount;
         }
-
         // Restore token metrics
         if (typeof data.totalTokensIn === 'number') {
             this.totalTokensIn = data.totalTokensIn;
@@ -408,7 +363,6 @@ class AIProviderManager {
             this.failedRequests = data.failedRequests;
         }
     }
-
     // Get stats for dashboard
     getStats() {
         return {
@@ -426,7 +380,6 @@ class AIProviderManager {
             activeProviders: this.providers.filter(p => !this.disabledProviders.has(p.name)).length
         };
     }
-
     async saveState() {
         const payload = {
             metrics: Object.fromEntries(this.metrics),
@@ -441,7 +394,6 @@ class AIProviderManager {
             failedRequests: this.failedRequests,
             savedAt: new Date().toISOString()
         };
-
         // Render: save to MongoDB
         if (!IS_SELFHOST) {
             try {
@@ -456,7 +408,6 @@ class AIProviderManager {
             }
             return;
         }
-
         // Selfhost: save to file
         try {
             // Ensure data directory exists
@@ -469,7 +420,6 @@ class AIProviderManager {
             console.warn('Failed to persist AI provider cache:', error);
         }
     }
-
     scheduleStateSave() {
         this.stateDirty = true;
         if (this.stateSaveTimer) {return;}
@@ -480,21 +430,16 @@ class AIProviderManager {
             await this.saveState();
         }, this.stateSaveDebounceMs);
     }
-
     _filterProvidersByType(providers, options = {}) {
         // By default, exclude moderationOnly providers from casual chat.
         // Set options.allowModerationOnly = true to include them (if any are configured).
         const allowModerationOnly = options.allowModerationOnly === true;
-
         let filtered = providers;
-
         // Filter out moderationOnly providers unless explicitly allowed
         if (!allowModerationOnly) {
             filtered = filtered.filter(p => !p.moderationOnly);
         }
-
         if (this.selectedProviderType === 'auto') {return filtered;}
-
         return filtered.filter(provider => {
             const providerName = provider.name.toLowerCase();
             switch (this.selectedProviderType.toLowerCase()) {
@@ -518,11 +463,9 @@ class AIProviderManager {
             }
         });
     }
-
     _rankedProviders(options = {}) {
         const now = Date.now();
         const filteredProviders = this._filterProvidersByType(this.providers, options);
-
         return filteredProviders
             .filter(p => {
                 const disabledUntil = this.disabledProviders.get(p.name);
@@ -541,39 +484,32 @@ class AIProviderManager {
                     failures: 0,
                     avgLatencyMs: 1500
                 };
-
                 const score = m => {
                     const trials = m.successes + m.failures || 1;
                     const successRate = m.successes / trials;
                     const latencyScore = 1 / Math.max(m.avgLatencyMs, 1);
                     return successRate * 0.7 + latencyScore * 0.3;
                 };
-
                 const priorityDelta = resolveCostPriority(a) - resolveCostPriority(b);
                 if (priorityDelta !== 0) {return priorityDelta;}
                 return score(mb) - score(ma);
             });
     }
-
     _getRandomProvider(options = {}) {
         const now = Date.now();
         const filteredProviders = this._filterProvidersByType(this.providers, options);
-
         const availableProviders = filteredProviders.filter(p => {
             const disabledUntil = this.disabledProviders.get(p.name);
             const isDisabled = disabledUntil && disabledUntil > now;
             if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {return false;}
             return !isDisabled;
         });
-
         if (availableProviders.length === 0) {return null;}
-
         const minPriority = Math.min(...availableProviders.map(p => resolveCostPriority(p)));
         const preferred = availableProviders.filter(p => resolveCostPriority(p) === minPriority);
         const pool = preferred.length ? preferred : availableProviders;
         return this._pickWeightedProvider(pool) || pool[Math.floor(Math.random() * pool.length)];
     }
-
     _computeProviderWeight(provider) {
         const metrics = this.metrics.get(provider.name) || {
             successes: 0,
@@ -586,22 +522,18 @@ class AIProviderManager {
         const errorPenalty = this.providerErrors.has(provider.name) ? 0.4 : 1;
         return Math.max((successRate + 0.2) * (1 / latency) * errorPenalty, 0.0001);
     }
-
     _pickWeightedProvider(candidates) {
         if (!candidates.length) {
             return null;
         }
-
         const weighted = candidates.map(provider => ({
             provider,
             weight: this._computeProviderWeight(provider)
         }));
-
         const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
         if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
             return candidates[Math.floor(Math.random() * candidates.length)];
         }
-
         let threshold = Math.random() * totalWeight;
         for (const entry of weighted) {
             threshold -= entry.weight;
@@ -609,25 +541,20 @@ class AIProviderManager {
                 return entry.provider;
             }
         }
-
         return weighted[weighted.length - 1].provider;
     }
-
     _recordMetric(name, ok, latencyMs) {
         const m = this.metrics.get(name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };
         if (ok) {m.successes += 1;}
         else {m.failures += 1;}
-
         if (!Number.isFinite(m.avgLatencyMs) || m.avgLatencyMs <= 0) {
             m.avgLatencyMs = latencyMs;
         } else {
             m.avgLatencyMs = m.avgLatencyMs * 0.7 + latencyMs * 0.3;
         }
-
         this.metrics.set(name, m);
         this.scheduleStateSave();
     }
-
     _isRetryable(error) {
         const status = error?.status || error?.response?.status;
         const message = String(error?.message || '').toLowerCase();
@@ -641,16 +568,13 @@ class AIProviderManager {
         {return true;}
         return false;
     }
-
     async _sleep(ms) {
         return new Promise(res => setTimeout(res, ms));
     }
-
     async _retry(fn, { retries = 0, baseDelay = 0, jitter = false, providerName = '' } = {}) {
         const attempts = Math.max(0, Number(retries) || 0) + 1;
         const delayBase = Math.max(0, Number(baseDelay) || 0);
         const useJitter = Boolean(jitter);
-
         let lastError = null;
         for (let attempt = 0; attempt < attempts; attempt += 1) {
             try {
@@ -661,7 +585,6 @@ class AIProviderManager {
                 if (!canRetry) {
                     throw err;
                 }
-
                 let waitMs = delayBase ? delayBase * Math.pow(2, attempt) : 0;
                 if (useJitter && waitMs > 0) {
                     waitMs = Math.round(waitMs * (0.5 + Math.random()));
@@ -674,17 +597,14 @@ class AIProviderManager {
                 }
             }
         }
-
         throw lastError;
     }
-
     /**
      * Get current load factor (0.0 = idle, 1.0 = at soft cap, >1.0 = overloaded)
      */
     getLoadFactor() {
         return this.activeRequests / Math.max(1, this.loadConfig.softCap);
     }
-
     /**
      * Get load-adjusted max tokens. Reduces output under high load to keep things responsive.
      */
@@ -695,7 +615,6 @@ class AIProviderManager {
         const reduction = Math.min(0.5, (load - 1.0) * 0.25);
         return Math.max(512, Math.floor(requestedTokens * (1 - reduction)));
     }
-
     /**
      * Get load stats for diagnostics/monitoring
      */
@@ -709,41 +628,33 @@ class AIProviderManager {
             rejectThreshold: this.loadConfig.rejectThreshold
         };
     }
-
     async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai?.maxTokens || 4096) {
         // Ensure prompts are strings (required by some providers like Groq)
         systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
         userPrompt = userPrompt != null ? String(userPrompt) : '';
-
         // Load management: reject if over hard limit
         if (this.activeRequests >= this.loadConfig.rejectThreshold) {
             throw new Error('System under heavy load — please try again in a moment, sir.');
         }
-
         // Track active requests
         this.activeRequests++;
         if (this.activeRequests > this.activeRequestsPeak) {
             this.activeRequestsPeak = this.activeRequests;
         }
-
         // Adjust tokens based on current load
         maxTokens = this.getLoadAdjustedTokens(maxTokens);
-
         try {
             return await this._executeGeneration(systemPrompt, userPrompt, maxTokens);
         } finally {
             this.activeRequests = Math.max(0, this.activeRequests - 1);
         }
     }
-
     async _executeGeneration(systemPrompt, userPrompt, maxTokens) {
         return execution.executeGeneration(this, systemPrompt, userPrompt, maxTokens);
     }
-
     async generateResponseWithImages(systemPrompt, userPrompt, images, maxTokens, options) {
         return execution.generateResponseWithImages(this, systemPrompt, userPrompt, images, maxTokens, options);
     }
-
     getProviderStatus() {
         const now = Date.now();
         return this.providers
@@ -786,7 +697,6 @@ class AIProviderManager {
                 );
             });
     }
-
     getRedactedProviderStatus() {
         return this.getProviderStatus().map(p => ({
             ...p,
@@ -795,7 +705,6 @@ class AIProviderManager {
             lastError: p.hasError ? '[REDACTED]' : null
         }));
     }
-
     getProviderAnalytics() {
         return this.getProviderStatus().map(provider => {
             const uptimePercentage =
@@ -821,24 +730,19 @@ class AIProviderManager {
             };
         });
     }
-
     _redactProviderName(_name) {
         return '[REDACTED]';
     }
-
     _redactModelName(_model) {
         return '[REDACTED]';
     }
-
     setRandomSelection(enabled) {
         this.useRandomSelection = !!enabled;
         console.log(`Provider selection mode changed to: ${enabled ? 'Random' : 'Ranked'}`);
     }
-
     getSelectionMode() {
         return this.useRandomSelection ? 'random' : 'ranked';
     }
-
     setProviderType(providerType) {
         const validTypes = ['auto', 'openai', 'groq', 'openrouter', 'google', 'deepseek', 'ollama'];
         if (!validTypes.includes(String(providerType).toLowerCase())) {
@@ -847,11 +751,9 @@ class AIProviderManager {
         this.selectedProviderType = providerType.toLowerCase();
         console.log(`Provider type changed to: ${this.selectedProviderType}`);
     }
-
     getProviderType() {
         return this.selectedProviderType;
     }
-
     getAvailableProviderTypes() {
         const types = new Set();
         this.providers.forEach(provider => {
@@ -867,7 +769,6 @@ class AIProviderManager {
         available.unshift('auto');
         return available;
     }
-
     cleanupOldMetrics() {
         const now = Date.now();
         const maxAge = 24 * 60 * 60 * 1000;
@@ -878,7 +779,6 @@ class AIProviderManager {
             if (disabledUntil <= now) {this.disabledProviders.delete(name);}
         }
     }
-
     /**
      * Force reinitialize all providers - useful for recovery from corrupted state
      */
@@ -894,7 +794,6 @@ class AIProviderManager {
         console.log(`Reinitialized ${this.providers.length} AI providers`);
         return this.providers.length;
     }
-
     /**
      * Get a health summary for monitoring
      */
@@ -904,7 +803,6 @@ class AIProviderManager {
             const disabledUntil = this.disabledProviders.get(p.name);
             return !disabledUntil || disabledUntil <= now;
         });
-
         return {
             total: this.providers.length,
             active: activeProviders.length,
@@ -914,5 +812,4 @@ class AIProviderManager {
         };
     }
 }
-
 module.exports = new AIProviderManager();

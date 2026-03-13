@@ -3,10 +3,11 @@
 const { EmbedBuilder, PermissionsBitField } = require('discord.js');
 const database = require('../database');
 const fetch = require('node-fetch');
+const automodUtils = require('./automod-utils');
 
 /**
  * Extracted from DiscordHandlers.handleAutoModCommand (part-03 line 868 + part-04 lines 1-459).
- * All `this.*` references replaced with `handler.*`.
+ * All `this.*` references replaced with `handler` or helper calls.
  */
 async function handleAutoModCommand(handler, interaction) {
     if (!interaction.guild) {
@@ -38,7 +39,11 @@ async function handleAutoModCommand(handler, interaction) {
     }
 
     const storedRecord = await database.getAutoModConfig(guild.id);
-    const { record, rules: cachedRules, mutated, missingRuleIds } = await handler.prepareAutoModState(guild, storedRecord);
+    const { record, rules: cachedRules, mutated, missingRuleIds } = await automodUtils.prepareAutoModState(
+        handler,
+        guild,
+        storedRecord
+    );
 
     if (mutated) {
         await database.saveAutoModConfig(guild.id, record);
@@ -51,14 +56,14 @@ async function handleAutoModCommand(handler, interaction) {
     if (subcommandGroup === 'filter') {
         if (subcommand === 'add') {
             const input = interaction.options.getString('words');
-            const additions = handler.parseKeywordInput(input);
+            const additions = automodUtils.parseKeywordInput(input);
 
             if (!additions.length) {
                 await replyWithError('Please provide at least one word or phrase for the new filter, sir.');
                 return;
             }
 
-            const merged = handler.mergeKeywords([], additions);
+            const merged = automodUtils.mergeKeywords([], additions);
             if (!merged.length) {
                 await replyWithError('I could not extract any valid keywords for that filter, sir.');
                 return;
@@ -71,7 +76,7 @@ async function handleAutoModCommand(handler, interaction) {
 
             const mergedSet = new Set(merged);
             const duplicate = (record.extraFilters || []).some(filter => {
-                const normalized = handler.mergeKeywords([], filter.keywords || []);
+                const normalized = automodUtils.mergeKeywords([], filter.keywords || []);
                 if (normalized.length !== merged.length) {
                     return false;
                 }
@@ -87,7 +92,7 @@ async function handleAutoModCommand(handler, interaction) {
                 record.extraFilters = [];
             }
 
-            const filterName = handler.generateAutoModFilterName(record.extraFilters);
+            const filterName = automodUtils.generateAutoModFilterName(handler, record.extraFilters);
             const newFilter = {
                 ruleId: null,
                 keywords: merged,
@@ -98,7 +103,8 @@ async function handleAutoModCommand(handler, interaction) {
             };
 
             try {
-                await handler.upsertExtraAutoModFilter(
+                await automodUtils.upsertExtraAutoModFilter(
+                    handler,
                     guild,
                     newFilter,
                     record.customMessage || handler.defaultAutoModMessage,
@@ -116,7 +122,11 @@ async function handleAutoModCommand(handler, interaction) {
                 );
             } catch (error) {
                 console.error('Failed to add additional auto moderation filter:', error?.cause || error);
-                await replyWithError(handler.getAutoModErrorMessage(error, 'I could not create that additional auto moderation filter, sir.'));
+                await replyWithError(automodUtils.getAutoModErrorMessage(
+                    handler,
+                    error,
+                    'I could not create that additional auto moderation filter, sir.'
+                ));
             }
             return;
         }
@@ -195,7 +205,8 @@ async function handleAutoModCommand(handler, interaction) {
         }
 
         try {
-            const { rules, keywords, ruleIds } = await handler.syncAutoModRules(
+            const { rules, keywords, ruleIds } = await automodUtils.syncAutoModRules(
+                handler,
                 guild,
                 record.keywords,
                 record.customMessage,
@@ -207,10 +218,14 @@ async function handleAutoModCommand(handler, interaction) {
             record.keywords = keywords;
             record.enabled = rules.every(rule => Boolean(rule.enabled));
             try {
-                await handler.enableExtraAutoModFilters(guild, record);
+                await automodUtils.enableExtraAutoModFilters(handler, guild, record);
             } catch (error) {
                 console.error('Failed to enable additional auto moderation filters:', error?.cause || error);
-                await replyWithError(handler.getAutoModErrorMessage(error, 'I could not enable the additional auto moderation filters, sir.'));
+                await replyWithError(automodUtils.getAutoModErrorMessage(
+                    handler,
+                    error,
+                    'I could not enable the additional auto moderation filters, sir.'
+                ));
                 return;
             }
 
@@ -221,7 +236,8 @@ async function handleAutoModCommand(handler, interaction) {
             await interaction.editReply(`Auto moderation ${record.enabled ? 'engaged' : 'updated'}, sir. ${statusLine}`);
         } catch (error) {
             console.error('Failed to enable auto moderation:', error?.cause || error);
-            await replyWithError(handler.getAutoModErrorMessage(
+            await replyWithError(automodUtils.getAutoModErrorMessage(
+                handler,
                 error,
                 'I could not enable auto moderation, sir. Please ensure I have the AutoMod permission.'
             ));
@@ -231,21 +247,29 @@ async function handleAutoModCommand(handler, interaction) {
 
     if (subcommand === 'disable') {
         try {
-            const disabled = await handler.disableAutoModRule(guild, record.ruleIds);
+            const disabled = await automodUtils.disableAutoModRule(guild, record.ruleIds);
             if (!disabled) {
                 record.ruleIds = [];
             }
         } catch (error) {
             console.error('Failed to disable auto moderation rule:', error?.cause || error);
-            await replyWithError(handler.getAutoModErrorMessage(error, 'I could not disable the auto moderation rule, sir.'));
+            await replyWithError(automodUtils.getAutoModErrorMessage(
+                handler,
+                error,
+                'I could not disable the auto moderation rule, sir.'
+            ));
             return;
         }
 
         try {
-            await handler.disableExtraAutoModFilters(guild, record);
+            await automodUtils.disableExtraAutoModFilters(handler, guild, record);
         } catch (error) {
             console.error('Failed to disable additional auto moderation filters:', error?.cause || error);
-            await replyWithError(handler.getAutoModErrorMessage(error, 'I could not disable the additional auto moderation filters, sir.'));
+            await replyWithError(automodUtils.getAutoModErrorMessage(
+                handler,
+                error,
+                'I could not disable the additional auto moderation filters, sir.'
+            ));
             return;
         }
 
@@ -257,7 +281,7 @@ async function handleAutoModCommand(handler, interaction) {
 
     if (subcommand === 'clear') {
         try {
-            const disabled = await handler.disableAutoModRule(guild, record.ruleIds);
+            const disabled = await automodUtils.disableAutoModRule(guild, record.ruleIds);
             if (!disabled) {
                 record.ruleIds = [];
             }
@@ -266,7 +290,7 @@ async function handleAutoModCommand(handler, interaction) {
         }
 
         try {
-            await handler.disableExtraAutoModFilters(guild, record);
+            await automodUtils.disableExtraAutoModFilters(handler, guild, record);
         } catch (error) {
             console.error('Failed to disable additional auto moderation filters while clearing:', error?.cause || error);
         }
@@ -291,7 +315,8 @@ async function handleAutoModCommand(handler, interaction) {
 
         if (record.enabled && record.keywords.length) {
             try {
-                const { rules, keywords, ruleIds } = await handler.syncAutoModRules(
+                const { rules, keywords, ruleIds } = await automodUtils.syncAutoModRules(
+                    handler,
                     guild,
                     record.keywords,
                     record.customMessage,
@@ -303,7 +328,11 @@ async function handleAutoModCommand(handler, interaction) {
                 record.keywords = keywords;
             } catch (error) {
                 console.error('Failed to update auto moderation message:', error?.cause || error);
-                await replyWithError(handler.getAutoModErrorMessage(error, 'I could not update the auto moderation message, sir.'));
+                await replyWithError(automodUtils.getAutoModErrorMessage(
+                    handler,
+                    error,
+                    'I could not update the auto moderation message, sir.'
+                ));
                 return;
             }
         }
@@ -313,10 +342,14 @@ async function handleAutoModCommand(handler, interaction) {
         }
 
         try {
-            await handler.resyncEnabledExtraAutoModFilters(guild, record);
+            await automodUtils.resyncEnabledExtraAutoModFilters(handler, guild, record);
         } catch (error) {
             console.error('Failed to update additional auto moderation filters with new message:', error?.cause || error);
-            await replyWithError(handler.getAutoModErrorMessage(error, 'I could not update the additional auto moderation filters, sir.'));
+            await replyWithError(automodUtils.getAutoModErrorMessage(
+                handler,
+                error,
+                'I could not update the additional auto moderation filters, sir.'
+            ));
             return;
         }
 
@@ -327,14 +360,14 @@ async function handleAutoModCommand(handler, interaction) {
 
     if (subcommand === 'add') {
         const input = interaction.options.getString('words');
-        const additions = handler.parseKeywordInput(input);
+        const additions = automodUtils.parseKeywordInput(input);
 
         if (!additions.length) {
             await replyWithError('Please provide at least one word or phrase to blacklist, sir.');
             return;
         }
 
-        const merged = handler.mergeKeywords(record.keywords, additions);
+        const merged = automodUtils.mergeKeywords(record.keywords, additions);
         if (merged.length === record.keywords.length) {
             await replyWithError('Those words were already on the blacklist, sir.');
             return;
@@ -342,7 +375,8 @@ async function handleAutoModCommand(handler, interaction) {
 
         const previousCount = record.keywords.length;
         try {
-            const { rules, keywords, ruleIds } = await handler.syncAutoModRules(
+            const { rules, keywords, ruleIds } = await automodUtils.syncAutoModRules(
+                handler,
                 guild,
                 merged,
                 record.customMessage,
@@ -361,22 +395,26 @@ async function handleAutoModCommand(handler, interaction) {
             await interaction.editReply(`Blacklist updated with ${addedCount} new entr${addedCount === 1 ? 'y' : 'ies'}. ${statusLine}`);
         } catch (error) {
             console.error('Failed to add auto moderation keywords:', error?.cause || error);
-            await replyWithError(handler.getAutoModErrorMessage(error, 'I could not update the auto moderation rule, sir.'));
+            await replyWithError(automodUtils.getAutoModErrorMessage(
+                handler,
+                error,
+                'I could not update the auto moderation rule, sir.'
+            ));
         }
         return;
     }
 
     if (subcommand === 'remove') {
         const input = interaction.options.getString('words');
-        const removals = handler.parseKeywordInput(input);
+        const removals = automodUtils.parseKeywordInput(input);
 
         if (!removals.length) {
             await replyWithError('Please specify the words to remove from the blacklist, sir.');
             return;
         }
 
-        const removalSet = new Set(removals.map(word => handler.normalizeKeyword(word)));
-        const remaining = (record.keywords || []).filter(keyword => !removalSet.has(handler.normalizeKeyword(keyword)));
+        const removalSet = new Set(removals.map(word => automodUtils.normalizeKeyword(word)));
+        const remaining = (record.keywords || []).filter(keyword => !removalSet.has(automodUtils.normalizeKeyword(keyword)));
 
         if (remaining.length === record.keywords.length) {
             await replyWithError('None of those words were on the blacklist, sir.');
@@ -387,7 +425,8 @@ async function handleAutoModCommand(handler, interaction) {
 
         if (record.keywords.length) {
             try {
-                const { rules, keywords, ruleIds } = await handler.syncAutoModRules(
+                const { rules, keywords, ruleIds } = await automodUtils.syncAutoModRules(
+                    handler,
                     guild,
                     record.keywords,
                     record.customMessage,
@@ -400,12 +439,16 @@ async function handleAutoModCommand(handler, interaction) {
                 record.enabled = rules.every(rule => Boolean(rule.enabled));
             } catch (error) {
                 console.error('Failed to update auto moderation keywords after removal:', error?.cause || error);
-                await replyWithError(handler.getAutoModErrorMessage(error, 'I could not update the auto moderation rule after removal, sir.'));
+                await replyWithError(automodUtils.getAutoModErrorMessage(
+                    handler,
+                    error,
+                    'I could not update the auto moderation rule after removal, sir.'
+                ));
                 return;
             }
         } else {
             try {
-                const disabled = await handler.disableAutoModRule(guild, record.ruleIds);
+                const disabled = await automodUtils.disableAutoModRule(guild, record.ruleIds);
                 if (!disabled) {
                     record.ruleIds = [];
                 }
@@ -448,15 +491,15 @@ async function handleAutoModCommand(handler, interaction) {
             return;
         }
 
-        const imported = handler.parseKeywordInput(text);
+        const imported = automodUtils.parseKeywordInput(text);
         if (!imported.length) {
             await replyWithError('That file did not contain any usable entries, sir.');
             return;
         }
 
         const combined = shouldReplace
-            ? handler.mergeKeywords([], imported)
-            : handler.mergeKeywords(record.keywords, imported);
+            ? automodUtils.mergeKeywords([], imported)
+            : automodUtils.mergeKeywords(record.keywords, imported);
 
         if (!combined.length) {
             await replyWithError('I could not extract any valid keywords from that file, sir.');
@@ -464,7 +507,8 @@ async function handleAutoModCommand(handler, interaction) {
         }
 
         try {
-            const { rules, keywords, ruleIds } = await handler.syncAutoModRules(
+            const { rules, keywords, ruleIds } = await automodUtils.syncAutoModRules(
+                handler,
                 guild,
                 combined,
                 record.customMessage,
@@ -482,7 +526,11 @@ async function handleAutoModCommand(handler, interaction) {
             await interaction.editReply(`Blacklist now tracks ${keywords.length} entr${keywords.length === 1 ? 'y' : 'ies'}. ${statusLine}`);
         } catch (error) {
             console.error('Failed to import auto moderation keywords:', error?.cause || error);
-            await replyWithError(handler.getAutoModErrorMessage(error, 'I could not apply that blacklist to Discord, sir.'));
+            await replyWithError(automodUtils.getAutoModErrorMessage(
+                handler,
+                error,
+                'I could not apply that blacklist to Discord, sir.'
+            ));
         }
         return;
     }

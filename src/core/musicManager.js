@@ -12,7 +12,6 @@ const { getAudioStream, cancelStream } = require('../utils/playDl');
 const { extractVideoId } = require('../utils/youtube');
 const { isGuildAllowed } = require('../utils/musicGuildWhitelist');
 const { safeSend } = require('../utils/discord-safe-send');
-
 const LOOP_MODES = ['off', 'song', 'queue'];
 const VOICE_READY_TIMEOUT_MS = Number(process.env.MUSIC_VOICE_READY_TIMEOUT_MS) || 30_000;
 const VOICE_JOIN_RETRIES = Number(process.env.MUSIC_VOICE_JOIN_RETRIES) || 4;
@@ -20,15 +19,12 @@ const VOICE_RECONNECT_ATTEMPTS = Number(process.env.MUSIC_VOICE_RECONNECT_ATTEMP
 const VOICE_RECONNECT_DELAY_MS = Number(process.env.MUSIC_VOICE_RECONNECT_DELAY_MS) || 1_500;
 const VOICE_JOIN_RETRY_DELAY_MS = Number(process.env.MUSIC_VOICE_JOIN_RETRY_DELAY_MS) || 1_500;
 const VOICE_ENSURE_READY_RETRIES = Number(process.env.MUSIC_VOICE_ENSURE_READY_RETRIES) || 3;
-
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
-
 function cloneTrack(track) {
     return track ? { ...track } : null;
 }
-
 function extractVoiceCloseCode(state) {
     const candidates = [
         state?.closeCode,
@@ -45,52 +41,41 @@ function extractVoiceCloseCode(state) {
     }
     return null;
 }
-
 function normalizePlaybackFailureReason(rawMessage) {
     const text = String(rawMessage || '').trim();
     if (!text) {
         return 'Unable to play that track right now, sir.';
     }
-
     const normalized = text.startsWith('Unable to play:')
         ? (text.slice('Unable to play:'.length).trim() || text)
         : text;
-
     if (normalized.length > 500) {
         return `${normalized.slice(0, 497)}...`;
     }
-
     return normalized;
 }
-
 function sanitizeAttachmentFilename(name) {
     const raw = String(name || '').trim();
     if (!raw) {
         return 'upload-audio.mp3';
     }
-
     const cleaned = raw
         .replace(/[\\/:*?"<>|]/g, '_')
         .replace(/\s+/g, ' ')
         .trim();
-
     return (cleaned || 'upload-audio.mp3').slice(0, 180);
 }
-
 class MusicManager {
     constructor(client) {
         this.queues = new Map(); // guildId -> state
         this.client = client;
     }
-
     getState(guildId) {
         return this.queues.get(guildId) ?? null;
     }
-
     getActiveGuildIds() {
         return Array.from(this.queues.keys());
     }
-
     getQueueSnapshot(guildId) {
         const state = this.getState(guildId);
         if (!state) {
@@ -104,7 +89,6 @@ class MusicManager {
                 loopMode: 'off'
             };
         }
-
         return {
             guildId: String(guildId),
             active: Boolean(state.currentVideo) || Boolean(state.pendingVideoId) || state.queue.length > 0,
@@ -120,20 +104,15 @@ class MusicManager {
             loopMode: state.loopMode || 'off'
         };
     }
-
     async enqueue(guildId, voiceChannel, video, interaction) {
         if (!isGuildAllowed(guildId)) {
             return '⚠️ Music playback is not enabled for this server, sir.';
         }
-
         let state = this.queues.get(guildId);
-
         if (!state) {
             const connection = await this.createConnection(guildId, voiceChannel);
             const player = this.createPlayer(guildId);
-
             this.safeSubscribe(connection, player);
-
             state = {
                 connection,
                 player,
@@ -147,27 +126,22 @@ class MusicManager {
                 voiceChannelId: voiceChannel.id,
                 loopMode: 'off'
             };
-
             this.queues.set(guildId, state);
         } else {
             state.voiceChannelId = voiceChannel.id;
             state.textChannel = interaction.channel ?? state.textChannel;
         }
-
         if (state.timeout) {
             clearTimeout(state.timeout);
             state.timeout = null;
         }
-
         if (!state.currentVideo && !state.pendingVideoId) {
             const announcement = await this.play(guildId, video, { announce: 'command' });
             return announcement || this.buildNowPlayingAnnouncement(video);
         }
-
         state.queue.push(video);
         return `🧃 Queued **${video.title}** (position ${state.queue.length + 1})`;
     }
-
     async play(guildId, video, options = {}) {
         const announce = options.announce ?? 'command';
         const queueAdvance = options.queueAdvance === true;
@@ -175,12 +149,10 @@ class MusicManager {
         if (!state) {
             return '⚠️ Nothing to play, sir.';
         }
-
         if (state.timeout) {
             clearTimeout(state.timeout);
             state.timeout = null;
         }
-
         try {
             await this.ensureVoiceReady(guildId, state);
         } catch (error) {
@@ -188,17 +160,14 @@ class MusicManager {
             const failureMessage = queueAdvance
                 ? `⚠️ Skipping **${video.title}**: ${reason}`
                 : `⚠️ Unable to play **${video.title}**: ${reason}`;
-
             if (announce === 'channel' && state.textChannel) {
                 safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => { });
             }
             return failureMessage;
         }
-
         const videoId = extractVideoId(video.url) ?? video.url;
         state.pendingVideoId = videoId;
         const playStart = Date.now();
-
         let streamResult;
         try {
             streamResult = await getAudioStream({
@@ -217,14 +186,11 @@ class MusicManager {
             const failureMessage = queueAdvance
                 ? `⚠️ Skipping **${video.title}**: ${reason}`
                 : `⚠️ Unable to play **${video.title}**: ${reason}`;
-
             if (announce === 'channel' && state.textChannel) {
                 safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => { });
             }
-
             return failureMessage;
         }
-
         try {
             // Create resource from stream - plays immediately!
             // Disable inlineVolume for better performance (less CPU overhead)
@@ -234,9 +200,7 @@ class MusicManager {
                 inlineVolume: false,
                 silencePaddingFrames: 15  // More aggressive silence buffer for smoother playback
             });
-
             this.releaseCurrent(state);
-
             this.safeSubscribe(state.connection, state.player);
             state.player.play(resource);
             state.currentVideo = video;
@@ -244,20 +208,16 @@ class MusicManager {
             console.log(
                 `[music][play] guild=${guildId} source=${video.source || 'unknown'} id=${videoId} ttfbMs=${Date.now() - playStart}`
             );
-
             const message = this.buildNowPlayingAnnouncement(video);
-
             if (announce === 'command') {
                 return message;
             }
-
             if (announce === 'channel' && state.textChannel) {
                 await this.sendNowPlayingAnnouncement(state, video, message);
             }
         } catch (error) {
             console.error('Music playback error:', error);
             streamResult.cleanup();
-
             const reason = normalizePlaybackFailureReason(error?.message);
             const failureMessage = queueAdvance
                 ? `⚠️ Skipping **${video.title}**: ${reason}`
@@ -265,25 +225,19 @@ class MusicManager {
             if (announce === 'command') {
                 return failureMessage;
             }
-
             if (announce === 'channel' && state.textChannel) {
                 safeSend(state.textChannel, { content: failureMessage }, this.client).catch(() => { });
             }
-
             return failureMessage;
         }
-
         return null;
     }
-
     buildNowPlayingAnnouncement(video) {
         const title = String(video?.title || 'Unknown track');
         const fallbackMessage = `🎶 Now playing: **${title}**\n${video?.url || ''}`.trim();
-
         if (!video?.isUpload || !video?.uploadPreviewUrl) {
             return fallbackMessage;
         }
-
         try {
             const filename = sanitizeAttachmentFilename(video?.filename || video?.title);
             return {
@@ -295,55 +249,44 @@ class MusicManager {
             return fallbackMessage;
         }
     }
-
     async sendNowPlayingAnnouncement(state, video, payload = null) {
         if (!state?.textChannel) {
             return;
         }
-
         const announcement = payload || this.buildNowPlayingAnnouncement(video);
         if (typeof announcement === 'string') {
             await safeSend(state.textChannel, { content: announcement }, this.client);
             return;
         }
-
         const sent = await safeSend(state.textChannel, announcement, this.client);
         if (sent?.ok) {
             return;
         }
-
         // Fallback when URL-based attachment upload fails (expired URL, fetch failure, etc.).
         const fallback = `🎶 Now playing: **${video?.title || 'Unknown track'}**\n${video?.url || ''}`.trim();
         await safeSend(state.textChannel, { content: fallback }, this.client);
     }
-
     async playNextAvailableFromQueue(guildId, state, options = {}) {
         const announce = options.announce ?? 'channel';
         let attempted = 0;
-
         while (state.queue.length > 0) {
             const liveState = this.queues.get(guildId);
             if (!liveState || liveState !== state) {
                 return null;
             }
-
             const next = state.queue.shift();
             attempted += 1;
-
             const result = await this.play(guildId, next, {
                 announce,
                 queueAdvance: true
             });
-
             if (state.currentVideo) {
                 return result;
             }
-
             if (result === null) {
                 return null;
             }
         }
-
         if (announce === 'channel' && attempted > 0 && state.textChannel) {
             safeSend(
                 state.textChannel,
@@ -351,83 +294,66 @@ class MusicManager {
                 this.client
             ).catch(() => { });
         }
-
         return null;
     }
-
     async skip(guildId) {
         const state = this.queues.get(guildId);
         if (!state) {
             return '⚠️ Nothing is playing, sir.';
         }
-
         const hasActive = Boolean(state.currentVideo) || Boolean(state.pendingVideoId);
         if (!hasActive) {
             return '⚠️ Nothing is playing, sir.';
         }
-
         const loopBeforeSkip = state.loopMode;
         state.loopMode = 'off';
         this.cancelPendingDownload(state);
         this.releaseCurrent(state);
-
         const upcoming = state.queue[0] ?? null;
-
         state.skipInProgress = true;
         state.player.stop(true);
-
         if (!upcoming) {
             return '⏭️ Skipped — queue empty. Staying connected.';
         }
-
         state.loopMode = loopBeforeSkip;
         return `⏭️ Skipping to **${upcoming.title}**…`;
     }
-
     async jumpToPosition(guildId, position) {
         const state = this.queues.get(guildId);
         if (!state) {
             return '⚠️ Nothing is playing right now.';
         }
-
         const total = (state.currentVideo || state.pendingVideoId) ? state.queue.length + 1 : state.queue.length;
         if (!Number.isInteger(position) || position < 1 || position > total) {
             return `⚠️ Queue only has **${total}** song${total === 1 ? '' : 's'}.`;
         }
-
         if (position === 1) {
             return '⚠️ Song #1 is already playing! Use `/skip` to skip it.';
         }
-
         const targetIndex = position - 2;
         const target = state.queue[targetIndex];
         if (!target) {
             return '⚠️ Could not jump to that queue position.';
         }
-
         state.queue = state.queue.slice(targetIndex);
         await this.skip(guildId);
         return `⏭️ Jumped to #${position}: **${target.title}**`;
     }
-
     stop(guildId, options = {}) {
         const disconnect = options.disconnect !== false;
         const state = this.queues.get(guildId);
         if (!state) {
             return '⚠️ Nothing to stop, sir.';
         }
-
         // Clear timeout first to prevent race conditions
         if (state.timeout) {
             clearTimeout(state.timeout);
             state.timeout = null;
         }
-
         this.cancelPendingDownload(state);
         this.releaseCurrent(state);
         state.queue = [];
         state.skipInProgress = false;
-
         // Stop the player to interrupt active playback.
         try {
             if (state.player) {
@@ -436,35 +362,28 @@ class MusicManager {
         } catch (e) {
             console.warn('Failed to stop player:', e?.message || e);
         }
-
         if (disconnect) {
             this.cleanup(guildId);
             return '🛑 Stopped playback and cleared queue.';
         }
-
         return '⏹️ Stopped music and cleared queue. Staying connected.';
     }
-
     pause(guildId) {
         const state = this.queues.get(guildId);
         if (!state?.player || !state.currentVideo) {
             return '⚠️ Nothing is playing, sir.';
         }
-
         const success = state.player.pause();
         return success ? '⏸️ Paused playback.' : '⚠️ Unable to pause playback.';
     }
-
     resume(guildId) {
         const state = this.queues.get(guildId);
         if (!state?.player) {
             return '⚠️ Nothing is playing, sir.';
         }
-
         const success = state.player.unpause();
         return success ? '▶️ Resumed playback.' : '⚠️ Playback is not paused, sir.';
     }
-
     getLoopMode(guildId) {
         const state = this.queues.get(guildId);
         if (!state) {
@@ -472,7 +391,6 @@ class MusicManager {
         }
         return state.loopMode || 'off';
     }
-
     setLoopMode(guildId, mode) {
         const state = this.queues.get(guildId);
         if (!state || (!state.currentVideo && !state.pendingVideoId && state.queue.length === 0)) {
@@ -482,20 +400,17 @@ class MusicManager {
         state.loopMode = normalized;
         return normalized;
     }
-
     cycleLoopMode(guildId) {
         const current = this.getLoopMode(guildId) || 'off';
         const idx = LOOP_MODES.indexOf(current);
         const next = LOOP_MODES[(idx + 1) % LOOP_MODES.length];
         return this.setLoopMode(guildId, next);
     }
-
     getQueueView(guildId) {
         const state = this.queues.get(guildId);
         if (!state) {
             return null;
         }
-
         return {
             current: state.currentVideo ? cloneTrack(state.currentVideo) : null,
             queue: state.queue.map(track => cloneTrack(track)),
@@ -503,30 +418,23 @@ class MusicManager {
             pendingVideoId: state.pendingVideoId || null
         };
     }
-
     showQueue(guildId) {
         const state = this.queues.get(guildId);
         if (!state) {
             return 'Queue is empty.';
         }
-
         const lines = [];
-
         if (state.currentVideo) {
             lines.push(`• Now playing: **${state.currentVideo.title}**`);
         }
-
         if (state.queue.length) {
             state.queue.forEach((track, index) => {
                 lines.push(`${index + 1}. ${track.title}${track.duration ? ` - \`${track.duration}\`` : ''}`);
             });
         }
-
         lines.push(`• Loop: **${state.loopMode || 'off'}**`);
-
         return lines.length ? lines.join('\n') : 'Queue is empty.';
     }
-
     async createConnection(guildId, voiceChannel) {
         const buildConnection = () =>
             joinVoiceChannel({
@@ -535,11 +443,9 @@ class MusicManager {
                 adapterCreator: voiceChannel.guild.voiceAdapterCreator,
                 selfDeaf: true
             });
-
         let connection = null;
         let joined = false;
         let lastJoinError = null;
-
         for (let attempt = 1; attempt <= VOICE_JOIN_RETRIES; attempt += 1) {
             connection = buildConnection();
             try {
@@ -558,22 +464,18 @@ class MusicManager {
                 try {
                     connection.destroy();
                 } catch (_e) { }
-
                 if (attempt < VOICE_JOIN_RETRIES) {
                     await delay(VOICE_JOIN_RETRY_DELAY_MS * attempt);
                 }
             }
         }
-
         if (!joined || !connection) {
             console.error('Failed to join voice channel:', lastJoinError);
             throw new Error('Unable to join the voice channel.');
         }
-
         let reconnectAttempts = 0;
         let recovering = false;
         let leaving = false;
-
         const notifyAndLeave = async message => {
             if (leaving) {
                 return;
@@ -585,44 +487,36 @@ class MusicManager {
             }
             this.cleanup(guildId);
         };
-
         const attemptRecovery = async(trigger, closeCode = null) => {
             if (leaving || recovering) {
                 return;
             }
-
             recovering = true;
             reconnectAttempts += 1;
             const attempt = reconnectAttempts;
-
             try {
                 const state = this.queues.get(guildId);
                 if (!state || state.connection !== connection) {
                     return;
                 }
-
                 if (attempt > VOICE_RECONNECT_ATTEMPTS) {
                     await notifyAndLeave('⚠️ Voice connection error, leaving channel.');
                     return;
                 }
-
                 const delayMs = VOICE_RECONNECT_DELAY_MS * Math.min(attempt, 4);
                 console.warn(
                     `[Voice] Recovery attempt ${attempt}/${VOICE_RECONNECT_ATTEMPTS} for guild ${guildId} (trigger=${trigger}, code=${closeCode ?? 'n/a'})`
                 );
                 await delay(delayMs);
-
                 const liveState = this.queues.get(guildId);
                 if (!liveState || liveState.connection !== connection || leaving) {
                     return;
                 }
-
                 try {
                     connection.rejoin();
                 } catch (_error) {
                     // Fall through and let entersState determine readiness.
                 }
-
                 await entersState(connection, VoiceConnectionStatus.Ready, VOICE_READY_TIMEOUT_MS);
                 reconnectAttempts = 0;
                 console.log(`[Voice] Recovered voice connection for guild ${guildId}`);
@@ -631,7 +525,6 @@ class MusicManager {
                     `[Voice] Recovery failed for guild ${guildId}:`,
                     error?.message || error
                 );
-
                 if (reconnectAttempts >= VOICE_RECONNECT_ATTEMPTS) {
                     await notifyAndLeave('⚠️ Voice connection error, leaving channel.');
                     return;
@@ -639,7 +532,6 @@ class MusicManager {
             } finally {
                 recovering = false;
             }
-
             const stateAfter = this.queues.get(guildId);
             if (
                 !leaving &&
@@ -649,7 +541,6 @@ class MusicManager {
                 attemptRecovery('still-disconnected', closeCode).catch(() => { });
             }
         };
-
         connection.on('stateChange', (_, newState) => {
             if (newState.status === VoiceConnectionStatus.Ready) {
                 reconnectAttempts = 0;
@@ -669,7 +560,6 @@ class MusicManager {
                 }
                 return;
             }
-
             if (newState.status === VoiceConnectionStatus.Disconnected) {
                 const closeCode = extractVoiceCloseCode(newState);
                 if (closeCode === 4017) {
@@ -682,19 +572,15 @@ class MusicManager {
                     ).catch(() => { });
                     return;
                 }
-
                 attemptRecovery('disconnected', closeCode).catch(() => { });
             }
         });
-
         connection.on('error', error => {
             console.error('Voice connection error:', error);
             attemptRecovery('error').catch(() => { });
         });
-
         return connection;
     }
-
     createPlayer(guildId) {
         const player = createAudioPlayer({
             behaviors: {
@@ -702,13 +588,11 @@ class MusicManager {
                 noSubscriber: NoSubscriberBehavior.Pause
             }
         });
-
         player.on(AudioPlayerStatus.AutoPaused, () => {
             const state = this.queues.get(guildId);
             if (!state?.connection) {
                 return;
             }
-
             try {
                 this.safeSubscribe(state.connection, player);
                 player.unpause();
@@ -716,13 +600,11 @@ class MusicManager {
                 console.warn('[Voice] Failed to recover from auto-paused state:', error?.message || error);
             }
         });
-
         player.on(AudioPlayerStatus.Idle, async() => {
             const state = this.queues.get(guildId);
             if (!state) {
                 return;
             }
-
             if (state.skipInProgress) {
                 state.skipInProgress = false;
             } else {
@@ -731,7 +613,6 @@ class MusicManager {
                 if (state.loopMode === 'queue' && finishedTrack) {
                     state.queue.push(finishedTrack);
                 }
-
                 if (state.loopMode === 'song' && finishedTrack) {
                     await this.play(guildId, finishedTrack, {
                         announce: 'silent',
@@ -743,18 +624,15 @@ class MusicManager {
                     return;
                 }
             }
-
             // Clear any existing timeout before deciding what to do
             if (state.timeout) {
                 clearTimeout(state.timeout);
                 state.timeout = null;
             }
-
             if (state.queue.length > 0) {
                 await this.playNextAvailableFromQueue(guildId, state, { announce: 'channel' });
             }
         });
-
         player.on('error', error => {
             console.error('Audio player error:', error);
             const state = this.queues.get(guildId);
@@ -763,21 +641,17 @@ class MusicManager {
             }
             this.cleanup(guildId);
         });
-
         return player;
     }
-
     safeSubscribe(connection, player) {
         if (!connection || !player) {
             return null;
         }
-
         const currentSubscription = connection.state?.subscription;
         const subscription =
             currentSubscription?.player === player
                 ? currentSubscription
                 : connection.subscribe(player);
-
         const status = player.state?.status;
         if (status === AudioPlayerStatus.AutoPaused || status === AudioPlayerStatus.Paused) {
             try {
@@ -786,15 +660,12 @@ class MusicManager {
                 console.warn('[Voice] Failed to unpause player after subscribe:', error?.message || error);
             }
         }
-
         return subscription;
     }
-
     async ensureVoiceReady(guildId, state) {
         if (!state?.connection) {
             throw new Error('Voice connection is not initialized.');
         }
-
         const connection = state.connection;
         for (let attempt = 1; attempt <= VOICE_ENSURE_READY_RETRIES; attempt += 1) {
             try {
@@ -804,7 +675,6 @@ class MusicManager {
                     } catch (_e) { }
                     await entersState(connection, VoiceConnectionStatus.Ready, VOICE_READY_TIMEOUT_MS);
                 }
-
                 if (state.player) {
                     this.safeSubscribe(connection, state.player);
                 }
@@ -819,10 +689,8 @@ class MusicManager {
                 }
             }
         }
-
         throw new Error('Voice connection is unstable right now. Please try again in a few seconds.');
     }
-
     releaseCurrent(state) {
         if (state.currentRelease) {
             try {
@@ -834,47 +702,38 @@ class MusicManager {
         state.currentRelease = null;
         state.currentVideo = null;
     }
-
     cancelPendingDownload(state) {
         if (state.pendingVideoId) {
             cancelStream(state.pendingVideoId);
             state.pendingVideoId = null;
         }
     }
-
     cleanup(guildId) {
         const state = this.queues.get(guildId);
         if (!state) {
             return;
         }
-
         this.cancelPendingDownload(state);
         this.releaseCurrent(state);
         state.queue = [];
-
         if (state.timeout) {
             clearTimeout(state.timeout);
             state.timeout = null;
         }
-
         try {
             state.player.stop(true);
         } catch (error) {
             console.warn('Failed to stop player:', error?.message || error);
         }
-
         try {
             state.connection.destroy();
         } catch (error) {
             console.warn('Failed to destroy connection:', error?.message || error);
         }
-
         this.queues.delete(guildId);
     }
 }
-
 let instance = null;
-
 module.exports = {
     MusicManager,
     musicManager: {
