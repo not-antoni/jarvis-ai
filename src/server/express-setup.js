@@ -13,10 +13,6 @@ const {
     extractBearerToken,
     isRenderHealthCheck, isRenderHealthUserAgent, buildProviderDigestResponse
 } = require('./health-helpers');
-const {
-    isDashboardAuthed, dashboardAuthMiddleware,
-    createDashboardAccessRouter
-} = require('./dashboard-auth');
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
@@ -179,9 +175,6 @@ function createExpressApp({ webhookRouter, database }) {
     app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
     // ---- Route mounts ----
-    const legalRouter = require('../../routes/legal');
-    app.use('/', legalRouter);
-
     const pagesRouter = require('../../routes/pages');
     app.use('/', pagesRouter);
 
@@ -194,7 +187,6 @@ function createExpressApp({ webhookRouter, database }) {
         res.type('image/webp');
         res.sendFile(path.join(ROOT_DIR, 'jarvis.webp'));
     });
-    app.use('/uploads/news', express.static(path.join(ROOT_DIR, 'uploads/news')));
     app.use('/assets', express.static(path.join(ROOT_DIR, 'assets')));
 
     // ---- SEO ----
@@ -206,8 +198,6 @@ Allow: /
 Allow: /status
 
 # Disallow private areas
-Disallow: /dashboard
-Disallow: /dashboard/*
 Disallow: /api/
 
 # Sitemap
@@ -247,12 +237,9 @@ ${pages.map(p => `  <url>
         }
     });
 
-    // Landing page (must be before dashboard to not override)
+    // Landing page
     const landingRouter = require('../../routes/landing');
     app.use('/', landingRouter);
-
-    // ---- Dashboard ----
-    const dashboardRouter = require('../../routes/dashboard');
 
     // Public health endpoint for /status page
     app.get('/api/public/health', async(req, res) => {
@@ -299,12 +286,6 @@ ${pages.map(p => `  <url>
             res.status(500).json({ error: error.message });
         }
     });
-
-    app.use('/api/dashboard', dashboardAuthMiddleware, dashboardRouter);
-
-    const dashboardDistPath = path.join(ROOT_DIR, 'dashboard', 'dist');
-    const dashboardAccessRouter = createDashboardAccessRouter(dashboardDistPath);
-    app.use('/dashboard', dashboardAccessRouter);
 
     // ---- Status page ----
     app.get('/status', async(req, res) => {
@@ -444,35 +425,6 @@ ${pages.map(p => `  <url>
         }
     });
 
-    // ---- Legacy dashboard page ----
-    app.get('/dashboard', async(req, res) => {
-        if (!isDashboardAuthed(req)) {
-            return res.redirect('/dashboard/login');
-        }
-        if (HEALTH_TOKEN) {
-            const providedToken = extractBearerToken(req);
-            if (providedToken !== HEALTH_TOKEN) {
-                return res.status(401).send('Dashboard requires a valid bearer token.');
-            }
-        }
-
-        const deep = ['1', 'true', 'yes', 'deep'].includes(String(req.query.deep || '').toLowerCase());
-
-        try {
-            const snapshot = await gatherHealthSnapshot({
-                includeProviders: true,
-                redactProviders: false,
-                pingDatabase: deep,
-                attemptReconnect: deep
-            });
-
-            res.send(renderDashboardPage(snapshot, deep));
-        } catch (error) {
-            console.error('Failed to render dashboard:', error);
-            res.status(500).send('Dashboard unavailable while diagnostics recalibrate.');
-        }
-    });
-
     // ---- Health check endpoint ----
     app.get('/health', async(req, res) => {
         if (HEALTH_TOKEN && !isRenderHealthCheck(req)) {
@@ -524,66 +476,240 @@ ${pages.map(p => `  <url>
         }
     });
 
-    return { app, dashboardRouter };
+    return { app };
 }
 
 function mount404Handler(app) {
     app.use((req, res) => {
+        const safePath = req.path.replace(/[&<>"']/g, c => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[c]);
+        const discordInvite = PUBLIC_CONFIG.discordInviteUrl || '#';
+        const siteBaseUrl = PUBLIC_CONFIG.baseUrl || '/';
+        const gaMeasurementId = PUBLIC_CONFIG.gaMeasurementId || '';
+
         res.status(404).send(`<!DOCTYPE html>
 <html lang="en">
 <head>
+    ${gaMeasurementId ? `
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${gaMeasurementId}');
+    </script>` : ''}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Page Not Found | Jarvis</title>
+    <title>404 | Jarvis</title>
+    <meta name="description" content="Jarvis — Discord AI Bot">
+    <meta property="og:title" content="404 | Jarvis">
+    <meta property="og:description" content="Page not found.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="${siteBaseUrl}">
+    <meta name="theme-color" content="#fff">
+    <link rel="icon" type="image/webp" href="/jarvis.webp">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0d0d2b 100%);
+            font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
+            background: #000;
             color: #e4e4e4;
             min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
+        }
+
+        nav {
+            display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 2rem;
+            padding: 1.25rem 5%;
+            max-width: 1300px;
+            margin: 0 auto;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1.75rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: #777;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: #fff; }
+
+        .page {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hero {
             text-align: center;
-            padding: 2rem;
+            padding: 4rem 5% 2rem;
+            max-width: 800px;
+            margin: 0 auto;
         }
-        .error-icon { font-size: 6rem; margin-bottom: 1rem; }
-        h1 {
+
+        .hero h1 {
             font-size: 3rem;
+            font-weight: 800;
             margin-bottom: 1rem;
-            background: linear-gradient(90deg, #ff4444, #ff6b6b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #fff;
+            line-height: 1.1;
         }
-        p { color: #888; font-size: 1.2rem; margin-bottom: 2rem; }
+
+        .hero p {
+            font-size: 1.15rem;
+            color: #888;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+            max-width: 550px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
         .btn {
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 1rem 2rem;
-            background: linear-gradient(90deg, #00d4ff, #8a2be2);
-            color: white;
-            border-radius: 50px;
+            padding: 0.9rem 1.75rem;
+            border-radius: 8px;
             font-weight: 600;
+            font-size: 0.95rem;
             text-decoration: none;
-            transition: all 0.3s;
-            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+            transition: all 0.2s ease;
         }
-        .btn:hover {
+
+        .btn-primary {
+            background: #fff;
+            color: #000;
+        }
+
+        .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 30px rgba(0, 212, 255, 0.4);
+            opacity: 0.9;
         }
-        .path { color: #666; font-size: 0.9rem; margin-top: 2rem; font-family: monospace; }
+
+        .btn-secondary {
+            background: transparent;
+            color: #888;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .path {
+            color: #555;
+            font-size: 0.85rem;
+            margin-top: 1.5rem;
+            font-family: monospace;
+        }
+
+        footer {
+            margin-top: auto;
+            padding: 1.25rem 5% 1.5rem;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-links a {
+            color: #555;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: #888;
+        }
+
+        .footer-copy {
+            color: #444;
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.25rem; }
+            .hero p { font-size: 1rem; }
+            .nav-links { display: none; }
+        }
     </style>
 </head>
 <body>
-    <div class="error-icon">🤖</div>
-    <h1>404</h1>
-    <p>There's nothing here.</p>
-    <a href="/" class="btn">🏠 Go Home</a>
-    <p class="path">${req.path.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])}</p>
+    <nav>
+        <a href="/" class="logo">Jarvis</a>
+        <ul class="nav-links">
+            <li><a href="/status">Status</a></li>
+        </ul>
+    </nav>
+
+    <main class="page">
+        <section class="hero">
+            <h1>404. Missing in Action.</h1>
+            <p>The page you wanted isn't here. Jarvis checked every server.</p>
+            <div class="cta-buttons">
+                <a href="/" class="btn btn-primary">Go Home</a>
+                <a href="${discordInvite}" class="btn btn-secondary" target="_blank" rel="noreferrer">Support Server</a>
+            </div>
+            <p class="path">${safePath}</p>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-links">
+            <a href="/tos">Terms</a>
+            <a href="/policy">Privacy</a>
+            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank" rel="noreferrer">Repo</a>
+        </div>
+        <p class="footer-copy">© 2026 Jarvis • Made with love for Discord</p>
+    </footer>
 </body>
 </html>`);
     });
@@ -725,115 +851,6 @@ function renderStatusPage(data) {
         <p style="margin-top: 1rem;">© 2025 Jarvis</p>
     </footer>
     <script>setTimeout(() => location.reload(), 60000);</script>
-</body>
-</html>`;
-}
-
-function renderDashboardPage(snapshot, deep) {
-    const providerRows =
-        snapshot.providers
-            .map((provider, index) => {
-                const uptimePercent =
-                    provider.metrics.successRate != null
-                        ? `${provider.metrics.successRate.toFixed(1)}%`
-                        : 'n/a';
-                const latency = Number.isFinite(provider.metrics.avgLatencyMs)
-                    ? `${Math.round(provider.metrics.avgLatencyMs)} ms`
-                    : 'n/a';
-                const totalCalls =
-                    provider.metrics.total ??
-                    provider.metrics.successes + provider.metrics.failures;
-                const status = provider.isDisabled
-                    ? 'Paused'
-                    : provider.hasError
-                        ? 'Error'
-                        : 'Healthy';
-                const disabledUntil =
-                    provider.isDisabled && provider.disabledUntil
-                        ? new Date(provider.disabledUntil).toLocaleString()
-                        : '-';
-
-                return `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${provider.name}</td>
-                    <td>${provider.model}</td>
-                    <td>${provider.costTier}</td>
-                    <td class="${status.toLowerCase()}">${status}</td>
-                    <td>${uptimePercent}</td>
-                    <td>${latency}</td>
-                    <td>${totalCalls}</td>
-                    <td>${disabledUntil}</td>
-                </tr>`;
-            })
-            .join('') || '<tr><td colspan="9">No providers configured</td></tr>';
-
-    const requiredRows = snapshot.env.required
-        .map(item => `<tr><td>${item.name}</td><td class="${item.present ? 'healthy' : 'error'}">${item.present ? 'Present' : 'Missing'}</td></tr>`)
-        .join('');
-
-    const optionalRows = snapshot.env.optional
-        .map(item => `<tr><td>${item.name}</td><td class="${item.present ? 'healthy' : 'paused'}">${item.present ? 'Configured' : 'Not set'}</td></tr>`)
-        .join('');
-
-    const healthyProviders = snapshot.providers.filter(p => !p.hasError && !p.isDisabled).length;
-
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis Dashboard</title>
-    <style>
-        body { background: #0a0a0a; color: #e0e0e0; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        h1 { color: #00ffff; text-align: center; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 20px; }
-        .card { background: rgba(0, 255, 255, 0.04); border: 1px solid rgba(0, 255, 255, 0.2); border-radius: 8px; padding: 16px; }
-        .card h2 { margin-top: 0; color: #00ffff; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(255, 255, 255, 0.03); }
-        th, td { padding: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); text-align: left; }
-        th { background: rgba(0, 255, 255, 0.1); }
-        .healthy { color: #00ff7f; } .error { color: #ff6b6b; } .paused { color: #ffd166; }
-        .actions { margin-top: 20px; text-align: center; }
-        .actions a { color: #00ffff; text-decoration: none; margin: 0 10px; }
-    </style>
-</head>
-<body>
-    <h1>Jarvis Operations Dashboard</h1>
-    <div class="grid">
-        <div class="card">
-            <h2>System</h2>
-            <p>Uptime: ${Math.round(snapshot.system.uptimeSeconds / 60)} minutes</p>
-            <p>Node: ${snapshot.system.nodeVersion}</p>
-            <p>Memory: ${Math.round(snapshot.system.memory.heapUsed / 1024 / 1024)}MB used</p>
-            <p>Timestamp: ${snapshot.system.timestamp}</p>
-        </div>
-        <div class="card">
-            <h2>Database</h2>
-            <p>Status: ${snapshot.database.connected ? '<span class="healthy">Connected</span>' : '<span class="error">Disconnected</span>'}</p>
-            <p>Ping: ${snapshot.database.ping}</p>
-            ${snapshot.database.error ? `<p>Error: ${snapshot.database.error}</p>` : ''}
-        </div>
-        <div class="card">
-            <h2>Providers</h2>
-            <p>Total: ${snapshot.providers.length}</p>
-            <p>Healthy: ${healthyProviders}</p>
-            <p>Mode: free tiers prioritized</p>
-        </div>
-    </div>
-    <h2>AI Providers</h2>
-    <table>
-        <thead><tr><th>#</th><th>Name</th><th>Model</th><th>Tier</th><th>Status</th><th>Uptime</th><th>Latency</th><th>Calls</th><th>Disabled Until</th></tr></thead>
-        <tbody>${providerRows}</tbody>
-    </table>
-    <div class="grid">
-        <div class="card"><h2>Required Environment</h2><table><tbody>${requiredRows}</tbody></table></div>
-        <div class="card"><h2>Optional Environment</h2><table><tbody>${optionalRows}</tbody></table></div>
-    </div>
-    <div class="actions">
-        <a href="/">Back to Status Page</a> •
-        <a href="/health${deep ? '' : '?deep=1'}">JSON Health Check${deep ? '' : ' (deep)'}</a>
-    </div>
 </body>
 </html>`;
 }
