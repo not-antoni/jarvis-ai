@@ -97,18 +97,15 @@ class DatabaseManager {
             userProfiles: this.db.collection(config.database.collections.userProfiles),
             guildConfigs: this.db.collection(config.database.collections.guildConfigs),
             memberLogs: this.db.collection(config.database.collections.memberLogs),
-            reactionRoles: this.db.collection(config.database.collections.reactionRoles),
+            socialCredit: this.db.collection(config.database.collections.socialCredit),
             autoModeration: this.db.collection(config.database.collections.autoModeration),
             serverStats: this.db.collection(config.database.collections.serverStats),
-            tickets: this.db.collection(config.database.collections.tickets),
-            ticketTranscripts: this.db.collection(config.database.collections.ticketTranscripts),
             counters: this.db.collection(config.database.collections.counters),
             newsCache: this.db.collection(config.database.collections.newsCache),
             migrations: this.db.collection(config.database.collections.migrations),
             statusMessages: this.db.collection(config.database.collections.statusMessages),
             commandMetrics: this.db.collection(config.database.collections.commandMetrics),
-            reminders: this.db.collection(config.database.collections.reminders),
-            subscriptions: this.db.collection(config.database.collections.subscriptions)
+            reminders: this.db.collection(config.database.collections.reminders)
         };
 
         const indexPlans = [
@@ -135,9 +132,9 @@ class DatabaseManager {
                 definitions: [{ key: { guildId: 1, key: 1 }, unique: true }]
             },
             {
-                label: 'reactionRoles',
-                collection: collections.reactionRoles,
-                definitions: [{ key: { messageId: 1 }, unique: true }, { key: { guildId: 1 } }]
+                label: 'socialCredit',
+                collection: collections.socialCredit,
+                definitions: [{ key: { userId: 1 }, unique: true }, { key: { lastUpdated: -1 } }]
             },
             {
                 label: 'autoModeration',
@@ -168,20 +165,6 @@ class DatabaseManager {
                         }
                     }
                 ]
-            },
-            {
-                label: 'tickets',
-                collection: collections.tickets,
-                definitions: [
-                    { key: { guildId: 1, channelId: 1 }, unique: true },
-                    { key: { guildId: 1, openerId: 1, status: 1 } },
-                    { key: { createdAt: -1 } }
-                ]
-            },
-            {
-                label: 'ticketTranscripts',
-                collection: collections.ticketTranscripts,
-                definitions: [{ key: { ticketId: 1 }, unique: true }]
             },
             {
                 label: 'counters',
@@ -236,16 +219,6 @@ class DatabaseManager {
                     { key: { id: 1 }, unique: true },
                     { key: { userId: 1, scheduledFor: 1 } },
                     { key: { scheduledFor: 1 } }
-                ]
-            },
-            {
-                label: 'subscriptions',
-                collection: collections.subscriptions,
-                definitions: [
-                    { key: { id: 1 }, unique: true },
-                    { key: { guild_id: 1, monitor_type: 1, source_id: 1 }, unique: true },
-                    { key: { guild_id: 1, channel_id: 1 } },
-                    { key: { monitor_type: 1 } }
                 ]
             }
         ];
@@ -700,32 +673,6 @@ class DatabaseManager {
         guildConfigDiskCache.invalidate(guildId);
     }
 
-    async setGuildModeratorRoles(guildId, roleIds = [], ownerId = null) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-
-        const collection = this.db.collection(config.database.collections.guildConfigs);
-        const now = new Date();
-
-        await collection.updateOne(
-            { guildId },
-            {
-                $set: {
-                    moderatorRoleIds: roleIds,
-                    updatedAt: now,
-                    ...(ownerId ? { ownerId } : {})
-                },
-                $setOnInsert: {
-                    moderatorUserIds: [],
-                    createdAt: now
-                }
-            },
-            { upsert: true }
-        );
-
-        this._invalidateGuildConfigCache(guildId);
-        return this.getGuildConfig(guildId, ownerId);
-    }
-
     async setGuildDjRoles(guildId, roleIds = []) {
         if (!this.isConnected) {throw new Error('Database not connected');}
         
@@ -770,27 +717,6 @@ class DatabaseManager {
         );
         this._invalidateGuildConfigCache(guildId);
         return this.getGuildConfig(guildId);
-    }
-
-    async setGuildWelcome(guildId, channelId, message) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-
-        const collection = this.db.collection(config.database.collections.guildConfigs);
-        const now = new Date();
-
-        await collection.updateOne(
-            { guildId },
-            {
-                $set: {
-                    welcomeChannelId: channelId || null,
-                    welcomeMessage: message || null,
-                    updatedAt: now
-                },
-                $setOnInsert: { createdAt: now }
-            },
-            { upsert: true }
-        );
-        this._invalidateGuildConfigCache(guildId);
     }
 
     async setGuildWakeWord(guildId, wakeWord) {
@@ -922,51 +848,6 @@ class DatabaseManager {
         return this.getGuildConfig(guildId);
     }
 
-    async saveReactionRoleMessage(reactionRole) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-
-        const collection = this.db.collection(config.database.collections.reactionRoles);
-        const now = new Date();
-        const { createdAt, ...reactionRoleData } = reactionRole;
-
-        const updateDoc = {
-            $set: {
-                ...reactionRoleData,
-                updatedAt: now
-            },
-            $setOnInsert: {
-                createdAt: createdAt || now
-            }
-        };
-
-        await collection.updateOne({ messageId: reactionRole.messageId }, updateDoc, {
-            upsert: true
-        });
-    }
-
-    async getReactionRole(messageId) {
-        if (!this.isConnected) {return null;}
-
-        return this.db.collection(config.database.collections.reactionRoles).findOne({ messageId });
-    }
-
-    async getReactionRolesForGuild(guildId) {
-        if (!this.isConnected) {return [];}
-
-        return this.db
-            .collection(config.database.collections.reactionRoles)
-            .find({ guildId })
-            .sort({ createdAt: 1 })
-            .toArray();
-    }
-
-    async deleteReactionRole(messageId) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-
-        await this.db
-            .collection(config.database.collections.reactionRoles)
-            .deleteOne({ messageId });
-    }
     async getAutoModConfig(guildId) {
         if (!this.isConnected) {return null;}
 
@@ -1004,12 +885,6 @@ class DatabaseManager {
         );
 
         return result || update;
-    }
-
-    async deleteAutoModConfig(guildId) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-
-        await this.db.collection(config.database.collections.autoModeration).deleteOne({ guildId });
     }
 
     async getNewsDigest(topic) {
@@ -1127,12 +1002,6 @@ class DatabaseManager {
         );
 
         return result || update;
-    }
-
-    async deleteMemberLogConfig(guildId) {
-        if (!this.isConnected) {throw new Error('Database not connected');}
-
-        await this.db.collection(config.database.collections.memberLogs).deleteOne({ guildId });
     }
 
     async recordCommandMetric({

@@ -61,18 +61,6 @@ function wireEventHandlers(ctx) {
         }
     });
 
-    client.on('messageReactionAdd', async(reaction, user) => {
-        await discordHandlers.handleReactionAdd(reaction, user);
-    });
-
-    client.on('messageReactionRemove', async(reaction, user) => {
-        await discordHandlers.handleReactionRemove(reaction, user);
-    });
-
-    client.on('messageDelete', async message => {
-        await discordHandlers.handleTrackedMessageDelete(message);
-    });
-
     client.on('messageUpdate', async(oldMessage, newMessage) => {
     });
 
