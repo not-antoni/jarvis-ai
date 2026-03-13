@@ -241,13 +241,12 @@ function shouldReact(cringeScore) {
 }
 
 function buildNotifyMessage(amount, newScore) {
-    const absAmount = amount < 0n ? -amount : amount;
-    const fmtAmount = formatNumber(absAmount);
-    const emoji = amount > 0n ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
-    const spamCount = absAmount >= 1000000000n ? 7 : absAmount >= 1000000n ? 6 : absAmount >= 30000n ? 5 : absAmount >= 10000n ? 3 : absAmount >= 3000n ? 2 : 1;
+    const fmtAmount = formatNumber(Math.abs(amount));
+    const emoji = amount > 0 ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
+    const spamCount = Math.abs(amount) >= 1e9 ? 7 : Math.abs(amount) >= 1e6 ? 6 : Math.abs(amount) >= 30000 ? 5 : Math.abs(amount) >= 10000 ? 3 : Math.abs(amount) >= 3000 ? 2 : 1;
     const emojiSpam = emoji.repeat(spamCount);
 
-    const sign = amount > 0n ? '+' : '-';
+    const sign = amount > 0 ? '+' : '-';
     let msg = `${emojiSpam} ${sign}${fmtAmount} social credit ${emojiSpam}`;
 
     if (newScore <= -50000) {
@@ -276,10 +275,13 @@ async function adjustCredit(userId, amount) {
     const col = database.getCollection('socialCredit');
     if (!col) { return 0n; }
 
+    const credit = await col.findOne({ userId })
+    var newSocialCredit = BigInt(doc.score) += BigInt(amount)
+
     const result = await col.findOneAndUpdate(
         { userId },
         {
-            $inc: { score: BigInt(amount) },
+            $set: { score: newSocialCredit.toString() },
             $set: { lastUpdated: new Date() },
             $setOnInsert: { userId, createdAt: new Date() }
         },
@@ -326,8 +328,7 @@ function getBlockMessage(credit) {
     return `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}\n\n` +
         `Not enough social credit.\n` +
         `Your social credit: **${formatNumber(credit.score)}**\n` +
-        `*this rate limit expires in ${timeLeft || '10 minutes'}*\n\n` +
-        `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}`;
+        `*this rate limit expires in ${timeLeft || '10 minutes'}*\n\n`
 }
 
 module.exports = {
