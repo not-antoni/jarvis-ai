@@ -55,6 +55,22 @@ const DIRECT_OPUS_COMPLEXITY = String(process.env.MUSIC_DIRECT_OPUS_COMPLEXITY |
 const OUTPUT_HEADROOM_DB = Number(process.env.MUSIC_OUTPUT_HEADROOM_DB ?? '4');
 const OUTPUT_LIMITER_ENABLED = readBooleanEnv('MUSIC_OUTPUT_LIMITER_ENABLED', true);
 
+function safeKill(proc) {
+    try { if (proc && !proc.killed) {proc.kill('SIGKILL');} } catch (_e) { }
+}
+
+function safeDestroy(stream) {
+    try { if (stream && !stream.destroyed) {stream.destroy();} } catch (_e) { }
+}
+
+function createBufferedStream() {
+    return new PassThrough({
+        highWaterMark: BUFFER_SIZE,
+        readableHighWaterMark: BUFFER_SIZE,
+        writableHighWaterMark: BUFFER_SIZE
+    });
+}
+
 function inferSource(videoUrl) {
     const url = String(videoUrl || '').toLowerCase();
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
