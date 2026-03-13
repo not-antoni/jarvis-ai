@@ -1,7 +1,6 @@
 /**
  * Discord event handlers and command processing
  */
-
 const {
     ChannelType,
     AttachmentBuilder,
@@ -26,24 +25,12 @@ const { extractReactionDirective } = require('../utils/react-tags');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
 const { splitMessage } = require('../utils/discord-safe-send');
 const guildConfigDiskCache = require('./guild-config-cache');
-const automodSlash = require('./handlers/automod-slash');
-const automodUtils = require('./handlers/automod-utils');
 const serverStats = require('./handlers/server-stats');
-const memberLog = require('./handlers/member-log');
-const mediaHandlers = require('./handlers/media-handlers');
-const gameHandlers = require('./handlers/game-handlers');
-const memoryHandler = require('./handlers/memory-handler');
-const interactionDispatch = require('./handlers/interaction-dispatch');
-const interactionAutocomplete = require('./handlers/interaction-autocomplete');
-const messageProcessing = require('./handlers/message-processing');
 const mediaRendering = require('./handlers/media-rendering');
 const templates = require('./handlers/templates');
-
-
 const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
 const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
-
 const DISCORD_EMOJI_ASSET_CACHE_MAX = Math.max(
     200,
     Number(process.env.DISCORD_EMOJI_ASSET_CACHE_MAX || '') || 500
@@ -68,13 +55,11 @@ const DISCORD_AFK_USERS_TTL_MS = Math.max(
     10 * 60 * 1000,
     Number(process.env.DISCORD_AFK_USERS_TTL_MS || '') || 24 * 60 * 60 * 1000
 );
-
 function ensureDiscordEmojiSize(url, size = DEFAULT_CUSTOM_EMOJI_SIZE) {
     if (!url || typeof url !== 'string') {return url;}
     const base = url.split('?')[0];
     return `${base}?size=${size}&quality=lossless`;
 }
-
 function unicodeEmojiToCodePoints(emoji) {
     if (!emoji) {return null;}
     const codePoints = [];
@@ -87,7 +72,6 @@ function unicodeEmojiToCodePoints(emoji) {
     }
     return codePoints.length ? codePoints.join('-') : null;
 }
-
 function buildUnicodeEmojiAsset(emoji) {
     const code = unicodeEmojiToCodePoints(emoji);
     if (!code) {return null;}
@@ -96,12 +80,10 @@ function buildUnicodeEmojiAsset(emoji) {
         png: `${TWEMOJI_PNG_BASE}/${code}.png`
     };
 }
-
 class DiscordHandlers {
     constructor() {
         this.jarvis = new JarvisAI();
         this.cooldowns = new CooldownManager({ defaultCooldownMs: config.ai.cooldownMs });
-
         this.guildConfigCache = new Map();
         this.guildConfigTtlMs = 60 * 1000;
         this.autoModRuleName = 'Jarvis Blacklist Filter';
@@ -140,17 +122,12 @@ class DiscordHandlers {
         this.toastTemplates = templates.toastTemplates;
         this.triviaQuestions = templates.triviaQuestions;
         this.missions = templates.missions;
-
         this.afkUsers = new LRUCache({ max: DISCORD_AFK_USERS_MAX, ttl: DISCORD_AFK_USERS_TTL_MS });
-        
-
         this.maxInputBytes = 3 * 1024 * 1024; // 3MB cap for heavy media processing
     }
-
     sanitizePings(text) {
         return sanitizePingsUtil(text);
     }
-
     async sendBufferOrLink(interaction, buffer, preferredName, options = {}) {
         const {
             maxUploadBytes = 8 * 1024 * 1024,
@@ -166,7 +143,6 @@ class DiscordHandlers {
             else {await interaction.editReply(payload);}
             return { uploaded: true };
         }
-
         if (!allowTempLink) {
             const content = tooLargeMessage || 'Generated output is too large to upload, sir.';
             if (!interaction.deferred && !interaction.replied) {
@@ -176,7 +152,6 @@ class DiscordHandlers {
             }
             return { uploaded: false, tooLarge: true };
         }
-
         try {
             const saved = tempFiles.saveTempFile(buffer, ext || 'bin');
             const { url } = saved;
@@ -194,66 +169,51 @@ class DiscordHandlers {
             return { uploaded: false, error: err };
         }
     }
-
     async isCommandFeatureEnabled(commandName, guild = null) {
         const featureKey = commandFeatureMap.get(commandName);
-
         if (!featureKey) {
             return true;
         }
-
         if (!isFeatureGloballyEnabled(featureKey)) {
             return false;
         }
-
         if (!guild) {
             return true;
         }
-
         const guildConfig = await this.getGuildConfig(guild);
         return isFeatureEnabledForGuild(featureKey, guildConfig, true);
     }
-
     async isFeatureActive(featureKey, guild = null) {
         if (!isFeatureGloballyEnabled(featureKey)) {
             return false;
         }
-
         if (!guild) {
             return true;
         }
-
         const guildConfig = await this.getGuildConfig(guild);
         return isFeatureEnabledForGuild(featureKey, guildConfig, true);
     }
-
     extractInteractionRoute(interaction) {
         if (!interaction?.options) {
             return null;
         }
-
         let group = null;
         let sub = null;
-
         try {
             group = interaction.options.getSubcommandGroup(false);
         } catch (error) {
             group = null;
         }
-
         try {
             sub = interaction.options.getSubcommand(false);
         } catch (error) {
             sub = null;
         }
-
         if (group && sub) {
             return `${group}.${sub}`;
         }
-
         return sub || group || null;
     }
-
     pickRandom(items) {
         if (!Array.isArray(items) || !items.length) {
             return null;
@@ -261,18 +221,15 @@ class DiscordHandlers {
         const index = Math.floor(Math.random() * items.length);
         return items[index];
     }
-
     randomInRange(min, max) {
         const low = Math.ceil(min);
         const high = Math.floor(max);
         return Math.floor(Math.random() * (high - low + 1)) + low;
     }
-
     getTicketStaffRoleIds(guild) {
         if (!guild?.roles?.cache) {
             return [];
         }
-
         return guild.roles.cache
             .filter((role) => !role.managed && role.editable && (
                 role.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
@@ -282,13 +239,10 @@ class DiscordHandlers {
             ))
             .map((role) => role.id);
     }
-
-    // Clean up old cooldowns to prevent memory leaks
     cleanupCooldowns() {
         if (this.cooldowns) {
             this.cooldowns.prune();
         }
-
         if (this.emojiAssetCache && typeof this.emojiAssetCache.purgeStale === 'function') {
             this.emojiAssetCache.purgeStale();
         }
@@ -299,9 +253,7 @@ class DiscordHandlers {
             this.afkUsers.purgeStale();
         }
     }
-
     isOnCooldown(userId, scope = 'global', cooldownMs = null) {
-        // Bot owner bypasses ALL cooldowns
         const ownerId = process.env.BOT_OWNER_ID || '';
         if (ownerId && userId === ownerId) {
             return false;
@@ -311,19 +263,16 @@ class DiscordHandlers {
         }
         return this.cooldowns.isLimited(scope, userId, cooldownMs).limited;
     }
-
     hitCooldown(userId, scope = 'global', cooldownMs = null) {
         if (!this.cooldowns) {
             return { limited: false, remainingMs: 0 };
         }
         return this.cooldowns.hit(scope, userId, cooldownMs);
     }
-
     setCooldown(userId, scope = 'global') {
         if (!this.cooldowns) {
             return;
         }
-        // Under high load, increase cooldown duration to reduce pressure
         const aiManager = require('./ai-providers');
         const loadFactor = typeof aiManager.getLoadFactor === 'function' ? aiManager.getLoadFactor() : 0;
         if (loadFactor > 1.0) {
@@ -334,13 +283,11 @@ class DiscordHandlers {
         }
         this.cooldowns.set(scope, userId);
     }
-
     createFriendlyError(message) {
         const error = new Error(message);
         error.isFriendly = true;
         return error;
     }
-
     /**
      * Check if the bot has permission to send messages in a channel.
      * Returns true for DMs (always allowed) and guild channels where the bot has SendMessages.
@@ -353,215 +300,64 @@ class DiscordHandlers {
         return perms.has(PermissionsBitField.Flags.SendMessages) &&
                perms.has(PermissionsBitField.Flags.ViewChannel);
     }
-
-    formatServerStatsValue(value) {
-        return serverStats.formatServerStatsValue(value);
-    }
-
-    formatServerStatsName(label, value) {
-        return serverStats.formatServerStatsName(label, value);
-    }
-
-    createDefaultMemberLogConfig(guildId = null) {
-        return memberLog.createDefaultMemberLogConfig(guildId);
-    }
-
-    cloneMemberLogRecord(record) {
-        return memberLog.cloneMemberLogRecord(this, record);
-    }
-
-    normalizeMemberLogMessage(input) {
-        return memberLog.normalizeMemberLogMessage(this, input);
-    }
-
-    sanitizeMemberLogList(list = []) {
-        return memberLog.sanitizeMemberLogList(this, list);
-    }
-
-    async getCachedMemberLogConfig(guildId, refresh = false) {
-        return await memberLog.getCachedMemberLogConfig(this, guildId, refresh);
-    }
-
-    setCachedMemberLogConfig(guildId, record) {
-        return memberLog.setCachedMemberLogConfig(this, guildId, record);
-    }
-
-    async persistMemberLogConfig(guildId, config) {
-        return await memberLog.persistMemberLogConfig(this, guildId, config);
-    }
-
-    pickMemberLogMessage(type, config) {
-        return memberLog.pickMemberLogMessage(this, type, config);
-    }
-
-    formatMemberLogMessage(template, member, type) {
-        return memberLog.formatMemberLogMessage(template, member, type);
-    }
-
-    previewMemberLogMessage(template) {
-        return memberLog.previewMemberLogMessage(template);
-    }
-
-    async sendMemberLogEvent(member, type) {
-        return await memberLog.sendMemberLogEvent(this, member, type);
-    }
-
-    async handleGuildMemberAdd(member, client) {
-        return await memberLog.handleGuildMemberAdd(this, member, client);
-    }
-
-    async handleGuildMemberRemove(member) {
-        return await memberLog.handleGuildMemberRemove(this, member);
-    }
-
-    normalizeKeyword(keyword) {
-        return automodUtils.normalizeKeyword(keyword);
-    }
-
-    parseKeywordInput(input) {
-        return automodUtils.parseKeywordInput(input);
-    }
-
-    mergeKeywords(current = [], additions = []) {
-        return automodUtils.mergeKeywords(current, additions);
-    }
-
-    createDefaultAutoModRecord(guildId = null) {
-        return automodUtils.createDefaultAutoModRecord(this, guildId);
-    }
-
-    extractAutoModKeywordIssues(error) {
-        return automodUtils.extractAutoModKeywordIssues(error);
-    }
-
-    getAutoModErrorMessage(error, fallback) {
-        return automodUtils.getAutoModErrorMessage(this, error, fallback);
-    }
-
-    handleAutoModApiError(error, fallback) {
-        return automodUtils.handleAutoModApiError(this, error, fallback);
-    }
-
-    async prepareAutoModState(guild, record) {
-        return await automodUtils.prepareAutoModState(this, guild, record);
-    }
-
-    async fetchAutoModRule(guild, ruleId) {
-        return await automodUtils.fetchAutoModRule(guild, ruleId);
-    }
-
-    async upsertAutoModRule(guild, keywords, customMessage = null, ruleId = null, enabled = true, ruleName = null) {
-        return await automodUtils.upsertAutoModRule(this, guild, keywords, customMessage, ruleId, enabled, ruleName);
-    }
-
-    async syncAutoModRules(guild, keywords, customMessage = null, existingRuleIds = [], enabled = true) {
-        return await automodUtils.syncAutoModRules(this, guild, keywords, customMessage, existingRuleIds, enabled);
-    }
-
-    generateAutoModFilterName(existingFilters = []) {
-        return automodUtils.generateAutoModFilterName(this, existingFilters);
-    }
-
-    async upsertExtraAutoModFilter(guild, filter, defaultMessage, enabled = true) {
-        return await automodUtils.upsertExtraAutoModFilter(this, guild, filter, defaultMessage, enabled);
-    }
-
-    async enableExtraAutoModFilters(guild, record) {
-        return await automodUtils.enableExtraAutoModFilters(this, guild, record);
-    }
-
-    async disableExtraAutoModFilters(guild, record) {
-        return await automodUtils.disableExtraAutoModFilters(this, guild, record);
-    }
-
-    async resyncEnabledExtraAutoModFilters(guild, record) {
-        return await automodUtils.resyncEnabledExtraAutoModFilters(this, guild, record);
-    }
-
-    async disableAutoModRule(guild, ruleId) {
-        return await automodUtils.disableAutoModRule(guild, ruleId);
-    }
-
     invalidateGuildConfig(guildId) {
         if (guildId) {
             this.guildConfigCache.delete(guildId);
         }
     }
-
     async getGuildConfig(guild) {
         if (!guild) {
             return null;
         }
-
         const guildId = guild.id;
-        
-        // Layer 1: Check memory cache (fast, 60s TTL)
         const cached = this.guildConfigCache.get(guildId);
         if (cached && (Date.now() - cached.fetchedAt) < this.guildConfigTtlMs) {
             return cached.config;
         }
-
-        // Layer 2: Check disk cache (5min TTL)
         const diskCached = guildConfigDiskCache.get(guildId);
         if (diskCached) {
-            // Restore to memory cache
             this.guildConfigCache.set(guildId, { config: diskCached, fetchedAt: Date.now() });
             return diskCached;
         }
-
-        // Layer 3: Fetch from MongoDB
         if (!database.isConnected) {
             return null;
         }
-
         try {
             const guildConfig = await database.getGuildConfig(guild.id, guild.ownerId);
-            
-            // Cache in both layers
             this.guildConfigCache.set(guildId, { config: guildConfig, fetchedAt: Date.now() });
             guildConfigDiskCache.set(guildId, guildConfig);
-            
             return guildConfig;
         } catch (error) {
             console.error('Failed to fetch guild configuration:', error);
             return null;
         }
     }
-
     async isGuildModerator(member, guildConfig = null) {
         if (!member || !member.guild) {
             return false;
         }
-
         const { guild } = member;
         const { ownerId } = guild;
-
         if (member.id === ownerId) {
             return true;
         }
-
         if (member.permissions?.has(PermissionsBitField.Flags.Administrator)) {
             return true;
         }
-
         if (member.permissions?.has(PermissionsBitField.Flags.ManageGuild) || member.permissions?.has(PermissionsBitField.Flags.ManageRoles)) {
             return true;
         }
-
         if (!database.isConnected) {
             return false;
         }
-
         try {
             const config = guildConfig || await this.getGuildConfig(guild);
             if (!config) {
                 return false;
             }
-
             if (Array.isArray(config.moderatorUserIds) && config.moderatorUserIds.includes(member.id)) {
                 return true;
             }
-
             if (Array.isArray(config.moderatorRoleIds) && config.moderatorRoleIds.length > 0) {
                 const hasRole = member.roles?.cache?.some(role => config.moderatorRoleIds.includes(role.id));
                 if (hasRole) {
@@ -571,21 +367,13 @@ class DiscordHandlers {
         } catch (error) {
             console.error('Failed to evaluate moderator permissions:', error);
         }
-
         return false;
     }
-
-    async ensureBotCanManageChannels(guild) {
-        return await serverStats.ensureBotCanManageChannels(this, guild);
-    }
-
     async resolveGuildChannel(guild, channelId) {
         if (!guild || !channelId) {
             return null;
         }
-
         let channel = guild.channels.cache.get(channelId) || null;
-
         if (!channel) {
             try {
                 channel = await guild.channels.fetch(channelId);
@@ -596,64 +384,24 @@ class DiscordHandlers {
                 return null;
             }
         }
-
         return channel;
     }
-
-    async applyServerStatsPermissions(channel, botMember, everyoneId) {
-        return await serverStats.applyServerStatsPermissions(channel, botMember, everyoneId);
-    }
-
-    async ensureServerStatsChannels(guild, existingConfig = null, botMember = null) {
-        return await serverStats.ensureServerStatsChannels(this, guild, existingConfig, botMember);
-    }
-
-    async collectGuildMemberStats(guild) {
-        return await serverStats.collectGuildMemberStats(guild);
-    }
-
-    renderServerStatsChart(stats, guildName = 'Server Snapshot') {
-        return serverStats.renderServerStatsChart(stats, guildName);
-    }
-
-    async updateServerStats(guild, existingConfig = null) {
-        return await serverStats.updateServerStats(this, guild, existingConfig);
-    }
-
-    async disableServerStats(guild, existingConfig = null) {
-        return await serverStats.disableServerStats(this, guild, existingConfig);
-    }
-
-    async handleMemberLogCommand(interaction) {
-        return await memberLog.handleMemberLogCommand(this, interaction);
-    }
-
     async fetchNewsFromTheNewsApi(topic, limit = 5) {
         if (!NEWS_API_KEY) {return [];}
-
         const searchParam = encodeURIComponent(topic);
-        
-        // Only get news from last 7 days, sorted by recency
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
         const publishedAfter = weekAgo.toISOString().split('T')[0]; // YYYY-MM-DD
-        
         const url = `https://api.thenewsapi.com/v1/news/all?api_token=${NEWS_API_KEY}&language=en&limit=${limit}&search=${searchParam}&published_after=${publishedAfter}&sort=published_at`;
-
         const response = await fetch(url, {
             headers: { 'Accept': 'application/json' }
         });
-
         if (!response.ok) {
             throw new Error(`TheNewsAPI request failed: ${response.status}`);
         }
-
         const data = await response.json();
         const articles = Array.isArray(data?.data) ? data.data : [];
-
-        // Filter out anything older than 30 days just in case
         const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-        
         return articles
             .filter(article => {
                 if (!article.published_at) {return true;}
@@ -668,15 +416,12 @@ class DiscordHandlers {
                 image: article.image_url || null
             }));
     }
-
     async handleNewsCommand(interaction) {
         const topic = interaction.options.getString('topic') || 'technology';
         const fresh = interaction.options.getBoolean('fresh') || false;
         const normalizedTopic = topic.toLowerCase();
-
         let articles = [];
         let fromCache = false;
-
         if (!fresh && database.isConnected) {
             try {
                 const cached = await database.getNewsDigest(normalizedTopic);
@@ -697,13 +442,11 @@ class DiscordHandlers {
                 console.warn('Failed to read cached news digest:', error);
             }
         }
-
         if (!articles.length) {
             try {
                 if (NEWS_API_KEY) {
                     articles = await this.fetchNewsFromTheNewsApi(normalizedTopic, 5);
                 }
-
                 if (database.isConnected) {
                     const serialisable = articles.map((article) => ({
                         ...article,
@@ -717,57 +460,45 @@ class DiscordHandlers {
                 return;
             }
         }
-
         if (!articles.length) {
             await interaction.editReply('No headlines available right now, sir.');
             return;
         }
-
         const embed = new EmbedBuilder()
             .setTitle(`Top headlines: ${topic}`)
             .setColor(0x00b5ad)
             .setTimestamp(new Date());
-
         const lines = articles.slice(0, 5).map((article, index) => {
             const title = article.title || 'Untitled story';
             const url = article.url || '';
             const source = article.source || 'Unknown source';
             const published = article.published ? Math.floor(new Date(article.published).getTime() / 1000) : null;
             const desc = article.description ? article.description.trim() : '';
-
             const headline = url ? `**${index + 1}. [${title}](${url})**` : `**${index + 1}. ${title}**`;
             const metaParts = [source];
             if (published) {
                 metaParts.push(`<t:${published}:R>`);
             }
-
             const metaLine = metaParts.length ? `_${metaParts.join(' • ')}_` : '';
             const body = desc ? `${desc.slice(0, 180)}${desc.length > 180 ? '…' : ''}` : '';
-
             return [headline, body, metaLine].filter(Boolean).join('\n');
         });
-
         embed.setDescription(lines.join('\n\n'));
-
         const firstImage = articles.find((a) => a.image)?.image;
         if (firstImage) {
             embed.setImage(firstImage);
         }
-
         if (fromCache && database.isConnected) {
             embed.setFooter({ text: 'Cached digest • add fresh:true to refresh' });
         } else if (NEWS_API_KEY) {
             embed.setFooter({ text: 'Powered by TheNewsAPI.com' });
         }
-
         await interaction.editReply({ embeds: [embed] });
     }
-
     async refreshAllServerStats(client) {
         if (!client || !database.isConnected) {
             return;
         }
-
         let configs = [];
         try {
             configs = await database.getAllServerStatsConfigs();
@@ -775,12 +506,10 @@ class DiscordHandlers {
             console.error('Failed to load server stats configurations:', error);
             return;
         }
-
         for (const config of configs) {
             if (!config?.guildId) {
                 continue;
             }
-
             let guild = client.guilds.cache.get(config.guildId) || null;
             if (!guild) {
                 try {
@@ -792,9 +521,8 @@ class DiscordHandlers {
                     continue;
                 }
             }
-
             try {
-                await this.updateServerStats(guild, config);
+                await serverStats.updateServerStats(this, guild, config);
             } catch (error) {
                 if (error.isFriendly || error.code === 50013) {
                     console.warn(`Skipping server stats update for guild ${config.guildId}: ${error.message || 'missing permissions'}`);
@@ -806,50 +534,37 @@ class DiscordHandlers {
             }
         }
     }
-
     getUserRoleColor(member) {
         try {
             if (!member || !member.roles) {
                 return '#ff6b6b'; // Default red
             }
-
-            // Get the highest role with a color (excluding @everyone)
             const coloredRoles = member.roles.cache
                 .filter(role => role.color !== 0 && role.name !== '@everyone')
                 .sort((a, b) => b.position - a.position);
-
             if (coloredRoles.size > 0) {
                 const topRole = coloredRoles.first();
                 return `#${topRole.color.toString(16).padStart(6, '0')}`;
             }
-
             return '#ff6b6b'; // Default red if no colored roles
         } catch (error) {
             console.warn('Failed to get role color:', error);
             return '#ff6b6b'; // Default red on error
         }
     }
-
-    // Produce a display name that renders reliably on canvas
     getSafeDisplayName(member, author) {
         try {
             const rawName = (member && member.displayName) ? member.displayName : (author && author.username ? author.username : 'User');
-            // Normalize to canonical form
             let name = rawName.normalize('NFKC');
-            // Remove control and zero-width characters
             name = name.replace(/[\p{C}\p{Cf}]/gu, '');
-            // Allow letters, numbers, spaces, and a small set of safe punctuation; drop the rest
             name = name.replace(/[^\p{L}\p{N}\p{M} _\-'.]/gu, '');
-            // Collapse whitespace
             name = name.replace(/\s+/g, ' ').trim();
-            // Fallback if empty after sanitization
             if (!name) {name = (author && author.username) ? author.username : 'User';}
             return name;
         } catch (_) {
             return (author && author.username) ? author.username : 'User';
         }
     }
-
     async fetchEmojiImage(url) {
         if (!url || typeof url !== 'string') {return null;}
         const cached = this.emojiAssetCache.get(url);
@@ -868,36 +583,22 @@ class DiscordHandlers {
         this.emojiAssetCache.set(url, pending);
         return pending;
     }
-
-    // Parse Discord custom emojis using Discord API
-    // This function extracts custom emojis from message text and gets their proper URLs
-    // Uses guild emoji cache for accurate emoji data, falls back to CDN URLs
     async parseCustomEmojis(text, guild = null) {
         const emojiRegex = /<a?:(\w+):(\d+)>/g;
         const emojis = [];
         let match;
-        
         while ((match = emojiRegex.exec(text)) !== null) {
             const isAnimated = match[0].startsWith('<a:');
             const name = match[1];
             const id = match[2];
-            
-            // Always use Discord's CDN URL for emojis
-            // Discord API format: https://cdn.discordapp.com/emojis/{emoji_id}.png
-            // For animated emojis: https://cdn.discordapp.com/emojis/{emoji_id}.gif
             let emojiUrl = `https://cdn.discordapp.com/emojis/${id}.${isAnimated ? 'gif' : 'png'}`;
             let emojiObject = null;
-            
-            // Try to get emoji from guild for additional info
             if (guild) {
                 try {
                     emojiObject = guild.emojis.cache.get(id);
                     if (emojiObject) {
-                        // Use the emoji's URL if available, otherwise use CDN URL
                         emojiUrl = emojiObject.url || emojiUrl;
                     } else {
-                        // Try to fetch emoji from Discord API if not in cache
-                        // Discord API endpoint: GET /guilds/{guild_id}/emojis/{emoji_id}
                         try {
                             const fetchedEmoji = await guild.emojis.fetch(id);
                             if (fetchedEmoji) {
@@ -905,7 +606,6 @@ class DiscordHandlers {
                                 emojiUrl = fetchedEmoji.url || emojiUrl;
                             }
                         } catch (fetchError) {
-                            // Handle Discord API errors gracefully
                             if (fetchError.code === 10014) {
                                 console.warn(`Emoji ${id} not found in guild ${guild.id}`);
                             } else if (fetchError.code === 50013) {
@@ -919,9 +619,7 @@ class DiscordHandlers {
                     console.warn('Failed to fetch emoji from guild:', error);
                 }
             }
-            
             emojiUrl = ensureDiscordEmojiSize(emojiUrl, DEFAULT_CUSTOM_EMOJI_SIZE);
-            
             emojis.push({
                 full: match[0],
                 name: name,
@@ -933,17 +631,12 @@ class DiscordHandlers {
                 end: match.index + match[0].length
             });
         }
-        
         return emojis;
     }
-
-    // Parse Unicode emojis as well
     parseUnicodeEmojis(text) {
-        // Enhanced Unicode emoji regex - covers more emoji ranges including newer ones
         const unicodeEmojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA70}-\u{1FAFF}]|[\u{1F018}-\u{1F0FF}]|[\u{1F200}-\u{1F2FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F000}-\u{1F02F}]|[\u{1F030}-\u{1F09F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{1F300}-\u{1F5FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F650}-\u{1F67F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{1FB00}-\u{1FBFF}]|[\u{1FC00}-\u{1FCFF}]|[\u{1FD00}-\u{1FDFF}]|[\u{1FE00}-\u{1FEFF}]|[\u{1FF00}-\u{1FFFF}]/gu;
         const emojis = [];
         let match;
-        
         while ((match = unicodeEmojiRegex.exec(text)) !== null) {
             const asset = buildUnicodeEmojiAsset(match[0]);
             emojis.push({
@@ -959,11 +652,8 @@ class DiscordHandlers {
                 isUnicode: true
             });
         }
-        
         return emojis;
     }
-
-    // Parse user mentions like <@123> or <@!123> and resolve to @DisplayName
     async parseMentions(text, guild = null, client = null) {
         const mentionRegex = /<@!?([0-9]{5,})>/g;
         const mentions = [];
@@ -999,12 +689,8 @@ class DiscordHandlers {
         }
         return mentions;
     }
-
-    // Parse Discord markdown formatting
     parseDiscordFormatting(text) {
         const formatting = [];
-        
-        // Bold: **text**
         const boldRegex = /\*\*(.*?)\*\*/g;
         let match;
         while ((match = boldRegex.exec(text)) !== null) {
@@ -1016,8 +702,6 @@ class DiscordHandlers {
                 full: match[0]
             });
         }
-        
-        // Italic: *text* or _text_
         const italicRegex = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|(?<!_)_(?!_)([^_]+)_(?!_)/g;
         while ((match = italicRegex.exec(text)) !== null) {
             formatting.push({
@@ -1028,8 +712,6 @@ class DiscordHandlers {
                 full: match[0]
             });
         }
-        
-        // Strikethrough: ~~text~~
         const strikeRegex = /~~(.*?)~~/g;
         while ((match = strikeRegex.exec(text)) !== null) {
             formatting.push({
@@ -1040,8 +722,6 @@ class DiscordHandlers {
                 full: match[0]
             });
         }
-        
-        // Underline: __text__
         const underlineRegex = /__(.*?)__/g;
         while ((match = underlineRegex.exec(text)) !== null) {
             formatting.push({
@@ -1052,8 +732,6 @@ class DiscordHandlers {
                 full: match[0]
             });
         }
-        
-        // Code: `text`
         const codeRegex = /`([^`]+)`/g;
         while ((match = codeRegex.exec(text)) !== null) {
             formatting.push({
@@ -1064,172 +742,106 @@ class DiscordHandlers {
                 full: match[0]
             });
         }
-        
-        // Sort by start position
         formatting.sort((a, b) => a.start - b.start);
-        
         return formatting;
     }
-
-    // Format timestamp to actual readable time
-    // Uses Discord.js Message.createdAt (Date object) for proper timezone handling
     formatTimestamp(timestamp, _userTimezone = 'UTC') {
         try {
-            // Handle both Date objects and timestamp numbers
             const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-            
-            // Format as 12-hour time with AM/PM
-            // Use system timezone to match Discord client behavior
             const options = {
                 hour: 'numeric',
                 minute: '2-digit',
                 hour12: true
-                // No timeZone specified - uses system timezone (matches Discord client)
             };
-            
             return date.toLocaleTimeString('en-US', options);
         } catch (error) {
             console.warn('Failed to format timestamp:', error);
             return '6:39 PM'; // Fallback
         }
     }
-
-    // Get Discord's native timestamp format for user's local timezone
-    // This matches exactly what Discord shows in the client
     getDiscordTimestamp(message) {
         try {
-            // Convert to Unix timestamp (seconds, not milliseconds)
             const unixTimestamp = Math.floor(message.createdTimestamp / 1000);
-            
-            // Discord timestamp format: <t:timestamp:format>
-            // 't' = short time (e.g., "2:30 PM")
             return `<t:${unixTimestamp}:t>`;
         } catch (error) {
             console.warn('Failed to get Discord timestamp:', error);
             return '6:39 PM'; // Fallback
         }
     }
-
-    // Draw the verified badge SVG checkmark
     drawVerifiedBadge(ctx, x, y, size = 16) {
         try {
-            // Save context state
             ctx.save();
-            
-            // Set white fill for the checkmark
             ctx.fillStyle = '#ffffff';
-            
-            // Create the checkmark path (simplified SVG path)
             ctx.beginPath();
-            // Move to start of checkmark
             ctx.moveTo(x + size * 0.3, y + size * 0.5);
-            // Line to middle point
             ctx.lineTo(x + size * 0.45, y + size * 0.65);
-            // Line to end point
             ctx.lineTo(x + size * 0.7, y + size * 0.35);
-            
-            // Draw with rounded line caps for cleaner look
             ctx.lineWidth = 2;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.strokeStyle = '#ffffff';
             ctx.stroke();
-            
             ctx.restore();
         } catch (error) {
             console.warn('Failed to draw verified badge:', error);
         }
     }
-
-    // Parse Discord timestamp to get the actual formatted time
-    // This extracts the time from Discord's timestamp format
     parseDiscordTimestamp(message) {
         try {
-            // Get the Discord timestamp format
-            // For Canvas rendering, we need the actual time string
-            // Use the message's createdAt Date object with proper formatting
             const date = message.createdAt;
             const options = {
                 hour: 'numeric',
                 minute: '2-digit',
                 hour12: true
             };
-            
             return date.toLocaleTimeString('en-US', options);
         } catch (error) {
             console.warn('Failed to parse Discord timestamp:', error);
             return '6:39 PM'; // Fallback
         }
     }
-
-    // Truncate text if too long
     truncateText(text, maxLength) {
         if (text.length <= maxLength) {return text;}
         return `${text.substring(0, maxLength - 3)  }...`;
     }
-
-    // Check if bot is verified using Discord API
     isBotVerified(user) {
         try {
-            // Check if user has the VerifiedBot flag using public_flags
-            // Discord API uses public_flags bitfield for verification status
             return user.publicFlags && user.publicFlags.has(UserFlags.VerifiedBot);
         } catch (error) {
             console.warn('Failed to check bot verification status:', error);
             return false;
         }
     }
-
-    // Get the official Discord verification badge URL
     getVerificationBadgeUrl() {
-        // Discord's official verification badge URL from their CDN
-        // This is the actual badge icon used by Discord for verified bots
         return 'https://cdn.discordapp.com/badge-icons/6f1c2f904b1f5b7f3f2746965d3992f0.png';
     }
-
-    // Extract image URLs from text including Tenor GIFs
     extractImageUrls(text) {
-        // Standard image URLs
         const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
         const imageMatches = text.match(imageUrlRegex) || [];
-        
-        // Tenor GIF URLs - extract the actual GIF URL
         const tenorRegex = /(https?:\/\/tenor\.com\/[^\s]+)/gi;
         const tenorMatches = text.match(tenorRegex) || [];
-        
-        // Convert Tenor URLs to actual GIF URLs
         const tenorGifUrls = tenorMatches.map(tenorUrl => {
             try {
-                // Extract GIF ID from different Tenor URL formats
                 let gifId = null;
-                
-                // Format 1: https://tenor.com/view/gif-name-gifId
                 const viewMatch = tenorUrl.match(/\/view\/[^-]+-(\d+)/);
                 if (viewMatch) {
                     gifId = viewMatch[1];
                 }
-                
-                // Format 2: https://tenor.com/view/gifId
                 if (!gifId) {
                     const directMatch = tenorUrl.match(/\/view\/(\d+)/);
                     if (directMatch) {
                         gifId = directMatch[1];
                     }
                 }
-                
-                // Format 3: https://tenor.com/view/gif-name-gifId-other
                 if (!gifId) {
                     const complexMatch = tenorUrl.match(/-(\d+)(?:-|$)/);
                     if (complexMatch) {
                         gifId = complexMatch[1];
                     }
                 }
-                
                 if (gifId) {
-                    // Return the actual GIF URL from Tenor's CDN
                     return `https://media.tenor.com/${gifId}.gif`;
                 }
-                
                 console.warn('Could not extract GIF ID from Tenor URL:', tenorUrl);
                 return tenorUrl; // Fallback to original URL
             } catch (error) {
@@ -1237,29 +849,23 @@ class DiscordHandlers {
                 return tenorUrl;
             }
         });
-        
         return [...imageMatches, ...tenorGifUrls];
     }
-
     calculateTextHeight(text, maxWidth, customEmojis = [], mentions = []) {
         const tempCanvas = createCanvas(1, 1);
         const tempCtx = tempCanvas.getContext('2d');
         tempCtx.font = '15px Arial';
-
         const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
         const lineHeight = 22;
         const emojiSize = 18;
         const emojiSpacing = typeof this.clipEmojiSpacing === 'number' ? this.clipEmojiSpacing : 3;
         const emojiAdvance = emojiSize + emojiSpacing;
-
         let lineCount = 1;
         let currentLineWidth = 0;
-
         const advanceLine = () => {
             lineCount++;
             currentLineWidth = 0;
         };
-
         const handleWhitespaceToken = token => {
             if (!token) {return;}
             const { width } = tempCtx.measureText(token);
@@ -1268,7 +874,6 @@ class DiscordHandlers {
             }
             currentLineWidth += width;
         };
-
         const handleTextToken = token => {
             if (!token) {return;}
             const { width } = tempCtx.measureText(token);
@@ -1277,7 +882,6 @@ class DiscordHandlers {
             }
             currentLineWidth += width;
         };
-
         for (const segment of segments) {
             if (segment.type === 'emoji') {
                 const hasImageAsset = Boolean(segment.url);
@@ -1331,67 +935,45 @@ class DiscordHandlers {
                 }
             }
         }
-
         const baseHeight = 44;
         return baseHeight + (lineCount * lineHeight);
     }
-
     hasImagesOrEmojis(_message) {
-        // Allow all content now - images and emojis are supported
         return false;
     }
-
     async handleClipCommand(message, client) {
         return await mediaRendering.handleClipCommand(this, message, client);
     }
-
-    // Find a message by ID across accessible channels in the same guild
     async findMessageAcrossChannels(interaction, messageId) {
-        // Try current channel first
         try {
             if (interaction.channel && interaction.channel.messages) {
                 const msg = await interaction.channel.messages.fetch(messageId);
                 if (msg) {return msg;}
             }
         } catch (_) {}
-
-        // If not in a guild, we cannot search other channels
         if (!interaction.guild) {return null;}
-
-        // Iterate over text-based channels where the bot can view and read history
         const channels = interaction.guild.channels.cache;
         for (const [, channel] of channels) {
             try {
-                // Skip non text-based channels
                 if (!channel || typeof channel.isTextBased !== 'function' || !channel.isTextBased()) {continue;}
-
-                // Permission checks to avoid errors/rate limits
                 const perms = channel.permissionsFor(interaction.client.user.id);
                 if (!perms) {continue;}
                 if (!perms.has(PermissionsBitField.Flags.ViewChannel)) {continue;}
                 if (!perms.has(PermissionsBitField.Flags.ReadMessageHistory)) {continue;}
-
-                // Attempt to fetch by ID in this channel
                 const msg = await channel.messages.fetch(messageId);
                 if (msg) {return msg;}
             } catch (err) {
-                // Ignore not found/permission/rate-limit errors and continue
                 continue;
             }
         }
-
         return null;
     }
-
-    // Load a static image for GIF sources by extracting the first frame with Sharp
     async loadStaticImage(url) {
         try {
-            // Node 18 has global fetch
             const res = await fetch(url);
             if (!res.ok) {throw new Error(`HTTP ${res.status}`);}
             const buffer = await res.arrayBuffer();
             const input = Buffer.from(buffer);
-            // Extract first frame to PNG buffer
             const pngBuffer = await sharp(input).ensureAlpha().extractFrame(0).png().toBuffer();
             return await loadImage(pngBuffer);
         } catch (error) {
@@ -1399,29 +981,21 @@ class DiscordHandlers {
             return await loadImage(url);
         }
     }
-
-    // Resolve Tenor share pages to a static image URL via oEmbed (thumbnail)
     async resolveTenorStatic(url) {
         try {
-            // 1) Try oEmbed (handles most Tenor URL forms)
             const oembedUrl = `https://tenor.com/oembed?url=${encodeURIComponent(url)}`;
             const res = await fetch(oembedUrl, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
             if (!res.ok) {throw new Error(`Tenor oEmbed HTTP ${res.status}`);}
             const data = await res.json();
-            // oEmbed typically provides thumbnail_url
             if (data && data.thumbnail_url) {return data.thumbnail_url;}
-            // Fallbacks some responses might include url
             if (data && data.url) {return data.url;}
         } catch (error) {
             console.warn('Failed to resolve Tenor static image via oEmbed:', error);
         }
-
-        // 2) Fallback: fetch HTML and parse meta tags (works across Tenor share/short URLs)
         try {
             const pageRes = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' } });
             if (!pageRes.ok) {throw new Error(`Tenor page HTTP ${pageRes.status}`);}
             const html = await pageRes.text();
-            // Prefer og:image, fall back to twitter:image
             let metaMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
             if (!metaMatch) {metaMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);}
             if (metaMatch && metaMatch[1]) {return metaMatch[1];}
@@ -1430,19 +1004,13 @@ class DiscordHandlers {
         }
         return null;
     }
-
     sanitizeMessageText(text) {
         if (!text) {return '';}
-
         let sanitized = text
             .replace(/\r\n/g, '\n')
             .replace(/\r/g, '\n')
             .replace(/[\u2028\u2029]/g, '\n');
-
-        // Strip zero-width and control characters that can disturb layout
         sanitized = sanitized.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
-
-        // Remove Discord markdown markers while keeping inner text
         sanitized = sanitized.replace(/```[^\n]*\n([\s\S]*?)```/g, '$1');
         sanitized = sanitized.replace(/```/g, '');
         sanitized = sanitized.replace(/\*\*(.*?)\*\*/g, '$1');
@@ -1451,20 +1019,13 @@ class DiscordHandlers {
         sanitized = sanitized.replace(/~~(.*?)~~/g, '$1');
         sanitized = sanitized.replace(/__(.*?)__/g, '$1');
         sanitized = sanitized.replace(/`([^`]+)`/g, '$1');
-
-        // Normalise repeated spaces and tabs without touching line breaks
         sanitized = sanitized.replace(/[^\S\r\n]+/g, ' ');
         sanitized = sanitized.replace(/\n[ \t]+/g, '\n');
         sanitized = sanitized.replace(/[ \t]+\n/g, '\n');
-
         return sanitized.trimEnd();
     }
-
     async createClipImage(text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null, embeds = null) {
-    // Check bot verification status using Discord API
         const isVerified = user ? this.isBotVerified(user) : false;
-    
-        // Check for image attachments and embed previews (Discord link embeds like Tenor/Discord CDN)
         const hasImages = attachments && attachments.size > 0;
         const imageUrls = this.extractImageUrls(text);
         const embedImageUrls = (embeds || []).flatMap(e => {
@@ -1473,52 +1034,35 @@ class DiscordHandlers {
             if (e && e.thumbnail && e.thumbnail.url) {urls.push(e.thumbnail.url);}
             return urls;
         });
-        // Also detect if the message ends with a direct .gif URL (with optional query params)
         let trailingGifUrl = null;
         try {
             const trailing = text.trim().match(/(https?:\/\/\S+?\.gif(?:\?\S*)?)$/i);
             if (trailing && trailing[1]) {trailingGifUrl = trailing[1];}
         } catch (_) {}
         const allImageUrls = [...imageUrls, ...embedImageUrls, ...(trailingGifUrl ? [trailingGifUrl] : [])];
-
-        // Remove raw image/GIF links from text rendering (we draw them separately)
         let cleanedText = text;
         try {
             for (const url of allImageUrls) {
                 const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 cleanedText = cleanedText.replace(new RegExp(escaped, 'g'), '').trim();
             }
-            // Also remove Tenor share links that might not have been converted
             cleanedText = cleanedText.replace(/https?:\/\/tenor\.com\/\S+/gi, '').trim();
-            // Collapse spaces and tabs without disturbing intentional newlines
             cleanedText = cleanedText.replace(/[^\S\r\n]+/g, ' ');
             cleanedText = cleanedText.replace(/\n[ \t]+/g, '\n');
             cleanedText = cleanedText.replace(/[ \t]+\n/g, '\n');
             cleanedText = cleanedText.trimEnd();
         } catch (_) {}
-
         const sanitizedText = this.sanitizeMessageText(cleanedText);
-
-        // Parse custom emojis and formatting using Discord API
         const customEmojis = await this.parseCustomEmojis(sanitizedText, guild);
         const unicodeEmojis = this.parseUnicodeEmojis(sanitizedText);
         const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
-
         const mentions = await this.parseMentions(sanitizedText, guild, client);
-
-        // Debug logging for emoji parsing
         if (allEmojis.length > 0) {
             console.log('Found emojis:', allEmojis.map(e => ({ name: e.name, url: e.url, isUnicode: e.isUnicode })));
         }
-
-        // Calculate dynamic canvas dimensions based on content
         const width = 800; // Increased width for better layout and positioning
         const minHeight = 120; // Minimum height for basic content
-
-        // Calculate text height with emojis and formatting
         const textHeight = this.calculateTextHeight(sanitizedText, width - 180, allEmojis, mentions); // Account for margins and avatar space
-
-        // Measure required image height BEFORE creating main canvas to avoid clipping
         let actualImageHeight = 0;
         if (hasImages || allImageUrls.length > 0) {
             const tempCanvas = createCanvas(width, 1);
@@ -1526,47 +1070,32 @@ class DiscordHandlers {
             const imageEndY = await this.drawImages(tempCtx, attachments, allImageUrls, 0, 0, width - 180);
             actualImageHeight = imageEndY + 20; // padding
         }
-
-        // Calculate total height including measured image height
         const totalHeight = Math.ceil(Math.max(minHeight, textHeight + actualImageHeight + 40));
-
         const canvas = createCanvas(width, totalHeight);
         const ctx = canvas.getContext('2d');
-
-        // Maximize rendering quality to avoid jagged edges in the final clip
         ctx.patternQuality = 'best';
         ctx.quality = 'best';
         ctx.antialias = 'subpixel';
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.textDrawingMode = 'path';
-
-        // Pure black background
         ctx.fillStyle = '#1a1a1e';
         ctx.fillRect(0, 0, width, totalHeight);
-
-        // Calculate centered positioning with more space for avatar and text
         const avatarSize = 48;
         const contentWidth = width - 80; // More margin
         const avatarX = 50; // Moved further to the right
         const avatarY = 20; // Top-aligned padding instead of vertical centering
-
         const avatarBackgroundColor = '#1a1a1e';
-
-        // Draw avatar (circular)
         if (avatarUrl) {
             try {
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
                 ctx.clip();
-
                 ctx.fillStyle = avatarBackgroundColor;
                 ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
-
                 const avatarImg = await loadImage(avatarUrl);
                 ctx.drawImage(avatarImg, avatarX, avatarY, avatarSize, avatarSize);
-
                 ctx.restore();
             } catch (error) {
                 console.warn('Failed to load avatar, using fallback:', error);
@@ -1575,7 +1104,6 @@ class DiscordHandlers {
                 ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
                 ctx.fillStyle = avatarBackgroundColor;
                 ctx.fill();
-
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 12px Arial';
                 ctx.textAlign = 'center';
@@ -1589,7 +1117,6 @@ class DiscordHandlers {
             ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
             ctx.fillStyle = avatarBackgroundColor;
             ctx.fill();
-
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
@@ -1597,89 +1124,52 @@ class DiscordHandlers {
             ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize / 2, avatarY + avatarSize / 2);
             ctx.restore();
         }
-
-        // Calculate text positioning - moved further right
         const textStartX = avatarX + avatarSize + 20; // Increased spacing
         const textStartY = avatarY + 3;
         const maxTextWidth = contentWidth - (avatarSize + 20) - 30; // More margin
-
-        // Truncate username if too long to prevent timestamp overlap
         const truncatedUsername = this.truncateText(username, 20);
-
-        // Draw username in role color
         ctx.fillStyle = roleColor;
         ctx.font = 'bold 16px Arial';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(truncatedUsername, textStartX, textStartY);
-
         let currentX = textStartX + ctx.measureText(truncatedUsername).width + 4;
-
-        // Draw app tag if it's a bot
         if (isBot) {
             const appTagWidth = 38;
             const appTagHeight = 18;
-            
-            // Draw verification badge if verified (to the left of APP tag)
             if (isVerified) {
                 const badgeSize = 18;
                 const badgeX = currentX;
                 this.drawVerifiedBadge(ctx, badgeX, textStartY, badgeSize);
                 currentX += badgeSize + 4;
             }
-            
-            // App tag background (Discord blue color)
             ctx.fillStyle = 'rgb(88, 101, 242)'; // Discord APP badge color
             ctx.fillRect(currentX, textStartY, appTagWidth, appTagHeight);
-            
-            // App tag text
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 11px Arial';
             ctx.fillText('APP', currentX + 3, textStartY + 3);
-            
             currentX += appTagWidth + 4;
         }
-
-        // Draw timestamp with dynamic formatting
         const timestamp = message ? this.parseDiscordTimestamp(message) : '6:39 PM';
         ctx.font = '13px Arial';
         const timestampWidth = ctx.measureText(timestamp).width;
-    
-        // Ensure timestamp doesn't overlap with username/bot tag
         const availableWidth = width - currentX - 20;
         if (timestampWidth <= availableWidth) {
             ctx.fillStyle = '#72767d';
             ctx.fillText(timestamp, currentX, textStartY + 1);
         } else {
-        // If not enough space, put timestamp on next line
             ctx.fillStyle = '#72767d';
             ctx.fillText(timestamp, textStartX, textStartY + 18);
         }
-
-        // Draw message content with formatting support
-        // Position the message content immediately below the username. The username
-        // occupies approximately 16px of vertical space, so we add a 4px gap to
-        // separate the text from the header. This keeps spacing consistent with the
-        // small margin before image attachments rendered later.
         ctx.font = '15px Arial';
         const messageStartY = textStartY + 20;
         await this.drawFormattedText(ctx, sanitizedText, textStartX, messageStartY, maxTextWidth, allEmojis, mentions);
-
-        // Draw images if present (main canvas has enough height already)
         if (hasImages || allImageUrls.length > 0) {
-        // Compute the starting Y position for images. We subtract the base 40px
-        // reserved in calculateTextHeight (for username/timestamp) from the
-        // measured textHeight to get only the height of the rendered lines. Then
-        // add a small 2px gap so images sit flush beneath the message text.
             const effectiveTextHeight = Math.max(0, textHeight - 44);
             const imageY = messageStartY + effectiveTextHeight + 2;
             await this.drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
         }
-
-        // Convert canvas to buffer
         const buffer = canvas.toBuffer('image/png');
-
-        // Use sharp to optimize the image without cropping (prevent mid-image truncation)
         const processedBuffer = await sharp(buffer)
             .resize({
                 width: 800,
@@ -1695,32 +1185,24 @@ class DiscordHandlers {
                 palette: false
             })
             .toBuffer();
-
         return processedBuffer;
     }
-
-    // Draw text with Discord formatting and emojis
     async drawFormattedText(ctx, text, startX, startY, maxWidth, customEmojis, mentions = []) {
         ctx.fillStyle = '#ffffff';
         ctx.font = '15px Arial';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-
         let currentY = startY;
         const lineHeight = 22;
         const emojiSize = 18;
         const emojiSpacing = typeof this.clipEmojiSpacing === 'number' ? this.clipEmojiSpacing : 3;
         const emojiAdvance = emojiSize + emojiSpacing;
-
         const segments = this.splitTextWithEmojisAndMentions(text, customEmojis, mentions);
-
         let currentLineWidth = 0;
-
         const advanceLine = () => {
             currentY += lineHeight;
             currentLineWidth = 0;
         };
-
         const handleWhitespaceToken = token => {
             if (!token) {return;}
             const { width } = ctx.measureText(token);
@@ -1729,7 +1211,6 @@ class DiscordHandlers {
             }
             currentLineWidth += width;
         };
-
         const handleTextToken = (token, color = '#ffffff') => {
             if (!token) {return;}
             const { width } = ctx.measureText(token);
@@ -1742,17 +1223,14 @@ class DiscordHandlers {
             ctx.fillStyle = previousFill;
             currentLineWidth += width;
         };
-
         for (const segment of segments) {
             if (segment.type === 'emoji') {
                 const hasImageAsset = Boolean(segment.url);
                 let rendered = false;
-
                 if (hasImageAsset) {
                     if (currentLineWidth + emojiSize > maxWidth && currentLineWidth > 0) {
                         advanceLine();
                     }
-
                     const drawX = startX + currentLineWidth;
                     try {
                         const emojiImg = await this.fetchEmojiImage(segment.url);
@@ -1781,16 +1259,13 @@ class DiscordHandlers {
                             }
                         }
                     }
-
                     if (rendered) {
                         currentLineWidth += emojiAdvance;
                         continue;
                     }
                 }
-
                 if (segment.isUnicode) {
                     const emojiText = segment.name;
-
                     ctx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
                     const textWidth = ctx.measureText(emojiText).width;
                     if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) {
@@ -1798,7 +1273,6 @@ class DiscordHandlers {
                     }
                     ctx.fillText(emojiText, startX + currentLineWidth, currentY);
                     currentLineWidth += textWidth;
-
                     ctx.font = '15px Arial';
                 } else {
                     try {
@@ -1806,17 +1280,14 @@ class DiscordHandlers {
                         const emojiImg = await loadImage(segment.url);
                         const emojiWidth = emojiSize;
                         const emojiHeight = emojiSize;
-
                         if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) {
                             advanceLine();
                         }
-
                         ctx.drawImage(emojiImg, startX + currentLineWidth, currentY, emojiWidth, emojiHeight);
                         currentLineWidth += emojiAdvance;
                         console.log('Successfully rendered emoji:', segment.name);
                     } catch (error) {
                         console.warn('Failed to load emoji:', { name: segment.name, url: segment.url, error: error.message });
-
                         try {
                             const alternativeUrl = `https://cdn.discordapp.com/emojis/${segment.id}.png`;
                             if (alternativeUrl !== segment.url) {
@@ -1824,11 +1295,9 @@ class DiscordHandlers {
                                 const emojiImg = await loadImage(alternativeUrl);
                                 const emojiWidth = emojiSize;
                                 const emojiHeight = emojiSize;
-
                                 if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) {
                                     advanceLine();
                                 }
-
                                 ctx.drawImage(emojiImg, startX + currentLineWidth, currentY, emojiWidth, emojiHeight);
                                 currentLineWidth += emojiAdvance;
                                 console.log('Successfully rendered emoji with alternative URL:', segment.name);
@@ -1873,17 +1342,11 @@ class DiscordHandlers {
             }
         }
     }
-
-    // Split text into segments with emojis and mentions
     splitTextWithEmojisAndMentions(text, allEmojis, mentions) {
         const segments = [];
         let lastIndex = 0;
-        
-        // Sort emojis by position
         const sortedEmojis = allEmojis.sort((a, b) => a.start - b.start);
         const sortedMentions = (mentions || []).sort((a, b) => a.start - b.start);
-
-        // Merge streams by position
         let i = 0, j = 0;
         const items = [];
         while (i < sortedEmojis.length || j < sortedMentions.length) {
@@ -1893,7 +1356,6 @@ class DiscordHandlers {
             if (takeEmoji) { items.push({ kind: 'emoji', item: nextEmoji }); i++; }
             else { items.push({ kind: 'mention', item: nextMention }); j++; }
         }
-
         for (const entry of items) {
             const posStart = entry.item.start;
             const posEnd = entry.item.end;
@@ -1918,52 +1380,30 @@ class DiscordHandlers {
             }
             lastIndex = posEnd;
         }
-        
-        // Add remaining text
         if (lastIndex < text.length) {
             const remainingText = text.substring(lastIndex);
             if (remainingText) {
                 segments.push({ type: 'text', text: remainingText });
             }
         }
-        
         return segments;
     }
-
-    // Draw a single line with formatting applied
     drawFormattedLine(ctx, line, x, y, _formatting) {
-        // Remove formatting markers and apply styles
         let processedLine = line.trim();
-        
-        // Apply bold formatting
         processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '$1');
-        
-        // Apply italic formatting
         processedLine = processedLine.replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1');
         processedLine = processedLine.replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1');
-        
-        // Apply strikethrough formatting
         processedLine = processedLine.replace(/~~(.*?)~~/g, '$1');
-        
-        // Apply underline formatting
         processedLine = processedLine.replace(/__(.*?)__/g, '$1');
-        
-        // Apply code formatting
         processedLine = processedLine.replace(/`([^`]+)`/g, '$1');
-        
-        // Draw the processed text
         ctx.fillStyle = '#ffffff';
         ctx.font = '15px Arial';
         ctx.fillText(processedLine, x, y);
     }
-
-    // Draw images from attachments and URLs
     async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth) {
         let currentY = startY;
         const maxImageWidth = Math.min(maxWidth, 400);
         const maxImageHeight = 300; // Increased max height
-
-        // Draw attachment images
         if (attachments && attachments.size > 0) {
             for (const attachment of attachments.values()) {
                 if (attachment.contentType && attachment.contentType.startsWith('image/')) {
@@ -1971,17 +1411,12 @@ class DiscordHandlers {
                         const isGif = attachment.contentType.includes('gif') || /\.gif(\?|$)/i.test(attachment.url);
                         const img = isGif ? await this.loadStaticImage(attachment.url) : await loadImage(attachment.url);
                         const aspectRatio = img.width / img.height;
-                        
-                        // Calculate dimensions maintaining aspect ratio
                         let drawWidth = maxImageWidth;
                         let drawHeight = drawWidth / aspectRatio;
-                        
-                        // If height exceeds max, scale down
                         if (drawHeight > maxImageHeight) {
                             drawHeight = maxImageHeight;
                             drawWidth = drawHeight * aspectRatio;
                         }
-
                         ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
                         currentY += drawHeight + 10;
                     } catch (error) {
@@ -1990,51 +1425,37 @@ class DiscordHandlers {
                 }
             }
         }
-
-        // Draw URL images (including Tenor GIFs)
         for (const imageUrl of imageUrls) {
             try {
                 let sourceUrl = imageUrl;
-                // Always try to resolve Tenor links to a static image (covers all Tenor URL forms)
                 if (/tenor\.com\//i.test(sourceUrl)) {
                     const staticUrl = await this.resolveTenorStatic(sourceUrl);
                     if (staticUrl) {sourceUrl = staticUrl;}
                 }
-                // Handle Discord CDN GIFs and any URL ending in .gif (with params)
                 const isGifUrl = /\.gif(\?|$)/i.test(sourceUrl) || /media\.discordapp\.net\//i.test(sourceUrl);
                 const img = isGifUrl ? await this.loadStaticImage(sourceUrl) : await loadImage(sourceUrl);
                 const aspectRatio = img.width / img.height;
-                
-                // Calculate dimensions maintaining aspect ratio
                 let drawWidth = maxImageWidth;
                 let drawHeight = drawWidth / aspectRatio;
-                
-                // If height exceeds max, scale down
                 if (drawHeight > maxImageHeight) {
                     drawHeight = maxImageHeight;
                     drawWidth = drawHeight * aspectRatio;
                 }
-
                 ctx.drawImage(img, startX, currentY, drawWidth, drawHeight);
                 currentY += drawHeight + 10;
             } catch (error) {
                 console.warn('Failed to load URL image:', error);
             }
         }
-
         return currentY;
     }
-
-
     async getContextualMemory(message, client) {
         try {
             const messages = await message.channel.messages.fetch({ limit: 20 });
             const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-
             const referencedMessageId = message.reference?.messageId;
             let conversationStart = -1;
             let referencedMessage = null;
-
             for (let i = 0; i < sortedMessages.size; i++) {
                 const msg = Array.from(sortedMessages.values())[i];
                 if (msg.id === referencedMessageId) {
@@ -2043,14 +1464,11 @@ class DiscordHandlers {
                     break;
                 }
             }
-
             if (conversationStart === -1) {
                 return null;
             }
-
             const contextualMessages = [];
             const threadMessages = Array.from(sortedMessages.values()).slice(conversationStart);
-
             if (referencedMessage.author.id === client.user.id) {
                 contextualMessages.push({
                     role: 'assistant',
@@ -2066,10 +1484,8 @@ class DiscordHandlers {
                     isReferencedMessage: true
                 });
             }
-
             for (const msg of threadMessages) {
                 if (msg.id === referencedMessageId) {continue;}
-
                 if (msg.author.bot && msg.author.id === client.user.id) {
                     contextualMessages.push({
                         role: 'assistant',
@@ -2085,40 +1501,26 @@ class DiscordHandlers {
                     });
                 }
             }
-
             const recentContext = contextualMessages.slice(-10);
-
             return {
                 type: 'contextual',
                 messages: recentContext,
                 threadStart: referencedMessageId,
                 isReplyToUser: referencedMessage.author.id !== client.user.id
             };
-
         } catch (error) {
             console.warn('Failed to build contextual memory:', error);
             return null;
         }
     }
-
-    async handleMessage(message, client) {
-        return await messageProcessing.handleMessage(this, message, client);
-    }
-
     async handleVoiceStateUpdate() {
-        
     }
-
     async handleJarvisInteraction(message, client) {
-        // Early bail if bot lacks SendMessages in this channel (avoids 50013 cascades)
         if (!this.canSendInChannel(message.channel)) {return;}
-
         const isMentioned = message.mentions.has(client.user);
         const isDM = message.channel.type === ChannelType.DM;
         const lowerContent = message.content.toLowerCase();
         let containsJarvis = false;
-
-        // Check custom guild/user wake words first — guild custom wake word replaces defaults
         let guildHasCustomWord = false;
         let guildWakeWordsDisabled = false;
         try {
@@ -2136,29 +1538,21 @@ class DiscordHandlers {
                 if (userMatch) {containsJarvis = true;}
             }
         } catch (_e) {
-            // User features not available
         }
-
-        // Only use default wake words if guild has no custom one
         if (!containsJarvis && !guildHasCustomWord && !guildWakeWordsDisabled) {
             containsJarvis = config.wakeWords.some(trigger =>
                 lowerContent.includes(trigger)
             );
         }
         const isBot = message.author.bot;
-
         if (isBot) {
             console.log(`Bot interaction detected from ${message.author.username} (${message.author.id}): ${message.content.substring(0, 50)}...`);
         }
-
         let isReplyToJarvis = false;
         let isReplyToUser = false;
         let contextualMemory = null;
-
         const rawContent = typeof message.content === 'string' ? message.content : '';
-
         const messageScope = 'message:jarvis';
-
         if (message.reference && message.reference.messageId) {
             try {
                 const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
@@ -2172,13 +1566,11 @@ class DiscordHandlers {
                     }
                 }
             } catch (error) {
-                // Ignore 10008 (Unknown Message) - message was deleted
                 if (error.code !== 10008) {
                     console.warn('Failed to fetch referenced message:', error.message);
                 }
             }
         }
-
         if (isBot) {
             if (!isMentioned && !containsJarvis) {return;}
         } else {
@@ -2186,12 +1578,7 @@ class DiscordHandlers {
                 return;
             }
         }
-
-        // 🧠 Preserve mention context: replace mentions with display names (nicknames) instead of stripping them.
-        // Only remove Jarvis' own mention and @everyone/@here.
         let cleanContent = typeof message.content === 'string' ? message.content : '';
-
-        // Replace user mentions using guild member display names when available.
         try {
             if (message.mentions?.members && message.mentions.members.size > 0) {
                 for (const [userId, member] of message.mentions.members) {
@@ -2204,8 +1591,6 @@ class DiscordHandlers {
                     cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `${displayName}`);
                 }
             }
-
-            // Replace role/channel mentions too (helps AI keep context).
             if (message.mentions?.roles && message.mentions.roles.size > 0) {
                 for (const [roleId, role] of message.mentions.roles) {
                     cleanContent = cleanContent.replace(new RegExp(`<@&${roleId}>`, 'g'), `@${role.name}`);
@@ -2219,35 +1604,26 @@ class DiscordHandlers {
         } catch (e) {
             console.warn('[Jarvis] Mention parsing failed:', e.message);
         }
-
-        // Remove Jarvis mention so prompts don't get cluttered
         try {
             if (client?.user?.id) {
                 cleanContent = cleanContent.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
             }
         } catch (_) {}
-
-        // Remove broadcast pings
         cleanContent = cleanContent
             .replace(/@everyone/g, '')
             .replace(/@here/g, '')
             .trim();
-
-        // Check for clip command first (overrides AI response)
         if (await this.handleClipCommand(message, client)) {
             this.setCooldown(message.author.id, messageScope);
             return; // Exit early, no AI response
         }
-
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
-
         if (ytMatch) {
             await message.reply('For video reconnaissance, deploy `/yt` instead, sir.');
             this.setCooldown(message.author.id, messageScope);
             return;
         }
-
         if (!cleanContent) {
             cleanContent = 'jarvis';
         } else {
@@ -2256,11 +1632,7 @@ class DiscordHandlers {
                 cleanContent = 'jarvis';
             }
         }
-
-        // Parse Discord mentions to show display names instead of raw IDs
-        // Handles user mentions <@123> and <@!123>, role mentions <@&123>, channel mentions <#123>
         if (message.mentions) {
-            // Prefer guild member display names (nicknames), fall back to globalName/username
             const memberMap = message.mentions.members;
             if (memberMap && memberMap.size > 0) {
                 for (const [userId, member] of memberMap) {
@@ -2273,22 +1645,18 @@ class DiscordHandlers {
                     cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `${displayName}`);
                 }
             }
-            // Replace role mentions with @rolename
             for (const [roleId, role] of message.mentions.roles) {
                 cleanContent = cleanContent.replace(new RegExp(`<@&${roleId}>`, 'g'), `@${role.name}`);
             }
-            // Replace channel mentions with #channelname
             for (const [channelId, channel] of message.mentions.channels) {
                 cleanContent = cleanContent.replace(new RegExp(`<#${channelId}>`, 'g'), `#${channel.name}`);
             }
         }
-
         try {
             await message.channel.sendTyping();
         } catch (err) {
             console.warn('Failed to send typing (permissions?):', err);
         }
-
         if (cleanContent.length > config.ai.maxInputLength) {
             const responses = [
                 'Rather verbose, sir. A concise version, perhaps?',
@@ -2301,7 +1669,6 @@ class DiscordHandlers {
                 'Quite the novella, sir. Abridged edition?',
                 'Brevity is the soul of wit, sir.'
             ];
-
             try {
                 await message.reply(responses[Math.floor(Math.random() * responses.length)]);
             } catch (err) {
@@ -2310,7 +1677,6 @@ class DiscordHandlers {
             this.setCooldown(message.author.id, messageScope);
             return;
         }
-
         try {
             const utilityResponse = await this.jarvis.handleUtilityCommand(
                 cleanContent,
@@ -2320,7 +1686,6 @@ class DiscordHandlers {
                 null,
                 message.guild?.id || null
             );
-
             if (utilityResponse) {
                 if (typeof utilityResponse === 'string' && utilityResponse.trim()) {
                     const safe = this.sanitizePings(utilityResponse);
@@ -2330,8 +1695,6 @@ class DiscordHandlers {
                 }
                 return;
             }
-
-            // Extract image attachments for vision processing
             let imageAttachments = message.attachments
                 ? Array.from(message.attachments.values())
                     .filter(att => {
@@ -2342,8 +1705,6 @@ class DiscordHandlers {
                     })
                     .map(att => ({ url: att.url, contentType: att.contentType }))
                 : [];
-
-            // Also check for images AND text in replied message
             let repliedContext = '';
             if (message.reference?.messageId) {
                 try {
@@ -2362,17 +1723,12 @@ class DiscordHandlers {
                         repliedDisplayName =
                             repliedMessage.author?.globalName || repliedMessage.author?.username || 'user';
                     }
-                    
-                    // Extract text from replied message for context (limit to leave room for user's message)
                     const repliedText = (repliedMessage?.cleanContent || repliedMessage?.content || '').trim();
                     if (repliedText) {
-                        // Reserve space for user's message, cap replied context
                         const maxReplyContext = Math.min(300, Math.max(100, config.ai.maxInputLength - cleanContent.length - 50));
                         const trimmedReply = repliedText.substring(0, maxReplyContext);
                         repliedContext = `[Replied to ${repliedDisplayName}: "${trimmedReply}${repliedText.length > maxReplyContext ? '...' : ''}"]\n`;
                     }
-                    
-                    // Extract images from replied message (only if current message has no images)
                     if (imageAttachments.length === 0) {
                         if (repliedMessage?.attachments?.size > 0) {
                             const repliedImages = Array.from(repliedMessage.attachments.values())
@@ -2385,7 +1741,6 @@ class DiscordHandlers {
                                 .map(att => ({ url: att.url, contentType: att.contentType, fromReply: true }));
                             imageAttachments = [...imageAttachments, ...repliedImages];
                         }
-                        // Also check embeds for images (e.g., Discord CDN previews, Tenor GIFs)
                         if (repliedMessage?.embeds?.length > 0) {
                             for (const embed of repliedMessage.embeds) {
                                 if (embed.image?.url) {
@@ -2401,14 +1756,11 @@ class DiscordHandlers {
                     console.warn('[Vision] Failed to fetch replied message:', err.message);
                 }
             }
-
-            // If still no images, check the previous message in the channel (for GIFs/images sent right before the ping)
             if (imageAttachments.length === 0 && message.channel) {
                 try {
                     const previousMessages = await message.channel.messages.fetch({ limit: 2, before: message.id });
                     const prevMsg = previousMessages.first();
                     if (prevMsg && prevMsg.author?.id === message.author?.id) {
-                        // Only check if same author sent the previous message (within last few seconds context)
                         const timeDiff = message.createdTimestamp - prevMsg.createdTimestamp;
                         if (timeDiff < 30000) { // Within 30 seconds
                             if (prevMsg.attachments?.size > 0) {
@@ -2425,7 +1777,6 @@ class DiscordHandlers {
                                     console.log(`[Vision] Found ${prevImages.length} image(s) in previous message`);
                                 }
                             }
-                            // Also check embeds in previous message
                             if (prevMsg.embeds?.length > 0) {
                                 for (const embed of prevMsg.embeds) {
                                     if (embed.image?.url) {
@@ -2442,11 +1793,8 @@ class DiscordHandlers {
                     console.warn('[Vision] Failed to fetch previous message:', err.message);
                 }
             }
-
-            // Combine replied context with user's message, respecting max length
             let fullContent = repliedContext ? repliedContext + cleanContent : cleanContent;
             if (fullContent.length > config.ai.maxInputLength) {
-                // Prioritize user's message, trim replied context if needed
                 const availableForReply = config.ai.maxInputLength - cleanContent.length - 20;
                 if (availableForReply > 50 && repliedContext) {
                     repliedContext = `${repliedContext.substring(0, availableForReply)  }..."]\n`;
@@ -2455,7 +1803,6 @@ class DiscordHandlers {
                     fullContent = cleanContent.substring(0, config.ai.maxInputLength);
                 }
             }
-
             if (process.env.JARVIS_DEBUG_AI_INPUT === '1') {
                 console.log('[Jarvis AI Input]', {
                     userId: message.author?.id,
@@ -2469,8 +1816,6 @@ class DiscordHandlers {
                         : 0
                 });
             }
-
-            // ── Social Credit check ──
             const userCredit = await socialCredit.getCredit(message.author.id);
             if (socialCredit.isBlocked(userCredit)) {
                 await message.reply({ content: socialCredit.getBlockMessage(userCredit), allowedMentions: { parse: [] } });
@@ -2480,14 +1825,10 @@ class DiscordHandlers {
                 this.setCooldown(message.author.id, messageScope);
                 return;
             }
-            // Clear expired block so it doesn't re-trigger on next adjustCredit
             if (userCredit.blockedUntil && new Date() >= new Date(userCredit.blockedUntil)) {
                 socialCredit.clearBlock(message.author.id).catch(() => {});
             }
-
             const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
-
-            // Parse optional emoji reaction tag from AI response
             let reactCandidates = [];
             let cleanResponse = response;
             if (typeof response === 'string') {
@@ -2495,32 +1836,26 @@ class DiscordHandlers {
                 cleanResponse = parsedReactionDirective.cleanText;
                 reactCandidates = parsedReactionDirective.reactionCandidates;
             }
-
-            // ── Social Credit roll (compute before sending so we can append) ──
             let creditSuffix = '';
             try {
                 const cringeScore = socialCredit.getCringeLevel(fullContent);
                 let creditChange = socialCredit.rollCreditChange(fullContent);
-                // Passive recovery: non-cringe messages heal negative scores
                 if (cringeScore < 15 && userCredit.score < 0) {
                     creditChange += socialCredit.getRecoveryBonus(userCredit.score);
                 }
                 if (creditChange > 0 || creditChange < 0) {
                     const newScore = await socialCredit.adjustCredit(message.author.id, creditChange);
-
                     if (socialCredit.shouldReact(cringeScore)) {
                         const emojiId = creditChange > 0 ? '1477736880127869039' : '1477737004195123230';
                         try {
                             await message.react(emojiId);
                         } catch (_) { /* emoji not available */ }
                     }
-
                     if (socialCredit.shouldNotify(creditChange, cringeScore)) {
                         creditSuffix = '\n' + socialCredit.buildNotifyMessage(creditChange, newScore);
                     }
                 }
             } catch (_) { /* social credit non-critical */ }
-
             if (typeof cleanResponse === 'string' && cleanResponse.trim()) {
                 const safe = this.sanitizePings(cleanResponse);
                 const chunks = splitMessage(safe + creditSuffix);
@@ -2534,23 +1869,18 @@ class DiscordHandlers {
             } else {
                 await message.reply({ content: 'Response circuits tangled, sir. Clarify your request?' + creditSuffix, allowedMentions: { parse: [] } });
             }
-
-            // Apply emoji reaction if the AI suggested one
             if (reactCandidates.length > 0) {
                 for (const candidate of reactCandidates) {
                     try {
                         await message.react(candidate);
                         break;
                     } catch (_) {
-                        // Continue until a valid candidate reacts successfully.
                     }
                 }
             }
         } catch (error) {
-            // Generate unique error code for debugging
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
             console.error(`[${errorId}] Error processing message:`, error);
-            // Don't attempt a reply if the original error was a permission issue
             if (error?.code === 50013) {return;}
             try {
                 await message.reply({ content: `Technical difficulties, sir. (${errorId}) Please try again shortly.`, allowedMentions: { parse: [] } });
@@ -2561,29 +1891,24 @@ class DiscordHandlers {
             }
         }
     }
-
     async handleServerStatsCommand(interaction) {
         if (!interaction.guild) {
             await interaction.editReply('This command is only available within a server, sir.');
             return;
         }
-
         if (!database.isConnected) {
             await interaction.editReply('My database uplink is offline, sir. Server stats are unavailable at the moment.');
             return;
         }
-
         const { guild } = interaction;
         const { member } = interaction;
         const subcommand = interaction.options.getSubcommand();
         const guildConfig = await this.getGuildConfig(guild);
-
         const isModerator = await this.isGuildModerator(member, guildConfig);
         if (!isModerator) {
             await interaction.editReply('Only the server owner or configured moderators may do that, sir.');
             return;
         }
-
         try {
             if (subcommand === 'status') {
                 const config = await database.getServerStatsConfig(guild.id);
@@ -2591,15 +1916,13 @@ class DiscordHandlers {
                     await interaction.editReply('Server statistics channels are not configured, sir.');
                     return;
                 }
-
-                const stats = await this.collectGuildMemberStats(guild);
+                const stats = await serverStats.collectGuildMemberStats(guild);
                 const category = await this.resolveGuildChannel(guild, config.categoryId);
                 const totalChannel = await this.resolveGuildChannel(guild, config.totalChannelId);
                 const userChannel = await this.resolveGuildChannel(guild, config.userChannelId);
                 const botChannel = await this.resolveGuildChannel(guild, config.botChannelId);
                 const channelCountChannel = await this.resolveGuildChannel(guild, config.channelCountChannelId);
                 const roleCountChannel = await this.resolveGuildChannel(guild, config.roleCountChannelId);
-
                 const lines = [
                     `Category: ${category ? `<#${category.id}>` : 'Missing'}`,
                     `Member channel: ${totalChannel ? `<#${totalChannel.id}>` : 'Missing'}`,
@@ -2607,46 +1930,38 @@ class DiscordHandlers {
                     `Bot channel: ${botChannel ? `<#${botChannel.id}>` : 'Missing'}`,
                     `Channel count channel: ${channelCountChannel ? `<#${channelCountChannel.id}>` : 'Missing'}`,
                     `Role count channel: ${roleCountChannel ? `<#${roleCountChannel.id}>` : 'Missing'}`,
-                    `Current totals — Members: ${this.formatServerStatsValue(stats.total)}, Users: ${this.formatServerStatsValue(stats.userCount)}, Bots: ${this.formatServerStatsValue(stats.botCount)}, Channels: ${this.formatServerStatsValue(stats.channelCount)}, Roles: ${this.formatServerStatsValue(stats.roleCount)}`
+                    `Current totals — Members: ${serverStats.formatServerStatsValue(stats.total)}, Users: ${serverStats.formatServerStatsValue(stats.userCount)}, Bots: ${serverStats.formatServerStatsValue(stats.botCount)}, Channels: ${serverStats.formatServerStatsValue(stats.channelCount)}, Roles: ${serverStats.formatServerStatsValue(stats.roleCount)}`
                 ];
-
                 await interaction.editReply(`Server statistics are active, sir.\n${lines.join('\n')}`);
                 return;
             }
-
             if (subcommand === 'enable') {
                 const existing = await database.getServerStatsConfig(guild.id);
-                await this.updateServerStats(guild, existing);
+                await serverStats.updateServerStats(this, guild, existing);
                 await interaction.editReply('Server statistics channels are ready, sir. I will refresh them every 10 minutes.');
                 return;
             }
-
             if (subcommand === 'refresh') {
                 const existing = await database.getServerStatsConfig(guild.id);
                 if (!existing) {
                     await interaction.editReply('Server statistics are not configured yet, sir.');
                     return;
                 }
-
-                await this.updateServerStats(guild, existing);
+                await serverStats.updateServerStats(this, guild, existing);
                 await interaction.editReply('Server statistics channels refreshed, sir.');
                 return;
             }
-
             if (subcommand === 'report') {
                 const publish = interaction.options.getBoolean('public') || false;
-                const stats = await this.collectGuildMemberStats(guild);
-
+                const stats = await serverStats.collectGuildMemberStats(guild);
                 const summaryLines = [
                     `**${guild.name || 'Server'} Snapshot**`,
-                    `• Members: ${this.formatServerStatsValue(stats.total)}`,
-                    `• Humans: ${this.formatServerStatsValue(stats.userCount)}`,
-                    `• Bots: ${this.formatServerStatsValue(stats.botCount)}`,
-                    `• Channels: ${this.formatServerStatsValue(stats.channelCount)}`,
-                    `• Roles: ${this.formatServerStatsValue(stats.roleCount)}`
+                    `• Members: ${serverStats.formatServerStatsValue(stats.total)}`,
+                    `• Humans: ${serverStats.formatServerStatsValue(stats.userCount)}`,
+                    `• Bots: ${serverStats.formatServerStatsValue(stats.botCount)}`,
+                    `• Channels: ${serverStats.formatServerStatsValue(stats.channelCount)}`,
+                    `• Roles: ${serverStats.formatServerStatsValue(stats.roleCount)}`
                 ];
-
-                // Add activity insights if available
                 try {
                     const activityTracker = require('./GUILDS_FEATURES/activity-tracker');
                     const activity = activityTracker.getActivitySummary(guild.id);
@@ -2664,14 +1979,12 @@ class DiscordHandlers {
                         }
                     }
                 } catch (_e) { /* activity tracker not available */ }
-
                 let chartBuffer = null;
                 try {
-                    chartBuffer = this.renderServerStatsChart(stats, guild.name || 'Server Snapshot');
+                    chartBuffer = serverStats.renderServerStatsChart(stats, guild.name || 'Server Snapshot');
                 } catch (error) {
                     console.warn('Failed to render server stats chart:', error);
                 }
-
                 if (publish) {
                     await interaction.editReply('Compiling your report, sir...');
                     if (chartBuffer) {
@@ -2691,19 +2004,16 @@ class DiscordHandlers {
                 }
                 return;
             }
-
             if (subcommand === 'disable') {
                 const existing = await database.getServerStatsConfig(guild.id);
                 if (!existing) {
                     await interaction.editReply('Server statistics channels were not configured, sir.');
                     return;
                 }
-
-                await this.disableServerStats(guild, existing);
+                await serverStats.disableServerStats(this, guild, existing);
                 await interaction.editReply('Server statistics channels have been removed, sir.');
                 return;
             }
-
             await interaction.editReply('I am not certain how to handle that server stats request, sir.');
         } catch (error) {
             console.error('Failed to handle server stats command:', error);
@@ -2714,113 +2024,41 @@ class DiscordHandlers {
             }
         }
     }
-
-    async handleAutoModCommand(interaction) {
-        return await automodSlash.handleAutoModCommand(this, interaction);
-    }
-
-    // ============ MEDIA HANDLERS ============
-
-    async handleSlashCommandClip(interaction) {
-        return await mediaHandlers.handleSlashCommandClip(this, interaction);
-    }
-
-    async fetchAttachmentBuffer(attachment) {
-        return await mediaHandlers.fetchAttachmentBuffer(this, attachment);
-    }
-
-    async fetchImageFromUrl(rawUrl, opts) {
-        return await mediaHandlers.fetchImageFromUrl(this, rawUrl, opts);
-    }
-
-    async handleCaptionCommand(interaction) {
-        return await mediaHandlers.handleCaptionCommand(this, interaction);
-    }
-
-    async handleGifCommand(interaction) {
-        return await mediaHandlers.handleGifCommand(this, interaction);
-    }
-
-    async handleMemeCommand(interaction) {
-        return await mediaHandlers.handleMemeCommand(this, interaction);
-    }
-
-    // ============ GAME / FUN HANDLERS ============
-
-    async handleFeaturesCommand(interaction) {
-        return await gameHandlers.handleFeaturesCommand(this, interaction);
-    }
-
-    async handleOptCommand(interaction) {
-        return await gameHandlers.handleOptCommand(this, interaction);
-    }
-
-    async handleComponentInteraction(interaction) {
-        return await gameHandlers.handleComponentInteraction(this, interaction);
-    }
-
-    // ============ MEMORY / PERSONA HANDLERS ============
-
-    async handleMemoryCommand(interaction) {
-        return await memoryHandler.handleMemoryCommand(this, interaction);
-    }
-
-    async handlePersonaCommand(interaction) {
-        return await memoryHandler.handlePersonaCommand(this, interaction);
-    }
-
-    async handleAutocomplete(interaction) {
-        return await interactionAutocomplete.handle(this, interaction);
-    }
-
-    async handleSlashCommand(interaction) {
-        return await interactionDispatch.handle(this, interaction);
-    }
-
     async handleRemindCommand(interaction) {
         const userFeatures = require('./user-features');
         const subcommand = interaction.options.getSubcommand();
         const userId = interaction.user.id;
         const { channelId } = interaction;
-
         try {
             if (subcommand === 'set') {
                 const message = interaction.options.getString('message');
                 const timeInput = interaction.options.getString('time');
-                
                 const result = await userFeatures.createReminder(userId, channelId, message, timeInput);
-                
                 if (!result.success) {
                     await interaction.editReply(result.error);
                     return;
                 }
-                
                 await interaction.editReply(
                     `⏰ Reminder set, sir.\n**Message:** ${message}\n**When:** ${result.formattedTime}\n**ID:** \`${result.reminder.id}\``
                 );
             } else if (subcommand === 'list') {
                 const reminders = await userFeatures.getUserReminders(userId);
-                
                 if (reminders.length === 0) {
                     await interaction.editReply('No pending reminders, sir. Use `/remind set` to create one.');
                     return;
                 }
-                
                 const lines = await Promise.all(reminders.map(async(r, i) => {
                     const time = await userFeatures.formatTimeForUser(userId, new Date(r.scheduledFor));
                     return `${i + 1}. **${r.message}**\n   ⏰ ${time} | ID: \`${r.id}\``;
                 }));
-                
                 await interaction.editReply(`📋 **Your Reminders:**\n\n${lines.join('\n\n')}`);
             } else if (subcommand === 'cancel') {
                 const reminderId = interaction.options.getString('id');
                 const result = await userFeatures.cancelReminder(userId, reminderId);
-                
                 if (!result.success) {
                     await interaction.editReply(result.error);
                     return;
                 }
-                
                 await interaction.editReply('✅ Reminder cancelled, sir.');
             }
         } catch (error) {
@@ -2828,12 +2066,10 @@ class DiscordHandlers {
             await interaction.editReply('Failed to process reminder command, sir.');
         }
     }
-
     async handleTimezoneCommand(interaction) {
         const userFeatures = require('./user-features');
         const userId = interaction.user.id;
         const zone = interaction.options.getString('zone');
-
         try {
             if (!zone) {
                 const currentZone = await userFeatures.getTimezone(userId);
@@ -2843,14 +2079,11 @@ class DiscordHandlers {
                 );
                 return;
             }
-
             const result = await userFeatures.setTimezone(userId, zone);
-            
             if (!result.success) {
                 await interaction.editReply(result.error);
                 return;
             }
-
             const currentTime = await userFeatures.formatTimeForUser(userId);
             await interaction.editReply(`✅ Timezone set to **${result.timezone}**\n🕐 Current time: ${currentTime}`);
         } catch (error) {
@@ -2858,7 +2091,6 @@ class DiscordHandlers {
             await interaction.editReply('Failed to update timezone, sir.');
         }
     }
-
     async handleWakewordCommand(interaction) {
         const userFeatures = require('./user-features');
         const userId = interaction.user.id;
@@ -2866,34 +2098,26 @@ class DiscordHandlers {
         const scope = interaction.options.getString('scope') || 'personal';
         const clear = interaction.options.getBoolean('clear') || false;
         const disableDefaults = interaction.options.getBoolean('disable_defaults');
-
         try {
-            // Server scope — requires admin/manage guild
             if (scope === 'server') {
                 if (!interaction.guild) {
                     await interaction.editReply('Server wake words can only be set in a server, sir.');
                     return;
                 }
-
                 const { member } = interaction;
                 const isAdmin = member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
                     member.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
                     member.id === interaction.guild.ownerId;
-
                 if (!isAdmin) {
                     await interaction.editReply('Only server admins can set a server-wide wake word.');
                     return;
                 }
-
                 const guildId = interaction.guild.id;
-
                 if (disableDefaults !== null) {
                     await userFeatures.setGuildWakeWordsDisabled(guildId, disableDefaults);
-                    // Flush handler-level cache so the change takes effect immediately
                     this.guildConfigCache.delete(guildId);
                     const guildConfigDiskCache = require('./guild-config-cache');
                     guildConfigDiskCache.invalidate(guildId);
-
                     if (disableDefaults) {
                         await interaction.editReply('Default wake words disabled for this server. I will only respond to custom wake words, personal wake words, or mentions.');
                     } else {
@@ -2901,10 +2125,8 @@ class DiscordHandlers {
                     }
                     return;
                 }
-
                 if (clear) {
                     await userFeatures.removeGuildWakeWord(guildId);
-                    // Flush handler-level cache so the change takes effect immediately
                     this.guildConfigCache.delete(guildId);
                     const guildConfigDiskCache = require('./guild-config-cache');
                     guildConfigDiskCache.invalidate(guildId);
@@ -2916,7 +2138,6 @@ class DiscordHandlers {
                     }
                     return;
                 }
-
                 if (!word) {
                     const currentGuildWord = await userFeatures.getGuildWakeWord(guildId);
                     const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(guildId);
@@ -2933,34 +2154,26 @@ class DiscordHandlers {
                     }
                     return;
                 }
-
                 const result = await userFeatures.setGuildWakeWord(guildId, word);
                 if (!result.success) {
                     await interaction.editReply(result.error);
                     return;
                 }
-
-                // Flush handler-level cache so the change takes effect immediately
                 this.guildConfigCache.delete(guildId);
                 const guildConfigDiskCache = require('./guild-config-cache');
                 guildConfigDiskCache.invalidate(guildId);
-
                 await interaction.editReply(`Server wake word set to **"${result.wakeWord}"**\n\nAnyone in this server can now summon me by saying "${result.wakeWord}". Default triggers ("jarvis" / "garmin") are now disabled for this server.`);
                 return;
             }
-
-            // Personal scope
             if (disableDefaults !== null) {
                 await interaction.editReply('`disable_defaults` is a server-only option, sir.');
                 return;
             }
-
             if (clear) {
                 await userFeatures.clearWakeWord(userId);
                 await interaction.editReply('Your personal wake word has been removed.');
                 return;
             }
-
             if (!word) {
                 const currentWord = await userFeatures.getWakeWord(userId);
                 const lines = [];
@@ -2971,33 +2184,25 @@ class DiscordHandlers {
                     lines.push('No personal wake word set, sir.');
                     lines.push('\nUse `/wakeword word:yourword` to set one. I\'ll respond when you say it!');
                 }
-
-                // Show server wake word too if in a guild
                 if (interaction.guild) {
                     const guildWord = await userFeatures.getGuildWakeWord(interaction.guild.id);
                     if (guildWord) {
                         lines.push(`\n🏠 **Server Wake Word:** "${guildWord}"`);
                     }
                 }
-
                 await interaction.editReply(lines.join(''));
                 return;
             }
-
             const result = await userFeatures.setWakeWord(userId, word);
-
             if (!result.success) {
                 await interaction.editReply(result.error);
                 return;
             }
-
             await interaction.editReply(`Custom wake word set to **"${result.wakeWord}"**\n\nNow you can summon me by saying "${result.wakeWord}" in any message!`);
         } catch (error) {
             console.error('[/wakeword] Error:', error);
             await interaction.editReply('Failed to update wake word, sir.');
         }
     }
-
 }
-
 module.exports = new DiscordHandlers();

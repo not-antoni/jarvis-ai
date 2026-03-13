@@ -1,16 +1,11 @@
 'use strict';
-
 const fs = require('fs');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
-
-
 const CLOUDFLARE_API_BASE = 'https://api.cloudflare.com/client/v4';
 const CONFIG_CACHE_FILE = path.join(process.cwd(), 'data', 'cloudflare-config.json');
 const SSL_CERT_DIR = '/etc/ssl/cloudflare';
 const SSL_CACHE_FILE = path.join(process.cwd(), 'data', 'ssl-config.json');
-
-// Detect OS Type for Nginx Paths
 const isRhel = fs.existsSync('/etc/redhat-release') || fs.existsSync('/etc/amazon-linux-release');
 const NGINX_DIR = isRhel ? '/etc/nginx/conf.d' : '/etc/nginx/sites-available';
 const NGINX_ENABLED_DIR = isRhel ? null : '/etc/nginx/sites-enabled'; // RHEL includes conf.d automatically
@@ -18,7 +13,6 @@ const NGINX_CONFIG_FILE = isRhel ? path.join(NGINX_DIR, 'jarvis.conf') : path.jo
 const NGINX_ALT_CONFIG_FILE = isRhel ? '/etc/nginx/sites-available/jarvis' : '/etc/nginx/conf.d/jarvis.conf';
 const NGINX_ALT_ENABLED_FILE = isRhel ? '/etc/nginx/sites-enabled/jarvis' : null;
 const CLOUDFLARE_IPS_FILE = '/etc/nginx/cloudflare-ips.conf';
-
 function commandExists(cmd) {
     try {
         const result = spawnSync('which', [cmd], { encoding: 'utf8', timeout: 5000 });
@@ -27,7 +21,6 @@ function commandExists(cmd) {
         return false;
     }
 }
-
 function canSudo() {
     try {
         execSync('sudo -n true 2>/dev/null', { encoding: 'utf8', timeout: 5000 });
@@ -36,7 +29,6 @@ function canSudo() {
         return false;
     }
 }
-
 function generateCloudflareIpsConfig() {
     const ipv4 = [
         '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
@@ -48,17 +40,13 @@ function generateCloudflareIpsConfig() {
         '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
         '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32'
     ];
-
-    let config = `# Cloudflare IPs - Auto-generated fallback
+    const allowLines = [...ipv4, ...ipv6].map(ip => `allow ${ip};`).join('\n');
+    return `# Cloudflare IPs - Auto-generated fallback
 # Updated: ${new Date().toISOString()}
 # Run scripts/update-cloudflare-ips.sh to refresh from Cloudflare
 
-# IPv4
-`;
-    ipv4.forEach(ip => { config += `allow ${ip};\n`; });
-    config += '\n# IPv6\n';
-    ipv6.forEach(ip => { config += `allow ${ip};\n`; });
-    config += `
+${allowLines}
+
 # Localhost for local testing
 allow 127.0.0.1;
 allow ::1;
@@ -66,9 +54,7 @@ allow ::1;
 # Deny all other IPs
 deny all;
 `;
-    return config;
 }
-
 function ensureCloudflareIpsConfig() {
     if (fs.existsSync(CLOUDFLARE_IPS_FILE)) {
         return true;
@@ -76,7 +62,6 @@ function ensureCloudflareIpsConfig() {
     if (!canSudo()) {
         return false;
     }
-
     try {
         const config = generateCloudflareIpsConfig();
         const tempFile = '/tmp/cloudflare-ips.conf';
@@ -89,7 +74,6 @@ function ensureCloudflareIpsConfig() {
         return false;
     }
 }
-
 function generateCloudflareTimerService(projectRoot) {
     return `[Unit]
 Description=Update Cloudflare IP ranges for nginx
@@ -103,7 +87,6 @@ StandardOutput=journal
 StandardError=journal
 `;
 }
-
 function generateCloudflareTimerUnit() {
     return `[Unit]
 Description=Weekly Cloudflare IP update for nginx
@@ -116,7 +99,6 @@ Persistent=true
 WantedBy=timers.target
 `;
 }
-
 function ensureCloudflareIpsTimer(projectRoot) {
     if (!commandExists('systemctl')) {
         return false;
@@ -124,19 +106,16 @@ function ensureCloudflareIpsTimer(projectRoot) {
     if (!canSudo()) {
         return false;
     }
-
     const servicePath = '/etc/systemd/system/cloudflare-ips-update.service';
     const timerPath = '/etc/systemd/system/cloudflare-ips-update.timer';
     const serviceContent = generateCloudflareTimerService(projectRoot);
     const timerContent = generateCloudflareTimerUnit();
-
     const writeUnitFile = (targetPath, content) => {
         const tempFile = `/tmp/${path.basename(targetPath)}`;
         fs.writeFileSync(tempFile, content);
         execSync(`sudo cp ${tempFile} ${targetPath}`, { encoding: 'utf8' });
         execSync(`sudo chmod 644 ${targetPath}`, { encoding: 'utf8' });
     };
-
     let serviceNeedsWrite = true;
     let timerNeedsWrite = true;
     try {
@@ -152,7 +131,6 @@ function ensureCloudflareIpsTimer(projectRoot) {
         serviceNeedsWrite = true;
         timerNeedsWrite = true;
     }
-
     try {
         if (serviceNeedsWrite) {
             writeUnitFile(servicePath, serviceContent);
@@ -160,7 +138,6 @@ function ensureCloudflareIpsTimer(projectRoot) {
         if (timerNeedsWrite) {
             writeUnitFile(timerPath, timerContent);
         }
-
         execSync(`sudo chmod +x ${projectRoot}/scripts/update-cloudflare-ips.sh`, { encoding: 'utf8' });
         execSync('sudo systemctl daemon-reload', { encoding: 'utf8' });
         execSync('sudo systemctl enable cloudflare-ips-update.timer', { encoding: 'utf8' });
@@ -172,7 +149,6 @@ function ensureCloudflareIpsTimer(projectRoot) {
         return false;
     }
 }
-
 function generateNginxEnsureService(projectRoot) {
     return `[Unit]
 Description=Ensure Jarvis nginx config remains Cloudflare-only
@@ -186,7 +162,6 @@ StandardOutput=journal
 StandardError=journal
 `;
 }
-
 function generateNginxEnsureTimerUnit() {
     return `[Unit]
 Description=Periodic Jarvis nginx config enforcement
@@ -199,7 +174,6 @@ Persistent=true
 WantedBy=timers.target
 `;
 }
-
 function ensureNginxEnsureTimer(projectRoot) {
     if (!commandExists('systemctl')) {
         return false;
@@ -207,19 +181,16 @@ function ensureNginxEnsureTimer(projectRoot) {
     if (!canSudo()) {
         return false;
     }
-
     const servicePath = '/etc/systemd/system/jarvis-nginx-ensure.service';
     const timerPath = '/etc/systemd/system/jarvis-nginx-ensure.timer';
     const serviceContent = generateNginxEnsureService(projectRoot);
     const timerContent = generateNginxEnsureTimerUnit();
-
     const writeUnitFile = (targetPath, content) => {
         const tempFile = `/tmp/${path.basename(targetPath)}`;
         fs.writeFileSync(tempFile, content);
         execSync(`sudo cp ${tempFile} ${targetPath}`, { encoding: 'utf8' });
         execSync(`sudo chmod 644 ${targetPath}`, { encoding: 'utf8' });
     };
-
     let serviceNeedsWrite = true;
     let timerNeedsWrite = true;
     try {
@@ -235,7 +206,6 @@ function ensureNginxEnsureTimer(projectRoot) {
         serviceNeedsWrite = true;
         timerNeedsWrite = true;
     }
-
     try {
         if (serviceNeedsWrite) {
             writeUnitFile(servicePath, serviceContent);
@@ -243,26 +213,21 @@ function ensureNginxEnsureTimer(projectRoot) {
         if (timerNeedsWrite) {
             writeUnitFile(timerPath, timerContent);
         }
-
         execSync(`sudo chmod +x ${projectRoot}/scripts/ensure-nginx-config.js`, { encoding: 'utf8' });
         execSync('sudo systemctl daemon-reload', { encoding: 'utf8' });
         execSync('sudo systemctl enable jarvis-nginx-ensure.timer', { encoding: 'utf8' });
         execSync('sudo systemctl start jarvis-nginx-ensure.timer', { encoding: 'utf8' });
-
-        // Run once now, but don't fail the whole setup if it errors
         try {
             execSync('sudo systemctl start jarvis-nginx-ensure.service', { encoding: 'utf8' });
         } catch (runErr) {
             console.warn('[Nginx] Initial nginx-ensure run failed (timer still active):', runErr?.message || runErr);
         }
-
         return true;
     } catch (error) {
         console.warn('[Nginx] Failed to configure nginx ensure timer:', error?.message || error);
         return false;
     }
 }
-
 function generateNginxConfig(domain, ssl = false, cloudflareOnly = true) {
     const redirectBlock = ssl ? `
 server {
@@ -271,7 +236,6 @@ server {
     return 301 https://$host$request_uri;
 }
 ` : '';
-
     const cloudflareDefaultBlock = cloudflareOnly
         ? ssl
             ? `server {
@@ -298,13 +262,11 @@ server {
 
 `
         : '';
-
     const cloudflareAllowList = cloudflareOnly
         ? `
     include ${CLOUDFLARE_IPS_FILE};
 `
         : '';
-
     return `${cloudflareDefaultBlock}${redirectBlock}server {
     listen ${ssl ? '443 ssl' : '80'};
 ${ssl ? '    http2 on;\n' : ''}    server_name ${domain} www.${domain};
@@ -330,7 +292,6 @@ ${cloudflareAllowList}
     }
 }`;
 }
-
 function isNginxConfigured(domain) {
     try {
         if (!fs.existsSync(NGINX_CONFIG_FILE)) {
@@ -342,14 +303,12 @@ function isNginxConfigured(domain) {
         return false;
     }
 }
-
 function sslCertsExist(domain) {
     const certPath = `${SSL_CERT_DIR}/${domain}.pem`;
     const keyPath = `${SSL_CERT_DIR}/${domain}.key`;
     try {
         return fs.existsSync(certPath) && fs.existsSync(keyPath);
     } catch {
-        // Check with sudo
         try {
             execSync(`sudo test -f ${certPath} && sudo test -f ${keyPath}`, { encoding: 'utf8' });
             return true;
@@ -358,18 +317,15 @@ function sslCertsExist(domain) {
         }
     }
 }
-
 function loadSslCache() {
     try {
         if (fs.existsSync(SSL_CACHE_FILE)) {
             return JSON.parse(fs.readFileSync(SSL_CACHE_FILE, 'utf8'));
         }
     } catch {
-        // Ignore
     }
     return null;
 }
-
 function saveSslCache(config) {
     try {
         const dir = path.dirname(SSL_CACHE_FILE);
@@ -378,20 +334,16 @@ function saveSslCache(config) {
         }
         fs.writeFileSync(SSL_CACHE_FILE, JSON.stringify(config, null, 2));
     } catch {
-        // Ignore
     }
 }
-
 async function createOriginCertificate(domain) {
     try {
         if (!/^[A-Za-z0-9.-]+$/.test(domain)) {
             return { success: false, error: 'Invalid domain for CSR generation' };
         }
-
         if (!commandExists('openssl')) {
             return { success: false, error: 'OpenSSL not available for CSR generation' };
         }
-
         const keyPath = `/tmp/jarvis-origin-${Date.now()}.key`;
         const csrPath = `/tmp/jarvis-origin-${Date.now()}.csr`;
         const csrArgs = [
@@ -409,7 +361,6 @@ async function createOriginCertificate(domain) {
             '-addext',
             `subjectAltName=DNS:${domain},DNS:*.${domain}`
         ];
-
         const csrResult = spawnSync('openssl', csrArgs, { encoding: 'utf8' });
         if (csrResult.status !== 0) {
             return {
@@ -417,12 +368,10 @@ async function createOriginCertificate(domain) {
                 error: `OpenSSL CSR generation failed: ${csrResult.stderr || csrResult.stdout || 'unknown error'}`
             };
         }
-
         const csr = fs.readFileSync(csrPath, 'utf8');
         const privateKey = fs.readFileSync(keyPath, 'utf8');
         fs.unlinkSync(csrPath);
         fs.unlinkSync(keyPath);
-
         const response = await cfFetch('/certificates', {
             method: 'POST',
             body: JSON.stringify({
@@ -432,7 +381,6 @@ async function createOriginCertificate(domain) {
                 request_type: 'origin-rsa'
             })
         });
-
         return {
             success: true,
             certificate: response.result.certificate,
@@ -443,58 +391,40 @@ async function createOriginCertificate(domain) {
         return { success: false, error: err.message };
     }
 }
-
 async function saveSslCertificates(domain, certificate, privateKey) {
     if (!canSudo()) {
         return { success: false, error: 'Cannot run sudo to save certificates' };
     }
-
     try {
-        // Create SSL directory
         execSync(`sudo mkdir -p ${SSL_CERT_DIR}`, { encoding: 'utf8' });
-
-        // Write certificate
         const certTmp = '/tmp/jarvis-ssl-cert.pem';
         const keyTmp = '/tmp/jarvis-ssl-key.pem';
-
         fs.writeFileSync(certTmp, certificate);
         fs.writeFileSync(keyTmp, privateKey);
-
         execSync(`sudo cp ${certTmp} ${SSL_CERT_DIR}/${domain}.pem`, { encoding: 'utf8' });
         execSync(`sudo cp ${keyTmp} ${SSL_CERT_DIR}/${domain}.key`, { encoding: 'utf8' });
         execSync(`sudo chmod 600 ${SSL_CERT_DIR}/${domain}.key`, { encoding: 'utf8' });
         execSync(`sudo chmod 644 ${SSL_CERT_DIR}/${domain}.pem`, { encoding: 'utf8' });
-
-        // Cleanup temp files
         fs.unlinkSync(certTmp);
         fs.unlinkSync(keyTmp);
-
         return { success: true };
     } catch (err) {
         return { success: false, error: err.message };
     }
 }
-
 async function autoSetupSsl(domain) {
     if (!domain) {
         return { success: false, error: 'No domain provided' };
     }
-
-    // Check if certs already exist in system path
     if (sslCertsExist(domain)) {
         return { success: true, cached: true, message: 'SSL certificates already exist' };
     }
-
-    // MIGRATION: Check if certs exist in project folder OR sibling folder (user's home)
     const projectCertDir = path.join(process.cwd(), 'cloudflare');
     const siblingCertDir = path.join(process.cwd(), '../cloudflare');
-
     const pathsToCheck = [projectCertDir, siblingCertDir];
-
     for (const dir of pathsToCheck) {
         const certPath = path.join(dir, 'cert.pem');
         const keyPath = path.join(dir, 'key.pem');
-
         if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
             console.log(`[SSL] Found existing certificates in ${dir}. Importing...`);
             try {
@@ -509,30 +439,21 @@ async function autoSetupSsl(domain) {
             }
         }
     }
-
-    // Check cache
     const cached = loadSslCache();
     if (cached && cached.domain === domain && cached.certificate && cached.privateKey) {
-        // Try to save cached certs
         const saveResult = await saveSslCertificates(domain, cached.certificate, cached.privateKey);
         if (saveResult.success) {
             return { success: true, fromCache: true };
         }
     }
-
-    // Create new certificate via Cloudflare API
     const certResult = await createOriginCertificate(domain);
     if (!certResult.success) {
         return certResult;
     }
-
-    // Save certificates
     const saveResult = await saveSslCertificates(domain, certResult.certificate, certResult.privateKey);
     if (!saveResult.success) {
         return saveResult;
     }
-
-    // Cache the certificates
     saveSslCache({
         domain,
         certificate: certResult.certificate,
@@ -540,16 +461,12 @@ async function autoSetupSsl(domain) {
         expiresOn: certResult.expiresOn,
         createdAt: new Date().toISOString()
     });
-
     return { success: true, domain, expiresOn: certResult.expiresOn };
 }
-
 async function autoSetupNginx(domain, enableSsl = true, force = false) {
     if (!domain) {
         return { success: false, error: 'No domain provided' };
     }
-
-    // Check if we can run sudo commands
     if (!canSudo()) {
         return {
             success: false,
@@ -557,8 +474,6 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
             manual: true
         };
     }
-
-    // Check if SSL should be enabled
     let useSSL = false;
     let sslError = null;
     if (enableSsl) {
@@ -575,7 +490,6 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
             }
         }
     }
-
     const wantsCloudflareOnly =
         String(process.env.CLOUDFLARE_ONLY || '').toLowerCase() !== 'false';
     if (enableSsl && !useSSL && wantsCloudflareOnly) {
@@ -588,15 +502,12 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
     const enforceCloudflareOnly = wantsCloudflareOnly && cloudflareOnlyReady;
     const projectRoot = process.cwd();
     const timerReady = enforceCloudflareOnly ? ensureCloudflareIpsTimer(projectRoot) : false;
-
     if (wantsCloudflareOnly && !cloudflareOnlyReady) {
         console.warn('[Nginx] Cloudflare-only requested but allowlist missing; proceeding without it.');
     }
     if (enforceCloudflareOnly && !timerReady) {
         console.warn('[Nginx] Cloudflare IP update timer not configured; continuing without timer.');
     }
-
-    // Check if already configured with correct SSL state
     const currentConfig = isNginxConfigured(domain);
     const configContent = currentConfig && fs.existsSync(NGINX_CONFIG_FILE)
         ? fs.readFileSync(NGINX_CONFIG_FILE, 'utf8')
@@ -604,18 +515,13 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
     const hasSSLConfig = configContent.includes('ssl_certificate');
     const hasCloudflareOnly =
         configContent.includes('return 444') || configContent.includes(CLOUDFLARE_IPS_FILE);
-
-    // Don't overwrite if Cloudflare-only security config is already in place
     if (!force && enforceCloudflareOnly && hasCloudflareOnly && hasSSLConfig === useSSL) {
         return { success: true, cached: true, ssl: useSSL, message: 'Nginx Cloudflare-only config preserved' };
     }
-
     if (!force && currentConfig && hasSSLConfig === useSSL && (!enforceCloudflareOnly || hasCloudflareOnly)) {
         return { success: true, cached: true, ssl: useSSL, message: 'Nginx already configured' };
     }
-
     try {
-        // Install Nginx if not present
         if (!commandExists('nginx')) {
             console.log('[Nginx] Installing nginx...');
             execSync('sudo apt-get update && sudo apt-get install -y nginx', {
@@ -624,53 +530,39 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
                 stdio: 'pipe'
             });
         }
-
-        // Remove conflicting config to avoid duplicate default_server blocks
         if (NGINX_ALT_CONFIG_FILE && fs.existsSync(NGINX_ALT_CONFIG_FILE)) {
             execSync(`sudo rm -f ${NGINX_ALT_CONFIG_FILE}`, { encoding: 'utf8' });
         }
         if (NGINX_ALT_ENABLED_FILE && fs.existsSync(NGINX_ALT_ENABLED_FILE)) {
             execSync(`sudo rm -f ${NGINX_ALT_ENABLED_FILE}`, { encoding: 'utf8' });
         }
-
-        // Generate and write config
         const config = generateNginxConfig(domain, useSSL, enforceCloudflareOnly);
         const tempFile = '/tmp/jarvis-nginx.conf';
         fs.writeFileSync(tempFile, config);
-
         execSync(`sudo cp ${tempFile} ${NGINX_CONFIG_FILE}`, { encoding: 'utf8' });
-
-        // Link to sites-enabled only if it exists (Debian/Ubuntu)
         if (NGINX_ENABLED_DIR) {
             execSync(`sudo ln -sf ${NGINX_CONFIG_FILE} ${NGINX_ENABLED_DIR}/`, { encoding: 'utf8' });
             execSync(`sudo rm -f ${NGINX_ENABLED_DIR}/default`, { encoding: 'utf8' });
         }
-
-        // Test and restart
         execSync('sudo nginx -t', { encoding: 'utf8' });
         execSync('sudo systemctl restart nginx', { encoding: 'utf8' });
         execSync('sudo systemctl enable nginx', { encoding: 'utf8' });
-
         const protocol = useSSL ? 'HTTPS' : 'HTTP';
         console.log(`[Nginx] ✅ Configured (${protocol}): ${domain} → localhost:3000`);
         return { success: true, domain, ssl: useSSL };
-
     } catch (err) {
         return { success: false, error: err.message };
     }
 }
-
 function loadCachedConfig() {
     try {
         if (fs.existsSync(CONFIG_CACHE_FILE)) {
             return JSON.parse(fs.readFileSync(CONFIG_CACHE_FILE, 'utf8'));
         }
     } catch {
-        // Ignore errors
     }
     return null;
 }
-
 function saveCachedConfig(config) {
     try {
         const dir = path.dirname(CONFIG_CACHE_FILE);
@@ -682,7 +574,6 @@ function saveCachedConfig(config) {
         console.warn('[CloudflareDomain] Failed to save config cache:', err.message);
     }
 }
-
 function getConfig() {
     return {
         apiToken: process.env.CLOUDFLARE_API_TOKEN || '',
@@ -696,35 +587,25 @@ function getConfig() {
         deployTarget: (process.env.DEPLOY_TARGET || 'render').toLowerCase()
     };
 }
-
-
 function getAuthHeaders() {
     const config = getConfig();
-
-    // Prefer API token
     if (config.apiToken) {
         return { Authorization: `Bearer ${config.apiToken}` };
     }
-
-    // Fallback to email + global key
     if (config.email && config.globalApiKey) {
         return {
             'X-Auth-Email': config.email,
             'X-Auth-Key': config.globalApiKey
         };
     }
-
     return null;
 }
-
 async function cfFetch(endpoint, options = {}) {
     const authHeaders = getAuthHeaders();
     if (!authHeaders) {
         throw new Error('Cloudflare credentials not configured');
     }
-
     const url = endpoint.startsWith('http') ? endpoint : `${CLOUDFLARE_API_BASE}${endpoint}`;
-
     const response = await fetch(url, {
         ...options,
         headers: {
@@ -733,57 +614,43 @@ async function cfFetch(endpoint, options = {}) {
             ...(options.headers || {})
         }
     });
-
     const data = await response.json().catch(() => ({}));
-
     if (!response.ok) {
         const errorMsg = data.errors?.[0]?.message || response.statusText;
         throw new Error(`Cloudflare API error: ${errorMsg}`);
     }
-
     return data;
 }
-
 async function findZoneByDomain(domain) {
     const data = await cfFetch(`/zones?name=${domain}`);
     return data.result?.[0] || null;
 }
-
 async function getDnsRecord(name, type = 'A', zoneId = null) {
     const config = getConfig();
     const id = zoneId || config.zoneId;
-
     const data = await cfFetch(`/zones/${id}/dns_records?name=${name}&type=${type}`);
     return data.result?.[0] || null;
 }
-
 async function createDnsRecord(record, zoneId = null) {
     const config = getConfig();
     const id = zoneId || config.zoneId;
-
     const data = await cfFetch(`/zones/${id}/dns_records`, {
         method: 'POST',
         body: JSON.stringify(record)
     });
-
     return data.result;
 }
-
 async function updateDnsRecord(recordId, record, zoneId = null) {
     const config = getConfig();
     const id = zoneId || config.zoneId;
-
     const data = await cfFetch(`/zones/${id}/dns_records/${recordId}`, {
         method: 'PATCH',
         body: JSON.stringify(record)
     });
-
     return data.result;
 }
-
 async function upsertDnsRecord(name, type, content, options = {}, zoneId = null) {
     const existing = await getDnsRecord(name, type, zoneId);
-
     const record = {
         type,
         name,
@@ -792,52 +659,36 @@ async function upsertDnsRecord(name, type, content, options = {}, zoneId = null)
         proxied: options.proxied !== false, // Default to proxied
         ...options
     };
-
     if (existing) {
         return updateDnsRecord(existing.id, record, zoneId);
-    } 
+    }
     return createDnsRecord(record, zoneId);
-    
 }
-
-
 async function configureForRender(subdomain = null) {
     const config = getConfig();
     const { domain } = config;
-
     if (!domain) {
         throw new Error('JARVIS_DOMAIN not configured');
     }
-
-    // Render uses CNAME records
-    // Main domain needs to point to render's onrender.com
     const renderHost = config.renderExternalUrl
         ? new URL(config.renderExternalUrl).hostname
         : null;
-
     if (!renderHost) {
         throw new Error('RENDER_EXTERNAL_URL not configured');
     }
-
     const records = [];
-
-    // Root domain - use CNAME flattening (Cloudflare supports this)
     records.push(await upsertDnsRecord(
         domain,
         'CNAME',
         renderHost,
         { proxied: true }
     ));
-
-    // www subdomain
     records.push(await upsertDnsRecord(
         `www.${domain}`,
         'CNAME',
         renderHost,
         { proxied: true }
     ));
-
-    // Custom subdomain if specified
     if (subdomain) {
         records.push(await upsertDnsRecord(
             `${subdomain}.${domain}`,
@@ -846,7 +697,6 @@ async function configureForRender(subdomain = null) {
             { proxied: true }
         ));
     }
-
     return {
         success: true,
         domain,
@@ -854,43 +704,30 @@ async function configureForRender(subdomain = null) {
         records
     };
 }
-
-
 async function configureForSelfhost(target, subdomain = null) {
     const config = getConfig();
     const { domain } = config;
-
     if (!domain) {
         throw new Error('JARVIS_DOMAIN not configured');
     }
-
     if (!target) {
         throw new Error('Target IP or hostname required');
     }
-
-    // Determine if target is IP or hostname
     const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(target);
     const recordType = isIp ? 'A' : 'CNAME';
-
     const records = [];
-
-    // Root domain
     records.push(await upsertDnsRecord(
         domain,
         recordType,
         target,
         { proxied: true }
     ));
-
-    // www subdomain
     records.push(await upsertDnsRecord(
         `www.${domain}`,
         recordType,
         target,
         { proxied: true }
     ));
-
-    // Custom subdomain if specified
     if (subdomain) {
         records.push(await upsertDnsRecord(
             `${subdomain}.${domain}`,
@@ -899,7 +736,6 @@ async function configureForSelfhost(target, subdomain = null) {
             { proxied: true }
         ));
     }
-
     return {
         success: true,
         domain,
@@ -908,54 +744,37 @@ async function configureForSelfhost(target, subdomain = null) {
         records
     };
 }
-
 function isRunningOnRender() {
     return !!(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID);
 }
-
 function extractHostname(urlOrHost) {
     if (!urlOrHost) { return null; }
-
-    // If it's already just an IP address, return it
     if (/^(\d{1,3}\.){3}\d{1,3}$/.test(urlOrHost)) {
         return urlOrHost;
     }
-
-    // If it's a hostname without protocol, return it
     if (!urlOrHost.includes('://')) {
-        // Remove port if present
         return urlOrHost.split(':')[0];
     }
-
-    // Parse as URL
     try {
         return new URL(urlOrHost).hostname;
     } catch {
         return null;
     }
 }
-
 function detectTarget() {
     const config = getConfig();
-
-    // If on Render, use Render's external URL
     if (isRunningOnRender() && config.renderExternalUrl) {
         const hostname = extractHostname(config.renderExternalUrl);
         if (hostname && hostname !== config.domain) {
             return { mode: 'render', target: hostname };
         }
     }
-
-    // If PUBLIC_BASE_URL is set, use that - but NOT if it's the same as our domain
     if (config.publicBaseUrl) {
         const hostname = extractHostname(config.publicBaseUrl);
-        // Skip if hostname matches domain (would cause self-reference CNAME error)
         if (hostname && hostname !== config.domain && !hostname.endsWith(`.${config.domain}`)) {
             return { mode: 'selfhost', target: hostname };
         }
     }
-
-    // Try to detect public IP (most reliable for selfhost)
     try {
         const { execSync } = require('child_process');
         const ip = execSync('curl -s --max-time 3 ifconfig.me', { encoding: 'utf8' }).trim();
@@ -966,21 +785,15 @@ function detectTarget() {
             };
         }
     } catch {
-        // Ignore
     }
-
     return null;
 }
-
 async function autoConfigure(options = {}) {
     const config = getConfig();
     const forceReconfigure = options.force === true;
-
     if (!config.zoneId && !config.domain) {
         return { success: false, error: 'No domain configuration found' };
     }
-
-    // Detect target first
     const detected = detectTarget();
     if (!detected) {
         return {
@@ -988,33 +801,25 @@ async function autoConfigure(options = {}) {
             error: 'Could not detect target. Set PUBLIC_BASE_URL, RENDER_EXTERNAL_URL, or ensure internet access.'
         };
     }
-
-    // Check cached config - skip if already configured with same target
     const cached = loadCachedConfig();
     if (!forceReconfigure && cached && cached.target === detected.target && cached.domain === config.domain) {
         console.log(`[CloudflareDomain] Already configured: ${cached.domain} → ${cached.target} (cached)`);
         return { success: true, cached: true, ...cached };
     }
-
-    // If no zone ID but have domain, try to find zone
     if (!config.zoneId && config.domain) {
         const zone = await findZoneByDomain(config.domain);
         if (zone) {
             console.log(`[CloudflareDomain] Found zone for ${config.domain}: ${zone.id}`);
         }
     }
-
     try {
         console.log(`[CloudflareDomain] Configuring: ${config.domain} → ${detected.target} (${detected.mode})`);
-
         let result;
         if (detected.mode === 'render') {
             result = await configureForRender(options.subdomain);
         } else {
             result = await configureForSelfhost(detected.target, options.subdomain);
         }
-
-        // Cache successful configuration
         if (result.success) {
             saveCachedConfig({
                 domain: config.domain,
@@ -1023,14 +828,11 @@ async function autoConfigure(options = {}) {
                 configuredAt: new Date().toISOString()
             });
         }
-
         return result;
     } catch (error) {
         return { success: false, error: error.message };
     }
 }
-
-
 module.exports = {
     getConfig,
     autoConfigure,
