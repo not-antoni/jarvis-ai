@@ -304,6 +304,11 @@ function readCookiesFromEnv() {
     }
     return null;
 }
+async function prepareCookiesAndExtractor(resolved) {
+    const cookieFile = resolved.shouldUseYouTubeCookies ? await ensureCookiesFile() : null;
+    const extractorArgs = buildExtractorArgs({ hasCookies: Boolean(cookieFile), resolved });
+    return { cookieFile, extractorArgs };
+}
 function buildExtractorArgs({ hasCookies, resolved }) {
     const override = process.env.YTDLP_EXTRACTOR_ARGS;
     if (override && override.trim().length) {
@@ -480,12 +485,7 @@ async function checkVideoLimits(videoId, videoUrl, options = {}) {
     const startedAt = Date.now();
     try {
         const binaryPath = await ensureBinary();
-        const canUseCookies = resolved.shouldUseYouTubeCookies;
-        const cookieFile = canUseCookies ? await ensureCookiesFile() : null;
-        const extractorArgs = buildExtractorArgs({
-            hasCookies: Boolean(cookieFile),
-            resolved
-        });
+        const { cookieFile, extractorArgs } = await prepareCookiesAndExtractor(resolved);
         const result = await new Promise((resolve, reject) => {
             const args = ['-j', '--no-warnings', '--no-playlist'];
             if (extractorArgs) {
@@ -553,28 +553,10 @@ async function createLiveAudioStream(videoId, videoUrl, options = {}) {
     const source = resolved.source;
     const startedAt = Date.now();
     const binaryPath = await ensureBinary();
-    const canUseCookies = resolved.shouldUseYouTubeCookies;
-    const cookieFile = canUseCookies ? await ensureCookiesFile() : null;
-    const extractorArgs = buildExtractorArgs({
-        hasCookies: Boolean(cookieFile),
-        resolved
-    });
-    const args = [
-        '--force-ipv4',
-        '--ignore-errors',
-        '--no-playlist',
-        '--no-progress',
-        '-f',
-        'bestaudio/best',
-        '-o',
-        '-'
-    ];
-    if (extractorArgs) {
-        args.push('--extractor-args', extractorArgs);
-    }
-    if (cookieFile) {
-        args.push('--cookies', cookieFile);
-    }
+    const { cookieFile, extractorArgs } = await prepareCookiesAndExtractor(resolved);
+    const args = ['--force-ipv4', '--ignore-errors', '--no-playlist', '--no-progress', '-f', 'bestaudio/best', '-o', '-'];
+    if (extractorArgs) { args.push('--extractor-args', extractorArgs); }
+    if (cookieFile) { args.push('--cookies', cookieFile); }
     args.push(videoUrl);
     const stderrChunks = [];
     const proc = spawn(binaryPath, args, {

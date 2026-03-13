@@ -119,17 +119,8 @@ function stripTrailingChannelArtifacts(text) {
 function stripLeadingPromptLeaks(text) {
     if (!text || typeof text !== 'string') {return text;}
     let trimmed = text.trim();
-    const channelPattern = /^channel\s*:\s*/i;
-    if (channelPattern.test(trimmed)) {
-        trimmed = trimmed.replace(channelPattern, '').trimStart();
-    }
-    const commentaryPattern = /^commentary\s*:\s*/i;
-    if (commentaryPattern.test(trimmed)) {
-        trimmed = trimmed.replace(commentaryPattern, '').trimStart();
-    }
-    const bracketChannelPattern = /^[\[\(]\s*channel\s*[\]\)]\s*:?\s*/i;
-    if (bracketChannelPattern.test(trimmed)) {
-        trimmed = trimmed.replace(bracketChannelPattern, '').trimStart();
+    for (const pat of [/^channel\s*:\s*/i, /^commentary\s*:\s*/i, /^[\[\(]\s*channel\s*[\]\)]\s*:?\s*/i]) {
+        if (pat.test(trimmed)) {trimmed = trimmed.replace(pat, '').trimStart();}
     }
     return trimmed;
 }

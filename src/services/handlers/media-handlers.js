@@ -100,6 +100,21 @@ async function fetchAttachmentBuffer(attachment) {
     return Buffer.from(arrayBuffer);
 }
 
+async function streamWithLimit(res, maxBytes) {
+    let received = 0;
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+        res.body.on('data', (chunk) => {
+            received += chunk.length;
+            if (received > maxBytes) { res.body.destroy(); resolve(); }
+            else { chunks.push(chunk); }
+        });
+        res.body.on('end', resolve);
+        res.body.on('error', reject);
+    });
+    return { received, buffer: received > maxBytes ? null : Buffer.concat(chunks) };
+}
+
 async function fetchImageFromUrl(rawUrl, { maxBytes } = {}) {
     if (!rawUrl) {throw new Error('URL required');}
     let url;
@@ -119,29 +134,11 @@ async function fetchImageFromUrl(rawUrl, { maxBytes } = {}) {
     const contentType = (res.headers.get('content-type') || '').toLowerCase();
     if (contentType.startsWith('image/')) {
         if (maxBytes && res.body) {
-            let received = 0;
-            const chunks = [];
-            await new Promise((resolve, reject) => {
-                res.body.on('data', (chunk) => {
-                    received += chunk.length;
-                    if (received > maxBytes) {
-                        res.body.destroy();
-                        resolve();
-                    } else {
-                        chunks.push(chunk);
-                    }
-                });
-                res.body.on('end', resolve);
-                res.body.on('error', reject);
-            });
-            if (received > maxBytes) {
-                return { tooLarge: true, contentType, sourceUrl: url.toString() };
-            }
-            return { buffer: Buffer.concat(chunks), contentType, sourceUrl: url.toString() };
-        } 
-        const buf = Buffer.from(await res.arrayBuffer());
-        return { buffer: buf, contentType, sourceUrl: url.toString() };
-        
+            const { received, buffer } = await streamWithLimit(res, maxBytes);
+            if (received > maxBytes) { return { tooLarge: true, contentType, sourceUrl: url.toString() }; }
+            return { buffer, contentType, sourceUrl: url.toString() };
+        }
+        return { buffer: Buffer.from(await res.arrayBuffer()), contentType, sourceUrl: url.toString() };
     }
 
     if (contentType.includes('text/html')) {
@@ -169,29 +166,11 @@ async function fetchImageFromUrl(rawUrl, { maxBytes } = {}) {
             if (!res.ok) {throw new Error(`Media HTTP ${res.status}`);}
             const ctype = (res.headers.get('content-type') || '').toLowerCase();
             if (maxBytes && res.body) {
-                let received = 0;
-                const chunks = [];
-                await new Promise((resolve, reject) => {
-                    res.body.on('data', (chunk) => {
-                        received += chunk.length;
-                        if (received > maxBytes) {
-                            res.body.destroy();
-                            resolve();
-                        } else {
-                            chunks.push(chunk);
-                        }
-                    });
-                    res.body.on('end', resolve);
-                    res.body.on('error', reject);
-                });
-                if (received > maxBytes) {
-                    return { tooLarge: true, contentType: ctype, sourceUrl: resolved };
-                }
-                return { buffer: Buffer.concat(chunks), contentType: ctype, sourceUrl: resolved };
-            } 
-            const buf = Buffer.from(await res.arrayBuffer());
-            return { buffer: buf, contentType: ctype, sourceUrl: resolved };
-            
+                const { received, buffer } = await streamWithLimit(res, maxBytes);
+                if (received > maxBytes) { return { tooLarge: true, contentType: ctype, sourceUrl: resolved }; }
+                return { buffer, contentType: ctype, sourceUrl: resolved };
+            }
+            return { buffer: Buffer.from(await res.arrayBuffer()), contentType: ctype, sourceUrl: resolved };
         }
     }
     throw new Error('No image found at URL');

@@ -4,18 +4,10 @@ const { LRUCache } = require('lru-cache');
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
 const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
 
-const EMOJI_IMAGE_CACHE_MAX = Math.max(
-    200,
-    Number(process.env.EMOJI_IMAGE_CACHE_MAX || '') || 500
-);
-const EMOJI_IMAGE_CACHE_TTL_MS = Math.max(
-    60 * 1000,
-    Number(process.env.EMOJI_IMAGE_CACHE_TTL_MS || '') || 24 * 60 * 60 * 1000
-);
-const UNICODE_ASSET_CACHE_MAX = Math.max(
-    500,
-    Number(process.env.UNICODE_ASSET_CACHE_MAX || '') || 5000
-);
+const envMax = (name, fallback, min) => Math.max(min, Number(process.env[name] || '') || fallback);
+const EMOJI_IMAGE_CACHE_MAX = envMax('EMOJI_IMAGE_CACHE_MAX', 500, 200);
+const EMOJI_IMAGE_CACHE_TTL_MS = envMax('EMOJI_IMAGE_CACHE_TTL_MS', 24 * 60 * 60 * 1000, 60 * 1000);
+const UNICODE_ASSET_CACHE_MAX = envMax('UNICODE_ASSET_CACHE_MAX', 5000, 500);
 
 const emojiImageCache = new LRUCache({ max: EMOJI_IMAGE_CACHE_MAX, ttl: EMOJI_IMAGE_CACHE_TTL_MS });
 const unicodeAssetCache = new LRUCache({ max: UNICODE_ASSET_CACHE_MAX });
@@ -216,28 +208,10 @@ async function createCaptionImage(imageBuffer, captionText) {
     const measureText = text => ctx.measureText(text).width;
 
     for (const word of words) {
-        if (word.type === 'text') {
-            const widthToAdd = measureText(word.value);
-            if (currentWidth + widthToAdd > maxWidth && currentWidth > 0) {
-                pushLine();
-            }
-            currentLine.push({ ...word, width: widthToAdd });
-            currentWidth += widthToAdd;
-        } else if (word.type === 'space') {
-            const widthToAdd = measureText(word.value);
-            if (currentWidth + widthToAdd > maxWidth && currentWidth > 0) {
-                pushLine();
-            }
-            currentLine.push({ ...word, width: widthToAdd });
-            currentWidth += widthToAdd;
-        } else if (word.type === 'emoji') {
-            const widthToAdd = emojiSize;
-            if (currentWidth + widthToAdd > maxWidth && currentWidth > 0) {
-                pushLine();
-            }
-            currentLine.push({ ...word, width: widthToAdd });
-            currentWidth += widthToAdd;
-        }
+        const widthToAdd = word.type === 'emoji' ? emojiSize : measureText(word.value);
+        if (currentWidth + widthToAdd > maxWidth && currentWidth > 0) { pushLine(); }
+        currentLine.push({ ...word, width: widthToAdd });
+        currentWidth += widthToAdd;
     }
 
     pushLine();
@@ -268,76 +242,32 @@ async function createCaptionImage(imageBuffer, captionText) {
                 outCtx.fillText(segment.value, cursorX, cursorY);
                 cursorX += segment.width;
             } else if (segment.type === 'emoji') {
+                const emojiY = cursorY + (lineHeight - emojiSize) / 2;
+                let candidateUrls;
                 if (segment.id) {
                     const baseUrl = `https://cdn.discordapp.com/emojis/${segment.id}.${segment.animated ? 'gif' : 'png'}?size=96&quality=lossless`;
-                    const fallbackUrl = `https://cdn.discordapp.com/emojis/${segment.id}.png?size=96&quality=lossless`;
-                    const candidateUrls = [baseUrl];
-                    if (segment.animated) {
-                        candidateUrls.push(fallbackUrl);
-                    }
-
-                    let rendered = false;
-                    for (const url of candidateUrls) {
-                        try {
-                            const emojiImage = await loadEmojiAsset(url);
-                            if (emojiImage) {
-                                outCtx.drawImage(
-                                    emojiImage,
-                                    cursorX,
-                                    cursorY + (lineHeight - emojiSize) / 2,
-                                    emojiSize,
-                                    emojiSize
-                                );
-                                rendered = true;
-                                break;
-                            }
-                        } catch (error) {
-                            // Try next candidate
-                        }
-                    }
-
-                    if (!rendered) {
-                        outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-                        outCtx.fillText(
-                            segment.value,
-                            cursorX,
-                            cursorY + (lineHeight - emojiSize) / 2
-                        );
-                        outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
-                    }
+                    candidateUrls = segment.animated
+                        ? [baseUrl, `https://cdn.discordapp.com/emojis/${segment.id}.png?size=96&quality=lossless`]
+                        : [baseUrl];
                 } else {
                     const asset = buildUnicodeEmojiAsset(segment.value);
-                    const candidateUrls = asset ? [asset.svg, asset.png] : [];
-                    let rendered = false;
-
-                    for (const url of candidateUrls) {
-                        try {
-                            const emojiImage = await loadEmojiAsset(url);
-                            if (emojiImage) {
-                                outCtx.drawImage(
-                                    emojiImage,
-                                    cursorX,
-                                    cursorY + (lineHeight - emojiSize) / 2,
-                                    emojiSize,
-                                    emojiSize
-                                );
-                                rendered = true;
-                                break;
-                            }
-                        } catch (error) {
-                            // Try next candidate
+                    candidateUrls = asset ? [asset.svg, asset.png] : [];
+                }
+                let rendered = false;
+                for (const url of candidateUrls) {
+                    try {
+                        const emojiImage = await loadEmojiAsset(url);
+                        if (emojiImage) {
+                            outCtx.drawImage(emojiImage, cursorX, emojiY, emojiSize, emojiSize);
+                            rendered = true;
+                            break;
                         }
-                    }
-
-                    if (!rendered) {
-                        outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-                        outCtx.fillText(
-                            segment.value,
-                            cursorX,
-                            cursorY + (lineHeight - emojiSize) / 2
-                        );
-                        outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
-                    }
+                    } catch (error) { /* Try next candidate */ }
+                }
+                if (!rendered) {
+                    outCtx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+                    outCtx.fillText(segment.value, cursorX, emojiY);
+                    outCtx.font = `bold ${fontSize}px "Impact", "Arial Black", sans-serif`;
                 }
                 cursorX += emojiSize;
             }

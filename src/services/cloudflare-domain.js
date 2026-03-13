@@ -74,30 +74,17 @@ function ensureCloudflareIpsConfig() {
         return false;
     }
 }
+function generateSystemdService(desc, projectRoot, execStart) {
+    return `[Unit]\nDescription=${desc}\n\n[Service]\nType=oneshot\nWorkingDirectory=${projectRoot}\nExecStart=${execStart}\nUser=root\nStandardOutput=journal\nStandardError=journal\n`;
+}
+function generateSystemdTimer(desc, calendar) {
+    return `[Unit]\nDescription=${desc}\n\n[Timer]\nOnCalendar=${calendar}\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n`;
+}
 function generateCloudflareTimerService(projectRoot) {
-    return `[Unit]
-Description=Update Cloudflare IP ranges for nginx
-
-[Service]
-Type=oneshot
-WorkingDirectory=${projectRoot}
-ExecStart=/usr/bin/env bash ${projectRoot}/scripts/update-cloudflare-ips.sh
-User=root
-StandardOutput=journal
-StandardError=journal
-`;
+    return generateSystemdService('Update Cloudflare IP ranges for nginx', projectRoot, `/usr/bin/env bash ${projectRoot}/scripts/update-cloudflare-ips.sh`);
 }
 function generateCloudflareTimerUnit() {
-    return `[Unit]
-Description=Weekly Cloudflare IP update for nginx
-
-[Timer]
-OnCalendar=Sun *-*-* 03:00:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-`;
+    return generateSystemdTimer('Weekly Cloudflare IP update for nginx', 'Sun *-*-* 03:00:00');
 }
 function writeUnitFile(targetPath, content) {
     const tempFile = `/tmp/${path.basename(targetPath)}`;
@@ -144,29 +131,10 @@ function ensureCloudflareIpsTimer(projectRoot) {
     }
 }
 function generateNginxEnsureService(projectRoot) {
-    return `[Unit]
-Description=Ensure Jarvis nginx config remains Cloudflare-only
-
-[Service]
-Type=oneshot
-WorkingDirectory=${projectRoot}
-ExecStart=/usr/bin/env node ${projectRoot}/scripts/ensure-nginx-config.js
-User=root
-StandardOutput=journal
-StandardError=journal
-`;
+    return generateSystemdService('Ensure Jarvis nginx config remains Cloudflare-only', projectRoot, `/usr/bin/env node ${projectRoot}/scripts/ensure-nginx-config.js`);
 }
 function generateNginxEnsureTimerUnit() {
-    return `[Unit]
-Description=Periodic Jarvis nginx config enforcement
-
-[Timer]
-OnCalendar=hourly
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-`;
+    return generateSystemdTimer('Periodic Jarvis nginx config enforcement', 'hourly');
 }
 function ensureNginxEnsureTimer(projectRoot) {
     try {
@@ -278,25 +246,18 @@ function sslCertsExist(domain) {
         }
     }
 }
-function loadSslCache() {
-    try {
-        if (fs.existsSync(SSL_CACHE_FILE)) {
-            return JSON.parse(fs.readFileSync(SSL_CACHE_FILE, 'utf8'));
-        }
-    } catch {
-    }
-    return null;
+function loadJsonFile(filePath) {
+    try { return fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : null; } catch { return null; }
 }
-function saveSslCache(config) {
+function saveJsonFile(filePath, data, warnLabel) {
     try {
-        const dir = path.dirname(SSL_CACHE_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(SSL_CACHE_FILE, JSON.stringify(config, null, 2));
-    } catch {
-    }
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    } catch (err) { if (warnLabel) { console.warn(`[${warnLabel}] Failed to save cache:`, err.message); } }
 }
+function loadSslCache() { return loadJsonFile(SSL_CACHE_FILE); }
+function saveSslCache(config) { saveJsonFile(SSL_CACHE_FILE, config); }
 async function createOriginCertificate(domain) {
     try {
         if (!/^[A-Za-z0-9.-]+$/.test(domain)) {
@@ -515,26 +476,8 @@ async function autoSetupNginx(domain, enableSsl = true, force = false) {
         return { success: false, error: err.message };
     }
 }
-function loadCachedConfig() {
-    try {
-        if (fs.existsSync(CONFIG_CACHE_FILE)) {
-            return JSON.parse(fs.readFileSync(CONFIG_CACHE_FILE, 'utf8'));
-        }
-    } catch {
-    }
-    return null;
-}
-function saveCachedConfig(config) {
-    try {
-        const dir = path.dirname(CONFIG_CACHE_FILE);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(CONFIG_CACHE_FILE, JSON.stringify(config, null, 2));
-    } catch (err) {
-        console.warn('[CloudflareDomain] Failed to save config cache:', err.message);
-    }
-}
+function loadCachedConfig() { return loadJsonFile(CONFIG_CACHE_FILE); }
+function saveCachedConfig(config) { saveJsonFile(CONFIG_CACHE_FILE, config, 'CloudflareDomain'); }
 function getConfig() {
     return {
         apiToken: process.env.CLOUDFLARE_API_TOKEN || '',
@@ -625,85 +568,32 @@ async function upsertDnsRecord(name, type, content, options = {}, zoneId = null)
     }
     return createDnsRecord(record, zoneId);
 }
+async function upsertDomainRecords(domain, recordType, target, subdomain) {
+    const names = [domain, `www.${domain}`];
+    if (subdomain) {names.push(`${subdomain}.${domain}`);}
+    const records = [];
+    for (const name of names) {
+        records.push(await upsertDnsRecord(name, recordType, target, { proxied: true }));
+    }
+    return records;
+}
 async function configureForRender(subdomain = null) {
     const config = getConfig();
     const { domain } = config;
-    if (!domain) {
-        throw new Error('JARVIS_DOMAIN not configured');
-    }
+    if (!domain) {throw new Error('JARVIS_DOMAIN not configured');}
     const renderHost = config.renderExternalUrl
         ? new URL(config.renderExternalUrl).hostname
         : null;
-    if (!renderHost) {
-        throw new Error('RENDER_EXTERNAL_URL not configured');
-    }
-    const records = [];
-    records.push(await upsertDnsRecord(
-        domain,
-        'CNAME',
-        renderHost,
-        { proxied: true }
-    ));
-    records.push(await upsertDnsRecord(
-        `www.${domain}`,
-        'CNAME',
-        renderHost,
-        { proxied: true }
-    ));
-    if (subdomain) {
-        records.push(await upsertDnsRecord(
-            `${subdomain}.${domain}`,
-            'CNAME',
-            renderHost,
-            { proxied: true }
-        ));
-    }
-    return {
-        success: true,
-        domain,
-        target: renderHost,
-        records
-    };
+    if (!renderHost) {throw new Error('RENDER_EXTERNAL_URL not configured');}
+    return { success: true, domain, target: renderHost, records: await upsertDomainRecords(domain, 'CNAME', renderHost, subdomain) };
 }
 async function configureForSelfhost(target, subdomain = null) {
     const config = getConfig();
     const { domain } = config;
-    if (!domain) {
-        throw new Error('JARVIS_DOMAIN not configured');
-    }
-    if (!target) {
-        throw new Error('Target IP or hostname required');
-    }
-    const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(target);
-    const recordType = isIp ? 'A' : 'CNAME';
-    const records = [];
-    records.push(await upsertDnsRecord(
-        domain,
-        recordType,
-        target,
-        { proxied: true }
-    ));
-    records.push(await upsertDnsRecord(
-        `www.${domain}`,
-        recordType,
-        target,
-        { proxied: true }
-    ));
-    if (subdomain) {
-        records.push(await upsertDnsRecord(
-            `${subdomain}.${domain}`,
-            recordType,
-            target,
-            { proxied: true }
-        ));
-    }
-    return {
-        success: true,
-        domain,
-        target,
-        recordType,
-        records
-    };
+    if (!domain) {throw new Error('JARVIS_DOMAIN not configured');}
+    if (!target) {throw new Error('Target IP or hostname required');}
+    const recordType = /^(\d{1,3}\.){3}\d{1,3}$/.test(target) ? 'A' : 'CNAME';
+    return { success: true, domain, target, recordType, records: await upsertDomainRecords(domain, recordType, target, subdomain) };
 }
 function isRunningOnRender() {
     return !!(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID);
