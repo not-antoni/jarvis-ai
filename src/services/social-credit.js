@@ -172,10 +172,11 @@ function getCringeLevel(text) {
 
 // ── Credit calculation ─────────────────────────────────────────────────────────
 
-function rollCreditChange(messageContent) {
+function rollCreditChange(messageContent, client) {
     let socialCreditChange = 0n;
 
-    socialCreditChange -= getCringeLevel(messageContent);
+    const content = client ? stripBotMentions(messageContent, client) : messageContent;
+    socialCreditChange -= getCringeLevel(content);
 
     const roll = Math.random();
     if (roll < 0.001) {
