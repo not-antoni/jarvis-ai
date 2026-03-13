@@ -4,7 +4,7 @@
 
 **OFFICIAL SITE**: https://jorvis.org/
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-blue.svg)](https://discord.js.org)
 [![Node.js](https://img.shields.io/badge/node-24.12.0-green.svg)](https://nodejs.org)
 
@@ -27,11 +27,8 @@ Native Discord voice playback via `@discordjs/voice` + `yt-dlp`.
 
 ### Moderation
 - **Auto-Moderation**: AI-powered with batch analysis, auto-escalation, cross-guild threat sharing
-- **Manual**: `/ban` `/unban` `/kick` `/mute` `/unmute` `/warn` `/purge`
-- **Reaction Roles**: `/reactionrole` panel builder
 - **Server Stats**: Auto-updating stat channels
 - **Member Log**: Join/leave announcements
-- **Web Dashboard**: `/moderator` control panel
 
 ### Utility
 `/jarvis` `/yt` `/news` `/remind` `/timezone` `/caption` `/gif` `/avatar` `/banner` `/clip` `/profile` `/history` `/digest` `/help` `/wakeword`
@@ -66,8 +63,7 @@ MASTER_KEY_BASE64=base64_32_byte_key
 ### Optional
 
 ```env
-# Dashboard / health
-DASHBOARD_PASSWORD=...
+# Health
 HEALTH_TOKEN=...
 
 # AI providers (configure at least one)
@@ -88,10 +84,6 @@ AI_PROXY_TOKEN=...
 # Extras
 BRAVE_API_KEY=...
 YOUTUBE_API_KEY=...
-
-# OAuth (optional, used by moderator auth)
-DISCORD_CLIENT_ID=...
-DISCORD_CLIENT_SECRET=...
 ```
 
 ---
@@ -229,31 +221,6 @@ Auto-provision workers: `npm run provision:ai-proxies`
 
 ---
 
-## Dashboard
-
-- `/dashboard` — Built-in UI (static build from `dashboard/dist`)
-- `/api/dashboard/*` — JSON API
-
-Login is required if `DASHBOARD_PASSWORD` is set. Use `DASHBOARD_PASSWORD` over the generic `PASSWORD` env var (hosting platforms often override `PASSWORD`).
-
----
-
-## Website
-
-| Page | URL | Description |
-|------|-----|-------------|
-| **Home** | `/` | Public landing page |
-| **Status** | `/status` | Live bot status and uptime |
-| **Moderator** | `/moderator` | Web moderation panel |
-
-### Cloudflare-Only Access
-
-```env
-CLOUDFLARE_ONLY=true  # Default; blocks direct IP access
-```
-
----
-
 ## API Key Auto-Discovery
 
 Jarvis auto-discovers numbered API keys:
@@ -291,7 +258,6 @@ jarvis-ai/
 │   ├── services/         # Main services (AI, music, moderation, handlers)
 │   └── utils/            # Utilities
 ├── routes/               # Express routes
-├── dashboard/            # Dashboard UI (React)
 └── tests/                # Test suite
 ```
 
@@ -308,7 +274,7 @@ jarvis-ai/
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) for details.
+Proprietary. See [LICENSE](LICENSE) for details.
 
 **Disclaimer:** "J.A.R.V.I.S." and Iron Man references are fan content. Not affiliated with Marvel or Disney.
 
