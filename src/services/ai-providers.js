@@ -700,41 +700,20 @@ class AIProviderManager {
     getRedactedProviderStatus() {
         return this.getProviderStatus().map(p => ({
             ...p,
-            name: this._redactProviderName(p.name),
-            model: this._redactModelName(p.model),
+            name: '[REDACTED]',
+            model: '[REDACTED]',
             lastError: p.hasError ? '[REDACTED]' : null
         }));
     }
     getProviderAnalytics() {
-        return this.getProviderStatus().map(provider => {
-            const uptimePercentage =
-                provider.metrics.successRate != null ? provider.metrics.successRate * 100 : null;
-            return {
-                name: provider.name,
-                model: provider.model,
-                type: provider.type,
-                family: provider.family,
-                costTier: provider.costTier,
-                priority: provider.priority,
-                metrics: {
-                    successes: provider.metrics.successes,
-                    failures: provider.metrics.failures,
-                    total: provider.metrics.totalRequests,
-                    successRate: uptimePercentage,
-                    avgLatencyMs: provider.metrics.avgLatencyMs
-                },
-                disabledUntil: provider.disabledUntil,
-                isDisabled: provider.isDisabled,
-                hasError: provider.hasError,
-                lastError: provider.lastError
-            };
-        });
-    }
-    _redactProviderName(_name) {
-        return '[REDACTED]';
-    }
-    _redactModelName(_model) {
-        return '[REDACTED]';
+        return this.getProviderStatus().map(p => ({
+            ...p,
+            metrics: {
+                ...p.metrics,
+                total: p.metrics.totalRequests,
+                successRate: p.metrics.successRate != null ? p.metrics.successRate * 100 : null
+            }
+        }));
     }
     setRandomSelection(enabled) {
         this.useRandomSelection = !!enabled;
