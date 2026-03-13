@@ -7,8 +7,7 @@ const {
     AttachmentBuilder,
     UserFlags,
     PermissionsBitField,
-    EmbedBuilder,
-    parseEmoji
+    EmbedBuilder
 } = require('discord.js');
 const JarvisAI = require('./jarvis-core');
 const config = require('../../config');
@@ -31,7 +30,6 @@ const automodSlash = require('./handlers/automod-slash');
 const automodUtils = require('./handlers/automod-utils');
 const serverStats = require('./handlers/server-stats');
 const memberLog = require('./handlers/member-log');
-const reactionRoleHandler = require('./handlers/reaction-role-handler');
 const mediaHandlers = require('./handlers/media-handlers');
 const gameHandlers = require('./handlers/game-handlers');
 const memoryHandler = require('./handlers/memory-handler');
@@ -414,14 +412,6 @@ class DiscordHandlers {
 
     async handleGuildMemberRemove(member) {
         return await memberLog.handleGuildMemberRemove(this, member);
-    }
-
-    getReactionEmojiKey(emoji) {
-        if (!emoji) {
-            return null;
-        }
-
-        return emoji.id || emoji.name || null;
     }
 
     normalizeKeyword(keyword) {
@@ -815,189 +805,6 @@ class DiscordHandlers {
                 }
             }
         }
-    }
-
-    async resolveRoleFromInput(roleInput, guild) {
-        if (!roleInput || !guild) {
-            return null;
-        }
-
-        const trimmed = roleInput.trim();
-        let roleId = null;
-
-        const mentionMatch = trimmed.match(/^<@&(\d{5,})>$/);
-        if (mentionMatch) {
-            roleId = mentionMatch[1];
-        }
-
-        if (!roleId && /^\d{5,}$/.test(trimmed)) {
-            roleId = trimmed;
-        }
-
-        let role = null;
-        if (roleId) {
-            role = guild.roles.cache.get(roleId) || null;
-            if (!role) {
-                try {
-                    role = await guild.roles.fetch(roleId);
-                } catch (error) {
-                    role = null;
-                }
-            }
-        }
-
-        if (!role) {
-            const normalized = trimmed.toLowerCase();
-            role = guild.roles.cache.find(r => r.name.toLowerCase() === normalized) || null;
-        }
-
-        return role || null;
-    }
-
-    async parseReactionRolePairs(input, guild) {
-        if (!input || typeof input !== 'string') {
-            throw new Error('Please provide emoji and role pairs separated by commas, sir.');
-        }
-
-        const segments = input
-            .split(/[\n,]+/)
-            .map(segment => segment.trim())
-            .filter(Boolean);
-
-        if (segments.length === 0) {
-            throw new Error('Please provide at least one emoji and role pair, sir.');
-        }
-
-        if (segments.length > 20) {
-            throw new Error('Discord allows a maximum of 20 reactions per message, sir.');
-        }
-
-        const results = [];
-        const seenKeys = new Set();
-        const emojiPattern = /\p{Extended_Pictographic}/u;
-
-        for (const segment of segments) {
-            const separatorIndex = segment.search(/\s/);
-            if (separatorIndex === -1) {
-                throw new Error('Each pair must include an emoji and a role separated by a space, sir.');
-            }
-
-            const emojiInput = segment.substring(0, separatorIndex).trim();
-            const roleInput = segment.substring(separatorIndex).trim();
-
-            if (!emojiInput || !roleInput) {
-                throw new Error('Each pair must include both an emoji and a role, sir.');
-            }
-
-            const parsedEmoji = parseEmoji(emojiInput);
-            if (!parsedEmoji) {
-                throw new Error(`I could not understand the emoji "${emojiInput}", sir.`);
-            }
-
-            if (!parsedEmoji.id && !emojiPattern.test(emojiInput)) {
-                throw new Error(`"${emojiInput}" is not a usable emoji, sir. Please use a Unicode emoji or a custom server emoji.`);
-            }
-
-            const matchKey = parsedEmoji.id || parsedEmoji.name;
-            if (!matchKey) {
-                throw new Error(`I could not determine how to track the emoji "${emojiInput}", sir.`);
-            }
-
-            if (seenKeys.has(matchKey)) {
-                throw new Error('Each emoji may only be used once per panel, sir.');
-            }
-
-            const role = await this.resolveRoleFromInput(roleInput, guild);
-            if (!role) {
-                throw new Error(`I could not find the role "${roleInput}", sir.`);
-            }
-
-            seenKeys.add(matchKey);
-
-            const emojiDisplay = parsedEmoji.id
-                ? `<${parsedEmoji.animated ? 'a' : ''}:${parsedEmoji.name}:${parsedEmoji.id}>`
-                : emojiInput;
-
-            results.push({
-                matchKey,
-                rawEmoji: emojiDisplay,
-                display: emojiDisplay,
-                roleId: role.id,
-                roleName: role.name
-            });
-        }
-
-        return results;
-    }
-
-    async resolveReactionRoleContext(reaction, user) {
-        if (!database.isConnected || !reaction || !user || user.bot) {
-            return null;
-        }
-
-        const messageId = reaction.message?.id || reaction.messageId;
-        if (!messageId) {
-            return null;
-        }
-
-        const record = await database.getReactionRole(messageId);
-        if (!record) {
-            return null;
-        }
-
-        if (reaction.message?.guildId && record.guildId && reaction.message.guildId !== record.guildId) {
-            return null;
-        }
-
-        const key = this.getReactionEmojiKey(reaction.emoji);
-        if (!key) {
-            return null;
-        }
-
-        const option = (record.options || []).find(entry => entry.matchKey === key);
-        if (!option) {
-            return null;
-        }
-
-        const guildId = record.guildId || reaction.message?.guildId;
-        if (!guildId) {
-            return null;
-        }
-
-        const guild = reaction.message?.guild
-            || reaction.client.guilds.cache.get(guildId)
-            || await reaction.client.guilds.fetch(guildId).catch(() => null);
-        if (!guild) {
-            return null;
-        }
-
-        const member = await guild.members.fetch(user.id).catch(() => null);
-        if (!member) {
-            return null;
-        }
-
-        const role = guild.roles.cache.get(option.roleId) || await guild.roles.fetch(option.roleId).catch(() => null);
-        if (!role) {
-            return null;
-        }
-
-        const me = guild.members.me || await guild.members.fetchMe().catch(() => null);
-        if (!me?.permissions?.has(PermissionsBitField.Flags.ManageRoles)) {
-            return null;
-        }
-
-        if (me.roles.highest.comparePositionTo(role) <= 0) {
-            return null;
-        }
-
-        return {
-            record,
-            option,
-            guild,
-            member,
-            role,
-            me
-        };
     }
 
     getUserRoleColor(member) {
@@ -2910,24 +2717,6 @@ class DiscordHandlers {
 
     async handleAutoModCommand(interaction) {
         return await automodSlash.handleAutoModCommand(this, interaction);
-    }
-
-    // ============ REACTION ROLE HANDLERS ============
-
-    async handleReactionRoleCommand(interaction) {
-        return await reactionRoleHandler.handleReactionRoleCommand(this, interaction);
-    }
-
-    async handleReactionAdd(reaction, user) {
-        return await reactionRoleHandler.handleReactionAdd(this, reaction, user);
-    }
-
-    async handleReactionRemove(reaction, user) {
-        return await reactionRoleHandler.handleReactionRemove(this, reaction, user);
-    }
-
-    async handleTrackedMessageDelete(message) {
-        return await reactionRoleHandler.handleTrackedMessageDelete(this, message);
     }
 
     // ============ MEDIA HANDLERS ============

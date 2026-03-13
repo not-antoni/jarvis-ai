@@ -46,7 +46,6 @@ function buildSupportEmbed(includeGuide = false) {
                 {
                     name: 'Server Utilities',
                     value: [
-                        '`/reactionrole` Configure reaction role panels.',
                         '`/automod` Manage blacklist & automod rules.',
                         '`/serverstats` Maintain live member counters.',
                         '`/memberlog` Customize join & leave messages.'

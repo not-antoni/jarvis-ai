@@ -303,15 +303,6 @@ client.once(Events.ClientReady, async() => {
     global.discordClient = client;
     global.discordHandlers = discordHandlers;
 
-    try {
-        const moderatorAuth = require('./src/services/moderator-auth');
-        if (moderatorAuth?.setDiscordClient) {
-            moderatorAuth.setDiscordClient(client);
-        }
-    } catch (e) {
-        console.warn('[ModeratorAuth] Failed to attach Discord client:', e.message);
-    }
-
     // Initialize musicManager with client
     try {
         const { musicManager } = require('./src/core/musicManager');

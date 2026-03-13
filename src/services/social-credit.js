@@ -1,5 +1,6 @@
 'use strict';
 
+const config = require('../../config');
 const database = require('./database');
 
 const EMOJI_POSITIVE = '<a:socialcredit:1477736880127869039>';
@@ -239,24 +240,28 @@ function buildNotifyMessage(amount, newScore) {
 
 async function getCredit(userId) {
     if (!database.isConnected) { return { score: 0n, blockedUntil: null }; }
-    const col = database.getCollection('socialCredit');
+    const col = database.getCollection(config.database?.collections?.socialCredit || 'socialCredit');
     if (!col) { return { score: 0n, blockedUntil: null }; }
 
     const doc = await col.findOne({ userId });
     if (!doc) { return { score: 0n, blockedUntil: null }; }
 
-    // ✅ FIX 1: null-safe BigInt conversion — BigInt(undefined/null) throws
-    const score = doc.score != null ? BigInt(doc.score) : 0n;
+    // ✅ FIX 1: null-safe BigInt conversion — handle BSON Long or string
+    const score = doc.score != null
+        ? BigInt(typeof doc.score === 'object' ? doc.score.toString() : doc.score)
+        : 0n;
     return { score, blockedUntil: doc.blockedUntil || null };
 }
 
 async function adjustCredit(userId, amount) {
     if (!database.isConnected) { return 0n; }
-    const col = database.getCollection('socialCredit');
+    const col = database.getCollection(config.database?.collections?.socialCredit || 'socialCredit');
     if (!col) { return 0n; }
 
     const doc          = await col.findOne({ userId });
-    const currentScore = doc?.score != null ? BigInt(doc.score) : 0n;
+    const currentScore = doc?.score != null
+        ? BigInt(typeof doc.score === 'object' ? doc.score.toString() : doc.score)
+        : 0n;
     const newSocialCredit = currentScore + BigInt(amount);
 
     console.log(currentScore, BigInt(amount));
@@ -273,7 +278,9 @@ async function adjustCredit(userId, amount) {
 
     // ✅ FIX 3: null-safe BigInt on result — driver version differences affect result shape
     const raw      = result?.score ?? result?.value?.score;
-    const newScore = raw != null ? BigInt(raw) : newSocialCredit;
+    const newScore = raw != null
+        ? BigInt(typeof raw === 'object' ? raw.toString() : raw)
+        : newSocialCredit;
 
     if (newScore <= BigInt(BLOCK_THRESHOLD)) {
         await col.updateOne(
@@ -292,7 +299,7 @@ function isBlocked(credit) {
 
 async function clearBlock(userId) {
     if (!database.isConnected) { return; }
-    const col = database.getCollection('socialCredit');
+    const col = database.getCollection(config.database?.collections?.socialCredit || 'socialCredit');
     if (!col) { return; }
     await col.updateOne({ userId }, { $set: { blockedUntil: null, score: (0n).toString() } });
 }

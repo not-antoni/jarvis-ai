@@ -113,21 +113,17 @@ const rawConfig = {
             conversations: 'conversations',
             userProfiles: 'userProfiles',
             guildConfigs: 'guildConfigs',
-            reactionRoles: 'reactionRoles',
+            socialCredit: 'socialCredit',
             autoModeration: 'autoModerationRules',
             serverStats: 'serverStats',
             memberLogs: 'memberLogs',
-            tickets: 'tickets',
-            ticketTranscripts: 'ticketTranscripts',
             counters: 'counters',
             newsCache: 'newsCache',
             migrations: 'migrations',
             statusMessages: 'statusMessages',
             commandMetrics: 'commandMetrics',
             commandSyncState: 'commandSyncState',
-            starkEconomy: 'starkEconomy',
-            reminders: 'reminders',
-            subscriptions: 'subscriptions'
+            reminders: 'reminders'
         },
         vaultCollections: {
             userKeys: process.env.VAULT_USER_KEYS_COLLECTION || 'vaultUserKeys',
@@ -236,24 +232,17 @@ const rawConfig = {
     features: {
         coreChat: true,
         utilities: true,
-        utilitiesExtras: true,
         reset: true,
         invite: true,
         clipping: true,
-        reactionRoles: true,
         automod: true,
         serverStats: true,
         memberLog: true,
-        tickets: false,
         digests: true,
         newsBriefings: true,
-        macroReplies: true,
         music: true,
         memeTools: true,
-        funUtilities: true,
-        codeExecution: true,
-        // Selfhost-only experimental features
-        selfhostExperimental: selfhostMode || deploymentTarget === 'selfhost'
+        funUtilities: true
     }
 };
 

@@ -278,26 +278,6 @@ async function sendMemberLogEvent(handler, member, type) {
 
 async function handleGuildMemberAdd(handler, member, client) {
     await sendMemberLogEvent(handler, member, 'join');
-
-    // Send welcome message if configured for this guild
-    try {
-        if (database.isConnected && member.guild) {
-            const guildConfig = await handler.getGuildConfig(member.guild);
-            if (guildConfig?.welcomeChannelId && guildConfig?.welcomeMessage) {
-                const channel = await member.guild.channels.fetch(guildConfig.welcomeChannelId).catch(() => null);
-                if (channel) {
-                    const msg = guildConfig.welcomeMessage
-                        .replace(/\{user\}/g, `<@${member.id}>`)
-                        .replace(/\{username\}/g, member.user.username)
-                        .replace(/\{server\}/g, member.guild.name)
-                        .replace(/\{memberCount\}/g, String(member.guild.memberCount));
-                    await channel.send({ content: msg, allowedMentions: { users: [member.id] } });
-                }
-            }
-        }
-    } catch (error) {
-        console.warn('[Welcome] Failed to send welcome message:', error.message);
-    }
 }
 
 async function handleGuildMemberRemove(handler, member) {

@@ -154,11 +154,6 @@ try {
 
     let response;
 
-    if (commandName === 'reactionrole') {
-        await handler.handleReactionRoleCommand(interaction);
-        return;
-    }
-
     if (commandName === 'automod') {
         await handler.handleAutoModCommand(interaction);
         return;
@@ -241,6 +236,16 @@ try {
         case 'banner': {
             telemetryMetadata.category = 'utility';
             response = await slashUtility.handleBanner(interaction);
+            break;
+        }
+        case 'userinfo': {
+            telemetryMetadata.category = 'utility';
+            response = await slashUtility.handleUserinfo(interaction);
+            break;
+        }
+        case 'serverinfo': {
+            telemetryMetadata.category = 'utility';
+            response = await slashUtility.handleServerinfo(interaction);
             break;
         }
         case 'ship': {
