@@ -6,7 +6,7 @@
  */
 function wireEventHandlers(ctx) {
     const {
-        client, discordHandlers, dashboardRouter,
+        client, discordHandlers,
         aiManager, database, cron,
         serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
     } = ctx;
@@ -22,14 +22,12 @@ function wireEventHandlers(ctx) {
     });
 
     client.on('messageCreate', async message => {
-        dashboardRouter.trackMessage();
         await discordHandlers.handleMessage(message, client);
     });
 
     client.on('interactionCreate', async interaction => {
         try {
             if (interaction.isChatInputCommand() || interaction.isContextMenuCommand()) {
-                dashboardRouter.trackCommand(interaction.commandName, interaction.user.id);
                 await discordHandlers.handleSlashCommand(interaction);
             } else if (interaction.isAutocomplete()) {
                 await discordHandlers.handleAutocomplete(interaction);
