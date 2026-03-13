@@ -199,14 +199,6 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
-        name: 'reactionrole',
-        description: 'Configure reaction role menus.',
-        category: 'Operations',
-        usage: '/reactionrole create',
-        feature: 'reactionRoles',
-        ephemeral: true
-    },
-    {
         name: 'automod',
         description: 'Manage blacklist filters and automod rules.',
         category: 'Operations',

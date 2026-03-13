@@ -380,6 +380,84 @@ async function handleBanner(interaction) {
     }
 }
 
+async function handleUserinfo(interaction) {
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+
+    if (!interaction.guild) {
+        return 'This command only works in servers, sir.';
+    }
+
+    const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+
+    const embed = new EmbedBuilder()
+        .setTitle(`👤 ${targetUser.tag || targetUser.username}`)
+        .setThumbnail(targetUser.displayAvatarURL({ size: 256 }))
+        .setColor(member?.displayHexColor || 0x3498db)
+        .addFields(
+            { name: 'ID', value: targetUser.id, inline: true },
+            { name: 'Bot', value: targetUser.bot ? 'Yes' : 'No', inline: true },
+            { name: 'Created', value: `<t:${Math.floor(targetUser.createdTimestamp / 1000)}:R>`, inline: true }
+        );
+
+    if (member) {
+        embed.addFields(
+            { name: 'Joined', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
+            { name: 'Nickname', value: member.nickname || 'None', inline: true },
+            { name: 'Roles', value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'None', inline: true }
+        );
+        if (member.premiumSinceTimestamp) {
+            embed.addFields({
+                name: 'Boosting Since',
+                value: `<t:${Math.floor(member.premiumSinceTimestamp / 1000)}:R>`,
+                inline: true
+            });
+        }
+    }
+
+    return { embeds: [embed] };
+}
+
+async function handleServerinfo(interaction) {
+    if (!interaction.guild) {
+        return 'This command only works in servers, sir.';
+    }
+
+    const { guild } = interaction;
+    const owner = await guild.fetchOwner().catch(() => null);
+
+    const iconUrl = guild.iconURL({ size: 256 });
+    const bannerUrl = guild.bannerURL({ size: 1024 });
+
+    const embed = new EmbedBuilder()
+        .setAuthor({
+            name: guild.name,
+            iconURL: iconUrl || undefined
+        })
+        .setTitle('🏰 Server Overview')
+        .setThumbnail(iconUrl)
+        .setColor(0x9b59b6)
+        .addFields(
+            { name: '🆔 ID', value: guild.id, inline: true },
+            { name: '👑 Owner', value: owner ? owner.user.tag : 'Unknown', inline: true },
+            { name: '📅 Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
+            { name: '👥 Members', value: `${guild.memberCount?.toLocaleString?.() || guild.memberCount || 'Unknown'}`, inline: true },
+            { name: '💬 Channels', value: `${guild.channels?.cache?.size ?? 'Unknown'}`, inline: true },
+            { name: '🛡️ Roles', value: `${guild.roles?.cache?.size ?? 'Unknown'}`, inline: true },
+            { name: '🚀 Boost Level', value: `Tier ${guild.premiumTier ?? 0}`, inline: true },
+            { name: '💎 Boosts', value: `${guild.premiumSubscriptionCount || 0}`, inline: true },
+            { name: '😄 Emojis', value: `${guild.emojis?.cache?.size ?? 'Unknown'}`, inline: true }
+        );
+
+    if (guild.description) {
+        embed.setDescription(guild.description);
+    }
+    if (bannerUrl) {
+        embed.setImage(bannerUrl);
+    }
+
+    return { embeds: [embed] };
+}
+
 module.exports = {
     handlePing,
     handleYt,
@@ -390,5 +468,7 @@ module.exports = {
     handleHistory,
     handleDigest,
     handleAvatar,
-    handleBanner
+    handleBanner,
+    handleUserinfo,
+    handleServerinfo
 };

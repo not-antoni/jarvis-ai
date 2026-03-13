@@ -90,7 +90,9 @@ function extractFinalPayload(text) {
 
 function stripWrappingQuotes(text) {
     if (!text || typeof text !== 'string') {return text;}
-    let trimmed = text.trim();
+    const trimmed = text.trim();
+    if (!trimmed) {return trimmed;}
+
     const pairs = [
         ['"', '"'],
         ['\u201C', '\u201D'],
@@ -98,16 +100,35 @@ function stripWrappingQuotes(text) {
         ['\u00AB', '\u00BB'],
         ["'", "'"]
     ];
+
     for (const [start, end] of pairs) {
-        if (
-            trimmed.startsWith(start) &&
-            trimmed.endsWith(end) &&
-            trimmed.length >= start.length + end.length
-        ) {
-            trimmed = trimmed.slice(start.length, trimmed.length - end.length).trim();
-            break;
+        if (!trimmed.startsWith(start) || !trimmed.endsWith(end)) {
+            continue;
         }
+
+        if (trimmed.length < start.length + end.length) {
+            continue;
+        }
+
+        const inner = trimmed.slice(start.length, trimmed.length - end.length);
+
+        // Only strip if the outer quotes are the only instances of this quote pair.
+        if (start === end) {
+            const occurrences = trimmed.split(start).length - 1;
+            if (occurrences !== 2) {
+                continue;
+            }
+        } else {
+            const startCount = trimmed.split(start).length - 1;
+            const endCount = trimmed.split(end).length - 1;
+            if (startCount !== 1 || endCount !== 1) {
+                continue;
+            }
+        }
+
+        return inner.trim();
     }
+
     return trimmed;
 }
 
@@ -154,11 +175,13 @@ function stripLeadingPromptLeaks(text) {
 
 function sanitizeAssistantMessage(text) {
     if (!text || typeof text !== 'string') {return text;}
+    const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(text);
     const layered = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(text)));
-    const noOuterQuotes = stripWrappingQuotes(layered);
-    const withoutPromptLeaks = stripLeadingPromptLeaks(noOuterQuotes);
+    const withoutPromptLeaks = stripLeadingPromptLeaks(layered);
     const withoutPrefix = stripJarvisSpeakerPrefix(withoutPromptLeaks);
-    const withoutChannelArtifacts = stripTrailingChannelArtifacts(withoutPrefix);
+    const withoutChannelArtifacts = hadChannelArtifacts
+        ? stripTrailingChannelArtifacts(withoutPrefix)
+        : withoutPrefix;
     return stripWrappingQuotes(withoutChannelArtifacts);
 }
 
