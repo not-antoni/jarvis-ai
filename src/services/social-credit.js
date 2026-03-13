@@ -160,9 +160,9 @@ function rollCreditChange(messageContent) {
 // ── Passive recovery ──
 
 function getRecoveryBonus(currentScore) {
-    if (currentScore >= 0) { return 0; }
+    if (currentScore >= 0) { return 0n; }
     // Recover 2% of deficit per message, min 100, max 5000
-    return Math.min(5000, Math.max(100, Math.floor(Math.abs(currentScore) * 0.02)));
+    return BigInt(Math.min(5000, Math.max(100, Math.floor(Math.abs(currentScore) * 0.02))));
 }
 
 // ── Notification logic ──
