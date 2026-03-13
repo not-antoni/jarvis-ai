@@ -23,7 +23,8 @@ const REACT_CHANCE = 0.08;
 // ── Number formatting ──────────────────────────────────────────────────────────
 
 const SUFFIX_SYMBOLS = ['k','M','B','T','Qa','Qi','Sx','Sp','Oc','No','De','UDe','DDe','TDe','QaDe','QiDe','SxDe','SpDe','OcDe','NoDe','Vg','UVg','DVg','TVg','QaVg','QiVg','SxVg','SpVg','OcVg','NoVg','Tg'];
-const SUFFIXES = SUFFIX_SYMBOLS.map((symbol, i) => ({ value: 10n ** BigInt((i + 1) * 3), symbol }));
+const SUFFIXES_FULL = ['thousand','million','billion','trillion','quadrillion','quintillion','sextillion','septillion','octillion','nonillion','decillion','undecillion','duodecillion','tredecillion','quattuordecillion','quindecillion','sexdecillion','septendecillion','octodecillion','novemdecillion','vigintillion','unvigintillion','duovigintillion','tresvigintillion','quattuorvigintillion','quinvigintillion','sexvigintillion','septenvigintillion','octovigintillion','novemvigintillion','trigintillion'];
+const SUFFIXES = SUFFIX_SYMBOLS.map((symbol, i) => ({ value: 10n ** BigInt((i + 1) * 3), symbol, full: SUFFIXES_FULL[i] }));
 
 function formatNumber(value) {
     // ✅ FIX: null-safe conversion before BigInt
@@ -44,6 +45,33 @@ function formatNumber(value) {
                 whole.toString() +
                 (decimal > 0n ? '.' + decimal.toString() : '') +
                 symbol
+            );
+        }
+    }
+
+    return sign + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function formatFullNumber(value) {
+    // ✅ FIX: null-safe conversion before BigInt
+    if (value == null) return '0';
+    let n = typeof value === 'bigint' ? value : BigInt(value);
+
+    const sign = n < 0n ? '-' : '';
+    if (n < 0n) n = -n;
+
+    for (let i = SUFFIXES.length - 1; i >= 0; --i) {
+        const { value: threshold, full } = SUFFIXES[i];
+        if (n >= threshold) {
+            const whole     = n / threshold;
+            const remainder = n % threshold;
+            const decimal   = (remainder * 10n) / threshold;
+            return (
+                sign +
+                whole.toString() +
+                (decimal > 0n ? '.' + decimal.toString() : '') +
+                ' ' +
+                full
             );
         }
     }
@@ -116,10 +144,6 @@ function getCringeLevel(text) {
     }
 
     if (/[!?]{4,}/.test(text) && score > 0n) { score += 15n; }
-
-    if (text.includes('Glory to Stark Industries!')) {
-        score *= -1n;
-    }
 
     return score;
 }
