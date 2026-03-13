@@ -82,6 +82,15 @@ function formatNumber(value) {
     return sign + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+// ── Mention stripping ─────────────────────────────────────────────────────────
+// Remove all bot mentions from content before cringe scoring so a bot nickname
+// like "uwu" doesn't penalise the person who just pinged it.
+
+function stripBotMentions(content, client) {
+    if (!content || !client) return content;
+    return content.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
+}
+
 // ── Cringe detection ───────────────────────────────────────────────────────────
 
 // Tier 1: nuclear cringe — instant obliteration
@@ -323,6 +332,7 @@ function getBlockMessage(credit) {
 
 module.exports = {
     getCredit,
+    stripBotMentions,
     adjustCredit,
     isBlocked,
     clearBlock,
