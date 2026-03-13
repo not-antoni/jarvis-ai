@@ -99,49 +99,43 @@ Persistent=true
 WantedBy=timers.target
 `;
 }
-function ensureCloudflareIpsTimer(projectRoot) {
-    if (!commandExists('systemctl')) {
-        return false;
-    }
-    if (!canSudo()) {
-        return false;
-    }
-    const servicePath = '/etc/systemd/system/cloudflare-ips-update.service';
-    const timerPath = '/etc/systemd/system/cloudflare-ips-update.timer';
-    const serviceContent = generateCloudflareTimerService(projectRoot);
-    const timerContent = generateCloudflareTimerUnit();
-    const writeUnitFile = (targetPath, content) => {
-        const tempFile = `/tmp/${path.basename(targetPath)}`;
-        fs.writeFileSync(tempFile, content);
-        execSync(`sudo cp ${tempFile} ${targetPath}`, { encoding: 'utf8' });
-        execSync(`sudo chmod 644 ${targetPath}`, { encoding: 'utf8' });
-    };
+function writeUnitFile(targetPath, content) {
+    const tempFile = `/tmp/${path.basename(targetPath)}`;
+    fs.writeFileSync(tempFile, content);
+    execSync(`sudo cp ${tempFile} ${targetPath}`, { encoding: 'utf8' });
+    execSync(`sudo chmod 644 ${targetPath}`, { encoding: 'utf8' });
+}
+function ensureSystemdTimer(servicePath, timerPath, serviceContent, timerContent, timerName) {
+    if (!commandExists('systemctl') || !canSudo()) { return false; }
     let serviceNeedsWrite = true;
     let timerNeedsWrite = true;
     try {
         if (fs.existsSync(servicePath)) {
-            const existing = fs.readFileSync(servicePath, 'utf8');
-            serviceNeedsWrite = existing !== serviceContent;
+            serviceNeedsWrite = fs.readFileSync(servicePath, 'utf8') !== serviceContent;
         }
         if (fs.existsSync(timerPath)) {
-            const existing = fs.readFileSync(timerPath, 'utf8');
-            timerNeedsWrite = existing !== timerContent;
+            timerNeedsWrite = fs.readFileSync(timerPath, 'utf8') !== timerContent;
         }
     } catch {
         serviceNeedsWrite = true;
         timerNeedsWrite = true;
     }
+    if (serviceNeedsWrite) { writeUnitFile(servicePath, serviceContent); }
+    if (timerNeedsWrite) { writeUnitFile(timerPath, timerContent); }
+    execSync('sudo systemctl daemon-reload', { encoding: 'utf8' });
+    execSync(`sudo systemctl enable ${timerName}`, { encoding: 'utf8' });
+    execSync(`sudo systemctl start ${timerName}`, { encoding: 'utf8' });
+}
+function ensureCloudflareIpsTimer(projectRoot) {
     try {
-        if (serviceNeedsWrite) {
-            writeUnitFile(servicePath, serviceContent);
-        }
-        if (timerNeedsWrite) {
-            writeUnitFile(timerPath, timerContent);
-        }
+        ensureSystemdTimer(
+            '/etc/systemd/system/cloudflare-ips-update.service',
+            '/etc/systemd/system/cloudflare-ips-update.timer',
+            generateCloudflareTimerService(projectRoot),
+            generateCloudflareTimerUnit(),
+            'cloudflare-ips-update.timer'
+        );
         execSync(`sudo chmod +x ${projectRoot}/scripts/update-cloudflare-ips.sh`, { encoding: 'utf8' });
-        execSync('sudo systemctl daemon-reload', { encoding: 'utf8' });
-        execSync('sudo systemctl enable cloudflare-ips-update.timer', { encoding: 'utf8' });
-        execSync('sudo systemctl start cloudflare-ips-update.timer', { encoding: 'utf8' });
         execSync('sudo systemctl start cloudflare-ips-update.service', { encoding: 'utf8' });
         return true;
     } catch (error) {
@@ -175,48 +169,15 @@ WantedBy=timers.target
 `;
 }
 function ensureNginxEnsureTimer(projectRoot) {
-    if (!commandExists('systemctl')) {
-        return false;
-    }
-    if (!canSudo()) {
-        return false;
-    }
-    const servicePath = '/etc/systemd/system/jarvis-nginx-ensure.service';
-    const timerPath = '/etc/systemd/system/jarvis-nginx-ensure.timer';
-    const serviceContent = generateNginxEnsureService(projectRoot);
-    const timerContent = generateNginxEnsureTimerUnit();
-    const writeUnitFile = (targetPath, content) => {
-        const tempFile = `/tmp/${path.basename(targetPath)}`;
-        fs.writeFileSync(tempFile, content);
-        execSync(`sudo cp ${tempFile} ${targetPath}`, { encoding: 'utf8' });
-        execSync(`sudo chmod 644 ${targetPath}`, { encoding: 'utf8' });
-    };
-    let serviceNeedsWrite = true;
-    let timerNeedsWrite = true;
     try {
-        if (fs.existsSync(servicePath)) {
-            const existing = fs.readFileSync(servicePath, 'utf8');
-            serviceNeedsWrite = existing !== serviceContent;
-        }
-        if (fs.existsSync(timerPath)) {
-            const existing = fs.readFileSync(timerPath, 'utf8');
-            timerNeedsWrite = existing !== timerContent;
-        }
-    } catch {
-        serviceNeedsWrite = true;
-        timerNeedsWrite = true;
-    }
-    try {
-        if (serviceNeedsWrite) {
-            writeUnitFile(servicePath, serviceContent);
-        }
-        if (timerNeedsWrite) {
-            writeUnitFile(timerPath, timerContent);
-        }
+        ensureSystemdTimer(
+            '/etc/systemd/system/jarvis-nginx-ensure.service',
+            '/etc/systemd/system/jarvis-nginx-ensure.timer',
+            generateNginxEnsureService(projectRoot),
+            generateNginxEnsureTimerUnit(),
+            'jarvis-nginx-ensure.timer'
+        );
         execSync(`sudo chmod +x ${projectRoot}/scripts/ensure-nginx-config.js`, { encoding: 'utf8' });
-        execSync('sudo systemctl daemon-reload', { encoding: 'utf8' });
-        execSync('sudo systemctl enable jarvis-nginx-ensure.timer', { encoding: 'utf8' });
-        execSync('sudo systemctl start jarvis-nginx-ensure.timer', { encoding: 'utf8' });
         try {
             execSync('sudo systemctl start jarvis-nginx-ensure.service', { encoding: 'utf8' });
         } catch (runErr) {
