@@ -54,6 +54,12 @@ const DISCORD_AFK_USERS_TTL_MS = Math.max(
     10 * 60 * 1000,
     Number(process.env.DISCORD_AFK_USERS_TTL_MS || '') || 24 * 60 * 60 * 1000
 );
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+function isImageAttachment(att) {
+    const contentType = att.contentType || '';
+    const ext = (att.name || '').split('.').pop()?.toLowerCase();
+    return contentType.startsWith('image/') || IMAGE_EXTS.includes(ext);
+}
 function ensureDiscordEmojiSize(url, size = DEFAULT_CUSTOM_EMOJI_SIZE) {
     if (!url || typeof url !== 'string') {return url;}
     const base = url.split('?')[0];
@@ -217,11 +223,6 @@ class DiscordHandlers {
         }
         const index = Math.floor(Math.random() * items.length);
         return items[index];
-    }
-    randomInRange(min, max) {
-        const low = Math.ceil(min);
-        const high = Math.floor(max);
-        return Math.floor(Math.random() * (high - low + 1)) + low;
     }
     getTicketStaffRoleIds(guild) {
         if (!guild?.roles?.cache) {
@@ -613,7 +614,7 @@ class DiscordHandlers {
         return emojis;
     }
     parseUnicodeEmojis(text) {
-        const unicodeEmojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA70}-\u{1FAFF}]|[\u{1F018}-\u{1F0FF}]|[\u{1F200}-\u{1F2FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F000}-\u{1F02F}]|[\u{1F030}-\u{1F09F}]|[\u{1F0A0}-\u{1F0FF}]|[\u{1F100}-\u{1F1FF}]|[\u{1F200}-\u{1F2FF}]|[\u{1F300}-\u{1F5FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F650}-\u{1F67F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{1FB00}-\u{1FBFF}]|[\u{1FC00}-\u{1FCFF}]|[\u{1FD00}-\u{1FDFF}]|[\u{1FE00}-\u{1FEFF}]|[\u{1FF00}-\u{1FFFF}]/gu;
+        const unicodeEmojiRegex = /[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1FFFF}]/gu;
         const emojis = [];
         let match;
         while ((match = unicodeEmojiRegex.exec(text)) !== null) {
@@ -668,85 +669,6 @@ class DiscordHandlers {
         }
         return mentions;
     }
-    parseDiscordFormatting(text) {
-        const formatting = [];
-        const boldRegex = /\*\*(.*?)\*\*/g;
-        let match;
-        while ((match = boldRegex.exec(text)) !== null) {
-            formatting.push({
-                type: 'bold',
-                content: match[1],
-                start: match.index,
-                end: match.index + match[0].length,
-                full: match[0]
-            });
-        }
-        const italicRegex = /(?<!\*)\*(?!\*)([^*]+)\*(?!\*)|(?<!_)_(?!_)([^_]+)_(?!_)/g;
-        while ((match = italicRegex.exec(text)) !== null) {
-            formatting.push({
-                type: 'italic',
-                content: match[1] || match[2],
-                start: match.index,
-                end: match.index + match[0].length,
-                full: match[0]
-            });
-        }
-        const strikeRegex = /~~(.*?)~~/g;
-        while ((match = strikeRegex.exec(text)) !== null) {
-            formatting.push({
-                type: 'strikethrough',
-                content: match[1],
-                start: match.index,
-                end: match.index + match[0].length,
-                full: match[0]
-            });
-        }
-        const underlineRegex = /__(.*?)__/g;
-        while ((match = underlineRegex.exec(text)) !== null) {
-            formatting.push({
-                type: 'underline',
-                content: match[1],
-                start: match.index,
-                end: match.index + match[0].length,
-                full: match[0]
-            });
-        }
-        const codeRegex = /`([^`]+)`/g;
-        while ((match = codeRegex.exec(text)) !== null) {
-            formatting.push({
-                type: 'code',
-                content: match[1],
-                start: match.index,
-                end: match.index + match[0].length,
-                full: match[0]
-            });
-        }
-        formatting.sort((a, b) => a.start - b.start);
-        return formatting;
-    }
-    formatTimestamp(timestamp, _userTimezone = 'UTC') {
-        try {
-            const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
-            const options = {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            };
-            return date.toLocaleTimeString('en-US', options);
-        } catch (error) {
-            console.warn('Failed to format timestamp:', error);
-            return '6:39 PM'; // Fallback
-        }
-    }
-    getDiscordTimestamp(message) {
-        try {
-            const unixTimestamp = Math.floor(message.createdTimestamp / 1000);
-            return `<t:${unixTimestamp}:t>`;
-        } catch (error) {
-            console.warn('Failed to get Discord timestamp:', error);
-            return '6:39 PM'; // Fallback
-        }
-    }
     drawVerifiedBadge(ctx, x, y, size = 16) {
         try {
             ctx.save();
@@ -790,9 +712,6 @@ class DiscordHandlers {
             console.warn('Failed to check bot verification status:', error);
             return false;
         }
-    }
-    getVerificationBadgeUrl() {
-        return 'https://cdn.discordapp.com/badge-icons/6f1c2f904b1f5b7f3f2746965d3992f0.png';
     }
     extractImageUrls(text) {
         const imageUrlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|bmp|svg)(?:\?[^\s]*)?)/gi;
@@ -916,9 +835,6 @@ class DiscordHandlers {
         }
         const baseHeight = 44;
         return baseHeight + (lineCount * lineHeight);
-    }
-    hasImagesOrEmojis(_message) {
-        return false;
     }
     async handleClipCommand(message, client) {
         return await mediaRendering.handleClipCommand(this, message, client);
@@ -1065,6 +981,19 @@ class DiscordHandlers {
         const avatarX = 50; // Moved further to the right
         const avatarY = 20; // Top-aligned padding instead of vertical centering
         const avatarBackgroundColor = '#1a1a1e';
+        const drawAvatarFallback = () => {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+            ctx.fillStyle = avatarBackgroundColor;
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize / 2, avatarY + avatarSize / 2);
+            ctx.restore();
+        };
         if (avatarUrl) {
             try {
                 ctx.save();
@@ -1078,30 +1007,10 @@ class DiscordHandlers {
                 ctx.restore();
             } catch (error) {
                 console.warn('Failed to load avatar, using fallback:', error);
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-                ctx.fillStyle = avatarBackgroundColor;
-                ctx.fill();
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 12px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize / 2, avatarY + avatarSize / 2);
-                ctx.restore();
+                drawAvatarFallback();
             }
         } else {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-            ctx.fillStyle = avatarBackgroundColor;
-            ctx.fill();
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 12px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(username.charAt(0).toUpperCase(), avatarX + avatarSize / 2, avatarY + avatarSize / 2);
-            ctx.restore();
+            drawAvatarFallback();
         }
         const textStartX = avatarX + avatarSize + 20; // Increased spacing
         const textStartY = avatarY + 3;
@@ -1367,18 +1276,6 @@ class DiscordHandlers {
         }
         return segments;
     }
-    drawFormattedLine(ctx, line, x, y, _formatting) {
-        let processedLine = line.trim();
-        processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '$1');
-        processedLine = processedLine.replace(/(?<!\*)\*(?!\*)([^*]+)\*(?!\*)/g, '$1');
-        processedLine = processedLine.replace(/(?<!_)_(?!_)([^_]+)_(?!_)/g, '$1');
-        processedLine = processedLine.replace(/~~(.*?)~~/g, '$1');
-        processedLine = processedLine.replace(/__(.*?)__/g, '$1');
-        processedLine = processedLine.replace(/`([^`]+)`/g, '$1');
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '15px Arial';
-        ctx.fillText(processedLine, x, y);
-    }
     async drawImages(ctx, attachments, imageUrls, startX, startY, maxWidth) {
         let currentY = startY;
         const maxImageWidth = Math.min(maxWidth, 400);
@@ -1491,8 +1388,6 @@ class DiscordHandlers {
             console.warn('Failed to build contextual memory:', error);
             return null;
         }
-    }
-    async handleVoiceStateUpdate() {
     }
     async handleJarvisInteraction(message, client) {
         if (!this.canSendInChannel(message.channel)) {return;}
@@ -1611,26 +1506,6 @@ class DiscordHandlers {
                 cleanContent = 'jarvis';
             }
         }
-        if (message.mentions) {
-            const memberMap = message.mentions.members;
-            if (memberMap && memberMap.size > 0) {
-                for (const [userId, member] of memberMap) {
-                    const displayName = member?.displayName || member?.user?.globalName || member?.user?.username || 'user';
-                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `${displayName}`);
-                }
-            } else {
-                for (const [userId, user] of message.mentions.users) {
-                    const displayName = user?.globalName || user?.username || 'user';
-                    cleanContent = cleanContent.replace(new RegExp(`<@!?${userId}>`, 'g'), `${displayName}`);
-                }
-            }
-            for (const [roleId, role] of message.mentions.roles) {
-                cleanContent = cleanContent.replace(new RegExp(`<@&${roleId}>`, 'g'), `@${role.name}`);
-            }
-            for (const [channelId, channel] of message.mentions.channels) {
-                cleanContent = cleanContent.replace(new RegExp(`<#${channelId}>`, 'g'), `#${channel.name}`);
-            }
-        }
         try {
             await message.channel.sendTyping();
         } catch (err) {
@@ -1676,12 +1551,7 @@ class DiscordHandlers {
             }
             let imageAttachments = message.attachments
                 ? Array.from(message.attachments.values())
-                    .filter(att => {
-                        const contentType = att.contentType || '';
-                        const ext = (att.name || '').split('.').pop()?.toLowerCase();
-                        const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-                        return contentType.startsWith('image/') || imageExts.includes(ext);
-                    })
+                    .filter(isImageAttachment)
                     .map(att => ({ url: att.url, contentType: att.contentType }))
                 : [];
             let repliedContext = '';
@@ -1711,12 +1581,7 @@ class DiscordHandlers {
                     if (imageAttachments.length === 0) {
                         if (repliedMessage?.attachments?.size > 0) {
                             const repliedImages = Array.from(repliedMessage.attachments.values())
-                                .filter(att => {
-                                    const contentType = att.contentType || '';
-                                    const ext = (att.name || '').split('.').pop()?.toLowerCase();
-                                    const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-                                    return contentType.startsWith('image/') || imageExts.includes(ext);
-                                })
+                                .filter(isImageAttachment)
                                 .map(att => ({ url: att.url, contentType: att.contentType, fromReply: true }));
                             imageAttachments = [...imageAttachments, ...repliedImages];
                         }
@@ -1744,12 +1609,7 @@ class DiscordHandlers {
                         if (timeDiff < 30000) { // Within 30 seconds
                             if (prevMsg.attachments?.size > 0) {
                                 const prevImages = Array.from(prevMsg.attachments.values())
-                                    .filter(att => {
-                                        const contentType = att.contentType || '';
-                                        const ext = (att.name || '').split('.').pop()?.toLowerCase();
-                                        const imageExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-                                        return contentType.startsWith('image/') || imageExts.includes(ext);
-                                    })
+                                    .filter(isImageAttachment)
                                     .map(att => ({ url: att.url, contentType: att.contentType, fromPrevious: true }));
                                 imageAttachments = [...imageAttachments, ...prevImages];
                                 if (prevImages.length > 0) {

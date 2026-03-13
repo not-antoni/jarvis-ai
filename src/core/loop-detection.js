@@ -66,22 +66,6 @@ function calculateSimilarity(str1, str2) {
     return union > 0 ? intersection / union : 0;
 }
 
-function extractPatterns(content) {
-    if (!content || typeof content !== 'string') {return [];}
-
-    const patterns = [];
-
-    // Extract sentences
-    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    patterns.push(...sentences.slice(0, 5).map(s => s.trim().toLowerCase()));
-
-    // Extract key phrases (capitalized words, numbers, etc.)
-    const keyPhrases = content.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*|\d+(?:\.\d+)?/g) || [];
-    patterns.push(...keyPhrases.slice(0, 10));
-
-    return patterns;
-}
-
 class LoopDetectionService {
     constructor() {
         this.enabled = true;
@@ -114,8 +98,7 @@ class LoopDetectionService {
             content: content?.substring(0, 2000) || '', // Limit stored content
             hash: hashContent(content),
             timestamp: Date.now(),
-            toolCalls: metadata.toolCalls || [],
-            patterns: extractPatterns(content)
+            toolCalls: metadata.toolCalls || []
         };
 
         history.turns.push(turn);
@@ -148,8 +131,7 @@ class LoopDetectionService {
                 ...turns,
                 {
                     content: newContent,
-                    hash: hashContent(newContent),
-                    patterns: extractPatterns(newContent)
+                    hash: hashContent(newContent)
                 }
             ]
             : turns;
