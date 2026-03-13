@@ -56,7 +56,6 @@ function wireEventHandlers(ctx) {
     });
 
     client.on('voiceStateUpdate', async(oldState, newState) => {
-        await discordHandlers.handleVoiceStateUpdate(oldState, newState);
         try {
             const voiceMaster = require('../services/voice-master');
             await voiceMaster.handleVoiceStateUpdate(oldState, newState);
