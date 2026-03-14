@@ -21,6 +21,21 @@ function commandExists(cmd) {
         return false;
     }
 }
+function getNginxHttp2Syntax() {
+    try {
+        const result = spawnSync('nginx', ['-v'], { encoding: 'utf8', timeout: 5000 });
+        const versionStr = (result.stderr || result.stdout || '').match(/(\d+)\.(\d+)\.(\d+)/);
+        if (!versionStr) { return { listen: '', directive: '    http2 on;\n' }; }
+        const [, major, minor, patch] = versionStr.map(Number);
+        const isNew = major > 1 || (major === 1 && minor > 25) || (major === 1 && minor === 25 && patch >= 1);
+        return isNew
+            ? { listen: '', directive: '    http2 on;\n' }
+            : { listen: ' http2', directive: '' };
+    } catch {
+        // Default to old syntax (safer for Linux Mint / Ubuntu LTS)
+        return { listen: ' http2', directive: '' };
+    }
+}
 function canSudo() {
     try {
         execSync('sudo -n true 2>/dev/null', { encoding: 'utf8', timeout: 5000 });
@@ -123,7 +138,9 @@ function ensureCloudflareIpsTimer(projectRoot) {
             'cloudflare-ips-update.timer'
         );
         execSync(`sudo chmod +x ${projectRoot}/scripts/update-cloudflare-ips.sh`, { encoding: 'utf8' });
-        execSync('sudo systemctl start cloudflare-ips-update.service', { encoding: 'utf8' });
+        // Don't force an immediate run — let the timer handle it on schedule.
+        // Starting the oneshot service right now can fail (network not ready, etc.)
+        // and causes noisy errors on every bot restart.
         return true;
     } catch (error) {
         console.warn('[Nginx] Failed to configure Cloudflare IP update timer:', error?.message || error);
@@ -158,6 +175,7 @@ function ensureNginxEnsureTimer(projectRoot) {
     }
 }
 function generateNginxConfig(domain, ssl = false, cloudflareOnly = true) {
+    const h2 = ssl ? getNginxHttp2Syntax() : { listen: '', directive: '' };
     const redirectBlock = ssl ? `
 server {
     listen 80;
@@ -170,10 +188,9 @@ server {
             ? `server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    http2 on;
-    server_name _;
+    listen 443 ssl${h2.listen} default_server;
+    listen [::]:443 ssl${h2.listen} default_server;
+${h2.directive}    server_name _;
 
     ssl_certificate /etc/ssl/cloudflare/${domain}.pem;
     ssl_certificate_key /etc/ssl/cloudflare/${domain}.key;
@@ -197,8 +214,8 @@ server {
 `
         : '';
     return `${cloudflareDefaultBlock}${redirectBlock}server {
-    listen ${ssl ? '443 ssl' : '80'};
-${ssl ? '    http2 on;\n' : ''}    server_name ${domain} www.${domain};
+    listen ${ssl ? `443 ssl${h2.listen}` : '80'};
+${h2.directive}    server_name ${domain} www.${domain};
 ${ssl ? `
     ssl_certificate /etc/ssl/cloudflare/${domain}.pem;
     ssl_certificate_key /etc/ssl/cloudflare/${domain}.key;
