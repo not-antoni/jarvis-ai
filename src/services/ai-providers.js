@@ -86,7 +86,7 @@ class AIProviderManager {
         const openRouterModels = [
             'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',
             'meta-llama/llama-3.3-70b-instruct:free',
-            'nvidia/nemotron-3-nano-30b-a3b:free',
+            'nvidia/nemotron-3-super-120b-a12b:free',
             'google/gemma-3-27b-it:free'
         ];
         openRouterKeys.forEach((key, keyIndex) => {
