@@ -183,6 +183,31 @@ class AIProviderManager {
                 costTier: 'paid'
             });
         });
+        // ---------- NVIDIA NIM (OpenAI-compatible) ----------
+        // Auto-discover all NVIDIA_API_KEY, NVIDIA_API_KEY2, etc.
+        const nvidiaKeys = discoverEnvKeys('NVIDIA_API_KEY');
+        const nvidiaModels = [
+            'deepseek-ai/deepseek-v3.2' // Primary — set in env NVIDIA_MODEL to override
+        ];
+        const nvidiaModelOverride = process.env.NVIDIA_MODEL;
+        const resolvedNvidiaModels = nvidiaModelOverride ? [nvidiaModelOverride] : nvidiaModels;
+        nvidiaKeys.forEach((key, keyIndex) => {
+            resolvedNvidiaModels.forEach((model) => {
+                const shortName = model.includes('/') ? model.split('/').pop() : model;
+                this.providers.push({
+                    name: `NVIDIA${keyIndex + 1}-${shortName}`,
+                    client: new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://integrate.api.nvidia.com/v1',
+                        fetch: aiFetch
+                    }),
+                    model,
+                    type: 'openai-chat',
+                    family: 'nvidia',
+                    costTier: 'freemium'
+                });
+            });
+        });
         // ---------- OpenAI lightweight (replace GPT-5 Nano → GPT-4o-mini) ----------
         const openAiKey = process.env.OPENAI || process.env.OPENAI_API_KEY;
         if (openAiKey) {
@@ -669,7 +694,7 @@ class AIProviderManager {
         return this.useRandomSelection ? 'random' : 'ranked';
     }
     setProviderType(providerType) {
-        const validTypes = ['auto', 'openai', 'groq', 'openrouter', 'google', 'deepseek', 'ollama'];
+        const validTypes = ['auto', 'openai', 'groq', 'openrouter', 'google', 'deepseek', 'nvidia', 'ollama'];
         if (!validTypes.includes(String(providerType).toLowerCase())) {
             throw new Error(`Invalid provider type. Valid options: ${validTypes.join(', ')}`);
         }
@@ -688,6 +713,7 @@ class AIProviderManager {
             else if (name.startsWith('openrouter')) {types.add('openrouter');}
             else if (name.startsWith('googleai')) {types.add('google');}
             else if (name.startsWith('deepseek')) {types.add('deepseek');}
+            else if (name.startsWith('nvidia')) {types.add('nvidia');}
             else if (name.startsWith('ollama')) {types.add('ollama');}
         });
         const available = Array.from(types).sort();
