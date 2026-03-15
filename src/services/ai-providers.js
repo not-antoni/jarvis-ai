@@ -115,9 +115,9 @@ class AIProviderManager {
         const groqKeys = discoverEnvKeys('GROQ_API_KEY');
         // Each Groq key gets multiple model providers — rate limits are per-model
         const groqModels = [
-            'moonshotai/kimi-k2-instruct',    // Primary — best quality
+            'openai/gpt-oss-120b',    // Primary — best quality
             'llama-3.3-70b-versatile',         // Fallback — separate rate limit
-            'llama3-70b-8192'                  // Second fallback — separate rate limit
+            'openai/gpt-oss-20b'                  // Second fallback — separate rate limit
         ];
         groqKeys.forEach((key, keyIndex) => {
             groqModels.forEach((model) => {
