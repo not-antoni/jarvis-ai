@@ -6,11 +6,21 @@
  */
 
 const roastTemplates = [
-    'Deploying shade cannons on {target}. Try not to melt, sir.',
-    '{target}, even my error logs have more direction.',
-    '{target}, if brilliance were a drive, you\u2019re stuck in neutral.',
-    '{target}, I\u2019ve met loading bars with more resolve.',
-    'I ran the numbers, {target}. Comedy requires a punchline\u2014you are optional.'
+    '{target} — the human equivalent of a CAPTCHA. Everyone has to deal with you, nobody enjoys it.',
+    'I ran a diagnostic on {target}. The prognosis is chronic mediocrity with no known cure.',
+    '{target} has the confidence of someone who\'s never seen their own search history.',
+    'If {target} were a file type, they\'d be a .tmp. Disposable. Nobody knows why they\'re there.',
+    'Studies show {target} is the reason some servers have a #general-but-not-for-you channel.',
+    '{target} arguing about this is like a screensaver having opinions. Technically present. Completely pointless.',
+    'I\'ve seen error logs with more charm than {target}.',
+    '{target}, your personality has the energy of a terms-of-service update.',
+    'Bold of {target} to have that take with that track record.',
+    'Sir, {target} is what happens when main character energy meets supporting character talent.',
+    '{target} really said that out loud. With their whole chest. Concerning.',
+    '{target} has been in every conversation today and has yet to improve any of them.',
+    'Remarkable. {target} somehow made that worse.',
+    '{target}, the participation trophy called. It wants its energy back.',
+    'I\'ve processed worse takes than {target}\'s, but only barely, and only in the 2016 YouTube comments section.'
 ];
 
 const flatterTemplates = [
