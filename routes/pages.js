@@ -152,7 +152,7 @@ const PRIVACY_POLICY = `
         <p>All stored data is encrypted and handled with strict access controls. No personal information is shared, sold, or publicly visible. Decryption occurs only when required for active bot functions (replies).</p>
 
         <h2>Retention & Deletion</h2>
-        <p>Conversation data remains for 30 days. Users may delete all stored data at any time using <code>/reset</code> or <code>/opt out</code>.</p>
+        <p>Conversation data remains for 30 days. Users may delete all stored data at any time using <code>/clear</code> or <code>/opt out</code>.</p>
 
         <h2>Third-Party Services</h2>
         <p>Jarvis uses external AI providers (e.g., OpenRouter) to generate responses. These providers may process message content temporarily for completions. Their privacy policy: <a href="https://openrouter.ai/privacy" target="_blank">openrouter.ai/privacy</a></p>
@@ -216,7 +216,7 @@ const TERMS_OF_SERVICE = `
 
         <h2>4. Data and Privacy Summary</h2>
         <p>Jarvis processes message content only when you interact directly with it (via mentions, commands, or DMs). To provide context-aware replies, Jarvis stores limited conversation history—user message, Jarvis reply, timestamp, and identifiers—in a secure database.</p>
-        <p>Users cannot fully opt out of data storage, as it is required for memory features, but can delete all stored data at any time using in-bot commands (e.g., <code>/reset</code> or <code>!clear</code>). Data is not used to train AI models and is not sold or shared externally.</p>
+        <p>Users cannot fully opt out of data storage, as it is required for memory features, but can delete all stored data at any time using in-bot commands (e.g., <code>/clear</code> or <code>!clear</code>). Data is not used to train AI models and is not sold or shared externally.</p>
         <p>Full details are outlined in our <a href="/policy">Privacy Policy</a>.</p>
 
         <h2>5. Availability and Updates</h2>
