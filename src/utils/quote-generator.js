@@ -5,6 +5,21 @@ const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const path = require('path');
 const { sanitizeQuoteText } = require('./quote-text-sanitize');
+const { fetchBuffer } = require('./net-guard');
+
+const MAX_QUOTE_IMAGE_BYTES = 10 * 1024 * 1024;
+
+async function loadImageFromUrlSafe(url) {
+    const fetched = await fetchBuffer(url, { method: 'GET' }, { maxBytes: MAX_QUOTE_IMAGE_BYTES });
+    if (fetched.tooLarge) {
+        throw new Error('Image too large');
+    }
+    const contentType = String(fetched.contentType || '').toLowerCase();
+    if (contentType && !contentType.startsWith('image/')) {
+        throw new Error('Invalid image content type');
+    }
+    return await loadImage(fetched.buffer);
+}
 
 // Helper to interact with temp files
 async function loadGifFrame(url) {
@@ -16,10 +31,9 @@ async function loadGifFrame(url) {
 
     try {
         // Download
-        const res = await fetch(url);
-        if (!res.ok) {throw new Error(`Fetch failed: ${res.statusText}`);}
-        const buffer = await res.arrayBuffer();
-        fs.writeFileSync(inputPath, Buffer.from(buffer));
+        const fetched = await fetchBuffer(url, { method: 'GET' }, { maxBytes: MAX_QUOTE_IMAGE_BYTES });
+        if (fetched.tooLarge) {throw new Error('Image too large');}
+        fs.writeFileSync(inputPath, fetched.buffer);
 
         // Extract Frame 10 (heuristic to skip start/blank frames)
         // -y: overwrite
@@ -49,7 +63,7 @@ async function loadGifFrame(url) {
         try { if (fs.existsSync(inputPath)) {fs.unlinkSync(inputPath);} } catch (err) { }
         try { if (fs.existsSync(outputPath)) {fs.unlinkSync(outputPath);} } catch (err) { }
 
-        return await loadImage(url);
+        return await loadImageFromUrlSafe(url);
     }
 }
 
@@ -281,7 +295,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
                 if (isGif) {
                     attachmentImage = await loadGifFrame(attachmentImageUrl);
                 } else {
-                    attachmentImage = await loadImage(attachmentImageUrl);
+                    attachmentImage = await loadImageFromUrlSafe(attachmentImageUrl);
                 }
             }
             catch (e) { console.warn('Failed to load attachment', e); }

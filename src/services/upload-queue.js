@@ -4,7 +4,8 @@
  * When many users upload simultaneously, they get queued and processed sequentially
  */
 const { musicManager } = require('../core/musicManager');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
+const { assertPublicHttpUrl } = require('../utils/net-guard');
 
 // Try to get ffprobe path from npm package, fall back to system
 let ffprobePath = 'ffprobe';
@@ -19,20 +20,37 @@ try {
  * @param {string} url - URL to probe
  * @returns {number} Duration in seconds, or 0 if failed
  */
-function getAudioDuration(url) {
+async function getAudioDuration(url) {
     try {
         // Use network-friendly flags for remote URLs:
         // -reconnect 1: Reconnect on connection loss
         // -reconnect_streamed 1: Reconnect for streamed content
         // -reconnect_delay_max 5: Max 5 second reconnect delay
         // -timeout 10000000: 10 second timeout in microseconds
-        const isRemote = url.startsWith('http://') || url.startsWith('https://');
-        const networkFlags = isRemote
-            ? '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
-            : '';
+        const isRemote = /^https?:\/\//i.test(url);
+        if (!isRemote) {
+            console.warn('[UploadQueue] Rejecting non-HTTP URL for ffprobe.');
+            return 0;
+        }
 
-        const result = execSync(
-            `"${ffprobePath}" ${networkFlags}-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${url}"`,
+        // Validate URL to avoid SSRF or local access.
+        let safeUrl = null;
+        try {
+            safeUrl = await assertPublicHttpUrl(url);
+        } catch (error) {
+            console.warn('[UploadQueue] Rejecting unsafe URL for ffprobe:', error.message);
+            return 0;
+        }
+
+        const args = [];
+        if (isRemote) {
+            args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
+        }
+        args.push('-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', safeUrl);
+
+        const result = execFileSync(
+            ffprobePath,
+            args,
             { timeout: 30000, encoding: 'utf8' }
         );
         const duration = parseFloat(result.trim());
@@ -137,7 +155,7 @@ class UploadQueue {
 
             // Probe file for duration
             console.log(`[UploadQueue] Probing duration for: ${item.filename}`);
-            const durationSeconds = getAudioDuration(item.fileUrl);
+            const durationSeconds = await getAudioDuration(item.fileUrl);
             const formattedDuration = formatDuration(durationSeconds);
             console.log(`[UploadQueue] Duration: ${formattedDuration} (${durationSeconds}s)`);
 

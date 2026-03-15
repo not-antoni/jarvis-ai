@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { isPrivateIp } = require('../utils/net-guard');
 
 function safeReadJson(filePath, fallback) {
     try {
@@ -34,25 +35,16 @@ function extractBearerToken(req) {
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
         return authHeader.slice(7).trim();
     }
-    if (typeof req.query?.token === 'string') {
-        return req.query.token;
-    }
     return null;
 }
 
 function isRenderHealthCheck(req) {
     const ua = String(req.headers?.['user-agent'] || '').toLowerCase();
-    if (ua.includes('render/health')) {return true;}
+    if (!ua.includes('render/health')) {return false;}
 
-    const forwardedFor = String(req.headers?.['x-forwarded-for'] || '')
-        .split(',')[0]
-        .trim();
-    if (forwardedFor.startsWith('10.') || forwardedFor === '127.0.0.1' || forwardedFor === '::1') {
-        return true;
-    }
-
-    const remoteAddr = (req.ip || '').replace('::ffff:', '');
-    return remoteAddr === '127.0.0.1' || remoteAddr === '::1';
+    const remoteAddr = (req.socket?.remoteAddress || '').replace('::ffff:', '');
+    if (!remoteAddr) {return false;}
+    return isPrivateIp(remoteAddr);
 }
 
 function isRenderHealthUserAgent(req) {
