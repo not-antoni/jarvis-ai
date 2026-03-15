@@ -1,7 +1,7 @@
 'use strict';
 
-const fetch = require('node-fetch');
 const cheerio = require('cheerio');
+const { fetchBuffer } = require('../../utils/net-guard');
 
 const TEN_MB = 10 * 1024 * 1024;
 const NITRO_LIMIT_MESSAGE = "sir, please understand that I don't have nitro and therefore I can only process files up to 10mb.";
@@ -86,33 +86,19 @@ async function handleSlashCommandClip(handler, interaction) {
     }
 }
 
-async function fetchAttachmentBuffer(attachment) {
+async function fetchAttachmentBuffer(attachment, { maxBytes } = {}) {
     if (!attachment?.url) {
         throw new Error('Attachment missing URL');
     }
-
-    const res = await fetch(attachment.url);
-    if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+    const fetched = await fetchBuffer(
+        attachment.url,
+        { method: 'GET' },
+        { maxBytes }
+    );
+    if (fetched.tooLarge) {
+        throw new Error('Attachment too large');
     }
-
-    const arrayBuffer = await res.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-}
-
-async function streamWithLimit(res, maxBytes) {
-    let received = 0;
-    const chunks = [];
-    await new Promise((resolve, reject) => {
-        res.body.on('data', (chunk) => {
-            received += chunk.length;
-            if (received > maxBytes) { res.body.destroy(); resolve(); }
-            else { chunks.push(chunk); }
-        });
-        res.body.on('end', resolve);
-        res.body.on('error', reject);
-    });
-    return { received, buffer: received > maxBytes ? null : Buffer.concat(chunks) };
+    return fetched.buffer;
 }
 
 async function fetchImageFromUrl(rawUrl, { maxBytes } = {}) {
@@ -121,28 +107,17 @@ async function fetchImageFromUrl(rawUrl, { maxBytes } = {}) {
     try { url = new URL(rawUrl); } catch { throw new Error('Invalid URL'); }
     if (!['http:', 'https:'].includes(url.protocol)) {throw new Error('Unsupported protocol');}
 
-    let res = await fetch(url.toString(), { method: 'HEAD' });
-    if (res.ok) {
-        const ctype = (res.headers.get('content-type') || '').toLowerCase();
-        const clen = Number(res.headers.get('content-length') || 0);
-        if (maxBytes && clen && clen > maxBytes) {
-            return { tooLarge: true, contentType: ctype, sourceUrl: url.toString() };
-        }
+    const fetched = await fetchBuffer(url.toString(), { method: 'GET' }, { maxBytes });
+    if (fetched.tooLarge) {
+        return { tooLarge: true, contentType: fetched.contentType, sourceUrl: fetched.url };
     }
-    res = await fetch(url.toString(), { redirect: 'follow' });
-    if (!res.ok) {throw new Error(`HTTP ${res.status}`);}
-    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    const contentType = (fetched.contentType || '').toLowerCase();
     if (contentType.startsWith('image/')) {
-        if (maxBytes && res.body) {
-            const { received, buffer } = await streamWithLimit(res, maxBytes);
-            if (received > maxBytes) { return { tooLarge: true, contentType, sourceUrl: url.toString() }; }
-            return { buffer, contentType, sourceUrl: url.toString() };
-        }
-        return { buffer: Buffer.from(await res.arrayBuffer()), contentType, sourceUrl: url.toString() };
+        return { buffer: fetched.buffer, contentType, sourceUrl: fetched.url };
     }
 
     if (contentType.includes('text/html')) {
-        const html = await res.text();
+        const html = fetched.buffer.toString('utf8');
         const $ = cheerio.load(html);
         let media = $('meta[property="og:image"]').attr('content')
             || $('meta[name="twitter:image"]').attr('content')
@@ -155,22 +130,13 @@ async function fetchImageFromUrl(rawUrl, { maxBytes } = {}) {
             } catch (_) {}
         }
         if (media) {
-            const resolved = new URL(media, url).toString();
-            const head = await fetch(resolved, { method: 'HEAD' });
-            const headType = (head.headers.get('content-type') || '').toLowerCase();
-            const headLen = Number(head.headers.get('content-length') || 0);
-            if (maxBytes && headLen && headLen > maxBytes) {
-                return { tooLarge: true, contentType: headType, sourceUrl: resolved };
+            const resolved = new URL(media, fetched.url || url).toString();
+            const mediaFetch = await fetchBuffer(resolved, { method: 'GET' }, { maxBytes });
+            if (mediaFetch.tooLarge) {
+                return { tooLarge: true, contentType: mediaFetch.contentType, sourceUrl: mediaFetch.url };
             }
-            res = await fetch(resolved, { redirect: 'follow' });
-            if (!res.ok) {throw new Error(`Media HTTP ${res.status}`);}
-            const ctype = (res.headers.get('content-type') || '').toLowerCase();
-            if (maxBytes && res.body) {
-                const { received, buffer } = await streamWithLimit(res, maxBytes);
-                if (received > maxBytes) { return { tooLarge: true, contentType: ctype, sourceUrl: resolved }; }
-                return { buffer, contentType: ctype, sourceUrl: resolved };
-            }
-            return { buffer: Buffer.from(await res.arrayBuffer()), contentType: ctype, sourceUrl: resolved };
+            const ctype = (mediaFetch.contentType || '').toLowerCase();
+            return { buffer: mediaFetch.buffer, contentType: ctype, sourceUrl: mediaFetch.url };
         }
     }
     throw new Error('No image found at URL');
@@ -190,7 +156,7 @@ async function resolveSlashMediaInput(handler, interaction, { maxBytes = TEN_MB 
             await interaction.editReply(NITRO_LIMIT_MESSAGE);
             return null;
         }
-        const buffer = await fetchAttachmentBuffer(attachment);
+        const buffer = await fetchAttachmentBuffer(attachment, { maxBytes });
         if (buffer.length > maxBytes) {
             await interaction.editReply(NITRO_LIMIT_MESSAGE);
             return null;

@@ -67,7 +67,7 @@
 
 - **Main endpoint**: `https://your-app.onrender.com/` - ASCII Animation Status Page
 - **Health endpoint**: `https://your-app.onrender.com/health` - Detailed status (JSON).  
-  When `HEALTH_TOKEN` is set, supply `Authorization: Bearer <token>` or `?token=` with each request.
+  When `HEALTH_TOKEN` is set, supply `Authorization: Bearer <token>` or `X-Health-Token: <token>` with each request.
 
 ### Dashboard Access
 

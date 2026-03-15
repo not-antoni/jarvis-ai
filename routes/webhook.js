@@ -74,9 +74,6 @@ function extractBearerToken(req) {
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
         return authHeader.slice(7).trim();
     }
-    if (typeof req.query?.token === 'string') {
-        return req.query.token;
-    }
     return null;
 }
 

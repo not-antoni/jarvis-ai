@@ -8,6 +8,7 @@ const appContext = require('../core/app-context');
 const tempFiles = require('../utils/temp-files');
 const { getPublicConfig } = require('../utils/public-config');
 const { gatherHealthSnapshot } = require('../services/diagnostics');
+const { getCloudflareIpRanges, getTrustedProxyRanges, isIpInRanges } = require('../utils/net-guard');
 const {
     extractBearerToken,
     isRenderHealthCheck, isRenderHealthUserAgent
@@ -16,6 +17,8 @@ const {
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
 const PUBLIC_CONFIG = getPublicConfig();
+const TRUSTED_PROXY_RANGES = getTrustedProxyRanges();
+const CLOUDFLARE_IP_RANGES = getCloudflareIpRanges();
 
 function requireHealthToken(req, res, { allowRender = false } = {}) {
     if (!HEALTH_TOKEN) {return true;}
@@ -86,7 +89,7 @@ function buildAllowedHostSet() {
 function createExpressApp({ webhookRouter, database }) {
     const app = express();
     app.disable('x-powered-by');
-    app.set('trust proxy', true);
+    app.set('trust proxy', ip => isIpInRanges(ip, TRUSTED_PROXY_RANGES));
 
     // ---- Helmet ----
     let helmet = null;
@@ -121,16 +124,22 @@ function createExpressApp({ webhookRouter, database }) {
     const ALLOWED_HOSTS = buildAllowedHostSet();
 
     app.use((req, res, next) => {
-        const clientIp = req.ip || req.connection?.remoteAddress || '';
-        if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1') {
+        const remoteAddr = (req.socket?.remoteAddress || '').replace('::ffff:', '');
+        if (remoteAddr === '127.0.0.1' || remoteAddr === '::1') {
             return next();
         }
         if (!CLOUDFLARE_ONLY) {
             return next();
         }
+        const fromTrustedProxy = isIpInRanges(remoteAddr, TRUSTED_PROXY_RANGES);
         const cfRay = req.headers['cf-ray'];
         const cfConnectingIp = req.headers['cf-connecting-ip'];
-        const isFromCloudflare = !!(cfRay || cfConnectingIp);
+        let isFromCloudflare = false;
+        if (fromTrustedProxy) {
+            isFromCloudflare = !!(cfRay || cfConnectingIp);
+        } else if (CLOUDFLARE_IP_RANGES.length) {
+            isFromCloudflare = isIpInRanges(remoteAddr, CLOUDFLARE_IP_RANGES);
+        }
         const hostHeader = String(req.headers.host || '').toLowerCase();
         const normalizedHost = normalizeHostValue(hostHeader);
         const isDirectIpAccess = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalizedHost);
@@ -140,13 +149,11 @@ function createExpressApp({ webhookRouter, database }) {
         );
 
         if ((isDirectIpAccess || isAwsDns) && !isFromCloudflare) {
-            console.log(`[Security] Dropping connection: ${clientIp} -> ${hostHeader}`);
-            req.socket.destroy();
+            res.status(403).end();
             return;
         }
         if (!isFromCloudflare && !isAllowedHost && hostHeader) {
-            console.log(`[Security] Dropping non-CF connection: ${clientIp} -> ${hostHeader}`);
-            req.socket.destroy();
+            res.status(403).end();
             return;
         }
         next();

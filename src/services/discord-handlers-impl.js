@@ -15,6 +15,7 @@ const { createCanvas, loadImage } = require('canvas');
 const sharp = require('sharp');
 const database = require('./database');
 const fetch = require('node-fetch');
+const { fetchBuffer } = require('../utils/net-guard');
 const CooldownManager = require('../core/cooldown-manager');
 const socialCredit = require('./social-credit');
 const { commandFeatureMap } = require('../core/command-registry');
@@ -37,6 +38,7 @@ const DISCORD_MEMBER_LOG_CACHE_MAX = envInt('DISCORD_MEMBER_LOG_CACHE_MAX', 5000
 const DISCORD_MEMBER_LOG_CACHE_TTL_MS = envInt('DISCORD_MEMBER_LOG_CACHE_TTL_MS', 30 * 60 * 1000, 60 * 1000);
 const DISCORD_AFK_USERS_MAX = envInt('DISCORD_AFK_USERS_MAX', 5000, 500);
 const DISCORD_AFK_USERS_TTL_MS = envInt('DISCORD_AFK_USERS_TTL_MS', 24 * 60 * 60 * 1000, 10 * 60 * 1000);
+const MAX_REMOTE_IMAGE_BYTES = envInt('REMOTE_IMAGE_MAX_BYTES', 10 * 1024 * 1024, 1024 * 1024);
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
 function isImageAttachment(att) {
     const contentType = att.contentType || '';
@@ -525,6 +527,17 @@ class DiscordHandlers {
         this.emojiAssetCache.set(url, pending);
         return pending;
     }
+    async loadImageSafe(url) {
+        const fetched = await fetchBuffer(url, { method: 'GET' }, { maxBytes: MAX_REMOTE_IMAGE_BYTES });
+        if (fetched.tooLarge) {
+            throw new Error('Image too large');
+        }
+        const contentType = String(fetched.contentType || '').toLowerCase();
+        if (contentType && !contentType.startsWith('image/')) {
+            throw new Error('Invalid image content type');
+        }
+        return await loadImage(fetched.buffer);
+    }
     async parseCustomEmojis(text, guild = null) {
         const emojiRegex = /<a?:(\w+):(\d+)>/g;
         const emojis = [];
@@ -772,15 +785,14 @@ class DiscordHandlers {
     }
     async loadStaticImage(url) {
         try {
-            const res = await fetch(url);
-            if (!res.ok) {throw new Error(`HTTP ${res.status}`);}
-            const buffer = await res.arrayBuffer();
-            const input = Buffer.from(buffer);
+            const fetched = await fetchBuffer(url, { method: 'GET' }, { maxBytes: MAX_REMOTE_IMAGE_BYTES });
+            if (fetched.tooLarge) {throw new Error('Image too large');}
+            const input = fetched.buffer;
             const pngBuffer = await sharp(input).ensureAlpha().extractFrame(0).png().toBuffer();
             return await loadImage(pngBuffer);
         } catch (error) {
             console.warn('Failed to load static GIF frame, falling back to direct load:', error);
-            return await loadImage(url);
+            return await this.loadImageSafe(url);
         }
     }
     async resolveTenorStatic(url) {
@@ -1148,7 +1160,7 @@ class DiscordHandlers {
                 if (attachment.contentType && attachment.contentType.startsWith('image/')) {
                     try {
                         const isGif = attachment.contentType.includes('gif') || /\.gif(\?|$)/i.test(attachment.url);
-                        drawFitImage(isGif ? await this.loadStaticImage(attachment.url) : await loadImage(attachment.url));
+                        drawFitImage(isGif ? await this.loadStaticImage(attachment.url) : await this.loadImageSafe(attachment.url));
                     } catch (error) {
                         console.warn('Failed to load attachment image:', error);
                     }
@@ -1163,7 +1175,7 @@ class DiscordHandlers {
                     if (staticUrl) {sourceUrl = staticUrl;}
                 }
                 const isGifUrl = /\.gif(\?|$)/i.test(sourceUrl) || /media\.discordapp\.net\//i.test(sourceUrl);
-                drawFitImage(isGifUrl ? await this.loadStaticImage(sourceUrl) : await loadImage(sourceUrl));
+                drawFitImage(isGifUrl ? await this.loadStaticImage(sourceUrl) : await this.loadImageSafe(sourceUrl));
             } catch (error) {
                 console.warn('Failed to load URL image:', error);
             }
