@@ -19,6 +19,7 @@ const HEALTH_TOKEN = (process.env.HEALTH_TOKEN || '').trim() || null;
 const PUBLIC_CONFIG = getPublicConfig();
 const TRUSTED_PROXY_RANGES = getTrustedProxyRanges();
 const CLOUDFLARE_IP_RANGES = getCloudflareIpRanges();
+const TEMPLATE_404 = fs.readFileSync(path.join(__dirname, '404.html'), 'utf8');
 
 function requireHealthToken(req, res, { allowRender = false } = {}) {
     if (!HEALTH_TOKEN) {return true;}
@@ -337,10 +338,7 @@ function mount404Handler(app) {
         const siteBaseUrl = PUBLIC_CONFIG.baseUrl || '/';
         const gaMeasurementId = PUBLIC_CONFIG.gaMeasurementId || '';
 
-        res.status(404).send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-    ${gaMeasurementId ? `
+        const gaBlock = gaMeasurementId ? `
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}"></script>
     <script>
@@ -348,213 +346,15 @@ function mount404Handler(app) {
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', '${gaMeasurementId}');
-    </script>` : ''}
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 | Jarvis</title>
-    <meta name="description" content="Jarvis — Discord AI Bot">
-    <meta property="og:title" content="404 | Jarvis">
-    <meta property="og:description" content="Page not found.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="${siteBaseUrl}">
-    <meta name="theme-color" content="#fff">
-    <link rel="icon" type="image/webp" href="/jarvis.webp">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+    </script>` : '';
 
-        body {
-            font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
-            background: #000;
-            color: #e4e4e4;
-            min-height: 100vh;
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
+        const html = TEMPLATE_404
+            .replace('{{GA_BLOCK}}', gaBlock)
+            .replace(/\{\{DISCORD_INVITE\}\}/g, discordInvite)
+            .replace(/\{\{SITE_BASE_URL\}\}/g, siteBaseUrl)
+            .replace('{{SAFE_PATH}}', safePath);
 
-        nav {
-            display: flex;
-            align-items: center;
-            gap: 2rem;
-            padding: 1.25rem 5%;
-            max-width: 1300px;
-            margin: 0 auto;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-            width: 100%;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #fff;
-            text-decoration: none;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 1.75rem;
-            list-style: none;
-        }
-
-        .nav-links a {
-            color: #777;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.9rem;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover { color: #fff; }
-
-        .page {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .hero {
-            text-align: center;
-            padding: 4rem 5% 2rem;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .hero h1 {
-            font-size: 3rem;
-            font-weight: 800;
-            margin-bottom: 1rem;
-            color: #fff;
-            line-height: 1.1;
-        }
-
-        .hero p {
-            font-size: 1.15rem;
-            color: #888;
-            margin-bottom: 2rem;
-            line-height: 1.7;
-            max-width: 550px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .cta-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: 1rem;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.9rem 1.75rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            text-decoration: none;
-            transition: all 0.2s ease;
-        }
-
-        .btn-primary {
-            background: #fff;
-            color: #000;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            opacity: 0.9;
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: #888;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
-            border-color: rgba(255, 255, 255, 0.25);
-        }
-
-        .path {
-            color: #555;
-            font-size: 0.85rem;
-            margin-top: 1.5rem;
-            font-family: monospace;
-        }
-
-        footer {
-            margin-top: auto;
-            padding: 1.25rem 5% 1.5rem;
-            text-align: center;
-        }
-
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 1.5rem;
-            flex-wrap: wrap;
-            margin-bottom: 0.5rem;
-        }
-
-        .footer-links a {
-            color: #555;
-            text-decoration: none;
-            font-size: 0.85rem;
-            transition: color 0.2s;
-        }
-
-        .footer-links a:hover {
-            color: #888;
-        }
-
-        .footer-copy {
-            color: #444;
-            font-size: 0.8rem;
-        }
-
-        @media (max-width: 768px) {
-            .hero h1 { font-size: 2.25rem; }
-            .hero p { font-size: 1rem; }
-            .nav-links { display: none; }
-        }
-    </style>
-</head>
-<body>
-    <nav>
-        <a href="/" class="logo">Jarvis</a>
-        <ul class="nav-links"></ul>
-    </nav>
-
-    <main class="page">
-        <section class="hero">
-            <h1>404. Missing in Action.</h1>
-            <p>The page you wanted isn't here. Jarvis checked every server.</p>
-            <div class="cta-buttons">
-                <a href="/" class="btn btn-primary">Go Home</a>
-                <a href="${discordInvite}" class="btn btn-secondary" target="_blank" rel="noreferrer">Support Server</a>
-            </div>
-            <p class="path">${safePath}</p>
-        </section>
-    </main>
-
-    <footer>
-        <div class="footer-links">
-            <a href="/tos">Terms</a>
-            <a href="/policy">Privacy</a>
-            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank" rel="noreferrer">Repo</a>
-        </div>
-        <p class="footer-copy">© 2026 Jarvis • Made with love for Discord</p>
-    </footer>
-</body>
-</html>`);
+        res.status(404).send(html);
     });
 }
 
