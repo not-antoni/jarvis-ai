@@ -246,7 +246,7 @@ const TERMS_OF_SERVICE = `
                 <a href="/policy">Privacy</a>
                 <a href="${REPO_URL}" target="_blank" rel="noreferrer">Repo</a>
             </div>
-            <p>Effective Date: November 16, 2025</p>
+            <p>Effective Date: March 16, 2026</p>
         </div>
     </div>
 </body>
