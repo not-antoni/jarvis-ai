@@ -13,15 +13,12 @@ data/
 *.db
 *.jsonl
 provider-state.json
+config/data/mongo-exports/
 
 # Build output
 build/
 .cache/
-config/data/mongo-exports/
 scripts/.chrome-session/
-
-# Keep dashboard dist (needed for deployment)
-!dashboard/dist/
 
 # Logs
 *.log
@@ -40,15 +37,16 @@ Thumbs.db
 lavalink/*.jar
 lavalink/plugins/
 lavalink/logs/
-external/
 
 # yt-dlp binaries (auto-downloaded)
 bin/
 
-# External reference repos (not part of project)
+# External/vendor repos
 external/
+codex/
+vendor/
 
-# Test output (don't commit)
+# Test output
 test-output.txt
 test-screenshot.png
 demo-*.png
@@ -58,25 +56,16 @@ final-deployment-test.log
 perf-output.txt
 *.crdownload
 
-# External repos (cloned for reference)
-codex/
-vendor/
-
 # Keep VS Code settings
 !.vscode/
 !.vscode/settings.json
 
-# Vendor/external repos for analysis
-vendor/
-
-# SSL Certificates (local testing)
-jorvis.org.key
-jorvis.org.pem
+# SSL Certificates
 *.key
 *.pem
-vendor/llm-chat-app-template/
+
+# Misc
 meme-api/
 giveaways.json
-package-lock.json
 package-lock.json
 nul

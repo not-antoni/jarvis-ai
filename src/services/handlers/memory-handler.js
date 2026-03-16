@@ -133,8 +133,4 @@ async function handleMemoryCommand(handler, interaction) {
     }
 }
 
-async function handlePersonaCommand(_handler, interaction) {
-    await interaction.editReply('Persona switching has been disabled. Jarvis primary protocol is now fixed, sir.');
-}
-
-module.exports = { handleMemoryCommand, handlePersonaCommand };
+module.exports = { handleMemoryCommand };

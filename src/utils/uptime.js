@@ -27,6 +27,5 @@ function getProcessUptimeSeconds() {
 
 module.exports = {
     formatUptime,
-    getProcessUptimeSeconds,
-    normalizeUptimeSeconds
+    getProcessUptimeSeconds
 };

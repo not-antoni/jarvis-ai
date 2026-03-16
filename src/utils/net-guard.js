@@ -336,23 +336,19 @@ async function safeFetch(rawUrl, options = {}, policy = {}) {
 async function readResponseBuffer(response, maxBytes) {
     if (!response.body) {return Buffer.alloc(0);}
 
-    return new Promise((resolve, reject) => {
-        const chunks = [];
-        let received = 0;
-        response.body.on('data', chunk => {
-            received += chunk.length;
-            if (maxBytes && received > maxBytes) {
-                response.body.destroy();
-                const err = new Error('Response too large');
-                err.code = 'RESPONSE_TOO_LARGE';
-                reject(err);
-                return;
-            }
-            chunks.push(chunk);
-        });
-        response.body.on('end', () => resolve(Buffer.concat(chunks)));
-        response.body.on('error', reject);
-    });
+    const chunks = [];
+    let received = 0;
+    for await (const chunk of response.body) {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        received += buf.length;
+        if (maxBytes && received > maxBytes) {
+            const err = new Error('Response too large');
+            err.code = 'RESPONSE_TOO_LARGE';
+            throw err;
+        }
+        chunks.push(buf);
+    }
+    return Buffer.concat(chunks);
 }
 
 async function fetchBuffer(url, options = {}, policy = {}) {

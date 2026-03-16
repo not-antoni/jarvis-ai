@@ -70,14 +70,6 @@ class CooldownManager {
     }
 
     /**
-     * Clears a cooldown entry for a scope/user pair.
-     */
-    clear(scope, userId) {
-        const key = CooldownManager.makeKey(scope, userId);
-        this.cooldowns.delete(key);
-    }
-
-    /**
      * Removes stale entries older than the longest observed cooldown.
      * When we don't have an explicit duration, fall back to the default window.
      */
@@ -95,23 +87,6 @@ class CooldownManager {
         }
     }
 
-    /**
-     * Returns a snapshot useful for debugging or telemetry.
-     */
-    inspect(scope = null) {
-        if (!scope) {
-            return { size: this.cooldowns.size };
-        }
-
-        const prefix = `${scope}::`;
-        let count = 0;
-        for (const key of this.cooldowns.keys()) {
-            if (key.startsWith(prefix)) {
-                count += 1;
-            }
-        }
-        return { size: count };
-    }
 }
 
 module.exports = CooldownManager;

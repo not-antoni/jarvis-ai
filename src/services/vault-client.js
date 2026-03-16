@@ -53,7 +53,6 @@ const keyCache = new LRUCache({ max: CACHE_MAX_ENTRIES, ttl: CACHE_TTL_MS });
 const memoryCache = new LRUCache({ max: CACHE_MAX_ENTRIES, ttl: CACHE_TTL_MS });
 
 let vaultCollectionsPromise = null;
-let testCollectionsOverride = null;
 
 const {
     database: {
@@ -67,10 +66,6 @@ const {
 async function getCollections() {
     if (USE_LOCAL_DB_MODE) {
         throw new Error('Vault not available in LOCAL_DB_MODE');
-    }
-
-    if (testCollectionsOverride) {
-        return testCollectionsOverride;
     }
 
     if (!vaultCollectionsPromise) {
@@ -288,32 +283,6 @@ async function getOrCreateUserKey(userId) {
         // Recursive call will now generate a new key since record is gone
         return getOrCreateUserKey(userId);
     }
-}
-
-async function registerUserKey(userId) {
-    const { userKeys } = await getCollections();
-    const existing = await userKeys.findOne({ userId });
-
-    if (existing) {
-        return { created: false, createdAt: existing.createdAt };
-    }
-
-    const now = new Date();
-    const userKey = crypto.randomBytes(32);
-    const payload = encryptWithKey(getMasterKey(), userKey);
-
-    await userKeys.insertOne({
-        userId,
-        encryptedKey: payload.ciphertext,
-        iv: payload.iv,
-        authTag: payload.authTag,
-        createdAt: now,
-        lastRotatedAt: now,
-        version: 1
-    });
-
-    keyCache.set(userId, userKey);
-    return { created: true, createdAt: now };
 }
 
 async function encryptMemory(userId, plaintext, options = {}) {
@@ -575,21 +544,8 @@ async function purgeUserMemories(userId) {
     memoryCache.delete(userId);
 }
 
-function __dangerouslySetCollectionsForTests(collections) {
-    testCollectionsOverride = collections;
-    vaultCollectionsPromise = null;
-}
-
-function __resetCachesForTests() {
-    keyCache.clear();
-    memoryCache.clear();
-}
-
 module.exports = {
     encryptMemory,
     decryptMemories,
-    registerUserKey,
-    purgeUserMemories,
-    __dangerouslySetCollectionsForTests,
-    __resetCachesForTests
+    purgeUserMemories
 };
