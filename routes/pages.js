@@ -216,7 +216,7 @@ const TERMS_OF_SERVICE = `
 
         <h2>4. Data and Privacy Summary</h2>
         <p>Jarvis processes message content only when you interact directly with it (via mentions, commands, or DMs). To provide context-aware replies, Jarvis stores limited conversation history—user message, Jarvis reply, timestamp, and identifiers—in a secure database.</p>
-        <p>Users can fully opt out of data storage and delete all stored data at any time using in-bot commands (e.g., <code>/clear</code> or <code>/opt out</code>). Data is not used to train AI models and is not sold or shared externally.</p>
+        <p>Users can fully opt out of data storage and delete all stored data (memories) at any time using in-bot commands (e.g., <code>/clear</code> or <code>/opt out</code>). Data is not used to train AI models and is not sold or shared externally.</p>
         <p>Full details are outlined in our <a href="/policy">Privacy Policy</a>.</p>
 
         <h2>5. Availability and Updates</h2>
