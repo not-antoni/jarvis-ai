@@ -501,6 +501,11 @@ class AIProviderManager {
             return session.provider;
         }
 
+        // Clean up expired entry
+        if (session) {
+            this.sessionStickiness.delete(userId);
+        }
+
         // Session expired or doesn't exist - pick new one via round-robin
         const provider = this._getRoundRobinProvider(options);
         if (provider) {
@@ -777,6 +782,10 @@ class AIProviderManager {
         for (const [name, disabledUntil] of this.disabledProviders.entries()) {
             if (disabledUntil <= now) {this.disabledProviders.delete(name);}
         }
+        // Prune expired session stickiness entries
+        for (const [uid, session] of this.sessionStickiness.entries()) {
+            if (session.expiresAt <= now) {this.sessionStickiness.delete(uid);}
+        }
     }
     /**
      * Force reinitialize all providers - useful for recovery from corrupted state
@@ -787,6 +796,7 @@ class AIProviderManager {
         this.providerErrors.clear();
         this.metrics.clear();
         this.disabledProviders.clear();
+        this.sessionStickiness.clear();
         this.openRouterGlobalFailure = false;
         this.openRouterFailureCount = 0;
         this.setupProviders();

@@ -426,30 +426,32 @@ class DatabaseManager {
     }
     async getUserProfile(userId, userName) {
         if (!this.isConnected) {return null;}
-        let profile = await this.db
+        const result = await this.db
             .collection(config.database.collections.userProfiles)
-            .findOne({ userId });
-        if (!profile) {
-            profile = {
-                userId,
-                name: userName,
-                firstMet: new Date(),
-                interactions: 0,
-                preferences: {},
-                relationship: 'new',
-                lastSeen: new Date(),
-                personalityDrift: 0,
-                activityPatterns: []
-            };
-            await this.db.collection(config.database.collections.userProfiles).insertOne(profile);
-        }
-        return profile;
+            .findOneAndUpdate(
+                { userId },
+                {
+                    $setOnInsert: {
+                        userId,
+                        name: userName,
+                        firstMet: new Date(),
+                        interactions: 0,
+                        preferences: {},
+                        relationship: 'new',
+                        personalityDrift: 0,
+                        activityPatterns: []
+                    },
+                    $set: { lastSeen: new Date() }
+                },
+                { upsert: true, returnDocument: 'after' }
+            );
+        return result;
     }
     async getRecentConversations(userId, limit = 20) {
         if (!this.isConnected) {return [];}
         // Check cache first (only for standard limit)
         const cacheKey = `${userId}:${limit}`;
-        if (this.conversationCache && limit === 20) {
+        if (this.conversationCache) {
             const cached = this.conversationCache.get(cacheKey);
             if (cached) {return cached;}
         }
@@ -460,8 +462,7 @@ class DatabaseManager {
             .limit(limit)
             .toArray();
         const result = conversations.reverse();
-        // Cache standard limit queries
-        if (this.conversationCache && limit === 20) {
+        if (this.conversationCache) {
             this.conversationCache.set(cacheKey, result);
         }
         return result;
@@ -537,23 +538,24 @@ class DatabaseManager {
         await this.db.collection(config.database.collections.conversations).insertOne(conversation);
         // Invalidate conversation cache for this user
         if (this.conversationCache) {
-            this.conversationCache.delete(`${userId}:20`);
+            for (const key of this.conversationCache.keys()) {
+                if (key.startsWith(`${userId}:`)) {this.conversationCache.delete(key);}
+            }
         }
         // Clean up old conversations (keep only last 100 per user)
-        const totalCount = await this.db
+        // Find the 100th newest doc's _id, then delete everything older
+        const cutoff = await this.db
             .collection(config.database.collections.conversations)
-            .countDocuments({ userId });
-        if (totalCount > 100) {
-            const excessCount = totalCount - 100;
-            const oldest = await this.db
-                .collection(config.database.collections.conversations)
-                .find({ userId })
-                .sort({ createdAt: 1, timestamp: 1 })
-                .limit(excessCount)
-                .toArray();
+            .find({ userId })
+            .sort({ createdAt: -1, timestamp: -1 })
+            .skip(100)
+            .limit(1)
+            .project({ _id: 1 })
+            .toArray();
+        if (cutoff.length > 0) {
             await this.db
                 .collection(config.database.collections.conversations)
-                .deleteMany({ _id: { $in: oldest.map(x => x._id) } });
+                .deleteMany({ userId, _id: { $lte: cutoff[0]._id } });
         }
         // Update user profile
         await this.db.collection(config.database.collections.userProfiles).updateOne(
@@ -580,7 +582,9 @@ class DatabaseManager {
         }
         // Invalidate conversation cache
         if (this.conversationCache) {
-            this.conversationCache.delete(`${userId}:20`);
+            for (const key of this.conversationCache.keys()) {
+                if (key.startsWith(`${userId}:`)) {this.conversationCache.delete(key);}
+            }
         }
         return {
             conv: convResult.deletedCount,
