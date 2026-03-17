@@ -3,7 +3,6 @@
 const config = require('../../../config');
 const clankerGif = require('../../utils/clanker-gif');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
-const channelMessageCache = require('../channel-message-cache');
 
 async function handleMessage(handler, message, client) {
 const path = require('path');
@@ -15,12 +14,6 @@ const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,139101088
 if (message.author.id === client.user.id) {return;}
 if (message.author.bot && !allowedBotIds.includes(message.author.id)) {return;}
 
-// FIX: Record message in channel cache for context
-try {
-    channelMessageCache.addMessage(message.channelId, message.guildId, message);
-} catch (e) {
-    // Channel cache not critical, continue without it
-}
 
 if (!message.guild) {
     try {

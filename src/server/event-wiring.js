@@ -5,7 +5,6 @@ const interactionDispatch = require('../services/handlers/interaction-dispatch')
 const gameHandlers = require('../services/handlers/game-handlers');
 const memberLog = require('../services/handlers/member-log');
 const messageProcessing = require('../services/handlers/message-processing');
-const channelMessageCache = require('../services/channel-message-cache');
 
 /**
  * Wire Discord client event handlers and process error/shutdown handlers.
@@ -28,15 +27,6 @@ function wireEventHandlers(ctx) {
         console.log('Provider status on startup:', aiManager.getProviderStatus());
     });
 
-    // clean up channel cache when guild is deleted bro forgo
-    client.on('guildDelete', async guild => {
-        try {
-            channelMessageCache.clearGuild(guild.id);
-            console.log(`[ChannelCache] Cleared cache for deleted guild ${guild.id}`);
-        } catch (e) {
-            // nih, continue
-        }
-    });
 
     client.on('messageCreate', async message => {
         await messageProcessing.handleMessage(discordHandlers, message, client);

@@ -9,7 +9,6 @@ const config = require('../../config');
 const youtubeSearch = require('./youtube-search');
 const { EmbedBuilder } = require('discord.js');
 const { buildStructuredMemoryBlock, buildStructuredReplyContext, sanitizeUserInput } = require('../utils/memory-sanitizer');
-const channelMessageCache = require('./channel-message-cache');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const { isGarbageOutput } = require('../utils/garbage-detection');
 
@@ -506,8 +505,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
 
             let secureMemories = [];
-            // Apply SBX memoryMultiplier (default 12, with extended_memory: 24)
-            const memoryLimit = 12;
+            const memoryLimit = 30;
             if (allowsLongTermMemory) {
                 secureMemories = await vaultClient
                     .decryptMemories(userId, { limit: memoryLimit })
@@ -599,13 +597,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 ? buildStructuredReplyContext(contextualMemory.messages)
                 : '';
 
-            // get channel message context for better conversation awareness
-            const channelId = interaction.channelId || interaction.channel?.id;
-            const channelContext = channelId
-                ? channelMessageCache.getContextBlock(channelId, 8)
-                : '';
-
-            // sanitize user input to prevent injection
+            // FIX: Sanitize user input to prevent injection
             const sanitizedInput = sanitizeUserInput(processedInput);
 
             const context = `
@@ -617,7 +609,6 @@ User Profile - ${userName}:
 
 ${secureMemoryBlock}
 
-${channelContext}
 
 ${structuredReplyContext}
 
