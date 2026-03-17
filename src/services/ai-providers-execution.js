@@ -524,7 +524,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                                     p.name.startsWith('OpenRouter') &&
                                     !manager.disabledProviders.get(p.name)
                             );
-                            if (!canary) {
+                            if (!canary?.client?.chat?.completions) {
                                 return clearGlobal();
                             }
                             canary.client.chat.completions
@@ -536,7 +536,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                                     clearGlobal();
                                 })
                                 .catch(() => {
-                                    setTimeout(clearGlobal, clearAfter - 5 * 60 * 1000);
+                                    setTimeout(clearGlobal, clearAfter - 5 * 60 * 1000).unref?.();
                                 });
                         },
                         5 * 60 * 1000
@@ -597,6 +597,11 @@ async function generateResponseWithImages(
     for (const image of images) {
         try {
             const imageUrl = image.url || image;
+            // Validate URL — only allow http/https to prevent SSRF
+            if (typeof imageUrl !== 'string' || !/^https?:\/\//i.test(imageUrl)) {
+                console.warn(`Rejected non-HTTP image URL: ${imageUrl}`);
+                continue;
+            }
             const supportedTypes = [
                 'image/jpeg',
                 'image/jpg',

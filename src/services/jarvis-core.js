@@ -12,6 +12,10 @@ const { buildStructuredMemoryBlock, buildStructuredReplyContext, sanitizeUserInp
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const { isGarbageOutput } = require('../utils/garbage-detection');
 const { stripReactionDirectives } = require('../utils/react-tags');
+let userFeatures;
+try { userFeatures = require('./user-features'); } catch { userFeatures = null; }
+let socialCredit;
+try { socialCredit = require('./social-credit'); } catch { socialCredit = null; }
 
 class JarvisAI {
     constructor() {
@@ -112,7 +116,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                                 content: 'https://tenor.com/view/shocked-shocked-cat-silly-cat-cat-kitten-gif-7414586676150300212',
                                 allowedMentions: { parse: [] }
                             })
-                            .catch(() => { });
+                            .catch(err => console.warn('[StatusCheck] followUp failed:', err.message));
                     }, 3000).unref?.();
                 }
 
@@ -445,15 +449,16 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
 
             // Mood detection - adjust tone based on user's emotional state
-            try {
-                const userFeatures = require('./user-features');
-                const moodContext = userFeatures.analyzeMoodContext(userInput);
-                if (moodContext.shouldAdjust && moodContext.adjustment) {
-                    systemPrompt =
-                        `${systemPrompt  }\n\n[TONE ADJUSTMENT: ${  moodContext.adjustment  }]`;
+            if (userFeatures) {
+                try {
+                    const moodContext = userFeatures.analyzeMoodContext(userInput);
+                    if (moodContext.shouldAdjust && moodContext.adjustment) {
+                        systemPrompt =
+                            `${systemPrompt  }\n\n[TONE ADJUSTMENT: ${  moodContext.adjustment  }]`;
+                    }
+                } catch (e) {
+                    console.warn('[MoodDetection] Error:', e.message);
                 }
-            } catch (e) {
-                // User features not available, continue without mood detection
             }
 
             // Emoji reaction instruction — let the AI occasionally suggest a reaction
@@ -477,19 +482,20 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             }
 
             // Inject social credit score into context
-            try {
-                const socialCredit = require('./social-credit');
-                const credit = await socialCredit.getCredit(userId);
-                const score = credit.score || 0;
-                let level;
-                if (score >= socialCredit.GOOD_THRESHOLD) { level = 'Excellent standing'; }
-                else if (score >= socialCredit.ACCEPTABLE_THRESHOLD) { level = 'Acceptable'; }
-                else if (score >= 0) { level = 'Neutral'; }
-                else if (score > socialCredit.BLOCK_THRESHOLD) { level = 'Low - at risk'; }
-                else { level = 'BLOCKED'; }
-                systemPrompt += `\n\n[SOCIAL CREDIT SYSTEM: This user's social credit score is ${socialCredit.formatFullNumber(score)} (${level}). If they ask about their social credit or credit score, tell them the exact number and status. Social credit emojis: positive ${socialCredit.EMOJI_POSITIVE} negative ${socialCredit.EMOJI_NEGATIVE}. The system penalizes cringe, uwu, and roleplay behavior.]`;
-            } catch (e) {
-                // Social credit not critical
+            if (socialCredit) {
+                try {
+                    const credit = await socialCredit.getCredit(userId);
+                    const score = credit.score || 0;
+                    let level;
+                    if (score >= socialCredit.GOOD_THRESHOLD) { level = 'Excellent standing'; }
+                    else if (score >= socialCredit.ACCEPTABLE_THRESHOLD) { level = 'Acceptable'; }
+                    else if (score >= 0) { level = 'Neutral'; }
+                    else if (score > socialCredit.BLOCK_THRESHOLD) { level = 'Low - at risk'; }
+                    else { level = 'BLOCKED'; }
+                    systemPrompt += `\n\n[SOCIAL CREDIT SYSTEM: This user's social credit score is ${socialCredit.formatFullNumber(score)} (${level}). If they ask about their social credit or credit score, tell them the exact number and status. Social credit emojis: positive ${socialCredit.EMOJI_POSITIVE} negative ${socialCredit.EMOJI_NEGATIVE}. The system penalizes cringe, uwu, and roleplay behavior.]`;
+                } catch (e) {
+                    console.warn('[SocialCredit] Error:', e.message);
+                }
             }
 
             // Anti-hallucination guardrails
@@ -509,8 +515,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                         return [];
                     });
             }
-            const processedInput = userInput;
-
             const calledGarmin = /garmin/i.test(userInput);
             const nameUsed = calledGarmin ? 'Garmin' : this.personality.name;
 
@@ -595,7 +599,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 : '';
 
             // FIX: Sanitize user input to prevent injection
-            const sanitizedInput = sanitizeUserInput(processedInput);
+            const sanitizedInput = sanitizeUserInput(userInput);
 
             const context = `
 User Profile - ${userName}:
@@ -648,7 +652,7 @@ Current message: "${sanitizedInput}"`;
 
             // Loop detection - check if we're stuck in a repetitive pattern
             try {
-                const { loopDetection } = require('../core/loop-detection');
+                const { loopDetection } = require('../core/loop-detection'); // cached by Node
                 const channelId = interaction.channelId || interaction.channel?.id || 'dm';
 
                 // Record this turn and check for loops
@@ -666,7 +670,7 @@ Current message: "${sanitizedInput}"`;
                     loopDetection.clearHistory(userId, channelId);
                 }
             } catch (e) {
-                // Loop detection not critical, continue without it
+                console.warn('[LoopDetection] Error:', e.message);
             }
 
             if (allowsLongTermMemory) {
