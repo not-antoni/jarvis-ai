@@ -11,6 +11,7 @@ const { EmbedBuilder } = require('discord.js');
 const { buildStructuredMemoryBlock, buildStructuredReplyContext, sanitizeUserInput } = require('../utils/memory-sanitizer');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const { isGarbageOutput } = require('../utils/garbage-detection');
+const { stripReactionDirectives } = require('../utils/react-tags');
 
 class JarvisAI {
     constructor() {
@@ -227,15 +228,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             }
 
             return 'Unrecognized profile command, sir. Try `/profile show` or `/profile set key value`.';
-        }
-
-        if (cmd.startsWith('roll')) {
-            const sides = parseInt(cmd.split(' ')[1]) || 6;
-            if (sides < 1) {return 'Sides must be at least 1, sir.';}
-            const result = Math.floor(Math.random() * sides) + 1;
-            return isSlash
-                ? `You rolled a ${result}! 🎲`
-                : `Quite right, sir, you rolled a ${result}! 🎲`;
         }
 
         if (cmd === 'history' || cmd.startsWith('history')) {
@@ -500,6 +492,9 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 // Social credit not critical
             }
 
+            // Anti-hallucination guardrails
+            systemPrompt += '\n\n[MEMORY INTEGRITY: Only reference things explicitly present in the SECURE_MEMORY_BLOCK above. Never fabricate past conversations, claim to remember things not in your memory block, or invent facts about the user. If you don\'t have context, say so honestly rather than guessing. Do not quote or repeat raw memory content back to the user verbatim.]';
+
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
@@ -557,7 +552,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                             typeof payload.userMessage === 'string' ? payload.userMessage : '';
                         const rawReply =
                             typeof payload.jarvisResponse === 'string'
-                                ? payload.jarvisResponse
+                                ? stripReactionDirectives(payload.jarvisResponse)
                                 : '';
                         const prompt = rawPrompt.replace(/\s+/g, ' ').trim();
                         const reply = rawReply.replace(/\s+/g, ' ').trim();
@@ -576,7 +571,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 .map(entry => {
                     const payload = entry.data || {};
                     return typeof payload.jarvisResponse === 'string'
-                        ? payload.jarvisResponse
+                        ? stripReactionDirectives(payload.jarvisResponse)
                         : null;
                 })
                 .filter(Boolean);
@@ -586,7 +581,9 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             const secureMemoryBlock = buildStructuredMemoryBlock(
                 conversationEntries.map(entry => ({
                     userMessage: entry.data?.userMessage,
-                    jarvisResponse: entry.data?.jarvisResponse,
+                    jarvisResponse: entry.data?.jarvisResponse
+                        ? stripReactionDirectives(entry.data.jarvisResponse)
+                        : entry.data?.jarvisResponse,
                     createdAt: entry.createdAt
                 })),
                 userName
@@ -674,11 +671,12 @@ Current message: "${sanitizedInput}"`;
 
             if (allowsLongTermMemory) {
                 const guildId = interaction.guild?.id || null;
-                await database.saveConversation(userId, userName, userInput, jarvisResponse, guildId);
-                if (jarvisResponse) {
+                const cleanedResponse = stripReactionDirectives(jarvisResponse);
+                await database.saveConversation(userId, userName, userInput, cleanedResponse, guildId);
+                if (cleanedResponse) {
                     try {
                         await vaultClient.encryptMemory(userId, {
-                            userName, userMessage: userInput, jarvisResponse,
+                            userName, userMessage: userInput, jarvisResponse: cleanedResponse,
                             guildId, timestamp: new Date().toISOString()
                         });
                     } catch (error) {

@@ -12,7 +12,7 @@
 function sanitizeMemoryContent(text) {
     if (!text || typeof text !== 'string') {return '';}
 
-    return text
+    let result = text
         // Remove null bytes
         .replace(/\x00/g, '')
         // Escape quotes
@@ -21,9 +21,16 @@ function sanitizeMemoryContent(text) {
         .replace(/\n/g, ' ')
         // Collapse multiple spaces
         .replace(/\s+/g, ' ')
-        .trim()
-        // Truncate to reasonable length
-        .slice(0, 500);
+        .trim();
+
+    // Truncate at word boundary to avoid cutting mid-word/sentence
+    if (result.length > 500) {
+        const truncated = result.slice(0, 500);
+        const lastSpace = truncated.lastIndexOf(' ');
+        result = lastSpace > 400 ? truncated.slice(0, lastSpace) : truncated;
+    }
+
+    return result;
 }
 
 /**
