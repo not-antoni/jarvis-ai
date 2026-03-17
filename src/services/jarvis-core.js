@@ -8,6 +8,8 @@ const vaultClient = require('./vault-client');
 const config = require('../../config');
 const youtubeSearch = require('./youtube-search');
 const { EmbedBuilder } = require('discord.js');
+const { buildStructuredMemoryBlock, buildStructuredReplyContext, sanitizeUserInput } = require('../utils/memory-sanitizer');
+const channelMessageCache = require('./channel-message-cache');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const { isGarbageOutput } = require('../utils/garbage-detection');
 
@@ -581,16 +583,30 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 })
                 .filter(Boolean);
 
-            // Build contextual memory block from reply-ping context (if available)
-            let contextualBlock = '';
-            if (contextualMemory && contextualMemory.messages && contextualMemory.messages.length > 0) {
-                const contextLines = contextualMemory.messages.map(msg => {
-                    const role = msg.role === 'assistant' ? 'Jarvis' : (msg.username || 'User');
-                    const content = (msg.content || '').replace(/\s+/g, ' ').trim().slice(0, 300);
-                    return `${role}: ${content}`;
-                });
-                contextualBlock = `\n\nREPLY CONTEXT (this is the conversation thread the user is replying to):\n${contextLines.join('\n')}\n`;
-            }
+            // use structured memory blocks instead of free-text interpolation
+            // this prevents models from treating memory content as additional instructions
+            const secureMemoryBlock = buildStructuredMemoryBlock(
+                conversationEntries.map(entry => ({
+                    userMessage: entry.data?.userMessage,
+                    jarvisResponse: entry.data?.jarvisResponse,
+                    createdAt: entry.createdAt
+                })),
+                userName
+            );
+
+            // build structured reply context (if available)
+            const structuredReplyContext = contextualMemory && contextualMemory.messages
+                ? buildStructuredReplyContext(contextualMemory.messages)
+                : '';
+
+            // get channel message context for better conversation awareness
+            const channelId = interaction.channelId || interaction.channel?.id;
+            const channelContext = channelId
+                ? channelMessageCache.getContextBlock(channelId, 8)
+                : '';
+
+            // sanitize user input to prevent injection
+            const sanitizedInput = sanitizeUserInput(processedInput);
 
             const context = `
 User Profile - ${userName}:
@@ -599,11 +615,15 @@ User Profile - ${userName}:
 - First met: ${userProfile?.firstMet ? new Date(userProfile.firstMet).toLocaleDateString() : 'today'}
 - Last seen: ${userProfile?.lastSeen ? new Date(userProfile.lastSeen).toLocaleDateString() : 'today'}
 
-Recent conversation history:
-${historyBlock}
-${contextualBlock}
+${secureMemoryBlock}
+
+${channelContext}
+
+${structuredReplyContext}
+
 ${recentJarvisResponses.length ? `[Vary your phrasing — your recent responses started with: ${recentJarvisResponses.map(r => `"${  r.slice(0, 40)  }..."`).join(', ')}]` : ''}
-Current message: "${processedInput}"`;
+
+Current message: "${sanitizedInput}"`;
 
             // Apply SBX tokenMultiplier (default maxTokens, with unlimited_tokens: 2x)
             const maxTokens = config.ai.maxTokens;
@@ -615,13 +635,15 @@ Current message: "${processedInput}"`;
                     systemPrompt,
                     context,
                     images,
-                    maxTokens
+                    maxTokens,
+                    { userId } // Pass userId for session stickiness
                 );
             } else {
                 aiResponse = await aiManager.generateResponse(
                     systemPrompt,
                     context,
-                    maxTokens
+                    maxTokens,
+                    userId // Pass userId for session stickiness
                 );
             }
 
