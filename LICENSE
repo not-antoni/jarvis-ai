@@ -1,4 +1,4 @@
-Copyright 2024-2026 not-antoni. All rights reserved.
+Copyright 2024-present not-antoni. All rights reserved.
 
 PROPRIETARY SOFTWARE LICENSE
 
@@ -18,6 +18,22 @@ but is not limited to:
 
 To request permission, contact the project owner directly.
 
+VIEWING AND INSPECTION
+
+This repository is made publicly visible solely for transparency purposes,
+so that anyone may verify the nature and safety of the software.
+
+Any person may clone or fork this repository exclusively to read and inspect
+the source code. This permission does not grant any right to:
+
+- Run, deploy, or host the software in any environment
+- Modify or build upon the code in any way
+- Redistribute the code in any form
+- Use any portion of the code in another project
+
+Forks and clones made under this provision must not be developed further,
+made publicly accessible, or used for any purpose beyond local inspection.
+
 CONTRIBUTOR ACCESS
 
 Contributors and collaborators who have been explicitly granted access by the
@@ -32,6 +48,11 @@ owner (not-antoni) may:
   to this project
 - Suggest or implement structural changes, refactors, or new features without
   requiring prior written approval for each individual change
+- Reference this project in personal portfolios, resumes, and professional
+  profiles, including descriptions of their contributions, screenshots, and
+  links to their public commits or pull requests
+- Freely apply any general knowledge, techniques, programming patterns, or
+  skills gained through their work on this project to other endeavors
 
 This access does not grant:
 
@@ -42,6 +63,19 @@ This access does not grant:
 
 The explicit permission requirement above does not apply to contributors
 acting within the scope of their contribution.
+
+Contributors retain credit and attribution for their accepted contributions
+even if their access is later revoked. Revocation of access does not erase
+or diminish prior contributions.
+
+The owner reserves the right to revoke contributor access at any time, for
+any reason, at their sole discretion.
+
+TERMINATION
+
+Any rights granted under this license terminate automatically and immediately
+upon violation of any of its terms. Upon termination, the violating party must
+cease all use of the software and destroy any copies in their possession.
 
 TRADEMARKS NOTICE
 
@@ -60,8 +94,14 @@ This software may not be used for:
 - Any activity violating Discord's Terms of Service
 - Impersonation of any official bot or service
 
-DISCLAIMER
+DISCLAIMER AND LIMITATION OF LIABILITY
 
-This software is provided "as is" without warranty of any kind. The owner
-is not responsible for any misuse of this software or any damages resulting
-from its use.
+This software is provided "as is" without warranty of any kind, express or
+implied, including but not limited to the warranties of merchantability,
+fitness for a particular purpose, and noninfringement.
+
+In no event shall the owner be liable for any direct, indirect, incidental,
+special, consequential, or exemplary damages (including but not limited to
+loss of data, revenue, or profits) arising in any way out of the use or
+inability to use this software, even if advised of the possibility of such
+damages.
