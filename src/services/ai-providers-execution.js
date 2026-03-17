@@ -139,8 +139,9 @@ function sanitizeAssistantMessage(text) {
 /**
  * Core generation execution - tries each provider in order with retry logic.
  * @param {AIProviderManager} manager - The provider manager instance
+ * @param {string} userId - Optional user ID for session stickiness
  */
-async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
+async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, userId = null) {
     // Safety check: reinitialize providers if somehow empty
     if (manager.providers.length === 0) {
         console.warn('Provider list was empty - reinitializing providers...');
@@ -151,7 +152,17 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
         console.log(`Reinitialized ${manager.providers.length} AI providers`);
     }
     let candidates;
-    if (manager.useRandomSelection) {
+    // FIX: Use session stickiness instead of random selection
+    // This keeps users on the same model within a 5-minute window
+    // while still distributing load via round-robin across all users
+    if (userId && manager._getSessionStickyProvider) {
+        const stickyProvider = manager._getSessionStickyProvider(userId);
+        const rankedProviders = manager._rankedProviders();
+        candidates = stickyProvider
+            ? [stickyProvider, ...rankedProviders.filter(p => p.name !== stickyProvider.name)]
+            : rankedProviders;
+        console.log(`[SessionSticky] Using provider ${stickyProvider?.name || 'none'} for user ${userId}`);
+    } else if (manager.useRandomSelection) {
         const randomProvider = manager._getRandomProvider();
         const rankedProviders = manager._rankedProviders();
         candidates = randomProvider
@@ -544,7 +555,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens) {
  * @param {string} userPrompt - User message/prompt
  * @param {Array<{url: string, contentType?: string}>} images - Array of image objects with URLs
  * @param {number} maxTokens - Maximum tokens in response
- * @param {Object} options - Additional options
+ * @param {Object} options - Additional options (including userId)
  * @returns {Promise<{content: string, provider: string, tokensIn: number, tokensOut: number}>}
  */
 async function generateResponseWithImages(
@@ -555,7 +566,7 @@ async function generateResponseWithImages(
     maxTokens = config.ai?.maxTokens || 4096,
     options = {}
 ) {
-    const { allowModerationOnly = false } = options;
+    const { allowModerationOnly = false, userId = null } = options;
     // If no images, fall back to regular generateResponse
     if (!images || images.length === 0) {
         return manager.generateResponse(systemPrompt, userPrompt, maxTokens);

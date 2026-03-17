@@ -50,7 +50,13 @@ class AIProviderManager {
         this.metrics = new Map();
         this.disabledProviders = new Map();
         // Selection & routing flags
-        this.useRandomSelection = true; // Default to random selection
+        // FIX: Changed to false to use ranked selection instead of random
+        // Random selection caused hallucinations due to model variance
+        // Ranked selection with round-robin ensures consistency
+        this.useRandomSelection = false;
+        this.roundRobinIndex = 0; // Track position for fair distribution
+        this.sessionStickiness = new Map(); // userId -> {provider, expiresAt}
+        this.sessionStickinessMs = 5 * 60 * 1000; // 5 minutes
         this.selectedProviderType = config.ai?.provider || 'auto'; // 'auto' | 'openai' | 'groq' | 'openrouter' | 'google' | 'deepseek'
         // OpenRouter rolling outage guardrails
         this.openRouterGlobalFailure = false;
@@ -481,6 +487,48 @@ class AIProviderManager {
         const pool = preferred.length ? preferred : availableProviders;
         return this._pickWeightedProvider(pool) || pool[Math.floor(Math.random() * pool.length)];
     }
+
+    /**
+     * new method for session stickiness
+     * keep user on same model for 5 minutes to ensure consistency (doesnt apply to paid ones skskskskksksksksksskSKskSKSKsksks)
+     */
+    _getSessionStickyProvider(userId, options = {}) {
+        const now = Date.now();
+        const session = this.sessionStickiness.get(userId);
+
+        if (session && session.expiresAt > now) {
+            // Session still valid, return same provider
+            return session.provider;
+        }
+
+        // Session expired or doesn't exist - pick new one via round-robin
+        const provider = this._getRoundRobinProvider(options);
+        if (provider) {
+            this.sessionStickiness.set(userId, {
+                provider,
+                expiresAt: now + this.sessionStickinessMs
+            });
+        }
+        return provider;
+    }
+
+    /**
+     * n method for fair round-robin distribution
+     * cycles through ranked providers instead of random selection
+     */
+    _getRoundRobinProvider(options = {}) {
+        const availableProviders = this._availableProviders(options);
+        if (availableProviders.length === 0) {return null;}
+
+        // Always prefer cheapest tier
+        const minPriority = Math.min(...availableProviders.map(p => resolveCostPriority(p)));
+        const preferred = availableProviders.filter(p => resolveCostPriority(p) === minPriority);
+        const pool = preferred.length ? preferred : availableProviders;
+
+        // Round-robin through pool
+        this.roundRobinIndex = (this.roundRobinIndex + 1) % pool.length;
+        return pool[this.roundRobinIndex];
+    }
     _computeProviderWeight(provider) {
         const metrics = this.metrics.get(provider.name) || {
             successes: 0,
@@ -599,7 +647,7 @@ class AIProviderManager {
             rejectThreshold: this.loadConfig.rejectThreshold
         };
     }
-    async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai?.maxTokens || 4096) {
+    async generateResponse(systemPrompt, userPrompt, maxTokens = config.ai?.maxTokens || 4096, userId = null) {
         // Ensure prompts are strings (required by some providers like Groq)
         systemPrompt = systemPrompt != null ? String(systemPrompt) : '';
         userPrompt = userPrompt != null ? String(userPrompt) : '';
@@ -615,16 +663,16 @@ class AIProviderManager {
         // Adjust tokens based on current load
         maxTokens = this.getLoadAdjustedTokens(maxTokens);
         try {
-            return await this._executeGeneration(systemPrompt, userPrompt, maxTokens);
+            return await this._executeGeneration(systemPrompt, userPrompt, maxTokens, userId);
         } finally {
             this.activeRequests = Math.max(0, this.activeRequests - 1);
         }
     }
-    async _executeGeneration(systemPrompt, userPrompt, maxTokens) {
-        return execution.executeGeneration(this, systemPrompt, userPrompt, maxTokens);
+    async _executeGeneration(systemPrompt, userPrompt, maxTokens, userId = null) {
+        return execution.executeGeneration(this, systemPrompt, userPrompt, maxTokens, userId);
     }
-    async generateResponseWithImages(systemPrompt, userPrompt, images, maxTokens, options) {
-        return execution.generateResponseWithImages(this, systemPrompt, userPrompt, images, maxTokens, options);
+    async generateResponseWithImages(systemPrompt, userPrompt, images, maxTokens, options = {}, userId = null) {
+        return execution.generateResponseWithImages(this, systemPrompt, userPrompt, images, maxTokens, { ...options, userId });
     }
     getProviderStatus() {
         const now = Date.now();
