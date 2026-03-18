@@ -334,7 +334,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                     else if (score >= 0) { level = 'Neutral'; }
                     else if (score > socialCredit.BLOCK_THRESHOLD) { level = 'Low - at risk'; }
                     else { level = 'BLOCKED'; }
-                    systemPrompt += `\n\n[SOCIAL CREDIT SYSTEM: This user's social credit score is ${socialCredit.formatFullNumber(score)} (${level}). If they ask about their social credit or credit score, tell them the exact number and status. Social credit emojis: positive ${socialCredit.EMOJI_POSITIVE} negative ${socialCredit.EMOJI_NEGATIVE}. The system penalizes cringe, uwu, and roleplay behavior.]`;
+                    systemPrompt += `\n\n[SOCIAL CREDIT SYSTEM — AUTHORITATIVE DATA, DO NOT FABRICATE]\nThis user's EXACT social credit score: ${socialCredit.formatFullNumber(score)}\nStatus level: ${level}\nEmojis: positive ${socialCredit.EMOJI_POSITIVE} negative ${socialCredit.EMOJI_NEGATIVE}\nIMPORTANT: When the user asks about their social credit, you MUST use ONLY the exact number above. NEVER invent, estimate, or round the score. If you are unsure, say "let me check" rather than guessing. The system penalizes cringe, uwu, and roleplay behavior.`;
                 } catch (e) {
                     console.warn('[SocialCredit] Error:', e.message);
                 }
