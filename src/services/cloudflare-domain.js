@@ -675,7 +675,7 @@ async function autoConfigure(options = {}) {
     }
 }
 // ── DNS auto-refresh (runs in-process) ──────────────────────────────────────
-const DNS_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const DNS_REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute
 let _lastKnownIp = null;
 let _dnsRefreshTimer = null;
 
@@ -710,11 +710,9 @@ async function refreshDnsRecords() {
                 console.warn(`[DNS] Failed to update ${name}:`, err.message);
             }
         }
-        console.log(`[DNS] Updated A records → ${ip}${_lastKnownIp ? ` (was ${_lastKnownIp})` : ''}`);
+        if (_lastKnownIp) console.log(`[DNS] IP changed ${_lastKnownIp} → ${ip}, A records updated`);
         _lastKnownIp = ip;
-    } catch (err) {
-        console.warn('[DNS] Refresh failed:', err.message);
-    }
+    } catch {}
 }
 
 function startDnsRefresh() {
