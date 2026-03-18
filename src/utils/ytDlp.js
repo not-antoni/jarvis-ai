@@ -305,8 +305,9 @@ function readCookiesFromEnv() {
     return null;
 }
 async function prepareCookiesAndExtractor(resolved) {
-    const cookieFile = resolved.shouldUseYouTubeCookies ? await ensureCookiesFile() : null;
-    const extractorArgs = buildExtractorArgs({ hasCookies: Boolean(cookieFile), resolved });
+    // Cookies disabled — self-hosted on residential IP, no need for auth
+    const cookieFile = null;
+    const extractorArgs = buildExtractorArgs({ hasCookies: false, resolved });
     return { cookieFile, extractorArgs };
 }
 function buildExtractorArgs({ hasCookies, resolved }) {
