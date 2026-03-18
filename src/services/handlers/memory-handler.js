@@ -7,7 +7,7 @@ const vaultClient = require('../vault-client');
 async function handleMemoryCommand(handler, interaction) {
     try {
         const limitOption = interaction.options.getInteger('entries');
-        const limit = Math.max(1, Math.min(limitOption || 5, 30));
+        const limit = Math.max(1, Math.min(limitOption || 30, 30));
         const { user } = interaction;
         const userId = user.id;
         const userName = user.displayName || user.username;
@@ -26,7 +26,7 @@ async function handleMemoryCommand(handler, interaction) {
 
         if (!isOptedOut) {
             try {
-                allMemories = await vaultClient.decryptMemories(userId, { limit: 60 });
+                allMemories = await vaultClient.decryptMemories(userId, { limit });
             } catch (error) {
                 console.error('Failed to decrypt secure memories for memory command:', error);
             }
@@ -48,23 +48,6 @@ async function handleMemoryCommand(handler, interaction) {
             .filter((e) => e.prompt || e.reply)
             .sort((a, b) => b.createdAt - a.createdAt);
 
-        // Build embed preview (limited entries)
-        const previewEntries = normalized.slice(0, limit);
-
-        const formatSnippet = (text) => {
-            if (!text) return '—';
-            const clean = text.replace(/\s+/g, ' ').trim();
-            return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean;
-        };
-
-        const lines = previewEntries.map((entry) => {
-            const timestamp = `<t:${Math.floor(entry.createdAt.getTime() / 1000)}:R>`;
-            const prompt = formatSnippet(entry.prompt);
-            const reply = formatSnippet(entry.reply);
-            const tag = entry.isShortTerm ? ' (short-term)' : ' (long-term)';
-            return `• ${timestamp}${tag}\n  • Prompt: ${prompt}\n  • Reply: ${reply}`;
-        });
-
         const embed = new EmbedBuilder()
             .setTitle('Memory Diagnostics')
             .setColor(isOptedOut ? 0x64748b : 0x38bdf8)
@@ -82,24 +65,8 @@ async function handleMemoryCommand(handler, interaction) {
 
         if (isOptedOut) {
             embed.addFields({ name: 'Status', value: 'All stored memories have been purged per your preference, sir.' });
-        } else if (lines.length) {
-            let memoryValue = lines.join('\n\n');
-            if (memoryValue.length > 1020) {
-                const truncatedLines = [];
-                let totalLength = 0;
-                for (const line of lines) {
-                    if (totalLength + line.length + 2 > 1000) break;
-                    truncatedLines.push(line);
-                    totalLength += line.length + 2;
-                }
-                memoryValue = truncatedLines.length ? `${truncatedLines.join('\n\n')}\n\n*...more entries truncated*` : 'Memory entries too long to display.';
-            }
-            embed.addFields({
-                name: 'Recent Memories (secure vault)',
-                value: memoryValue || 'No entries to display.'
-            });
         } else {
-            embed.addFields({ name: 'Recent Memories', value: 'No stored entries yet, sir.' });
+            embed.addFields({ name: 'Vault Entries', value: String(normalized.length), inline: true });
         }
 
         await interaction.editReply({ embeds: [embed] });
