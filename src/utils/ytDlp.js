@@ -63,7 +63,7 @@ function resolveSource(source, videoUrl) {
         source: resolved,
         isYouTube,
         isSoundCloud,
-        shouldRunPreLimitCheck: !FAST_START_MODE || !isSoundCloud,
+        shouldRunPreLimitCheck: !FAST_START_MODE,
         shouldUseYouTubeCookies: isYouTube
     };
 }
