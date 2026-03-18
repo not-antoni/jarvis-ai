@@ -411,9 +411,7 @@ class DatabaseManager {
                 {
                     $setOnInsert: {
                         userId,
-                        name: userName,
                         firstMet: new Date(),
-                        interactions: 0,
                         preferences: {},
                         relationship: 'new',
                         personalityDrift: 0,
