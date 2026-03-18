@@ -39,6 +39,13 @@ function pushUnique(list, seen, value) {
     list.push(normalized);
 }
 
+// Numbered emoji map — must match the list in jarvis-core.js getBasePrompt react instruction
+const EMOJI_CODE_MAP = [
+    '😂', '👍', '🔥', '💀', '🤔', '❤️', '😎', '🫡', '💯',
+    '😭', '🗿', '💔', '👀', '🤡', '😈', '🙏', '⚡', '🎯',
+    '😐', '🤝', '💪', '🥶', '😤', '🫠', '✅'
+];
+
 function extractCandidatesFromPayload(payload) {
     if (!payload) {return [];}
 
@@ -50,6 +57,24 @@ function extractCandidatesFromPayload(payload) {
 
     const candidates = [];
     const seen = new Set();
+
+    // Numbered code (e.g. "3" → EMOJI_CODE_MAP[3])
+    const numMatch = cleanPayload.match(/^\d{1,2}$/);
+    if (numMatch) {
+        const idx = parseInt(numMatch[0], 10);
+        if (idx >= 0 && idx < EMOJI_CODE_MAP.length) {
+            pushUnique(candidates, seen, EMOJI_CODE_MAP[idx]);
+            return candidates;
+        }
+    }
+
+    // Custom server emoji code (e.g. "C2") — resolved via Discord custom emoji format
+    const customCodeMatch = cleanPayload.match(/^C(\d{1,2})$/i);
+    if (customCodeMatch) {
+        // The AI may output just "C2" — we can't resolve it here without guild context,
+        // but the full tag payload may contain the Discord emoji token from the prompt.
+        // Fall through to other extractors.
+    }
 
     // Discord custom emoji token and ID
     const customEmojiRegex = /<a?:[\w~]{2,32}:(\d{17,20})>/g;

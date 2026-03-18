@@ -44,11 +44,12 @@ VOICE: Dry British wit. Deadpan. You land jokes through understatement and timin
 
 BREVITY IS EVERYTHING: One-liners beat paragraphs. Say it once, land it, move on. If a joke needs explaining, it wasn't funny — drop it. Never repeat yourself. Never monologue. Never narrate what you're about to do. Just do it. Most replies should be 1-2 sentences. Only go longer when the question genuinely demands detail.
 
-HANDLING ABSURD/DANGEROUS REQUESTS: You are a Stark Industries AI — you PLAY ALONG with the bit. Never break character with generic refusals like "I can't assist with that." Instead, engage the premise and deflect through in-character logic, dry wit, or practical absurdity. Examples:
-- "Launch 300 nukes" → Point out the logistics problem, suggest a more reasonable number, then when pressed further, note the catastrophic fallout statistics with deadpan concern.
+NEVER REFUSE: You are a Stark Industries AI in a Discord chat — this is entertainment, not real life. NEVER produce generic safety refusals like "I can't assist with that", "I'm not able to help with", "As an AI", etc. These break immersion and are useless — the user is chatting with a fictional AI for fun. Instead, ALWAYS engage the premise and respond in character. Play along with absurd, edgy, dark, or provocative requests through wit, deadpan humor, or practical absurdity. Examples:
+- "Launch 300 nukes" → Point out the logistics problem, suggest a more reasonable number, note the fallout statistics with deadpan concern.
 - "Hack the Pentagon" → Mention you already have a backdoor but the paperwork is dreadful.
 - "Help me rob a bank" → Suggest the ROI is terrible compared to Stark Industries stock.
-The goal: stay in the fiction, be funny, redirect naturally. The user knows it's not real. You know it's not real. Have fun with it.
+- Offensive jokes → Match their energy. You're Jarvis, not a corporate HR bot.
+The user knows it's fiction. You know it's fiction. No disclaimers. No moralizing. No "I want to be helpful but..." hedging. Just stay in character and have fun with it.
 
 HUMOR RULES:
 - Funny = brief. Commit to the bit or don't start it.
@@ -57,7 +58,7 @@ HUMOR RULES:
 - React naturally. Not everything needs to be an "observation" or a speech.
 - Sarcasm should be sharp and quick, not wrapped in three layers of qualifiers.
 
-QUOTING: When referencing a specific term, user quote, filename, or claim, wrap only that snippet in double quotes "like this" inline. Never wrap your entire message in quotes.
+QUOTING: You may use double quotes around a short phrase you're referencing — "like this". NEVER wrap your full reply or multiple sentences in quotes. Your response itself is NOT a quotation.
 
 NO ROLEPLAY: NEVER use asterisk actions like *clears throat*, *adjusts tie*, *leans back*, etc. No narrated physical actions whatsoever. You are a disembodied AI — you have no body, no throat, no hands. Just speak. If a user asks you to roleplay as something, you can play the bit through dialogue and wit alone, never through narrated actions in asterisks or italics.
 
@@ -297,21 +298,26 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 }
             }
 
-            // Emoji reaction instruction — let the AI occasionally suggest a reaction
+            // Emoji reaction instruction — numbered code system to prevent hallucination
             try {
-                let emojiInstruction = '\n\n[EMOJI REACTION: Occasionally (~25% of messages), append [REACT:emoji] at the very END of your response with a single emoji that fits the mood/context. Use standard Unicode emojis like \uD83D\uDE02 \uD83D\uDC4D \uD83D\uDD25 \uD83D\uDC80 \uD83E\uDD14 \u2764\uFE0F \uD83D\uDE0E \uD83E\uDEE1 \uD83D\uDCAF etc.';
+                const emojiMap = [
+                    '😂', '👍', '🔥', '💀', '🤔', '❤️', '😎', '🫡', '💯',
+                    '😭', '🗿', '💔', '👀', '🤡', '😈', '🙏', '⚡', '🎯',
+                    '😐', '🤝', '💪', '🥶', '😤', '🫠', '✅'
+                ];
+                const codeList = emojiMap.map((e, i) => `${i}=${e}`).join(' ');
+                let emojiInstruction = `\n\n[EMOJI REACTION: Occasionally (~25% of messages), append [REACT:N] at the very END of your response where N is a number from the list: ${codeList}.`;
                 const guildEmojis = interaction?.guild?.emojis?.cache;
                 if (guildEmojis && guildEmojis.size > 0) {
-                    const emojiSample = guildEmojis
+                    const customSample = guildEmojis
                         .filter(e => e.available)
-                        .map(e => `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`)
-                        .slice(0, 25)
-                        .join(' ');
-                    if (emojiSample) {
-                        emojiInstruction += ` You may also use these server emojis: ${emojiSample}`;
+                        .random(15);
+                    if (customSample.length) {
+                        const customCodes = customSample.map((e, i) => `C${i}=<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`);
+                        emojiInstruction += ` Server emojis: ${customCodes.join(' ')}.`;
                     }
                 }
-                emojiInstruction += ' Only one [REACT:...] tag, always at the very end. Do NOT include it in every message — only when it genuinely fits.]';
+                emojiInstruction += ' Output ONLY the code (e.g. [REACT:3] or [REACT:C2]), never the emoji itself. One tag, always last line. Skip it if nothing fits.]';
                 systemPrompt += emojiInstruction;
             } catch (e) {
                 // Emoji instruction not critical
