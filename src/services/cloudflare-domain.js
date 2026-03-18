@@ -147,33 +147,6 @@ function ensureCloudflareIpsTimer(projectRoot) {
         return false;
     }
 }
-function generateNginxEnsureService(projectRoot) {
-    return generateSystemdService('Ensure Jarvis nginx config remains Cloudflare-only', projectRoot, `/usr/bin/env node ${projectRoot}/scripts/ensure-nginx-config.js`);
-}
-function generateNginxEnsureTimerUnit() {
-    return generateSystemdTimer('Periodic Jarvis nginx config enforcement', 'hourly');
-}
-function ensureNginxEnsureTimer(projectRoot) {
-    try {
-        ensureSystemdTimer(
-            '/etc/systemd/system/jarvis-nginx-ensure.service',
-            '/etc/systemd/system/jarvis-nginx-ensure.timer',
-            generateNginxEnsureService(projectRoot),
-            generateNginxEnsureTimerUnit(),
-            'jarvis-nginx-ensure.timer'
-        );
-        execSync(`sudo chmod +x ${projectRoot}/scripts/ensure-nginx-config.js`, { encoding: 'utf8' });
-        try {
-            execSync('sudo systemctl start jarvis-nginx-ensure.service', { encoding: 'utf8' });
-        } catch (runErr) {
-            console.warn('[Nginx] Initial nginx-ensure run failed (timer still active):', runErr?.message || runErr);
-        }
-        return true;
-    } catch (error) {
-        console.warn('[Nginx] Failed to configure nginx ensure timer:', error?.message || error);
-        return false;
-    }
-}
 function generateNginxConfig(domain, ssl = false, cloudflareOnly = true) {
     const h2 = ssl ? getNginxHttp2Syntax() : { listen: '', directive: '' };
     const redirectBlock = ssl ? `
@@ -701,11 +674,66 @@ async function autoConfigure(options = {}) {
         return { success: false, error: error.message };
     }
 }
+// ── DNS auto-refresh (runs in-process) ──────────────────────────────────────
+const DNS_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+let _lastKnownIp = null;
+let _dnsRefreshTimer = null;
+
+async function getPublicIp() {
+    const sources = ['https://api.ipify.org', 'https://ifconfig.me/ip', 'https://icanhazip.com'];
+    for (const url of sources) {
+        try {
+            const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+            const ip = (await res.text()).trim();
+            if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) return ip;
+        } catch {}
+    }
+    return null;
+}
+
+async function refreshDnsRecords() {
+    const config = getConfig();
+    if (!config.domain || !config.zoneId) return;
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) return;
+
+    try {
+        const ip = await getPublicIp();
+        if (!ip) return;
+        if (ip === _lastKnownIp) return;
+
+        const names = [config.domain, `www.${config.domain}`];
+        for (const name of names) {
+            try {
+                await upsertDnsRecord(name, 'A', ip, { proxied: true });
+            } catch (err) {
+                console.warn(`[DNS] Failed to update ${name}:`, err.message);
+            }
+        }
+        console.log(`[DNS] Updated A records → ${ip}${_lastKnownIp ? ` (was ${_lastKnownIp})` : ''}`);
+        _lastKnownIp = ip;
+    } catch (err) {
+        console.warn('[DNS] Refresh failed:', err.message);
+    }
+}
+
+function startDnsRefresh() {
+    if (_dnsRefreshTimer) return;
+    refreshDnsRecords();
+    _dnsRefreshTimer = setInterval(refreshDnsRecords, DNS_REFRESH_INTERVAL_MS);
+    _dnsRefreshTimer.unref();
+}
+
+function stopDnsRefresh() {
+    if (_dnsRefreshTimer) { clearInterval(_dnsRefreshTimer); _dnsRefreshTimer = null; }
+}
+
 module.exports = {
     getConfig,
     autoConfigure,
     autoSetupNginx,
     ensureCloudflareIpsConfig,
     ensureCloudflareIpsTimer,
-    ensureNginxEnsureTimer,
+    startDnsRefresh,
+    stopDnsRefresh,
 };

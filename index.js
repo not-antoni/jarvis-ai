@@ -457,7 +457,6 @@ async function startBot() {
                 try {
                     cloudflareDomain.ensureCloudflareIpsConfig?.();
                     cloudflareDomain.ensureCloudflareIpsTimer?.(process.cwd());
-                    cloudflareDomain.ensureNginxEnsureTimer?.(process.cwd());
                 } catch (error) {
                     console.warn('[Cloudflare] Auto-install timer skipped:', error?.message || error);
                 }
@@ -498,6 +497,8 @@ async function startBot() {
                     }
                 }
             }
+            // Start DNS auto-refresh (updates @ and www A records every 5 min)
+            cloudflareDomain.startDnsRefresh();
         } catch (cfErr) {
             console.log(`[Domain] Auto-config skipped: ${cfErr.message}`);
         }
