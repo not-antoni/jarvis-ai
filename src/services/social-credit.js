@@ -95,7 +95,7 @@ const CRINGE_NUCLEAR = [
     /\*\s*(?:moans?|blushes|purrs?|nuzzles?|licks?\s*(?:lips?|you)|whispers?\s*(?:seductively|softly)|pins?\s*you|straddles?|undress)/i,
     /(?:uwu|owo|nya+h?|rawr\s*x?d|hewwo|pwease|sowwy|glomps?|nuzzle)/i,
     /(?:daddy|mommy|master|senpai)\s*(?:please|~|♥|❤|😩|🥺)/i,
-    /~{2,}|♥{2,}|❤{2,}/,
+    /♥{2,}|❤{2,}/,
     /\*\s*(?:gets?\s*(?:on\s*(?:knees|all\s*fours)|closer|undressed|naked)|takes?\s*off|strips?|spreads?)/i,
     /(?:breed|knot|mating\s*press|ahegao|hentai)/i,
     /\*\s*(?:tail\s*(?:wags?|swish)|ears?\s*(?:perk|twitch|flatten)|whiskers?\s*twitch)/i,
@@ -138,9 +138,12 @@ function getCringeLevel(text) {
         }
     }
 
-    const tildeCount = (text.match(/~/g) || []).length;
-    if (tildeCount > 1) {
-        score *= (BigInt(tildeCount - 1) ** 2n);
+    // Tildes only count when paired with other cringe (not standalone / Discord strikethrough)
+    if (score > 0n) {
+        const tildeCount = (text.match(/~/g) || []).length;
+        if (tildeCount >= 3) {
+            score += BigInt(tildeCount) * 2n;
+        }
     }
 
     if (/[!?]{4,}/.test(text) && score > 0n) { score += 15n; }
@@ -251,8 +254,6 @@ async function adjustCredit(userId, amount) {
         ? BigInt(typeof doc.score === 'object' ? doc.score.toString() : doc.score)
         : 0n;
     const newSocialCredit = currentScore + BigInt(amount);
-
-    console.log(currentScore, BigInt(amount));
 
     // ✅ FIX 2: merged $set — duplicate $set keys silently drop the first one (score was never saving)
     const result = await col.findOneAndUpdate(
