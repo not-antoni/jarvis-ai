@@ -247,7 +247,7 @@ const makeUtilityHandler = cmd => (interaction, jarvis, userId, guildId) =>
 const handleClear = makeUtilityHandler('reset');
 const handleHelp = makeUtilityHandler('help');
 const handleProfile = makeUtilityHandler('profile');
-const handleHistory = makeUtilityHandler('history');
+
 async function handleAvatar(interaction) {
     const targetUser = interaction.options.getUser('user') || interaction.user;
     const useServerAvatar = interaction.options.getBoolean('server') === true;
@@ -403,7 +403,6 @@ module.exports = {
     handleClear,
     handleHelp,
     handleProfile,
-    handleHistory,
     handleAvatar,
     handleBanner,
     handleUserinfo,
