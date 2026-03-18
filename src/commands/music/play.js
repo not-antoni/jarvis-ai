@@ -2,6 +2,7 @@ const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const { musicManager } = require('../../core/musicManager');
 const { resolveTrackInput } = require('../../services/music-resolver');
 const soundcloudApi = require('../../services/soundcloud-api');
+const youtubeSearch = require('../../services/youtube-search');
 
 // Max file size: 10MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -23,7 +24,7 @@ function clampChoiceText(value, max = 100) {
     return `${text.slice(0, max - 3)}...`;
 }
 
-function buildQueryChoice(track) {
+function buildSoundCloudChoice(track) {
     const title = String(track?.title || 'SoundCloud Track').trim();
     const meta = [track?.uploader, track?.duration].filter(Boolean).join(' • ');
     const name = clampChoiceText(meta ? `${title} — ${meta}` : title, 100);
@@ -37,14 +38,34 @@ function buildQueryChoice(track) {
     return { name, value };
 }
 
+function buildYouTubeChoice(video) {
+    const title = String(video?.title || 'YouTube Video').trim();
+    const channel = video?.channel || '';
+    const name = clampChoiceText(channel ? `${title} — ${channel}` : title, 100);
+    const value = String(video?.url || '').trim();
+
+    if (!name || !value || value.length > 100) {
+        return null;
+    }
+
+    return { name, value };
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
         .setDescription('Play a song or playlist')
         .addStringOption(option =>
             option
-                .setName('query')
-                .setDescription('Song name, YouTube/SoundCloud URL or playlist')
+                .setName('soundcloud')
+                .setDescription('SoundCloud search or URL')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName('youtube')
+                .setDescription('YouTube search or URL')
                 .setRequired(false)
                 .setAutocomplete(true)
         )
@@ -75,15 +96,12 @@ module.exports = {
         .addAttachmentOption(option =>
             option.setName('file9').setDescription('Audio file #9').setRequired(false)
         )
-        .addAttachmentOption(option =>
-            option.setName('file10').setDescription('Audio file #10').setRequired(false)
-        )
         .setDMPermission(false)
         .setContexts([InteractionContextType.Guild]),
 
     async autocomplete(interaction) {
         const focused = interaction.options.getFocused(true);
-        if (!focused || focused.name !== 'query') {
+        if (!focused || (focused.name !== 'soundcloud' && focused.name !== 'youtube')) {
             await interaction.respond([]).catch(() => {});
             return;
         }
@@ -94,29 +112,39 @@ module.exports = {
             return;
         }
 
-        if (!soundcloudApi.isConfigured()) {
-            await interaction.respond([]).catch(() => {});
-            return;
-        }
-
         try {
-            const tracks = await soundcloudApi.searchTracks(query, 10);
-            const choices = [];
-            const seenValues = new Set();
-            for (const track of tracks) {
-                const choice = buildQueryChoice(track);
-                if (!choice || seenValues.has(choice.value)) {
-                    continue;
+            if (focused.name === 'youtube') {
+                const response = await youtubeSearch.searchVideos(query, 10);
+                const items = Array.isArray(response?.items) ? response.items : [];
+                const choices = [];
+                const seenValues = new Set();
+                for (const video of items) {
+                    const choice = buildYouTubeChoice(video);
+                    if (!choice || seenValues.has(choice.value)) continue;
+                    seenValues.add(choice.value);
+                    choices.push(choice);
+                    if (choices.length >= 25) break;
                 }
-                seenValues.add(choice.value);
-                choices.push(choice);
-                if (choices.length >= 25) {
-                    break;
+                await interaction.respond(choices);
+            } else {
+                if (!soundcloudApi.isConfigured()) {
+                    await interaction.respond([]).catch(() => {});
+                    return;
                 }
+                const tracks = await soundcloudApi.searchTracks(query, 10);
+                const choices = [];
+                const seenValues = new Set();
+                for (const track of tracks) {
+                    const choice = buildSoundCloudChoice(track);
+                    if (!choice || seenValues.has(choice.value)) continue;
+                    seenValues.add(choice.value);
+                    choices.push(choice);
+                    if (choices.length >= 25) break;
+                }
+                await interaction.respond(choices);
             }
-            await interaction.respond(choices);
         } catch (error) {
-            console.warn('[Play] Autocomplete failed:', error?.message || error);
+            console.warn(`[Play] Autocomplete (${focused.name}) failed:`, error?.message || error);
             await interaction.respond([]).catch(() => {});
         }
     },
@@ -128,11 +156,13 @@ module.exports = {
         const { canControlMusic } = require('../../utils/dj-system');
         if (!await canControlMusic(interaction)) {return;}
 
-        const queryOption = interaction.options.getString('query');
+        const scOption = interaction.options.getString('soundcloud');
+        const ytOption = interaction.options.getString('youtube');
+        const queryOption = scOption || ytOption;
 
         // Collect all file attachments
         const files = [];
-        for (let i = 1; i <= 10; i++) {
+        for (let i = 1; i <= 9; i++) {
             const file = interaction.options.getAttachment(`file${i}`);
             if (file) {files.push(file);}
         }
@@ -211,7 +241,20 @@ module.exports = {
 
         try {
             const manager = musicManager.get();
-            const { track, fromCache } = await resolveTrackInput(queryOption);
+
+            // If YouTube option was used with a plain query (not URL), search YouTube first
+            let resolvedInput = queryOption;
+            if (ytOption && !/^https?:\/\//i.test(ytOption)) {
+                const response = await youtubeSearch.searchVideos(ytOption, 1);
+                const topResult = response?.items?.[0];
+                if (!topResult?.url) {
+                    await interaction.editReply('❌ No YouTube results found for that query, sir.');
+                    return;
+                }
+                resolvedInput = topResult.url;
+            }
+
+            const { track, fromCache } = await resolveTrackInput(resolvedInput);
             const enqueueMessage = await manager.enqueue(
                 interaction.guildId,
                 voiceChannel,
