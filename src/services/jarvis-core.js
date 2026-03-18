@@ -96,8 +96,8 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
         if (cmd === 'reset') {
             try {
-                const { conv, prof } = await this.resetUserData(userId);
-                return `Reset complete, sir. Erased ${conv} conversations and ${prof} profile${prof === 1 ? '' : 's'}.`;
+                const { prof } = await this.resetUserData(userId);
+                return `Reset complete, sir. Purged vault memories and ${prof} profile${prof === 1 ? '' : 's'}.`;
             } catch (error) {
                 console.error('Reset error:', error);
                 return 'Unable to reset memories, sir. Technical issue.';
@@ -235,10 +235,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         }
 
         if (cmd === 'history' || cmd.startsWith('history')) {
-            if (!database.isConnected) {
-                return 'Conversation logs unavailable, sir. Database offline.';
-            }
-
             let limit = 5;
 
             if (isSlash && interaction?.commandName === 'history') {
@@ -252,15 +248,60 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
             limit = Math.max(1, Math.min(limit, 20));
 
-            const conversations = await database.getRecentConversations(userId, limit);
-            if (!conversations.length) {
+            let memories = [];
+            try {
+                memories = await vaultClient.decryptMemories(userId, { limit });
+            } catch (error) {
+                console.error('Failed to decrypt memories for history:', error);
+                return 'Unable to retrieve your memory records, sir. Vault access failed.';
+            }
+
+            if (!memories.length) {
                 return 'No conversations on file yet, sir.';
             }
 
-            const historyLines = conversations.map(conv => {
-                const timestamp = Math.floor(new Date(conv.timestamp).getTime() / 1000);
-                const userMessage = conv.userMessage
-                    ? conv.userMessage.replace(/\s+/g, ' ').trim()
+            // Sort chronologically (oldest first)
+            const sorted = memories
+                .map(entry => ({
+                    createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date(),
+                    data: entry.data || {}
+                }))
+                .sort((a, b) => a.createdAt - b.createdAt);
+
+            // Build full memory dump as text file
+            const lines = sorted.map((entry, idx) => {
+                const ts = entry.createdAt.toISOString();
+                const user = entry.data.userName || 'User';
+                const prompt = entry.data.userMessage || '(no prompt)';
+                const response = entry.data.jarvisResponse || '(no response)';
+                return `[MEMORY_${idx + 1}] ${ts}\nUser (${user}): ${prompt}\nJarvis: ${response}`;
+            });
+
+            const fileContent = `=== JARVIS MEMORY DUMP ===\nUser: ${userName} (${userId})\nEntries: ${sorted.length}\nGenerated: ${new Date().toISOString()}\n${'='.repeat(40)}\n\n${lines.join('\n\n' + '-'.repeat(40) + '\n\n')}`;
+
+            // Send as text file via DM
+            if (isSlash && interaction) {
+                try {
+                    const { AttachmentBuilder } = require('discord.js');
+                    const buffer = Buffer.from(fileContent, 'utf-8');
+                    const attachment = new AttachmentBuilder(buffer, { name: 'jarvis-memory-dump.txt' });
+                    const dmChannel = await interaction.user.createDM();
+                    await dmChannel.send({
+                        content: `Here are your last ${sorted.length} memory entries, sir.`,
+                        files: [attachment]
+                    });
+                    return 'Memory dump sent to your DMs, sir.';
+                } catch (dmError) {
+                    console.warn('[History] DM send failed:', dmError.message);
+                    return 'Unable to send DM, sir. Check your privacy settings.';
+                }
+            }
+
+            // Non-slash fallback: just show summary
+            const historyLines = sorted.map(entry => {
+                const timestamp = Math.floor(entry.createdAt.getTime() / 1000);
+                const userMessage = entry.data.userMessage
+                    ? entry.data.userMessage.replace(/\s+/g, ' ').trim()
                     : '(no prompt)';
                 return `• <t:${timestamp}:R> — ${userMessage.substring(0, 140)}${userMessage.length > 140 ? '…' : ''}`;
             });
@@ -269,133 +310,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 `Here are your last ${historyLines.length} prompts, sir:`,
                 ...historyLines
             ].join('\n');
-        }
-
-        if (cmd === 'digest' || cmd.startsWith('digest')) {
-            if (!database.isConnected) {
-                return 'Unable to compile a digest, sir. Database offline.';
-            }
-
-            const digestWindows = {
-                '6h': { label: '6 hours', duration: 6 * 60 * 60 * 1000 },
-                '24h': { label: '24 hours', duration: 24 * 60 * 60 * 1000 },
-                '7d': { label: '7 days', duration: 7 * 24 * 60 * 60 * 1000 }
-            };
-
-            let windowKey = '24h';
-            let highlightCount = 5;
-
-            if (isSlash && interaction?.commandName === 'digest') {
-                windowKey = interaction.options.getString('window') || windowKey;
-                highlightCount = interaction.options.getInteger('highlights') || highlightCount;
-            } else {
-                const [, windowMatch] = rawInput.match(/digest\s+(6h|24h|7d)/i) || [];
-                if (windowMatch) {
-                    windowKey = windowMatch.toLowerCase();
-                }
-            }
-
-            const windowConfig = digestWindows[windowKey] || digestWindows['24h'];
-            const since = new Date(Date.now() - windowConfig.duration);
-
-            let conversations = [];
-            if (effectiveGuildId) {
-                conversations = await database.getGuildConversationsSince(effectiveGuildId, since, {
-                    limit: 200
-                });
-            } else if (userId) {
-                conversations = await database.getConversationsSince(userId, since);
-            }
-
-            if (!conversations.length) {
-                return `No notable activity in the last ${windowConfig.label}, sir.`;
-            }
-
-            const sample = conversations.slice(-50);
-            const participantIds = new Set(
-                sample.map(entry => entry.userId || entry.userName || 'unknown')
-            );
-
-            const formattedLogs = sample
-                .map(entry => {
-                    const timestamp = entry.timestamp || entry.createdAt;
-                    const stamp = timestamp ? new Date(timestamp).toISOString() : 'unknown time';
-                    const userPrompt = (entry.userMessage || '')
-                        .replace(/\s+/g, ' ')
-                        .trim()
-                        .slice(0, 280);
-                    const jarvisResponse = (entry.jarvisResponse || '')
-                        .replace(/\s+/g, ' ')
-                        .trim()
-                        .slice(0, 280);
-                    return [
-                        `Time: ${stamp}`,
-                        `User: ${entry.userName || entry.userId || 'anonymous'}`,
-                        `Prompt: ${userPrompt || '(empty)'}`,
-                        `Response: ${jarvisResponse || '(empty)'}`
-                    ].join('\n');
-                })
-                .join('\n\n');
-
-            const statsLines = [
-                `• Interactions analysed: ${conversations.length}`,
-                `• Active participants: ${participantIds.size}`,
-                `• Window: ${windowConfig.label}`
-            ];
-
-            const highlightTarget = Math.min(Math.max(highlightCount, 3), 10);
-
-            const systemPrompt = [
-                'You are Jarvis, providing a concise operational digest for server moderators.',
-                'Summaries must be clear, action-oriented, and respectful.',
-                `Return ${highlightTarget} highlights with bullet markers.`,
-                'Mention emerging topics, noteworthy actions, and follow-up suggestions when relevant.',
-                'Each highlight must be 180 characters or fewer.',
-                'Keep the entire digest under 1800 characters. If information is sparse, note that honestly.'
-            ].join(' ');
-
-            const userPrompt = [
-                `Compile a digest for the past ${windowConfig.label}.`,
-                `Focus on ${highlightTarget} highlights and call out open loops (questions without answers, unresolved issues).`,
-                '',
-                formattedLogs
-            ].join('\n');
-
-            try {
-                const summary = await aiManager.generateResponse(systemPrompt, userPrompt, 500);
-                const digestBody =
-                    summary?.content?.trim() || 'Digest generation yielded no content, sir.';
-
-                const header = `**${windowConfig.label} Digest**`;
-                const statsBlock = statsLines.join('\n');
-                const plainOutput = [header, statsBlock, '', digestBody].join('\n');
-
-                if (plainOutput.length <= 1900) {
-                    return plainOutput;
-                }
-
-                const embed = new EmbedBuilder()
-                    .setTitle(`${windowConfig.label} Digest`)
-                    .setColor(0x5865f2)
-                    .addFields({ name: 'Stats', value: statsBlock });
-
-                const maxDescriptionLength = 3800;
-                const trimmedBody =
-                    digestBody.length > maxDescriptionLength
-                        ? `${digestBody.slice(0, maxDescriptionLength - 3)}...`
-                        : digestBody;
-
-                embed.setDescription(trimmedBody || 'No highlights generated.');
-
-                if (digestBody.length > maxDescriptionLength || plainOutput.length > 3900) {
-                    embed.setFooter({ text: 'Digest truncated to fit Discord limits.' });
-                }
-
-                return { embeds: [embed] };
-            } catch (error) {
-                console.error('Failed to generate digest:', error);
-                return 'I could not synthesize a digest at this time, sir.';
-            }
         }
 
         return null;
@@ -518,21 +432,8 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             const calledGarmin = /garmin/i.test(userInput);
             const nameUsed = calledGarmin ? 'Garmin' : this.personality.name;
 
-            let conversationEntries =
+            const conversationEntries =
                 allowsLongTermMemory && Array.isArray(secureMemories) ? secureMemories : [];
-            // Apply SBX memoryMultiplier to fallback conversation limit too
-            const conversationLimit = 8;
-            if (allowsLongTermMemory && !conversationEntries.length) {
-                const fallbackConversations = await database.getRecentConversations(userId, conversationLimit);
-                conversationEntries = fallbackConversations.map(conv => ({
-                    createdAt: conv.createdAt || conv.timestamp,
-                    data: {
-                        userMessage: conv.userMessage,
-                        jarvisResponse: conv.jarvisResponse,
-                        userName: conv.userName
-                    }
-                }));
-            }
 
             const chronologicalEntries = conversationEntries
                 .map(entry => ({
@@ -676,7 +577,6 @@ Current message: "${sanitizedInput}"`;
             if (allowsLongTermMemory) {
                 const guildId = interaction.guild?.id || null;
                 const cleanedResponse = stripReactionDirectives(jarvisResponse);
-                await database.saveConversation(userId, userName, userInput, cleanedResponse, guildId);
                 if (cleanedResponse) {
                     try {
                         await vaultClient.encryptMemory(userId, {

@@ -161,7 +161,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         candidates = stickyProvider
             ? [stickyProvider, ...rankedProviders.filter(p => p.name !== stickyProvider.name)]
             : rankedProviders;
-        console.log(`[SessionSticky] Using provider ${stickyProvider?.name || 'none'} for user ${userId}`);
+        // Session sticky provider selected silently — logged on success via provider.name below
     } else if (manager.useRandomSelection) {
         const randomProvider = manager._getRandomProvider();
         const rankedProviders = manager._rankedProviders();
@@ -438,15 +438,8 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 manager.totalTokensOut += tokensOut;
             }
             manager.scheduleStateSave();
-            const raw =
-                resp &&
-                    resp.choices &&
-                    resp.choices[0] &&
-                    resp.choices[0].message &&
-                    resp.choices[0].message.content
-                    ? String(resp.choices[0].message.content)
-                    : '';
-            const cleaned = sanitizeAssistantMessage(raw);
+            const raw = resp?.choices?.[0]?.message?.content;
+            const cleaned = raw ? String(raw) : '';
             // Detect truncated responses (hit max_tokens limit)
             const finishReason = resp?.choices?.[0]?.finish_reason;
             const wasTruncated = finishReason === 'length';

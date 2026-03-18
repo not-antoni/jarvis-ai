@@ -380,21 +380,23 @@ async function enforceMemoryLimits(userId, memoriesCollection) {
             }
         }
 
-        // Also enforce size limit (500KB per user)
-        const allMemories = await memoriesCollection.find({ userId }).sort({ createdAt: 1 }).toArray();
+        // Also enforce size limit (500KB per user) using stored meta.bytes
+        const sizeEntries = await memoriesCollection
+            .find({ userId }, { projection: { _id: 1, 'meta.bytes': 1 } })
+            .sort({ createdAt: 1 })
+            .toArray();
         let totalSize = 0;
-        for (const mem of allMemories) {
-            totalSize += JSON.stringify(mem).length;
+        for (const entry of sizeEntries) {
+            totalSize += entry.meta?.bytes || 512; // fallback estimate for legacy docs
         }
 
         if (totalSize > MAX_MEMORY_SIZE_BYTES) {
-            // Delete oldest memories until under limit
             const idsToDelete = [];
             let currentSize = totalSize;
-            for (const mem of allMemories) {
+            for (const entry of sizeEntries) {
                 if (currentSize <= MAX_MEMORY_SIZE_BYTES) {break;}
-                idsToDelete.push(mem._id);
-                currentSize -= JSON.stringify(mem).length;
+                idsToDelete.push(entry._id);
+                currentSize -= entry.meta?.bytes || 512;
             }
             if (idsToDelete.length > 0) {
                 await memoriesCollection.deleteMany({ _id: { $in: idsToDelete } });

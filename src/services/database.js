@@ -214,8 +214,6 @@ function stopConnectionMonitoring() {
 // Cache configuration
 const GUILD_CONFIG_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const GUILD_CONFIG_CACHE_MAX = 200; // Max 200 guilds cached
-const CONVERSATION_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-const CONVERSATION_CACHE_MAX = 500; // Max 500 user contexts cached
 class DatabaseManager {
     constructor() {
         this.client = null;
@@ -226,12 +224,6 @@ class DatabaseManager {
             ? new LRUCache({
                 max: GUILD_CONFIG_CACHE_MAX,
                 ttl: GUILD_CONFIG_CACHE_TTL
-            })
-            : null;
-        this.conversationCache = LRUCache
-            ? new LRUCache({
-                max: CONVERSATION_CACHE_MAX,
-                ttl: CONVERSATION_CACHE_TTL
             })
             : null;
     }
@@ -274,11 +266,9 @@ class DatabaseManager {
     }
     async createIndexes() {
         if (!this.db) {return;}
-        const ninetyDays = 60 * 60 * 24 * 90;
         const sixtyDays = 60 * 60 * 24 * 60;
         const thirtyDays = 60 * 60 * 24 * 30;
         const collections = {
-            conversations: this.db.collection(config.database.collections.conversations),
             userProfiles: this.db.collection(config.database.collections.userProfiles),
             guildConfigs: this.db.collection(config.database.collections.guildConfigs),
             memberLogs: this.db.collection(config.database.collections.memberLogs),
@@ -293,18 +283,6 @@ class DatabaseManager {
             reminders: this.db.collection(config.database.collections.reminders)
         };
         const indexPlans = [
-            {
-                label: 'conversations',
-                collection: collections.conversations,
-                definitions: [
-                    { key: { userId: 1, guildId: 1, createdAt: -1 } },
-                    {
-                        key: { createdAt: 1 },
-                        expireAfterSeconds: ninetyDays,
-                        name: 'ttl_conversations_createdAt'
-                    }
-                ]
-            },
             {
                 label: 'userProfiles',
                 collection: collections.userProfiles,
@@ -441,62 +419,12 @@ class DatabaseManager {
                         personalityDrift: 0,
                         activityPatterns: []
                     },
-                    $set: { lastSeen: new Date() }
+                    $inc: { interactions: 1 },
+                    $set: { lastSeen: new Date(), name: userName }
                 },
                 { upsert: true, returnDocument: 'after' }
             );
         return result;
-    }
-    async getRecentConversations(userId, limit = 20) {
-        if (!this.isConnected) {return [];}
-        // Check cache first (only for standard limit)
-        const cacheKey = `${userId}:${limit}`;
-        if (this.conversationCache) {
-            const cached = this.conversationCache.get(cacheKey);
-            if (cached) {return cached;}
-        }
-        const conversations = await this.db
-            .collection(config.database.collections.conversations)
-            .find({ userId })
-            .sort({ createdAt: -1, timestamp: -1 })
-            .limit(limit)
-            .toArray();
-        const result = conversations.reverse();
-        if (this.conversationCache) {
-            this.conversationCache.set(cacheKey, result);
-        }
-        return result;
-    }
-    async getConversationsSince(userId, since) {
-        if (!this.isConnected) {return [];}
-        const conversations = await this.db
-            .collection(config.database.collections.conversations)
-            .find({
-                userId,
-                $or: [
-                    { createdAt: { $gte: since } },
-                    { createdAt: { $exists: false }, timestamp: { $gte: since } }
-                ]
-            })
-            .sort({ createdAt: 1, timestamp: 1 })
-            .toArray();
-        return conversations;
-    }
-    async getGuildConversationsSince(guildId, since, { limit = 200 } = {}) {
-        if (!this.isConnected || !guildId) {return [];}
-        const query = {
-            guildId,
-            $or: [
-                { createdAt: { $gte: since } },
-                { createdAt: { $exists: false }, timestamp: { $gte: since } }
-            ]
-        };
-        return this.db
-            .collection(config.database.collections.conversations)
-            .find(query)
-            .sort({ createdAt: 1, timestamp: 1 })
-            .limit(limit)
-            .toArray();
     }
     async getPresenceMessages() {
         if (!this.isConnected || !this.db) {
@@ -523,54 +451,8 @@ class DatabaseManager {
             }))
             .filter(entry => Boolean(entry.message));
     }
-    async saveConversation(userId, userName, userInput, jarvisResponse, guildId = null) {
-        if (!this.isConnected || !this.db) {return;}
-        const now = new Date();
-        const conversation = {
-            userId,
-            userName,
-            userMessage: userInput,
-            jarvisResponse,
-            timestamp: now,
-            createdAt: now,
-            guildId
-        };
-        await this.db.collection(config.database.collections.conversations).insertOne(conversation);
-        // Invalidate conversation cache for this user
-        if (this.conversationCache) {
-            for (const key of this.conversationCache.keys()) {
-                if (key.startsWith(`${userId}:`)) {this.conversationCache.delete(key);}
-            }
-        }
-        // Clean up old conversations (keep only last 100 per user)
-        // Find the 100th newest doc's _id, then delete everything older
-        const cutoff = await this.db
-            .collection(config.database.collections.conversations)
-            .find({ userId })
-            .sort({ createdAt: -1, timestamp: -1 })
-            .skip(100)
-            .limit(1)
-            .project({ _id: 1 })
-            .toArray();
-        if (cutoff.length > 0) {
-            await this.db
-                .collection(config.database.collections.conversations)
-                .deleteMany({ userId, _id: { $lte: cutoff[0]._id } });
-        }
-        // Update user profile
-        await this.db.collection(config.database.collections.userProfiles).updateOne(
-            { userId },
-            {
-                $inc: { interactions: 1 },
-                $set: { lastSeen: new Date(), name: userName }
-            }
-        );
-    }
     async resetUserData(userId) {
         if (!this.isConnected || !this.db) {throw new Error('Database not connected');}
-        const convResult = await this.db
-            .collection(config.database.collections.conversations)
-            .deleteMany({ userId });
         const profileResult = await this.db
             .collection(config.database.collections.userProfiles)
             .deleteOne({ userId });
@@ -580,14 +462,7 @@ class DatabaseManager {
         } catch (error) {
             console.error('Failed to purge vault memories for user', userId, error);
         }
-        // Invalidate conversation cache
-        if (this.conversationCache) {
-            for (const key of this.conversationCache.keys()) {
-                if (key.startsWith(`${userId}:`)) {this.conversationCache.delete(key);}
-            }
-        }
         return {
-            conv: convResult.deletedCount,
             prof: profileResult.deletedCount
         };
     }
@@ -663,13 +538,6 @@ class DatabaseManager {
     async clearUserMemories(userId) {
         if (!this.isConnected) {throw new Error('Database not connected');}
         try {
-            await this.db
-                .collection(config.database.collections.conversations)
-                .deleteMany({ userId });
-        } catch (error) {
-            console.error('Failed to purge stored conversations for user', userId, error);
-        }
-        try {
             const vaultService = require('./vault-client');
             await vaultService.purgeUserMemories(userId);
         } catch (error) {
@@ -678,14 +546,10 @@ class DatabaseManager {
     }
     async clearDatabase() {
         if (!this.isConnected) {throw new Error('Database not connected');}
-        const convResult = await this.db
-            .collection(config.database.collections.conversations)
-            .deleteMany({});
         const profileResult = await this.db
             .collection(config.database.collections.userProfiles)
             .deleteMany({});
         return {
-            conv: convResult.deletedCount,
             prof: profileResult.deletedCount
         };
     }
