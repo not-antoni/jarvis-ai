@@ -56,7 +56,7 @@ class AIProviderManager {
         this.useRandomSelection = false;
         this.roundRobinIndex = 0; // Track position for fair distribution
         this.sessionStickiness = new Map(); // userId -> {provider, expiresAt}
-        this.sessionStickinessMs = 5 * 60 * 1000; // 5 minutes
+        this.sessionStickinessMs = 60 * 1000; // 60 seconds
         this.selectedProviderType = config.ai?.provider || 'auto'; // 'auto' | 'openai' | 'groq' | 'openrouter' | 'google' | 'deepseek'
         // OpenRouter rolling outage guardrails
         this.openRouterGlobalFailure = false;
