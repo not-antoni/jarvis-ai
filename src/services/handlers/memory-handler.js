@@ -54,21 +54,6 @@ async function handleMemoryCommand(handler, interaction) {
                 console.error('Failed to decrypt secure memories for memory command:', error);
             }
 
-            if (!historyEntries.length) {
-                try {
-                    const conversations = await database.getRecentConversations(userId, limit);
-                    historyEntries = conversations
-                        .map((conv) => ({
-                            createdAt: conv.createdAt ? new Date(conv.createdAt) : (conv.timestamp ? new Date(conv.timestamp) : new Date()),
-                            prompt: conv.userMessage || null,
-                            reply: conv.jarvisResponse || null,
-                            isShortTerm: false
-                        }))
-                        .sort((a, b) => b.createdAt - a.createdAt);
-                } catch (error) {
-                    console.error('Failed to load recent conversations for memory command:', error);
-                }
-            }
         }
 
         const formatSnippet = (text) => {

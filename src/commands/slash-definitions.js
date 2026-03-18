@@ -147,29 +147,6 @@ const allCommands = [
         )
     ),
     withCtx(new SlashCommandBuilder()
-        .setName('digest')
-        .setDescription('Summarize recent activity for this server')
-        .addStringOption(option =>
-            option
-                .setName('window')
-                .setDescription('Time range to summarize')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Last 6 hours', value: '6h' },
-                    { name: 'Last 24 hours', value: '24h' },
-                    { name: 'Last 7 days', value: '7d' }
-                )
-        )
-        .addIntegerOption(option =>
-            option
-                .setName('highlights')
-                .setDescription('Approximate number of highlights to surface (default 5)')
-                .setRequired(false)
-                .setMinValue(3)
-                .setMaxValue(10)
-        )
-    ),
-    withCtx(new SlashCommandBuilder()
         .setName('news')
         .setDescription('Fetch curated headlines for a topic')
         .addStringOption(option =>

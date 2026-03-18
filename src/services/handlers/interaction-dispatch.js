@@ -283,10 +283,6 @@ try {
             response = await slashUtility.handleHistory(interaction, handler.jarvis, userId, guildId);
             break;
         }
-        case 'digest': {
-            response = await slashUtility.handleDigest(interaction, handler.jarvis, userId, guildId);
-            break;
-        }
         default: {
             response = await handler.jarvis.handleUtilityCommand(
                 commandName,

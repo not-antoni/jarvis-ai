@@ -248,8 +248,6 @@ const handleClear = makeUtilityHandler('reset');
 const handleHelp = makeUtilityHandler('help');
 const handleProfile = makeUtilityHandler('profile');
 const handleHistory = makeUtilityHandler('history');
-const handleDigest = makeUtilityHandler('digest');
-
 async function handleAvatar(interaction) {
     const targetUser = interaction.options.getUser('user') || interaction.user;
     const useServerAvatar = interaction.options.getBoolean('server') === true;
@@ -406,7 +404,6 @@ module.exports = {
     handleHelp,
     handleProfile,
     handleHistory,
-    handleDigest,
     handleAvatar,
     handleBanner,
     handleUserinfo,
