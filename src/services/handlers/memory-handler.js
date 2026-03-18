@@ -1,6 +1,6 @@
 'use strict';
 
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const database = require('../database');
 const vaultClient = require('../vault-client');
 
@@ -22,53 +22,46 @@ async function handleMemoryCommand(handler, interaction) {
         const preference = String(memoryPreferenceRaw).toLowerCase();
         const isOptedOut = preference === 'opt-out';
 
-        let historyEntries = [];
-        let usedSecureMemories = false;
+        let allMemories = [];
 
         if (!isOptedOut) {
             try {
-                const secureMemories = await vaultClient.decryptMemories(userId, { limit: 60 });
-                if (secureMemories.length) {
-                    usedSecureMemories = true;
-
-                    const normalize = (entry) => {
-                        const payload = entry?.data || entry?.value || entry?.payload || null;
-                        return {
-                            createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date(),
-                            prompt: payload?.userMessage || payload?.prompt || null,
-                            reply: payload?.jarvisResponse || payload?.response || null,
-                            isShortTerm: !!entry.isShortTerm
-                        };
-                    };
-
-                    const normalized = secureMemories
-                        .map(normalize)
-                        .filter((e) => e.prompt || e.reply)
-                        .sort((a, b) => b.createdAt - a.createdAt);
-
-                    const longTerm = normalized.filter((e) => !e.isShortTerm).slice(0, 20);
-                    const shortTerm = normalized.filter((e) => e.isShortTerm).slice(0, 10);
-                    historyEntries = [...longTerm, ...shortTerm].slice(0, limit);
-                }
+                allMemories = await vaultClient.decryptMemories(userId, { limit: 60 });
             } catch (error) {
                 console.error('Failed to decrypt secure memories for memory command:', error);
             }
-
         }
 
+        const normalize = (entry) => {
+            const payload = entry?.data || entry?.value || entry?.payload || null;
+            return {
+                createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date(),
+                prompt: payload?.userMessage || payload?.prompt || null,
+                reply: payload?.jarvisResponse || payload?.response || null,
+                userName: payload?.userName || 'User',
+                isShortTerm: !!entry.isShortTerm
+            };
+        };
+
+        const normalized = allMemories
+            .map(normalize)
+            .filter((e) => e.prompt || e.reply)
+            .sort((a, b) => b.createdAt - a.createdAt);
+
+        // Build embed preview (limited entries)
+        const previewEntries = normalized.slice(0, limit);
+
         const formatSnippet = (text) => {
-            if (!text) {
-                return '—';
-            }
+            if (!text) return '—';
             const clean = text.replace(/\s+/g, ' ').trim();
             return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean;
         };
 
-        const lines = historyEntries.slice(0, limit).map((entry) => {
+        const lines = previewEntries.map((entry) => {
             const timestamp = `<t:${Math.floor(entry.createdAt.getTime() / 1000)}:R>`;
             const prompt = formatSnippet(entry.prompt);
             const reply = formatSnippet(entry.reply);
-            const tag = usedSecureMemories ? (entry.isShortTerm ? ' (short-term)' : ' (long-term)') : '';
+            const tag = entry.isShortTerm ? ' (short-term)' : ' (long-term)';
             return `• ${timestamp}${tag}\n  • Prompt: ${prompt}\n  • Reply: ${reply}`;
         });
 
@@ -95,14 +88,14 @@ async function handleMemoryCommand(handler, interaction) {
                 const truncatedLines = [];
                 let totalLength = 0;
                 for (const line of lines) {
-                    if (totalLength + line.length + 2 > 1000) {break;}
+                    if (totalLength + line.length + 2 > 1000) break;
                     truncatedLines.push(line);
                     totalLength += line.length + 2;
                 }
-                memoryValue = truncatedLines.length ? `${truncatedLines.join('\n\n')  }\n\n*...more entries truncated*` : 'Memory entries too long to display.';
+                memoryValue = truncatedLines.length ? `${truncatedLines.join('\n\n')}\n\n*...more entries truncated*` : 'Memory entries too long to display.';
             }
             embed.addFields({
-                name: `Recent Memories ${usedSecureMemories ? '(secure vault)' : ''}`,
+                name: 'Recent Memories (secure vault)',
                 value: memoryValue || 'No entries to display.'
             });
         } else {
@@ -110,6 +103,31 @@ async function handleMemoryCommand(handler, interaction) {
         }
 
         await interaction.editReply({ embeds: [embed] });
+
+        // Send full memory dump as text file via DM
+        if (!isOptedOut && normalized.length) {
+            const sorted = [...normalized].sort((a, b) => a.createdAt - b.createdAt);
+            const dumpLines = sorted.map((entry, idx) => {
+                const ts = entry.createdAt.toISOString();
+                const prompt = entry.prompt || '(no prompt)';
+                const response = entry.reply || '(no response)';
+                return `[MEMORY_${idx + 1}] ${ts}\nUser (${entry.userName}): ${prompt}\nJarvis: ${response}`;
+            });
+
+            const fileContent = `=== JARVIS MEMORY DUMP ===\nUser: ${userName} (${userId})\nEntries: ${sorted.length}\nGenerated: ${new Date().toISOString()}\n${'='.repeat(40)}\n\n${dumpLines.join('\n\n' + '-'.repeat(40) + '\n\n')}`;
+
+            try {
+                const buffer = Buffer.from(fileContent, 'utf-8');
+                const attachment = new AttachmentBuilder(buffer, { name: 'jarvis-memory-dump.txt' });
+                const dmChannel = await interaction.user.createDM();
+                await dmChannel.send({
+                    content: `Here are your ${sorted.length} memory entries, sir.`,
+                    files: [attachment]
+                });
+            } catch (dmError) {
+                console.warn('[Memory] DM send failed:', dmError.message);
+            }
+        }
     } catch (error) {
         console.error('handleMemoryCommand failed:', error);
         try {

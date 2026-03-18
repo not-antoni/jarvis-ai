@@ -117,22 +117,6 @@ const commandDefinitions = [
         ephemeral: true
     },
     {
-        name: 'history',
-        description: 'Review your recent prompts with Jarvis.',
-        category: 'Personal Tools',
-        usage: '/history [count]',
-        feature: 'coreChat',
-        ephemeral: true
-    },
-    {
-        name: 'digest',
-        description: 'Summarize recent server activity.',
-        category: 'Personal Tools',
-        usage: '/digest [window] [highlights]',
-        feature: 'digests',
-        ephemeral: true
-    },
-    {
         name: 'news',
         description: 'Fetch curated headlines for a topic.',
         category: 'Utilities',

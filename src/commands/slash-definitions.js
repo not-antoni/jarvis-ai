@@ -137,16 +137,6 @@ const allCommands = [
         )
     ),
     withCtx(new SlashCommandBuilder()
-        .setName('history')
-        .setDescription('Review your recent prompts')
-        .addIntegerOption(option =>
-            option
-                .setName('count')
-                .setDescription('How many prompts to show (max 20)')
-                .setRequired(false)
-        )
-    ),
-    withCtx(new SlashCommandBuilder()
         .setName('news')
         .setDescription('Fetch curated headlines for a topic')
         .addStringOption(option =>
