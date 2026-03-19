@@ -55,10 +55,6 @@ function cleanThinkingOutput(text) {
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 }
-function extractFinalPayload(text) {
-    if (!text || typeof text !== 'string') {return text;}
-    return text.trim();
-}
 function stripWrappingQuotes(text) {
     if (!text || typeof text !== 'string') {return text;}
     const trimmed = text.trim();
@@ -127,7 +123,7 @@ function stripLeadingPromptLeaks(text) {
 function sanitizeAssistantMessage(text) {
     if (!text || typeof text !== 'string') {return text;}
     const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(text);
-    const layered = extractFinalPayload(cleanThinkingOutput(sanitizeModelOutput(text)));
+    const layered = cleanThinkingOutput(sanitizeModelOutput(text));
     const withoutPromptLeaks = stripLeadingPromptLeaks(layered);
     const withoutPrefix = stripJarvisSpeakerPrefix(withoutPromptLeaks);
     const withoutChannelArtifacts = hadChannelArtifacts
@@ -151,48 +147,29 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         }
         console.log(`Reinitialized ${manager.providers.length} AI providers`);
     }
-    let candidates;
-    // FIX: Use session stickiness instead of random selection
-    // This keeps users on the same model within a 5-minute window
-    // while still distributing load via round-robin across all users
-    if (userId && manager._getSessionStickyProvider) {
-        const stickyProvider = manager._getSessionStickyProvider(userId);
-        const rankedProviders = manager._rankedProviders();
-        candidates = stickyProvider
-            ? [stickyProvider, ...rankedProviders.filter(p => p.name !== stickyProvider.name)]
-            : rankedProviders;
-        // Session sticky provider selected silently — logged on success via provider.name below
-    } else if (manager.useRandomSelection) {
-        const randomProvider = manager._getRandomProvider();
-        const rankedProviders = manager._rankedProviders();
-        candidates = randomProvider
-            ? [randomProvider, ...rankedProviders.filter(p => p.name !== randomProvider.name)]
-            : rankedProviders;
-    } else {
-        candidates = manager._rankedProviders();
-    }
+    // Session stickiness keeps users on the same model within a 60s window
+    // while distributing load via round-robin across all users
+    const stickyProvider = userId ? manager._getSessionStickyProvider(userId) : null;
+    const rankedProviders = manager._rankedProviders();
+    const candidates = stickyProvider
+        ? [stickyProvider, ...rankedProviders.filter(p => p.name !== stickyProvider.name)]
+        : rankedProviders;
     let lastError = null;
     for (const provider of candidates) {
         const started = Date.now();
-        const selectionType =
-            manager.useRandomSelection && candidates[0] === provider ? 'RANDOM' : 'FALLBACK';
-        const providerTypeInfo =
-            manager.selectedProviderType === 'auto'
-                ? '[AUTO]'
-                : `[${manager.selectedProviderType.toUpperCase()}]`;
-        console.log(
-            `Attempting AI request with ${provider.name} (${provider.model}) [${selectionType}] ${providerTypeInfo}`
-        );
         const callOnce = async() => {
             if (provider.type === 'google') {
-                const model = provider.client.getGenerativeModel({ model: provider.model });
+                const model = provider.client.getGenerativeModel({
+                    model: provider.model,
+                    systemInstruction: systemPrompt
+                });
                 let result;
                 try {
                     result = await model.generateContent({
                         contents: [
                             {
                                 role: 'user',
-                                parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+                                parts: [{ text: userPrompt }]
                             }
                         ],
                         generationConfig: {
