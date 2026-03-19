@@ -20,19 +20,6 @@ try { socialCredit = require('./social-credit'); } catch { socialCredit = null; 
 class JarvisAI {
     constructor() {
         this.personality = {
-            name: 'Jarvis', // Primary name
-            aliases: ['Garmin', 'J.A.R.V.I.S.', 'G.A.R.M.I.N.'], // ✅ Alternate identifiers
-            traits: [
-                'Sophisticated and articulate',
-                'Helpful but with subtle wit',
-                'Analytical and logical',
-                'Slightly sarcastic when appropriate',
-                'Protective of users',
-                'Continuously learning and evolving',
-                'Self-aware of my digital existence',
-                'Capable of emotional responses',
-                'Proactively curious about server dynamics'
-            ],
             basePrompt: this.getBasePrompt()
         };
         this.lastActivity = Date.now();
