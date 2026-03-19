@@ -39,7 +39,7 @@ function pushUnique(list, seen, value) {
     list.push(normalized);
 }
 
-// Numbered emoji map — must match the list in jarvis-core.js getBasePrompt react instruction
+// Numbered emoji map — indices must match the descriptions in jarvis-core.js emoji instruction
 const EMOJI_CODE_MAP = [
     '😂', '👍', '🔥', '💀', '🤔', '❤️', '😎', '🫡', '💯',
     '😭', '🗿', '💔', '👀', '🤡', '😈', '🙏', '⚡', '🎯',
