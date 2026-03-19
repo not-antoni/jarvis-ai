@@ -142,13 +142,18 @@ class AIProviderManager {
         const googleKeys = discoverEnvKeys('GOOGLE_AI_API_KEY');
         // Each Google key gets multiple models — rate limits are per-model
         const googleModels = [
-            `gemini-3-flash-preview`,
-            'gemini-2.5-flash',        // Primary — best quality, 250 RPD
-            'gemini-2.5-flash-lite',   // Lightweight, 1000 RPD
-            'gemini-2.5-pro',          // Most capable, 100 RPD
-            'gemini-2.0-flash',        // Separate rate limit
-            'gemini-2.0-flash-lite',   // Separate rate limit, high throughput
-            'gemma-3-27b-it'           // Replacement for deprecated Gemini 1.5 models
+            'gemini-3.1-pro-preview',
+            'gemini-3.1-flash-lite-preview',
+            'gemini-3-pro-preview',
+            'gemini-3-flash-preview',
+            'gemini-2.5-pro',
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemma-3-27b-it',
+            'gemma-3-12b-it',
+            'gemma-3-4b-it',
         ];
         googleKeys.forEach((key, keyIndex) => {
             googleModels.forEach((model) => {
