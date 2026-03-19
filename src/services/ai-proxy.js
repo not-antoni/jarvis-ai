@@ -206,8 +206,16 @@ async function provisionCloudflareProxies({ allowedHosts, debug }) {
             console.log(`[AIProxy] Creating workers.dev subdomain: ${desired}`);
         }
 
-        await ensureWorkersSubdomain({ accountId, subdomain: desired });
-        subdomain = await getWorkersSubdomain({ accountId });
+        try {
+            await ensureWorkersSubdomain({ accountId, subdomain: desired });
+        } catch (err) {
+            // 409 = subdomain already exists, that's fine
+            if (!String(err.message).includes('409')) { throw err; }
+            if (debug) { console.log('[AIProxy] Subdomain already exists, continuing'); }
+        }
+        // Retry fetching, fall back to desired name
+        try { subdomain = await getWorkersSubdomain({ accountId }); } catch {}
+        if (!subdomain) { subdomain = desired; }
     }
 
     if (!subdomain) {
