@@ -104,12 +104,16 @@ function sanitizeUserInput(text) {
     if (!text || typeof text !== 'string') {return '';}
 
     // Remove null bytes
-    const cleaned = text.replace(/\x00/g, '');
+    let cleaned = text.replace(/\x00/g, '');
 
-    // Don't collapse newlines here - preserve message structure
-    // But escape quotes and other dangerous chars
+    // Strip known prompt injection markers that could confuse models
+    cleaned = cleaned
+        .replace(/<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>/gi, '')
+        .replace(/\[INST\]|\[\/INST\]|\[SYS\]|\[\/SYS\]/gi, '')
+        .replace(/###\s*(System|Instruction|Response|Assistant|Human)\s*:/gi, '$1:')
+        .replace(/<<\s*SYS\s*>>|<<\s*\/SYS\s*>>/gi, '');
+
     return cleaned
-        .replace(/"/g, '\\"')
         .slice(0, 2000)
         .trim();
 }
