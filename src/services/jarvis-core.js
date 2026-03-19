@@ -299,13 +299,14 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
             // Emoji reaction instruction — numbered code system to prevent hallucination
             try {
-                const emojiMap = [
-                    '😂', '👍', '🔥', '💀', '🤔', '❤️', '😎', '🫡', '💯',
-                    '😭', '🗿', '💔', '👀', '🤡', '😈', '🙏', '⚡', '🎯',
-                    '😐', '🤝', '💪', '🥶', '😤', '🫠', '✅'
+                const emojiDescriptions = [
+                    '0=laughing', '1=thumbsup', '2=fire', '3=skull', '4=thinking',
+                    '5=heart', '6=cool', '7=salute', '8=100', '9=crying',
+                    '10=moai', '11=brokenheart', '12=eyes', '13=clown', '14=devil',
+                    '15=pray', '16=lightning', '17=bullseye', '18=neutral',
+                    '19=handshake', '20=flex', '21=cold', '22=angry', '23=melting', '24=checkmark'
                 ];
-                const codeList = emojiMap.map((e, i) => `${i}=${e}`).join(' ');
-                let emojiInstruction = `\n\n[EMOJI REACTION: Occasionally (~25% of messages), append [REACT:N] at the very END of your response where N is a number from the list: ${codeList}.`;
+                let emojiInstruction = `\n\n[EMOJI REACTION: Occasionally (~25% of messages), append [REACT:N] at the very END of your response where N is a number from: ${emojiDescriptions.join(' ')}.`;
                 const guildEmojis = interaction?.guild?.emojis?.cache;
                 if (guildEmojis && guildEmojis.size > 0) {
                     const customSample = guildEmojis
@@ -333,7 +334,8 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                     else if (score >= 0) { level = 'Neutral'; }
                     else if (score > socialCredit.BLOCK_THRESHOLD) { level = 'Low - at risk'; }
                     else { level = 'BLOCKED'; }
-                    systemPrompt += `\n\n[SOCIAL CREDIT SYSTEM — AUTHORITATIVE DATA, DO NOT FABRICATE]\nThis user's EXACT social credit score: ${socialCredit.formatFullNumber(score)}\nStatus level: ${level}\nEmojis: positive ${socialCredit.EMOJI_POSITIVE} negative ${socialCredit.EMOJI_NEGATIVE}\nIMPORTANT: When the user asks about their social credit, you MUST use ONLY the exact number above. NEVER invent, estimate, or round the score. If you are unsure, say "let me check" rather than guessing. The system penalizes cringe, uwu, and roleplay behavior.`;
+                    const displayScore = socialCredit.formatNumber(score);
+                    systemPrompt += `\n\n[SOCIAL CREDIT SYSTEM — AUTHORITATIVE DATA, DO NOT FABRICATE]\nThis user's social credit score: ${displayScore}\nStatus level: ${level}\nEmojis: positive ${socialCredit.EMOJI_POSITIVE} negative ${socialCredit.EMOJI_NEGATIVE}\nIMPORTANT: When the user asks about their social credit, say EXACTLY "${displayScore}". NEVER invent, estimate, or round the score. If you are unsure, say "let me check" rather than guessing. The system penalizes cringe, uwu, and roleplay behavior.`;
                 } catch (e) {
                     console.warn('[SocialCredit] Error:', e.message);
                 }
@@ -368,35 +370,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                     data: entry.data || {}
                 }))
                 .sort((a, b) => a.createdAt - b.createdAt);
-
-            const historyBlock = chronologicalEntries.length
-                ? chronologicalEntries
-                    .filter(entry => {
-                        const payload = entry.data || {};
-                        const reply = typeof payload.jarvisResponse === 'string' ? payload.jarvisResponse : '';
-                        const prompt = typeof payload.userMessage === 'string' ? payload.userMessage : '';
-                        return !isGarbageOutput(reply) && !isGarbageOutput(prompt);
-                    })
-                    .map(entry => {
-                        const timestamp = entry.createdAt.toLocaleString();
-                        const payload = entry.data || {};
-                        const rawPrompt =
-                            typeof payload.userMessage === 'string' ? payload.userMessage : '';
-                        const rawReply =
-                            typeof payload.jarvisResponse === 'string'
-                                ? stripReactionDirectives(payload.jarvisResponse)
-                                : '';
-                        const prompt = rawPrompt.replace(/\s+/g, ' ').trim();
-                        const reply = rawReply.replace(/\s+/g, ' ').trim();
-                        const truncatedPrompt =
-                            prompt.length > 400 ? `${prompt.slice(0, 397)}...` : prompt;
-                        const truncatedReply =
-                            reply.length > 400 ? `${reply.slice(0, 397)}...` : reply;
-                        const author = payload.userName || userName;
-                        return `${timestamp}: ${author}: ${truncatedPrompt}\n${nameUsed}: ${truncatedReply}`;
-                    })
-                    .join('\n')
-                : 'No prior conversations stored in secure memory.';
 
             const recentJarvisResponses = chronologicalEntries
                 .slice(-3)

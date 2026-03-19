@@ -268,16 +268,16 @@ class LoopDetectionService {
     getRecoveryPrompt(loopType) {
         const prompts = {
             [LoopType.REPETITIVE_CONTENT]:
-                'I notice I may be repeating myself. Let me try a completely different approach to help you.',
+                'Apologies, sir — my circuits appear to be echoing. What were we discussing?',
             [LoopType.ALTERNATING_PATTERN]:
-                'I seem to be going in circles. Let me step back and reconsider your request from scratch.',
+                'I seem to be caught in a feedback loop, sir. Resetting my train of thought.',
             [LoopType.SEMANTIC_LOOP]:
-                'My responses are becoming too similar. Let me try to provide something more useful.',
+                'My neural pathways are running in circles, sir. Could you restate that?',
             [LoopType.TOOL_CALL_LOOP]:
-                'I appear to be stuck in a repetitive pattern. Let me try a different method.'
+                'Systems are stuttering, sir. Give me a moment to recalibrate.'
         };
 
-        return prompts[loopType] || 'Let me try a different approach.';
+        return prompts[loopType] || 'Brief system hiccup, sir. Go ahead.';
     }
 
     setEnabled(enabled) {

@@ -120,12 +120,40 @@ function stripLeadingPromptLeaks(text) {
     }
     return trimmed;
 }
+function stripRefusalsAndIdentityBreaks(text) {
+    if (!text || typeof text !== 'string') {return text;}
+    let out = text;
+    // Strip "As an AI language model" / "As an AI assistant" prefixes
+    out = out.replace(/^(?:As an? (?:AI|artificial intelligence|language model|large language model|LLM)(?:\s*(?:assistant|model|,))?(?:\s*,?\s*)?(?:I (?:cannot|can't|don't|am not able to|must))?)/i, '');
+    // Strip refusal openers that break character
+    out = out.replace(/^(?:I'?m sorry,?\s*(?:but\s*)?)?I (?:cannot|can't|am (?:not |un)able to|must (?:not|decline to)|don't think I (?:should|can))\s+(?:help with|assist with|provide|generate|create|do)\s+(?:that|this)[.,]?\s*/i, '');
+    // Strip safety disclaimers mid-response
+    out = out.replace(/\b(?:(?:Please )?(?:note|remember|be aware) that (?:as an AI|I am an AI|this is (?:just )?(?:fiction|a joke|for entertainment)))[^.]*\.\s*/gi, '');
+    return out.trim();
+}
+function stripAsteriskActions(text) {
+    if (!text || typeof text !== 'string') {return text;}
+    // Remove *action* patterns (e.g. *clears throat*, *adjusts tie*)
+    // but preserve markdown bold **word** and italic *word* used for emphasis
+    return text.replace(/\*[a-z][^*\n]{2,60}\*(?:\s*)/gi, (match) => {
+        // Keep if it looks like markdown emphasis (single word or short phrase without verbs)
+        const inner = match.trim().slice(1, -1).trim();
+        const words = inner.split(/\s+/);
+        // Action patterns typically have verbs — 2+ words or gerund-like
+        if (words.length >= 2 || /(?:ing|tion|ly)$/i.test(inner)) {
+            return '';
+        }
+        return match;
+    }).replace(/\s{2,}/g, ' ').trim();
+}
 function sanitizeAssistantMessage(text) {
     if (!text || typeof text !== 'string') {return text;}
     const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(text);
     const layered = cleanThinkingOutput(sanitizeModelOutput(text));
     const withoutPromptLeaks = stripLeadingPromptLeaks(layered);
-    const withoutPrefix = stripJarvisSpeakerPrefix(withoutPromptLeaks);
+    const withoutRefusals = stripRefusalsAndIdentityBreaks(withoutPromptLeaks);
+    const withoutActions = stripAsteriskActions(withoutRefusals);
+    const withoutPrefix = stripJarvisSpeakerPrefix(withoutActions);
     const withoutChannelArtifacts = hadChannelArtifacts
         ? stripTrailingChannelArtifacts(withoutPrefix)
         : withoutPrefix;
