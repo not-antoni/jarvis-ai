@@ -110,7 +110,6 @@ const rawConfig = {
             vault: process.env.MONGO_DB_VAULT_NAME || 'jarvis_vault'
         },
         collections: {
-            conversations: 'conversations',
             userProfiles: 'userProfiles',
             guildConfigs: 'guildConfigs',
             socialCredit: 'socialCredit',
