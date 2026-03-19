@@ -328,7 +328,7 @@ function buildConfigFromEnv() {
 
     const allowedHosts = parseCsv(
         process.env.AI_PROXY_ALLOWED_HOSTS ||
-            'api.openai.com,openrouter.ai,api.groq.com,ollama.com,ai-gateway.vercel.sh'
+            'api.openai.com,openrouter.ai,api.groq.com,ollama.com,ai-gateway.vercel.sh,generativelanguage.googleapis.com,integrate.api.nvidia.com'
     ).map(host => host.toLowerCase());
 
     return {
@@ -437,7 +437,7 @@ function createProxyingFetch() {
 
                     const allowedHosts = String(
                         process.env.AI_PROXY_ALLOWED_HOSTS ||
-                            'api.openai.com,openrouter.ai,api.groq.com,ollama.com,ai-gateway.vercel.sh'
+                            'api.openai.com,openrouter.ai,api.groq.com,ollama.com,ai-gateway.vercel.sh,generativelanguage.googleapis.com,integrate.api.nvidia.com'
                     ).trim();
 
                     try {
@@ -500,12 +500,13 @@ function createProxyingFetch() {
         return order;
     }
 
-    return async function proxyingFetch(input, init) {
-        const baseFetch = global.fetch;
+    // Capture original fetch once at creation time — safe against global.fetch monkey-patching
+    const baseFetch = global.fetch;
+    if (typeof baseFetch !== 'function') {
+        throw new Error('Global fetch is not available in this Node runtime.');
+    }
 
-        if (typeof baseFetch !== 'function') {
-            throw new Error('Global fetch is not available in this Node runtime.');
-        }
+    return async function proxyingFetch(input, init) {
 
         const request = input instanceof Request ? input : null;
         const url =
@@ -693,6 +694,10 @@ let _cachedFetch = null;
 function getAIFetch() {
     if (!_cachedFetch) {
         _cachedFetch = createProxyingFetch();
+        // Monkey-patch global.fetch so SDKs that don't accept custom fetch
+        // (e.g. Google Generative AI) route through the proxy automatically.
+        // Safe because baseFetch is captured at creation time, not call time.
+        global.fetch = _cachedFetch;
     }
 
     return _cachedFetch;
