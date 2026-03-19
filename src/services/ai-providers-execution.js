@@ -441,20 +441,26 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 status: error.status
             });
             manager.scheduleStateSave();
-            console.error(
-                `Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${error.status ? `(Status: ${error.status})` : ''}`
-            );
+            const errStatus = error?.status || error?.response?.status;
+            if (errStatus !== 429) {
+                console.error(
+                    `Failed with ${provider.name} (${provider.model}) after ${latency}ms: ${error.message} ${errStatus ? `(Status: ${errStatus})` : ''}`
+                );
+            }
             lastError = error;
-            // Disable logic (circuit breaker) - uses exponential backoff
-            const shouldDisable = !error.transient;
-            if (shouldDisable) {
+            // Circuit breaker — rate limits (429) get short cooldown, real errors get escalating backoff
+            const status = error?.status || error?.response?.status;
+            if (status === 429) {
+                // Rate limit: bench for 45s only, don't escalate failure count
+                manager.disabledProviders.set(provider.name, Date.now() + 45 * 1000);
+            } else if (!error.transient) {
                 const currentFailures = (manager.providerFailureCounts.get(provider.name) || 0) + 1;
                 manager.providerFailureCounts.set(provider.name, currentFailures);
                 const backoffDurations = [
-                    5 * 60 * 1000,      // 1st failure: 5 minutes
-                    15 * 60 * 1000,     // 2nd failure: 15 minutes
-                    60 * 60 * 1000,     // 3rd failure: 1 hour
-                    2 * 60 * 60 * 1000  // 4th+ failure: 2 hours (max)
+                    2 * 60 * 1000,      // 1st failure: 2 minutes
+                    10 * 60 * 1000,     // 2nd failure: 10 minutes
+                    30 * 60 * 1000,     // 3rd failure: 30 minutes
+                    60 * 60 * 1000      // 4th+ failure: 1 hour (max)
                 ];
                 const backoffIndex = Math.min(currentFailures - 1, backoffDurations.length - 1);
                 const disableDuration = backoffDurations[backoffIndex];
