@@ -44,7 +44,5 @@ module.exports = {
         listen_timeout: 10000,
         shutdown_with_message: true,
 
-        // Pre/post hooks - ensure nginx security config on restart
-        post_update: ['node ./scripts/ensure-nginx-config.js']
     }]
 };
