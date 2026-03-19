@@ -217,7 +217,7 @@ async function handleJarvis(interaction, jarvis) {
         socialCredit.clearBlock(interaction.user.id).catch(() => {});
     }
 
-    const aiResponse = await jarvis.generateResponse(interaction, prompt, true, null, imageAttachments);
+    const aiResponse = await jarvis.generateResponse(interaction, prompt, true, imageAttachments);
 
     // ── Social Credit roll ──
     try {

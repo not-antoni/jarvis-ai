@@ -1217,7 +1217,6 @@ class DiscordHandlers {
         }
         let isReplyToJarvis = false;
         let isReplyToUser = false;
-        const contextualMemory = null;
         const rawContent = typeof message.content === 'string' ? message.content : '';
         const messageScope = 'message:jarvis';
         if (message.reference && message.reference.messageId) {
@@ -1427,7 +1426,7 @@ class DiscordHandlers {
             if (userCredit.blockedUntil && new Date() >= new Date(userCredit.blockedUntil)) {
                 socialCredit.clearBlock(message.author.id).catch(() => {});
             }
-            const response = await this.jarvis.generateResponse(message, fullContent, false, contextualMemory, imageAttachments);
+            const response = await this.jarvis.generateResponse(message, fullContent, false, imageAttachments);
             let reactCandidates = [];
             let cleanResponse = response;
             if (typeof response === 'string') {

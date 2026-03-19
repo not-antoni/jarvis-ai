@@ -8,7 +8,7 @@ const vaultClient = require('./vault-client');
 const config = require('../../config');
 const youtubeSearch = require('./youtube-search');
 const { EmbedBuilder } = require('discord.js');
-const { buildStructuredMemoryBlock, buildStructuredReplyContext, sanitizeUserInput } = require('../utils/memory-sanitizer');
+const { buildStructuredMemoryBlock, sanitizeUserInput } = require('../utils/memory-sanitizer');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const { isGarbageOutput } = require('../utils/garbage-detection');
 const { stripReactionDirectives } = require('../utils/react-tags');
@@ -264,7 +264,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         interaction,
         userInput,
         _isSlash = false,
-        contextualMemory = null,
         images = null
     ) {
         if (aiManager.providers.length === 0) {
@@ -358,31 +357,19 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                         return [];
                     });
             }
-            const calledGarmin = /garmin/i.test(userInput);
-            const nameUsed = calledGarmin ? 'Garmin' : this.personality.name;
-
             const conversationEntries =
                 allowsLongTermMemory && Array.isArray(secureMemories) ? secureMemories : [];
 
-            const chronologicalEntries = conversationEntries
-                .map(entry => ({
-                    createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date(),
-                    data: entry.data || {}
-                }))
-                .sort((a, b) => a.createdAt - b.createdAt);
-
-            const recentJarvisResponses = chronologicalEntries
+            // Extract last 3 Jarvis responses for phrasing dedup
+            const recentJarvisResponses = conversationEntries
                 .slice(-3)
                 .map(entry => {
-                    const payload = entry.data || {};
-                    return typeof payload.jarvisResponse === 'string'
-                        ? stripReactionDirectives(payload.jarvisResponse)
-                        : null;
+                    const resp = entry.data?.jarvisResponse;
+                    return typeof resp === 'string' ? stripReactionDirectives(resp) : null;
                 })
                 .filter(Boolean);
 
-            // use structured memory blocks instead of free-text interpolation
-            // this prevents models from treating memory content as additional instructions
+            // Structured memory blocks prevent models from treating memory as instructions
             const secureMemoryBlock = buildStructuredMemoryBlock(
                 conversationEntries.map(entry => ({
                     userMessage: entry.data?.userMessage,
@@ -394,11 +381,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 userName
             );
 
-            // build structured reply context (if available)
-            const structuredReplyContext = contextualMemory && contextualMemory.messages
-                ? buildStructuredReplyContext(contextualMemory.messages)
-                : '';
-
             // FIX: Sanitize user input to prevent injection
             const sanitizedInput = sanitizeUserInput(userInput);
 
@@ -406,7 +388,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
 ${secureMemoryBlock}
 [MEMORY RULE: ONLY reference what is in the block above. Never invent memories or past conversations. If nothing relevant is there, do not pretend otherwise.]
-${structuredReplyContext}
 ${recentJarvisResponses.length ? `[Vary your phrasing — your last replies started with: ${recentJarvisResponses.map(r => `"${r.slice(0, 30)}..."`).join(', ')}]` : ''}
 ${sanitizedInput}`;
 
