@@ -49,12 +49,7 @@ class AIProviderManager {
         this.providerErrors = new Map();
         this.metrics = new Map();
         this.disabledProviders = new Map();
-        // Selection & routing flags
-        // FIX: Changed to false to use ranked selection instead of random
-        // Random selection caused hallucinations due to model variance
-        // Ranked selection with round-robin ensures consistency
-        this.useRandomSelection = false;
-        this.roundRobinIndex = 0; // Track position for fair distribution
+        this.roundRobinIndex = 0;
         this.sessionStickiness = new Map(); // userId -> {provider, expiresAt}
         this.sessionStickinessMs = 60 * 1000; // 60 seconds
         this.selectedProviderType = config.ai?.provider || 'auto'; // 'auto' | 'openai' | 'groq' | 'openrouter' | 'google' | 'deepseek'
@@ -263,9 +258,7 @@ class AIProviderManager {
         }
         // Rank cheapest first by default
         this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
-        console.log(`Initialized ${this.providers.length} AI providers`);
-        console.log(`Provider selection mode: ${this.useRandomSelection ? 'Random' : 'Ranked'}`);
-        console.log(`Selected provider type: ${this.selectedProviderType}`);
+        console.log(`Initialized ${this.providers.length} AI providers (${this.selectedProviderType})`);
     }
     loadState() {
         // For Render, load async from MongoDB after startup
@@ -479,18 +472,8 @@ class AIProviderManager {
                 return score(mb) - score(ma);
             });
     }
-    _getRandomProvider(options = {}) {
-        const availableProviders = this._availableProviders(options);
-        if (availableProviders.length === 0) {return null;}
-        const minPriority = Math.min(...availableProviders.map(p => resolveCostPriority(p)));
-        const preferred = availableProviders.filter(p => resolveCostPriority(p) === minPriority);
-        const pool = preferred.length ? preferred : availableProviders;
-        return this._pickWeightedProvider(pool) || pool[Math.floor(Math.random() * pool.length)];
-    }
-
     /**
-     * new method for session stickiness
-     * keep user on same model for 5 minutes to ensure consistency (doesnt apply to paid ones skskskskksksksksksskSKskSKSKsksks)
+     * Session stickiness — keeps user on same model for 60s to ensure consistency
      */
     _getSessionStickyProvider(userId, options = {}) {
         const now = Date.now();
@@ -517,10 +500,6 @@ class AIProviderManager {
         return provider;
     }
 
-    /**
-     * n method for fair round-robin distribution
-     * cycles through ranked providers instead of random selection
-     */
     _getRoundRobinProvider(options = {}) {
         const availableProviders = this._availableProviders(options);
         if (availableProviders.length === 0) {return null;}
@@ -738,13 +717,6 @@ class AIProviderManager {
                 successRate: p.metrics.successRate != null ? p.metrics.successRate * 100 : null
             }
         }));
-    }
-    setRandomSelection(enabled) {
-        this.useRandomSelection = !!enabled;
-        console.log(`Provider selection mode changed to: ${enabled ? 'Random' : 'Ranked'}`);
-    }
-    getSelectionMode() {
-        return this.useRandomSelection ? 'random' : 'ranked';
     }
     setProviderType(providerType) {
         const validTypes = ['auto', 'openai', 'groq', 'openrouter', 'google', 'deepseek', 'nvidia', 'ollama'];
