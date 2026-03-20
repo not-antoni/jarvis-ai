@@ -187,24 +187,30 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         const started = Date.now();
         const callOnce = async() => {
             if (provider.type === 'google') {
-                const model = provider.client.getGenerativeModel({
-                    model: provider.model,
-                    systemInstruction: systemPrompt
-                });
-                let result;
-                try {
-                    result = await model.generateContent({
-                        contents: [
-                            {
-                                role: 'user',
-                                parts: [{ text: userPrompt }]
-                            }
-                        ],
-                        generationConfig: {
-                            temperature: config.ai?.temperature ?? 0.7,
-                            maxOutputTokens: maxTokens
-                        }
-                    });
+    // Gemma models don't support systemInstruction — inject it into the user message instead
+    const isGemma = provider.model.toLowerCase().startsWith('gemma');
+    const model = provider.client.getGenerativeModel(
+        isGemma
+            ? { model: provider.model }
+            : { model: provider.model, systemInstruction: systemPrompt }
+    );
+    const effectiveUserPrompt = isGemma && systemPrompt
+        ? `${systemPrompt}\n\n${userPrompt}`
+        : userPrompt;
+    let result;
+    try {
+        result = await model.generateContent({
+            contents: [
+                {
+                    role: 'user',
+                    parts: [{ text: effectiveUserPrompt }]
+                }
+            ],
+            generationConfig: {
+                temperature: config.ai?.temperature ?? 0.7,
+                maxOutputTokens: maxTokens
+            }
+        });
                 } catch (geminiError) {
                     const errorMessage = geminiError?.message || String(geminiError);
                     const status =

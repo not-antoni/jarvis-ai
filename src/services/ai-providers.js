@@ -118,7 +118,6 @@ class AIProviderManager {
         const groqModels = [
             'moonshotai/kimi-k2-instruct-0905',    // Primary — best quality
             'llama-3.3-70b-versatile',         // Fallback — separate rate limit
-            'llama-3.1-8b-instant'                  // Second fallback — separate rate limit
         ];
         groqKeys.forEach((key, keyIndex) => {
             groqModels.forEach((model) => {
@@ -150,10 +149,7 @@ class AIProviderManager {
             'gemini-2.5-flash',
             'gemini-2.5-flash-lite',
             'gemini-2.0-flash',
-            'gemini-2.0-flash-lite',
             'gemma-3-27b-it',
-            'gemma-3-12b-it',
-            'gemma-3-4b-it',
         ];
         googleKeys.forEach((key, keyIndex) => {
             googleModels.forEach((model) => {
