@@ -223,38 +223,50 @@ class AIProviderManager {
                 costTier: 'paid'
             });
         }
-        // ---------- Ollama providers (native API with vision support) ----------
-        // Auto-discover all OLLAMA_API_KEY, OLLAMA_API_KEY2, OLLAMA_API_KEY3, etc.
+        // ---------- Ollama providers ----------
+        // Two dedicated providers per key:
+        //   - Ollama{n}-vision  → qwen3-vl:235b-instruct-cloud  (images only, excluded from text chat)
+        //   - Ollama{n}-chat    → nemotron-3-super               (text chat only, no images)
         const ollamaKeys = discoverEnvKeys('OLLAMA_API_KEY');
         const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
-        const ollamaModel = process.env.OLLAMA_MODEL || 'qwen3-vl:235b-instruct-cloud';
+
         ollamaKeys.forEach((key, index) => {
+            // Vision provider — handles all image requests via generateResponseWithImages().
+            // visionOnly: true keeps it out of the regular text chat rotation (_rankedProviders).
             this.providers.push({
-                name: `Ollama${index + 1}`,
+                name: `Ollama${index + 1}-vision`,
                 apiKey: key,
                 baseURL: ollamaBaseUrl,
-                model: ollamaModel,
+                model: 'qwen3-vl:235b-instruct-cloud',
                 type: 'ollama',
                 family: 'ollama',
                 costTier: 'free',
-                supportsImages: true
+                supportsImages: true,
+                visionOnly: true
+            });
+
+            // Chat provider — text only, no image support. nemotron is chat-only so
+            // supportsImages is false and it will never be picked by generateResponseWithImages().
+            this.providers.push({
+                name: `Ollama${index + 1}-chat`,
+                apiKey: key,
+                baseURL: ollamaBaseUrl,
+                model: 'nemotron-3-super',
+                type: 'ollama',
+                family: 'ollama',
+                costTier: 'free',
+                supportsImages: false,
+                visionOnly: false
             });
         });
+
         // ---------- Cloudflare Workers AI (via deployed worker) ----------
         // Uses AI_PROXY_TOKEN for authentication (same as other proxies)
+        // llama-3.1-8b removed — model too weak. Swap in a stronger CF model here if needed.
         const cfWorkerUrl = process.env.CLOUDFLARE_WORKER_URL;
         const cfWorkerToken = process.env.AI_PROXY_TOKEN;
         if (cfWorkerUrl && cfWorkerToken) {
-            this.providers.push({
-                name: 'CloudflareAI',
-                workerUrl: cfWorkerUrl,
-                apiKey: cfWorkerToken,
-                model: '@cf/meta/llama-3.1-8b-instruct-fp8',
-                type: 'cloudflare-worker',
-                family: 'cloudflare',
-                costTier: 'free'
-            });
-            console.log('Cloudflare Workers AI provider configured');
+            console.log('Cloudflare Workers AI proxy configured (no model registered)');
         }
         // Rank cheapest first by default
         this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
@@ -414,6 +426,11 @@ class AIProviderManager {
         // Filter out moderationOnly providers unless explicitly allowed
         if (!allowModerationOnly) {
             filtered = filtered.filter(p => !p.moderationOnly);
+        }
+        // Exclude vision-only providers from regular text chat rotation.
+        // generateResponseWithImages() targets supportsImages directly so it still finds them.
+        if (!options.allowVisionOnly) {
+            filtered = filtered.filter(p => !p.visionOnly);
         }
         if (this.selectedProviderType === 'auto') {return filtered;}
         return filtered.filter(provider => {
