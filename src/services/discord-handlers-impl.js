@@ -131,6 +131,48 @@ class DiscordHandlers {
         this.maxInputBytes = 3 * 1024 * 1024; // 3MB cap for heavy media processing
     }
     sanitizePings(text) { return sanitizePingsUtil(text); }
+    canIgnoreChannelPermissionError(error) {
+        return error?.code === 50001 || error?.code === 50013;
+    }
+    shouldFallbackMessageReply(error) {
+        if (!error) {return false;}
+        if (error.code === 10008) {return true;}
+        return error.code === 50035 && Boolean(error?.rawError?.errors?.message_reference);
+    }
+    async sendTypingSafe(channel) {
+        if (!channel?.sendTyping) {return false;}
+        try {
+            await channel.sendTyping();
+            return true;
+        } catch (error) {
+            if (!this.canIgnoreChannelPermissionError(error)) {
+                console.warn('Failed to send typing:', error);
+            }
+            return false;
+        }
+    }
+    async replyToMessage(message, payload) {
+        if (!message?.reply) {
+            throw new Error('Message reply is unavailable');
+        }
+        const normalizedPayload =
+            typeof payload === 'string' ? { content: payload } : { ...(payload || {}) };
+        if (!normalizedPayload.allowedMentions) {
+            normalizedPayload.allowedMentions = { parse: [] };
+        }
+        try {
+            return await message.reply({
+                failIfNotExists: false,
+                ...normalizedPayload
+            });
+        } catch (error) {
+            if (!this.shouldFallbackMessageReply(error) || !message.channel?.send) {
+                throw error;
+            }
+            const { failIfNotExists, ...fallbackPayload } = normalizedPayload;
+            return await message.channel.send(fallbackPayload);
+        }
+    }
     async sendBufferOrLink(interaction, buffer, preferredName, options = {}) {
         const {
             maxUploadBytes = 8 * 1024 * 1024,
@@ -1282,7 +1324,7 @@ class DiscordHandlers {
         const ytCommandPattern = /^jarvis\s+yt\s+(.+)$/i;
         const ytMatch = cleanContent.match(ytCommandPattern);
         if (ytMatch) {
-            await message.reply('For video reconnaissance, deploy `/yt` instead, sir.');
+            await this.replyToMessage(message, 'For video reconnaissance, deploy `/yt` instead, sir.');
             this.setCooldown(message.author.id, messageScope);
             return;
         }
@@ -1295,10 +1337,8 @@ class DiscordHandlers {
             }
         }
         try {
-            await message.channel.sendTyping();
-        } catch (err) {
-            console.warn('Failed to send typing (permissions?):', err);
-        }
+            await this.sendTypingSafe(message.channel);
+        } catch (_) {}
         if (cleanContent.length > config.ai.maxInputLength) {
             const responses = [
                 'Rather verbose, sir. A concise version, perhaps?',
@@ -1312,7 +1352,7 @@ class DiscordHandlers {
                 'Brevity is the soul of wit, sir.'
             ];
             try {
-                await message.reply(responses[Math.floor(Math.random() * responses.length)]);
+                await this.replyToMessage(message, responses[Math.floor(Math.random() * responses.length)]);
             } catch (err) {
                 console.error('Failed to reply (permissions?):', err);
             }
@@ -1331,9 +1371,9 @@ class DiscordHandlers {
             if (utilityResponse) {
                 if (typeof utilityResponse === 'string' && utilityResponse.trim()) {
                     const safe = this.sanitizePings(utilityResponse);
-                    await message.reply({ content: safe, allowedMentions: { parse: [] } });
+                    await this.replyToMessage(message, { content: safe, allowedMentions: { parse: [] } });
                 } else {
-                    await message.reply({ content: 'Utility functions misbehaving, sir. Try another?', allowedMentions: { parse: [] } });
+                    await this.replyToMessage(message, { content: 'Utility functions misbehaving, sir. Try another?', allowedMentions: { parse: [] } });
                 }
                 return;
             }
@@ -1416,7 +1456,7 @@ class DiscordHandlers {
             }
             const userCredit = await socialCredit.getCredit(message.author.id);
             if (socialCredit.isBlocked(userCredit)) {
-                await message.reply({ content: socialCredit.getBlockMessage(userCredit), allowedMentions: { parse: [] } });
+                await this.replyToMessage(message, { content: socialCredit.getBlockMessage(userCredit), allowedMentions: { parse: [] } });
                 try {
                     await message.react('1477737004195123230');
                 } catch (_) { /* emoji not available */ }
@@ -1461,13 +1501,13 @@ class DiscordHandlers {
                 const chunks = splitMessage(safe + creditSuffix);
                 for (let i = 0; i < chunks.length; i++) {
                     if (i === 0) {
-                        await message.reply({ content: chunks[i], allowedMentions: { parse: [] } });
+                        await this.replyToMessage(message, { content: chunks[i], allowedMentions: { parse: [] } });
                     } else {
                         await message.channel.send({ content: chunks[i], allowedMentions: { parse: [] } });
                     }
                 }
             } else {
-                await message.reply({ content: 'Response circuits tangled, sir. Clarify your request?' + creditSuffix, allowedMentions: { parse: [] } });
+                await this.replyToMessage(message, { content: 'Response circuits tangled, sir. Clarify your request?' + creditSuffix, allowedMentions: { parse: [] } });
             }
             if (reactCandidates.length > 0) {
                 for (const candidate of reactCandidates) {
@@ -1481,11 +1521,11 @@ class DiscordHandlers {
         } catch (error) {
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
             console.error(`[${errorId}] Error processing message:`, error);
-            if (error?.code === 50013) {return;}
+            if (this.canIgnoreChannelPermissionError(error)) {return;}
             try {
-                await message.reply({ content: `Technical difficulties, sir. (${errorId}) Please try again shortly.`, allowedMentions: { parse: [] } });
+                await this.replyToMessage(message, { content: `Technical difficulties, sir. (${errorId}) Please try again shortly.`, allowedMentions: { parse: [] } });
             } catch (err) {
-                if (err?.code !== 50013) {
+                if (!this.canIgnoreChannelPermissionError(err)) {
                     console.error(`[${errorId}] Failed to send error reply:`, err);
                 }
             }

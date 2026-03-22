@@ -66,7 +66,7 @@ module.exports = {
 
     async execute(interaction) {
         const { guildId } = interaction;
-        const guildConfig = await database.getGuildConfig(guildId);
+        const guildConfig = await database.getGuildConfig(guildId) || {};
         const subcommand = interaction.options.getSubcommand();
 
         // LIST command is available to everyone (view only)

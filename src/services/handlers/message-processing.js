@@ -147,7 +147,11 @@ if (strippedClanker === 'clanker' && (isMentioned || isReplyToJarvis)) {
     if (limited) {return;}
 
     try {
-        await message.channel.sendTyping();
+        if (typeof handler.sendTypingSafe === 'function') {
+            await handler.sendTypingSafe(message.channel);
+        } else {
+            await message.channel.sendTyping();
+        }
         
         // Response variations - weighted probability: 99% text, 1% GIF
         const chance = Math.random();

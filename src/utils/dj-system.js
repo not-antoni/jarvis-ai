@@ -26,10 +26,10 @@ function isDjAdmin(member, guildConfig) {
     if (isOwnerCheck(member.id)) {return true;}
 
     // 2. Guild Owner override
-    if (member.guild.ownerId === member.id) {return true;}
+    if (member.guild?.ownerId === member.id) {return true;}
 
     // 3. Configured Owner Match
-    if (guildConfig && guildConfig.ownerId === member.id) {return true;}
+    if (guildConfig?.ownerId === member.id) {return true;}
 
     // 4. Administrator Permission
     if (member.permissions.has(PermissionFlagsBits.Administrator)) {return true;}
@@ -77,19 +77,21 @@ function isBlocked(userId, guildConfig) {
  */
 async function canControlMusic(interactionOrMessage, guildConfig = null) {
     const { member } = interactionOrMessage;
-    const { guildId } = interactionOrMessage;
-    const userId = member.id;
+    const guildId = interactionOrMessage?.guildId || interactionOrMessage?.guild?.id;
+    const userId = member?.id || interactionOrMessage?.author?.id;
+    if (!member || !userId) {return false;}
 
     // Fetch config if not provided
-    if (!guildConfig) {
+    if (!guildConfig && guildId) {
         guildConfig = await database.getGuildConfig(guildId);
     }
+    guildConfig = guildConfig || {};
 
     // 1. Check Blocklist (Except Bot Owner)
     if (!isOwnerCheck(userId) && isBlocked(userId, guildConfig)) {
         const reply = { content: '🚫 You are blocked from using music commands.', ephemeral: true };
         if (interactionOrMessage.reply) {await interactionOrMessage.reply(reply);}
-        else {interactionOrMessage.channel.send(reply);}
+        else if (interactionOrMessage.channel?.send) {await interactionOrMessage.channel.send(reply);}
         return false;
     }
 
@@ -107,7 +109,7 @@ async function canControlMusic(interactionOrMessage, guildConfig = null) {
                 ephemeral: true
             };
             if (interactionOrMessage.reply) {await interactionOrMessage.reply(reply);}
-            else {interactionOrMessage.channel.send(reply);}
+            else if (interactionOrMessage.channel?.send) {await interactionOrMessage.channel.send(reply);}
             return false;
         }
     }
