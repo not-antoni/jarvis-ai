@@ -1,11 +1,16 @@
+const crypto = require('crypto');
 const { SlashCommandBuilder, InteractionContextType } = require('discord.js');
 const { musicManager } = require('../../core/musicManager');
-const { resolveTrackInput } = require('../../services/music-resolver');
+const { resolveTrackInput, isUrl } = require('../../services/music-resolver');
 const soundcloudApi = require('../../services/soundcloud-api');
 const youtubeSearch = require('../../services/youtube-search');
 
 // Max file size: 10MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const AUTOCOMPLETE_SELECTION_TTL_MS = 10 * 60 * 1000;
+const AUTOCOMPLETE_SELECTION_MAX = 512;
+const AUTOCOMPLETE_TOKEN_PREFIX = 'ac:';
+const autocompleteSelectionCache = new Map();
 
 // Allowed audio extensions
 const AUDIO_EXTENSIONS = ['.mp3', '.ogg', '.oga', '.flac', '.wav', '.m4a', '.opus', '.webm', '.aac', '.wma', '.mp4', '.mov', '.mkv'];
@@ -24,12 +29,63 @@ function clampChoiceText(value, max = 100) {
     return `${text.slice(0, max - 3)}...`;
 }
 
+function pruneAutocompleteSelections(now = Date.now()) {
+    for (const [key, entry] of autocompleteSelectionCache.entries()) {
+        if (!entry || entry.expiresAt <= now) {
+            autocompleteSelectionCache.delete(key);
+        }
+    }
+
+    while (autocompleteSelectionCache.size > AUTOCOMPLETE_SELECTION_MAX) {
+        const oldestKey = autocompleteSelectionCache.keys().next().value;
+        if (!oldestKey) {break;}
+        autocompleteSelectionCache.delete(oldestKey);
+    }
+}
+
+function rememberAutocompleteSelection(url, source = 'track') {
+    const rawUrl = String(url || '').trim();
+    if (!rawUrl) {
+        return null;
+    }
+    if (rawUrl.length <= 100) {
+        return rawUrl;
+    }
+
+    const token = `${AUTOCOMPLETE_TOKEN_PREFIX}${source}:${crypto.createHash('sha1').update(rawUrl).digest('hex').slice(0, 24)}`;
+    autocompleteSelectionCache.set(token, {
+        url: rawUrl,
+        expiresAt: Date.now() + AUTOCOMPLETE_SELECTION_TTL_MS
+    });
+    pruneAutocompleteSelections();
+    return token;
+}
+
+function resolveAutocompleteSelection(value) {
+    const rawValue = String(value || '').trim();
+    if (!rawValue.startsWith(AUTOCOMPLETE_TOKEN_PREFIX)) {
+        return rawValue;
+    }
+
+    const entry = autocompleteSelectionCache.get(rawValue);
+    if (!entry) {
+        return rawValue;
+    }
+    if (entry.expiresAt <= Date.now()) {
+        autocompleteSelectionCache.delete(rawValue);
+        return rawValue;
+    }
+    return entry.url;
+}
+
 function buildSoundCloudChoice(track) {
     const title = String(track?.title || 'SoundCloud Track').trim();
     const meta = [track?.uploader, track?.duration].filter(Boolean).join(' • ');
     const name = clampChoiceText(meta ? `${title} — ${meta}` : title, 100);
     const rawValue = String(track?.url || '').trim();
-    const value = rawValue.length > 0 && rawValue.length <= 100 ? rawValue : clampChoiceText(title, 100);
+    const value = rawValue.length > 0
+        ? rememberAutocompleteSelection(rawValue, 'soundcloud')
+        : clampChoiceText(title, 100);
 
     if (!name || !value) {
         return null;
@@ -42,7 +98,7 @@ function buildYouTubeChoice(video) {
     const title = String(video?.title || 'YouTube Video').trim();
     const channel = video?.channel || '';
     const name = clampChoiceText(channel ? `${title} — ${channel}` : title, 100);
-    const value = String(video?.url || '').trim();
+    const value = rememberAutocompleteSelection(video?.url, 'youtube');
 
     if (!name || !value || value.length > 100) {
         return null;
@@ -156,8 +212,8 @@ module.exports = {
         const { canControlMusic } = require('../../utils/dj-system');
         if (!await canControlMusic(interaction)) {return;}
 
-        const scOption = interaction.options.getString('soundcloud');
-        const ytOption = interaction.options.getString('youtube');
+        const scOption = resolveAutocompleteSelection(interaction.options.getString('soundcloud'));
+        const ytOption = resolveAutocompleteSelection(interaction.options.getString('youtube'));
         const queryOption = scOption || ytOption;
 
         // Collect all file attachments
@@ -244,7 +300,7 @@ module.exports = {
 
             // If YouTube option was used with a plain query (not URL), search YouTube first
             let resolvedInput = queryOption;
-            if (ytOption && !/^https?:\/\//i.test(ytOption)) {
+            if (ytOption && !isUrl(ytOption)) {
                 const response = await youtubeSearch.searchVideos(ytOption, 1);
                 const topResult = response?.items?.[0];
                 if (!topResult?.url) {
@@ -288,5 +344,14 @@ module.exports = {
 
             await interaction.editReply(message);
         }
+    },
+
+    _test: {
+        rememberAutocompleteSelection,
+        resolveAutocompleteSelection,
+        buildSoundCloudChoice,
+        buildYouTubeChoice,
+        pruneAutocompleteSelections,
+        autocompleteSelectionCache
     }
 };
