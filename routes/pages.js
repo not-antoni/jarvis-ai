@@ -12,7 +12,6 @@ const { getPublicConfig } = require('../src/utils/public-config');
 const publicConfig = getPublicConfig();
 const DISCORD_INVITE = publicConfig.discordInviteUrl;
 const GA_MEASUREMENT_ID = publicConfig.gaMeasurementId;
-const REPO_URL = 'https://github.com/not-antoni/jarvis-ai';
 
 const LEGAL_STYLES = `
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -171,7 +170,6 @@ const PRIVACY_POLICY = `
             <div class="footer-links">
                 <a href="/tos">Terms</a>
                 <a href="/policy">Privacy</a>
-                <a href="${REPO_URL}" target="_blank" rel="noreferrer">Repo</a>
             </div>
             <p>Effective Date: March 16, 2026</p>
         </div>
@@ -244,7 +242,6 @@ const TERMS_OF_SERVICE = `
             <div class="footer-links">
                 <a href="/tos">Terms</a>
                 <a href="/policy">Privacy</a>
-                <a href="${REPO_URL}" target="_blank" rel="noreferrer">Repo</a>
             </div>
             <p>Effective Date: March 16, 2026</p>
         </div>
