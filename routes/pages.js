@@ -12,6 +12,7 @@ const { getPublicConfig } = require('../src/utils/public-config');
 const publicConfig = getPublicConfig();
 const DISCORD_INVITE = publicConfig.discordInviteUrl;
 const GA_MEASUREMENT_ID = publicConfig.gaMeasurementId;
+const CONTACT_EMAIL = 'dev@jorvis.org';
 
 const LEGAL_STYLES = `
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -95,11 +96,71 @@ const LEGAL_STYLES = `
         font-size: 0.85rem;
     }
     .back-link:hover { color: #fff; }
+    .copy-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 1.5rem;
+        transform: translate(-50%, 10px);
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.14);
+        color: #ddd;
+        padding: 0.6rem 0.85rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+        backdrop-filter: blur(8px);
+    }
+    .copy-toast.is-visible {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
     @media (max-width: 768px) {
         body { padding: 1rem; }
         .container { padding: 1.5rem; }
         h1 { font-size: 1.5rem; }
     }
+`;
+const CONTACT_SCRIPT = `
+    <div class="copy-toast" id="copyToast" aria-live="polite"></div>
+    <script>
+        const CONTACT_EMAIL = '${CONTACT_EMAIL}';
+        let copyToastTimer = null;
+
+        function showCopyToast(message) {
+            const toast = document.getElementById('copyToast');
+            if (!toast) return;
+            toast.textContent = message;
+            toast.classList.add('is-visible');
+            clearTimeout(copyToastTimer);
+            copyToastTimer = setTimeout(() => {
+                toast.classList.remove('is-visible');
+            }, 1600);
+        }
+
+        async function copyContactEmail(event) {
+            event.preventDefault();
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(CONTACT_EMAIL);
+                } else {
+                    const input = document.createElement('textarea');
+                    input.value = CONTACT_EMAIL;
+                    input.setAttribute('readonly', '');
+                    input.style.position = 'absolute';
+                    input.style.left = '-9999px';
+                    document.body.appendChild(input);
+                    input.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(input);
+                }
+                showCopyToast('copied to clipboard');
+            } catch (_) {
+                showCopyToast(CONTACT_EMAIL);
+            }
+        }
+    </script>
 `;
 
 const PRIVACY_POLICY = `
@@ -170,10 +231,12 @@ const PRIVACY_POLICY = `
             <div class="footer-links">
                 <a href="/tos">Terms</a>
                 <a href="/policy">Privacy</a>
+                <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
             <p>Effective Date: March 16, 2026</p>
         </div>
     </div>
+${CONTACT_SCRIPT}
 </body>
 </html>
 `;
@@ -242,10 +305,12 @@ const TERMS_OF_SERVICE = `
             <div class="footer-links">
                 <a href="/tos">Terms</a>
                 <a href="/policy">Privacy</a>
+                <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
             <p>Effective Date: March 16, 2026</p>
         </div>
     </div>
+${CONTACT_SCRIPT}
 </body>
 </html>
 `;
