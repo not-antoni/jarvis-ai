@@ -10,6 +10,15 @@ const aiFetch = getAIFetch();
 const fsp = fs.promises;
 const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
+const AUTO_FAMILY_PRIORITY = {
+    groq: 0,
+    openrouter: 1,
+    google: 2,
+    ollama: 3,
+    nvidia: 4,
+    deepseek: 5,
+    openai: 6
+};
 function discoverEnvKeys(prefix) {
     return Object.keys(process.env)
         .filter(key => new RegExp(`^${prefix}\\d*$`).test(key))
@@ -42,6 +51,13 @@ function resolveCostPriority(provider) {
         return COST_PRIORITY[tier];
     }
     return COST_PRIORITY.paid;
+}
+function resolveAutoFamilyPriority(provider) {
+    const family = String(provider?.family || '').toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(AUTO_FAMILY_PRIORITY, family)) {
+        return AUTO_FAMILY_PRIORITY[family];
+    }
+    return Number.MAX_SAFE_INTEGER;
 }
 class AIProviderManager {
     constructor() {
@@ -144,9 +160,7 @@ class AIProviderManager {
             'gemini-3.1-pro-preview',
             'gemini-3.1-flash-lite-preview',
             'gemini-3-pro-preview',
-            'gemini-3-flash-preview',
             'gemini-2.5-pro',
-            'gemini-2.5-flash',
             'gemini-2.0-flash',
             'gemma-3-27b-it',
         ];
@@ -444,6 +458,8 @@ class AIProviderManager {
                     return providerName.startsWith('openrouter');
                 case 'deepseek':
                     return providerName.startsWith('deepseek');
+                case 'nvidia':
+                    return providerName.startsWith('nvidia');
                 case 'google':
                     return providerName.startsWith('googleai');
                 case 'ollama':
@@ -486,6 +502,10 @@ class AIProviderManager {
                 };
                 const priorityDelta = resolveCostPriority(a) - resolveCostPriority(b);
                 if (priorityDelta !== 0) {return priorityDelta;}
+                if (this.selectedProviderType === 'auto') {
+                    const familyDelta = resolveAutoFamilyPriority(a) - resolveAutoFamilyPriority(b);
+                    if (familyDelta !== 0) {return familyDelta;}
+                }
                 return score(mb) - score(ma);
             });
     }
@@ -523,8 +543,18 @@ class AIProviderManager {
 
         // Always prefer cheapest tier
         const minPriority = Math.min(...availableProviders.map(p => resolveCostPriority(p)));
-        const preferred = availableProviders.filter(p => resolveCostPriority(p) === minPriority);
-        const pool = preferred.length ? preferred : availableProviders;
+        const cheapest = availableProviders.filter(p => resolveCostPriority(p) === minPriority);
+
+        let pool = cheapest.length ? cheapest : availableProviders;
+        if (this.selectedProviderType === 'auto' && pool.length > 0) {
+            const bestFamilyPriority = Math.min(...pool.map(resolveAutoFamilyPriority));
+            const preferredFamily = pool.filter(
+                provider => resolveAutoFamilyPriority(provider) === bestFamilyPriority
+            );
+            if (preferredFamily.length > 0) {
+                pool = preferredFamily;
+            }
+        }
 
         // Round-robin through pool
         this.roundRobinIndex = (this.roundRobinIndex + 1) % pool.length;

@@ -5,6 +5,10 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const database = require('../src/services/database');
+const {
+    getDefaultAllowedHostsCsv,
+    readCsvEnvWithFallback
+} = require('../src/services/ai-proxy-defaults');
 
 function parseBoolean(value, fallback = false) {
     if (value == null) {return Boolean(fallback);}
@@ -177,8 +181,7 @@ async function main() {
     }
 
     const allowedHosts = String(
-        process.env.AI_PROXY_ALLOWED_HOSTS ||
-            'api.openai.com,openrouter.ai,api.groq.com,ollama.com,ai-gateway.vercel.sh'
+        readCsvEnvWithFallback('AI_PROXY_ALLOWED_HOSTS', getDefaultAllowedHostsCsv())
     ).trim();
 
     const setToken = parseBoolean(process.env.AI_PROXY_SET_WORKER_TOKEN, true);
