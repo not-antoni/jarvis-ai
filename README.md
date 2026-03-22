@@ -1,8 +1,3 @@
-> [!WARNING]
-> This repository is public for transparency only.
-> You may read and inspect the code, but any use, modification, or distribution
-> without explicit permission is prohibited.
-
 # J.A.R.V.I.S.
 
 **Just A Rather Very Intelligent System** — A feature-rich Discord bot inspired by Tony Stark's AI assistant.
