@@ -159,6 +159,59 @@ function sanitizeAssistantMessage(text) {
         : withoutPrefix;
     return stripWrappingQuotes(withoutChannelArtifacts);
 }
+function extractOpenAICompatibleText(choice) {
+    const content = choice?.message?.content;
+    if (typeof content === 'string') {
+        return content;
+    }
+    if (Array.isArray(content)) {
+        return content
+            .map(part => {
+                if (typeof part === 'string') {return part;}
+                if (typeof part?.text === 'string') {return part.text;}
+                return null;
+            })
+            .filter(Boolean)
+            .join('\n')
+            .trim();
+    }
+    return null;
+}
+function parseNumericStatus(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+    if (typeof value === 'string' && /^\d{3}$/.test(value.trim())) {
+        return Number(value.trim());
+    }
+    return null;
+}
+function extractStatusFromMessage(message) {
+    const text = String(message || '');
+    const match = text.match(/\b([45]\d{2})\b/);
+    return match ? Number(match[1]) : null;
+}
+function normalizeOpenAICompatibleError(error, providerName = 'provider') {
+    const message = error?.message || String(error) || `OpenAI-compatible error from ${providerName}`;
+    const inferredStatus =
+        parseNumericStatus(error?.status) ||
+        parseNumericStatus(error?.response?.status) ||
+        parseNumericStatus(error?.cause?.status) ||
+        parseNumericStatus(error?.code) ||
+        parseNumericStatus(error?.body?.error?.code) ||
+        extractStatusFromMessage(message);
+    const lower = message.toLowerCase();
+    const transient =
+        Boolean(error?.transient) ||
+        (inferredStatus ? [408, 409, 423, 425, 429, 500, 502, 503, 504, 524].includes(inferredStatus) : false) ||
+        /provider returned error|temporar|timeout|timed out|overloaded|rate limit|try again/i.test(lower);
+
+    return Object.assign(new Error(message), error, {
+        status: inferredStatus || error?.status || error?.response?.status,
+        code: error?.code || inferredStatus || error?.response?.status,
+        transient
+    });
+}
 // ============ EXECUTION ENGINE ============
 /**
  * Core generation execution - tries each provider in order with retry logic.
@@ -395,18 +448,33 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 };
             }
             // OpenAI-compatible providers (OpenRouter, Groq, DeepSeek via Vercel AI Gateway)
-            const resp = await provider.client.chat.completions.create({
-                model: provider.model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                max_tokens: maxTokens,
-                temperature: config.ai?.temperature ?? 0.7
-            });
+            let resp;
+            try {
+                resp = await provider.client.chat.completions.create({
+                    model: provider.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    max_tokens: maxTokens,
+                    temperature: config.ai?.temperature ?? 0.7
+                });
+            } catch (openAiCompatError) {
+                throw normalizeOpenAICompatibleError(openAiCompatError, provider.name);
+            }
             const choice = resp?.choices?.[0];
-            const text = choice?.message?.content;
+            const text = extractOpenAICompatibleText(choice);
             if (!text || !String(text).trim()) {
+                const reasoning = String(choice?.message?.reasoning || '').trim();
+                const finishReason = choice?.finish_reason;
+                if (provider.name.startsWith('OpenRouter') && reasoning) {
+                    throw Object.assign(
+                        new Error(
+                            `Reasoning-only response from ${provider.name}${finishReason ? ` (finish_reason=${finishReason})` : ''}`
+                        ),
+                        { status: 502, transient: true }
+                    );
+                }
                 throw Object.assign(new Error(`Empty response content from ${provider.name}`), {
                     status: 502
                 });
@@ -805,5 +873,7 @@ async function generateResponseWithImages(
 module.exports = {
     executeGeneration,
     generateResponseWithImages,
-    sanitizeAssistantMessage
+    sanitizeAssistantMessage,
+    extractOpenAICompatibleText,
+    normalizeOpenAICompatibleError
 };
