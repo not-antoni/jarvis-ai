@@ -207,10 +207,13 @@ AI_PROXY_ENABLED=true
 AI_PROXY_URLS=https://worker-1.workers.dev/,https://worker-2.workers.dev/
 AI_PROXY_STRATEGY=round_robin
 AI_PROXY_TOKEN=your_shared_secret
+AI_PROXY_BYPASS_HOSTS=generativelanguage.googleapis.com
 AI_PROXY_FALLBACK_DIRECT=true
 ```
 
 Auto-provision workers: `npm run provision:ai-proxies`
+
+`generativelanguage.googleapis.com` is bypassed by default. Gemini rate limits are tied to your Google project/key, so rotating Cloudflare workers tends to amplify `429` responses instead of helping. Set `AI_PROXY_BYPASS_HOSTS=` if you explicitly want Google requests proxied.
 
 ---
 

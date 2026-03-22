@@ -2,6 +2,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const {
+    getDefaultAllowedHostsCsv,
+    getDefaultBypassHostsCsv,
+    readCsvEnvWithFallback
+} = require('./ai-proxy-defaults');
 
 function parseCsv(value) {
     return String(value || '')
@@ -327,8 +332,10 @@ function buildConfigFromEnv() {
     const fallbackDirect = parseBooleanEnv(process.env.AI_PROXY_FALLBACK_DIRECT, true);
 
     const allowedHosts = parseCsv(
-        process.env.AI_PROXY_ALLOWED_HOSTS ||
-            'api.openai.com,openrouter.ai,api.groq.com,ollama.com,ai-gateway.vercel.sh,generativelanguage.googleapis.com,integrate.api.nvidia.com'
+        readCsvEnvWithFallback('AI_PROXY_ALLOWED_HOSTS', getDefaultAllowedHostsCsv())
+    ).map(host => host.toLowerCase());
+    const bypassHosts = parseCsv(
+        readCsvEnvWithFallback('AI_PROXY_BYPASS_HOSTS', getDefaultBypassHostsCsv())
     ).map(host => host.toLowerCase());
 
     return {
@@ -338,7 +345,8 @@ function buildConfigFromEnv() {
         debug,
         token,
         fallbackDirect,
-        allowedHosts
+        allowedHosts,
+        bypassHosts
     };
 }
 
@@ -436,8 +444,10 @@ function createProxyingFetch() {
                     );
 
                     const allowedHosts = String(
-                        process.env.AI_PROXY_ALLOWED_HOSTS ||
-                            'api.openai.com,openrouter.ai,api.groq.com,ollama.com,ai-gateway.vercel.sh,generativelanguage.googleapis.com,integrate.api.nvidia.com'
+                        readCsvEnvWithFallback(
+                            'AI_PROXY_ALLOWED_HOSTS',
+                            getDefaultAllowedHostsCsv()
+                        )
                     ).trim();
 
                     try {
@@ -535,6 +545,13 @@ function createProxyingFetch() {
 
         const hostname = urlObj.hostname.toLowerCase();
         if (isLikelyPrivateHostname(hostname)) {
+            return baseFetch(input, init);
+        }
+
+        if (Array.isArray(config.bypassHosts) && config.bypassHosts.includes(hostname)) {
+            if (config.debug) {
+                console.log(`[AIProxy] Bypassing proxy for ${hostname}`);
+            }
             return baseFetch(input, init);
         }
 
@@ -656,7 +673,16 @@ function createProxyingFetch() {
                 const resp = await baseFetch(nextReq);
                 lastResponse = resp;
 
-                if (resp.status >= 500 || resp.status === 429) {
+                if (resp.status === 429) {
+                    if (config.debug) {
+                        console.log(
+                            `[AIProxy] ${hostname} got 429 via ${proxyIndex + 1}/${proxyUrls.length}; skipping remaining proxies`
+                        );
+                    }
+                    break;
+                }
+
+                if (resp.status >= 500) {
                     continue;
                 }
 
@@ -704,5 +730,9 @@ function getAIFetch() {
 }
 
 module.exports = {
-    getAIFetch
+    getAIFetch,
+    __testing: {
+        buildConfigFromEnv,
+        createProxyingFetch
+    }
 };
