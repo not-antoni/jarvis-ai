@@ -300,7 +300,7 @@ const LANDING_PAGE = `
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>
         </div>
-        <p class="footer-copy">© 2026 Jarvis • Made with love for Discord</p>
+        <p class="footer-copy">© 2026 Jarvis • Powered by caffeine for Discord</p>
     </footer>
     
     <script>
