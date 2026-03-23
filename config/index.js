@@ -163,8 +163,8 @@ const rawConfig = {
         maxSlashInputLength: 1024,
         temperature: 1,
         retryAttempts: 0,
-        // Provider selection: "auto" for random selection, or specific provider type
-        // Options: "auto", "openai", "groq", "openrouter", "google", "mixtral", "cohere"
+        // Provider selection: "auto" for round-robin, or specific provider family
+        // Options: "auto", "openai", "groq", "openrouter", "google", "nvidia", "deepseek", "ollama"
         provider: process.env.AI_PROVIDER || 'auto'
     },
 

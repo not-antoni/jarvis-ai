@@ -218,11 +218,6 @@ async function checkOptionalServices() {
         log.info('YouTube API not configured');
     }
 
-    if (process.env.CRYPTO_API_KEY) {
-        pass('Crypto API configured');
-    } else {
-        log.info('Crypto API not configured');
-    }
 }
 
 async function checkProjectStructure() {
