@@ -4,7 +4,6 @@
 
 const sharp = require('sharp');
 const path = require('path');
-const fetch = require('node-fetch');
 
 const CLANKER_GIF_PATH = path.join(__dirname, '../..', 'clanker-optimized.gif');
 const AVATAR_X = 196;

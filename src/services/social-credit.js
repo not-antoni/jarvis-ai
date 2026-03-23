@@ -11,7 +11,7 @@ const BLOCK_THRESHOLD      = -100000; // -100k = blocked
 const ACCEPTABLE_THRESHOLD =  20000;  // 20k = acceptable
 const GOOD_THRESHOLD       =  100000; // 100k = fine
 
-// Block duration: 10 minutes
+// Block duration: 2 minutes
 const BLOCK_DURATION_MS = 2 * 60 * 1000;
 
 // Chance to show credit notification (5%)
@@ -212,11 +212,9 @@ function buildNotifyMessage(amount, newScore) {
     const absAmount  = amount < 0n ? -amount : amount;
     const fmtAmount  = formatNumber(absAmount);
     const emoji      = amount > 0n ? EMOJI_POSITIVE : EMOJI_NEGATIVE;
-    const spamCount  = absAmount >= 1000000000n ? 7 : absAmount >= 1000000n ? 6 : absAmount >= 30000n ? 5 : absAmount >= 10000n ? 3 : absAmount >= 3000n ? 2 : 1;
-    const emojiSpam  = emoji.repeat(spamCount);
     const sign       = amount > 0n ? '+' : '-';
 
-    let msg = `${emojiSpam} ${sign}${fmtAmount} social credit ${emojiSpam}`;
+    let msg = `${emoji} ${sign}${fmtAmount} social credit`;
 
     if (newScore <= -50000n) {
         msg += `\n*current social credit: ${formatNumber(newScore)}* ${EMOJI_NEGATIVE}`;
@@ -304,7 +302,7 @@ function getBlockMessage(credit) {
         }
     }
 
-    return `${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}${EMOJI_NEGATIVE}\n\n` +
+    return `${EMOJI_NEGATIVE}\n\n` +
         `Not enough social credit.\n` +
         `Your social credit: **${formatNumber(credit.score)}**\n` +
         `*this rate limit expires in ${timeLeft || '10 minutes'}*\n\n`;

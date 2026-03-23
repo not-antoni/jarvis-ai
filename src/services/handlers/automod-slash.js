@@ -2,7 +2,6 @@
 
 const { EmbedBuilder, PermissionsBitField } = require('discord.js');
 const database = require('../database');
-const fetch = require('node-fetch');
 const automodUtils = require('./automod-utils');
 
 /**

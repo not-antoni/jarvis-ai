@@ -1,5 +1,4 @@
 const express = require('express');
-const fetch = require('node-fetch');
 const nacl = require('tweetnacl');
 const LRU = require('lru-cache');
 const LRUCache = typeof LRU === 'function' ? LRU : LRU.LRUCache;

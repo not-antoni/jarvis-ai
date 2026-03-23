@@ -256,7 +256,8 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         interaction,
         userInput,
         _isSlash = false,
-        images = null
+        images = null,
+        options = {}
     ) {
         if (aiManager.providers.length === 0) {
             return 'My cognitive functions are limited, sir. Please check my neural network configuration.';
@@ -291,7 +292,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             // Inject social credit score into context
             if (socialCredit) {
                 try {
-                    const credit = await socialCredit.getCredit(userId);
+                    const credit = options.socialCreditData || await socialCredit.getCredit(userId);
                     const score = credit.score || 0;
                     let level;
                     if (score >= socialCredit.GOOD_THRESHOLD) { level = 'Excellent standing'; }

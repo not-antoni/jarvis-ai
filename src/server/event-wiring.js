@@ -23,8 +23,6 @@ function wireEventHandlers(ctx) {
         console.log(
             `Joined new guild ${guild.name ?? 'Unknown'} (${guild.id}). Synchronizing slash commands.`
         );
-
-        console.log('Provider status on startup:', aiManager.getProviderStatus());
     });
 
 
@@ -65,57 +63,12 @@ function wireEventHandlers(ctx) {
         }
     });
 
-    client.on('messageUpdate', async(oldMessage, newMessage) => {
-    });
-
-    client.on('messageDeleteBulk', async(messages, channel) => {
-    });
-
     client.on('guildMemberAdd', async member => {
         await memberLog.handleGuildMemberAdd(discordHandlers, member, client);
     });
 
     client.on('guildMemberRemove', async member => {
         await memberLog.handleGuildMemberRemove(discordHandlers, member);
-    });
-
-    client.on('guildMemberUpdate', async(oldMember, newMember) => {
-    });
-
-    client.on('guildBanAdd', async ban => {
-    });
-
-    client.on('guildBanRemove', async ban => {
-    });
-
-    client.on('roleCreate', async role => {
-    });
-
-    client.on('roleDelete', async role => {
-    });
-
-    client.on('roleUpdate', async(oldRole, newRole) => {
-    });
-
-    client.on('channelCreate', async channel => {
-    });
-
-    client.on('channelDelete', async channel => {
-    });
-
-    client.on('channelUpdate', async(oldChannel, newChannel) => {
-    });
-
-    client.on('emojiCreate', async emoji => {
-    });
-
-    client.on('emojiDelete', async emoji => {
-    });
-
-    client.on('emojiUpdate', async(oldEmoji, newEmoji) => {
-    });
-
-    client.on('guildUpdate', async(oldGuild, newGuild) => {
     });
 
     // ─── Cleanup Cron ────────────────────────────────────────────────────────
@@ -148,6 +101,8 @@ function wireEventHandlers(ctx) {
             serverStatsRefreshJob.stop();
             try { tempSweepJob.stop(); } catch (_) { }
             try { uptimeSnapshotJob.stop(); } catch (_) { }
+            try { require('../services/meme-sender').stop(); } catch (_) { }
+            try { require('../services/user-features').stopReminderChecker(); } catch (_) { }
             await database.disconnect();
             try { await require('../utils/logger').flush(); } catch (_) { }
             client.destroy();
