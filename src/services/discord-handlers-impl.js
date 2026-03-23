@@ -22,7 +22,6 @@ const { commandFeatureMap } = require('../core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('../core/feature-flags');
 const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
 const tempFiles = require('../utils/temp-files');
-const { extractReactionDirective } = require('../utils/react-tags');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
 const { splitMessage } = require('../utils/discord-safe-send');
 const serverStats = require('./handlers/server-stats');
@@ -1467,13 +1466,7 @@ class DiscordHandlers {
                 socialCredit.clearBlock(message.author.id).catch(() => {});
             }
             const response = await this.jarvis.generateResponse(message, fullContent, false, imageAttachments);
-            let reactCandidates = [];
-            let cleanResponse = response;
-            if (typeof response === 'string') {
-                const parsedReactionDirective = extractReactionDirective(response);
-                cleanResponse = parsedReactionDirective.cleanText;
-                reactCandidates = parsedReactionDirective.reactionCandidates;
-            }
+            const cleanResponse = response;
             let creditSuffix = '';
             try {
                 const rawCreditContent = typeof message.content === 'string' ? message.content : '';
@@ -1508,15 +1501,6 @@ class DiscordHandlers {
                 }
             } else {
                 await this.replyToMessage(message, { content: 'Response circuits tangled, sir. Clarify your request?' + creditSuffix, allowedMentions: { parse: [] } });
-            }
-            if (reactCandidates.length > 0) {
-                for (const candidate of reactCandidates) {
-                    try {
-                        await message.react(candidate);
-                        break;
-                    } catch (_) {
-                    }
-                }
             }
         } catch (error) {
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
