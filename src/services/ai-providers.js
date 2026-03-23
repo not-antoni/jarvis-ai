@@ -100,9 +100,8 @@ class AIProviderManager {
         // ---------- OpenRouter providers ----------
         // Auto-discover all OPENROUTER_API_KEY, OPENROUTER_API_KEY2, etc.
         const openRouterKeys = discoverEnvKeys('OPENROUTER_API_KEY');
-        // Keep OpenRouter on the one free model that has behaved consistently for us.
         const openRouterModels = [
-            'nvidia/nemotron-3-super-120b-a12b:free'
+            'google/gemma-3-27b-it:free'
         ];
         openRouterKeys.forEach((key, keyIndex) => {
             openRouterModels.forEach((model) => {
