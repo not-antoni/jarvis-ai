@@ -13,7 +13,6 @@ const { LRUCache } = require('lru-cache');
 const { createCanvas, loadImage } = require('canvas');
 const sharp = require('sharp');
 const database = require('./database');
-const fetch = require('node-fetch');
 const { fetchBuffer } = require('../utils/net-guard');
 const CooldownManager = require('../core/cooldown-manager');
 const socialCredit = require('./social-credit');
@@ -1414,7 +1413,7 @@ class DiscordHandlers {
             if (userCredit.blockedUntil && new Date() >= new Date(userCredit.blockedUntil)) {
                 socialCredit.clearBlock(message.author.id).catch(() => {});
             }
-            const response = await this.jarvis.generateResponse(message, fullContent, false, imageAttachments);
+            const response = await this.jarvis.generateResponse(message, fullContent, false, imageAttachments, { socialCreditData: userCredit });
             const cleanResponse = response;
             let creditSuffix = '';
             try {
@@ -1484,8 +1483,8 @@ class DiscordHandlers {
         }
         try {
             if (subcommand === 'status') {
-                const config = await database.getServerStatsConfig(guild.id);
-                if (!config) {
+                const statsConfig = await database.getServerStatsConfig(guild.id);
+                if (!statsConfig) {
                     await interaction.editReply('Server statistics channels are not configured, sir.');
                     return;
                 }
@@ -1495,7 +1494,7 @@ class DiscordHandlers {
                     ['User channel', 'userChannelId'], ['Bot channel', 'botChannelId'],
                     ['Channel count channel', 'channelCountChannelId'], ['Role count channel', 'roleCountChannelId']
                 ];
-                const resolved = await Promise.all(channelDefs.map(([, key]) => this.resolveGuildChannel(guild, config[key])));
+                const resolved = await Promise.all(channelDefs.map(([, key]) => this.resolveGuildChannel(guild, statsConfig[key])));
                 const lines = channelDefs.map(([label], i) => `${label}: ${resolved[i] ? `<#${resolved[i].id}>` : 'Missing'}`);
                 const fmt = serverStats.formatServerStatsValue;
                 lines.push(`Current totals — Members: ${fmt(stats.total)}, Users: ${fmt(stats.userCount)}, Bots: ${fmt(stats.botCount)}, Channels: ${fmt(stats.channelCount)}, Roles: ${fmt(stats.roleCount)}`);

@@ -1,16 +1,29 @@
 'use strict';
 
+const path = require('path');
+const { AttachmentBuilder } = require('discord.js');
 const config = require('../../../config');
 const clankerGif = require('../../utils/clanker-gif');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
 
-async function handleMessage(handler, message, client) {
-const path = require('path');
-const { AttachmentBuilder } = require('discord.js');
 const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,1391010888915484672')
     .split(',')
     .map(id => id.trim())
     .filter(id => id.length > 0);
+
+function stripDiscordFormatting(text) {
+    return text
+        .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ''))
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*]+)\*/g, '$1')
+        .replace(/_([^_]+)_/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/~~([^~]+)~~/g, '$1')
+        .replace(/\|\|([^|]+)\|\|/g, '$1');
+}
+
+async function handleMessage(handler, message, client) {
 if (message.author.id === client.user.id) {return;}
 if (message.author.bot && !allowedBotIds.includes(message.author.id)) {return;}
 
@@ -36,26 +49,6 @@ const messageScope = 'message:jarvis';
 const allowWakeWords = Boolean(config.discord?.messageContent?.enabled);
 const rawContent = typeof message.content === 'string' ? message.content : '';
 const normalizedContent = rawContent.toLowerCase();
-
-// Strip Discord formatting to catch attempts to hide it in codeblocks, bold, etc.
-const stripDiscordFormatting = (text) => {
-    return text
-        // Remove code blocks (```text```)
-        .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, ''))
-        // Remove inline code (`text`)
-        .replace(/`([^`]+)`/g, '$1')
-        // Remove bold (**text**)
-        .replace(/\*\*([^*]+)\*\*/g, '$1')
-        // Remove italic (*text* or _text_)
-        .replace(/\*([^*]+)\*/g, '$1')
-        .replace(/_([^_]+)_/g, '$1')
-        // Remove underline (__text__)
-        .replace(/__([^_]+)__/g, '$1')
-        // Remove strikethrough (~~text~~)
-        .replace(/~~([^~]+)~~/g, '$1')
-        // Remove spoilers (||text||)
-        .replace(/\|\|([^|]+)\|\|/g, '$1');
-};
 
 const strippedContent = stripDiscordFormatting(rawContent);
 let containsWakeWord = false;

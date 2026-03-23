@@ -164,7 +164,7 @@ const rawConfig = {
         temperature: 1,
         retryAttempts: 0,
         // Provider selection: "auto" for round-robin, or specific provider family
-        // Options: "auto", "openai", "groq", "openrouter", "google", "nvidia", "deepseek", "ollama"
+        // Options: "auto", "openai", "groq", "cerebras", "sambanova", "mistral", "openrouter", "google", "nvidia", "deepseek", "ollama"
         provider: process.env.AI_PROVIDER || 'auto'
     },
 

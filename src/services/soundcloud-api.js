@@ -1,7 +1,5 @@
 'use strict';
 
-const fetch = require('node-fetch');
-
 const TOKEN_ENDPOINT = 'https://api.soundcloud.com/oauth2/token';
 const API_BASE = 'https://api-v2.soundcloud.com';
 

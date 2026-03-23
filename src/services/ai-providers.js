@@ -13,12 +13,15 @@ const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-s
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
 const AUTO_FAMILY_PRIORITY = {
     groq: 0,
-    openrouter: 1,
-    google: 2,
-    ollama: 3,
-    nvidia: 4,
-    deepseek: 5,
-    openai: 6
+    cerebras: 1,
+    sambanova: 2,
+    mistral: 3,
+    openrouter: 4,
+    google: 5,
+    ollama: 6,
+    nvidia: 7,
+    deepseek: 8,
+    openai: 9
 };
 function discoverEnvKeys(prefix) {
     return Object.keys(process.env)
@@ -149,6 +152,74 @@ class AIProviderManager {
                 });
             });
         });
+        // ---------- Cerebras providers (OpenAI-compatible) ----------
+        // Auto-discover all CEREBRAS_API_KEY, CEREBRAS_API_KEY2, etc.
+        const cerebrasKeys = discoverEnvKeys('CEREBRAS_API_KEY');
+        const cerebrasModels = [
+            'qwen-3-235b-a22b-instruct-2507',
+        ];
+        cerebrasKeys.forEach((key, keyIndex) => {
+            cerebrasModels.forEach((model) => {
+                const shortName = model.includes('/') ? model.split('/').pop() : model;
+                this.providers.push({
+                    name: `Cerebras${keyIndex + 1}-${shortName}`,
+                    client: new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://api.cerebras.ai/v1',
+                        fetch: aiFetch
+                    }),
+                    model,
+                    type: 'openai-chat',
+                    family: 'cerebras',
+                    costTier: 'free'
+                });
+            });
+        });
+        // ---------- Mistral providers (OpenAI-compatible) ----------
+        // Auto-discover all MISTRAL_API_KEY, MISTRAL_API_KEY2, etc.
+        const mistralKeys = discoverEnvKeys('MISTRAL_API_KEY');
+        const mistralModels = [
+            'mistral-medium-latest',
+        ];
+        mistralKeys.forEach((key, keyIndex) => {
+            mistralModels.forEach((model) => {
+                this.providers.push({
+                    name: `Mistral${keyIndex + 1}-${model}`,
+                    client: new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://api.mistral.ai/v1',
+                        fetch: aiFetch
+                    }),
+                    model,
+                    type: 'openai-chat',
+                    family: 'mistral',
+                    costTier: 'paid'
+                });
+            });
+        });
+        // ---------- SambaNova providers (OpenAI-compatible) ----------
+        // Auto-discover all SAMBANOVA_API_KEY, SAMBANOVA_API_KEY2, etc.
+        const sambanovaKeys = discoverEnvKeys('SAMBANOVA_API_KEY');
+        const sambanovaModels = [
+            'Qwen3-235B',
+        ];
+        sambanovaKeys.forEach((key, keyIndex) => {
+            sambanovaModels.forEach((model) => {
+                const shortName = model.includes('/') ? model.split('/').pop() : model;
+                this.providers.push({
+                    name: `SambaNova${keyIndex + 1}-${shortName}`,
+                    client: new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://api.sambanova.ai/v1',
+                        fetch: aiFetch
+                    }),
+                    model,
+                    type: 'openai-chat',
+                    family: 'sambanova',
+                    costTier: 'free'
+                });
+            });
+        });
         // ---------- Google AI (native SDK) ----------
         // Auto-discover all GOOGLE_AI_API_KEY, GOOGLE_AI_API_KEY2, etc.
         const googleKeys = discoverEnvKeys('GOOGLE_AI_API_KEY');
@@ -235,17 +306,13 @@ class AIProviderManager {
             });
         }
         // ---------- Ollama providers ----------
-        // Two dedicated providers per key:
-        //   - Ollama{n}-vision  → qwen3-vl:235b-instruct-cloud  (images only, excluded from text chat)
-        //   - Ollama{n}-chat    → nemotron-3-super               (text chat only, no images)
+        // Single provider per key: qwen3-vl handles both text chat and image requests.
         const ollamaKeys = discoverEnvKeys('OLLAMA_API_KEY');
         const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
 
         ollamaKeys.forEach((key, index) => {
-            // Vision provider — handles all image requests via generateResponseWithImages().
-            // visionOnly: true keeps it out of the regular text chat rotation (_rankedProviders).
             this.providers.push({
-                name: `Ollama${index + 1}-vision`,
+                name: `Ollama${index + 1}`,
                 apiKey: key,
                 baseURL: ollamaBaseUrl,
                 model: 'qwen3-vl:235b-instruct-cloud',
@@ -253,20 +320,6 @@ class AIProviderManager {
                 family: 'ollama',
                 costTier: 'free',
                 supportsImages: true,
-                visionOnly: true
-            });
-
-            // Chat provider — text only, no image support. nemotron is chat-only so
-            // supportsImages is false and it will never be picked by generateResponseWithImages().
-            this.providers.push({
-                name: `Ollama${index + 1}-chat`,
-                apiKey: key,
-                baseURL: ollamaBaseUrl,
-                model: 'nemotron-3-super',
-                type: 'ollama',
-                family: 'ollama',
-                costTier: 'free',
-                supportsImages: false,
                 visionOnly: false
             });
         });
@@ -459,6 +512,12 @@ class AIProviderManager {
                     return providerName.startsWith('nvidia');
                 case 'google':
                     return providerName.startsWith('googleai');
+                case 'cerebras':
+                    return providerName.startsWith('cerebras');
+                case 'sambanova':
+                    return providerName.startsWith('sambanova');
+                case 'mistral':
+                    return providerName.startsWith('mistral');
                 case 'ollama':
                     return providerName.startsWith('ollama');
                 default:
@@ -719,7 +778,7 @@ class AIProviderManager {
         }));
     }
     setProviderType(providerType) {
-        const validTypes = ['auto', 'openai', 'groq', 'openrouter', 'google', 'deepseek', 'nvidia', 'ollama'];
+        const validTypes = ['auto', 'openai', 'groq', 'cerebras', 'sambanova', 'mistral', 'openrouter', 'google', 'deepseek', 'nvidia', 'ollama'];
         if (!validTypes.includes(String(providerType).toLowerCase())) {
             throw new Error(`Invalid provider type. Valid options: ${validTypes.join(', ')}`);
         }
@@ -738,6 +797,9 @@ class AIProviderManager {
             else if (name.startsWith('openrouter')) {types.add('openrouter');}
             else if (name.startsWith('googleai')) {types.add('google');}
             else if (name.startsWith('deepseek')) {types.add('deepseek');}
+            else if (name.startsWith('cerebras')) {types.add('cerebras');}
+            else if (name.startsWith('sambanova')) {types.add('sambanova');}
+            else if (name.startsWith('mistral')) {types.add('mistral');}
             else if (name.startsWith('nvidia')) {types.add('nvidia');}
             else if (name.startsWith('ollama')) {types.add('ollama');}
         });

@@ -49,8 +49,6 @@ const LANDING_PAGE = `
             background: #000;
             color: #e4e4e4;
             min-height: 100vh;
-            height: 100vh;
-            overflow: hidden;
             display: flex;
             flex-direction: column;
         }
@@ -263,14 +261,13 @@ const LANDING_PAGE = `
         }
         
         /* Responsive */
-        @media (max-width: 900px) {
-        }
-        
         @media (max-width: 768px) {
-            .hero h1 { font-size: 2.25rem; }
+            .hero { padding: 2.5rem 5% 1.5rem; }
+            .hero h1 { font-size: 2rem; }
             .hero p { font-size: 1rem; }
             .nav-links { display: none; }
-            .stats-grid { gap: 2rem; }
+            .stats-grid { gap: 1.5rem; }
+            .stat-number { font-size: 1.75rem; }
         }
     </style>
 </head>

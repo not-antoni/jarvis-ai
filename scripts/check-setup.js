@@ -127,6 +127,9 @@ async function checkAIProviders() {
     const providers = {
         OPENROUTER_API_KEY: 'OpenRouter (free tier available)',
         GROQ_API_KEY: 'Groq (free tier, very fast)',
+        CEREBRAS_API_KEY: 'Cerebras (free tier, ultra fast)',
+        SAMBANOVA_API_KEY: 'SambaNova (free tier, fast)',
+        MISTRAL_API_KEY: 'Mistral (paid, high quality)',
         GOOGLE_AI_API_KEY: 'Google AI Studio (free Gemini)',
         OPENAI: 'OpenAI (paid)',
         AI_GATEWAY_API_KEY: 'DeepSeek via Gateway'

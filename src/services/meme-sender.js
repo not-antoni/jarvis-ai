@@ -27,6 +27,7 @@ class MemeSender {
         this.interval = setInterval(() => {
             this.sendMeme();
         }, 1000 * 60 * 60);
+        this.interval.unref();
     }
 
     stop() {
