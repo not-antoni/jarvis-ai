@@ -33,7 +33,7 @@ function isGarbageOutput(text) {
 
     // 3. Excessive semicolons/brackets mixed with natural words (JS-like garbage)
     const syntaxChars = (stripped.match(/[;(){}\[\]]/g) || []).length;
-    if (syntaxChars > 15 && syntaxChars / stripped.length > 0.03 && latinChars > 50) {return true;}
+    if (syntaxChars > 25 && syntaxChars / stripped.length > 0.08 && latinChars > 50) {return true;}
 
     return false;
 }

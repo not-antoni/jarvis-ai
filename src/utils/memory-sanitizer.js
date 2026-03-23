@@ -114,7 +114,7 @@ function sanitizeUserInput(text) {
         .replace(/<<\s*SYS\s*>>|<<\s*\/SYS\s*>>/gi, '');
 
     return cleaned
-        .slice(0, 2000)
+        .slice(0, 1024)
         .trim();
 }
 
