@@ -226,6 +226,7 @@ const PRIVACY_POLICY = `
 
         <h2>Contact</h2>
         <p>Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a></p>
+        <p>Email: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
 
         <div class="footer">
             <div class="footer-links">
@@ -296,7 +297,7 @@ const TERMS_OF_SERVICE = `
         <p>Jarvis integrates with external AI providers (e.g., OpenRouter) to generate responses. These providers may process input text temporarily for inference. Jarvis is not responsible for the data handling practices of third-party services.</p>
 
         <h2>10. Contact</h2>
-        <p>Questions or concerns? Contact us on Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a></p>
+        <p>Questions or concerns? Contact us on Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a> or by email at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
 
         <h2>11. Changes to Terms</h2>
         <p>We may update these Terms periodically. Continued use of Jarvis after changes means you accept the revised version.</p>
