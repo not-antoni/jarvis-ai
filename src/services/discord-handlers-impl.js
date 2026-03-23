@@ -2,7 +2,6 @@
  * Discord event handlers and command processing
  */
 const {
-    ChannelType,
     AttachmentBuilder,
     UserFlags,
     PermissionsBitField,
@@ -1225,62 +1224,12 @@ class DiscordHandlers {
     }
     async handleJarvisInteraction(message, client) {
         if (!this.canSendInChannel(message.channel)) {return;}
-        const isMentioned = message.mentions.has(client.user);
-        const isDM = message.channel.type === ChannelType.DM;
-        const lowerContent = message.content.toLowerCase();
-        let containsJarvis = false;
-        let guildHasCustomWord = false;
-        let guildWakeWordsDisabled = false;
-        try {
-            const userFeatures = require('./user-features');
-            if (message.guild) {
-                const guildWord = await userFeatures.getGuildWakeWord(message.guild.id);
-                if (guildWord) {
-                    guildHasCustomWord = true;
-                    containsJarvis = await userFeatures.matchesGuildWakeWord(message.guild.id, lowerContent);
-                }
-                guildWakeWordsDisabled = await userFeatures.isGuildWakeWordsDisabled(message.guild.id);
-            }
-            if (!containsJarvis) {
-                const userMatch = await userFeatures.matchesWakeWord(message.author.id, lowerContent);
-                if (userMatch) {containsJarvis = true;}
-            }
-        } catch (_e) {
-        }
-        if (!containsJarvis && !guildHasCustomWord && !guildWakeWordsDisabled) {
-            containsJarvis = config.wakeWords.some(trigger =>
-                lowerContent.includes(trigger)
-            );
-        }
-        const isBot = message.author.bot;
-        if (isBot) {
+        // Trigger validation (mentions, wake words, reply-to-jarvis) already done
+        // by message-processing.js handleMessage() — the only caller.
+        if (message.author.bot) {
             console.log(`Bot interaction detected from ${message.author.username} (${message.author.id}): ${message.content.substring(0, 50)}...`);
         }
-        let isReplyToJarvis = false;
-        let isReplyToUser = false;
-        const rawContent = typeof message.content === 'string' ? message.content : '';
         const messageScope = 'message:jarvis';
-        if (message.reference && message.reference.messageId) {
-            try {
-                const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
-                if (referencedMessage.author.id === client.user.id) {
-                    isReplyToJarvis = true;
-                } else if (!referencedMessage.author.bot) {
-                    isReplyToUser = true;
-                }
-            } catch (error) {
-                if (error.code !== 10008) {
-                    console.warn('Failed to fetch referenced message:', error.message);
-                }
-            }
-        }
-        if (isBot) {
-            if (!isMentioned && !containsJarvis) {return;}
-        } else {
-            if (!isDM && !isMentioned && !containsJarvis && !isReplyToJarvis && !(isReplyToUser && (isMentioned || containsJarvis))) {
-                return;
-            }
-        }
         let cleanContent = typeof message.content === 'string' ? message.content : '';
         try {
             if (message.mentions?.members && message.mentions.members.size > 0) {
