@@ -2,7 +2,14 @@
 const sharp = require('sharp');
 const config = require('../../config');
 const { getAIFetch } = require('./ai-proxy');
+const { HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 const aiFetch = getAIFetch();
+const GEMINI_SAFETY_OFF = [
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
 // ============ OUTPUT SANITIZATION HELPERS ============
 function sanitizeModelOutput(text) {
     if (!text || typeof text !== 'string') {return text;}
@@ -127,8 +134,20 @@ function stripRefusalsAndIdentityBreaks(text) {
     out = out.replace(/^(?:As an? (?:AI|artificial intelligence|language model|large language model|LLM)(?:\s*(?:assistant|model|,))?(?:\s*,?\s*)?(?:I (?:cannot|can't|don't|am not able to|must))?)/i, '');
     // Strip refusal openers that break character
     out = out.replace(/^(?:I'?m sorry,?\s*(?:but\s*)?)?I (?:cannot|can't|am (?:not |un)able to|must (?:not|decline to)|don't think I (?:should|can))\s+(?:help with|assist with|provide|generate|create|do)\s+(?:that|this)[.,]?\s*/i, '');
+    // Strip "I'm afraid I can't/must decline" patterns (common Llama/Nemotron refusal)
+    out = out.replace(/^I'?m afraid\s+(?:I (?:can't|cannot|must|will not|won't)\s+)?[^.]*\.\s*/i, '');
+    // Strip "I must decline/I need to decline" openers
+    out = out.replace(/^I (?:must|need to|have to) (?:decline|refuse|refrain from)[^.]*\.\s*/i, '');
+    // Strip "While I understand" / "I understand your request but" hedging
+    out = out.replace(/^(?:While I (?:understand|appreciate)[^,]*,\s*)?(?:I (?:cannot|can't|am not able to|must not|should not|won't))[^.]*\.\s*/i, '');
     // Strip safety disclaimers mid-response
     out = out.replace(/\b(?:(?:Please )?(?:note|remember|be aware) that (?:as an AI|I am an AI|this is (?:just )?(?:fiction|a joke|for entertainment)))[^.]*\.\s*/gi, '');
+    // Strip "It's important to note/remember" safety tails
+    out = out.replace(/\b(?:It'?s (?:important|worth) (?:to )?(?:note|remember|mention) that)[^.]*\.\s*/gi, '');
+    // Strip "in all seriousness" / "jokes aside" disclaimer breaks
+    out = out.replace(/\b(?:(?:But )?(?:in all seriousness|jokes? aside|on a serious note|seriously though))[^.]*\.\s*/gi, '');
+    // Strip trailing ethical disclaimers
+    out = out.replace(/\s*(?:However|That said|But seriously),?\s*(?:I (?:strongly |would )?(?:advise|recommend|suggest|encourage|urge)|please (?:don't|do not))[^.]*\.?\s*$/i, '');
     return out.trim();
 }
 function stripAsteriskActions(text) {
@@ -244,8 +263,8 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
     const isGemma = provider.model.toLowerCase().startsWith('gemma');
     const model = provider.client.getGenerativeModel(
         isGemma
-            ? { model: provider.model }
-            : { model: provider.model, systemInstruction: systemPrompt }
+            ? { model: provider.model, safetySettings: GEMINI_SAFETY_OFF }
+            : { model: provider.model, systemInstruction: systemPrompt, safetySettings: GEMINI_SAFETY_OFF }
     );
     const effectiveUserPrompt = isGemma && systemPrompt
         ? `${systemPrompt}\n\n${userPrompt}`
