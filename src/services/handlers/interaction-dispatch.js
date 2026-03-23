@@ -2,7 +2,6 @@
 
 const { commandMap: musicCommandMap } = require('../../commands/music');
 const { splitMessage } = require('../../utils/discord-safe-send');
-const { stripReactionDirectives } = require('../../utils/react-tags');
 const { recordCommandRun } = require('../../utils/telemetry');
 const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../../core/command-registry');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
@@ -304,9 +303,7 @@ try {
         }
         telemetryMetadata.reason = 'empty-response';
     } else if (typeof response === 'string') {
-        // Strip any reaction directive — slash commands can't react on the user's message
-        const cleanedResponse = stripReactionDirectives(response);
-        const trimmed = cleanedResponse.trim();
+        const trimmed = response.trim();
         const safe = handler.sanitizePings(trimmed);
         if (!safe.length) {
             await interaction.editReply('Response circuits tangled, sir. Try again?');
