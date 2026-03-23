@@ -13,7 +13,9 @@ const DEFAULT_ALLOWED_HOSTS = [
 const DEFAULT_BYPASS_HOSTS = [
     // Google Gemini rate limits are tied to the Google project/key,
     // so rotating Cloudflare workers only multiplies 429s instead of helping.
-    'generativelanguage.googleapis.com'
+    'generativelanguage.googleapis.com',
+    // Vercel AI Gateway rejects proxied requests (403) — must go direct.
+    'ai-gateway.vercel.sh'
 ];
 
 function getDefaultAllowedHostsCsv() {
