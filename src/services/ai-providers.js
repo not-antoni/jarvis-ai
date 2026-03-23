@@ -2,6 +2,7 @@
 const execution = require('./ai-providers-execution');
 const fs = require('fs');
 const path = require('path');
+const { LRUCache } = require('lru-cache');
 const OpenAI = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../../config');
@@ -66,7 +67,7 @@ class AIProviderManager {
         this.metrics = new Map();
         this.disabledProviders = new Map();
         this.roundRobinIndex = 0;
-        this.sessionStickiness = new Map(); // userId -> {provider, expiresAt}
+        this.sessionStickiness = new LRUCache({ max: 10000, ttl: 60 * 1000 }); // userId -> provider
         this.sessionStickinessMs = 60 * 1000; // 60 seconds
         this.selectedProviderType = config.ai?.provider || 'auto'; // 'auto' | 'openai' | 'groq' | 'openrouter' | 'google' | 'deepseek'
         // OpenRouter rolling outage guardrails
@@ -510,26 +511,15 @@ class AIProviderManager {
      * Session stickiness — keeps user on same model for 60s to ensure consistency
      */
     _getSessionStickyProvider(userId, options = {}) {
-        const now = Date.now();
-        const session = this.sessionStickiness.get(userId);
-
-        if (session && session.expiresAt > now) {
-            // Session still valid, return same provider
-            return session.provider;
-        }
-
-        // Clean up expired entry
-        if (session) {
-            this.sessionStickiness.delete(userId);
+        const cached = this.sessionStickiness.get(userId);
+        if (cached) {
+            return cached;
         }
 
         // Session expired or doesn't exist - pick new one via round-robin
         const provider = this._getRoundRobinProvider(options);
         if (provider) {
-            this.sessionStickiness.set(userId, {
-                provider,
-                expiresAt: now + this.sessionStickinessMs
-            });
+            this.sessionStickiness.set(userId, provider);
         }
         return provider;
     }
@@ -556,39 +546,6 @@ class AIProviderManager {
         // Round-robin through pool
         this.roundRobinIndex = (this.roundRobinIndex + 1) % pool.length;
         return pool[this.roundRobinIndex];
-    }
-    _computeProviderWeight(provider) {
-        const metrics = this.metrics.get(provider.name) || {
-            successes: 0,
-            failures: 0,
-            avgLatencyMs: null
-        };
-        const total = (metrics.successes || 0) + (metrics.failures || 0);
-        const successRate = total > 0 ? metrics.successes / total : 0.85;
-        const latency = Math.max(metrics.avgLatencyMs || 1500, 150);
-        const errorPenalty = this.providerErrors.has(provider.name) ? 0.4 : 1;
-        return Math.max((successRate + 0.2) * (1 / latency) * errorPenalty, 0.0001);
-    }
-    _pickWeightedProvider(candidates) {
-        if (!candidates.length) {
-            return null;
-        }
-        const weighted = candidates.map(provider => ({
-            provider,
-            weight: this._computeProviderWeight(provider)
-        }));
-        const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
-        if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
-            return candidates[Math.floor(Math.random() * candidates.length)];
-        }
-        let threshold = Math.random() * totalWeight;
-        for (const entry of weighted) {
-            threshold -= entry.weight;
-            if (threshold <= 0) {
-                return entry.provider;
-            }
-        }
-        return weighted[weighted.length - 1].provider;
     }
     _recordMetric(name, ok, latencyMs) {
         const m = this.metrics.get(name) || { successes: 0, failures: 0, avgLatencyMs: 1500 };
@@ -798,10 +755,7 @@ class AIProviderManager {
         for (const [name, disabledUntil] of this.disabledProviders.entries()) {
             if (disabledUntil <= now) {this.disabledProviders.delete(name);}
         }
-        // Prune expired session stickiness entries
-        for (const [uid, session] of this.sessionStickiness.entries()) {
-            if (session.expiresAt <= now) {this.sessionStickiness.delete(uid);}
-        }
+        // LRU handles session stickiness expiry automatically
     }
     /**
      * Force reinitialize all providers - useful for recovery from corrupted state

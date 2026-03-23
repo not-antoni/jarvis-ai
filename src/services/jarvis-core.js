@@ -23,6 +23,15 @@ class JarvisAI {
             basePrompt: this.getBasePrompt()
         };
         this.lastActivity = Date.now();
+        // Pre-build static emoji description string (never changes)
+        this._staticEmojiDescriptions = [
+            '0=laughing', '1=thumbsup', '2=fire', '3=skull', '4=thinking',
+            '5=heart', '6=cool', '7=salute', '8=100', '9=crying',
+            '10=moai', '11=brokenheart', '12=eyes', '13=clown', '14=devil',
+            '15=pray', '16=lightning', '17=bullseye', '18=neutral',
+            '19=handshake', '20=flex', '21=cold', '22=angry', '23=melting', '24=checkmark'
+        ].join(' ');
+        this._emojiInjectRate = 0.30; // Only inject emoji instruction 30% of the time
     }
     getBasePrompt() {
         return `You are J.A.R.V.I.S., Tony Stark's AI assistant in a Discord server.
@@ -285,30 +294,25 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                 }
             }
 
-            // Emoji reaction instruction — numbered code system to prevent hallucination
-            try {
-                const emojiDescriptions = [
-                    '0=laughing', '1=thumbsup', '2=fire', '3=skull', '4=thinking',
-                    '5=heart', '6=cool', '7=salute', '8=100', '9=crying',
-                    '10=moai', '11=brokenheart', '12=eyes', '13=clown', '14=devil',
-                    '15=pray', '16=lightning', '17=bullseye', '18=neutral',
-                    '19=handshake', '20=flex', '21=cold', '22=angry', '23=melting', '24=checkmark'
-                ];
-                let emojiInstruction = `\n\n[EMOJI REACTION: Occasionally (~25% of messages), append [REACT:N] at the very END of your response where N is a number from: ${emojiDescriptions.join(' ')}.`;
-                const guildEmojis = interaction?.guild?.emojis?.cache;
-                if (guildEmojis && guildEmojis.size > 0) {
-                    const customSample = guildEmojis
-                        .filter(e => e.available)
-                        .random(15);
-                    if (customSample.length) {
-                        const customCodes = customSample.map((e, i) => `C${i}=<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`);
-                        emojiInstruction += ` Server emojis: ${customCodes.join(' ')}.`;
+            // Emoji reaction instruction — only injected ~30% of the time to save tokens
+            if (Math.random() < this._emojiInjectRate) {
+                try {
+                    let emojiInstruction = `\n\n[EMOJI REACTION: Append [REACT:N] at the very END of your response where N is a number from: ${this._staticEmojiDescriptions}.`;
+                    const guildEmojis = interaction?.guild?.emojis?.cache;
+                    if (guildEmojis && guildEmojis.size > 0) {
+                        const customSample = guildEmojis
+                            .filter(e => e.available)
+                            .random(15);
+                        if (customSample.length) {
+                            const customCodes = customSample.map((e, i) => `C${i}=<${e.animated ? 'a' : ''}:${e.name}:${e.id}>`);
+                            emojiInstruction += ` Server emojis: ${customCodes.join(' ')}.`;
+                        }
                     }
+                    emojiInstruction += ' Output ONLY the code (e.g. [REACT:3] or [REACT:C2]), never the emoji itself. One tag, always last line. Skip it if nothing fits.]';
+                    systemPrompt += emojiInstruction;
+                } catch (e) {
+                    // Emoji instruction not critical
                 }
-                emojiInstruction += ' Output ONLY the code (e.g. [REACT:3] or [REACT:C2]), never the emoji itself. One tag, always last line. Skip it if nothing fits.]';
-                systemPrompt += emojiInstruction;
-            } catch (e) {
-                // Emoji instruction not critical
             }
 
             // Inject social credit score into context
@@ -337,7 +341,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
 
             let secureMemories = [];
-            const memoryLimit = 30;
+            const memoryLimit = 10;
             if (allowsLongTermMemory) {
                 secureMemories = await vaultClient
                     .decryptMemories(userId, { limit: memoryLimit })
