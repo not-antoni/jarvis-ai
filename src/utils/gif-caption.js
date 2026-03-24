@@ -109,8 +109,8 @@ async function captionAnimated({ inputBuffer, captionText }) {
         '-i',
         inPath,
         '-filter_complex',
-        // Normalize to 30fps and cap width to 720 (preserve AR). Use positional args for scale for broader ffmpeg compatibility.
-        '[1:v]fps=30,scale=if(gte(iw,720),720,iw):-2:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[gif];' +
+        // Normalize to 30fps and cap width to 720 (preserve AR).
+        '[1:v]fps=30,scale=if(gte(iw\\,720)\\,720\\,iw):-2,setsar=1,setpts=PTS-STARTPTS[gif];' +
             '[0:v]format=rgba,setsar=1,setpts=PTS-STARTPTS[ov];' +
             '[ov][gif]vstack=inputs=2:shortest=1[v];' +
             '[v]split[v0][v1];' +

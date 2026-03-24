@@ -194,6 +194,7 @@ const PRIVACY_POLICY = `
         <h2>What We Collect</h2>
         <ul>
             <li><strong>Message Content</strong> – Only when you interact with Jarvis (mentions, commands, or DMs). Used to generate replies and operate features.</li>
+            <li><strong>Voice Audio</strong> – When Jarvis is active in a voice channel, audio is captured, converted to text (speech-to-text), and discarded immediately. <strong>Audio is never stored.</strong> Only the resulting text transcription is processed, subject to the same rules as message content.</li>
             <li><strong>Conversation History ("Memories")</strong> – Includes your messages, Jarvis's replies, timestamps, and basic identifiers to maintain context.</li>
             <li><strong>Operational Metadata</strong> – Usage data and event logs for reliability and performance. (TTL)</li>
             <li><strong>Member Data</strong> – Used only for status-related channels and not stored long-term.</li>
@@ -204,6 +205,7 @@ const PRIVACY_POLICY = `
         <ul>
             <li>Generate relevant AI responses.</li>
             <li>Maintain conversation memory and personalization.</li>
+            <li>Process voice audio in real time for speech-to-text and text-to-speech in voice channels.</li>
             <li>Support AutoMod, statistics, and other bot functions.</li>
             <li>Improve stability and detect abuse.</li>
         </ul>
@@ -216,6 +218,7 @@ const PRIVACY_POLICY = `
 
         <h2>Third-Party Services</h2>
         <p>Jarvis uses external AI providers (e.g., OpenRouter) to generate responses. These providers may process message content temporarily for completions. Their privacy policy: <a href="https://openrouter.ai/privacy" target="_blank">openrouter.ai/privacy</a></p>
+        <p>Voice features use NVIDIA NIM APIs for speech-to-text and text-to-speech processing. Audio is transmitted securely and is not retained by NVIDIA after processing. Their privacy policy: <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">nvidia.com/privacy-policy</a></p>
 
         <h2>Your Rights</h2>
         <ul>
@@ -234,7 +237,7 @@ const PRIVACY_POLICY = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 16, 2026</p>
+            <p>Effective Date: March 24, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}
@@ -271,13 +274,13 @@ const TERMS_OF_SERVICE = `
         <p>By using Jarvis ("we," "our," or "the bot"), you agree to these Terms of Service. If you disagree, do not use Jarvis.</p>
 
         <h2>2. Description of Service</h2>
-        <p>Jarvis is a Discord assistant that provides AI-powered chat, AutoMod tools, server statistics, and direct message (DM) interaction. Some responses are generated through external AI services (such as OpenRouter).</p>
+        <p>Jarvis is a Discord assistant that provides AI-powered chat, voice chat (speech-to-text and text-to-speech), music playback, AutoMod tools, server statistics, and direct message (DM) interaction. Some responses are generated through external AI services (such as OpenRouter and NVIDIA NIM).</p>
 
         <h2>3. Usage Requirements</h2>
         <p>You must comply with Discord's Terms of Service and Community Guidelines. Do not use Jarvis for spam, harassment, or any unlawful activity.</p>
 
         <h2>4. Data and Privacy Summary</h2>
-        <p>Jarvis processes message content only when you interact directly with it (via mentions, commands, or DMs). To provide context-aware replies, Jarvis stores limited conversation history—user message, Jarvis reply, timestamp, and identifiers—in a secure database.</p>
+        <p>Jarvis processes message content when you interact with it (via mentions, commands, DMs, or voice chat). In voice channels, audio is processed in real time for speech-to-text—audio is never stored, only the resulting transcription is used. To provide context-aware replies, Jarvis stores limited conversation history—user message, Jarvis reply, timestamp, and identifiers—in a secure database.</p>
         <p>Users can fully opt out of data storage and delete all stored data (memories) at any time using in-bot commands (e.g., <code>/clear</code> or <code>/opt out</code>). Data is not used to train AI models and is not sold or shared externally.</p>
         <p>Full details are outlined in our <a href="/policy">Privacy Policy</a>.</p>
 
@@ -294,7 +297,7 @@ const TERMS_OF_SERVICE = `
         <p>You may remove Jarvis from your server or DMs at any time. We may suspend or terminate access for abuse or violation of these Terms.</p>
 
         <h2>9. Third-Party Services</h2>
-        <p>Jarvis integrates with external AI providers (e.g., OpenRouter) to generate responses. These providers may process input text temporarily for inference. Jarvis is not responsible for the data handling practices of third-party services.</p>
+        <p>Jarvis integrates with external AI providers (e.g., OpenRouter) to generate responses and NVIDIA NIM APIs for voice processing (speech-to-text and text-to-speech). These providers may process input data temporarily for inference. Jarvis is not responsible for the data handling practices of third-party services.</p>
 
         <h2>10. Contact</h2>
         <p>Questions or concerns? Contact us on Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a> or by email at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -308,7 +311,7 @@ const TERMS_OF_SERVICE = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 16, 2026</p>
+            <p>Effective Date: March 24, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}
