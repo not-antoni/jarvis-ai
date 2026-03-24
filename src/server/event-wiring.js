@@ -5,6 +5,7 @@ const interactionDispatch = require('../services/handlers/interaction-dispatch')
 const gameHandlers = require('../services/handlers/game-handlers');
 const memberLog = require('../services/handlers/member-log');
 const messageProcessing = require('../services/handlers/message-processing');
+const voiceChatService = require('../services/voice-chat-service');
 
 /**
  * Wire Discord client event handlers and process error/shutdown handlers.
@@ -16,6 +17,9 @@ function wireEventHandlers(ctx) {
         aiManager, database, cron,
         serverStatsRefreshJob, tempSweepJob, uptimeSnapshotJob
     } = ctx;
+
+    // ─── Voice Chat Init ──────────────────────────────────────────────────────
+    voiceChatService.init(client, discordHandlers.jarvis);
 
     // ─── Guild Events ────────────────────────────────────────────────────────
 
@@ -61,6 +65,11 @@ function wireEventHandlers(ctx) {
         } catch (e) {
             console.warn('VoiceMaster Error:', e);
         }
+        try {
+            voiceChatService.handleVoiceStateUpdate(oldState, newState);
+        } catch (e) {
+            console.warn('VoiceChat auto-leave error:', e);
+        }
     });
 
     client.on('guildMemberAdd', async member => {
@@ -103,6 +112,7 @@ function wireEventHandlers(ctx) {
             try { uptimeSnapshotJob.stop(); } catch (_) { }
             try { require('../services/meme-sender').stop(); } catch (_) { }
             try { require('../services/user-features').stopReminderChecker(); } catch (_) { }
+            try { voiceChatService.sessions.forEach((_, gid) => voiceChatService._destroy(gid)); } catch (_) { }
             await database.disconnect();
             try { await require('../utils/logger').flush(); } catch (_) { }
             client.destroy();
