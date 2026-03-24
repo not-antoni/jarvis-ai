@@ -554,6 +554,14 @@ const allCommands = [
             sub.setName('leave').setDescription('Jarvis leaves the voice channel')
         ),
 
+    withCtx(new SlashCommandBuilder()
+        .setName('tts')
+        .setDescription('Jarvis speaks your text aloud as an audio file')
+        .addStringOption(opt =>
+            opt.setName('text').setDescription('Text for Jarvis to speak').setRequired(true)
+        )
+    ),
+
     ...musicCommandList.map(command => command.data),
     ...require('./utility/quote').map(c => c.data)
 ];

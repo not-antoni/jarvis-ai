@@ -38,6 +38,35 @@ try {
     activityTracker.recordMessage(message.guild.id, message.channel.id, message.author.id);
 } catch (_e) { /* activity tracker not available */ }
 
+// ── Voice message auto-transcription ──────────────────────────────────
+try {
+    const IS_VOICE_MSG = 1 << 13;
+    if ((message.flags?.bitfield & IS_VOICE_MSG) && message.attachments.size > 0) {
+        const nvidiaSpeech = require('../nvidia-speech');
+        if (nvidiaSpeech.sttEnabled) {
+            const audioAtt = message.attachments.first();
+            if (audioAtt?.url) {
+                const res = await fetch(audioAtt.url);
+                if (res.ok) {
+                    const VCS = require('../voice-chat-service');
+                    const wav = await VCS.audioToWav16k(Buffer.from(await res.arrayBuffer()));
+                    if (wav) {
+                        const text = await nvidiaSpeech.transcribe(wav);
+                        if (text && text.length >= 2) {
+                            await message.reply({
+                                content: `**Transcript:** ${text}`,
+                                allowedMentions: { parse: [] }
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+} catch (e) {
+    console.warn('[VoiceMsg] Transcription error:', e.message);
+}
+
 const chatEnabled = await handler.isCommandFeatureEnabled('jarvis', message.guild);
 if (!chatEnabled || !isFeatureGloballyEnabled('coreChat')) {
     return;

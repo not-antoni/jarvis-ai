@@ -15,22 +15,16 @@ const { Readable } = require('node:stream');
 const nvidiaSpeech = require('./nvidia-speech');
 
 const FFMPEG = process.env.FFMPEG_PATH || '/home/tony/.local/bin/ffmpeg';
-const SILENCE_MS = 1500;    // 1.5 s silence → end of utterance
-const MIN_PACKETS = 10;     // ignore very short bursts (< ~200 ms)
+const SILENCE_MS = 1200;
+const MIN_PACKETS = 10;
 
-/**
- * Voice-chat service: joins a Discord VC, listens to users via STT,
- * generates AI responses, and speaks them back via TTS.
- */
 class VoiceChatService {
     constructor() {
-        /** @type {Map<string, VCSession>} guildId → session */
         this.sessions = new Map();
         this.client  = null;
         this.jarvis  = null;
     }
 
-    /** Call once after client is ready. */
     init(client, jarvis) {
         this.client = client;
         this.jarvis = jarvis;
@@ -48,10 +42,7 @@ class VoiceChatService {
         const vc = interaction.member?.voice?.channel;
         if (!vc) return 'You need to be in a voice channel first, sir.';
         if (this.sessions.has(vc.guildId)) return "I'm already connected in this server, sir.";
-
-        if (!nvidiaSpeech.sttEnabled) {
-            return 'Speech recognition is not configured. Set `NVIDIA_STT_URL` and restart, sir.';
-        }
+        if (!nvidiaSpeech.sttEnabled) return 'Speech services are not configured, sir.';
 
         try {
             const connection = joinVoiceChannel({
@@ -66,12 +57,12 @@ class VoiceChatService {
             connection.subscribe(player);
 
             const session = {
-                connection,
-                player,
+                connection, player,
                 channelId: vc.id,
                 guildId: vc.guildId,
                 textChannelId: interaction.channelId,
-                busy: false
+                busy: false,
+                activeListeners: new Set()
             };
 
             this.sessions.set(vc.guildId, session);
@@ -94,21 +85,17 @@ class VoiceChatService {
         return 'Disconnected, sir.';
     }
 
-    /** Called from voiceStateUpdate — auto-leave when VC empties. */
     handleVoiceStateUpdate(oldState) {
         const session = this.sessions.get(oldState.guild.id);
-        if (!session) return;
-        if (oldState.channelId !== session.channelId) return;
-
-        // Check if we're the only one left
+        if (!session || oldState.channelId !== session.channelId) return;
         const channel = oldState.guild.channels.cache.get(session.channelId);
         if (channel && channel.members.size <= 1) {
-            console.log('[VoiceChat] Everyone left, disconnecting.');
+            console.log('[VoiceChat] Channel empty, disconnecting.');
             this._destroy(oldState.guild.id);
         }
     }
 
-    // ─── Audio Receive Pipeline ───────────────────────────────────────────────
+    // ─── Audio Receive ────────────────────────────────────────────────────────
 
     _listen(session) {
         const receiver = session.connection.receiver;
@@ -116,6 +103,9 @@ class VoiceChatService {
         receiver.speaking.on('start', (userId) => {
             if (userId === this.client?.user?.id) return;
             if (session.busy) return;
+            // Debounce: skip if already listening to this user
+            if (session.activeListeners.has(userId)) return;
+            session.activeListeners.add(userId);
 
             const opusStream = receiver.subscribe(userId, {
                 end: { behavior: EndBehaviorType.AfterSilence, duration: SILENCE_MS }
@@ -124,47 +114,37 @@ class VoiceChatService {
             const packets = [];
             opusStream.on('data', (pkt) => packets.push(pkt));
             opusStream.on('end', () => {
+                session.activeListeners.delete(userId);
                 if (packets.length >= MIN_PACKETS) {
                     this._process(session, userId, packets);
                 }
             });
-            opusStream.on('error', (e) => console.warn('[VoiceChat] Opus rx error:', e.message));
+            opusStream.on('error', () => session.activeListeners.delete(userId));
         });
     }
 
-    /**
-     * Full pipeline: Opus packets → PCM → WAV-16k → STT → AI → TTS → play
-     */
     async _process(session, userId, packets) {
         if (session.busy) return;
         session.busy = true;
 
         try {
-            // Decode Opus → 48 kHz stereo PCM
             const pcm = this._decodeOpus(packets);
             if (!pcm || pcm.length < 3200) return;
 
-            // Resample → 16 kHz mono WAV
             const wav = await this._toWav16k(pcm);
             if (!wav) return;
 
-            // STT
             const text = await nvidiaSpeech.transcribe(wav);
             if (!text || text.length < 2) return;
             console.log(`[VoiceChat] <${userId}> ${text}`);
 
-            // AI response
             const reply = await this._askJarvis(session, userId, text);
             if (!reply) return;
             console.log(`[VoiceChat] > ${reply.slice(0, 100)}`);
 
-            // TTS → play, or text fallback
             if (nvidiaSpeech.ttsEnabled) {
                 const audio = await nvidiaSpeech.synthesize(reply);
-                if (audio) {
-                    await this._play(session, audio);
-                    return;
-                }
+                if (audio) { await this._play(session, audio); return; }
             }
             await this._textFallback(session, reply);
         } catch (err) {
@@ -174,9 +154,8 @@ class VoiceChatService {
         }
     }
 
-    // ─── Audio Decode / Convert ───────────────────────────────────────────────
+    // ─── Audio Helpers ────────────────────────────────────────────────────────
 
-    /** Decode raw Opus packets → 48 kHz stereo s16le PCM buffer. */
     _decodeOpus(packets) {
         try {
             const OpusEncoder = require('opusscript');
@@ -193,7 +172,6 @@ class VoiceChatService {
         }
     }
 
-    /** 48 kHz stereo PCM → 16 kHz mono WAV via ffmpeg. */
     _toWav16k(pcm) {
         return new Promise((resolve) => {
             const proc = spawn(FFMPEG, [
@@ -203,10 +181,30 @@ class VoiceChatService {
 
             const out = [];
             proc.stdout.on('data', (c) => out.push(c));
-            proc.stderr.on('data', () => {}); // suppress ffmpeg logs
+            proc.stderr.on('data', () => {});
             proc.on('close', (code) => resolve(code === 0 ? Buffer.concat(out) : null));
             proc.on('error', () => resolve(null));
+            proc.stdin.on('error', () => {});
             proc.stdin.write(pcm);
+            proc.stdin.end();
+        });
+    }
+
+    /** Convert any audio buffer (ogg, mp3, etc.) to 16kHz mono WAV via ffmpeg. */
+    static audioToWav16k(audioBuf) {
+        return new Promise((resolve) => {
+            const proc = spawn(FFMPEG, [
+                '-i', 'pipe:0',
+                '-ar', '16000', '-ac', '1', '-f', 'wav', 'pipe:1'
+            ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+            const out = [];
+            proc.stdout.on('data', (c) => out.push(c));
+            proc.stderr.on('data', () => {});
+            proc.on('close', (code) => resolve(code === 0 ? Buffer.concat(out) : null));
+            proc.on('error', () => resolve(null));
+            proc.stdin.on('error', () => {});
+            proc.stdin.write(audioBuf);
             proc.stdin.end();
         });
     }
@@ -217,7 +215,6 @@ class VoiceChatService {
         if (!this.jarvis) return null;
         try {
             const user = await this.client.users.fetch(userId).catch(() => null);
-            // Minimal interaction-like object for generateResponse
             const pseudo = {
                 author: {
                     id: userId,
@@ -234,9 +231,8 @@ class VoiceChatService {
         }
     }
 
-    // ─── Audio Playback ───────────────────────────────────────────────────────
+    // ─── Playback ─────────────────────────────────────────────────────────────
 
-    /** Play a WAV buffer through the voice connection. */
     _play(session, wavBuf) {
         return new Promise((resolve) => {
             const resource = createAudioResource(Readable.from(wavBuf), {
