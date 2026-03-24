@@ -246,12 +246,7 @@ try {
             await mediaHandlers.handleCaptionCommand(handler, interaction);
             return;
         }
-        case 'gif': {
-            telemetryMetadata.category = 'utility';
-            await mediaHandlers.handleGifCommand(handler, interaction);
-            return;
-        }
-        case 'avatar': {
+case 'avatar': {
             telemetryMetadata.category = 'utility';
             response = await slashUtility.handleAvatar(interaction);
             break;

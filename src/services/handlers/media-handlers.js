@@ -238,43 +238,6 @@ async function handleCaptionCommand(handler, interaction) {
     }
 }
 
-async function handleGifCommand(handler, interaction) {
-    const { guild } = interaction;
-    if (guild && !(await handler.isFeatureActive('memeTools', guild))) {
-        await interaction.editReply('Meme systems are disabled for this server, sir.');
-        return;
-    }
-
-    try {
-        const mediaInput = await resolveSlashMediaInput(handler, interaction, { maxBytes: TEN_MB });
-        if (!mediaInput) {
-            return;
-        }
-
-        const sharp = require('sharp');
-        const { buffer } = mediaInput;
-        let rendered;
-        try {
-            rendered = await sharp(buffer, { animated: true, pages: -1 })
-                .gif({ effort: 3 })
-                .toBuffer();
-        } catch (_firstError) {
-            rendered = await sharp(buffer)
-                .gif({ effort: 3 })
-                .toBuffer();
-        }
-
-        await handler.sendBufferOrLink(interaction, rendered, 'converted.gif', {
-            maxUploadBytes: TEN_MB,
-            allowTempLink: false,
-            tooLargeMessage: NITRO_LIMIT_MESSAGE
-        });
-    } catch (error) {
-        console.error('GIF command failed:', error);
-        await interaction.editReply('GIF conversion failed, sir. Try another image.');
-    }
-}
-
 async function handleMemeCommand(handler, interaction) {
     const { guild } = interaction;
     if (guild && !(await handler.isFeatureActive('memeTools', guild))) {
@@ -335,6 +298,5 @@ module.exports = {
     fetchAttachmentBuffer,
     fetchImageFromUrl,
     handleCaptionCommand,
-    handleGifCommand,
     handleMemeCommand
 };

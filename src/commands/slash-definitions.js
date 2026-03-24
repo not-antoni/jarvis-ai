@@ -191,19 +191,6 @@ const allCommands = [
         )
     ),
     withCtx(new SlashCommandBuilder()
-        .setName('gif')
-        .setDescription('Convert an image or GIF into a GIF file')
-        .addStringOption(option =>
-            option
-                .setName('url')
-                .setDescription('Image/GIF URL (Tenor and direct links supported)')
-                .setRequired(false)
-        )
-        .addAttachmentOption(option =>
-            option.setName('image').setDescription('Image to convert').setRequired(false)
-        )
-    ),
-    withCtx(new SlashCommandBuilder()
         .setName('avatar')
         .setDescription("Get a user's avatar")
         .addUserOption(option =>
