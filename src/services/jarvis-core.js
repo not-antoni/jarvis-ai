@@ -229,26 +229,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
         return null;
     }
 
-    async gateDestructiveRequests(text) {
-        const t = text.toLowerCase();
-        const destructive = [
-            'wipe memory',
-            'delete memory',
-            'erase all data',
-            'forget everything',
-            'drop database',
-            'format database',
-            'self destruct',
-            'shutdown forever'
-        ];
-
-        if (destructive.some(k => t.includes(k))) {
-            return {
-                blocked: true,
-                message:
-                    "I'm afraid that's not advisable, sir. Shall I perform a *partial redaction* instead?"
-            };
-        }
+    async gateDestructiveRequests() {
         return { blocked: false };
     }
 
