@@ -112,40 +112,6 @@ try {
         return;
     }
 
-    if (commandName === 'tts') {
-        shouldSetCooldown = true;
-        const nvidiaSpeech = require('../nvidia-speech');
-        try {
-            if (!interaction.deferred && !interaction.replied) {
-                await interaction.deferReply();
-            }
-            if (!nvidiaSpeech.ttsEnabled) {
-                await interaction.editReply('Text-to-speech is not configured, sir.');
-                return;
-            }
-            const query = interaction.options.getString('text');
-            // Generate AI response first, then speak it
-            const aiReply = await handler.jarvis.generateResponse(interaction, query, true);
-            if (!aiReply) {
-                await interaction.editReply('Nothing to say, sir.');
-                return;
-            }
-            const audio = await nvidiaSpeech.synthesize(aiReply);
-            if (!audio) {
-                // Fallback: post text if TTS fails
-                await interaction.editReply(aiReply);
-                return;
-            }
-            const { AttachmentBuilder } = require('discord.js');
-            const attachment = new AttachmentBuilder(audio, { name: 'jarvis.wav' });
-            await interaction.editReply({ content: aiReply, files: [attachment] });
-        } catch (e) {
-            console.error('[/tts] Error:', e);
-            try { await interaction.editReply('TTS error, sir.'); } catch {}
-        }
-        return;
-    }
-
     if (commandName === 'clip') {
         shouldSetCooldown = true;
         const handled = await mediaHandlers.handleSlashCommandClip(handler, interaction);

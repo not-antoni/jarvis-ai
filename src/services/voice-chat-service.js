@@ -13,16 +13,114 @@ const {
 const { spawn } = require('node:child_process');
 const { Readable } = require('node:stream');
 const nvidiaSpeech = require('./nvidia-speech');
+const config = require('../../config');
+const { musicManager } = require('../core/musicManager');
+const { isCpuThrottled, getCpuFreqMHz } = require('../utils/cpu-monitor');
+const database = require('./database');
 
 const FFMPEG = process.env.FFMPEG_PATH || '/home/tony/.local/bin/ffmpeg';
-const SILENCE_MS = 1200;
-const MIN_PACKETS = 10;
+
+// ─── Tuning ───────────────────────────────────────────────────────────────────
+const SILENCE_MS         = 800;       // ms silence before ending capture
+const MIN_PACKETS        = 10;        // min opus packets to count as speech
+const BARGE_IN_PACKETS   = 15;        // packets to trigger interrupt during playback
+const MAX_RESPONSE_QUEUE = 5;         // post-STT addressed requests only
+// STT idle timeout removed — energy gate + wake word filter already prevent unnecessary API calls
+const MAX_TTS_CHARS      = 500;
+const MIN_TRANSCRIPT_LEN = 4;
+const PLAY_TIMEOUT_MS    = 30_000;
+const STREAM_SAFETY_MS   = 60_000;    // force-close hung opus streams
+const PROCESS_SAFETY_MS  = 90_000;    // force-reset stuck processing flag
+const MAX_PCM_BYTES      = 48000 * 2 * 2 * 30; // 30s of 48kHz stereo s16le (~5.5MB)
+const ECHO_COOLDOWN_MS   = 2500;               // ignore STT right after bot finishes speaking
+const MIN_PCM_ENERGY     = 300;                // skip near-silent audio (RMS threshold)
+const FFMPEG_TIMEOUT_MS  = 10_000;             // kill hung ffmpeg subprocesses
+
+// Single-word noise the STT picks up from silence/background
+const NOISE_WORDS = new Set([
+    'you', 'uh', 'um', 'hmm', 'hm', 'ah', 'oh', 'mhm', 'mm',
+    'yeah', 'yep', 'nah', 'the', 'a', 'ok',
+    'bye', 'thank', 'thanks', 'so'
+]);
+
+// Channels where the bot stays connected permanently (guild → channel)
+const PERSISTENT_CHANNELS = new Map([
+    ['858444090374881301', '858444090949369899']
+]);
+
+// Prepended to voice input so the AI keeps replies spoken-friendly
+const VOICE_HINT = '[Voice chat — reply in 1-2 short spoken sentences. No markdown, no lists, no formatting. Be concise and conversational.]\n';
+
+// ─── Text helpers ─────────────────────────────────────────────────────────────
+
+function cleanForTts(text) {
+    return text
+        .replace(/```[\s\S]*?```/g, '')                  // ```multiline code```
+        .replace(/`([^`]+)`/g, '')                        // `inline code`
+        .replace(/\*{1,3}([^*]*)\*{1,3}/g, '$1')        // *action* **bold** ***both***
+        .replace(/\([^)]*(?:sighs?|adjusts?|pauses?|clears?|nods?|smiles?|laughs?|chuckles?|whispers?|grins?|leans?|tilts?|gestures?|waves?|bows?|glances?)[^)]*\)/gi, '') // (roleplay actions)
+        .replace(/_([^_]+)_/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/~~([^~]+)~~/g, '$1')
+        .replace(/\|\|([^|]+)\|\|/g, '$1')
+        .replace(/^>+\s?/gm, '')                          // > blockquote
+        .replace(/^#{1,3}\s+/gm, '')                      // ### heading
+        .replace(/^\d+\.\s+/gm, '')                       // 1. numbered list
+        .replace(/^[-•]\s+/gm, '')                        // - or • bullet
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')          // [link](url)
+        .replace(/<@!?\d+>/g, '')                          // <@mention>
+        .replace(/<#\d+>/g, '')                            // <#channel>
+        .replace(/<a?:\w+:\d+>/g, '')                      // <:emoji:id>
+        .replace(/https?:\/\/\S+/g, '')                    // URLs
+        .replace(/—/g, ', ')                               // em-dash → pause
+        .replace(/\.{3}/g, ', ')                           // ellipsis → pause
+        .replace(/\n{2,}/g, '. ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
+function truncateForTts(text) {
+    if (text.length <= MAX_TTS_CHARS) return text;
+    const cut = text.slice(0, MAX_TTS_CHARS);
+    const last = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
+    return last > MAX_TTS_CHARS * 0.4 ? cut.slice(0, last + 1) : cut + '...';
+}
+
+function isNoise(text) {
+    if (text.length < MIN_TRANSCRIPT_LEN) return true;
+    const normalized = text.toLowerCase().replace(/[^a-z\s]/g, '').trim();
+    return NOISE_WORDS.has(normalized);
+}
+
+function pcmEnergy(buf) {
+    const step = 200; // sample every 100th s16le sample
+    let sum = 0;
+    let count = 0;
+    for (let i = 0; i < buf.length - 1; i += step) {
+        const s = buf.readInt16LE(i);
+        sum += s * s;
+        count++;
+    }
+    return count > 0 ? Math.sqrt(sum / count) : 0;
+}
+
+function isMusicPlaying(guildId) {
+    try {
+        const state = musicManager.get().getState(guildId);
+        if (!state?.player || !state.currentVideo) return false;
+        return state.player.state?.status === 'playing';
+    } catch { return false; }
+}
+
+// ─── Service ──────────────────────────────────────────────────────────────────
 
 class VoiceChatService {
     constructor() {
         this.sessions = new Map();
         this.client  = null;
         this.jarvis  = null;
+        this._userCache = new Map();
+        this._optOutCache = new Map(); // userId → { optedOut: bool, ts: number }
     }
 
     init(client, jarvis) {
@@ -36,13 +134,41 @@ class VoiceChatService {
         }
     }
 
+    // ─── User Cache ──────────────────────────────────────────────────────────
+
+    async _resolveUser(userId) {
+        const cached = this._userCache.get(userId);
+        if (cached) return cached;
+
+        const user = this.client.users.cache.get(userId)
+            || await this.client.users.fetch(userId).catch(() => null);
+
+        const info = user
+            ? { username: user.username, displayName: user.displayName || user.username, bot: Boolean(user.bot) }
+            : { username: 'User', displayName: 'User', bot: false };
+
+        this._userCache.set(userId, info);
+        const timer = setTimeout(() => this._userCache.delete(userId), 10 * 60_000);
+        timer.unref();
+        return info;
+    }
+
     // ─── Public API ───────────────────────────────────────────────────────────
 
     async join(interaction) {
         const vc = interaction.member?.voice?.channel;
         if (!vc) return 'You need to be in a voice channel first, sir.';
-        if (this.sessions.has(vc.guildId)) return "I'm already connected in this server, sir.";
         if (!nvidiaSpeech.sttEnabled) return 'Speech services are not configured, sir.';
+
+        // Resume STT on persistent session that's still connected
+        const existing = this.sessions.get(vc.guildId);
+        if (existing && existing.persistent) {
+            existing.sttActive = true;
+            existing.manuallyPaused = false;
+            return `Listening again in **${vc.name}**, sir.`;
+        }
+
+        if (existing) return "I'm already connected in this server, sir.";
 
         try {
             const connection = joinVoiceChannel({
@@ -56,13 +182,23 @@ class VoiceChatService {
             const player = createAudioPlayer();
             connection.subscribe(player);
 
+            const persistent = PERSISTENT_CHANNELS.get(vc.guildId) === vc.id;
+
             const session = {
                 connection, player,
                 channelId: vc.id,
                 guildId: vc.guildId,
                 textChannelId: interaction.channelId,
-                busy: false,
-                activeListeners: new Set()
+                activeListeners: new Set(),
+                responseQueue: [],
+                responding: false,
+                respondingStartedAt: 0,
+                respondingGeneration: 0,
+                respondingTo: null,
+                lastPlaybackEndedAt: 0,
+                persistent,
+                sttActive: true,
+                manuallyPaused: false
             };
 
             this.sessions.set(vc.guildId, session);
@@ -70,7 +206,7 @@ class VoiceChatService {
             this._listen(session);
             this._watchDisconnect(session);
 
-            console.log(`[VoiceChat] Joined "${vc.name}" in ${vc.guild.name}`);
+            console.log(`[VoiceChat] Joined "${vc.name}" in ${vc.guild.name}${persistent ? ' (persistent)' : ''}`);
             return `Connected to **${vc.name}**. I'm listening, sir.`;
         } catch (err) {
             console.error('[VoiceChat] Join failed:', err);
@@ -80,7 +216,18 @@ class VoiceChatService {
     }
 
     leave(guildId) {
-        if (!this.sessions.has(guildId)) return "I'm not in a voice channel, sir.";
+        const session = this.sessions.get(guildId);
+        if (!session) return "I'm not in a voice channel, sir.";
+
+        if (session.persistent) {
+            session.sttActive = false;
+            session.manuallyPaused = true;
+            session.responseQueue.length = 0;
+            try { session.player.stop(true); } catch { /* */ }
+            console.log(`[VoiceChat] STT paused (manual) — guild ${guildId}`);
+            return 'Listening paused, sir. I\'ll stay in the channel.';
+        }
+
         this._destroy(guildId);
         return 'Disconnected, sir.';
     }
@@ -88,6 +235,8 @@ class VoiceChatService {
     handleVoiceStateUpdate(oldState) {
         const session = this.sessions.get(oldState.guild.id);
         if (!session || oldState.channelId !== session.channelId) return;
+        if (session.persistent) return;
+
         const channel = oldState.guild.channels.cache.get(session.channelId);
         if (channel && channel.members.size <= 1) {
             console.log('[VoiceChat] Channel empty, disconnecting.');
@@ -95,62 +244,202 @@ class VoiceChatService {
         }
     }
 
-    // ─── Audio Receive ────────────────────────────────────────────────────────
+    // ─── Opt-out Check ─────────────────────────────────────────────────────
+
+    async _isOptedOut(userId) {
+        const cached = this._optOutCache.get(userId);
+        if (cached && Date.now() - cached.ts < 5 * 60_000) return cached.optedOut;
+
+        let optedOut = false;
+        try {
+            const col = database.getCollection('userProfiles');
+            if (col) {
+                const profile = await col.findOne({ userId }, { projection: { 'preferences.memoryOpt': 1 } });
+                optedOut = String(profile?.preferences?.memoryOpt ?? 'opt-in').toLowerCase() === 'opt-out';
+            }
+        } catch { /* db down — default to allowed */ }
+
+        this._optOutCache.set(userId, { optedOut, ts: Date.now() });
+        return optedOut;
+    }
+
+    // ─── Audio Receive + Barge-in ─────────────────────────────────────────────
 
     _listen(session) {
         const receiver = session.connection.receiver;
 
-        receiver.speaking.on('start', (userId) => {
+        receiver.speaking.on('start', async (userId) => {
             if (userId === this.client?.user?.id) return;
-            if (session.busy) return;
-            // Debounce: skip if already listening to this user
+
+            // Lock BEFORE async to prevent race
             if (session.activeListeners.has(userId)) return;
             session.activeListeners.add(userId);
+
+            const userInfo = await this._resolveUser(userId);
+            if (userInfo.bot || !session.sttActive) {
+                session.activeListeners.delete(userId);
+                return;
+            }
 
             const opusStream = receiver.subscribe(userId, {
                 end: { behavior: EndBehaviorType.AfterSilence, duration: SILENCE_MS }
             });
 
             const packets = [];
-            opusStream.on('data', (pkt) => packets.push(pkt));
-            opusStream.on('end', () => {
+
+            // Safety valve: force-close hung streams so user isn't locked out
+            const safetyTimer = setTimeout(() => {
+                try { opusStream.destroy(); } catch { /* */ }
                 session.activeListeners.delete(userId);
                 if (packets.length >= MIN_PACKETS) {
-                    this._process(session, userId, packets);
+                    this._ingest(session, userId, packets).catch(() => {});
+                }
+                console.warn(`[VoiceChat] Safety timeout — stream hung for ${userInfo.displayName}`);
+            }, STREAM_SAFETY_MS);
+            safetyTimer.unref();
+
+            opusStream.on('data', (pkt) => {
+                packets.push(pkt);
+
+                // Barge-in: only the person Jarvis is responding to can interrupt
+                if (packets.length === BARGE_IN_PACKETS &&
+                    session.player.state.status === AudioPlayerStatus.Playing &&
+                    session.respondingTo === userId) {
+                    session.player.stop(true);
+                    session.responseQueue.length = 0;
+                    console.log(`[VoiceChat] Barge-in by ${userInfo.displayName}`);
                 }
             });
-            opusStream.on('error', () => session.activeListeners.delete(userId));
+
+            opusStream.on('end', () => {
+                clearTimeout(safetyTimer);
+                session.activeListeners.delete(userId);
+                if (packets.length >= MIN_PACKETS) {
+                    this._ingest(session, userId, packets).catch(() => {});
+                }
+            });
+
+            opusStream.on('error', (err) => {
+                clearTimeout(safetyTimer);
+                session.activeListeners.delete(userId);
+                console.warn(`[VoiceChat] Stream error for ${userInfo.displayName}:`, err.message);
+            });
         });
     }
 
-    async _process(session, userId, packets) {
-        if (session.busy) return;
-        session.busy = true;
+    // ─── Processing Pipeline ─────────────────────────────────────────────────
+    // Phase 1 (_ingest): runs in PARALLEL per speaker — decode, STT, wake word
+    // Phase 2 (_respond): runs SEQUENTIALLY — AI generation, TTS, playback
+
+    async _ingest(session, userId, packets) {
+        const capturedAt = Date.now();
 
         try {
+            if (isCpuThrottled()) {
+                console.warn(`[VoiceChat] CPU throttled (${getCpuFreqMHz()}MHz) — skipping STT`);
+                return;
+            }
+
+            // Opted-out users get zero voice processing — no audio sent anywhere
+            if (await this._isOptedOut(userId)) return;
+
             const pcm = this._decodeOpus(packets);
-            if (!pcm || pcm.length < 3200) return;
+            if (!pcm || pcm.length < 3200 || pcm.length > MAX_PCM_BYTES) return;
+
+            const energy = pcmEnergy(pcm);
+            const musicActive = isMusicPlaying(session.guildId);
+            if (energy < (musicActive ? MIN_PCM_ENERGY * 3 : MIN_PCM_ENERGY)) return;
+
+            if (session.lastPlaybackEndedAt && capturedAt > session.lastPlaybackEndedAt &&
+                capturedAt - session.lastPlaybackEndedAt < ECHO_COOLDOWN_MS) return;
 
             const wav = await this._toWav16k(pcm);
             if (!wav) return;
 
             const text = await nvidiaSpeech.transcribe(wav);
-            if (!text || text.length < 2) return;
-            console.log(`[VoiceChat] <${userId}> ${text}`);
-
-            const reply = await this._askJarvis(session, userId, text);
-            if (!reply) return;
-            console.log(`[VoiceChat] > ${reply.slice(0, 100)}`);
-
-            if (nvidiaSpeech.ttsEnabled) {
-                const audio = await nvidiaSpeech.synthesize(reply);
-                if (audio) { await this._play(session, audio); return; }
+            if (!text || isNoise(text)) {
+                if (text) console.log(`[VoiceChat] Filtered noise: "${text}"`);
+                return;
             }
-            await this._textFallback(session, reply);
+
+            const userInfo = await this._resolveUser(userId);
+            console.log(`[VoiceChat] <${userInfo.displayName}> ${text}`);
+
+            const lower = text.toLowerCase();
+            const addressed = config.wakeWords.some(w => lower.includes(w));
+            if (!addressed) {
+                let customMatch = false;
+                try {
+                    const uf = require('./user-features');
+                    customMatch = await uf.matchesGuildWakeWord(session.guildId, lower)
+                        || await uf.matchesWakeWord(userId, lower);
+                } catch { /* user-features not available */ }
+                if (!customMatch) return;
+            }
+
+            this._enqueueResponse(session, userId, text);
         } catch (err) {
-            console.error('[VoiceChat] Pipeline error:', err);
-        } finally {
-            session.busy = false;
+            console.error('[VoiceChat] Ingest error:', err.message);
+        }
+    }
+
+    _enqueueResponse(session, userId, text) {
+        if (session.responseQueue.length >= MAX_RESPONSE_QUEUE) session.responseQueue.shift();
+        session.responseQueue.push({ userId, text });
+        this._drainResponseQueue(session);
+    }
+
+    async _drainResponseQueue(session) {
+        if (session.responding) {
+            if (Date.now() - session.respondingStartedAt > PROCESS_SAFETY_MS) {
+                console.warn('[VoiceChat] Response stuck — force reset');
+                session.respondingGeneration++;
+                session.responding = false;
+            } else {
+                return;
+            }
+        }
+
+        session.responding = true;
+        session.respondingStartedAt = Date.now();
+        const gen = session.respondingGeneration;
+
+        while (session.responseQueue.length > 0 && session.respondingGeneration === gen) {
+            const { userId, text } = session.responseQueue.shift();
+            await this._respond(session, userId, text);
+        }
+
+        if (session.respondingGeneration === gen) {
+            session.responding = false;
+        }
+    }
+
+    async _respond(session, userId, text) {
+        try {
+            // Hint goes to AI context but NOT saved to memory
+            const waiting = session.responseQueue.length;
+            const hint = waiting > 0
+                ? '[Voice chat — reply in 1 short sentence. Others are waiting. No markdown, no lists.]\n'
+                : VOICE_HINT;
+
+            const reply = await this._askJarvis(session, userId, text, hint);
+            if (!reply) return;
+            console.log(`[VoiceChat] > ${reply.slice(0, 120)}`);
+
+            session.respondingTo = userId;
+            try {
+                const spokenText = truncateForTts(cleanForTts(reply));
+                if (nvidiaSpeech.ttsEnabled && spokenText) {
+                    const audio = await nvidiaSpeech.synthesize(spokenText);
+                    if (audio) { await this._play(session, audio); session.lastPlaybackEndedAt = Date.now(); return; }
+                }
+                await this._textFallback(session, reply);
+            } finally {
+                session.respondingTo = null;
+            }
+        } catch (err) {
+            session.respondingTo = null;
+            console.error('[VoiceChat] Response error:', err);
         }
     }
 
@@ -179,11 +468,19 @@ class VoiceChatService {
                 '-ar', '16000', '-ac', '1', '-f', 'wav', 'pipe:1'
             ], { stdio: ['pipe', 'pipe', 'pipe'] });
 
+            let settled = false;
+            const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
+            const killTimer = setTimeout(() => {
+                try { proc.kill('SIGKILL'); } catch { /* */ }
+                finish(null);
+            }, FFMPEG_TIMEOUT_MS);
+            killTimer.unref();
+
             const out = [];
             proc.stdout.on('data', (c) => out.push(c));
             proc.stderr.on('data', () => {});
-            proc.on('close', (code) => resolve(code === 0 ? Buffer.concat(out) : null));
-            proc.on('error', () => resolve(null));
+            proc.on('close', (code) => { clearTimeout(killTimer); finish(code === 0 ? Buffer.concat(out) : null); });
+            proc.on('error', () => { clearTimeout(killTimer); finish(null); });
             proc.stdin.on('error', () => {});
             proc.stdin.write(pcm);
             proc.stdin.end();
@@ -191,18 +488,26 @@ class VoiceChatService {
     }
 
     /** Convert any audio buffer (ogg, mp3, etc.) to 16kHz mono WAV via ffmpeg. */
-    static audioToWav16k(audioBuf) {
+    audioToWav16k(audioBuf) {
         return new Promise((resolve) => {
             const proc = spawn(FFMPEG, [
                 '-i', 'pipe:0',
                 '-ar', '16000', '-ac', '1', '-f', 'wav', 'pipe:1'
             ], { stdio: ['pipe', 'pipe', 'pipe'] });
 
+            let settled = false;
+            const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
+            const killTimer = setTimeout(() => {
+                try { proc.kill('SIGKILL'); } catch { /* */ }
+                finish(null);
+            }, FFMPEG_TIMEOUT_MS);
+            killTimer.unref();
+
             const out = [];
             proc.stdout.on('data', (c) => out.push(c));
             proc.stderr.on('data', () => {});
-            proc.on('close', (code) => resolve(code === 0 ? Buffer.concat(out) : null));
-            proc.on('error', () => resolve(null));
+            proc.on('close', (code) => { clearTimeout(killTimer); finish(code === 0 ? Buffer.concat(out) : null); });
+            proc.on('error', () => { clearTimeout(killTimer); finish(null); });
             proc.stdin.on('error', () => {});
             proc.stdin.write(audioBuf);
             proc.stdin.end();
@@ -211,20 +516,28 @@ class VoiceChatService {
 
     // ─── AI ───────────────────────────────────────────────────────────────────
 
-    async _askJarvis(session, userId, text) {
+    async _askJarvis(session, userId, text, contextPrefix = '') {
         if (!this.jarvis) return null;
         try {
-            const user = await this.client.users.fetch(userId).catch(() => null);
+            const userInfo = await this._resolveUser(userId);
+
             const pseudo = {
                 author: {
                     id: userId,
-                    username: user?.username || 'User',
-                    displayName: user?.displayName || user?.username || 'User'
+                    username: userInfo.displayName,
+                    displayName: userInfo.displayName
+                },
+                user: {
+                    id: userId,
+                    username: userInfo.username,
+                    displayName: userInfo.displayName
                 },
                 guild: { id: session.guildId },
-                channel: { id: session.textChannelId }
+                channel: { id: session.textChannelId },
+                channelId: session.textChannelId
             };
-            return await this.jarvis.generateResponse(pseudo, text);
+
+            return await this.jarvis.generateResponse(pseudo, text, false, null, { contextPrefix });
         } catch (err) {
             console.error('[VoiceChat] AI error:', err.message);
             return null;
@@ -241,12 +554,22 @@ class VoiceChatService {
             session.player.play(resource);
 
             const done = () => { cleanup(); resolve(); };
-            const timer = setTimeout(done, 30_000);
+            const timeout = () => {
+                try { session.player.stop(true); } catch { /* */ }
+                done();
+            };
+            const onError = (err) => {
+                console.error('[VoiceChat] Player error:', err.message);
+                done();
+            };
+            const timer = setTimeout(timeout, PLAY_TIMEOUT_MS);
             const cleanup = () => {
                 clearTimeout(timer);
                 session.player.removeListener(AudioPlayerStatus.Idle, done);
+                session.player.removeListener('error', onError);
             };
             session.player.once(AudioPlayerStatus.Idle, done);
+            session.player.once('error', onError);
         });
     }
 
@@ -267,17 +590,52 @@ class VoiceChatService {
                     entersState(session.connection, VoiceConnectionStatus.Connecting, 5_000)
                 ]);
             } catch {
+                if (session.persistent) {
+                    await this._reconnectPersistent(session);
+                    return;
+                }
                 this._destroy(session.guildId);
             }
         });
         session.connection.on(VoiceConnectionStatus.Destroyed, () => {
-            this.sessions.delete(session.guildId);
+            const current = this.sessions.get(session.guildId);
+            if (current && current.connection === session.connection) {
+                this.sessions.delete(session.guildId);
+            }
         });
+    }
+
+    async _reconnectPersistent(session) {
+        try {
+            const channel = this.client.channels.cache.get(session.channelId);
+            if (!channel) throw new Error('Channel not in cache');
+
+            const newConn = joinVoiceChannel({
+                channelId: session.channelId,
+                guildId: session.guildId,
+                adapterCreator: channel.guild.voiceAdapterCreator,
+                selfDeaf: false,
+                selfMute: false
+            });
+
+            newConn.subscribe(session.player);
+            session.connection = newConn;
+
+            await entersState(newConn, VoiceConnectionStatus.Ready, 10_000);
+            this._listen(session);
+            this._watchDisconnect(session);
+
+            console.log(`[VoiceChat] Reconnected persistent session (guild ${session.guildId})`);
+        } catch (err) {
+            console.error('[VoiceChat] Persistent reconnect failed:', err.message);
+            this._destroy(session.guildId);
+        }
     }
 
     _destroy(guildId) {
         const s = this.sessions.get(guildId);
         if (!s) return;
+        s.respondingTo = null;
         try { s.player.stop(true); } catch { /* */ }
         try { s.connection.destroy(); } catch { /* */ }
         this.sessions.delete(guildId);

@@ -315,7 +315,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
 
             let secureMemories = [];
-            const memoryLimit = 10;
+            const memoryLimit = 30;
             if (allowsLongTermMemory) {
                 secureMemories = await vaultClient
                     .decryptMemories(userId, { limit: memoryLimit })
@@ -348,13 +348,14 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
 
             // FIX: Sanitize user input to prevent injection
             const sanitizedInput = sanitizeUserInput(userInput);
+            const contextPrefix = options.contextPrefix || '';
 
             const context = `[USER: ${userName} | interactions: ${userProfile?.interactions || 0} | relationship: ${userProfile?.relationship || 'new'}]
 
 ${secureMemoryBlock}
 [MEMORY RULE: ONLY reference what is in the block above. Never invent memories or past conversations. If nothing relevant is there, do not pretend otherwise.]
 ${recentJarvisResponses.length ? `[Vary your phrasing — your last replies started with: ${recentJarvisResponses.map(r => `"${r.slice(0, 30)}..."`).join(', ')}]` : ''}
-${sanitizedInput}`;
+${contextPrefix}${sanitizedInput}`;
 
             // Apply SBX tokenMultiplier (default maxTokens, with unlimited_tokens: 2x)
             const maxTokens = config.ai.maxTokens;
