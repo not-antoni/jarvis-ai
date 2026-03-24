@@ -24,8 +24,9 @@ const AUTO_FAMILY_PRIORITY = {
     openai: 9
 };
 function discoverEnvKeys(prefix) {
+    const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return Object.keys(process.env)
-        .filter(key => new RegExp(`^${prefix}\\d*$`).test(key))
+        .filter(key => new RegExp(`^${escaped}\\d*$`).test(key))
         .sort((a, b) => parseInt(a.replace(prefix, '') || '1', 10) - parseInt(b.replace(prefix, '') || '1', 10))
         .map(key => process.env[key])
         .filter(Boolean);

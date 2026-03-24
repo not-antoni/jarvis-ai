@@ -991,7 +991,9 @@ class DatabaseManager {
     }
     async disconnect() {
         if (this.isConnected) {
+            stopConnectionMonitoring();
             await closeMain();
+            await closeVault().catch(() => {});
             this.client = null;
             this.db = null;
             this.isConnected = false;

@@ -16,8 +16,8 @@ const userPrefsCache = new LRUCache({
 // Reminder storage (in-memory, persisted to DB on set)
 const activeReminders = new Map();
 
-// Stats tracking
-const sessionStats = new Map();
+// Stats tracking (bounded to prevent unbounded growth — flushStats is rarely called)
+const sessionStats = new LRUCache({ max: 10000, ttl: 1000 * 60 * 60 * 4 });
 
 // Mood patterns for detection
 const MOOD_PATTERNS = {
@@ -385,6 +385,7 @@ class UserFeaturesService {
         this.reminderCheckInterval = setInterval(() => {
             this.checkAndDeliverReminders();
         }, 15000);
+        this.reminderCheckInterval.unref();
 
         console.log('[UserFeatures] Reminder checker started (15s interval)');
     }

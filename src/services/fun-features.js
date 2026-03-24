@@ -26,8 +26,8 @@ function generateShipName(name1, name2) {
 }
 
 function calculateCompatibility(id1, id2) {
-    // Use user IDs to generate consistent but seemingly random percentage
-    const combined = id1 + id2;
+    // Sort IDs so ship(A,B) === ship(B,A)
+    const combined = [id1, id2].sort().join('');
     let hash = 0;
     for (let i = 0; i < combined.length; i++) {
         hash = (hash << 5) - hash + combined.charCodeAt(i);
