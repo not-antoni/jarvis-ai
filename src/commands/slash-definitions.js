@@ -556,9 +556,9 @@ const allCommands = [
 
     withCtx(new SlashCommandBuilder()
         .setName('tts')
-        .setDescription('Jarvis speaks your text aloud as an audio file')
+        .setDescription('Ask Jarvis something and hear his response as audio')
         .addStringOption(opt =>
-            opt.setName('text').setDescription('Text for Jarvis to speak').setRequired(true)
+            opt.setName('text').setDescription('Your question or prompt for Jarvis').setRequired(true)
         )
     ),
 
