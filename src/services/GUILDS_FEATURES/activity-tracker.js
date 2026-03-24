@@ -35,7 +35,7 @@ function recordMessage(guildId, channelId, userId) {
 
     const data = getGuildData(guildId);
     data.messages++;
-    data.uniqueUsers.add(userId);
+    if (data.uniqueUsers.size < 10000) {data.uniqueUsers.add(userId);}
     data.channelCounts[channelId] = (data.channelCounts[channelId] || 0) + 1;
     data.hourCounts[new Date().getHours()]++;
     data.lastActivity = Date.now();
