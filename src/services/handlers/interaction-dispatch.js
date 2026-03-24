@@ -112,6 +112,33 @@ try {
         return;
     }
 
+    if (commandName === 'tts') {
+        shouldSetCooldown = true;
+        const nvidiaSpeech = require('../nvidia-speech');
+        try {
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply();
+            }
+            const text = interaction.options.getString('text');
+            if (!nvidiaSpeech.ttsEnabled) {
+                await interaction.editReply('Text-to-speech is not configured, sir.');
+                return;
+            }
+            const audio = await nvidiaSpeech.synthesize(text);
+            if (!audio) {
+                await interaction.editReply('Speech synthesis failed, sir.');
+                return;
+            }
+            const { AttachmentBuilder } = require('discord.js');
+            const attachment = new AttachmentBuilder(audio, { name: 'jarvis.wav' });
+            await interaction.editReply({ files: [attachment] });
+        } catch (e) {
+            console.error('[/tts] Error:', e);
+            try { await interaction.editReply('TTS error, sir.'); } catch {}
+        }
+        return;
+    }
+
     if (commandName === 'clip') {
         shouldSetCooldown = true;
         const handled = await mediaHandlers.handleSlashCommandClip(handler, interaction);

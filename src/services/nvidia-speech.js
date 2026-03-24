@@ -162,7 +162,7 @@ class NvidiaSpeech {
                 { deadline: Date.now() + 15000 },
                 (err, res) => {
                     if (err) {
-                        console.error('[NvidiaSpeech] gRPC STT error:', err.message);
+                        console.error('[NvidiaSpeech] gRPC STT error:', err.code, err.details || err.message);
                         return resolve(null);
                     }
                     const text = res?.results?.[0]?.alternatives?.[0]?.transcript?.trim();
