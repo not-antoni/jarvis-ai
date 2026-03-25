@@ -194,7 +194,7 @@ const PRIVACY_POLICY = `
         <h2>What We Collect</h2>
         <ul>
             <li><strong>Message Content</strong> – Only when you interact with Jarvis (mentions, commands, or DMs). Used to generate replies and operate features.</li>
-            <li><strong>Voice Audio</strong> – When active via <code>/voice join</code>, Jarvis only processes audio from users who have explicitly opted in. <strong>Audio is never stored</strong>; it is converted to text and immediately discarded. Note: Once active, the bot will transcribe <em>any</em> opted-in user currently in the channel. To stop all capture, use <code>/voice leave</code>.</li>
+            <li><strong>Voice Chat</strong> – When active via <code>/voice join</code>, Jarvis only processes audio from users who have explicitly opted in. <strong>Audio is never stored</strong>; it is converted to text and immediately discarded. Note: Once active, the bot will transcribe <em>any</em> opted-in user currently in the channel. To stop all capture, use <code>/voice leave</code>.</li>
             <li><strong>Conversation History ("Memories")</strong> – Includes your messages, Jarvis's replies, timestamps, and basic identifiers to maintain context.</li>
             <li><strong>Operational Metadata</strong> – Usage data and event logs for reliability and performance. (TTL)</li>
             <li><strong>Member Data</strong> – Used only for status-related channels and not stored long-term.</li>
