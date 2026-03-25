@@ -194,7 +194,7 @@ const PRIVACY_POLICY = `
         <h2>What We Collect</h2>
         <ul>
             <li><strong>Message Content</strong> – Only when you interact with Jarvis (mentions, commands, or DMs). Used to generate replies and operate features.</li>
-            <li><strong>Voice Audio</strong> – When <code>/voice join</code> is active, Jarvis only processes audio from opted-in users and responds only when addressed by name ("Jarvis"). <strong>Raw audio is never recorded or stored</strong>; it is converted directly to text. The resulting transcription is processed by the AI and saved to your encrypted memory. To stop, use <code>/voice leave</code>.</li>
+            <li><strong>Voice Transcriptions</strong> – When <code>/voice join</code> is active, Jarvis processes audio from opted-in users but only responds when addressed ("Jarvis"). <strong>Raw audio is never recorded or stored.</strong> It is converted directly to text, processed by the AI, and saved to your encrypted memory. Use <code>/voice leave</code> to stop.</li>
             <li><strong>Conversation History ("Memories")</strong> – Includes your messages, Jarvis's replies, timestamps, and basic identifiers to maintain context.</li>
             <li><strong>Operational Metadata</strong> – Usage data and event logs for reliability and performance. (TTL)</li>
             <li><strong>Member Data</strong> – Used only for status-related channels and not stored long-term.</li>
@@ -280,13 +280,13 @@ const TERMS_OF_SERVICE = `
         <p>You must comply with Discord's Terms of Service and Community Guidelines. Do not use Jarvis for spam, harassment, or any unlawful activity.</p>
 
         <h2>4. Data and Privacy Summary</h2>
-<p>Jarvis processes message content only when you interact with it (via mentions, commands, DMs, or voice chat). In voice channels, Jarvis must be invited via <code>/voice join</code> and will only process audio from users who have explicitly opted in. <strong>Raw audio is never recorded or stored;</strong> it is processed in real-time for speech-to-text and immediately discarded.</p>
+        <p>Jarvis processes message content only when you interact with it (via mentions, commands, DMs, or voice chat). In voice channels, Jarvis must be invited via <code>/voice join</code> and will only process audio from users who have explicitly opted in. <strong>Raw audio is never recorded or stored;</strong> it is processed in real-time for speech-to-text and immediately discarded.</p>
 
-<p>When active in a voice channel, Jarvis only responds to mentions of its name ("Jarvis"). To provide context-aware replies, the resulting text transcriptions and message history—including user messages, Jarvis replies, timestamps, and identifiers—are stored in a secure, encrypted database. You can stop voice processing at any time using <code>/voice leave</code>.</p>
+        <p>When active in a voice channel, Jarvis only responds to mentions of its name ("Jarvis"). To generate responses, <strong>anonymized text transcriptions are processed via external AI service providers</strong>. These providers act as data processors and do not use your data to train their global models. Resulting interactions are stored in your secure, encrypted database to maintain conversational memory. You can stop voice processing at any time using <code>/voice leave</code>.</p>
 
-<p>Users maintain full control and can opt out of data storage or delete all stored "memories" at any time using in-bot commands (e.g., <code>/clear</code> or <code>/opt out</code>). Your data is never used to train AI models and is never sold or shared with third parties.</p>
+        <p>Users maintain full control and can opt out of data storage or delete all stored "memories" at any time using in-bot commands (e.g., <code>/clear</code> or <code>/opt out</code>). Your data is never sold or shared with third parties for marketing purposes.</p>
 
-<p>Full details are outlined in our <a href="/policy">Privacy Policy</a>.</p>
+        <p>Full details are outlined in our <a href="/policy">Privacy Policy</a>.</p>
 
         <h2>5. Availability and Updates</h2>
         <p>Jarvis may go offline for maintenance, rate limits, or feature changes without prior notice. Functionality may evolve over time.</p>
