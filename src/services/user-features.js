@@ -112,9 +112,11 @@ class UserFeaturesService {
 
                     activeReminders.set(rem.id, { ...rem, scheduledFor, createdAt });
                 }
-                console.log(
-                    `[UserFeatures] Loaded ${activeReminders.size} active reminders from database`
-                );
+                if (activeReminders.size > 0) {
+                    console.log(
+                        `[UserFeatures] Loaded ${activeReminders.size} active reminders from database`
+                    );
+                }
                 this._lastReminderLoadAt = Date.now();
                 this.checkAndDeliverReminders().catch(() => {});
             }

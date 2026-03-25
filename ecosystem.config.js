@@ -23,7 +23,8 @@ module.exports = {
         env: {
             NODE_ENV: 'development',
             DEPLOY_TARGET: 'selfhost',
-            SELFHOST_MODE: 'true'
+            SELFHOST_MODE: 'true',
+            UV_THREADPOOL_SIZE: '16'
         },
         env_production: {
             NODE_ENV: 'production',
