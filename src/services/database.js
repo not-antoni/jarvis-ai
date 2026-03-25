@@ -272,7 +272,6 @@ class DatabaseManager {
             userProfiles: this.db.collection(config.database.collections.userProfiles),
             guildConfigs: this.db.collection(config.database.collections.guildConfigs),
             memberLogs: this.db.collection(config.database.collections.memberLogs),
-            socialCredit: this.db.collection(config.database.collections.socialCredit),
             autoModeration: this.db.collection(config.database.collections.autoModeration),
             serverStats: this.db.collection(config.database.collections.serverStats),
             counters: this.db.collection(config.database.collections.counters),
@@ -292,11 +291,6 @@ class DatabaseManager {
                 label: 'guildConfigs',
                 collection: collections.guildConfigs,
                 definitions: [{ key: { guildId: 1, key: 1 }, unique: true }]
-            },
-            {
-                label: 'socialCredit',
-                collection: collections.socialCredit,
-                definitions: [{ key: { userId: 1 }, unique: true }, { key: { lastUpdated: -1 } }]
             },
             {
                 label: 'autoModeration',

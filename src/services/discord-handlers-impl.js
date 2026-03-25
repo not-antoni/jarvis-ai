@@ -15,7 +15,6 @@ const sharp = require('sharp');
 const database = require('./database');
 const { fetchBuffer } = require('../utils/net-guard');
 const CooldownManager = require('../core/cooldown-manager');
-const socialCredit = require('./social-credit');
 const { commandFeatureMap } = require('../core/command-registry');
 const { isFeatureGloballyEnabled, isFeatureEnabledForGuild } = require('../core/feature-flags');
 const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
@@ -1401,45 +1400,11 @@ class DiscordHandlers {
                         : 0
                 });
             }
-            const userCredit = await socialCredit.getCredit(message.author.id);
-            if (socialCredit.isBlocked(userCredit)) {
-                await this.replyToMessage(message, { content: socialCredit.getBlockMessage(userCredit), allowedMentions: { parse: [] } });
-                try {
-                    await message.react('1477737004195123230');
-                } catch (_) { /* emoji not available */ }
-                this.setCooldown(message.author.id, messageScope);
-                return;
-            }
-            if (userCredit.blockedUntil && new Date() >= new Date(userCredit.blockedUntil)) {
-                socialCredit.clearBlock(message.author.id).catch(() => {});
-            }
-            const response = await this.jarvis.generateResponse(message, fullContent, false, imageAttachments, { socialCreditData: userCredit });
+            const response = await this.jarvis.generateResponse(message, fullContent, false, imageAttachments);
             const cleanResponse = response;
-            let creditSuffix = '';
-            try {
-                const rawCreditContent = typeof message.content === 'string' ? message.content : '';
-                const cringeInput = socialCredit.stripBotMentions(rawCreditContent, client);
-                const cringeScore = socialCredit.getCringeLevel(cringeInput);
-                let creditChange = socialCredit.rollCreditChange(rawCreditContent, client);
-                if (cringeScore < 15 && userCredit.score < 0) {
-                    creditChange += socialCredit.getRecoveryBonus(userCredit.score);
-                }
-                if (creditChange > 0 || creditChange < 0) {
-                    const newScore = await socialCredit.adjustCredit(message.author.id, creditChange);
-                    if (socialCredit.shouldReact(cringeScore)) {
-                        const emojiId = creditChange > 0 ? '1477736880127869039' : '1477737004195123230';
-                        try {
-                            await message.react(emojiId);
-                        } catch (_) { /* emoji not available */ }
-                    }
-                    if (socialCredit.shouldNotify(creditChange, cringeScore)) {
-                        creditSuffix = '\n' + socialCredit.buildNotifyMessage(creditChange, newScore);
-                    }
-                }
-            } catch (_) { /* social credit non-critical */ }
             if (typeof cleanResponse === 'string' && cleanResponse.trim()) {
                 const safe = this.sanitizePings(cleanResponse);
-                const chunks = splitMessage(safe + creditSuffix);
+                const chunks = splitMessage(safe);
                 for (let i = 0; i < chunks.length; i++) {
                     if (i === 0) {
                         await this.replyToMessage(message, { content: chunks[i], allowedMentions: { parse: [] } });

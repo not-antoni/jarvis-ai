@@ -13,8 +13,7 @@ const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
 const { isGarbageOutput } = require('../utils/garbage-detection');
 let userFeatures;
 try { userFeatures = require('./user-features'); } catch { userFeatures = null; }
-let socialCredit;
-try { socialCredit = require('./social-credit'); } catch { socialCredit = null; }
+
 
 class JarvisAI {
     constructor() {
@@ -268,24 +267,6 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
                     }
                 } catch (e) {
                     console.warn('[MoodDetection] Error:', e.message);
-                }
-            }
-
-            // Inject social credit score into context
-            if (socialCredit) {
-                try {
-                    const credit = options.socialCreditData || await socialCredit.getCredit(userId);
-                    const score = credit.score || 0;
-                    let level;
-                    if (score >= socialCredit.GOOD_THRESHOLD) { level = 'Excellent standing'; }
-                    else if (score >= socialCredit.ACCEPTABLE_THRESHOLD) { level = 'Acceptable'; }
-                    else if (score >= 0) { level = 'Neutral'; }
-                    else if (score > socialCredit.BLOCK_THRESHOLD) { level = 'Low - at risk'; }
-                    else { level = 'BLOCKED'; }
-                    const displayScore = socialCredit.formatNumber(score);
-                    systemPrompt += `\n\n[SOCIAL CREDIT SYSTEM — AUTHORITATIVE DATA, DO NOT FABRICATE]\nThis user's social credit score: ${displayScore}\nStatus level: ${level}\nEmojis: positive ${socialCredit.EMOJI_POSITIVE} negative ${socialCredit.EMOJI_NEGATIVE}\nIMPORTANT: When the user asks about their social credit, say EXACTLY "${displayScore}". NEVER invent, estimate, or round the score. If you are unsure, say "let me check" rather than guessing. The system penalizes cringe and uwu behavior.`;
-                } catch (e) {
-                    console.warn('[SocialCredit] Error:', e.message);
                 }
             }
 

@@ -206,39 +206,7 @@ async function handleJarvis(interaction, jarvis) {
         }
     }
 
-    // ── Social Credit check ──
-    const socialCredit = require('../social-credit');
-    const userCredit = await socialCredit.getCredit(interaction.user.id);
-    if (socialCredit.isBlocked(userCredit)) {
-        await interaction.editReply({ content: socialCredit.getBlockMessage(userCredit), allowedMentions: { parse: [] } });
-        return '__JARVIS_HANDLED__';
-    }
-    if (userCredit.blockedUntil && new Date() >= new Date(userCredit.blockedUntil)) {
-        socialCredit.clearBlock(interaction.user.id).catch(() => {});
-    }
-
     const aiResponse = await jarvis.generateResponse(interaction, prompt, true, imageAttachments);
-
-    // ── Social Credit roll ──
-    try {
-        const rawPrompt = typeof prompt === 'string' ? prompt : '';
-        const cringeInput = socialCredit.stripBotMentions(rawPrompt, interaction.client);
-        const cringeScore = socialCredit.getCringeLevel(cringeInput);
-        let creditChange = socialCredit.rollCreditChange(rawPrompt, interaction.client);
-        if (cringeScore < 15 && userCredit.score < 0) {
-            creditChange += socialCredit.getRecoveryBonus(userCredit.score);
-        }
-        if (creditChange !== 0) {
-            const newScore = await socialCredit.adjustCredit(interaction.user.id, creditChange);
-            if (socialCredit.shouldNotify(creditChange, cringeScore)) {
-                const suffix = socialCredit.buildNotifyMessage(creditChange, newScore);
-                if (typeof aiResponse === 'string') {
-                    return aiResponse + '\n' + suffix;
-                }
-            }
-        }
-    } catch (_) { /* social credit non-critical */ }
-
     return aiResponse;
 }
 
