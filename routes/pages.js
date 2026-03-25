@@ -205,7 +205,7 @@ const PRIVACY_POLICY = `
         <ul>
             <li>Generate relevant AI responses.</li>
             <li>Maintain conversation memory and personalization.</li>
-            <li>Process voice audio in real time for speech-to-text and text-to-speech in voice channels.</li>
+            <li>Process voice chat in real time for speech-to-text and text-to-speech in voice channels.</li>
             <li>Support AutoMod, statistics, and other bot functions.</li>
             <li>Improve stability and detect abuse.</li>
         </ul>
