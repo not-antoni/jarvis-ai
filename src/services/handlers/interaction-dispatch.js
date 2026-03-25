@@ -93,25 +93,6 @@ try {
         return;
     }
 
-    if (commandName === 'voice') {
-        shouldSetCooldown = true;
-        const voiceChat = require('../voice-chat-service');
-        const sub = interaction.options.getSubcommand();
-        try {
-            if (!interaction.deferred && !interaction.replied) {
-                await interaction.deferReply({ ephemeral: true });
-            }
-            const msg = sub === 'join'
-                ? await voiceChat.join(interaction)
-                : voiceChat.leave(interaction.guildId);
-            await interaction.editReply(msg);
-        } catch (e) {
-            console.error('[/voice] Error:', e);
-            try { await interaction.editReply('Voice system error, sir.'); } catch {}
-        }
-        return;
-    }
-
     if (commandName === 'clip') {
         shouldSetCooldown = true;
         const handled = await mediaHandlers.handleSlashCommandClip(handler, interaction);

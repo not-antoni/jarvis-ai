@@ -530,17 +530,6 @@ const allCommands = [
         .setDescription('Get detailed information about the server')
         .setContexts([InteractionContextType.Guild]),
 
-    new SlashCommandBuilder()
-        .setName('voice')
-        .setDescription('Voice chat with Jarvis in a voice channel')
-        .setContexts([InteractionContextType.Guild])
-        .addSubcommand(sub =>
-            sub.setName('join').setDescription('Jarvis joins your voice channel and listens')
-        )
-        .addSubcommand(sub =>
-            sub.setName('leave').setDescription('Jarvis leaves the voice channel')
-        ),
-
     ...musicCommandList.map(command => command.data),
     ...require('./utility/quote').map(c => c.data)
 ];

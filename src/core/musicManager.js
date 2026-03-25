@@ -442,7 +442,7 @@ class MusicManager {
                 channelId: voiceChannel.id,
                 guildId: voiceChannel.guild.id,
                 adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-                selfDeaf: true
+                selfDeaf: false
             });
         let connection = null;
         let joined = false;

@@ -2,6 +2,7 @@
 
 const {
     joinVoiceChannel,
+    getVoiceConnection,
     createAudioPlayer,
     createAudioResource,
     AudioPlayerStatus,
@@ -153,95 +154,67 @@ class VoiceChatService {
         return info;
     }
 
-    // ─── Public API ───────────────────────────────────────────────────────────
+    // ─── Auto-attach: listen whenever the bot is in a VC ──────────────────────
 
-    async join(interaction) {
-        const vc = interaction.member?.voice?.channel;
-        if (!vc) return 'You need to be in a voice channel first, sir.';
-        if (!nvidiaSpeech.sttEnabled) return 'Speech services are not configured, sir.';
+    handleVoiceStateUpdate(oldState, newState) {
+        const botId = this.client?.user?.id;
 
-        // Resume STT on persistent session that's still connected
-        const existing = this.sessions.get(vc.guildId);
-        if (existing && existing.persistent) {
-            existing.sttActive = true;
-            existing.manuallyPaused = false;
-            return `Listening again in **${vc.name}**, sir.`;
+        // Bot's own state changed — auto-attach/detach STT
+        if (newState.member?.id === botId) {
+            if (newState.channelId && newState.channelId !== oldState.channelId) {
+                // Bot joined or moved to a channel
+                this._autoAttach(newState.guild.id, newState.channelId);
+            } else if (!newState.channelId && oldState.channelId) {
+                // Bot left
+                this.sessions.delete(oldState.guild.id);
+            }
+            return;
+        }
+    }
+
+    async _autoAttach(guildId, channelId) {
+        if (!nvidiaSpeech.sttEnabled) return;
+        if (this.sessions.has(guildId)) {
+            // Update channel ID if bot moved
+            const existing = this.sessions.get(guildId);
+            existing.channelId = channelId;
+            return;
         }
 
-        if (existing) return "I'm already connected in this server, sir.";
+        const connection = getVoiceConnection(guildId);
+        if (!connection) return;
 
         try {
-            const connection = joinVoiceChannel({
-                channelId: vc.id,
-                guildId: vc.guild.id,
-                adapterCreator: vc.guild.voiceAdapterCreator,
-                selfDeaf: false,
-                selfMute: false
-            });
+            if (connection.state.status !== VoiceConnectionStatus.Ready) {
+                await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
+            }
+        } catch { return; }
 
-            const player = createAudioPlayer();
-            connection.subscribe(player);
+        const player = createAudioPlayer();
 
-            const persistent = PERSISTENT_CHANNELS.get(vc.guildId) === vc.id;
+        const session = {
+            connection, player,
+            channelId,
+            guildId,
+            textChannelId: null,
+            activeListeners: new Set(),
+            responseQueue: [],
+            responding: false,
+            respondingStartedAt: 0,
+            respondingGeneration: 0,
+            respondingTo: null,
+            lastPlaybackEndedAt: 0,
+            persistent: PERSISTENT_CHANNELS.has(guildId),
+            sttActive: true,
+            manuallyPaused: false
+        };
 
-            const session = {
-                connection, player,
-                channelId: vc.id,
-                guildId: vc.guildId,
-                textChannelId: interaction.channelId,
-                activeListeners: new Set(),
-                responseQueue: [],
-                responding: false,
-                respondingStartedAt: 0,
-                respondingGeneration: 0,
-                respondingTo: null,
-                lastPlaybackEndedAt: 0,
-                persistent,
-                sttActive: true,
-                manuallyPaused: false
-            };
+        this.sessions.set(guildId, session);
+        this._listen(session);
+        this._watchDisconnect(session);
 
-            this.sessions.set(vc.guildId, session);
-            await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
-            this._listen(session);
-            this._watchDisconnect(session);
-
-            console.log(`[VoiceChat] Joined "${vc.name}" in ${vc.guild.name}${persistent ? ' (persistent)' : ''}`);
-            return `Connected to **${vc.name}**. I'm listening, sir.`;
-        } catch (err) {
-            console.error('[VoiceChat] Join failed:', err);
-            this._destroy(vc.guildId);
-            return 'Failed to join the voice channel, sir.';
-        }
-    }
-
-    leave(guildId) {
-        const session = this.sessions.get(guildId);
-        if (!session) return "I'm not in a voice channel, sir.";
-
-        if (session.persistent) {
-            session.sttActive = false;
-            session.manuallyPaused = true;
-            session.responseQueue.length = 0;
-            try { session.player.stop(true); } catch { /* */ }
-            console.log(`[VoiceChat] STT paused (manual) — guild ${guildId}`);
-            return 'Listening paused, sir. I\'ll stay in the channel.';
-        }
-
-        this._destroy(guildId);
-        return 'Disconnected, sir.';
-    }
-
-    handleVoiceStateUpdate(oldState) {
-        const session = this.sessions.get(oldState.guild.id);
-        if (!session || oldState.channelId !== session.channelId) return;
-        if (session.persistent) return;
-
-        const channel = oldState.guild.channels.cache.get(session.channelId);
-        if (channel && channel.members.size <= 1) {
-            console.log('[VoiceChat] Channel empty, disconnecting.');
-            this._destroy(oldState.guild.id);
-        }
+        const channel = this.client.channels.cache.get(channelId);
+        console.log(`[VoiceChat] Auto-listening in "${channel?.name || channelId}" (guild ${guildId})`);
     }
 
     // ─── Opt-out Check ─────────────────────────────────────────────────────
@@ -551,9 +524,21 @@ class VoiceChatService {
             const resource = createAudioResource(Readable.from(wavBuf), {
                 inputType: StreamType.Arbitrary
             });
+
+            // Temporarily subscribe TTS player to the connection so it's heard
+            const musicState = musicManager.get().getState(session.guildId);
+            session.connection.subscribe(session.player);
+
             session.player.play(resource);
 
-            const done = () => { cleanup(); resolve(); };
+            const done = () => {
+                cleanup();
+                // Restore music player subscription if music was active
+                if (musicState?.player) {
+                    session.connection.subscribe(musicState.player);
+                }
+                resolve();
+            };
             const timeout = () => {
                 try { session.player.stop(true); } catch { /* */ }
                 done();
