@@ -280,9 +280,13 @@ const TERMS_OF_SERVICE = `
         <p>You must comply with Discord's Terms of Service and Community Guidelines. Do not use Jarvis for spam, harassment, or any unlawful activity.</p>
 
         <h2>4. Data and Privacy Summary</h2>
-        <p>Jarvis processes message content when you interact with it (via mentions, commands, DMs, or voice chat). In voice channels, audio is processed in real time for speech-to-text—audio is never stored, only the resulting transcription is used. To provide context-aware replies, Jarvis stores limited conversation history—user message, Jarvis reply, timestamp, and identifiers—in a secure database.</p>
-        <p>Users can fully opt out of data storage and delete all stored data (memories) at any time using in-bot commands (e.g., <code>/clear</code> or <code>/opt out</code>). Data is not used to train AI models and is not sold or shared externally.</p>
-        <p>Full details are outlined in our <a href="/policy">Privacy Policy</a>.</p>
+<p>Jarvis processes message content only when you interact with it (via mentions, commands, DMs, or voice chat). In voice channels, Jarvis must be invited via <code>/voice join</code> and will only process audio from users who have explicitly opted in. <strong>Raw audio is never recorded or stored;</strong> it is processed in real-time for speech-to-text and immediately discarded.</p>
+
+<p>To provide context-aware replies, the resulting text transcriptions and message history—including user messages, Jarvis replies, timestamps, and identifiers—are stored in a secure, encrypted database. This data is used solely to maintain conversational memory for the user. You can stop voice processing at any time using <code>/voice leave</code>.</p>
+
+<p>Users maintain full control and can opt out of data storage or delete all stored "memories" at any time using in-bot commands (e.g., <code>/clear</code> or <code>/opt out</code>). Your data is never used to train AI models and is never sold or shared with third parties.</p>
+
+<p>Full details are outlined in our <a href="/policy">Privacy Policy</a>.</p>
 
         <h2>5. Availability and Updates</h2>
         <p>Jarvis may go offline for maintenance, rate limits, or feature changes without prior notice. Functionality may evolve over time.</p>
