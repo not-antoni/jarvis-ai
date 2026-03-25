@@ -112,7 +112,6 @@ const rawConfig = {
         collections: {
             userProfiles: 'userProfiles',
             guildConfigs: 'guildConfigs',
-            socialCredit: 'socialCredit',
             autoModeration: 'autoModerationRules',
             serverStats: 'serverStats',
             memberLogs: 'memberLogs',
