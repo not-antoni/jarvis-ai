@@ -194,7 +194,7 @@ const PRIVACY_POLICY = `
         <h2>What We Collect</h2>
         <ul>
             <li><strong>Message Content</strong> – Only when you interact with Jarvis (mentions, commands, or DMs). Used to generate replies and operate features.</li>
-            <li><strong>Voice Chat</strong> – When <code>/voice join</code> is active, Jarvis only processes audio from opted-in users. <strong>Raw audio is never recorded or stored</strong>; it is converted directly to text. This transcription is then processed by the AI and saved to your encrypted memory. To stop, use <code>/voice leave</code>.</li>
+            <li><strong>Voice Audio</strong> – When <code>/voice join</code> is active, Jarvis only processes audio from opted-in users and responds only when addressed by name ("Jarvis"). <strong>Raw audio is never recorded or stored</strong>; it is converted directly to text. The resulting transcription is processed by the AI and saved to your encrypted memory. To stop, use <code>/voice leave</code>.</li>
             <li><strong>Conversation History ("Memories")</strong> – Includes your messages, Jarvis's replies, timestamps, and basic identifiers to maintain context.</li>
             <li><strong>Operational Metadata</strong> – Usage data and event logs for reliability and performance. (TTL)</li>
             <li><strong>Member Data</strong> – Used only for status-related channels and not stored long-term.</li>
@@ -282,7 +282,7 @@ const TERMS_OF_SERVICE = `
         <h2>4. Data and Privacy Summary</h2>
 <p>Jarvis processes message content only when you interact with it (via mentions, commands, DMs, or voice chat). In voice channels, Jarvis must be invited via <code>/voice join</code> and will only process audio from users who have explicitly opted in. <strong>Raw audio is never recorded or stored;</strong> it is processed in real-time for speech-to-text and immediately discarded.</p>
 
-<p>To provide context-aware replies, the resulting text transcriptions and message history—including user messages, Jarvis replies, timestamps, and identifiers—are stored in a secure, encrypted database. This data is used solely to maintain conversational memory for the user. You can stop voice processing at any time using <code>/voice leave</code>.</p>
+<p>When active in a voice channel, Jarvis only responds to mentions of its name ("Jarvis"). To provide context-aware replies, the resulting text transcriptions and message history—including user messages, Jarvis replies, timestamps, and identifiers—are stored in a secure, encrypted database. You can stop voice processing at any time using <code>/voice leave</code>.</p>
 
 <p>Users maintain full control and can opt out of data storage or delete all stored "memories" at any time using in-bot commands (e.g., <code>/clear</code> or <code>/opt out</code>). Your data is never used to train AI models and is never sold or shared with third parties.</p>
 
