@@ -365,7 +365,7 @@ const LANDING_PAGE = `
                 </div>
                 <div class="feature-card">
                     <h3>Voice Chat</h3>
-                    <p>Use /voice to pull him into your channel. He listens via speech-to-text and responds out loud. You have to say "Jarvis" before each message though — otherwise he ignores you completely.</p>
+                    <p>Use /voice to pull him into your channel. He listens via speech-to-text and responds out loud. Your message just needs to contain "Jarvis" somewhere — otherwise he won't pick it up.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Music</h3>

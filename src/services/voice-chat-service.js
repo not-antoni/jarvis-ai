@@ -22,7 +22,7 @@ const database = require('./database');
 const FFMPEG = process.env.FFMPEG_PATH || '/home/tony/.local/bin/ffmpeg';
 
 // ─── Tuning ───────────────────────────────────────────────────────────────────
-const SILENCE_MS         = 1200;      // ms silence before ending capture
+const SILENCE_MS         = 1600;      // ms silence before ending capture
 const MIN_PACKETS        = 10;        // min opus packets to count as speech
 const BARGE_IN_PACKETS   = 40;        // packets to trigger interrupt during playback
 const MAX_RESPONSE_QUEUE = 5;         // post-STT addressed requests only
