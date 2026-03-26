@@ -510,6 +510,24 @@ const allCommands = [
         )
         .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
+        .setName('channel')
+        .setDescription('Restrict Jarvis chat to one channel in this server')
+        .addSubcommand(sub =>
+            sub.setName('set')
+                .setDescription('Set the only channel where Jarvis chat works')
+                .addChannelOption(opt =>
+                    opt.setName('channel')
+                        .setDescription('Channel to use for Jarvis chat')
+                        .addChannelTypes(ChannelType.GuildText)
+                        .setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('remove')
+                .setDescription('Remove the Jarvis chat channel restriction')
+        )
+        .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
         .setName('voice')
         .setDescription('Jarvis joins your voice channel and listens')
         .setContexts([InteractionContextType.Guild]),
