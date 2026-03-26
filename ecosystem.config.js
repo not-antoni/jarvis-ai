@@ -39,9 +39,10 @@ module.exports = {
         out_file: 'logs/jarvis-out.log',
         merge_logs: true,
 
-        // Graceful shutdown
+        // Graceful startup & shutdown
+        wait_ready: true,
         kill_timeout: 10000,
-        listen_timeout: 10000,
+        listen_timeout: 30000,
         shutdown_with_message: true,
 
     }]

@@ -427,6 +427,7 @@ async function startBot() {
         const bindHost = config.server.host || '0.0.0.0';
         app.listen(config.server.port, bindHost, () => {
             console.log(`Uptime server listening on ${bindHost}:${config.server.port}`);
+            if (process.send) process.send('ready');
         });
 
         // Warm up MongoDB before we touch Discord (optional in local dev)
