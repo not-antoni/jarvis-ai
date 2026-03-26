@@ -71,6 +71,38 @@ function isBlocked(userId, guildConfig) {
     return guildConfig.blockedUserIds && guildConfig.blockedUserIds.includes(userId);
 }
 
+async function sendMusicPermissionReply(target, content) {
+    if (!target) {return;}
+
+    // Discord interactions support ephemeral denial messages.
+    if (!target.author && typeof target.reply === 'function') {
+        const payload = { content, flags: 64 };
+        try {
+            if (target.deferred || target.replied) {
+                if (typeof target.followUp === 'function') {
+                    await target.followUp(payload);
+                }
+            } else {
+                await target.reply(payload);
+            }
+        } catch {
+            if (typeof target.followUp === 'function') {
+                await target.followUp(payload).catch(() => {});
+            }
+        }
+        return;
+    }
+
+    if (typeof target.reply === 'function') {
+        await target.reply(content).catch(() => {});
+        return;
+    }
+
+    if (target.channel?.send) {
+        await target.channel.send({ content }).catch(() => {});
+    }
+}
+
 /**
  * Main permission check for music commands
  * Usage: if (!await canControlMusic(interaction)) return;
@@ -89,9 +121,7 @@ async function canControlMusic(interactionOrMessage, guildConfig = null) {
 
     // 1. Check Blocklist (Except Bot Owner)
     if (!isOwnerCheck(userId) && isBlocked(userId, guildConfig)) {
-        const reply = { content: '🚫 You are blocked from using music commands.', ephemeral: true };
-        if (interactionOrMessage.reply) {await interactionOrMessage.reply(reply);}
-        else if (interactionOrMessage.channel?.send) {await interactionOrMessage.channel.send(reply);}
+        await sendMusicPermissionReply(interactionOrMessage, '🚫 You are blocked from using music commands.');
         return false;
     }
 
@@ -104,12 +134,10 @@ async function canControlMusic(interactionOrMessage, guildConfig = null) {
 
     if (djModeEnabled) {
         if (!isDj(member, guildConfig)) {
-            const reply = {
-                content: '🔒 **DJ Mode is Active**\nYou need the DJ role or Admin permissions to control music.',
-                ephemeral: true
-            };
-            if (interactionOrMessage.reply) {await interactionOrMessage.reply(reply);}
-            else if (interactionOrMessage.channel?.send) {await interactionOrMessage.channel.send(reply);}
+            await sendMusicPermissionReply(
+                interactionOrMessage,
+                '🔒 **DJ Mode is Active**\nYou need the DJ role or Admin permissions to control music.'
+            );
             return false;
         }
     }
