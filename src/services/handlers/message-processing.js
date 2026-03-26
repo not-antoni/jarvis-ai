@@ -6,6 +6,7 @@ const config = require('../../../config');
 const clankerGif = require('../../utils/clanker-gif');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
 const { isGuildUserBlacklisted } = require('../../utils/guild-blacklist');
+const { resolveActiveAiChannelId, isMatchingAiChannel } = require('../../utils/guild-ai-channel');
 
 const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,1391010888915484672')
     .split(',')
@@ -42,6 +43,11 @@ try {
     const activityTracker = require('../GUILDS_FEATURES/activity-tracker');
     activityTracker.recordMessage(message.guild.id, message.channel.id, message.author.id);
 } catch (_e) { /* activity tracker not available */ }
+
+const configuredAiChannelId = await resolveActiveAiChannelId(message.guild);
+if (configuredAiChannelId && !isMatchingAiChannel(configuredAiChannelId, message.channel)) {
+    return;
+}
 
 // ── Voice message auto-transcription ──────────────────────────────────
 try {

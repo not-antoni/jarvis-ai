@@ -566,6 +566,7 @@ class DatabaseManager {
                 ownerId: ownerId || null,
                 moderatorRoleIds: [],
                 moderatorUserIds: [],
+                aiChannelId: null,
                 djRoleIds: [],
                 djUserIds: [],
                 blockedUserIds: [],
@@ -626,6 +627,7 @@ class DatabaseManager {
                         moderatorUserIds: Array.isArray(guildConfig.moderatorUserIds)
                             ? guildConfig.moderatorUserIds
                             : [],
+                        aiChannelId: typeof guildConfig.aiChannelId === 'string' ? guildConfig.aiChannelId : null,
                         djRoleIds: Array.isArray(guildConfig.djRoleIds) ? guildConfig.djRoleIds : [],
                         djUserIds: Array.isArray(guildConfig.djUserIds) ? guildConfig.djUserIds : [],
                         blockedUserIds: Array.isArray(guildConfig.blockedUserIds) ? guildConfig.blockedUserIds : [],
@@ -702,6 +704,12 @@ class DatabaseManager {
     }
     async setGuildWakeWordsDisabled(guildId, disabled) {
         return this._setOrUnsetField(guildId, 'wakeWordsDisabled', disabled ? true : null);
+    }
+    async setGuildAiChannel(guildId, channelId) {
+        return this._setOrUnsetField(guildId, 'aiChannelId', channelId);
+    }
+    async clearGuildAiChannel(guildId) {
+        return this._setOrUnsetField(guildId, 'aiChannelId', null);
     }
     async removeGuildBlockedUser(guildId, userId) {
         return this._patchGuildConfig(

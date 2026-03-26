@@ -18,11 +18,18 @@ const {
     resolveBlacklistedUsers,
     buildBlacklistAttachment
 } = require('../../utils/guild-blacklist');
+const {
+    getConfiguredAiChannelId,
+    resolveActiveAiChannelId,
+    isMatchingAiChannel
+} = require('../../utils/guild-ai-channel');
 
 function isCommandEnabled(commandName) {
     const featureKey = commandFeatureMap.get(commandName);
     return isFeatureGloballyEnabled(featureKey);
 }
+
+const AI_CHANNEL_SCOPED_COMMANDS = new Set(['jarvis']);
 
 async function handleBlacklist(interaction, handler) {
     if (!interaction.guild) {
@@ -147,6 +154,79 @@ async function handleBlacklist(interaction, handler) {
     };
 }
 
+async function handleChannel(interaction, handler) {
+    if (!interaction.guild) {
+        return {
+            content: 'This command only works inside a server, sir.',
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    const database = require('../database');
+    if (!database.isConnected) {
+        return {
+            content: 'Database is offline, sir. Cannot manage the channel restriction right now.',
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    const { guild } = interaction;
+    const member = interaction.member?.guild
+        ? interaction.member
+        : await guild.members.fetch(interaction.user.id).catch(() => null);
+    const guildConfig = await handler.getGuildConfig(guild);
+    const isModerator = await handler.isGuildModerator(member, guildConfig);
+
+    if (!isModerator) {
+        return {
+            content: 'Only the server owner or configured moderators may do that, sir.',
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand === 'set') {
+        const channel = interaction.options.getChannel('channel', true);
+        const currentChannelId = getConfiguredAiChannelId(guildConfig);
+
+        if (currentChannelId === channel.id) {
+            return {
+                content: `Jarvis chat is already restricted to ${channel}, sir.`,
+                allowedMentions: { parse: [] }
+            };
+        }
+
+        await database.setGuildAiChannel(guild.id, channel.id);
+        return {
+            content: `Jarvis chat is now restricted to ${channel} in **${guild.name}**, sir.`,
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    if (subcommand === 'remove') {
+        const currentChannelId = getConfiguredAiChannelId(guildConfig);
+
+        if (!currentChannelId) {
+            return {
+                content: 'Jarvis chat is not restricted to a specific channel in this server, sir.',
+                allowedMentions: { parse: [] }
+            };
+        }
+
+        await database.clearGuildAiChannel(guild.id);
+        return {
+            content: 'Jarvis chat channel restriction removed. It will work server-wide again, sir.',
+            allowedMentions: { parse: [] }
+        };
+    }
+
+    return {
+        content: 'That channel action is not recognized, sir.',
+        allowedMentions: { parse: [] }
+    };
+}
+
 async function handle(handler, interaction) {
     const { commandName } = interaction;
     const userId = interaction.user.id;
@@ -201,6 +281,32 @@ async function handle(handler, interaction) {
                 }
             }
             return;
+        }
+
+        if (guild && AI_CHANNEL_SCOPED_COMMANDS.has(commandName)) {
+            const configuredAiChannelId = await resolveActiveAiChannelId(guild);
+            const interactionChannel = interaction.channel || {
+                id: interaction.channelId,
+                parentId: interaction.channel?.parentId || null
+            };
+
+            if (configuredAiChannelId && !isMatchingAiChannel(configuredAiChannelId, interactionChannel)) {
+                telemetryStatus = 'error';
+                telemetryMetadata.reason = 'ai-channel-restricted';
+                try {
+                    const notice = `Use <#${configuredAiChannelId}> for Jarvis chat in this server, sir.`;
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: notice, ephemeral: true });
+                    } else if (interaction.deferred && !interaction.replied) {
+                        await interaction.editReply(notice);
+                    }
+                } catch (error) {
+                    if (error?.code !== 10062) {
+                        console.warn('Failed to send AI channel restriction notice:', error);
+                    }
+                }
+                return;
+            }
         }
 
         if (!isCommandEnabled(commandName)) {
@@ -442,6 +548,11 @@ async function handle(handler, interaction) {
             case 'blacklist': {
                 telemetryMetadata.category = 'operations';
                 response = await handleBlacklist(interaction, handler);
+                break;
+            }
+            case 'channel': {
+                telemetryMetadata.category = 'operations';
+                response = await handleChannel(interaction, handler);
                 break;
             }
             default: {
