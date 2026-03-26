@@ -487,7 +487,28 @@ const allCommands = [
         .setName('serverinfo')
         .setDescription('Get detailed information about the server')
         .setContexts([InteractionContextType.Guild]),
-
+    new SlashCommandBuilder()
+        .setName('blacklist')
+        .setDescription('Manage the server user blacklist (admin only)')
+        .addSubcommand(sub =>
+            sub.setName('add')
+                .setDescription('Blacklist a user from using the bot in this server')
+                .addUserOption(opt =>
+                    opt.setName('user').setDescription('The user to blacklist').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('remove')
+                .setDescription('Remove a user from the blacklist')
+                .addUserOption(opt =>
+                    opt.setName('user').setDescription('The user to unblacklist').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('list')
+                .setDescription('List all blacklisted users in this server')
+        )
+        .setContexts([InteractionContextType.Guild]),
     new SlashCommandBuilder()
         .setName('voice')
         .setDescription('Jarvis joins your voice channel and listens')

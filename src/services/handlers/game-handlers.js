@@ -4,6 +4,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsB
 const database = require('../../services/database');
 const config = require('../../../config');
 const ytSearchUi = require('./yt-search-ui');
+const { isOwner: isOwnerCheck } = require('../../utils/owner-check');
 
 // ── Handler-dependent functions ────────────────────────────────────────
 
@@ -25,7 +26,8 @@ async function handleFeaturesCommand(handler, interaction) {
         }
 
         const { member } = interaction;
-        const isAdmin = member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
+        const isAdmin = isOwnerCheck(member.id) ||
+            member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
             member.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
             member.id === interaction.guild.ownerId;
 
