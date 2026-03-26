@@ -361,7 +361,7 @@ const LANDING_PAGE = `
             <div class="features-grid">
                 <div class="feature-card">
                     <h3>AI Chat</h3>
-                    <p>Mention him in any channel or DM. He remembers past conversations and picks up where you left off. 50+ models under the hood.</p>
+                    <p>Mention him in any channel (DMs are disabled to prevent abuse, but you can still use /jarvis). He remembers past conversations and picks up where you left off. 50+ models under the hood.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Voice Chat</h3>
