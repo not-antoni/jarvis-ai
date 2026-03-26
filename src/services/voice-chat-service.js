@@ -24,7 +24,7 @@ const FFMPEG = process.env.FFMPEG_PATH || '/home/tony/.local/bin/ffmpeg';
 // ─── Tuning ───────────────────────────────────────────────────────────────────
 const SILENCE_MS         = 1600;      // ms silence before ending capture
 const MIN_PACKETS        = 10;        // min opus packets to count as speech
-const BARGE_IN_PACKETS   = 40;        // packets to trigger interrupt during playback
+const BARGE_IN_PACKETS   = 50;        // packets to trigger interrupt during playback
 const MAX_RESPONSE_QUEUE = 5;         // post-STT addressed requests only
 // STT idle timeout removed — energy gate + wake word filter already prevent unnecessary API calls
 const MAX_TTS_CHARS      = 500;

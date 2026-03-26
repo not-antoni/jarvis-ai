@@ -23,6 +23,9 @@ async function handleAutoModCommand(handler, interaction) {
     const { member } = interaction;
     const subcommand = interaction.options.getSubcommand();
     const subcommandGroup = interaction.options.getSubcommandGroup(false);
+
+    // Flatten legacy "filter add" group → "newfilter"
+    const effectiveSubcommand = (subcommandGroup === 'filter' && subcommand === 'add') ? 'newfilter' : subcommand;
     const guildConfig = await handler.getGuildConfig(guild);
 
     const isModerator = await handler.isGuildModerator(member, guildConfig);
@@ -52,8 +55,8 @@ async function handleAutoModCommand(handler, interaction) {
         await interaction.editReply(message);
     };
 
-    if (subcommandGroup === 'filter') {
-        if (subcommand === 'add') {
+    if (effectiveSubcommand === 'newfilter') {
+        {
             const input = interaction.options.getString('words');
             const additions = automodUtils.parseKeywordInput(input);
 
@@ -129,12 +132,9 @@ async function handleAutoModCommand(handler, interaction) {
             }
             return;
         }
-
-        await replyWithError('I am not certain how to handle that auto moderation filter request, sir.');
-        return;
     }
 
-    if (subcommand === 'status') {
+    if (effectiveSubcommand === 'status') {
         const enabledState = cachedRules.length
             ? cachedRules.every(rule => Boolean(rule.enabled))
             : Boolean(record.enabled);
@@ -165,7 +165,7 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    if (subcommand === 'list') {
+    if (effectiveSubcommand === 'list') {
         if (!record.keywords.length) {
             await interaction.editReply('No blacklist entries are currently configured, sir.');
             return;
@@ -197,7 +197,7 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    if (subcommand === 'enable') {
+    if (effectiveSubcommand === 'enable') {
         if (!record.keywords.length) {
             await replyWithError('Please add blacklisted words before enabling auto moderation, sir.');
             return;
@@ -244,7 +244,7 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    if (subcommand === 'disable') {
+    if (effectiveSubcommand === 'disable') {
         try {
             const disabled = await automodUtils.disableAutoModRule(guild, record.ruleIds);
             if (!disabled) {
@@ -278,7 +278,7 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    if (subcommand === 'clear') {
+    if (effectiveSubcommand === 'clear') {
         try {
             const disabled = await automodUtils.disableAutoModRule(guild, record.ruleIds);
             if (!disabled) {
@@ -303,7 +303,7 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    if (subcommand === 'setmessage') {
+    if (effectiveSubcommand === 'message' || effectiveSubcommand === 'setmessage') {
         const message = interaction.options.getString('message');
         if (!message || !message.trim()) {
             await replyWithError('Please provide a custom message, sir.');
@@ -357,7 +357,7 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    if (subcommand === 'add') {
+    if (effectiveSubcommand === 'add') {
         const input = interaction.options.getString('words');
         const additions = automodUtils.parseKeywordInput(input);
 
@@ -403,7 +403,7 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    if (subcommand === 'remove') {
+    if (effectiveSubcommand === 'remove') {
         const input = interaction.options.getString('words');
         const removals = automodUtils.parseKeywordInput(input);
 
@@ -463,7 +463,7 @@ async function handleAutoModCommand(handler, interaction) {
         return;
     }
 
-    if (subcommand === 'import') {
+    if (effectiveSubcommand === 'import') {
         const attachment = interaction.options.getAttachment('file');
         const shouldReplace = interaction.options.getBoolean('replace') || false;
 
