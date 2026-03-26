@@ -396,24 +396,27 @@ class DatabaseManager {
             console.log('Database indexes created successfully');
         }
     }
-    async getUserProfile(userId, userName) {
+    async getUserProfile(userId, userName, options = {}) {
         if (!this.isConnected) {return null;}
+        const update = {
+            $setOnInsert: {
+                userId,
+                firstMet: new Date(),
+                preferences: {},
+                relationship: 'new',
+                personalityDrift: 0,
+                activityPatterns: []
+            },
+            $set: { lastSeen: new Date(), name: userName }
+        };
+        if (!options.skipIncrement) {
+            update.$inc = { interactions: 1 };
+        }
         const result = await this.db
             .collection(config.database.collections.userProfiles)
             .findOneAndUpdate(
                 { userId },
-                {
-                    $setOnInsert: {
-                        userId,
-                        firstMet: new Date(),
-                        preferences: {},
-                        relationship: 'new',
-                        personalityDrift: 0,
-                        activityPatterns: []
-                    },
-                    $inc: { interactions: 1 },
-                    $set: { lastSeen: new Date(), name: userName }
-                },
+                update,
                 { upsert: true, returnDocument: 'after' }
             );
         return result;

@@ -230,17 +230,24 @@ class NvidiaSpeech {
             };
         }
 
+        const t0 = Date.now();
+        console.log(`[NvidiaSpeech] TTS gRPC request: "${text.slice(0, 60)}..." voiceRef=${!!voicePcm}`);
         return new Promise((resolve) => {
             this._ttsClient.Synthesize(
                 request,
                 this._grpcMeta(TTS_FUNC_ID),
                 { deadline: Date.now() + 30000 },
                 (err, res) => {
+                    const ms = Date.now() - t0;
                     if (err) {
-                        console.error('[NvidiaSpeech] gRPC TTS error:', err.message);
+                        console.error(`[NvidiaSpeech] gRPC TTS error (${ms}ms):`, err.message);
                         return resolve(null);
                     }
-                    if (!res?.audio?.length) return resolve(null);
+                    if (!res?.audio?.length) {
+                        console.warn(`[NvidiaSpeech] gRPC TTS empty response (${ms}ms)`);
+                        return resolve(null);
+                    }
+                    console.log(`[NvidiaSpeech] TTS OK ${ms}ms, ${res.audio.length} bytes`);
                     // Wrap raw PCM as WAV so downstream can play it
                     resolve(wrapPcmAsWav(Buffer.from(res.audio), 22050));
                 }
