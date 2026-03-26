@@ -25,17 +25,17 @@ const LANDING_PAGE = `
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis | Discord AI Bot</title>
-    <meta name="description" content="AI chat, AutoMod, and music for Discord servers.">
-    <meta property="og:title" content="Jarvis | Discord AI Bot">
-    <meta property="og:description" content="AI chat, AutoMod, and music for Discord servers.">
+    <title>Jarvis | Discord Bot — AI Chat, Voice, Music & AutoMod</title>
+    <meta name="description" content="Free Discord bot that actually talks back. AI chat in text and voice channels, music playback, AutoMod, and 30+ slash commands. No credit card, no catch.">
+    <meta property="og:title" content="Jarvis | Discord Bot — AI Chat, Voice, Music & AutoMod">
+    <meta property="og:description" content="Free Discord bot that actually talks back. AI chat in text and voice channels, music playback, AutoMod, and 30+ slash commands. No credit card, no catch.">
     <link rel="icon" type="image/webp" href="/jarvis.webp">
     <meta property="og:site_name" content="Jarvis">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${SITE_BASE_URL}">
     <meta name="theme-color" content="#fff">
     <meta name="twitter:card" content="summary">
-    <meta name="keywords" content="discord bot, ai discord bot, music bot, automod bot, jarvis">
+    <meta name="keywords" content="discord bot, ai discord bot, voice chat bot, music bot, automod bot, jarvis, discord ai assistant, speech to text discord">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="${SITE_BASE_URL}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -260,6 +260,46 @@ const LANDING_PAGE = `
             transform: translate(-50%, 0);
         }
         
+        /* Features Section */
+        .features {
+            padding: 3rem 5%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .features h2 {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+
+        .feature-card h3 {
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            color: #777;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .hero { padding: 2.5rem 5% 1.5rem; }
@@ -268,6 +308,8 @@ const LANDING_PAGE = `
             .nav-links { display: none; }
             .stats-grid { gap: 1.5rem; }
             .stat-number { font-size: 1.75rem; }
+            .features { padding: 2rem 5%; }
+            .features h2 { font-size: 1.25rem; }
         }
     </style>
 </head>
@@ -281,7 +323,7 @@ const LANDING_PAGE = `
     <main class="page">
         <section class="hero">
             <h1>The Discord AI with <span class="accent">Actual Personality</span></h1>
-            <p>Stop using boring bots. Jarvis brings natural chat, AutoMod filtering, and music streaming to your server.</p>
+            <p>Stop using boring bots. Jarvis does AI chat, voice conversations, music, and AutoMod — like an actual member of your server.</p>
             <div class="cta-buttons">
                 <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">➕ Add to Discord</a>
                 <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join Support Server</a>
@@ -310,6 +352,28 @@ const LANDING_PAGE = `
                 <div class="stat-item">
                     <div class="stat-number">99.9%</div>
                     <div class="stat-label">Uptime</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="features">
+            <h2>Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h3>AI Chat</h3>
+                    <p>Mention him in any channel or DM. He remembers past conversations and picks up where you left off. 50+ models under the hood.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Voice Chat</h3>
+                    <p>Jarvis joins voice channels, listens via speech-to-text, and responds out loud. Just say "Jarvis" and talk normally.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>Music</h3>
+                    <p>Play from YouTube, Spotify, SoundCloud, and others. Queue up tracks, skip, loop — the usual stuff but it just works.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>AutoMod</h3>
+                    <p>Catches spam, toxicity, and sketchy content so you don't have to babysit your server 24/7.</p>
                 </div>
             </div>
         </section>
