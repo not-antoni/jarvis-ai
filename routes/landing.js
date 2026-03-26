@@ -365,7 +365,7 @@ const LANDING_PAGE = `
                 </div>
                 <div class="feature-card">
                     <h3>Voice Chat</h3>
-                    <p>Run /voice and he joins your call. Say "Jarvis" and talk — he hears you and talks back. Forget to say his name and he pretends you don't exist.</p>
+                    <p>Run /voice and he joins your call. Say "Jarvis" and talk — he hears you and talks back. Forget to say his name and he pretends you don't exist. Works best if you're British, apparently.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Music</h3>
