@@ -5,6 +5,7 @@ const { AttachmentBuilder } = require('discord.js');
 const config = require('../../../config');
 const clankerGif = require('../../utils/clanker-gif');
 const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
+const { isGuildUserBlacklisted } = require('../../utils/guild-blacklist');
 
 const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,1391010888915484672')
     .split(',')
@@ -29,6 +30,10 @@ if (message.author.bot && !allowedBotIds.includes(message.author.id)) {return;}
 
 
 if (!message.guild) {
+    return;
+}
+
+if (await isGuildUserBlacklisted(message.guild.id, message.author.id)) {
     return;
 }
 

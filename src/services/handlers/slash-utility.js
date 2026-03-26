@@ -364,6 +364,11 @@ async function handleServerinfo(interaction) {
     return { embeds: [embed] };
 }
 
+async function handleBlacklist(interaction, handler) {
+    const interactionDispatch = require('./interaction-dispatch');
+    return interactionDispatch.handleBlacklist(interaction, handler);
+}
+
 module.exports = {
     handlePing,
     handleYt,
@@ -374,5 +379,6 @@ module.exports = {
     handleAvatar,
     handleBanner,
     handleUserinfo,
-    handleServerinfo
+    handleServerinfo,
+    handleBlacklist,
 };

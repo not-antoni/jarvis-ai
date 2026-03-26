@@ -21,6 +21,7 @@ const NEWS_API_KEY = process.env.NEWS_API_KEY || null;
 const tempFiles = require('../utils/temp-files');
 const { sanitizePings: sanitizePingsUtil } = require('../utils/sanitize');
 const { splitMessage } = require('../utils/discord-safe-send');
+const { isOwner: isOwnerCheck } = require('../utils/owner-check');
 const serverStats = require('./handlers/server-stats');
 const mediaRendering = require('./handlers/media-rendering');
 const templates = require('./handlers/templates');
@@ -254,8 +255,7 @@ class DiscordHandlers {
         }
     }
     isOnCooldown(userId, scope = 'global', cooldownMs = null) {
-        const ownerId = process.env.BOT_OWNER_ID || '';
-        if (ownerId && userId === ownerId) {
+        if (isOwnerCheck(userId)) {
             return false;
         }
         if (!this.cooldowns) {
@@ -317,6 +317,9 @@ class DiscordHandlers {
     async isGuildModerator(member, guildConfig = null) {
         if (!member || !member.guild) {
             return false;
+        }
+        if (isOwnerCheck(member.id)) {
+            return true;
         }
         const { guild } = member;
         const { ownerId } = guild;
@@ -1692,7 +1695,8 @@ class DiscordHandlers {
                     return;
                 }
                 const { member } = interaction;
-                const isAdmin = member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
+                const isAdmin = isOwnerCheck(member.id) ||
+                    member.permissions?.has(PermissionsBitField.Flags.Administrator) ||
                     member.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
                     member.id === interaction.guild.ownerId;
                 if (!isAdmin) {
