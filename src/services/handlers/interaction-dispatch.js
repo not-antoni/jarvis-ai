@@ -1,10 +1,17 @@
 'use strict';
 
-const { EmbedBuilder } = require('discord.js');
-const config = require('../../../config');
-const youtubeSearch = require('../youtube-search');
-const ytSearchUi = require('./yt-search-ui');
-const { formatUptime, getProcessUptimeSeconds } = require('../../utils/uptime');
+const { commandMap: musicCommandMap } = require('../../commands/music');
+const { splitMessage } = require('../../utils/discord-safe-send');
+const { recordCommandRun } = require('../../utils/telemetry');
+const { commandFeatureMap, SLASH_EPHEMERAL_COMMANDS } = require('../../core/command-registry');
+const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
+const automodSlash = require('./automod-slash');
+const gameHandlers = require('./game-handlers');
+const mediaHandlers = require('./media-handlers');
+const memberLog = require('./member-log');
+const memoryHandler = require('./memory-handler');
+const slashSocial = require('./slash-social');
+const slashUtility = require('./slash-utility');
 const {
     getBlockedUserIds,
     isGuildUserBlacklisted,
@@ -12,154 +19,11 @@ const {
     buildBlacklistAttachment
 } = require('../../utils/guild-blacklist');
 
-async function handlePing(interaction) {
-    const sent = await interaction.editReply({ content: 'Pinging system...', fetchReply: true });
-    const roundtripLatency = sent.createdTimestamp - interaction.createdTimestamp;
-    const apiLatency = Math.round(interaction.client.ws.ping);
-
-    const os = require('os');
-    const fs = require('fs');
-    const path = require('path');
-
-    let botVersion = 'Unknown';
-    try {
-        const pkg = require(path.join(process.cwd(), 'package.json'));
-        botVersion = pkg.version;
-    } catch (e) {}
-
-    let hostOs = `${os.type()} ${os.release()}`;
-    try {
-        if (fs.existsSync('/etc/os-release')) {
-            const fileContent = fs.readFileSync('/etc/os-release', 'utf8');
-            const match = fileContent.match(/PRETTY_NAME="([^"]+)"/);
-            if (match && match[1]) hostOs = match[1];
-        }
-    } catch (e) {}
-
-    let cpuModel = 'Unknown CPU';
-    try {
-        const cpus = os.cpus();
-        if (cpus?.[0]?.model) cpuModel = cpus[0].model;
-        else if (fs.existsSync('/proc/cpuinfo')) {
-            const cpuinfo = fs.readFileSync('/proc/cpuinfo', 'utf8');
-            const modelMatch = cpuinfo.match(/model name\s*:\s*(.+)/i) || cpuinfo.match(/Hardware\s*:\s*(.+)/i);
-            if (modelMatch) cpuModel = modelMatch[1].trim();
-        }
-    } catch (e) {
-        cpuModel = `${os.arch()} processor`;
-    }
-
-    const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
-    const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
-    const uptime = formatUptime(getProcessUptimeSeconds());
-
-    const embed = new EmbedBuilder()
-        .setTitle('🏓 Pong!')
-        .setColor(0x3498db)
-        .addFields(
-            { name: '🤖 Bot Version', value: `v${botVersion}`, inline: true },
-            { name: '🛠️ Node Runtime', value: `${process.version}`, inline: true },
-            { name: '📶 Latency', value: `API: \`${apiLatency}ms\`\nRT: \`${roundtripLatency}ms\``, inline: true },
-            { name: '⏱️ Uptime', value: `\`${uptime}\``, inline: true },
-            { name: '🧠 Memory', value: `${freeMem}GB / ${totalMem}GB Free`, inline: true },
-            { name: '⚙️ Processor', value: cpuModel, inline: true },
-            { name: '🐧 Host OS', value: hostOs, inline: true }
-        )
-        .setFooter({ text: 'Jarvis Systems Online' })
-        .setTimestamp();
-
-    return { embeds: [embed] };
+function isCommandEnabled(commandName) {
+    const featureKey = commandFeatureMap.get(commandName);
+    return isFeatureGloballyEnabled(featureKey);
 }
 
-async function handleYt(interaction, _jarvis) {
-    const query = (interaction.options.getString('query') || '').trim();
-    if (!query.length) return 'Please provide a YouTube search query, sir.';
-
-    try {
-        const response = await youtubeSearch.searchVideos(query, 24);
-        const items = Array.isArray(response?.items) ? response.items : [];
-        if (!items.length) return 'No relevant videos found, sir.';
-
-        return ytSearchUi.buildInitialResponse({
-            ownerId: interaction.user.id,
-            query,
-            results: items
-        });
-    } catch (error) {
-        console.error('YouTube search command failed:', error);
-        return 'YouTube search failed, sir.';
-    }
-}
-
-async function handleJarvis(interaction, jarvis) {
-    let prompt = interaction.options.getString('prompt') || '';
-
-    if (prompt && /\bis\s+this\s+tuff\b/i.test(prompt)) {
-        return `Fuh naw, sir 💔 <:wilted_rose:1462415423327703260>`;
-    }
-    if (prompt && /\bis\s+this\s+peak\b/i.test(prompt)) {
-        return 'Indubitably peak, sir. 🏔️🔥';
-    }
-
-    try {
-        const guild = interaction.guild || (interaction.guildId ? await interaction.client.guilds.fetch(interaction.guildId).catch(() => null) : null);
-        if (guild) {
-            const mentionTypes = [/* ... your mention resolver stays exactly as before ... */];
-            // (keeping your original mention resolution block unchanged)
-            for (const { regex, pattern, prefix, resolve, name } of mentionTypes) {
-                for (const id of new Set(Array.from(prompt.matchAll(regex)).map(m => m[1]))) {
-                    const entity = await resolve(id);
-                    prompt = prompt.replace(new RegExp(pattern(id), 'g'), `${prefix}${name(entity)}`);
-                }
-            }
-        }
-    } catch (error) {
-        console.warn('Failed to resolve mentions:', error);
-    }
-
-    try {
-        if (interaction.client?.user?.id) {
-            prompt = prompt.replace(new RegExp(`<@!?${interaction.client.user.id}>`, 'g'), '').trim();
-        }
-    } catch (_) {}
-
-    prompt = prompt.replace(/@everyone/g, '').replace(/@here/g, '').trim();
-    if (!prompt) prompt = 'jarvis';
-
-    if (prompt.length > config.ai.maxSlashInputLength) {
-        const responses = ['Rather verbose, sir.', 'Too many words, sir.', 'TL;DR, sir.', 'Really, sir?', 'Stop yapping, sir.'];
-        await interaction.editReply(responses[Math.floor(Math.random() * responses.length)]);
-        return '__JARVIS_HANDLED__';
-    }
-
-    if (prompt.length > config.ai.maxInputLength) {
-        prompt = `${prompt.substring(0, config.ai.maxInputLength)}...`;
-    }
-
-    const imageAttachment = interaction.options.getAttachment('image');
-    const imageAttachments = [];
-    if (imageAttachment) {
-        const ext = (imageAttachment.name || '').split('.').pop()?.toLowerCase();
-        if (imageAttachment.contentType?.startsWith('image/') || ['jpg','jpeg','png','webp','gif'].includes(ext)) {
-            imageAttachments.push({ url: imageAttachment.url, contentType: imageAttachment.contentType });
-        }
-    }
-
-    const aiResponse = await jarvis.generateResponse(interaction, prompt, true, imageAttachments);
-    return aiResponse;
-}
-
-const makeUtilityHandler = cmd => (interaction, jarvis, userId, guildId) =>
-    jarvis.handleUtilityCommand(cmd, interaction.user.username, userId, true, interaction, guildId);
-
-const handleClear = makeUtilityHandler('reset');
-const handleHelp = makeUtilityHandler('help');
-const handleProfile = makeUtilityHandler('profile');
-
-async function handleAvatar(interaction) { /* unchanged */ }
-async function handleBanner(interaction) { /* unchanged */ }
-async function handleUserinfo(interaction) { /* unchanged */ }
-async function handleServerinfo(interaction) { /* unchanged */ }
 async function handleBlacklist(interaction, handler) {
     if (!interaction.guild) {
         return {
@@ -254,7 +118,6 @@ async function handleBlacklist(interaction, handler) {
 
     if (subcommand === 'list') {
         const entries = await resolveBlacklistedUsers(interaction.client, blockedUserIds);
-        const attachment = buildBlacklistAttachment(guild, entries);
         const summary = entries.length
             ? `${entries.length} user(s) are currently blacklisted in **${guild.name}**.`
             : `No users are currently blacklisted in **${guild.name}**.`;
@@ -262,7 +125,7 @@ async function handleBlacklist(interaction, handler) {
         try {
             await interaction.user.send({
                 content: `Blacklist export for **${guild.name}**.\n${summary}`,
-                files: [attachment]
+                files: [buildBlacklistAttachment(guild, entries)]
             });
 
             return {
@@ -272,7 +135,7 @@ async function handleBlacklist(interaction, handler) {
         } catch (_) {
             return {
                 content: `📄 ${interaction.user}, I could not DM you, so here is the blacklist file instead, sir. ${summary}`,
-                files: [attachment],
+                files: [buildBlacklistAttachment(guild, entries)],
                 allowedMentions: { parse: [] }
             };
         }
@@ -284,95 +147,423 @@ async function handleBlacklist(interaction, handler) {
     };
 }
 
-/* ====================== MAIN DISPATCHER ====================== */
-async function handle(discordHandlers, interaction) {
-    const { jarvis } = discordHandlers;
+async function handle(handler, interaction) {
+    const { commandName } = interaction;
+    const userId = interaction.user.id;
+    const guild = interaction.guild || null;
+    const guildId = guild?.id || null;
+    const cooldownScope = `slash:${commandName}`;
+    const startedAt = Date.now();
 
-    const commandName = interaction.commandName;
-    const guildId = interaction.guildId ?? interaction.guild?.id ?? null;
+    let telemetryStatus = 'ok';
+    let telemetryError = null;
+    const telemetryMetadata = {};
+    let telemetrySubcommand = null;
+    let shouldSetCooldown = false;
 
-    if (commandName !== 'blacklist' && await isGuildUserBlacklisted(guildId, interaction.user?.id)) {
-        await interaction.reply({
-            content: 'You are blacklisted from using Jarvis in this server, sir.',
-            ephemeral: true
-        }).catch(() => {});
-        return;
-    }
+    const finalizeTelemetry = () => {
+        const metadata = telemetryMetadata && Object.keys(telemetryMetadata).length > 0
+            ? telemetryMetadata
+            : undefined;
 
-    // Always defer — prevents "interaction failed" on slower commands
-    if (!interaction.replied && !interaction.deferred) {
-        await interaction.deferReply().catch(() => {});
-    }
-
-    let result;
+        recordCommandRun({
+            command: commandName,
+            subcommand: telemetrySubcommand,
+            userId,
+            guildId,
+            latencyMs: Date.now() - startedAt,
+            status: telemetryStatus,
+            error: telemetryError,
+            metadata,
+            context: 'slash'
+        });
+    };
 
     try {
+        const extractedRoute = handler.extractInteractionRoute(interaction);
+        telemetrySubcommand = extractedRoute;
+
+        if (commandName !== 'blacklist' && await isGuildUserBlacklisted(guildId, userId)) {
+            telemetryStatus = 'error';
+            telemetryMetadata.reason = 'guild-blacklisted';
+            try {
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({
+                        content: 'You are blacklisted from using Jarvis in this server, sir.',
+                        ephemeral: true
+                    });
+                } else if (interaction.deferred && !interaction.replied) {
+                    await interaction.editReply('You are blacklisted from using Jarvis in this server, sir.');
+                }
+            } catch (error) {
+                if (error?.code !== 10062) {
+                    console.warn('Failed to send blacklist notice:', error);
+                }
+            }
+            return;
+        }
+
+        if (!isCommandEnabled(commandName)) {
+            telemetryStatus = 'error';
+            telemetryMetadata.reason = 'feature-disabled-global';
+            try {
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ content: 'That module is disabled in this deployment, sir.', ephemeral: true });
+                }
+            } catch (error) {
+                if (error?.code !== 10062) {
+                    console.warn('Failed to send disabled command notice:', error);
+                }
+            }
+            return;
+        }
+
+        const featureAllowed = await handler.isCommandFeatureEnabled(commandName, guild);
+        if (!featureAllowed) {
+            telemetryStatus = 'error';
+            telemetryMetadata.reason = 'feature-disabled-guild';
+            try {
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({ content: 'That module is disabled for this server, sir.', ephemeral: true });
+                } else if (interaction.deferred && !interaction.replied) {
+                    await interaction.editReply('That module is disabled for this server, sir.');
+                }
+            } catch (error) {
+                if (error?.code !== 10062) {
+                    console.warn('Failed to send guild-disabled command notice:', error);
+                }
+            }
+            return;
+        }
+
+        if (handler.isOnCooldown(userId, cooldownScope)) {
+            telemetryStatus = 'error';
+            telemetryMetadata.reason = 'rate_limited';
+            return;
+        }
+
+        if (commandName === 'voice') {
+            shouldSetCooldown = true;
+            const voiceChat = require('../voice-chat-service');
+            try {
+                if (!interaction.deferred && !interaction.replied) {
+                    await interaction.deferReply({ ephemeral: true });
+                }
+                const msg = await voiceChat.join(interaction);
+                await interaction.editReply(msg);
+            } catch (error) {
+                console.error('[/voice] Error:', error);
+                try {
+                    await interaction.editReply('Voice system error, sir.');
+                } catch {}
+            }
+            return;
+        }
+
+        if (commandName === 'clip') {
+            shouldSetCooldown = true;
+            const handled = await mediaHandlers.handleSlashCommandClip(handler, interaction);
+            telemetryMetadata.handled = Boolean(handled);
+            return;
+        }
+
+        const musicCommand = musicCommandMap.get(commandName);
+        if (musicCommand) {
+            shouldSetCooldown = true;
+            try {
+                await musicCommand.execute(interaction);
+            } catch (error) {
+                telemetryStatus = 'error';
+                telemetryError = error;
+                console.error(`Error executing /${commandName}:`, error);
+                try {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.reply('⚠️ Unable to process that request right now, sir.');
+                    } else if (!interaction.replied) {
+                        await interaction.editReply('⚠️ Unable to process that request right now, sir.');
+                    } else {
+                        await interaction.followUp('⚠️ Unable to process that request right now, sir.');
+                    }
+                } catch (responseError) {
+                    console.error('Failed to send music command error response:', responseError);
+                }
+            }
+            return;
+        }
+
+        const shouldBeEphemeral = SLASH_EPHEMERAL_COMMANDS.has(commandName);
+        const canUseEphemeral = Boolean(guild);
+        const deferEphemeral = shouldBeEphemeral && canUseEphemeral;
+
+        try {
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ ephemeral: deferEphemeral });
+            }
+        } catch (error) {
+            if (error.code === 10062) {
+                telemetryStatus = 'error';
+                telemetryMetadata.reason = 'unknown-interaction';
+                console.warn('Ignored unknown interaction during deferReply.');
+                return;
+            }
+            if (error.code === 40060) {
+                telemetryMetadata.reason = 'already-acknowledged';
+                console.warn('Interaction already acknowledged before defer; continuing without defer.');
+            } else {
+                telemetryStatus = 'error';
+                telemetryError = error;
+                console.error('Failed to defer reply:', error);
+                return;
+            }
+        }
+
+        if (interaction.replied) {
+            return;
+        }
+
+        shouldSetCooldown = true;
+
+        let response;
+
+        if (commandName === 'automod') {
+            await automodSlash.handleAutoModCommand(handler, interaction);
+            return;
+        }
+
+        if (commandName === 'serverstats') {
+            await handler.handleServerStatsCommand(interaction);
+            return;
+        }
+
+        if (commandName === 'memberlog') {
+            await memberLog.handleMemberLogCommand(handler, interaction);
+            return;
+        }
+
+        if (commandName === 'news') {
+            await handler.handleNewsCommand(interaction);
+            return;
+        }
+
         switch (commandName) {
-            case 'ping':
-                result = await handlePing(interaction);
+            case 'Make it a Quote': {
+                const quoteModules = require('../../commands/utility/quote');
+                telemetryMetadata.category = 'utility';
+                await quoteModules[0].execute(interaction);
+                response = '__QUOTE_HANDLED__';
                 break;
-            case 'yt':
-                result = await handleYt(interaction, jarvis);
+            }
+            case 'ping': {
+                telemetryMetadata.category = 'core';
+                response = await slashUtility.handlePing(interaction);
                 break;
-            case 'jarvis':
-                result = await handleJarvis(interaction, jarvis);
+            }
+            case 'features': {
+                telemetryMetadata.category = 'utilities';
+                await gameHandlers.handleFeaturesCommand(handler, interaction);
+                return;
+            }
+            case 'memory': {
+                telemetryMetadata.category = 'utilities';
+                await memoryHandler.handleMemoryCommand(handler, interaction);
+                return;
+            }
+            case 'remind': {
+                telemetryMetadata.category = 'utilities';
+                await handler.handleRemindCommand(interaction);
+                return;
+            }
+            case 'timezone': {
+                telemetryMetadata.category = 'utilities';
+                await handler.handleTimezoneCommand(interaction);
+                return;
+            }
+            case 'opt': {
+                telemetryMetadata.category = 'utilities';
+                await gameHandlers.handleOptCommand(handler, interaction);
+                return;
+            }
+            case 'wakeword': {
+                telemetryMetadata.category = 'utilities';
+                await handler.handleWakewordCommand(interaction);
+                return;
+            }
+            case 'caption': {
+                telemetryMetadata.category = 'utility';
+                await mediaHandlers.handleCaptionCommand(handler, interaction);
+                return;
+            }
+            case 'avatar': {
+                telemetryMetadata.category = 'utility';
+                response = await slashUtility.handleAvatar(interaction);
                 break;
-            case 'clear':
-                result = await handleClear(interaction, jarvis, interaction.user.id, interaction.guild?.id ?? null);
+            }
+            case 'banner': {
+                telemetryMetadata.category = 'utility';
+                response = await slashUtility.handleBanner(interaction);
                 break;
-            case 'help':
-                result = await handleHelp(interaction, jarvis, interaction.user.id, interaction.guild?.id ?? null);
+            }
+            case 'userinfo': {
+                telemetryMetadata.category = 'utility';
+                response = await slashUtility.handleUserinfo(interaction);
                 break;
-            case 'profile':
-                result = await handleProfile(interaction, jarvis, interaction.user.id, interaction.guild?.id ?? null);
+            }
+            case 'serverinfo': {
+                telemetryMetadata.category = 'utility';
+                response = await slashUtility.handleServerinfo(interaction);
                 break;
-            case 'avatar':
-                result = await handleAvatar(interaction);
+            }
+            case 'ship': {
+                telemetryMetadata.category = 'fun';
+                response = await slashSocial.handleShip(interaction);
                 break;
-            case 'banner':
-                result = await handleBanner(interaction);
+            }
+            case 'yt': {
+                telemetryMetadata.category = 'search';
+                response = await slashUtility.handleYt(interaction, handler.jarvis);
                 break;
-            case 'userinfo':
-                result = await handleUserinfo(interaction);
+            }
+            case 'jarvis': {
+                response = await slashUtility.handleJarvis(interaction, handler.jarvis);
                 break;
-            case 'serverinfo':
-                result = await handleServerinfo(interaction);
+            }
+            case 'clear': {
+                response = await slashUtility.handleClear(interaction, handler.jarvis, userId, guildId);
                 break;
-            case 'blacklist':
-                result = await handleBlacklist(interaction, discordHandlers); // discordHandlers must have getGuildConfig + isGuildModerator
+            }
+            case 'help': {
+                response = await slashUtility.handleHelp(interaction, handler.jarvis, userId, guildId);
                 break;
-            default:
-                result = `Unknown command: ${commandName}, sir.`;
+            }
+            case 'profile': {
+                response = await slashUtility.handleProfile(interaction, handler.jarvis, userId, guildId);
+                break;
+            }
+            case 'blacklist': {
+                telemetryMetadata.category = 'operations';
+                response = await handleBlacklist(interaction, handler);
+                break;
+            }
+            default: {
+                response = await handler.jarvis.handleUtilityCommand(
+                    commandName,
+                    interaction.user.username,
+                    userId,
+                    true,
+                    interaction,
+                    guildId
+                );
+            }
+        }
+
+        if (response === '__QUOTE_HANDLED__' || response === '__JARVIS_HANDLED__') {
+            return;
+        }
+
+        if (response === undefined || response === null) {
+            console.warn(`[/jarvis] Empty response received; commandName=${commandName}`);
+            try {
+                await interaction.editReply('Response circuits tangled, sir. Try again?');
+            } catch (error) {
+                console.error('[/jarvis] Failed to editReply, trying followUp:', error.code, error.message);
+                await interaction.followUp('Response circuits tangled, sir. Try again?');
+            }
+            telemetryMetadata.reason = 'empty-response';
+            return;
+        }
+
+        if (typeof response === 'string') {
+            const trimmed = response.trim();
+            const safe = handler.sanitizePings(trimmed);
+            if (!safe.length) {
+                await interaction.editReply('Response circuits tangled, sir. Try again?');
+                return;
+            }
+
+            const chunks = splitMessage(safe);
+            try {
+                const sendPromise = interaction.editReply({
+                    content: chunks[0],
+                    allowedMentions: { parse: [] }
+                });
+                await Promise.race([
+                    sendPromise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('editReply timeout')), 5000))
+                ]);
+                for (let i = 1; i < chunks.length; i++) {
+                    await interaction.followUp({
+                        content: chunks[i],
+                        allowedMentions: { parse: [] }
+                    });
+                }
+            } catch (error) {
+                try {
+                    await interaction.followUp({
+                        content: chunks[0],
+                        allowedMentions: { parse: [] }
+                    });
+                } catch (followUpError) {
+                    console.error('[/jarvis] Response send failed:', error.message, followUpError.message);
+                }
+            }
+            return;
+        }
+
+        const buildPayload = () => {
+            const payload = response && typeof response === 'object'
+                ? { ...response }
+                : { content: String(response || '') };
+            payload.allowedMentions = payload.allowedMentions || { parse: [] };
+            payload.allowedMentions.parse = Array.isArray(payload.allowedMentions.parse)
+                ? payload.allowedMentions.parse
+                : [];
+            return payload;
+        };
+
+        try {
+            await Promise.race([
+                interaction.editReply(buildPayload()),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('editReply timeout')), 5000))
+            ]);
+        } catch (error) {
+            try {
+                await interaction.followUp(buildPayload());
+            } catch (followUpError) {
+                console.error('[/jarvis] Embed send failed:', error.message, followUpError.message);
+            }
         }
     } catch (error) {
-        console.error(`Command ${commandName} failed:`, error);
-        result = 'Technical difficulties, sir.';
-    }
+        telemetryStatus = 'error';
+        telemetryError = error;
 
-    if (result === '__JARVIS_HANDLED__') return;
+        const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+        console.error(`[${errorId}] Error processing interaction:`, error);
 
-    if (result) {
-        if (typeof result === 'string') {
-            await interaction.editReply({ content: result });
-        } else {
-            await interaction.editReply(result);
+        try {
+            const errorMessage = `Technical difficulties, sir. (${errorId}) Please try again shortly.`;
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply(errorMessage);
+            } else if (interaction.deferred && !interaction.replied) {
+                await interaction.editReply(errorMessage);
+            }
+        } catch (editError) {
+            if (editError.code === 10062) {
+                telemetryMetadata.reason = 'unknown-interaction';
+                console.warn(`[${errorId}] Ignored unknown interaction during error reply.`);
+            } else {
+                console.error(`[${errorId}] Failed to send error reply:`, editError.code, editError.message);
+            }
         }
-    } else {
-        await interaction.editReply({ content: 'Command completed, sir.' });
+        shouldSetCooldown = true;
+    } finally {
+        if (shouldSetCooldown) {
+            handler.setCooldown(userId, cooldownScope);
+        }
+        finalizeTelemetry();
     }
 }
 
 module.exports = {
-    handle,           // ← THIS WAS MISSING
-    handlePing,
-    handleYt,
-    handleJarvis,
-    handleClear,
-    handleHelp,
-    handleProfile,
-    handleAvatar,
-    handleBanner,
-    handleUserinfo,
-    handleServerinfo,
+    handle,
     handleBlacklist
 };
