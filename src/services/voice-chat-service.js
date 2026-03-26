@@ -22,9 +22,9 @@ const database = require('./database');
 const FFMPEG = process.env.FFMPEG_PATH || '/home/tony/.local/bin/ffmpeg';
 
 // ─── Tuning ───────────────────────────────────────────────────────────────────
-const SILENCE_MS         = 800;       // ms silence before ending capture
+const SILENCE_MS         = 1200;      // ms silence before ending capture
 const MIN_PACKETS        = 10;        // min opus packets to count as speech
-const BARGE_IN_PACKETS   = 15;        // packets to trigger interrupt during playback
+const BARGE_IN_PACKETS   = 40;        // packets to trigger interrupt during playback
 const MAX_RESPONSE_QUEUE = 5;         // post-STT addressed requests only
 // STT idle timeout removed — energy gate + wake word filter already prevent unnecessary API calls
 const MAX_TTS_CHARS      = 500;
@@ -133,6 +133,7 @@ class VoiceChatService {
                 `TTS: ${nvidiaSpeech.ttsEnabled ? 'on' : 'off'}`
             );
         }
+
     }
 
     // ─── User Cache ──────────────────────────────────────────────────────────
@@ -154,6 +155,31 @@ class VoiceChatService {
         return info;
     }
 
+    // ─── Join: user invites bot to their VC ─────────────────────────────────────
+
+    async join(interaction) {
+        const member = interaction.member;
+        const channel = member?.voice?.channel;
+        if (!channel) return 'You need to be in a voice channel first, sir.';
+
+        // Destroy stale connection if any
+        const existing = getVoiceConnection(channel.guild.id);
+        if (existing) {
+            try { existing.destroy(); } catch { /* */ }
+            this.sessions.delete(channel.guild.id);
+        }
+
+        joinVoiceChannel({
+            channelId: channel.id,
+            guildId: channel.guild.id,
+            adapterCreator: channel.guild.voiceAdapterCreator,
+            selfDeaf: false,
+            selfMute: false
+        });
+
+        return `Joined **${channel.name}**, listening for your commands.`;
+    }
+
     // ─── Auto-attach: listen whenever the bot is in a VC ──────────────────────
 
     handleVoiceStateUpdate(oldState, newState) {
@@ -161,9 +187,15 @@ class VoiceChatService {
 
         // Bot's own state changed — auto-attach/detach STT
         if (newState.member?.id === botId) {
-            if (newState.channelId && newState.channelId !== oldState.channelId) {
-                // Bot joined or moved to a channel
+            console.log(`[VoiceChat] Bot voiceState: old=${oldState.channelId} new=${newState.channelId} hasSession=${this.sessions.has(newState.guild.id)}`);
+            if (newState.channelId && !this.sessions.has(newState.guild.id)) {
+                // Bot is in a channel but has no STT session — attach
                 this._autoAttach(newState.guild.id, newState.channelId);
+            } else if (newState.channelId && newState.channelId !== oldState.channelId) {
+                // Bot moved to a different channel — update session
+                const existing = this.sessions.get(newState.guild.id);
+                if (existing) existing.channelId = newState.channelId;
+                else this._autoAttach(newState.guild.id, newState.channelId);
             } else if (!newState.channelId && oldState.channelId) {
                 // Bot left
                 this.sessions.delete(oldState.guild.id);
@@ -321,7 +353,8 @@ class VoiceChatService {
 
             const energy = pcmEnergy(pcm);
             const musicActive = isMusicPlaying(session.guildId);
-            if (energy < (musicActive ? MIN_PCM_ENERGY * 3 : MIN_PCM_ENERGY)) return;
+            const threshold = musicActive ? MIN_PCM_ENERGY * 1.5 : MIN_PCM_ENERGY;
+            if (energy < threshold) return;
 
             if (session.lastPlaybackEndedAt && capturedAt > session.lastPlaybackEndedAt &&
                 capturedAt - session.lastPlaybackEndedAt < ECHO_COOLDOWN_MS) return;
@@ -510,7 +543,7 @@ class VoiceChatService {
                 channelId: session.textChannelId
             };
 
-            return await this.jarvis.generateResponse(pseudo, text, false, null, { contextPrefix });
+            return await this.jarvis.generateResponse(pseudo, text, false, null, { contextPrefix, voice: true });
         } catch (err) {
             console.error('[VoiceChat] AI error:', err.message);
             return null;
@@ -520,22 +553,45 @@ class VoiceChatService {
     // ─── Playback ─────────────────────────────────────────────────────────────
 
     _play(session, wavBuf) {
+        console.log(`[VoiceChat] _play called, ${wavBuf.length}b`);
         return new Promise((resolve) => {
-            const resource = createAudioResource(Readable.from(wavBuf), {
-                inputType: StreamType.Arbitrary
+            // Convert WAV to OggOpus via our known ffmpeg — discord.js can't find ffmpeg as root
+            const ffProc = spawn(FFMPEG, [
+                '-i', 'pipe:0',
+                '-c:a', 'libopus', '-ar', '48000', '-ac', '2',
+                '-f', 'ogg', 'pipe:1'
+            ], { stdio: ['pipe', 'pipe', 'pipe'] });
+            ffProc.stdin.on('error', (e) => console.error('[VoiceChat] ffProc stdin error:', e.message));
+            const ffErr = [];
+            ffProc.stderr.on('data', (c) => ffErr.push(c));
+            ffProc.on('close', (code) => {
+                if (code !== 0) console.error(`[VoiceChat] ffmpeg exit ${code}:`, Buffer.concat(ffErr).toString().slice(-200));
+            });
+            ffProc.stdin.write(wavBuf);
+            ffProc.stdin.end();
+
+            const resource = createAudioResource(ffProc.stdout, {
+                inputType: StreamType.OggOpus
             });
 
-            // Temporarily subscribe TTS player to the connection so it's heard
+            // Temporarily subscribe TTS player to the connection
+            const conn = getVoiceConnection(session.guildId) || session.connection;
             const musicState = musicManager.get().getState(session.guildId);
-            session.connection.subscribe(session.player);
+
+            // Pause music player FIRST so its AutoPaused handler doesn't steal the connection back
+            if (musicState?.player) {
+                try { musicState.player.pause(true); } catch { /* */ }
+            }
+            conn.subscribe(session.player);
 
             session.player.play(resource);
 
             const done = () => {
                 cleanup();
-                // Restore music player subscription if music was active
+                // Restore music player subscription and resume
                 if (musicState?.player) {
-                    session.connection.subscribe(musicState.player);
+                    conn.subscribe(musicState.player);
+                    try { musicState.player.unpause(); } catch { /* */ }
                 }
                 resolve();
             };
