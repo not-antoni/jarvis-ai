@@ -94,9 +94,9 @@ const commandDefinitions = [
     },
     {
         name: 'wakeword',
-        description: 'Set a custom wake word or disable defaults (personal or server-wide).',
+        description: 'Set your wake word or manage the server wake word.',
         category: 'Personal Tools',
-        usage: '/wakeword word:hey scope:personal OR /wakeword scope:server disable_defaults:true',
+        usage: '/wakeword set word:friday OR /wakeword server set word:friday',
         feature: 'utilities',
         ephemeral: true
     },
@@ -184,9 +184,9 @@ const commandDefinitions = [
     },
     {
         name: 'automod',
-        description: 'Manage blacklist filters and automod rules.',
+        description: 'Block words and phrases in this server.',
         category: 'Operations',
-        usage: '/automod status',
+        usage: '/automod add words:spam, scam',
         feature: 'automod',
         ephemeral: true
     },

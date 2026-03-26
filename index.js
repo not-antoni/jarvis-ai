@@ -159,9 +159,6 @@ function ensureCommandSyncState() {
     if (!commandSyncState || typeof commandSyncState !== 'object') {
         commandSyncState = {};
     }
-    if (!commandSyncState.guildClears || typeof commandSyncState.guildClears !== 'object') {
-        commandSyncState.guildClears = {};
-    }
     return commandSyncState;
 }
 
@@ -229,7 +226,14 @@ async function registerSlashCommands() {
         .update(JSON.stringify(commandData))
         .digest('hex');
     const state = ensureCommandSyncState();
+    const hadLegacyGuildState = 'guildClears' in state || 'lastGuildClearAt' in state;
     let registeredNames = commandData.map(cmd => cmd.name);
+
+    if (hadLegacyGuildState) {
+        delete state.guildClears;
+        delete state.lastGuildClearAt;
+        persistCommandSyncState();
+    }
 
     if (state.globalHash !== commandHash) {
         if (!client.application?.id) {
@@ -245,39 +249,9 @@ async function registerSlashCommands() {
 
         state.globalHash = commandHash;
         state.lastRegisteredAt = new Date().toISOString();
-        state.guildClears = {};
         persistCommandSyncState();
     } else {
         console.log('Slash command definitions unchanged; skipping global command re-sync.');
-    }
-
-    const guilds = Array.from(client.guilds.cache.values());
-    if (!guilds.length) {
-        return registeredNames;
-    }
-
-    let clearedCount = 0;
-    for (const guild of guilds) {
-        try {
-            if (state.guildClears[guild.id] === commandHash) {
-                continue;
-            }
-            await guild.commands.set([]);
-            console.log(
-                `Cleared guild-specific commands for ${guild.name ?? 'Unknown'} (${guild.id})`
-            );
-            state.guildClears[guild.id] = commandHash;
-            clearedCount += 1;
-        } catch (error) {
-            console.warn(`Failed to clear guild-specific commands for ${guild.id}:`, error);
-        }
-    }
-
-    if (clearedCount > 0) {
-        state.lastGuildClearAt = new Date().toISOString();
-        persistCommandSyncState();
-    } else {
-        console.log('Guild-specific commands already cleared for current command version.');
     }
 
     return registeredNames;

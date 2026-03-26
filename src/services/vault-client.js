@@ -25,10 +25,8 @@ function getMasterKey() {
 const CACHE_TTL_MS = config.security.vaultCacheTtlMs;
 const CACHE_MAX_ENTRIES = 500;
 
-// Memory limits: 20 long-term + 10 short-term = 30 total per user
-const LONG_TERM_MEMORY_LIMIT = 20;
-const SHORT_TERM_MEMORY_LIMIT = 10;
-const TOTAL_MEMORY_LIMIT = LONG_TERM_MEMORY_LIMIT + SHORT_TERM_MEMORY_LIMIT;
+// Memory limit: keep up to 50 memories per user
+const TOTAL_MEMORY_LIMIT = 50;
 const MAX_SINGLE_MEMORY_BYTES = 64 * 1024; // 64KB per individual memory payload limit
 const MAX_MEMORY_SIZE_BYTES = 500 * 1024; // 500KB total per user storage limit
 const SHORT_TERM_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
@@ -350,7 +348,7 @@ async function encryptMemory(userId, plaintext, options = {}) {
 }
 
 /**
- * Enforce memory limits per user (20 long-term + 10 short-term = 30 total, max 500KB)
+ * Enforce memory limits per user (50 total, max 500KB)
  * If over limit, delete oldest memories
  */
 async function enforceMemoryLimits(userId, memoriesCollection) {
@@ -450,7 +448,7 @@ async function decryptMemories(userId, options = {}) {
     // Cache is only used for performance optimization, not as source of truth
 
     if (USE_LOCAL_DB_MODE && localDbOps) {
-        const { type = 'conversation', limit = 30 } = options || {};
+        const { type = 'conversation', limit = TOTAL_MEMORY_LIMIT } = options || {};
 
         // Clean expired short-term memories first
         const allDocs = await localDbOps.getMemories(userId, 1000);
@@ -492,7 +490,7 @@ async function decryptMemories(userId, options = {}) {
         return decrypted.map(cloneMemoryEntry);
     }
 
-    const { type = 'conversation', limit = 30 } = options || {};
+    const { type = 'conversation', limit = TOTAL_MEMORY_LIMIT } = options || {};
 
     const { memories } = await getCollections();
 

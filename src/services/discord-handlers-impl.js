@@ -1629,6 +1629,7 @@ class DiscordHandlers {
         const userFeatures = require('./user-features');
         const userId = interaction.user.id;
         const sub = interaction.options.getSubcommand(false);
+        const subcommandGroup = interaction.options.getSubcommandGroup(false);
 
         // Legacy compat: if no subcommand (old-style optional params), map to new subcommands
         const word = interaction.options.getString('word');
@@ -1638,36 +1639,44 @@ class DiscordHandlers {
         const legacyMode = !sub;
 
         let action = sub;
-        if (legacyMode) {
+        if (subcommandGroup === 'server' && sub) {
+            action = `server-${sub}`;
+        } else if (legacyMode) {
             if (scope === 'server') {
                 if (disableDefaultsOpt !== null && disableDefaultsOpt !== undefined) action = 'server-defaults';
                 else if (clearOpt) action = 'server-clear';
                 else if (word) action = 'server-set';
-                else action = 'view';
+                else action = 'show';
             } else {
                 if (clearOpt) action = 'clear';
                 else if (word) action = 'set';
-                else action = 'view';
+                else action = 'show';
             }
         }
 
         try {
-            // ── View ──
-            if (action === 'view') {
+            // ── Show personal settings ──
+            if (action === 'view' || action === 'show') {
                 const currentWord = await userFeatures.getWakeWord(userId);
                 const lines = [];
                 if (currentWord) {
-                    lines.push(`**Your wake word:** "${currentWord}"`);
-                    lines.push(`\nSay "${currentWord}" to summon me. Use \`/wakeword set\` to change or \`/wakeword clear\` to remove.`);
+                    lines.push(`**Personal wake word:** "${currentWord}"`);
                 } else {
-                    lines.push('No personal wake word set.');
-                    lines.push('\nUse `/wakeword set word:something` to pick one.');
+                    lines.push('**Personal wake word:** Not set');
                 }
                 if (interaction.guild) {
                     const guildWord = await userFeatures.getGuildWakeWord(interaction.guild.id);
-                    if (guildWord) lines.push(`\n**Server wake word:** "${guildWord}"`);
+                    const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(interaction.guild.id);
+                    lines.push(guildWord ? `**Server wake word:** "${guildWord}"` : '**Server wake word:** Not set');
+                    lines.push(`**Default wake words:** ${defaultsDisabled ? 'Off' : 'On'}${defaultsDisabled ? ' (custom words or mentions only)' : ' ("jarvis" / "garmin")'}`);
                 }
-                await interaction.editReply(lines.join(''));
+                lines.push('');
+                lines.push('Use `/wakeword set word:friday` to set your own wake word.');
+                if (interaction.guild) {
+                    lines.push('Admins can use `/wakeword server set word:friday` or `/wakeword server defaults enabled:false`.');
+                }
+                lines.push('You can always mention me directly.');
+                await interaction.editReply(lines.join('\n'));
                 return;
             }
 
@@ -1677,7 +1686,7 @@ class DiscordHandlers {
                 if (!w) { await interaction.editReply('Provide a word, sir. `/wakeword set word:something`'); return; }
                 const result = await userFeatures.setWakeWord(userId, w);
                 if (!result.success) { await interaction.editReply(result.error); return; }
-                await interaction.editReply(`Wake word set to **"${result.wakeWord}"** — say it in any message to summon me.`);
+                await interaction.editReply(`Wake word set to **"${result.wakeWord}"**. Use \`/wakeword show\` any time to check your settings.`);
                 return;
             }
 
@@ -1685,6 +1694,25 @@ class DiscordHandlers {
             if (action === 'clear') {
                 await userFeatures.clearWakeWord(userId);
                 await interaction.editReply('Personal wake word removed.');
+                return;
+            }
+
+            // ── Show server settings ──
+            if (action === 'server-show') {
+                if (!interaction.guild) {
+                    await interaction.editReply('This only works in a server, sir.');
+                    return;
+                }
+
+                const guildWord = await userFeatures.getGuildWakeWord(interaction.guild.id);
+                const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(interaction.guild.id);
+                const lines = [
+                    guildWord ? `**Server wake word:** "${guildWord}"` : '**Server wake word:** Not set',
+                    `**Default wake words:** ${defaultsDisabled ? 'Off' : 'On'}${defaultsDisabled ? ' (custom words or mentions only)' : ' ("jarvis" / "garmin")'}`,
+                    '',
+                    'Admins can use `/wakeword server set word:friday`, `/wakeword server clear`, or `/wakeword server defaults enabled:false`.'
+                ];
+                await interaction.editReply(lines.join('\n'));
                 return;
             }
 

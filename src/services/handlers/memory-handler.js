@@ -7,7 +7,7 @@ const vaultClient = require('../vault-client');
 async function handleMemoryCommand(handler, interaction) {
     try {
         const limitOption = interaction.options.getInteger('entries');
-        const limit = Math.max(1, Math.min(limitOption || 30, 30));
+        const limit = Math.max(1, Math.min(limitOption || 50, 50));
         const { user } = interaction;
         const userId = user.id;
         const userName = user.displayName || user.username;

@@ -94,10 +94,10 @@ const allCommands = [
         .addIntegerOption(option =>
             option
                 .setName('entries')
-                .setDescription('Number of entries to review (1-30)')
+                .setDescription('Number of entries to review (1-50)')
                 .setRequired(false)
                 .setMinValue(1)
-                .setMaxValue(30)
+                .setMaxValue(50)
         )
     ),
     withCtx(new SlashCommandBuilder()
@@ -218,53 +218,58 @@ const allCommands = [
     ),
     new SlashCommandBuilder()
         .setName('automod')
-        .setDescription('Manage auto moderation')
+        .setDescription('Block words and phrases in this server')
         .addSubcommand(sub =>
-            sub.setName('status').setDescription('See if automod is on and what it\'s blocking')
+            sub.setName('status').setDescription('See whether automod is on and how many entries are blocked')
+        )
+        .addSubcommand(sub =>
+            sub.setName('add').setDescription('Add blocked words or phrases')
+                .addStringOption(opt =>
+                    opt.setName('words').setDescription('Words or phrases to block, comma separated').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('remove').setDescription('Remove blocked words or phrases')
+                .addStringOption(opt =>
+                    opt.setName('words').setDescription('Words or phrases to unblock, comma separated').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('list').setDescription('Show the blocked words and phrases')
         )
         .addSubcommand(sub =>
             sub.setName('enable').setDescription('Turn on automod')
         )
         .addSubcommand(sub =>
-            sub.setName('disable').setDescription('Turn off automod')
-        )
-        .addSubcommand(sub =>
-            sub.setName('add').setDescription('Add words to the blacklist')
-                .addStringOption(opt =>
-                    opt.setName('words').setDescription('Words to block (comma separated)').setRequired(true)
-                )
-        )
-        .addSubcommand(sub =>
-            sub.setName('remove').setDescription('Remove words from the blacklist')
-                .addStringOption(opt =>
-                    opt.setName('words').setDescription('Words to unblock (comma separated)').setRequired(true)
-                )
-        )
-        .addSubcommand(sub =>
-            sub.setName('list').setDescription('Show all blacklisted words')
+            sub.setName('disable').setDescription('Turn off automod without deleting the list')
         )
         .addSubcommand(sub =>
             sub.setName('clear').setDescription('Wipe the blacklist and turn off automod')
         )
-        .addSubcommand(sub =>
-            sub.setName('message').setDescription('Set what users see when their message gets blocked')
-                .addStringOption(opt =>
-                    opt.setName('message').setDescription('The warning message').setRequired(true)
+        .addSubcommandGroup(group =>
+            group
+                .setName('advanced')
+                .setDescription('Advanced automod options')
+                .addSubcommand(sub =>
+                    sub.setName('message').setDescription('Set what users see when a message gets blocked')
+                        .addStringOption(opt =>
+                            opt.setName('message').setDescription('The warning message').setRequired(true)
+                        )
                 )
-        )
-        .addSubcommand(sub =>
-            sub.setName('import').setDescription('Import a blacklist from a text file')
-                .addAttachmentOption(opt =>
-                    opt.setName('file').setDescription('Text file, one word per line').setRequired(true)
+                .addSubcommand(sub =>
+                    sub.setName('import').setDescription('Import blocked words from a text file')
+                        .addAttachmentOption(opt =>
+                            opt.setName('file').setDescription('Text file, one entry per line').setRequired(true)
+                        )
+                        .addBooleanOption(opt =>
+                            opt.setName('replace').setDescription('Replace the current list instead of adding to it')
+                        )
                 )
-                .addBooleanOption(opt =>
-                    opt.setName('replace').setDescription('Replace current list instead of adding to it')
-                )
-        )
-        .addSubcommand(sub =>
-            sub.setName('newfilter').setDescription('Create a separate filter rule with its own words')
-                .addStringOption(opt =>
-                    opt.setName('words').setDescription('Words for this filter (comma separated)').setRequired(true)
+                .addSubcommand(sub =>
+                    sub.setName('filter').setDescription('Create an extra Discord AutoMod filter')
+                        .addStringOption(opt =>
+                            opt.setName('words').setDescription('Words or phrases for this extra filter').setRequired(true)
+                        )
                 )
         )
         .setContexts([InteractionContextType.Guild]),
@@ -449,32 +454,40 @@ const allCommands = [
     ),
     withCtx(new SlashCommandBuilder()
         .setName('wakeword')
-        .setDescription('Manage what name triggers Jarvis')
+        .setDescription('Choose what name wakes Jarvis up')
         .addSubcommand(sub =>
-            sub.setName('view').setDescription('Show your current wake word')
+            sub.setName('show').setDescription('Show your current wake word settings')
         )
         .addSubcommand(sub =>
             sub.setName('set').setDescription('Set a personal wake word')
                 .addStringOption(opt =>
-                    opt.setName('word').setDescription('The word (2-20 chars)').setRequired(true)
+                    opt.setName('word').setDescription('The word to use, for example friday').setRequired(true)
                 )
         )
         .addSubcommand(sub =>
             sub.setName('clear').setDescription('Remove your personal wake word')
         )
-        .addSubcommand(sub =>
-            sub.setName('server-set').setDescription('Set a wake word for the whole server (admin only)')
-                .addStringOption(opt =>
-                    opt.setName('word').setDescription('The word (2-20 chars)').setRequired(true)
+        .addSubcommandGroup(group =>
+            group
+                .setName('server')
+                .setDescription('Server wake word settings')
+                .addSubcommand(sub =>
+                    sub.setName('show').setDescription('Show the server wake word and default trigger status')
                 )
-        )
-        .addSubcommand(sub =>
-            sub.setName('server-clear').setDescription('Remove the server wake word (admin only)')
-        )
-        .addSubcommand(sub =>
-            sub.setName('server-defaults').setDescription('Toggle default wake words like "jarvis" (admin only)')
-                .addBooleanOption(opt =>
-                    opt.setName('enabled').setDescription('Enable or disable defaults').setRequired(true)
+                .addSubcommand(sub =>
+                    sub.setName('set').setDescription('Set one wake word for the whole server (admin only)')
+                        .addStringOption(opt =>
+                            opt.setName('word').setDescription('The word to use, for example friday').setRequired(true)
+                        )
+                )
+                .addSubcommand(sub =>
+                    sub.setName('clear').setDescription('Remove the server wake word (admin only)')
+                )
+                .addSubcommand(sub =>
+                    sub.setName('defaults').setDescription('Turn default names like "jarvis" on or off (admin only)')
+                        .addBooleanOption(opt =>
+                            opt.setName('enabled').setDescription('Enable or disable the default wake words').setRequired(true)
+                        )
                 )
         )
     ),
