@@ -1625,14 +1625,70 @@ class DiscordHandlers {
     async handleWakewordCommand(interaction) {
         const userFeatures = require('./user-features');
         const userId = interaction.user.id;
+        const sub = interaction.options.getSubcommand(false);
+
+        // Legacy compat: if no subcommand (old-style optional params), map to new subcommands
         const word = interaction.options.getString('word');
-        const scope = interaction.options.getString('scope') || 'personal';
-        const clear = interaction.options.getBoolean('clear') || false;
-        const disableDefaults = interaction.options.getBoolean('disable_defaults');
-        try {
+        const scope = interaction.options.getString('scope');
+        const clearOpt = interaction.options.getBoolean('clear');
+        const disableDefaultsOpt = interaction.options.getBoolean('disable_defaults');
+        const legacyMode = !sub;
+
+        let action = sub;
+        if (legacyMode) {
             if (scope === 'server') {
+                if (disableDefaultsOpt !== null && disableDefaultsOpt !== undefined) action = 'server-defaults';
+                else if (clearOpt) action = 'server-clear';
+                else if (word) action = 'server-set';
+                else action = 'view';
+            } else {
+                if (clearOpt) action = 'clear';
+                else if (word) action = 'set';
+                else action = 'view';
+            }
+        }
+
+        try {
+            // ── View ──
+            if (action === 'view') {
+                const currentWord = await userFeatures.getWakeWord(userId);
+                const lines = [];
+                if (currentWord) {
+                    lines.push(`**Your wake word:** "${currentWord}"`);
+                    lines.push(`\nSay "${currentWord}" to summon me. Use \`/wakeword set\` to change or \`/wakeword clear\` to remove.`);
+                } else {
+                    lines.push('No personal wake word set.');
+                    lines.push('\nUse `/wakeword set word:something` to pick one.');
+                }
+                if (interaction.guild) {
+                    const guildWord = await userFeatures.getGuildWakeWord(interaction.guild.id);
+                    if (guildWord) lines.push(`\n**Server wake word:** "${guildWord}"`);
+                }
+                await interaction.editReply(lines.join(''));
+                return;
+            }
+
+            // ── Set personal ──
+            if (action === 'set') {
+                const w = word || interaction.options.getString('word');
+                if (!w) { await interaction.editReply('Provide a word, sir. `/wakeword set word:something`'); return; }
+                const result = await userFeatures.setWakeWord(userId, w);
+                if (!result.success) { await interaction.editReply(result.error); return; }
+                await interaction.editReply(`Wake word set to **"${result.wakeWord}"** — say it in any message to summon me.`);
+                return;
+            }
+
+            // ── Clear personal ──
+            if (action === 'clear') {
+                await userFeatures.clearWakeWord(userId);
+                await interaction.editReply('Personal wake word removed.');
+                return;
+            }
+
+            // ── Server commands (admin only) ──
+            if (action.startsWith('server-')) {
                 if (!interaction.guild) {
-                    await interaction.editReply('Server wake words can only be set in a server, sir.');
+                    await interaction.editReply('This only works in a server, sir.');
                     return;
                 }
                 const { member } = interaction;
@@ -1640,87 +1696,38 @@ class DiscordHandlers {
                     member.permissions?.has(PermissionsBitField.Flags.ManageGuild) ||
                     member.id === interaction.guild.ownerId;
                 if (!isAdmin) {
-                    await interaction.editReply('Only server admins can set a server-wide wake word.');
+                    await interaction.editReply('Only admins can change the server wake word.');
                     return;
                 }
                 const guildId = interaction.guild.id;
-                if (disableDefaults !== null) {
-                    await userFeatures.setGuildWakeWordsDisabled(guildId, disableDefaults);
-                    if (disableDefaults) {
-                        await interaction.editReply('Default wake words disabled for this server. I will only respond to custom wake words, personal wake words, or mentions.');
-                    } else {
-                        await interaction.editReply('Default wake words enabled for this server. I will respond to "jarvis" / "garmin" when no server wake word is set.');
-                    }
+
+                if (action === 'server-set') {
+                    const w = word || interaction.options.getString('word');
+                    if (!w) { await interaction.editReply('Provide a word, sir.'); return; }
+                    const result = await userFeatures.setGuildWakeWord(guildId, w);
+                    if (!result.success) { await interaction.editReply(result.error); return; }
+                    await interaction.editReply(`Server wake word set to **"${result.wakeWord}"**. Default triggers ("jarvis" / "garmin") are now disabled for this server.`);
                     return;
                 }
-                if (clear) {
+
+                if (action === 'server-clear') {
                     await userFeatures.removeGuildWakeWord(guildId);
                     const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(guildId);
-                    if (defaultsDisabled) {
-                        await interaction.editReply('Server wake word removed. Default wake words are still disabled for this server; I will respond to personal wake words or mentions.');
-                    } else {
-                        await interaction.editReply('Server wake word removed. I\'ll respond to the default triggers ("jarvis" / "garmin") and personal wake words now.');
-                    }
+                    await interaction.editReply(defaultsDisabled
+                        ? 'Server wake word removed. Defaults are still off — I\'ll only respond to personal wake words or mentions.'
+                        : 'Server wake word removed. Back to the defaults ("jarvis" / "garmin").');
                     return;
                 }
-                if (!word) {
-                    const currentGuildWord = await userFeatures.getGuildWakeWord(guildId);
-                    const defaultsDisabled = await userFeatures.isGuildWakeWordsDisabled(guildId);
-                    if (currentGuildWord) {
-                        const defaultsLine = defaultsDisabled
-                            ? '\nDefault wake words are disabled.'
-                            : '\nDefault wake words are enabled when no server wake word is set.';
-                        await interaction.editReply(`🏠 **Server Wake Word:** "${currentGuildWord}"\n\nAnyone in this server can say "${currentGuildWord}" to summon me.\nUse \`/wakeword word:newword scope:Server\` to change, or \`/wakeword scope:Server clear:True\` to remove.${defaultsLine}`);
-                    } else {
-                        const defaultsLine = defaultsDisabled
-                            ? '\nDefault wake words are currently disabled.'
-                            : '\nDefault wake words are currently enabled.';
-                        await interaction.editReply(`No server wake word set.\n\nUse \`/wakeword word:yourword scope:Server\` to set one for the whole server.${defaultsLine}`);
-                    }
+
+                if (action === 'server-defaults') {
+                    const enabled = legacyMode ? !disableDefaultsOpt : interaction.options.getBoolean('enabled');
+                    await userFeatures.setGuildWakeWordsDisabled(guildId, !enabled);
+                    await interaction.editReply(enabled
+                        ? 'Default wake words ("jarvis" / "garmin") enabled for this server.'
+                        : 'Default wake words disabled. I\'ll only respond to custom or personal wake words.');
                     return;
                 }
-                const result = await userFeatures.setGuildWakeWord(guildId, word);
-                if (!result.success) {
-                    await interaction.editReply(result.error);
-                    return;
-                }
-                await interaction.editReply(`Server wake word set to **"${result.wakeWord}"**\n\nAnyone in this server can now summon me by saying "${result.wakeWord}". Default triggers ("jarvis" / "garmin") are now disabled for this server.`);
-                return;
             }
-            if (disableDefaults !== null) {
-                await interaction.editReply('`disable_defaults` is a server-only option, sir.');
-                return;
-            }
-            if (clear) {
-                await userFeatures.clearWakeWord(userId);
-                await interaction.editReply('Your personal wake word has been removed.');
-                return;
-            }
-            if (!word) {
-                const currentWord = await userFeatures.getWakeWord(userId);
-                const lines = [];
-                if (currentWord) {
-                    lines.push(`🎯 **Your Custom Wake Word:** "${currentWord}"`);
-                    lines.push(`\nUse \`/wakeword word:newword\` to change, or say "${currentWord}" to summon me.`);
-                } else {
-                    lines.push('No personal wake word set, sir.');
-                    lines.push('\nUse `/wakeword word:yourword` to set one. I\'ll respond when you say it!');
-                }
-                if (interaction.guild) {
-                    const guildWord = await userFeatures.getGuildWakeWord(interaction.guild.id);
-                    if (guildWord) {
-                        lines.push(`\n🏠 **Server Wake Word:** "${guildWord}"`);
-                    }
-                }
-                await interaction.editReply(lines.join(''));
-                return;
-            }
-            const result = await userFeatures.setWakeWord(userId, word);
-            if (!result.success) {
-                await interaction.editReply(result.error);
-                return;
-            }
-            await interaction.editReply(`Custom wake word set to **"${result.wakeWord}"**\n\nNow you can summon me by saying "${result.wakeWord}" in any message!`);
         } catch (error) {
             console.error('[/wakeword] Error:', error);
             await interaction.editReply('Failed to update wake word, sir.');

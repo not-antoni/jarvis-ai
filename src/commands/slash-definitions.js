@@ -218,94 +218,53 @@ const allCommands = [
     ),
     new SlashCommandBuilder()
         .setName('automod')
-        .setDescription('Configure Jarvis auto moderation')
-        .addSubcommand(subcommand =>
-            subcommand.setName('status').setDescription('Show auto moderation status')
+        .setDescription('Manage auto moderation')
+        .addSubcommand(sub =>
+            sub.setName('status').setDescription('See if automod is on and what it\'s blocking')
         )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('enable')
-                .setDescription('Enable auto moderation with the configured blacklist')
+        .addSubcommand(sub =>
+            sub.setName('enable').setDescription('Turn on automod')
         )
-        .addSubcommand(subcommand =>
-            subcommand.setName('disable').setDescription('Disable auto moderation')
+        .addSubcommand(sub =>
+            sub.setName('disable').setDescription('Turn off automod')
         )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('add')
-                .setDescription('Add words to the blacklist')
-                .addStringOption(option =>
-                    option
-                        .setName('words')
-                        .setDescription('Comma or newline separated words')
-                        .setRequired(true)
+        .addSubcommand(sub =>
+            sub.setName('add').setDescription('Add words to the blacklist')
+                .addStringOption(opt =>
+                    opt.setName('words').setDescription('Words to block (comma separated)').setRequired(true)
                 )
         )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('remove')
-                .setDescription('Remove words from the blacklist')
-                .addStringOption(option =>
-                    option
-                        .setName('words')
-                        .setDescription('Comma or newline separated words')
-                        .setRequired(true)
+        .addSubcommand(sub =>
+            sub.setName('remove').setDescription('Remove words from the blacklist')
+                .addStringOption(opt =>
+                    opt.setName('words').setDescription('Words to unblock (comma separated)').setRequired(true)
                 )
         )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('import')
-                .setDescription('Import blacklist entries from a text file')
-                .addAttachmentOption(option =>
-                    option
-                        .setName('file')
-                        .setDescription('Plain text file with one word or phrase per line')
-                        .setRequired(true)
-                )
-                .addBooleanOption(option =>
-                    option
-                        .setName('replace')
-                        .setDescription('Replace the existing blacklist instead of merging')
-                        .setRequired(false)
+        .addSubcommand(sub =>
+            sub.setName('list').setDescription('Show all blacklisted words')
+        )
+        .addSubcommand(sub =>
+            sub.setName('clear').setDescription('Wipe the blacklist and turn off automod')
+        )
+        .addSubcommand(sub =>
+            sub.setName('message').setDescription('Set what users see when their message gets blocked')
+                .addStringOption(opt =>
+                    opt.setName('message').setDescription('The warning message').setRequired(true)
                 )
         )
-        .addSubcommand(subcommand =>
-            subcommand.setName('list').setDescription('List configured blacklist entries')
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('clear')
-                .setDescription('Remove all blacklisted entries and disable auto moderation')
-        )
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('setmessage')
-                .setDescription('Set the custom message shown when blocking a message')
-                .addStringOption(option =>
-                    option
-                        .setName('message')
-                        .setDescription('Custom response shown to users')
-                        .setRequired(true)
+        .addSubcommand(sub =>
+            sub.setName('import').setDescription('Import a blacklist from a text file')
+                .addAttachmentOption(opt =>
+                    opt.setName('file').setDescription('Text file, one word per line').setRequired(true)
+                )
+                .addBooleanOption(opt =>
+                    opt.setName('replace').setDescription('Replace current list instead of adding to it')
                 )
         )
-        .addSubcommandGroup(group =>
-            group
-                .setName('filter')
-                .setDescription('Manage additional auto moderation filters')
-                .addSubcommand(subcommand =>
-                    subcommand
-                        .setName('add')
-                        .setDescription(
-                            'Create a separate auto moderation rule with its own keywords'
-                        )
-                        .addStringOption(option =>
-                            option
-                                .setName('words')
-                                .setDescription(
-                                    'Comma or newline separated words for the new filter'
-                                )
-                                .setRequired(true)
-                        )
+        .addSubcommand(sub =>
+            sub.setName('newfilter').setDescription('Create a separate filter rule with its own words')
+                .addStringOption(opt =>
+                    opt.setName('words').setDescription('Words for this filter (comma separated)').setRequired(true)
                 )
         )
         .setContexts([InteractionContextType.Guild]),
@@ -490,34 +449,33 @@ const allCommands = [
     ),
     withCtx(new SlashCommandBuilder()
         .setName('wakeword')
-        .setDescription('Set a custom wake word that triggers Jarvis for you or your server')
-        .addStringOption(opt =>
-            opt
-                .setName('word')
-                .setDescription('Your custom wake word (2-20 characters, alphanumeric)')
-                .setRequired(false)
+        .setDescription('Manage what name triggers Jarvis')
+        .addSubcommand(sub =>
+            sub.setName('view').setDescription('Show your current wake word')
         )
-        .addStringOption(opt =>
-            opt
-                .setName('scope')
-                .setDescription('Apply to yourself or the whole server (server requires admin)')
-                .setRequired(false)
-                .addChoices(
-                    { name: 'Personal (just you)', value: 'personal' },
-                    { name: 'Server (everyone in this server)', value: 'server' }
+        .addSubcommand(sub =>
+            sub.setName('set').setDescription('Set a personal wake word')
+                .addStringOption(opt =>
+                    opt.setName('word').setDescription('The word (2-20 chars)').setRequired(true)
                 )
         )
-        .addBooleanOption(opt =>
-            opt
-                .setName('clear')
-                .setDescription('Remove your (or server) wake word')
-                .setRequired(false)
+        .addSubcommand(sub =>
+            sub.setName('clear').setDescription('Remove your personal wake word')
         )
-        .addBooleanOption(opt =>
-            opt
-                .setName('disable_defaults')
-                .setDescription('Disable default wake words (jarvis/garmin) for this server')
-                .setRequired(false)
+        .addSubcommand(sub =>
+            sub.setName('server-set').setDescription('Set a wake word for the whole server (admin only)')
+                .addStringOption(opt =>
+                    opt.setName('word').setDescription('The word (2-20 chars)').setRequired(true)
+                )
+        )
+        .addSubcommand(sub =>
+            sub.setName('server-clear').setDescription('Remove the server wake word (admin only)')
+        )
+        .addSubcommand(sub =>
+            sub.setName('server-defaults').setDescription('Toggle default wake words like "jarvis" (admin only)')
+                .addBooleanOption(opt =>
+                    opt.setName('enabled').setDescription('Enable or disable defaults').setRequired(true)
+                )
         )
     ),
     new SlashCommandBuilder()
