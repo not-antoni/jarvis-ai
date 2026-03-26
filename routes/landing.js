@@ -361,19 +361,19 @@ const LANDING_PAGE = `
             <div class="features-grid">
                 <div class="feature-card">
                     <h3>AI Chat</h3>
-                    <p>Mention him in any channel (DMs are disabled to prevent abuse, but you can still use /jarvis). He remembers past conversations and picks up where you left off. 50+ models under the hood.</p>
+                    <p>Mention him in any channel and he'll talk back. He remembers everything. DMs off because people were weird about it — use /jarvis instead.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Voice Chat</h3>
-                    <p>Use /voice to pull him into your channel. He listens via speech-to-text and responds out loud. Your message just needs to contain "Jarvis" somewhere — otherwise he won't pick it up.</p>
+                    <p>Run /voice and he joins your call. Say "Jarvis" and talk — he hears you and talks back. Forget to say his name and he pretends you don't exist.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Music</h3>
-                    <p>Play from YouTube, SoundCloud, and others. Queue up tracks, skip, loop — the usual stuff but it just works.</p>
+                    <p>YouTube, SoundCloud, whatever. Queue, skip, loop. It just works — no 15-step setup required.</p>
                 </div>
                 <div class="feature-card">
                     <h3>AutoMod</h3>
-                    <p>Catches spam, toxicity, and sketchy content so you don't have to babysit your server 24/7.</p>
+                    <p>Spam, toxicity, sketchy links — handled. You can stop babysitting your server now.</p>
                 </div>
             </div>
         </section>
