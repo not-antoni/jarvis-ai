@@ -24,8 +24,13 @@ async function handleAutoModCommand(handler, interaction) {
     const subcommand = interaction.options.getSubcommand();
     const subcommandGroup = interaction.options.getSubcommandGroup(false);
 
-    // Flatten legacy "filter add" group → "newfilter"
-    const effectiveSubcommand = (subcommandGroup === 'filter' && subcommand === 'add') ? 'newfilter' : subcommand;
+    // Flatten grouped or legacy advanced subcommands to the existing handler actions.
+    let effectiveSubcommand = subcommand;
+    if (subcommandGroup === 'advanced' && subcommand === 'filter') {
+        effectiveSubcommand = 'newfilter';
+    } else if (subcommandGroup === 'filter' && subcommand === 'add') {
+        effectiveSubcommand = 'newfilter';
+    }
     const guildConfig = await handler.getGuildConfig(guild);
 
     const isModerator = await handler.isGuildModerator(member, guildConfig);
@@ -161,13 +166,20 @@ async function handleAutoModCommand(handler, interaction) {
             )
             .setFooter({ text: footerText });
 
+        if (!record.keywords.length && !extraFilters.length) {
+            embed.addFields({
+                name: 'Quick start',
+                value: 'Use `/automod add words:spam, scam` to add blocked words. Jarvis will sync and enable automod for you.'
+            });
+        }
+
         await interaction.editReply({ embeds: [embed] });
         return;
     }
 
     if (effectiveSubcommand === 'list') {
         if (!record.keywords.length) {
-            await interaction.editReply('No blacklist entries are currently configured, sir.');
+            await interaction.editReply('No blocked words are configured right now, sir. Use `/automod add words:spam, scam` to create the list.');
             return;
         }
 
@@ -199,7 +211,7 @@ async function handleAutoModCommand(handler, interaction) {
 
     if (effectiveSubcommand === 'enable') {
         if (!record.keywords.length) {
-            await replyWithError('Please add blacklisted words before enabling auto moderation, sir.');
+            await replyWithError('Add blocked words first with `/automod add words:spam, scam`, sir.');
             return;
         }
 
