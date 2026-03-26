@@ -361,7 +361,7 @@ const LANDING_PAGE = `
             <div class="features-grid">
                 <div class="feature-card">
                     <h3>AI Chat</h3>
-                    <p>Mention him in any channel and he'll talk back. He remembers everything. DMs off because people were weird about it — use /jarvis instead.</p>
+                    <p>Mention him, say his name, or use /jarvis in any channel. He remembers everything. DMs off because people were weird about it.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Voice Chat</h3>
