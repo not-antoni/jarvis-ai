@@ -365,7 +365,7 @@ const LANDING_PAGE = `
                 </div>
                 <div class="feature-card">
                     <h3>Voice Chat</h3>
-                    <p>Jarvis joins voice channels, listens via speech-to-text, and responds out loud. Just say "Jarvis" and talk normally.</p>
+                    <p>Use /voice to pull him into your channel. He listens via speech-to-text and responds out loud — just say "Jarvis" and talk normally.</p>
                 </div>
                 <div class="feature-card">
                     <h3>Music</h3>
