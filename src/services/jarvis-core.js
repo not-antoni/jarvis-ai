@@ -280,7 +280,7 @@ If something is ambiguous, make reasonable assumptions and proceed. Don't ask cl
             const allowsLongTermMemory = memoryPreference !== 'opt-out';
 
             let secureMemories = [];
-            const memoryLimit = 30;
+            const memoryLimit = 50;
             if (allowsLongTermMemory) {
                 secureMemories = await vaultClient
                     .decryptMemories(userId, { limit: memoryLimit })
