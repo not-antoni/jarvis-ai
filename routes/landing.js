@@ -426,22 +426,26 @@ const LANDING_PAGE = `
             }
         }
 
-        // Fetch real server count
-        async function fetchStats() {
+        // Fetch real server count (retry once if cache not ready yet)
+        async function fetchStats(retries) {
             try {
                 const res = await fetch('/api/stats');
                 const data = await res.json();
-                if (data.guildCount) {
+                if (data.guildCount > 0) {
                     const count = data.guildCount;
                     let formatted;
                     if (count >= 1000) formatted = (count / 1000).toFixed(1) + 'K+';
                     else formatted = count + '+';
                     document.getElementById('serverCount').textContent = formatted;
+                } else if (retries > 0) {
+                    setTimeout(() => fetchStats(retries - 1), 5000);
                 }
-            } catch (e) {}
+            } catch (e) {
+                if (retries > 0) setTimeout(() => fetchStats(retries - 1), 5000);
+            }
         }
-        
-        fetchStats();
+
+        fetchStats(2);
     </script>
 </body>
 </html>
