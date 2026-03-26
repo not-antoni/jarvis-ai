@@ -198,6 +198,13 @@ async function handleBlacklist(interaction, handler) {
     if (subcommand === 'add') {
         const target = interaction.options.getUser('user', true);
 
+        if (target.id === interaction.client.user?.id) {
+            return {
+                content: "Sir, I can't blacklist myself.",
+                allowedMentions: { parse: [] }
+            };
+        }
+
         if (target.id === interaction.user.id) {
             return {
                 content: 'You cannot blacklist yourself, sir.',
