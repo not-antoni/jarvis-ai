@@ -369,7 +369,7 @@ const LANDING_PAGE = `
                 </div>
                 <div class="feature-card">
                     <h3>Music</h3>
-                    <p>Play from YouTube, Spotify, SoundCloud, and others. Queue up tracks, skip, loop — the usual stuff but it just works.</p>
+                    <p>Play from YouTube, SoundCloud, and others. Queue up tracks, skip, loop — the usual stuff but it just works.</p>
                 </div>
                 <div class="feature-card">
                     <h3>AutoMod</h3>
