@@ -86,6 +86,8 @@ function wireEventHandlers(ctx) {
         console.log('Running daily cleanup...');
         aiManager.cleanupOldMetrics();
         discordHandlers.cleanupCooldowns();
+        // Explicit prune of cooldown entries older than 1 hour
+        try { discordHandlers.cooldowns?.prune(60 * 60 * 1000); } catch (_) {}
         // Flush guild activity data to database before it expires from LRU cache
         try {
             const activityTracker = require('../services/GUILDS_FEATURES/activity-tracker');

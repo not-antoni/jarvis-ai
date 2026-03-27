@@ -5,6 +5,7 @@ const { MongoClient } = require('mongodb');
 const config = require('../../config');
 const localdb = require('../localdb');
 const { LRUCache } = require('lru-cache');
+const { parseBooleanEnv } = require('../utils/parse-bool-env');
 const IS_RENDER = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL);
 const IS_SELFHOST = !IS_RENDER && (
     process.env.DEPLOY_TARGET === 'selfhost' ||
@@ -12,7 +13,7 @@ const IS_SELFHOST = !IS_RENDER && (
 );
 const LOCAL_DB_MODE =
     !IS_RENDER &&
-    String(process.env.LOCAL_DB_MODE || process.env.ALLOW_START_WITHOUT_DB || '').toLowerCase() === '1';
+    (parseBooleanEnv(process.env.LOCAL_DB_MODE) || parseBooleanEnv(process.env.ALLOW_START_WITHOUT_DB));
 const {
     database: {
         mainUri,
