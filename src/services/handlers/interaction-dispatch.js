@@ -353,7 +353,7 @@ async function handle(handler, interaction) {
             const voiceChat = require('../voice-chat-service');
             try {
                 if (!interaction.deferred && !interaction.replied) {
-                    await interaction.deferReply({ ephemeral: true });
+                    await interaction.deferReply();
                 }
                 const msg = await voiceChat.join(interaction);
                 await interaction.editReply(msg);
