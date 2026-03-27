@@ -162,6 +162,14 @@ function validateConfig(rawConfig) {
         }
     }
 
+    // Check for externalized system prompt
+    const path = require('path');
+    const fs = require('fs');
+    const promptPath = path.join(__dirname, 'system-prompt.txt');
+    if (!fs.existsSync(promptPath)) {
+        console.warn('Warning: config/system-prompt.txt not found. Jarvis will use a minimal fallback personality.');
+    }
+
     if (!env.YOUTUBE_API_KEY) {
         console.warn('Warning: YOUTUBE_API_KEY is not set. Related features may be disabled.');
     }

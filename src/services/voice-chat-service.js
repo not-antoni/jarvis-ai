@@ -19,7 +19,9 @@ const { musicManager } = require('../core/musicManager');
 const { isCpuThrottled, getCpuFreqMHz } = require('../utils/cpu-monitor');
 const database = require('./database');
 
-const FFMPEG = process.env.FFMPEG_PATH || '/home/tony/.local/bin/ffmpeg';
+const FFMPEG = process.env.FFMPEG_PATH || (() => {
+    try { return require('ffmpeg-static'); } catch { return 'ffmpeg'; }
+})();
 
 // ─── Tuning ───────────────────────────────────────────────────────────────────
 const SILENCE_MS         = 1600;      // ms silence before ending capture
@@ -45,9 +47,13 @@ const NOISE_WORDS = new Set([
 ]);
 
 // Channels where the bot stays connected permanently (guild → channel)
-const PERSISTENT_CHANNELS = new Map([
-    ['858444090374881301', '858444090949369899']
-]);
+// Configured via env: VOICE_PERSISTENT_CHANNELS=guildId:channelId,guildId:channelId
+const PERSISTENT_CHANNELS = new Map(
+    (process.env.VOICE_PERSISTENT_CHANNELS || '858444090374881301:858444090949369899')
+        .split(',')
+        .map(pair => pair.trim().split(':'))
+        .filter(([g, c]) => g && c)
+);
 
 // Prepended to voice input so the AI keeps replies spoken-friendly
 const VOICE_HINT = '[Voice chat — reply in 1-2 short spoken sentences. No markdown, no lists, no formatting. Be concise and conversational.]\n';
@@ -72,6 +78,7 @@ function cleanForTts(text) {
         .replace(/<@!?\d+>/g, '')                          // <@mention>
         .replace(/<#\d+>/g, '')                            // <#channel>
         .replace(/<a?:\w+:\d+>/g, '')                      // <:emoji:id>
+        .replace(/<t:\d+(?::[tTdDfFR])?>/g, '')            // <t:1234567890:R> Discord timestamps
         .replace(/https?:\/\/\S+/g, '')                    // URLs
         .replace(/—/g, ', ')                               // em-dash → pause
         .replace(/\.{3}/g, ', ')                           // ellipsis → pause
