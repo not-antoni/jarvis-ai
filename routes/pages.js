@@ -218,9 +218,9 @@ const PRIVACY_POLICY = `
         <p>Conversation data sticks around for 30 days. Want it gone sooner? <code>/clear</code> or <code>/opt out</code> nukes it immediately. No hoops, no support ticket, no waiting.</p>
 
         <h2>Third-Party Services</h2>
-        <p>Jarvis routes AI responses through multiple providers — including OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM — depending on which one's available and not having a bad day. They temporarily process your message to produce a reply. That's it. They don't keep it, and they don't use it to train their models.</p>
+        <p>Jarvis routes AI responses through multiple providers — including OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM — depending on which one's available and not having a bad day. They temporarily process your message to produce a reply. Each provider operates under their own data practices. Jarvis does not control or guarantee how providers handle submitted data — including whether they use it for model training. If that matters to you, review their policies directly below.</p>
         <p>Voice features run through NVIDIA NIM APIs for speech-to-text and text-to-speech. Audio is sent securely and NVIDIA doesn't hold onto it after processing.</p>
-        <p>Relevant privacy policies: <a href="https://openrouter.ai/privacy" target="_blank">OpenRouter</a> · <a href="https://wow.groq.com/privacy-policy/" target="_blank">Groq</a> · <a href="https://cerebras.ai/privacy-policy" target="_blank">Cerebras</a> · <a href="https://mistral.ai/terms/#privacy-policy" target="_blank">Mistral</a> · <a href="https://policies.google.com/privacy" target="_blank">Google</a> · <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">NVIDIA</a></p>
+        <p>Relevant privacy policies: <a href="https://openrouter.ai/privacy" target="_blank">OpenRouter</a> · <a href="https://wow.groq.com/privacy-policy/" target="_blank">Groq</a> · <a href="https://cerebras.ai/privacy-policy" target="_blank">Cerebras</a> · <a href="https://sambanova.ai/privacy-policy" target="_blank">SambaNova</a> · <a href="https://mistral.ai/terms/#privacy-policy" target="_blank">Mistral</a> · <a href="https://policies.google.com/privacy" target="_blank">Google</a> · <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">NVIDIA</a></p>
 
         <h2>Your Rights</h2>
         <ul>
@@ -239,7 +239,7 @@ const PRIVACY_POLICY = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 27, 2026</p>
+            <p>Effective Date: March 28, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}
@@ -284,7 +284,7 @@ const TERMS_OF_SERVICE = `
         <h2>4. Data — The Honest Version</h2>
         <p>Jarvis only processes your messages when you actually talk to him — mentions, commands, or voice chat. DMs are disabled to prevent abuse. In threads, he reads recent thread messages for context but doesn't store them. In voice channels, he only listens to opted-in users and only reacts to his name. <strong>Raw audio is never recorded or stored;</strong> it's processed live for speech-to-text and immediately gone.</p>
 
-        <p>When Jarvis generates a response, <strong>your message is sent to one of several AI providers</strong> (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, or NVIDIA) — whichever is available. They act as data processors and don't use your data to train their global models. The resulting conversations are saved in your secure, encrypted database so he can actually remember context instead of acting like he's never met you. He uses keyword relevance to pull up the right memories — not just the last few things you said.</p>
+        <p>When Jarvis generates a response, <strong>your message is sent to one of several AI providers</strong> (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, or NVIDIA) — whichever is available. They act as data processors to generate responses. Each provider operates under their own data and privacy policies — if a provider uses submitted data in any way, including for model training, that is governed by their terms, not ours. Links to their individual policies are in our <a href="/policy">Privacy Policy</a>. The resulting conversations are saved in your secure, encrypted database so he can actually remember context instead of acting like he's never met you. He uses keyword relevance to pull up the right memories — not just the last few things you said.</p>
 
         <p>You're in control. Use <code>/clear</code> or <code>/opt out</code> to wipe everything, anytime. Your data is never sold, never shared for marketing, never used to embarrass you at parties.</p>
 
@@ -303,7 +303,7 @@ const TERMS_OF_SERVICE = `
         <p>Kick Jarvis whenever you want — from your server, your DMs, your life. We may also boot you if you're abusing the service or violating these Terms. Breakups go both ways.</p>
 
         <h2>9. Third-Party Stuff</h2>
-        <p>Jarvis routes AI responses through multiple providers — OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM for voice. They handle input temporarily to do their job. Jarvis isn't responsible for their data practices — check their policies if you want the details.</p>
+        <p>Jarvis routes AI responses through multiple providers — OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM for voice. They handle input temporarily to do their job. Jarvis isn't responsible for their data practices. If a provider uses submitted data in ways you disagree with — including model training — that is between you and that provider, governed entirely by their own terms. Check their policies in our <a href="/policy">Privacy Policy</a> for the full picture.</p>
 
         <h2>10. Say Hi</h2>
         <p>Questions? Concerns? Just want to yell at someone? Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a> — or email: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -317,7 +317,7 @@ const TERMS_OF_SERVICE = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 27, 2026</p>
+            <p>Effective Date: March 28, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}
