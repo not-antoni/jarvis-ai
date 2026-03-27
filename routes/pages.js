@@ -193,9 +193,10 @@ const PRIVACY_POLICY = `
 
         <h2>What We Actually Collect</h2>
         <ul>
-            <li><strong>Message Content</strong> – Only when you talk to Jarvis directly (mention him, run a command, slide into his DMs). He's not reading your server like a lurker.</li>
+            <li><strong>Message Content</strong> – Only when you talk to Jarvis directly (mention him, run a command, etc.). He's not reading your server like a lurker. DMs are disabled — this is a server-only operation.</li>
+            <li><strong>Thread Context</strong> – When you talk to Jarvis in a Discord thread, he reads the last few messages in that thread so he can follow the conversation. This context is not stored — it's read on the fly and forgotten after he replies.</li>
             <li><strong>Voice Transcriptions</strong> – When Jarvis is in a VC, he only processes audio from opted-in users and only reacts when you say his name. <strong>Raw audio is never recorded or stored.</strong> It goes straight to text, gets processed, and lives in your encrypted memory. That's it.</li>
-            <li><strong>Conversation History ("Memories")</strong> – Your messages, his replies, timestamps, and basic identifiers so he actually remembers who you are. This is what makes him useful instead of goldfish-brained.</li>
+            <li><strong>Conversation History ("Memories")</strong> – Your messages, his replies, timestamps, and basic identifiers so he actually remembers who you are. When you ask him something, he uses keyword matching to pull up the most relevant past conversations — not just the latest ones. This is what makes him useful instead of goldfish-brained.</li>
             <li><strong>Operational Metadata</strong> – Usage logs, event data, reliability stuff. Boring and temporary (TTL).</li>
             <li><strong>Member Data</strong> – Only for status channels. Not stored long-term. Gone when it's done its job.</li>
         </ul>
@@ -204,7 +205,7 @@ const PRIVACY_POLICY = `
         <p>Exactly what you'd expect:</p>
         <ul>
             <li>Make him actually respond to you instead of staring blankly.</li>
-            <li>Keep conversation memory so he doesn't forget you existed five minutes ago.</li>
+            <li>Keep conversation memory so he doesn't forget you existed five minutes ago — and use keyword relevance to surface the right memories when they matter, not just the most recent ones.</li>
             <li>Handle real-time voice processing — hearing you, talking back.</li>
             <li>Run AutoMod, stats, and other features that make server life less chaotic.</li>
             <li>Keep the thing running and catch people trying to break it.</li>
@@ -217,8 +218,9 @@ const PRIVACY_POLICY = `
         <p>Conversation data sticks around for 30 days. Want it gone sooner? <code>/clear</code> or <code>/opt out</code> nukes it immediately. No hoops, no support ticket, no waiting.</p>
 
         <h2>Third-Party Services</h2>
-        <p>Jarvis uses OpenRouter to generate AI responses. They may temporarily process your message to produce a reply — that's the job. They don't keep it. Privacy policy: <a href="https://openrouter.ai/privacy" target="_blank">openrouter.ai/privacy</a></p>
-        <p>Voice features run through NVIDIA NIM APIs for speech-to-text and text-to-speech. Audio is sent securely and NVIDIA doesn't hold onto it after processing. Privacy policy: <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">nvidia.com/privacy-policy</a></p>
+        <p>Jarvis routes AI responses through multiple providers — including OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM — depending on which one's available and not having a bad day. They temporarily process your message to produce a reply. That's it. They don't keep it, and they don't use it to train their models.</p>
+        <p>Voice features run through NVIDIA NIM APIs for speech-to-text and text-to-speech. Audio is sent securely and NVIDIA doesn't hold onto it after processing.</p>
+        <p>Relevant privacy policies: <a href="https://openrouter.ai/privacy" target="_blank">OpenRouter</a> · <a href="https://wow.groq.com/privacy-policy/" target="_blank">Groq</a> · <a href="https://cerebras.ai/privacy-policy" target="_blank">Cerebras</a> · <a href="https://mistral.ai/terms/#privacy-policy" target="_blank">Mistral</a> · <a href="https://policies.google.com/privacy" target="_blank">Google</a> · <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">NVIDIA</a></p>
 
         <h2>Your Rights</h2>
         <ul>
@@ -237,7 +239,7 @@ const PRIVACY_POLICY = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 24, 2026</p>
+            <p>Effective Date: March 27, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}
@@ -274,15 +276,15 @@ const TERMS_OF_SERVICE = `
         <p>By using Jarvis ("we," "our," or "the bot"), you agree to these Terms. If you don't agree, that's fine — just don't use Jarvis. No hard feelings. (Some hard feelings.)</p>
 
         <h2>2. What Jarvis Actually Does</h2>
-        <p>Jarvis is a Discord assistant. He does AI chat, voice conversations (speech-to-text, text-to-speech), music playback, AutoMod, server stats, and DMs. Some of his responses come from external AI services (OpenRouter, NVIDIA NIM) because he's standing on some very tall shoulders.</p>
+        <p>Jarvis is a Discord assistant. He does AI chat (with keyword-smart memory recall and thread-aware conversations), voice conversations (speech-to-text, text-to-speech), music playback, AutoMod, and server stats. Some of his responses come from external AI services (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, NVIDIA NIM) because he's standing on some very tall shoulders.</p>
 
         <h2>3. Don't Be That Guy</h2>
         <p>Follow Discord's Terms of Service and Community Guidelines. Don't use Jarvis for spam, harassment, or anything illegal. He will not help you with that, and honestly neither will we.</p>
 
         <h2>4. Data — The Honest Version</h2>
-        <p>Jarvis only processes your messages when you actually talk to him — mentions, commands, DMs, or voice chat. In voice channels, he only listens to users who've opted in, and only reacts when you say his name. <strong>Raw audio is never recorded or stored;</strong> it's processed live for speech-to-text and immediately gone.</p>
+        <p>Jarvis only processes your messages when you actually talk to him — mentions, commands, or voice chat. DMs are disabled to prevent abuse. In threads, he reads recent thread messages for context but doesn't store them. In voice channels, he only listens to opted-in users and only reacts to his name. <strong>Raw audio is never recorded or stored;</strong> it's processed live for speech-to-text and immediately gone.</p>
 
-        <p>When Jarvis generates a response, <strong>anonymized transcriptions go through external AI providers</strong> — they act as data processors and don't use your data to train their global models. The resulting conversations are saved in your secure, encrypted database so he can actually remember context instead of acting like he's never met you.</p>
+        <p>When Jarvis generates a response, <strong>your message is sent to one of several AI providers</strong> (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, or NVIDIA) — whichever is available. They act as data processors and don't use your data to train their global models. The resulting conversations are saved in your secure, encrypted database so he can actually remember context instead of acting like he's never met you. He uses keyword relevance to pull up the right memories — not just the last few things you said.</p>
 
         <p>You're in control. Use <code>/clear</code> or <code>/opt out</code> to wipe everything, anytime. Your data is never sold, never shared for marketing, never used to embarrass you at parties.</p>
 
@@ -301,7 +303,7 @@ const TERMS_OF_SERVICE = `
         <p>Kick Jarvis whenever you want — from your server, your DMs, your life. We may also boot you if you're abusing the service or violating these Terms. Breakups go both ways.</p>
 
         <h2>9. Third-Party Stuff</h2>
-        <p>Jarvis uses OpenRouter for AI responses and NVIDIA NIM for voice processing. They handle input temporarily to do their job. Jarvis isn't responsible for their data practices — check their policies if you want the details.</p>
+        <p>Jarvis routes AI responses through multiple providers — OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM for voice. They handle input temporarily to do their job. Jarvis isn't responsible for their data practices — check their policies if you want the details.</p>
 
         <h2>10. Say Hi</h2>
         <p>Questions? Concerns? Just want to yell at someone? Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a> — or email: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -315,7 +317,7 @@ const TERMS_OF_SERVICE = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 24, 2026</p>
+            <p>Effective Date: March 27, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}

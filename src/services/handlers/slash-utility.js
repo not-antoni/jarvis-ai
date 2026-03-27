@@ -19,7 +19,7 @@ async function handlePing(interaction) {
     try {
         const pkg = require(path.join(process.cwd(), 'package.json'));
         botVersion = pkg.version;
-    } catch (e) {}
+    } catch (e) { console.debug('[Ping] Could not read package.json version:', e.message); }
 
     // Get detailed OS info
     let hostOs = `${os.type()} ${os.release()}`;
@@ -31,7 +31,7 @@ async function handlePing(interaction) {
                 hostOs = match[1];
             }
         }
-    } catch (e) {}
+    } catch (e) { console.debug('[Ping] Could not read /etc/os-release:', e.message); }
 
     // Robust CPU detection with multiple fallbacks
     let cpuModel = 'Unknown CPU';
@@ -173,14 +173,14 @@ async function handleJarvis(interaction, jarvis) {
         prompt = 'jarvis';
     }
 
-    if (prompt.length > config.ai.maxSlashInputLength) {
+    if (prompt.length > config.ai.maxInputLength) {
         const responses = [
             'Rather verbose, sir. A concise version, perhaps?',
             'Too many words, sir. Brevity, please.',
             'TL;DR, sir.',
             'Really, sir?',
             'Saving your creativity for later, sir.',
-            `${config.ai.maxSlashInputLength} characters is the limit, sir.`,
+            `${config.ai.maxInputLength} characters is the limit, sir.`,
             'Stop yapping, sir.',
             'Quite the novella, sir. Abridged edition?',
             'Brevity is the soul of wit, sir.'
@@ -188,10 +188,6 @@ async function handleJarvis(interaction, jarvis) {
 
         await interaction.editReply(responses[Math.floor(Math.random() * responses.length)]);
         return '__JARVIS_HANDLED__';
-    }
-
-    if (prompt.length > config.ai.maxInputLength) {
-        prompt = `${prompt.substring(0, config.ai.maxInputLength)}...`;
     }
 
     // Extract image attachment if provided (for vision processing)

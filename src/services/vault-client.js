@@ -30,13 +30,8 @@ const TOTAL_MEMORY_LIMIT = 50;
 const MAX_SINGLE_MEMORY_BYTES = 64 * 1024; // 64KB per individual memory payload limit
 const MAX_MEMORY_SIZE_BYTES = 500 * 1024; // 500KB total per user storage limit
 const SHORT_TERM_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
+const { parseBooleanEnv } = require('../utils/parse-bool-env');
 const USE_LOCAL_DB_MODE = parseBooleanEnv(process.env.LOCAL_DB_MODE, false);
-
-function parseBooleanEnv(value, fallback) {
-    if (value === undefined || value === null) {return fallback;}
-    if (typeof value === 'boolean') {return value;}
-    return !['false', '0', 'no', 'off'].includes(String(value).toLowerCase());
-}
 
 let localDbOps = null;
 if (USE_LOCAL_DB_MODE) {

@@ -5,26 +5,7 @@
 const path = require('path');
 const validateConfig = require('./validate');
 const { getPublicConfig } = require('../src/utils/public-config');
-
-function parseBooleanEnv(envValue, fallback = false) {
-    if (envValue == null) {
-        return Boolean(fallback);
-    }
-
-    const normalized = String(envValue).trim().toLowerCase();
-    if (!normalized) {
-        return Boolean(fallback);
-    }
-
-    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {
-        return true;
-    }
-    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {
-        return false;
-    }
-
-    return Boolean(fallback);
-}
+const { parseBooleanEnv } = require('../src/utils/parse-bool-env');
 
 const enableMessageContentIntent = parseBooleanEnv(
     process.env.DISCORD_ENABLE_MESSAGE_CONTENT,
@@ -159,7 +140,6 @@ const rawConfig = {
         cooldownMs: process.env.AI_COOLDOWN_MS ? Number(process.env.AI_COOLDOWN_MS) : 5000,
         maxTokens: 1024,
         maxInputLength: 1024,
-        maxSlashInputLength: 1024,
         temperature: 1,
         retryAttempts: 0,
         // Provider selection: "auto" for round-robin, or specific provider family
