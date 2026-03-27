@@ -82,10 +82,16 @@ function wireEventHandlers(ctx) {
 
     // ─── Cleanup Cron ────────────────────────────────────────────────────────
 
-    cron.schedule('0 2 * * *', () => {
+    cron.schedule('0 2 * * *', async () => {
         console.log('Running daily cleanup...');
         aiManager.cleanupOldMetrics();
         discordHandlers.cleanupCooldowns();
+        // Flush guild activity data to database before it expires from LRU cache
+        try {
+            const activityTracker = require('../services/GUILDS_FEATURES/activity-tracker');
+            const flushed = await activityTracker.flushToDatabase(database);
+            if (flushed) console.log(`[ActivityTracker] Flushed ${flushed} guild(s) to database`);
+        } catch (e) { console.warn('[ActivityTracker] Flush failed:', e.message); }
     });
 
     // ─── Error Handling ──────────────────────────────────────────────────────

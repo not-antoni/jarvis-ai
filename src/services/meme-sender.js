@@ -10,6 +10,8 @@ class MemeSender {
         this.targetChannelId = process.env.MEME_CHANNEL_ID || '';
         this.apiUrl = 'https://meme-api.com/gimme';
         this.hasWarnedMissingTarget = false;
+        this.recentUrls = new Set(); // Track last 20 meme URLs to avoid duplicates
+        this.maxRecent = 20;
     }
 
     /**
@@ -81,14 +83,23 @@ class MemeSender {
                 return console.warn(`[MemeSender] Target channel ${this.targetChannelId} is not a text channel`);
             }
 
-            // Fetch meme
-            const meme = await this.fetchMeme();
-            if (!meme) {return;}
+            // Fetch meme (retry up to 3 times if we get a duplicate)
+            let meme = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const candidate = await this.fetchMeme();
+                if (!candidate) return;
+                if (candidate.nsfw && channel.nsfw === false) continue;
+                if (this.recentUrls.has(candidate.url)) continue;
+                meme = candidate;
+                break;
+            }
+            if (!meme) return;
 
-            // NSFW Filter (Auto-skip NSFW if channel isn't NSFW)
-            if (meme.nsfw && channel.nsfw === false) {
-                console.log('[MemeSender] Skipped NSFW meme in SFW channel');
-                return; // Retry logic could go here, but keep it simple for now
+            // Track URL to avoid sending the same meme again soon
+            this.recentUrls.add(meme.url);
+            if (this.recentUrls.size > this.maxRecent) {
+                const oldest = this.recentUrls.values().next().value;
+                this.recentUrls.delete(oldest);
             }
 
             // Send only the URL so Discord auto-embeds it cleanly

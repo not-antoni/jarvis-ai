@@ -4,7 +4,9 @@
  * When many users upload simultaneously, they get queued and processed sequentially
  */
 const { musicManager } = require('../core/musicManager');
-const { execFileSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const execFileAsync = promisify(execFile);
 const { assertPublicHttpUrl } = require('../utils/net-guard');
 
 // Try to get ffprobe path from npm package, fall back to system
@@ -48,12 +50,12 @@ async function getAudioDuration(url) {
         }
         args.push('-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', safeUrl);
 
-        const result = execFileSync(
+        const { stdout } = await execFileAsync(
             ffprobePath,
             args,
             { timeout: 30000, encoding: 'utf8' }
         );
-        const duration = parseFloat(result.trim());
+        const duration = parseFloat(stdout.trim());
         if (isNaN(duration) || duration <= 0) {
             console.warn('[UploadQueue] ffprobe returned invalid duration:', result.trim());
             return 0;

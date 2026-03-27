@@ -3,7 +3,8 @@ const { createDiskCache } = require('../utils/disk-cache');
 
 const cache = createDiskCache({
     file: path.join(__dirname, '../../data/search-cache.json'),
-    maxEntries: 1000
+    maxEntries: 1000,
+    ttlMs: 7 * 24 * 60 * 60 * 1000 // 7 day TTL
 });
 
 function normalizeQuery(query) {

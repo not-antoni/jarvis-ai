@@ -89,6 +89,25 @@ function loadSystemPrompt() {
 }
 
 
+// Per-guild concurrent AI request limiter
+const guildActiveRequests = new Map();
+const GUILD_AI_CONCURRENCY_CAP = Number(process.env.GUILD_AI_CONCURRENCY_CAP) || 5;
+
+function acquireGuildSlot(guildId) {
+    if (!guildId) return true; // DMs have no guild cap
+    const current = guildActiveRequests.get(guildId) || 0;
+    if (current >= GUILD_AI_CONCURRENCY_CAP) return false;
+    guildActiveRequests.set(guildId, current + 1);
+    return true;
+}
+
+function releaseGuildSlot(guildId) {
+    if (!guildId) return;
+    const current = guildActiveRequests.get(guildId) || 0;
+    if (current <= 1) guildActiveRequests.delete(guildId);
+    else guildActiveRequests.set(guildId, current - 1);
+}
+
 class JarvisAI {
     constructor() {
         this.personality = {
@@ -296,6 +315,11 @@ class JarvisAI {
         const gate = await this.gateDestructiveRequests(userInput);
         if (gate.blocked) {return gate.message;}
 
+        const effectiveGuildId = interaction.guild?.id || interaction.guildId || null;
+        if (!acquireGuildSlot(effectiveGuildId)) {
+            return 'The server is keeping me rather busy, sir. Give me a moment.';
+        }
+
         try {
             const userProfile = options.voice
                 ? await database.getUserProfile(userId, userName, { skipIncrement: true })
@@ -467,6 +491,8 @@ ${contextPrefix}${sanitizedInput}`;
         } catch (error) {
             console.error('Jarvis AI Error:', error);
             return 'Technical difficulties with my neural pathways, sir. Shall we try again?';
+        } finally {
+            releaseGuildSlot(effectiveGuildId);
         }
     }
 
