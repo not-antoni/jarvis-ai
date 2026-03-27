@@ -189,7 +189,7 @@ const PRIVACY_POLICY = `
         <h1>Privacy Policy</h1>
 
         <h2>The Short Version</h2>
-        <p>Jarvis ("we," "the bot," "him," or "that guy in your voice channel") is a Discord app. We collect the minimum data needed to not be useless. We don't sell it, share it, or look at it for fun. Here's the full breakdown.</p>
+        <p>Jarvis ("we," "the bot," "him," or "that guy in your voice channel") is a Discord app. We collect the minimum data needed to not make the bot useless. We don't sell it, share it, or look at it for fun. Here's the full breakdown.</p>
 
         <h2>What We Actually Collect</h2>
         <ul>
