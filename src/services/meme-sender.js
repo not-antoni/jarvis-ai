@@ -12,6 +12,8 @@ class MemeSender {
         this.hasWarnedMissingTarget = false;
         this.recentUrls = new Set(); // Track last 20 meme URLs to avoid duplicates
         this.maxRecent = 20;
+        this.consecutiveFailures = 0;
+        this.maxBackoffHours = 8;
     }
 
     /**
@@ -25,8 +27,17 @@ class MemeSender {
         // Run immediately on startup (for testing/gratification)
         this.sendMeme();
 
-        // Schedule every 1 hour (3600000 ms)
+        // Schedule every 1 hour (3600000 ms), with backoff on failure
         this.interval = setInterval(() => {
+            const backoffHours = Math.min(
+                Math.pow(2, this.consecutiveFailures) - 1,
+                this.maxBackoffHours - 1
+            );
+            if (backoffHours > 0 && this.consecutiveFailures > 0) {
+                console.log(`[MemeSender] Backing off (${this.consecutiveFailures} failures), skipping this cycle`);
+                this.consecutiveFailures--; // Decay toward retry
+                return;
+            }
             this.sendMeme();
         }, 1000 * 60 * 60);
         this.interval.unref();
@@ -104,10 +115,12 @@ class MemeSender {
 
             // Send only the URL so Discord auto-embeds it cleanly
             await channel.send(meme.url);
+            this.consecutiveFailures = 0;
             console.log(`[MemeSender] Sent meme "${meme.title}" to #${channel.name}`);
 
         } catch (error) {
-            console.error('[MemeSender] Error sending meme:', error);
+            this.consecutiveFailures++;
+            console.error(`[MemeSender] Error sending meme (failure #${this.consecutiveFailures}):`, error);
         }
     }
 }
