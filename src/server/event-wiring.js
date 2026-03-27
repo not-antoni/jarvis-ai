@@ -113,6 +113,8 @@ function wireEventHandlers(ctx) {
             try { require('../services/meme-sender').stop(); } catch (_) { }
             try { require('../services/user-features').stopReminderChecker(); } catch (_) { }
             try { voiceChatService.sessions.forEach((_, gid) => voiceChatService._destroy(gid)); } catch (_) { }
+            // Flush debounced AI provider state before closing DB
+            try { if (aiManager.stateDirty) await aiManager.saveState(); } catch (_) { }
             await database.disconnect();
             try { await require('../utils/logger').flush(); } catch (_) { }
             client.destroy();

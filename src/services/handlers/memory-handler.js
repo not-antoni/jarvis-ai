@@ -99,7 +99,7 @@ async function handleMemoryCommand(handler, interaction) {
         console.error('handleMemoryCommand failed:', error);
         try {
             await interaction.editReply('Memory diagnostics failed internally, sir. Please try again shortly.');
-        } catch {}
+        } catch (replyErr) { console.debug('[Memory] Failed to send error reply:', replyErr.message); }
     }
 }
 
