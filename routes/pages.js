@@ -219,7 +219,7 @@ const PRIVACY_POLICY = `
 
         <h2>Third-Party Services</h2>
         <p>Jarvis routes AI responses through multiple providers — including OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM — depending on which one's available and not having a bad day. They temporarily process your message to produce a reply. Each provider operates under their own data practices. Jarvis does not control or guarantee how providers handle submitted data — including whether they use it for model training. If that matters to you, review their policies directly below.</p>
-        <p>Voice features run through NVIDIA NIM APIs for speech-to-text and text-to-speech. Audio is sent securely and NVIDIA doesn't hold onto it after processing.</p>
+        <p>Voice features run through NVIDIA NIM APIs for speech-to-text and text-to-speech. Audio is transmitted securely; how NVIDIA handles that data is subject to their own privacy policy linked below.</p>
         <p>Relevant privacy policies: <a href="https://openrouter.ai/privacy" target="_blank">OpenRouter</a> · <a href="https://wow.groq.com/privacy-policy/" target="_blank">Groq</a> · <a href="https://cerebras.ai/privacy-policy" target="_blank">Cerebras</a> · <a href="https://sambanova.ai/privacy-policy" target="_blank">SambaNova</a> · <a href="https://mistral.ai/terms/#privacy-policy" target="_blank">Mistral</a> · <a href="https://policies.google.com/privacy" target="_blank">Google</a> · <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">NVIDIA</a></p>
 
         <h2>Your Rights</h2>
