@@ -11,6 +11,7 @@ const AUTOCOMPLETE_SELECTION_TTL_MS = 10 * 60 * 1000;
 const AUTOCOMPLETE_SELECTION_MAX = 512;
 const AUTOCOMPLETE_TOKEN_PREFIX = 'ac:';
 const autocompleteSelectionCache = new Map();
+const VOICE_HINT_MESSAGE = 'Use `/voice` too if you want to talk over music.';
 
 // Allowed audio extensions
 const AUDIO_EXTENSIONS = ['.mp3', '.ogg', '.oga', '.flac', '.wav', '.m4a', '.opus', '.webm', '.aac', '.wma', '.mp4', '.mov', '.mkv'];
@@ -288,7 +289,9 @@ module.exports = {
             }
 
             if (files.length > 1) {
-                await interaction.followUp({ content: `✅ All **${files.length}** files queued!` });
+                await interaction.followUp({ content: `✅ All **${files.length}** files queued!\n${VOICE_HINT_MESSAGE}` });
+            } else {
+                await interaction.followUp({ content: VOICE_HINT_MESSAGE });
             }
             return;
         }
@@ -326,7 +329,7 @@ module.exports = {
                 contextLines.push('🎧 Resolved track.');
             }
 
-            const message = [...contextLines, enqueueMessage].filter(Boolean).join('\n');
+            const message = [...contextLines, enqueueMessage, VOICE_HINT_MESSAGE].filter(Boolean).join('\n');
             await interaction.editReply(message || '✅ Queued.');
         } catch (error) {
             console.error('[Play] Playback error:', error);
