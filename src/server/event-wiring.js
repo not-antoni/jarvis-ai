@@ -34,6 +34,18 @@ function wireEventHandlers(ctx) {
         await messageProcessing.handleMessage(discordHandlers, message, client);
     });
 
+    // Re-scan on messageUpdate to catch embeds that load after the initial message
+    client.on('messageUpdate', async (_oldMessage, newMessage) => {
+        try {
+            // Partial messages won't have author — skip
+            if (newMessage.partial) return;
+            const omniMod = require('../services/omni-moderation');
+            await omniMod.scanAndDelete(newMessage);
+        } catch (e) {
+            console.error('[OmniMod] messageUpdate scan error:', e.message);
+        }
+    });
+
     client.on('interactionCreate', async interaction => {
         try {
             if (interaction.isChatInputCommand() || interaction.isContextMenuCommand()) {
