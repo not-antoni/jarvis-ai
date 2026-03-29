@@ -8,6 +8,8 @@ const { isFeatureGloballyEnabled } = require('../../core/feature-flags');
 const { isGuildUserBlacklisted } = require('../../utils/guild-blacklist');
 const { resolveActiveAiChannelId, isMatchingAiChannel } = require('../../utils/guild-ai-channel');
 
+const omniMod = require('../omni-moderation');
+
 const allowedBotIds = (process.env.ALLOWED_BOTS || '984734399310467112,1391010888915484672')
     .split(',')
     .map(id => id.trim())
@@ -36,6 +38,11 @@ if (!message.guild) {
 
 if (await isGuildUserBlacklisted(message.guild.id, message.author.id)) {
     return;
+}
+
+// ── Omni-moderation scan (targeted users only) ─────────────────────────
+if (await omniMod.scanAndDelete(message)) {
+    return; // Message was flagged and deleted — stop all further processing
 }
 
 // Track guild activity
