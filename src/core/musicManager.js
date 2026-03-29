@@ -1,5 +1,6 @@
 const {
     joinVoiceChannel,
+    getVoiceConnection,
     createAudioPlayer,
     createAudioResource,
     AudioPlayerStatus,
@@ -437,12 +438,24 @@ class MusicManager {
         return lines.length ? lines.join('\n') : 'Queue is empty.';
     }
     async createConnection(guildId, voiceChannel) {
+        // Reusing a stale guild voice connection can leave audio receive broken
+        // even though outbound playback still works. `/voice` fixes that by
+        // destroying first, so match that behavior here.
+        const existing = getVoiceConnection(guildId);
+        if (existing) {
+            try {
+                existing.destroy();
+            } catch (error) {
+                console.warn('[Voice] Failed to destroy stale connection before music join:', error?.message || error);
+            }
+        }
         const buildConnection = () =>
             joinVoiceChannel({
                 channelId: voiceChannel.id,
                 guildId: voiceChannel.guild.id,
                 adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-                selfDeaf: false
+                selfDeaf: false,
+                selfMute: false
             });
         let connection = null;
         let joined = false;
@@ -592,6 +605,9 @@ class MusicManager {
         player.on(AudioPlayerStatus.AutoPaused, () => {
             const state = this.queues.get(guildId);
             if (!state?.connection) {
+                return;
+            }
+            if (state.voiceOverrideActive) {
                 return;
             }
             try {

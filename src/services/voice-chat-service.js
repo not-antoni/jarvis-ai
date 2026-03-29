@@ -6,6 +6,7 @@ const {
     createAudioPlayer,
     createAudioResource,
     AudioPlayerStatus,
+    NoSubscriberBehavior,
     VoiceConnectionStatus,
     EndBehaviorType,
     entersState,
@@ -14,6 +15,7 @@ const {
 const { spawn } = require('node:child_process');
 const { Readable } = require('node:stream');
 const nvidiaSpeech = require('./nvidia-speech');
+const openaiStt = require('./openai-stt');
 const config = require('../../config');
 const { musicManager } = require('../core/musicManager');
 const { isCpuThrottled, getCpuFreqMHz } = require('../utils/cpu-monitor');
@@ -24,9 +26,9 @@ const FFMPEG = process.env.FFMPEG_PATH || (() => {
 })();
 
 // ─── Tuning ───────────────────────────────────────────────────────────────────
-const SILENCE_MS         = 1600;      // ms silence before ending capture
+const SILENCE_MS         = 3000;      // ms silence before ending capture
 const MIN_PACKETS        = 10;        // min opus packets to count as speech
-const BARGE_IN_PACKETS   = 50;        // packets to trigger interrupt during playback
+const BARGE_IN_PACKETS   = 120;       // packets to trigger interrupt during playback
 const MAX_RESPONSE_QUEUE = 5;         // post-STT addressed requests only
 // STT idle timeout removed — energy gate + wake word filter already prevent unnecessary API calls
 const MAX_TTS_CHARS      = 500;
@@ -38,6 +40,7 @@ const MAX_PCM_BYTES      = 48000 * 2 * 2 * 30; // 30s of 48kHz stereo s16le (~5.
 const ECHO_COOLDOWN_MS   = 2500;               // ignore STT right after bot finishes speaking
 const MIN_PCM_ENERGY     = 300;                // skip near-silent audio (RMS threshold)
 const FFMPEG_TIMEOUT_MS  = 10_000;             // kill hung ffmpeg subprocesses
+const TTS_GAIN           = 2.8;                // boost synthesized speech over VC
 
 // Single-word noise the STT picks up from silence/background
 const NOISE_WORDS = new Set([
@@ -134,13 +137,37 @@ class VoiceChatService {
     init(client, jarvis) {
         this.client = client;
         this.jarvis = jarvis;
-        if (nvidiaSpeech.enabled) {
+        const sttStatus = openaiStt.enabled
+            ? `openai:${openaiStt.model}`
+            : nvidiaSpeech.sttEnabled
+                ? 'nvidia'
+                : 'off';
+        if (openaiStt.enabled || nvidiaSpeech.enabled) {
             console.log(
-                `[VoiceChat] Ready — STT: ${nvidiaSpeech.sttEnabled ? 'on' : 'off'}, ` +
+                `[VoiceChat] Ready — STT: ${sttStatus}, ` +
                 `TTS: ${nvidiaSpeech.ttsEnabled ? 'on' : 'off'}`
             );
         }
 
+    }
+
+    _createSessionPlayer(guildId) {
+        const player = createAudioPlayer({
+            behaviors: {
+                noSubscriber: NoSubscriberBehavior.Play
+            }
+        });
+
+        player.on('stateChange', (oldState, newState) => {
+            if (oldState.status === newState.status) return;
+            console.log(`[VoiceChat] Player state guild=${guildId} ${oldState.status} -> ${newState.status}`);
+        });
+
+        player.on('error', (err) => {
+            console.error(`[VoiceChat] Player error guild=${guildId}:`, err.message);
+        });
+
+        return player;
     }
 
     // ─── User Cache ──────────────────────────────────────────────────────────
@@ -169,20 +196,57 @@ class VoiceChatService {
         const channel = member?.voice?.channel;
         if (!channel) return 'You need to be in a voice channel first, sir.';
 
-        // Destroy stale connection if any
-        const existing = getVoiceConnection(channel.guild.id);
-        if (existing) {
-            try { existing.destroy(); } catch { /* */ }
-            this.sessions.delete(channel.guild.id);
-        }
-
-        joinVoiceChannel({
+        const guildId = channel.guild.id;
+        const musicState = musicManager.get().getState(guildId);
+        const joinConfig = {
             channelId: channel.id,
-            guildId: channel.guild.id,
+            guildId,
             adapterCreator: channel.guild.voiceAdapterCreator,
             selfDeaf: false,
             selfMute: false
-        });
+        };
+        const joinFresh = () => joinVoiceChannel(joinConfig);
+
+        let connection = getVoiceConnection(guildId);
+        const reusedExistingConnection = Boolean(connection);
+        if (connection) {
+            const currentChannelId = connection.joinConfig?.channelId;
+            if (typeof connection.rejoin === 'function') {
+                connection.rejoin({
+                    channelId: channel.id,
+                    selfDeaf: false,
+                    selfMute: false
+                });
+                if (currentChannelId === channel.id) {
+                    console.log(`[VoiceChat] Reused existing VC connection for /voice in "${channel.name}" (guild ${guildId})`);
+                } else {
+                    console.log(`[VoiceChat] Moved existing VC connection for /voice to "${channel.name}" (guild ${guildId})`);
+                }
+            } else {
+                connection = joinFresh();
+            }
+        } else {
+            connection = joinFresh();
+        }
+
+        try {
+            await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
+        } catch (error) {
+            console.warn(`[VoiceChat] Existing VC connection was not ready for /voice in guild ${guildId}:`, error?.message || error);
+            try { connection?.destroy(); } catch { /* */ }
+            this.sessions.delete(guildId);
+            connection = joinFresh();
+            await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
+        }
+
+        await this.ensureListening(guildId, channel.id);
+
+        const session = this.sessions.get(guildId);
+        if (session) {
+            session.textChannelId = interaction.channelId || interaction.channel?.id || null;
+            session.playbackNeedsRefresh = reusedExistingConnection && Boolean(musicState?.player && musicState?.currentVideo);
+            session.playbackRefreshMode = session.playbackNeedsRefresh ? 'pending-rejoin' : 'manual';
+        }
 
         return `Joined **${channel.name}**, listening for your commands.`;
     }
@@ -194,15 +258,12 @@ class VoiceChatService {
 
         // Bot's own state changed — auto-attach/detach STT
         if (newState.member?.id === botId) {
-            console.log(`[VoiceChat] Bot voiceState: old=${oldState.channelId} new=${newState.channelId} hasSession=${this.sessions.has(newState.guild.id)}`);
-            if (newState.channelId && !this.sessions.has(newState.guild.id)) {
-                // Bot is in a channel but has no STT session — attach
+            const hasSession = this.sessions.has(newState.guild.id);
+            console.log(`[VoiceChat] Bot voiceState: old=${oldState.channelId} new=${newState.channelId} hasSession=${hasSession}`);
+            if (newState.channelId && hasSession) {
+                // Only keep an already-enabled voice session in sync. `/voice`
+                // is the explicit entrypoint; music joins should not auto-enable STT.
                 this._autoAttach(newState.guild.id, newState.channelId);
-            } else if (newState.channelId && newState.channelId !== oldState.channelId) {
-                // Bot moved to a different channel — update session
-                const existing = this.sessions.get(newState.guild.id);
-                if (existing) existing.channelId = newState.channelId;
-                else this._autoAttach(newState.guild.id, newState.channelId);
             } else if (!newState.channelId && oldState.channelId) {
                 // Bot left
                 this.sessions.delete(oldState.guild.id);
@@ -212,14 +273,7 @@ class VoiceChatService {
     }
 
     async _autoAttach(guildId, channelId) {
-        if (!nvidiaSpeech.sttEnabled) return;
-        if (this.sessions.has(guildId)) {
-            // Update channel ID if bot moved
-            const existing = this.sessions.get(guildId);
-            existing.channelId = channelId;
-            return;
-        }
-
+        if (!openaiStt.enabled && !nvidiaSpeech.sttEnabled) return;
         const connection = getVoiceConnection(guildId);
         if (!connection) return;
 
@@ -229,7 +283,29 @@ class VoiceChatService {
             }
         } catch { return; }
 
-        const player = createAudioPlayer();
+        const existing = this.sessions.get(guildId);
+        if (existing) {
+            existing.channelId = channelId;
+            if (existing.connection === connection) {
+                return;
+            }
+
+            existing.connection = connection;
+            existing.activeListeners = new Set();
+            existing.responseQueue = [];
+            existing.responding = false;
+            existing.respondingTo = null;
+            existing.playbackNeedsRefresh = true;
+            existing.playbackRefreshMode = 'unknown';
+            this._listen(existing);
+            this._watchDisconnect(existing);
+
+            const channel = this.client.channels.cache.get(channelId);
+            console.log(`[VoiceChat] Reattached listener in "${channel?.name || channelId}" (guild ${guildId})`);
+            return;
+        }
+
+        const player = this._createSessionPlayer(guildId);
 
         const session = {
             connection, player,
@@ -245,7 +321,9 @@ class VoiceChatService {
             lastPlaybackEndedAt: 0,
             persistent: PERSISTENT_CHANNELS.has(guildId),
             sttActive: true,
-            manuallyPaused: false
+            manuallyPaused: false,
+            playbackNeedsRefresh: true,
+            playbackRefreshMode: 'unknown'
         };
 
         this.sessions.set(guildId, session);
@@ -254,6 +332,11 @@ class VoiceChatService {
 
         const channel = this.client.channels.cache.get(channelId);
         console.log(`[VoiceChat] Auto-listening in "${channel?.name || channelId}" (guild ${guildId})`);
+    }
+
+    async ensureListening(guildId, channelId) {
+        if (!guildId || !channelId) return;
+        await this._autoAttach(guildId, channelId);
     }
 
     // ─── Opt-out Check ─────────────────────────────────────────────────────
@@ -369,7 +452,13 @@ class VoiceChatService {
             const wav = await this._toWav16k(pcm);
             if (!wav) return;
 
-            const text = await nvidiaSpeech.transcribe(wav);
+            let text = null;
+            if (openaiStt.enabled) {
+                text = await openaiStt.transcribe(wav, { filename: `vc-${session.guildId}-${userId}.wav` });
+            }
+            if (!text && nvidiaSpeech.sttEnabled) {
+                text = await nvidiaSpeech.transcribe(wav);
+            }
             if (!text || isNoise(text)) {
                 if (text) console.log(`[VoiceChat] Filtered noise: "${text}"`);
                 return;
@@ -527,6 +616,168 @@ class VoiceChatService {
         });
     }
 
+    _wavToPcm48kStereo(wavBuf) {
+        return new Promise((resolve) => {
+            const proc = spawn(FFMPEG, [
+                '-i', 'pipe:0',
+                '-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1'
+            ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+            let settled = false;
+            const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
+            const killTimer = setTimeout(() => {
+                try { proc.kill('SIGKILL'); } catch { /* */ }
+                finish(null);
+            }, FFMPEG_TIMEOUT_MS);
+            killTimer.unref();
+
+            const out = [];
+            const err = [];
+            proc.stdout.on('data', (c) => out.push(c));
+            proc.stderr.on('data', (c) => err.push(c));
+            proc.on('close', (code) => {
+                clearTimeout(killTimer);
+                if (code !== 0) {
+                    console.error(`[VoiceChat] wav->pcm ffmpeg exit ${code}:`, Buffer.concat(err).toString().slice(-200));
+                    finish(null);
+                    return;
+                }
+                finish(Buffer.concat(out));
+            });
+            proc.on('error', (error) => {
+                clearTimeout(killTimer);
+                console.error('[VoiceChat] wav->pcm ffmpeg error:', error.message);
+                finish(null);
+            });
+            proc.stdin.on('error', (error) => {
+                console.error('[VoiceChat] wav->pcm stdin error:', error.message);
+            });
+            proc.stdin.write(wavBuf);
+            proc.stdin.end();
+        });
+    }
+
+    async _hardRejoinForPlayback(session) {
+        const channel = this.client.channels.cache.get(session.channelId)
+            || await this.client.channels.fetch(session.channelId).catch(() => null);
+        if (!channel?.guild?.voiceAdapterCreator) {
+            throw new Error(`Voice channel ${session.channelId} is unavailable for playback rejoin.`);
+        }
+
+        const existing = getVoiceConnection(session.guildId) || session.connection;
+        if (existing) {
+            try { existing.destroy(); } catch { /* */ }
+        }
+
+        const connection = joinVoiceChannel({
+            channelId: session.channelId,
+            guildId: session.guildId,
+            adapterCreator: channel.guild.voiceAdapterCreator,
+            selfDeaf: false,
+            selfMute: false
+        });
+
+        await entersState(connection, VoiceConnectionStatus.Ready, 10_000);
+        session.connection = connection;
+        session.activeListeners = new Set();
+        this._listen(session);
+        this._watchDisconnect(session);
+        session.playbackNeedsRefresh = false;
+        session.playbackRefreshMode = 'hard';
+
+        console.log(`[VoiceChat] Rejoined VC for TTS in "${channel.name}" (guild ${session.guildId})`);
+        return connection;
+    }
+
+    async _softRefreshForPlayback(session) {
+        const connection = getVoiceConnection(session.guildId) || session.connection;
+        if (!connection) {
+            throw new Error('No active voice connection to refresh.');
+        }
+
+        if (typeof connection.rejoin !== 'function') {
+            throw new Error('Voice connection does not support non-destructive rejoin refresh.');
+        }
+
+        const channelId = session.channelId || connection.joinConfig?.channelId;
+        if (!channelId) {
+            throw new Error('Voice connection is missing a target channel for rejoin refresh.');
+        }
+
+        const previousNetworking = connection.state?.networking;
+        const hasRebuiltTransport = (state) =>
+            state?.status === VoiceConnectionStatus.Ready &&
+            state?.networking &&
+            state.networking !== previousNetworking;
+
+        await new Promise((resolve, reject) => {
+            let settled = false;
+            const cleanup = () => {
+                clearTimeout(timer);
+                connection.removeListener('stateChange', onStateChange);
+            };
+            const finish = (error = null) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                if (error) reject(error);
+                else resolve();
+            };
+            const onStateChange = (_oldState, newState) => {
+                if (hasRebuiltTransport(newState)) {
+                    finish();
+                }
+            };
+            const timer = setTimeout(() => {
+                if (hasRebuiltTransport(connection.state)) {
+                    finish();
+                    return;
+                }
+                finish(new Error('Voice rejoin did not rebuild the voice transport.'));
+            }, 5_000);
+            timer.unref();
+
+            connection.on('stateChange', onStateChange);
+            const ok = connection.rejoin({
+                channelId,
+                selfDeaf: false,
+                selfMute: false
+            });
+            if (!ok) {
+                finish(new Error('Voice connection rejected rejoin refresh.'));
+                return;
+            }
+
+            console.log(`[VoiceChat] Requested VC rejoin refresh for TTS (guild ${session.guildId})`);
+            if (hasRebuiltTransport(connection.state)) {
+                finish();
+            }
+        });
+
+        await entersState(connection, VoiceConnectionStatus.Ready, 5_000);
+
+        session.connection = connection;
+        session.playbackNeedsRefresh = false;
+        session.playbackRefreshMode = 'soft-rejoin';
+
+        console.log(`[VoiceChat] VC rejoin refresh complete for TTS (guild ${session.guildId})`);
+        return connection;
+    }
+
+    async _refreshForPlayback(session) {
+        if (!session.playbackNeedsRefresh) {
+            return getVoiceConnection(session.guildId) || session.connection;
+        }
+
+        try {
+            return await this._softRefreshForPlayback(session);
+        } catch (error) {
+            console.warn(`[VoiceChat] Soft VC refresh failed for guild ${session.guildId}:`, error?.message || error);
+        }
+
+        return this._hardRejoinForPlayback(session);
+    }
+
     // ─── AI ───────────────────────────────────────────────────────────────────
 
     async _askJarvis(session, userId, text, contextPrefix = '') {
@@ -559,44 +810,136 @@ class VoiceChatService {
 
     // ─── Playback ─────────────────────────────────────────────────────────────
 
-    _play(session, wavBuf) {
+    async _play(session, wavBuf) {
         console.log(`[VoiceChat] _play called, ${wavBuf.length}b`);
-        return new Promise((resolve) => {
-            // Convert WAV to OggOpus via our known ffmpeg — discord.js can't find ffmpeg as root
-            const ffProc = spawn(FFMPEG, [
-                '-i', 'pipe:0',
-                '-c:a', 'libopus', '-ar', '48000', '-ac', '2',
-                '-f', 'ogg', 'pipe:1'
-            ], { stdio: ['pipe', 'pipe', 'pipe'] });
-            ffProc.stdin.on('error', (e) => console.error('[VoiceChat] ffProc stdin error:', e.message));
-            const ffErr = [];
-            ffProc.stderr.on('data', (c) => ffErr.push(c));
-            ffProc.on('close', (code) => {
-                if (code !== 0) console.error(`[VoiceChat] ffmpeg exit ${code}:`, Buffer.concat(ffErr).toString().slice(-200));
-            });
-            ffProc.stdin.write(wavBuf);
-            ffProc.stdin.end();
 
-            const resource = createAudioResource(ffProc.stdout, {
-                inputType: StreamType.OggOpus
-            });
+        const pcmBuf = await this._wavToPcm48kStereo(wavBuf);
+        if (!pcmBuf?.length) {
+            console.warn(`[VoiceChat] Failed to convert TTS clip to PCM for guild ${session.guildId}`);
+            return;
+        }
 
-            // Temporarily subscribe TTS player to the connection
-            const conn = getVoiceConnection(session.guildId) || session.connection;
-            const musicState = musicManager.get().getState(session.guildId);
+        console.log(`[VoiceChat] TTS pcm bytes guild=${session.guildId} size=${pcmBuf.length} gain=${TTS_GAIN}`);
 
-            // Pause music player FIRST so its AutoPaused handler doesn't steal the connection back
-            if (musicState?.player) {
-                try { musicState.player.pause(true); } catch { /* */ }
+        const resource = createAudioResource(Readable.from(pcmBuf), {
+            inputType: StreamType.Raw,
+            inlineVolume: true
+        });
+        if (resource.volume) {
+            resource.volume.setVolume(TTS_GAIN);
+        }
+
+        const musicState = musicManager.get().getState(session.guildId);
+        if (musicState?.player) {
+            musicState.voiceOverrideActive = true;
+            try { musicState.player.pause(true); } catch { /* */ }
+        }
+
+        let conn = getVoiceConnection(session.guildId) || session.connection;
+        if (conn && conn !== session.connection) {
+            session.connection = conn;
+            session.playbackNeedsRefresh = true;
+            session.playbackRefreshMode = 'unknown';
+        }
+        if (musicState?.player && session.playbackNeedsRefresh) {
+            try {
+                conn = await this._refreshForPlayback(session);
+            } catch (error) {
+                if (musicState?.player) {
+                    musicState.voiceOverrideActive = false;
+                    try { musicState.player.unpause(); } catch { /* */ }
+                }
+                console.warn(`[VoiceChat] Failed to refresh VC for TTS in guild ${session.guildId}:`, error?.message || error);
+                return;
             }
+        }
+
+        if (!conn) {
+            console.warn(`[VoiceChat] Missing voice connection for guild ${session.guildId}; skipping TTS playback`);
+            if (musicState?.player) {
+                musicState.voiceOverrideActive = false;
+                try { musicState.player.unpause(); } catch { /* */ }
+            }
+            return;
+        }
+        session.connection = conn;
+
+        try {
+            if (conn.state.status !== VoiceConnectionStatus.Ready) {
+                await entersState(conn, VoiceConnectionStatus.Ready, 10_000);
+            }
+        } catch (error) {
+            if (musicState?.player) {
+                musicState.voiceOverrideActive = false;
+                try { musicState.player.unpause(); } catch { /* */ }
+            }
+            console.warn(`[VoiceChat] Voice connection not ready for TTS in guild ${session.guildId}:`, error?.message || error);
+            return;
+        }
+
+        if (musicState) {
+            musicState.connection = conn;
+        }
+
+        const previousSubscription = conn.state?.subscription || null;
+        const previousPlayer =
+            previousSubscription?.player === session.player ? 'tts'
+                : previousSubscription?.player === musicState?.player ? 'music'
+                    : previousSubscription?.player ? 'other' : 'none';
+        const packetsBefore = conn.state?.networking?.state?.connectionData?.packetsPlayed;
+
+        console.log(
+            `[VoiceChat] TTS handoff guild=${session.guildId} previous=${previousPlayer} ` +
+            `music=${musicState?.player?.state?.status || 'none'} tts=${session.player.state?.status || 'unknown'} ` +
+            `packetsBefore=${typeof packetsBefore === 'number' ? packetsBefore : 'n/a'} ` +
+            `refresh=${session.playbackRefreshMode}`
+        );
+
+        if (previousSubscription?.player && previousSubscription.player !== session.player) {
+            try { previousSubscription.unsubscribe(); } catch { /* */ }
+        }
+
+        const subscription = conn.subscribe(session.player);
+        console.log(
+            `[VoiceChat] TTS subscribed guild=${session.guildId} ` +
+            `ok=${subscription?.player === session.player} conn=${conn.state.status}`
+        );
+
+        try { session.player.stop(true); } catch { /* */ }
+        session.player.play(resource);
+
+        const startResult = await Promise.race([
+            entersState(session.player, AudioPlayerStatus.Playing, 5_000).then(() => 'playing').catch(() => null),
+            entersState(session.player, AudioPlayerStatus.AutoPaused, 5_000).then(() => 'autopaused').catch(() => null),
+            entersState(session.player, AudioPlayerStatus.Idle, 5_000).then(() => 'idle').catch(() => null),
+            new Promise((resolve) => {
+                const timer = setTimeout(() => resolve('timeout'), 5_000);
+                timer.unref();
+            })
+        ]);
+
+        console.log(
+            `[VoiceChat] TTS start guild=${session.guildId} result=${startResult || 'none'} ` +
+            `status=${session.player.state.status}`
+        );
+
+        if (session.player.state.status === AudioPlayerStatus.AutoPaused) {
+            console.warn(`[VoiceChat] TTS auto-paused in guild ${session.guildId}; retrying subscription handoff`);
+            try { conn.state?.subscription?.unsubscribe(); } catch { /* */ }
             conn.subscribe(session.player);
+            try { session.player.unpause(); } catch { /* */ }
+        }
 
-            session.player.play(resource);
-
+        await new Promise((resolve) => {
             const done = () => {
                 cleanup();
-                // Restore music player subscription and resume
+                const packetsAfter = conn.state?.networking?.state?.connectionData?.packetsPlayed;
+                console.log(
+                    `[VoiceChat] TTS done guild=${session.guildId} ` +
+                    `packetsAfter=${typeof packetsAfter === 'number' ? packetsAfter : 'n/a'}`
+                );
                 if (musicState?.player) {
+                    musicState.voiceOverrideActive = false;
                     conn.subscribe(musicState.player);
                     try { musicState.player.unpause(); } catch { /* */ }
                 }
@@ -607,7 +950,7 @@ class VoiceChatService {
                 done();
             };
             const onError = (err) => {
-                console.error('[VoiceChat] Player error:', err.message);
+                console.error('[VoiceChat] Player error during TTS:', err.message);
                 done();
             };
             const timer = setTimeout(timeout, PLAY_TIMEOUT_MS);
