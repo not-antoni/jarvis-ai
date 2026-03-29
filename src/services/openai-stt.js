@@ -24,6 +24,7 @@ class OpenAISttService {
         }
 
         const startedAt = Date.now();
+        const tag = context.tag ? ` tag=${context.tag}` : '';
         try {
             const file = await toFile(wavBuffer, context.filename || 'voice-chat.wav');
             const response = await this.client.audio.transcriptions.create({
@@ -41,12 +42,12 @@ class OpenAISttService {
                 : usage?.type === 'tokens'
                     ? ` inputTokens=${usage.input_tokens} outputTokens=${usage.output_tokens}`
                     : '';
-            console.log(`[OpenAIStt] OK ${ms}ms model=${this.model}${usageSummary}`);
+            console.log(`[OpenAIStt] OK ${ms}ms model=${this.model}${tag}${usageSummary}`);
 
             return response?.text?.trim() || null;
         } catch (error) {
             const ms = Date.now() - startedAt;
-            console.error(`[OpenAIStt] Failed ${ms}ms model=${this.model}:`, error?.message || error);
+            console.error(`[OpenAIStt] Failed ${ms}ms model=${this.model}${tag}:`, error?.message || error);
             return null;
         }
     }

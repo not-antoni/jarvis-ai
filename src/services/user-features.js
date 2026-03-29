@@ -19,6 +19,10 @@ const activeReminders = new Map();
 // Stats tracking (bounded to prevent unbounded growth — flushStats is rarely called)
 const sessionStats = new LRUCache({ max: 10000, ttl: 1000 * 60 * 60 * 4 });
 
+function escapeRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Mood patterns for detection
 const MOOD_PATTERNS = {
     frustrated: {
@@ -569,7 +573,7 @@ class UserFeaturesService {
         const customWord = await this.getWakeWord(userId);
         if (!customWord) {return false;}
 
-        const pattern = new RegExp(`\\b${customWord}\\b`, 'i');
+        const pattern = new RegExp(`\\b${escapeRegex(customWord)}\\b`, 'i');
         return pattern.test(content);
     }
 
@@ -615,7 +619,7 @@ class UserFeaturesService {
         const guildWord = await this.getGuildWakeWord(guildId);
         if (!guildWord) {return false;}
 
-        const pattern = new RegExp(`\\b${guildWord}\\b`, 'i');
+        const pattern = new RegExp(`\\b${escapeRegex(guildWord)}\\b`, 'i');
         return pattern.test(content);
     }
 

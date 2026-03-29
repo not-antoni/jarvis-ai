@@ -30,6 +30,9 @@ const SILENCE_MS         = 3000;      // ms silence before ending capture
 const MIN_PACKETS        = 10;        // min opus packets to count as speech
 const BARGE_IN_PACKETS   = 120;       // packets to trigger interrupt during playback
 const MAX_RESPONSE_QUEUE = 5;         // post-STT addressed requests only
+const ACTIVE_SPEAKER_IDLE_MS = Math.max(15_000, Number(process.env.VOICE_ACTIVE_SPEAKER_IDLE_MS) || 90_000);
+const ACTIVE_SPEAKER_FOLLOWUP_MS = Math.max(5_000, Number(process.env.VOICE_ACTIVE_SPEAKER_FOLLOWUP_MS) || 30_000);
+const WAKEWORD_PROBE_MS  = Math.max(800, Number(process.env.VOICE_WAKEWORD_PROBE_MS) || 2_000);
 // STT idle timeout removed — energy gate + wake word filter already prevent unnecessary API calls
 const MAX_TTS_CHARS      = 500;
 const MIN_TRANSCRIPT_LEN = 4;
@@ -121,6 +124,58 @@ function isMusicPlaying(guildId) {
         if (!state?.player || !state.currentVideo) return false;
         return state.player.state?.status === 'playing';
     } catch { return false; }
+}
+
+function escapeRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function containsWakeWord(text, wakeWord) {
+    const normalizedText = String(text || '').trim();
+    const normalizedWakeWord = String(wakeWord || '').trim();
+    if (!normalizedText || !normalizedWakeWord) {
+        return false;
+    }
+
+    const pattern = new RegExp(`\\b${escapeRegex(normalizedWakeWord)}\\b`, 'i');
+    return pattern.test(normalizedText);
+}
+
+function wrapPcmAsWav(pcm, sampleRate = 16000, channels = 1, bits = 16) {
+    const header = Buffer.alloc(44);
+    const byteRate = sampleRate * channels * (bits >> 3);
+    const blockAlign = channels * (bits >> 3);
+    header.write('RIFF', 0);
+    header.writeUInt32LE(36 + pcm.length, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20);
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bits, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(pcm.length, 40);
+    return Buffer.concat([header, pcm]);
+}
+
+function sliceWav16kMono(wavBuf, maxMs) {
+    if (!wavBuf?.length || wavBuf.length <= 44 || !Number.isFinite(maxMs) || maxMs <= 0) {
+        return wavBuf;
+    }
+    if (wavBuf.toString('ascii', 0, 4) !== 'RIFF') {
+        return wavBuf;
+    }
+
+    const maxDataBytes = Math.max(1, Math.floor(16_000 * 2 * (maxMs / 1000)));
+    const pcm = wavBuf.subarray(44);
+    if (pcm.length <= maxDataBytes) {
+        return wavBuf;
+    }
+
+    return wrapPcmAsWav(pcm.subarray(0, maxDataBytes), 16_000, 1, 16);
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -244,8 +299,16 @@ class VoiceChatService {
         const session = this.sessions.get(guildId);
         if (session) {
             session.textChannelId = interaction.channelId || interaction.channel?.id || null;
+            session.voiceOwnerId = interaction.user?.id || member?.id || null;
+            session.activeSpeakerId = null;
+            session.lastEngagementAt = 0;
+            session.standbySince = Date.now();
             session.playbackNeedsRefresh = reusedExistingConnection && Boolean(musicState?.player && musicState?.currentVideo);
             session.playbackRefreshMode = session.playbackNeedsRefresh ? 'pending-rejoin' : 'manual';
+            console.log(
+                `[VoiceChat] Session armed in "${channel.name}" (guild ${guildId}) ` +
+                `owner=${session.voiceOwnerId || 'unknown'} standby=true`
+            );
         }
 
         return `Joined **${channel.name}**, listening for your commands.`;
@@ -285,6 +348,10 @@ class VoiceChatService {
 
         const existing = this.sessions.get(guildId);
         if (existing) {
+            existing.voiceOwnerId ??= null;
+            existing.activeSpeakerId ??= null;
+            existing.lastEngagementAt ??= 0;
+            existing.standbySince ??= Date.now();
             existing.channelId = channelId;
             if (existing.connection === connection) {
                 return;
@@ -319,6 +386,11 @@ class VoiceChatService {
             respondingGeneration: 0,
             respondingTo: null,
             lastPlaybackEndedAt: 0,
+            lastResponseCompletedAt: 0,
+            voiceOwnerId: null,
+            activeSpeakerId: null,
+            lastEngagementAt: 0,
+            standbySince: Date.now(),
             persistent: PERSISTENT_CHANNELS.has(guildId),
             sttActive: true,
             manuallyPaused: false,
@@ -337,6 +409,108 @@ class VoiceChatService {
     async ensureListening(guildId, channelId) {
         if (!guildId || !channelId) return;
         await this._autoAttach(guildId, channelId);
+    }
+
+    _clearActiveSpeaker(session, reason = 'idle-timeout', now = Date.now()) {
+        if (!session?.activeSpeakerId) {
+            session.standbySince = session.standbySince || now;
+            return false;
+        }
+
+        console.log(
+            `[VoiceChat] Active speaker cleared guild=${session.guildId} ` +
+            `user=${session.activeSpeakerId} reason=${reason}`
+        );
+        session.activeSpeakerId = null;
+        session.lastEngagementAt = 0;
+        session.standbySince = now;
+        return true;
+    }
+
+    _expireActiveSpeakerLock(session, now = Date.now()) {
+        if (!session?.activeSpeakerId || !session.lastEngagementAt) {
+            return false;
+        }
+        if (now - session.lastEngagementAt < ACTIVE_SPEAKER_IDLE_MS) {
+            return false;
+        }
+        return this._clearActiveSpeaker(session, 'idle-timeout', now);
+    }
+
+    _activateSpeaker(session, userId, reason = 'engaged', now = Date.now()) {
+        if (session.activeSpeakerId === userId) {
+            session.lastEngagementAt = now;
+            session.standbySince = 0;
+            return;
+        }
+
+        session.activeSpeakerId = userId;
+        session.lastEngagementAt = now;
+        session.standbySince = 0;
+        console.log(
+            `[VoiceChat] Active speaker locked guild=${session.guildId} ` +
+            `user=${userId} reason=${reason}`
+        );
+    }
+
+    _isActiveSpeakerFollowupAllowed(session, userId, now = Date.now()) {
+        if (!session?.activeSpeakerId || session.activeSpeakerId !== userId) {
+            return false;
+        }
+
+        if (session.respondingTo === userId) {
+            return true;
+        }
+
+        if (session.responding && (!session.respondingTo || session.respondingTo === userId)) {
+            return true;
+        }
+
+        if (!session.lastResponseCompletedAt) {
+            return false;
+        }
+
+        return now - session.lastResponseCompletedAt <= ACTIVE_SPEAKER_FOLLOWUP_MS;
+    }
+
+    async _isExplicitWakeWord(session, userId, lowerText) {
+        if (!lowerText) {
+            return false;
+        }
+
+        if (config.wakeWords.some(w => containsWakeWord(lowerText, w))) {
+            return true;
+        }
+
+        try {
+            const userFeatures = require('./user-features');
+            return await userFeatures.matchesGuildWakeWord(session.guildId, lowerText)
+                || await userFeatures.matchesWakeWord(userId, lowerText);
+        } catch {
+            return false;
+        }
+    }
+
+    async _transcribeSpeech(session, userId, wav, tag = 'full') {
+        if (!wav) {
+            return null;
+        }
+
+        if (openaiStt.enabled) {
+            const text = await openaiStt.transcribe(wav, {
+                filename: `vc-${session.guildId}-${userId}-${tag}.wav`,
+                tag
+            });
+            if (text) {
+                return text;
+            }
+        }
+
+        if (nvidiaSpeech.sttEnabled) {
+            return nvidiaSpeech.transcribe(wav);
+        }
+
+        return null;
     }
 
     // ─── Opt-out Check ─────────────────────────────────────────────────────
@@ -430,6 +604,8 @@ class VoiceChatService {
         const capturedAt = Date.now();
 
         try {
+            this._expireActiveSpeakerLock(session, capturedAt);
+
             if (isCpuThrottled()) {
                 console.warn(`[VoiceChat] CPU throttled (${getCpuFreqMHz()}MHz) — skipping STT`);
                 return;
@@ -452,12 +628,40 @@ class VoiceChatService {
             const wav = await this._toWav16k(pcm);
             if (!wav) return;
 
+            const isActiveSpeaker = session.activeSpeakerId === userId;
+            const hasImplicitFollowup = this._isActiveSpeakerFollowupAllowed(session, userId, capturedAt);
+            let explicitWakeWord = false;
             let text = null;
-            if (openaiStt.enabled) {
-                text = await openaiStt.transcribe(wav, { filename: `vc-${session.guildId}-${userId}.wav` });
+
+            if (!hasImplicitFollowup) {
+                const probeWav = sliceWav16kMono(wav, WAKEWORD_PROBE_MS);
+                const probeText = await this._transcribeSpeech(session, userId, probeWav, 'wake-probe');
+                if (!probeText || isNoise(probeText)) {
+                    if (probeText) console.log(`[VoiceChat] Filtered noise: "${probeText}"`);
+                    return;
+                }
+
+                explicitWakeWord = await this._isExplicitWakeWord(session, userId, probeText.toLowerCase());
+                if (!explicitWakeWord) {
+                    console.log(
+                        `[VoiceChat] Ignored non-active speaker guild=${session.guildId} ` +
+                        `user=${userId} standby=${!session.activeSpeakerId}`
+                    );
+                    return;
+                }
+
+                if (probeWav.length === wav.length) {
+                    text = probeText;
+                }
             }
-            if (!text && nvidiaSpeech.sttEnabled) {
-                text = await nvidiaSpeech.transcribe(wav);
+
+            if (!text) {
+                const tag = explicitWakeWord
+                    ? 'full-after-wake'
+                    : hasImplicitFollowup
+                        ? 'full-followup'
+                        : 'full';
+                text = await this._transcribeSpeech(session, userId, wav, tag);
             }
             if (!text || isNoise(text)) {
                 if (text) console.log(`[VoiceChat] Filtered noise: "${text}"`);
@@ -467,16 +671,23 @@ class VoiceChatService {
             const userInfo = await this._resolveUser(userId);
             console.log(`[VoiceChat] <${userInfo.displayName}> ${text}`);
 
-            const lower = text.toLowerCase();
-            const addressed = config.wakeWords.some(w => lower.includes(w));
-            if (!addressed) {
-                let customMatch = false;
-                try {
-                    const uf = require('./user-features');
-                    customMatch = await uf.matchesGuildWakeWord(session.guildId, lower)
-                        || await uf.matchesWakeWord(userId, lower);
-                } catch { /* user-features not available */ }
-                if (!customMatch) return;
+            if (!hasImplicitFollowup && !explicitWakeWord) {
+                explicitWakeWord = await this._isExplicitWakeWord(session, userId, text.toLowerCase());
+                if (!explicitWakeWord) {
+                    return;
+                }
+            }
+
+            if (hasImplicitFollowup) {
+                session.lastEngagementAt = capturedAt;
+                session.standbySince = 0;
+            } else {
+                this._activateSpeaker(
+                    session,
+                    userId,
+                    explicitWakeWord ? (isActiveSpeaker ? 'wake-word-renew' : 'wake-word') : 'engaged',
+                    capturedAt
+                );
             }
 
             this._enqueueResponse(session, userId, text);
@@ -533,9 +744,15 @@ class VoiceChatService {
                 const spokenText = truncateForTts(cleanForTts(reply));
                 if (nvidiaSpeech.ttsEnabled && spokenText) {
                     const audio = await nvidiaSpeech.synthesize(spokenText);
-                    if (audio) { await this._play(session, audio); session.lastPlaybackEndedAt = Date.now(); return; }
+                    if (audio) {
+                        await this._play(session, audio);
+                        session.lastPlaybackEndedAt = Date.now();
+                        session.lastResponseCompletedAt = session.lastPlaybackEndedAt;
+                        return;
+                    }
                 }
                 await this._textFallback(session, reply);
+                session.lastResponseCompletedAt = Date.now();
             } finally {
                 session.respondingTo = null;
             }
