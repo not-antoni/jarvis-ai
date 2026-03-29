@@ -447,6 +447,216 @@ const LANDING_PAGE = `
 
         fetchStats(2);
     </script>
+<!-- ============================================================
+     JARVIS NOTICE POPUP — drop this before </body> on any page
+     matches your existing theme (Comic Neue, black, white btns)
+     shows every single visit, no cookies, no mercy
+     ============================================================ -->
+
+<style>
+  #jarvis-notice-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    animation: notice-fadein 0.22s ease;
+  }
+
+  @keyframes notice-fadein {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  #jarvis-notice-box {
+    background: #0a0a0a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 2rem 2.25rem 1.75rem;
+    max-width: 520px;
+    width: 100%;
+    font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
+    color: #e4e4e4;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255,255,255,0.04);
+    animation: notice-popup 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes notice-popup {
+    from { transform: scale(0.92) translateY(12px); opacity: 0; }
+    to   { transform: scale(1)    translateY(0);    opacity: 1; }
+  }
+
+  #jarvis-notice-box h2 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 1rem;
+    line-height: 1.25;
+  }
+
+  #jarvis-notice-box p {
+    font-size: 0.95rem;
+    color: #888;
+    line-height: 1.75;
+    margin-bottom: 0.6rem;
+  }
+
+  #jarvis-notice-box p strong {
+    color: #ccc;
+    font-weight: 700;
+  }
+
+  .notice-complaints {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    margin: 1rem 0 1.4rem;
+    font-size: 0.88rem;
+    color: #666;
+    line-height: 1.9;
+  }
+
+  .notice-complaints span {
+    display: block;
+  }
+
+  .notice-complaints span::before {
+    content: '❌ ';
+  }
+
+  .notice-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .notice-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.75rem 1.4rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+    text-decoration: none;
+    border: none;
+    transition: all 0.18s ease;
+  }
+
+  .notice-btn-primary {
+    background: #fff;
+    color: #000;
+  }
+
+  .notice-btn-primary:hover {
+    opacity: 0.88;
+    transform: translateY(-1px);
+  }
+
+  .notice-btn-secondary {
+    background: transparent;
+    color: #888;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .notice-btn-secondary:hover {
+    background: rgba(255,255,255,0.05);
+    color: #fff;
+    border-color: rgba(255,255,255,0.25);
+  }
+
+  .notice-footnote {
+    margin-top: 1.1rem;
+    font-size: 0.8rem;
+    color: #444;
+  }
+
+  .notice-footnote a {
+    color: #555;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .notice-footnote a:hover { color: #888; }
+
+  @media (max-width: 480px) {
+    #jarvis-notice-box { padding: 1.5rem 1.25rem 1.35rem; }
+    #jarvis-notice-box h2 { font-size: 1.2rem; }
+    .notice-actions { flex-direction: column; }
+    .notice-btn { justify-content: center; }
+  }
+</style>
+
+<div id="jarvis-notice-overlay" role="dialog" aria-modal="true" aria-labelledby="jarvis-notice-title">
+  <div id="jarvis-notice-box">
+    <h2 id="jarvis-notice-title">guys please 😭</h2>
+    <p>stop messaging everywhere asking:</p>
+    <div class="notice-complaints">
+      <span>"why doesn't the bot work??"</span>
+      <span>"how do i make jarvis talk to my bot"</span>
+      <span>"how do i make jarvis brush my teeth"</span>
+    </div>
+    <p>
+      literally just join the support server or email
+      <a href="#" onclick="copyNoticeEmail(event)" style="color:#aaa;text-underline-offset:2px;">dev@jorvis.org</a>.
+      thats it. thats the whole answer. every time.
+    </p>
+    <div class="notice-actions">
+      <a href="https://discord.com/invite/ksXzuBtmK5" class="notice-btn notice-btn-primary" target="_blank" rel="noreferrer">
+        support server
+      </a>
+      <button class="notice-btn notice-btn-secondary" onclick="dismissNotice()">
+        ok fine
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const NOTICE_COOKIE = 'jarvis_notice_dismissed';
+
+  function getCookie(name) {
+    return document.cookie.split('; ').find(r => r.startsWith(name + '='));
+  }
+
+  function dismissNotice() {
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = NOTICE_COOKIE + '=1; expires=' + expires + '; path=/';
+    document.getElementById('jarvis-notice-overlay').remove();
+  }
+
+  // hide immediately if dismissed within the last 4 hours
+  if (getCookie(NOTICE_COOKIE)) {
+    document.getElementById('jarvis-notice-overlay').remove();
+  }
+
+  async function copyNoticeEmail(e) {
+    e.preventDefault();
+    const email = 'dev@jorvis.org';
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(email);
+      } else {
+        const t = document.createElement('textarea');
+        t.value = email;
+        t.style.cssText = 'position:absolute;left:-9999px';
+        document.body.appendChild(t);
+        t.select();
+        document.execCommand('copy');
+        document.body.removeChild(t);
+      }
+      if (typeof showCopyToast === 'function') showCopyToast('copied to clipboard');
+    } catch (_) {}
+  }
+</script>
 </body>
 </html>
 `;
