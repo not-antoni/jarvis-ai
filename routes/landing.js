@@ -115,10 +115,18 @@ const LANDING_PAGE = `
         }
         
         .hero h1 .accent {
-            background: linear-gradient(135deg, #a78bfa, #60a5fa);
+            background: linear-gradient(90deg, #a78bfa, #60a5fa, #a78bfa, #60a5fa);
+            background-size: 200% 100%;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            animation: gradient-shift 4s ease infinite;
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
         
         .hero p {
