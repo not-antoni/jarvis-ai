@@ -202,6 +202,15 @@ function createExpressApp({ webhookRouter, database }) {
         res.type('image/webp');
         res.sendFile(path.join(ROOT_DIR, 'jarvis.webp'));
     });
+    // BIMI logo — must be publicly accessible with permissive CORS
+    app.get('/assets/bimi.svg', (req, res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.removeHeader('X-Frame-Options');
+        res.type('image/svg+xml');
+        res.sendFile(path.join(ROOT_DIR, 'assets', 'bimi.svg'));
+    });
     app.use('/assets', express.static(path.join(ROOT_DIR, 'assets')));
 
     // ---- SEO ----
