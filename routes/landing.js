@@ -659,12 +659,11 @@ const LANDING_PAGE = `
   }
 
   function dismissNotice() {
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
+    const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
     document.cookie = NOTICE_COOKIE + '=1; expires=' + expires + '; path=/';
     document.getElementById('jarvis-notice-overlay').remove();
   }
 
-  // hide immediately if dismissed within the last 4 hours
   if (getCookie(NOTICE_COOKIE)) {
     document.getElementById('jarvis-notice-overlay').remove();
   }
