@@ -399,7 +399,7 @@ const LANDING_PAGE = `
                 <div class="feature-card">
                     <span class="feature-icon">🎵</span>
                     <h3>Music</h3>
-                    <p>YouTube, SoundCloud, whatever. Queue, skip, loop. It just works — no 15-step setup required.</p>
+                    <p>Drop a link, hit play. Queue, skip, loop, volume — it just works. No 15-step setup required.</p>
                 </div>
                 <div class="feature-card">
                     <span class="feature-icon">🛡️</span>
