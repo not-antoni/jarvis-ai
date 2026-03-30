@@ -622,13 +622,15 @@ function createProxyingFetch() {
         const baseRedirect = baseRequest.redirect;
         const baseDuplex = init && Object.prototype.hasOwnProperty.call(init, 'duplex') ? init.duplex : undefined;
 
-        const buildRequestForUrl = (nextUrl, extraHeaders) => {
+        const PROXY_ATTEMPT_TIMEOUT_MS = 8_000; // per-proxy-attempt ceiling
+
+        const buildRequestForUrl = (nextUrl, extraHeaders, signal) => {
             const headers = mergeHeaders(baseRequest.headers, extraHeaders);
             const nextInit = {
                 method: baseRequest.method,
                 headers,
                 redirect: baseRedirect,
-                signal: baseSignal
+                signal: signal || baseSignal
             };
 
             if (baseDuplex != null) {
@@ -668,9 +670,22 @@ function createProxyingFetch() {
                 );
             }
 
+            // Per-attempt timeout so a hung proxy doesn't eat the entire budget
+            const attemptAc = new AbortController();
+            const attemptTimer = setTimeout(() => attemptAc.abort(), PROXY_ATTEMPT_TIMEOUT_MS);
+            attemptTimer.unref();
+            // Also abort if the caller's signal fires
+            const onCallerAbort = () => attemptAc.abort();
+            if (baseSignal && !baseSignal.aborted) {
+                baseSignal.addEventListener('abort', onCallerAbort, { once: true });
+            }
+
             try {
-                const nextReq = buildRequestForUrl(proxyRequestUrl, extraHeaders);
+                if (baseSignal?.aborted) { attemptAc.abort(); }
+                const nextReq = buildRequestForUrl(proxyRequestUrl, extraHeaders, attemptAc.signal);
                 const resp = await baseFetch(nextReq);
+                clearTimeout(attemptTimer);
+                if (baseSignal) baseSignal.removeEventListener('abort', onCallerAbort);
                 lastResponse = resp;
 
                 if (resp.status === 429) {
@@ -688,7 +703,12 @@ function createProxyingFetch() {
 
                 return resp;
             } catch (err) {
+                clearTimeout(attemptTimer);
+                if (baseSignal) baseSignal.removeEventListener('abort', onCallerAbort);
                 lastError = err;
+
+                // If the caller's signal aborted (SDK timeout), stop retrying proxies entirely
+                if (baseSignal?.aborted) { break; }
 
                 if (canHaveBody && !bufferedBody && proxyUrls.length > 1) {
                     break;

@@ -189,7 +189,7 @@ const PRIVACY_POLICY = `
         <h1>Privacy Policy</h1>
 
         <h2>The Short Version</h2>
-        <p>Jarvis ("we," "the bot," "him," or "that guy in your voice channel") is a Discord app. We collect the minimum data needed to not make the bot useless. We don't sell it, share it, or look at it for fun. Here's the full breakdown.</p>
+        <p>Jarvis ("we," "the bot," "him," or "that guy in your voice channel") is a Discord app. We collect the minimum data needed to not make the bot useless. <strong>We</strong> don't sell your data, use it for marketing, or look at it for fun — but to make the bot work, your messages and voice audio are sent to third-party AI providers who generate responses. Once data reaches a provider, their own privacy policies govern what happens to it — not ours. We cannot control or guarantee how they handle it, including whether they use it for model training. Full list and links below.</p>
 
         <h2>What We Actually Collect</h2>
         <ul>
@@ -204,27 +204,27 @@ const PRIVACY_POLICY = `
         <h2>What We Do With It</h2>
         <p>Exactly what you'd expect:</p>
         <ul>
-            <li>Make him actually respond to you instead of staring blankly.</li>
+            <li>Send your message to a third-party AI provider to generate a response (see "Third-Party Services" below for who and how).</li>
             <li>Keep conversation memory so he doesn't forget you existed five minutes ago — and use keyword relevance to surface the right memories when they matter, not just the most recent ones.</li>
-            <li>Handle real-time voice processing — hearing you, talking back.</li>
+            <li>Handle real-time voice processing — hearing you, talking back. Voice audio is sent to OpenAI or NVIDIA for transcription/synthesis.</li>
             <li>Run AutoMod, stats, and other features that make server life less chaotic.</li>
             <li>Keep the thing running and catch people trying to break it.</li>
         </ul>
 
         <h2>Data Protection</h2>
-        <p>Everything stored is encrypted. Access is locked down. Nobody's browsing your chat history for kicks. Decryption only happens when Jarvis actually needs it to reply to you — and nowhere else.</p>
+        <p>Everything stored <strong>on our end</strong> is encrypted. Access is locked down. Nobody's browsing your chat history for kicks. Decryption only happens when Jarvis actually needs it to reply to you. However — when a message is sent to a third-party AI provider for processing, it leaves our system. At that point, the provider's own security and data practices apply, not ours.</p>
 
         <h2>Retention & Deletion</h2>
         <p>Conversation data sticks around for 30 days. Want it gone sooner? <code>/clear</code> or <code>/opt out</code> nukes it immediately. No hoops, no support ticket, no waiting.</p>
 
         <h2>Third-Party Services</h2>
         <p>Jarvis routes AI responses through multiple providers — including OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM — depending on which one's available and not having a bad day. They process your message to generate a reply. Each provider operates under their own data practices. Jarvis does not control or guarantee how providers handle submitted data — including whether they use it for model training. If that matters to you, review their policies directly below.</p>
-        <p>Voice features run through NVIDIA NIM APIs for speech-to-text and text-to-speech. Audio is transmitted securely; how NVIDIA handles that data is subject to their own privacy policy linked below.</p>
-        <p>Relevant privacy policies: <a href="https://openrouter.ai/privacy" target="_blank">OpenRouter</a> · <a href="https://wow.groq.com/privacy-policy/" target="_blank">Groq</a> · <a href="https://cerebras.ai/privacy-policy" target="_blank">Cerebras</a> · <a href="https://sambanova.ai/privacy-policy" target="_blank">SambaNova</a> · <a href="https://mistral.ai/terms/#privacy-policy" target="_blank">Mistral</a> · <a href="https://policies.google.com/privacy" target="_blank">Google</a> · <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">NVIDIA</a></p>
+        <p>Voice features use OpenAI for speech-to-text and NVIDIA NIM for text-to-speech. Audio is transmitted securely to these providers for processing; how they handle that data is subject to their own privacy policies linked below.</p>
+        <p>Relevant privacy policies: <a href="https://openrouter.ai/privacy" target="_blank">OpenRouter</a> · <a href="https://wow.groq.com/privacy-policy/" target="_blank">Groq</a> · <a href="https://cerebras.ai/privacy-policy" target="_blank">Cerebras</a> · <a href="https://sambanova.ai/privacy-policy" target="_blank">SambaNova</a> · <a href="https://mistral.ai/terms/#privacy-policy" target="_blank">Mistral</a> · <a href="https://policies.google.com/privacy" target="_blank">Google</a> · <a href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/" target="_blank">NVIDIA</a> · <a href="https://openai.com/policies/privacy-policy/" target="_blank">OpenAI</a></p>
 
         <h2>Your Rights</h2>
         <ul>
-            <li>Delete everything Jarvis has on you, whenever you want.</li>
+            <li>Delete everything <strong>we</strong> store on you, whenever you want. (Data already sent to AI providers is subject to their own retention policies.)</li>
             <li>Kick him from your server to stop all future collection cold.</li>
             <li>Ask us anything — we're not a faceless corp, we'll actually respond.</li>
         </ul>
@@ -239,7 +239,7 @@ const PRIVACY_POLICY = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 28, 2026</p>
+            <p>Effective Date: March 30, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}
@@ -276,7 +276,7 @@ const TERMS_OF_SERVICE = `
         <p>By using Jarvis ("we," "our," or "the bot"), you agree to these Terms. If you don't agree, that's fine — just don't use Jarvis. No hard feelings. (Some hard feelings.)</p>
 
         <h2>2. What Jarvis Actually Does</h2>
-        <p>Jarvis is a Discord assistant. He does AI chat (with keyword-smart memory recall and thread-aware conversations), voice conversations (speech-to-text, text-to-speech), music playback, AutoMod, and server stats. Some of his responses come from external AI services (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, NVIDIA NIM) because he's standing on some very tall shoulders.</p>
+        <p>Jarvis is a Discord assistant. He does AI chat (with keyword-smart memory recall and thread-aware conversations), voice conversations (speech-to-text, text-to-speech), music playback, AutoMod, and server stats. Some of his responses come from external AI services (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, OpenAI, NVIDIA NIM) because he's standing on some very tall shoulders.</p>
 
         <h2>3. Don't Be That Guy</h2>
         <p>Follow Discord's Terms of Service and Community Guidelines. Don't use Jarvis for spam, harassment, or anything illegal. He will not help you with that, and honestly neither will we.</p>
@@ -284,9 +284,9 @@ const TERMS_OF_SERVICE = `
         <h2>4. Data — The Honest Version</h2>
         <p>Jarvis only processes your messages when you actually talk to him — mentions, commands, or voice chat. DMs are disabled to prevent abuse. In threads, he reads recent thread messages for context but doesn't store them. In voice channels, he only listens to opted-in users and only reacts to his name. <strong>Raw audio is never recorded or stored;</strong> it's processed live for speech-to-text and immediately gone.</p>
 
-        <p>When Jarvis generates a response, <strong>your message is sent to one of several AI providers</strong> (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, or NVIDIA) — whichever is available. They act as data processors to generate responses. Each provider operates under their own data and privacy policies — if a provider uses submitted data in any way, including for model training, that is governed by their terms, not ours. Links to their individual policies are in our <a href="/policy">Privacy Policy</a>. The resulting conversations are saved in your secure, encrypted database so he can actually remember context instead of acting like he's never met you. He uses keyword relevance to pull up the right memories — not just the last few things you said.</p>
+        <p>When Jarvis generates a response, <strong>your message is sent to one of several AI providers</strong> (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, OpenAI, or NVIDIA) — whichever is available. They act as data processors to generate responses. Each provider operates under their own data and privacy policies — if a provider uses submitted data in any way, including for model training, that is governed by their terms, not ours. Links to their individual policies are in our <a href="/policy">Privacy Policy</a>. The resulting conversations are saved in your secure, encrypted database so he can actually remember context instead of acting like he's never met you. He uses keyword relevance to pull up the right memories — not just the last few things you said.</p>
 
-        <p>You're in control. Use <code>/clear</code> or <code>/opt out</code> to wipe everything, anytime. Your data is never sold, never shared for marketing, never used to embarrass you at parties.</p>
+        <p>You're in control. Use <code>/clear</code> or <code>/opt out</code> to wipe everything we store, anytime. <strong>We</strong> never sell your data or use it for marketing. It is sent to AI providers solely to generate responses — but once it reaches them, their terms apply. We cannot delete data from provider systems or control how they process it.</p>
 
         <p>The unabridged version lives in our <a href="/policy">Privacy Policy</a>. Worth a skim.</p>
 
@@ -303,7 +303,7 @@ const TERMS_OF_SERVICE = `
         <p>Kick Jarvis whenever you want — from your server, your DMs, your life. We may also boot you if you're abusing the service or violating these Terms. Breakups go both ways.</p>
 
         <h2>9. Third-Party Stuff</h2>
-        <p>Jarvis routes AI responses through multiple providers — OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, and NVIDIA NIM for voice. They process your input to do their job. Jarvis isn't responsible for their data practices. If a provider uses submitted data in ways you disagree with — including model training — that is between you and that provider, governed entirely by their own terms. Check their policies in our <a href="/policy">Privacy Policy</a> for the full picture.</p>
+        <p>Jarvis routes AI responses through multiple providers — OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, OpenAI (voice transcription), and NVIDIA NIM (voice synthesis). They process your input to do their job. Jarvis isn't responsible for their data practices. If a provider uses submitted data in ways you disagree with — including model training — that is between you and that provider, governed entirely by their own terms. Check their policies in our <a href="/policy">Privacy Policy</a> for the full picture.</p>
 
         <h2>10. Say Hi</h2>
         <p>Questions? Concerns? Just want to yell at someone? Discord: <a href="${DISCORD_INVITE}" target="_blank">${DISCORD_INVITE}</a> — or email: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
@@ -317,7 +317,7 @@ const TERMS_OF_SERVICE = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 28, 2026</p>
+            <p>Effective Date: March 30, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}

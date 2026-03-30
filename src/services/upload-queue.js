@@ -57,7 +57,7 @@ async function getAudioDuration(url) {
         );
         const duration = parseFloat(stdout.trim());
         if (isNaN(duration) || duration <= 0) {
-            console.warn('[UploadQueue] ffprobe returned invalid duration:', result.trim());
+            console.warn('[UploadQueue] ffprobe returned invalid duration:', stdout.trim());
             return 0;
         }
         return Math.floor(duration);
