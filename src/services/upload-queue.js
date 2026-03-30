@@ -53,7 +53,7 @@ async function getAudioDuration(url) {
         const { stdout } = await execFileAsync(
             ffprobePath,
             args,
-            { timeout: 30000, encoding: 'utf8' }
+            { timeout: 10000, encoding: 'utf8' }
         );
         const duration = parseFloat(stdout.trim());
         if (isNaN(duration) || duration <= 0) {

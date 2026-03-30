@@ -108,7 +108,7 @@ function isNoise(text) {
 }
 
 function pcmEnergy(buf) {
-    const step = 200; // sample every 100th s16le sample
+    const step = 200; // bytes — every 100th s16le sample (2 bytes each)
     let sum = 0;
     let count = 0;
     for (let i = 0; i < buf.length - 1; i += step) {
@@ -1268,6 +1268,11 @@ class VoiceChatService {
         try { s.player.stop(true); } catch { /* */ }
         try { s.connection.destroy(); } catch { /* */ }
         this.sessions.delete(guildId);
+        // Purge probe cooldowns for this guild to prevent memory leak
+        const prefix = `${guildId}:`;
+        for (const key of this._probeCooldowns.keys()) {
+            if (key.startsWith(prefix)) this._probeCooldowns.delete(key);
+        }
         console.log(`[VoiceChat] Destroyed session for guild ${guildId}`);
     }
 }
