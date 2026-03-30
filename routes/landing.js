@@ -43,6 +43,7 @@ const LANDING_PAGE = `
     <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
 
         body {
             font-family: 'Comic Neue', 'Comic Sans MS', cursive, sans-serif;
@@ -54,6 +55,10 @@ const LANDING_PAGE = `
         }
         
         /* Navigation */
+        .nav-wrap {
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
         nav {
             display: flex;
             align-items: center;
@@ -61,7 +66,6 @@ const LANDING_PAGE = `
             padding: 1.25rem 5%;
             max-width: 1300px;
             margin: 0 auto;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
         }
         
         .logo {
@@ -75,10 +79,11 @@ const LANDING_PAGE = `
             display: flex;
             gap: 1.75rem;
             list-style: none;
+            margin-left: auto;
         }
         
         .nav-links a {
-            color: #777;
+            color: #999;
             text-decoration: none;
             font-weight: 500;
             font-size: 0.9rem;
@@ -110,12 +115,15 @@ const LANDING_PAGE = `
         }
         
         .hero h1 .accent {
-            color: #fff;
+            background: linear-gradient(135deg, #a78bfa, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         
         .hero p {
             font-size: 1.15rem;
-            color: #888;
+            color: #999;
             margin-bottom: 2rem;
             line-height: 1.7;
             max-width: 550px;
@@ -132,7 +140,7 @@ const LANDING_PAGE = `
         }
         
         .cta-subtext {
-            color: #555;
+            color: #777;
             font-size: 0.85rem;
             margin-top: 0.75rem;
         }
@@ -165,7 +173,7 @@ const LANDING_PAGE = `
         
         .btn-secondary {
             background: transparent;
-            color: #888;
+            color: #999;
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
         
@@ -203,7 +211,7 @@ const LANDING_PAGE = `
         }
         
         .stat-label {
-            color: #666;
+            color: #888;
             font-size: 0.85rem;
             margin-top: 0.25rem;
         }
@@ -212,6 +220,7 @@ const LANDING_PAGE = `
             margin-top: auto;
             padding: 1.25rem 5% 1.5rem;
             text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.06);
         }
 
         .footer-links {
@@ -223,18 +232,18 @@ const LANDING_PAGE = `
         }
 
         .footer-links a {
-            color: #555;
+            color: #777;
             text-decoration: none;
             font-size: 0.85rem;
             transition: color 0.2s;
         }
 
         .footer-links a:hover {
-            color: #888;
+            color: #999;
         }
 
         .footer-copy {
-            color: #444;
+            color: #777;
             font-size: 0.8rem;
         }
         
@@ -288,6 +297,12 @@ const LANDING_PAGE = `
             padding: 1.5rem;
         }
 
+        .feature-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
         .feature-card h3 {
             color: #fff;
             font-size: 1rem;
@@ -295,7 +310,7 @@ const LANDING_PAGE = `
         }
 
         .feature-card p {
-            color: #777;
+            color: #999;
             font-size: 0.9rem;
             line-height: 1.6;
         }
@@ -314,11 +329,15 @@ const LANDING_PAGE = `
     </style>
 </head>
 <body>
+    <div class="nav-wrap">
     <nav>
         <a href="/" class="logo">Jarvis</a>
         <ul class="nav-links">
+            <li><a href="#features">Features</a></li>
+            <li><a href="${DISCORD_INVITE}" target="_blank">Support</a></li>
         </ul>
     </nav>
+    </div>
 
     <main class="page">
         <section class="hero">
@@ -356,22 +375,26 @@ const LANDING_PAGE = `
             </div>
         </section>
 
-        <section class="features">
+        <section class="features" id="features">
             <h2>Features</h2>
             <div class="features-grid">
                 <div class="feature-card">
+                    <span class="feature-icon">💬</span>
                     <h3>AI Chat</h3>
                     <p>Mention him, say his name, or use /jarvis in any channel. He remembers everything. DMs off because people were weird about it.</p>
                 </div>
                 <div class="feature-card">
+                    <span class="feature-icon">🎙️</span>
                     <h3>Voice Chat</h3>
                     <p>Run /voice and he joins your call. Say "Jarvis" and talk — he hears you and talks back. Forget to say his name and he pretends you don't exist. Works best if you're British, apparently.</p>
                 </div>
                 <div class="feature-card">
+                    <span class="feature-icon">🎵</span>
                     <h3>Music</h3>
                     <p>YouTube, SoundCloud, whatever. Queue, skip, loop. It just works — no 15-step setup required.</p>
                 </div>
                 <div class="feature-card">
+                    <span class="feature-icon">🛡️</span>
                     <h3>AutoMod</h3>
                     <p>Spam, toxicity, sketchy links — handled. You can stop babysitting your server now.</p>
                 </div>
@@ -501,7 +524,7 @@ const LANDING_PAGE = `
 
   #jarvis-notice-box p {
     font-size: 0.95rem;
-    color: #888;
+    color: #999;
     line-height: 1.75;
     margin-bottom: 0.6rem;
   }
@@ -518,7 +541,7 @@ const LANDING_PAGE = `
     padding: 0.9rem 1rem;
     margin: 1rem 0 1.4rem;
     font-size: 0.88rem;
-    color: #666;
+    color: #888;
     line-height: 1.9;
   }
 
@@ -563,7 +586,7 @@ const LANDING_PAGE = `
 
   .notice-btn-secondary {
     background: transparent;
-    color: #888;
+    color: #999;
     border: 1px solid rgba(255, 255, 255, 0.15);
   }
 
@@ -576,16 +599,16 @@ const LANDING_PAGE = `
   .notice-footnote {
     margin-top: 1.1rem;
     font-size: 0.8rem;
-    color: #444;
+    color: #666;
   }
 
   .notice-footnote a {
-    color: #555;
+    color: #777;
     text-decoration: underline;
     text-underline-offset: 2px;
   }
 
-  .notice-footnote a:hover { color: #888; }
+  .notice-footnote a:hover { color: #999; }
 
   @media (max-width: 480px) {
     #jarvis-notice-box { padding: 1.5rem 1.25rem 1.35rem; }
