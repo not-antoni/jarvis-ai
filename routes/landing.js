@@ -33,7 +33,7 @@ const LANDING_PAGE = `
     <meta property="og:site_name" content="Jarvis">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${SITE_BASE_URL}">
-    <meta name="theme-color" content="#fff">
+    <meta name="theme-color" content="#000">
     <meta name="twitter:card" content="summary">
     <meta name="keywords" content="discord bot, ai discord bot, voice chat bot, music bot, automod bot, jarvis, discord ai assistant, speech to text discord">
     <meta name="robots" content="index, follow">
