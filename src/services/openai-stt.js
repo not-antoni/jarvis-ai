@@ -11,7 +11,7 @@ class OpenAISttService {
         this.apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI || '';
         this.model = (process.env.OPENAI_STT_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
         this.language = (process.env.OPENAI_STT_LANGUAGE || DEFAULT_LANGUAGE).trim() || DEFAULT_LANGUAGE;
-        this.client = this.apiKey ? new OpenAI({ apiKey: this.apiKey }) : null;
+        this.client = this.apiKey ? new OpenAI({ apiKey: this.apiKey, timeout: 15_000 }) : null;
     }
 
     get enabled() {
