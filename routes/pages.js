@@ -11,6 +11,7 @@ const { getPublicConfig } = require('../src/utils/public-config');
 
 const publicConfig = getPublicConfig();
 const DISCORD_INVITE = publicConfig.discordInviteUrl;
+const SITE_BASE_URL = publicConfig.baseUrl;
 const GA_MEASUREMENT_ID = publicConfig.gaMeasurementId;
 const CONTACT_EMAIL = 'dev@jorvis.org';
 
@@ -71,7 +72,7 @@ const LEGAL_STYLES = `
         margin-top: 2rem;
         padding-top: 1rem;
         border-top: 1px solid rgba(255,255,255,0.06);
-        color: #666;
+        color: #888;
     }
     .footer-links {
         display: flex;
@@ -92,7 +93,7 @@ const LEGAL_STYLES = `
         display: block;
         text-align: center;
         margin-bottom: 2rem;
-        color: #666;
+        color: #888;
         font-size: 0.85rem;
     }
     .back-link:hover { color: #fff; }
@@ -178,6 +179,14 @@ const PRIVACY_POLICY = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Privacy Policy | Jarvis</title>
+    <link rel="icon" type="image/webp" href="/jarvis.webp">
+    <meta name="theme-color" content="#000">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="${SITE_BASE_URL}/policy">
+    <meta property="og:title" content="Privacy Policy | Jarvis">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="${SITE_BASE_URL}/policy">
+    <meta property="og:image" content="${SITE_BASE_URL}/jarvis.webp">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
@@ -262,6 +271,14 @@ const TERMS_OF_SERVICE = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms of Service | Jarvis</title>
+    <link rel="icon" type="image/webp" href="/jarvis.webp">
+    <meta name="theme-color" content="#000">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="${SITE_BASE_URL}/tos">
+    <meta property="og:title" content="Terms of Service | Jarvis">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="${SITE_BASE_URL}/tos">
+    <meta property="og:image" content="${SITE_BASE_URL}/jarvis.webp">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
