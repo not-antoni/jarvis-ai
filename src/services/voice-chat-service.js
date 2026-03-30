@@ -42,6 +42,7 @@ const PROCESS_SAFETY_MS  = 90_000;    // force-reset stuck processing flag
 const MAX_PCM_BYTES      = 48000 * 2 * 2 * 30; // 30s of 48kHz stereo s16le (~5.5MB)
 const ECHO_COOLDOWN_MS   = 2500;               // ignore STT right after bot finishes speaking
 const MIN_PCM_ENERGY     = 300;                // skip near-silent audio (RMS threshold)
+const PROBE_COOLDOWN_MS  = 5_000;              // skip re-probing users who didn't say wake word recently
 const FFMPEG_TIMEOUT_MS  = 10_000;             // kill hung ffmpeg subprocesses
 const TTS_GAIN           = 2.8;                // boost synthesized speech over VC
 
@@ -187,6 +188,7 @@ class VoiceChatService {
         this.jarvis  = null;
         this._userCache = new Map();
         this._optOutCache = new Map(); // userId → { optedOut: bool, ts: number }
+        this._probeCooldowns = new Map(); // `${guildId}:${userId}` → timestamp of last failed probe
     }
 
     init(client, jarvis) {
@@ -634,21 +636,32 @@ class VoiceChatService {
             let text = null;
 
             if (!hasImplicitFollowup) {
+                // Skip users who were just probed and didn't say the wake word
+                const cooldownKey = `${session.guildId}:${userId}`;
+                const lastFailedProbe = this._probeCooldowns.get(cooldownKey) || 0;
+                if (capturedAt - lastFailedProbe < PROBE_COOLDOWN_MS) {
+                    return;
+                }
+
                 const probeWav = sliceWav16kMono(wav, WAKEWORD_PROBE_MS);
                 const probeText = await this._transcribeSpeech(session, userId, probeWav, 'wake-probe');
                 if (!probeText || isNoise(probeText)) {
                     if (probeText) console.log(`[VoiceChat] Filtered noise: "${probeText}"`);
+                    this._probeCooldowns.set(cooldownKey, capturedAt);
                     return;
                 }
 
                 explicitWakeWord = await this._isExplicitWakeWord(session, userId, probeText.toLowerCase());
                 if (!explicitWakeWord) {
+                    this._probeCooldowns.set(cooldownKey, capturedAt);
                     console.log(
                         `[VoiceChat] Ignored non-active speaker guild=${session.guildId} ` +
                         `user=${userId} standby=${!session.activeSpeakerId}`
                     );
                     return;
                 }
+                // Wake word found — clear cooldown
+                this._probeCooldowns.delete(cooldownKey);
 
                 if (probeWav.length === wav.length) {
                     text = probeText;
@@ -765,18 +778,26 @@ class VoiceChatService {
     // ─── Audio Helpers ────────────────────────────────────────────────────────
 
     _decodeOpus(packets) {
+        let dec = null;
         try {
             const OpusEncoder = require('opusscript');
-            const dec = new OpusEncoder(48000, 2);
+            dec = new OpusEncoder(48000, 2);
             const frames = [];
             for (const pkt of packets) {
-                try { frames.push(Buffer.from(dec.decode(pkt))); } catch { /* skip */ }
+                try {
+                    frames.push(Buffer.from(dec.decode(pkt)));
+                } catch (pktErr) {
+                    // WASM memory errors corrupt decoder state — stop decoding
+                    if (pktErr?.message?.includes('memory access out of bounds')) break;
+                    // Other per-packet errors: skip this packet, continue
+                }
             }
-            dec.delete();
             return frames.length ? Buffer.concat(frames) : null;
         } catch (err) {
             console.error('[VoiceChat] Opus decode error:', err.message);
             return null;
+        } finally {
+            try { dec?.delete(); } catch { /* */ }
         }
     }
 

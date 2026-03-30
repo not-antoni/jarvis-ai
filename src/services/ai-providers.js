@@ -116,6 +116,7 @@ class AIProviderManager {
                         apiKey: key,
                         baseURL: 'https://openrouter.ai/api/v1',
                         fetch: aiFetch,
+                        timeout: 25_000,
                         defaultHeaders: {
                             'HTTP-Referer': process.env.APP_URL || process.env.PUBLIC_BASE_URL || 'https://localhost',
                             'X-Title': process.env.APP_NAME || 'Jarvis AI'
@@ -144,7 +145,8 @@ class AIProviderManager {
                     client: new OpenAI({
                         apiKey: key,
                         baseURL: 'https://api.groq.com/openai/v1',
-                        fetch: aiFetch
+                        fetch: aiFetch,
+                        timeout: 25_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -167,7 +169,8 @@ class AIProviderManager {
                     client: new OpenAI({
                         apiKey: key,
                         baseURL: 'https://api.cerebras.ai/v1',
-                        fetch: aiFetch
+                        fetch: aiFetch,
+                        timeout: 25_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -189,7 +192,8 @@ class AIProviderManager {
                     client: new OpenAI({
                         apiKey: key,
                         baseURL: 'https://api.mistral.ai/v1',
-                        fetch: aiFetch
+                        fetch: aiFetch,
+                        timeout: 25_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -212,7 +216,8 @@ class AIProviderManager {
                     client: new OpenAI({
                         apiKey: key,
                         baseURL: 'https://api.sambanova.ai/v1',
-                        fetch: aiFetch
+                        fetch: aiFetch,
+                        timeout: 25_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -255,6 +260,7 @@ class AIProviderManager {
                     apiKey: key,
                     baseURL: 'https://ai-gateway.vercel.sh/v1',
                     fetch: aiFetch,
+                    timeout: 25_000,
                     defaultHeaders: {
                         'HTTP-Referer': process.env.APP_URL || process.env.PUBLIC_BASE_URL || 'https://localhost',
                         'X-Title': process.env.APP_NAME || 'Jarvis AI'
@@ -283,7 +289,8 @@ class AIProviderManager {
                     client: new OpenAI({
                         apiKey: key,
                         baseURL: 'https://integrate.api.nvidia.com/v1',
-                        fetch: aiFetch
+                        fetch: aiFetch,
+                        timeout: 25_000
                     }),
                     model,
                     type: 'openai-chat',
@@ -299,7 +306,7 @@ class AIProviderManager {
             this.providers.push({
                 // Keep the same name so your existing filters & health pages remain happy
                 name: 'GPT5Nano',
-                client: new OpenAI({ apiKey: key, fetch: aiFetch }), // https://api.openai.com/v1
+                client: new OpenAI({ apiKey: key, fetch: aiFetch, timeout: 25_000 }), // https://api.openai.com/v1
                 model: 'gpt-4o-mini', // ← actual model
                 type: 'openai-chat', // generic OpenAI-compatible flow
                 family: 'openai',
