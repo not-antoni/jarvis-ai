@@ -622,7 +622,8 @@ function createProxyingFetch() {
         const baseRedirect = baseRequest.redirect;
         const baseDuplex = init && Object.prototype.hasOwnProperty.call(init, 'duplex') ? init.duplex : undefined;
 
-        const PROXY_ATTEMPT_TIMEOUT_MS = 8_000; // per-proxy-attempt ceiling
+        const PROXY_ATTEMPT_TIMEOUT_MS = 4_000; // per-proxy-attempt ceiling
+        const PROXY_PHASE_BUDGET_MS = 12_000;  // max total time for all proxy attempts combined
 
         const buildRequestForUrl = (nextUrl, extraHeaders, signal) => {
             const headers = mergeHeaders(baseRequest.headers, extraHeaders);
@@ -651,8 +652,17 @@ function createProxyingFetch() {
         const attemptOrder = buildAttemptOrder(picked.index);
         let lastError = null;
         let lastResponse = null;
+        const proxyPhaseStart = Date.now();
 
         for (let attempt = 0; attempt < attemptOrder.length; attempt += 1) {
+            // Bail if proxy phase budget exhausted — save time for direct fallback
+            if (Date.now() - proxyPhaseStart >= PROXY_PHASE_BUDGET_MS) {
+                if (config.debug) {
+                    console.log(`[AIProxy] ${hostname} proxy phase budget exhausted after ${attempt} attempts; falling back`);
+                }
+                break;
+            }
+
             const proxyIndex = attemptOrder[attempt];
             const proxyBase = proxyUrls[proxyIndex];
             const proxyRequestUrl = `${proxyBase}?url=${encodeURIComponent(url)}`;
