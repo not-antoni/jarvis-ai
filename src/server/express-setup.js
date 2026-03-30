@@ -93,6 +93,15 @@ function createExpressApp({ webhookRouter, database }) {
     app.set('trust proxy', ip => isIpInRanges(ip, TRUSTED_PROXY_RANGES));
 
     // ---- Helmet ----
+    // BIMI logo — must be publicly accessible before helmet locks headers down
+    app.get('/assets/bimi.svg', (req, res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.type('image/svg+xml');
+        res.sendFile(path.join(ROOT_DIR, 'assets', 'bimi.svg'));
+    });
+
     let helmet = null;
     try {
         helmet = require('helmet');
@@ -201,15 +210,6 @@ function createExpressApp({ webhookRouter, database }) {
     app.get('/jarvis.webp', (req, res) => {
         res.type('image/webp');
         res.sendFile(path.join(ROOT_DIR, 'jarvis.webp'));
-    });
-    // BIMI logo — must be publicly accessible with permissive CORS
-    app.get('/assets/bimi.svg', (req, res) => {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-        res.setHeader('Cache-Control', 'public, max-age=86400');
-        res.removeHeader('X-Frame-Options');
-        res.type('image/svg+xml');
-        res.sendFile(path.join(ROOT_DIR, 'assets', 'bimi.svg'));
     });
     app.use('/assets', express.static(path.join(ROOT_DIR, 'assets')));
 
