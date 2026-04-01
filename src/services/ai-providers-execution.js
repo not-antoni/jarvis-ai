@@ -165,10 +165,27 @@ function stripAsteriskActions(text) {
         return match;
     }).replace(/\s{2,}/g, ' ').trim();
 }
+function unwrapJsonEnvelope(text) {
+    if (!text || typeof text !== 'string') {return text;}
+    const trimmed = text.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {return text;}
+    try {
+        const obj = JSON.parse(trimmed);
+        if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {return text;}
+        // Extract reply from known structured-response keys
+        for (const key of ['reply', 'response', 'content', 'text', 'answer', 'message', 'en']) {
+            if (typeof obj[key] === 'string' && obj[key].trim()) {
+                return obj[key].trim();
+            }
+        }
+    } catch { /* not JSON, pass through */ }
+    return text;
+}
 function sanitizeAssistantMessage(text) {
     if (!text || typeof text !== 'string') {return text;}
-    const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(text);
-    const layered = cleanThinkingOutput(sanitizeModelOutput(text));
+    const unwrapped = unwrapJsonEnvelope(text);
+    const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(unwrapped);
+    const layered = cleanThinkingOutput(sanitizeModelOutput(unwrapped));
     const withoutPromptLeaks = stripLeadingPromptLeaks(layered);
     const withoutRefusals = stripRefusalsAndIdentityBreaks(withoutPromptLeaks);
     const withoutActions = stripAsteriskActions(withoutRefusals);
@@ -510,12 +527,22 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         };
         try {
             const retryAttempts = Math.max(0, Number(config.ai?.retryAttempts || 0));
-            const resp = await manager._retry(callOnce, {
+            const PROVIDER_ATTEMPT_TIMEOUT = 12_000; // don't let one slow provider burn the whole budget
+            const retryPromise = manager._retry(callOnce, {
                 retries: retryAttempts,
                 baseDelay: retryAttempts > 0 ? 500 : 0,
                 jitter: retryAttempts > 0,
                 providerName: provider.name
             });
+            const resp = await Promise.race([
+                retryPromise,
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(Object.assign(
+                        new Error(`${provider.name} timed out after ${PROVIDER_ATTEMPT_TIMEOUT}ms`),
+                        { status: 408, transient: true }
+                    )), PROVIDER_ATTEMPT_TIMEOUT).unref()
+                )
+            ]);
             const latency = Date.now() - started;
             manager._recordMetric(provider.name, true, latency);
             if (provider.name.startsWith('OpenRouter')) {
@@ -569,11 +596,15 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 );
             }
             lastError = error;
-            // Circuit breaker — rate limits (429) get short cooldown, real errors get escalating backoff
+            // Circuit breaker — rate limits and overloaded providers get cooldowns
             const status = error?.status || error?.response?.status;
             if (status === 429) {
                 // Rate limit: bench for 45s only, don't escalate failure count
                 manager.disabledProviders.set(provider.name, Date.now() + 45 * 1000);
+            } else if (status === 503) {
+                // Over capacity: bench for 2 minutes — these take 15-17s to fail and will keep doing so
+                manager.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 1000);
+                console.log(`${provider.name} benched 2m (503 over capacity)`);
             } else if (!error.transient) {
                 const currentFailures = (manager.providerFailureCounts.get(provider.name) || 0) + 1;
                 manager.providerFailureCounts.set(provider.name, currentFailures);

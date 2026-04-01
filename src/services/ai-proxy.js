@@ -622,8 +622,9 @@ function createProxyingFetch() {
         const baseRedirect = baseRequest.redirect;
         const baseDuplex = init && Object.prototype.hasOwnProperty.call(init, 'duplex') ? init.duplex : undefined;
 
-        const PROXY_ATTEMPT_TIMEOUT_MS = 4_000; // per-proxy-attempt ceiling
-        const PROXY_PHASE_BUDGET_MS = 12_000;  // max total time for all proxy attempts combined
+        const PROXY_ATTEMPT_TIMEOUT_MS = 18_000; // generous per-attempt ceiling (AI calls take 5-15s)
+        const PROXY_PHASE_BUDGET_MS = 18_000;  // try ONE proxy seriously, then fall back to direct
+        const MAX_PROXY_ATTEMPTS = 1;          // don't cycle — all workers hit the same provider
 
         const buildRequestForUrl = (nextUrl, extraHeaders, signal) => {
             const headers = mergeHeaders(baseRequest.headers, extraHeaders);
@@ -654,7 +655,8 @@ function createProxyingFetch() {
         let lastResponse = null;
         const proxyPhaseStart = Date.now();
 
-        for (let attempt = 0; attempt < attemptOrder.length; attempt += 1) {
+        const maxAttempts = Math.min(attemptOrder.length, MAX_PROXY_ATTEMPTS);
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             // Bail if proxy phase budget exhausted — save time for direct fallback
             if (Date.now() - proxyPhaseStart >= PROXY_PHASE_BUDGET_MS) {
                 if (config.debug) {
