@@ -105,8 +105,17 @@ class MessageBuffer {
 }
 
 const msgBuffer = new MessageBuffer();
-// Prune stale buffers every minute
-setInterval(() => msgBuffer.prune(), 60_000).unref();
+// Prune stale buffers and bypass tracker every minute
+setInterval(() => {
+    msgBuffer.prune();
+    const now = Date.now();
+    for (const [userId, t] of bypassTracker) {
+        t.timestamps = t.timestamps.filter(ts => now - ts < BYPASS_WINDOW_MS);
+        if (t.timestamps.length === 0 && (!t.timeoutUntil || now >= t.timeoutUntil)) {
+            bypassTracker.delete(userId);
+        }
+    }
+}, 60_000).unref();
 
 // ── Main service ──────────────────────────────────────────────────────────────
 
