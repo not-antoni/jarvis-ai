@@ -4,6 +4,7 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    MessageFlags,
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle
@@ -124,7 +125,7 @@ function buildInitialResponse({ ownerId, query, results }) {
 }
 
 async function ephemeralReply(interaction, content) {
-    const payload = { content, ephemeral: true };
+    const payload = { content, flags: MessageFlags.Ephemeral };
     if (!interaction.replied && !interaction.deferred) {
         await interaction.reply(payload).catch(() => {});
     } else {
@@ -227,7 +228,7 @@ async function handleJumpModal(interaction, sessionId) {
     if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > session.results.length) {
         await interaction.reply({
             content: `Invalid page. Enter a number from 1 to ${session.results.length}, sir.`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
         }).catch(() => {});
         return true;
     }
@@ -241,7 +242,7 @@ async function handleJumpModal(interaction, sessionId) {
 
     await interaction.reply({
         content: `Jumped to page ${pageNumber} of ${session.results.length}, sir.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
     }).catch(() => {});
     return true;
 }

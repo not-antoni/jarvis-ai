@@ -1,6 +1,6 @@
 'use strict';
 
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionsBitField, MessageFlags } = require('discord.js');
 const database = require('../../services/database');
 const config = require('../../../config');
 const ytSearchUi = require('./yt-search-ui');
@@ -137,7 +137,7 @@ async function handleOptCommand(handler, interaction) {
         )
         .setFooter({ text: 'You may change this at any time with /opt.' });
 
-    await interaction.editReply({ embeds: [embed], ephemeral: true });
+    await interaction.editReply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 async function handleComponentInteraction(handler, interaction) {
@@ -148,7 +148,7 @@ async function handleComponentInteraction(handler, interaction) {
 
     if (interaction.isModalSubmit()) {
         if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: 'Interactive controls are currently unavailable, sir.', ephemeral: true });
+            await interaction.reply({ content: 'Interactive controls are currently unavailable, sir.', flags: MessageFlags.Ephemeral });
         }
         return;
     }
@@ -220,13 +220,13 @@ async function handleComponentInteraction(handler, interaction) {
             await interaction.update({ embeds: [embed], components: [row1] });
         } catch {
             // Fallback if update fails
-            await interaction.reply({ embeds: [embed], components: [row1], ephemeral: true });
+            await interaction.reply({ embeds: [embed], components: [row1], flags: MessageFlags.Ephemeral });
         }
         return;
     }
 
     if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: 'Interactive controls are currently unavailable, sir.', ephemeral: true });
+        await interaction.reply({ content: 'Interactive controls are currently unavailable, sir.', flags: MessageFlags.Ephemeral });
     }
 }
 

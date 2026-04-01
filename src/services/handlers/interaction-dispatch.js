@@ -1,5 +1,6 @@
 'use strict';
 
+const { MessageFlags } = require('discord.js');
 const { commandMap: musicCommandMap } = require('../../commands/music');
 const { splitMessage } = require('../../utils/discord-safe-send');
 const { recordCommandRun } = require('../../utils/telemetry');
@@ -270,7 +271,7 @@ async function handle(handler, interaction) {
                 if (!interaction.replied && !interaction.deferred) {
                     await interaction.reply({
                         content: 'You are blacklisted from using Jarvis in this server, sir.',
-                        ephemeral: true
+                        flags: MessageFlags.Ephemeral
                     });
                 } else if (interaction.deferred && !interaction.replied) {
                     await interaction.editReply('You are blacklisted from using Jarvis in this server, sir.');
@@ -296,7 +297,7 @@ async function handle(handler, interaction) {
                 try {
                     const notice = `Use <#${configuredAiChannelId}> for Jarvis chat in this server, sir.`;
                     if (!interaction.replied && !interaction.deferred) {
-                        await interaction.reply({ content: notice, ephemeral: true });
+                        await interaction.reply({ content: notice, flags: MessageFlags.Ephemeral });
                     } else if (interaction.deferred && !interaction.replied) {
                         await interaction.editReply(notice);
                     }
@@ -314,7 +315,7 @@ async function handle(handler, interaction) {
             telemetryMetadata.reason = 'feature-disabled-global';
             try {
                 if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({ content: 'That module is disabled in this deployment, sir.', ephemeral: true });
+                    await interaction.reply({ content: 'That module is disabled in this deployment, sir.', flags: MessageFlags.Ephemeral });
                 }
             } catch (error) {
                 if (error?.code !== 10062) {
@@ -330,7 +331,7 @@ async function handle(handler, interaction) {
             telemetryMetadata.reason = 'feature-disabled-guild';
             try {
                 if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({ content: 'That module is disabled for this server, sir.', ephemeral: true });
+                    await interaction.reply({ content: 'That module is disabled for this server, sir.', flags: MessageFlags.Ephemeral });
                 } else if (interaction.deferred && !interaction.replied) {
                     await interaction.editReply('That module is disabled for this server, sir.');
                 }
@@ -403,7 +404,7 @@ async function handle(handler, interaction) {
 
         try {
             if (!interaction.deferred && !interaction.replied) {
-                await interaction.deferReply({ ephemeral: deferEphemeral });
+                await interaction.deferReply(deferEphemeral ? { flags: MessageFlags.Ephemeral } : {});
             }
         } catch (error) {
             if (error.code === 10062) {

@@ -1,5 +1,6 @@
 'use strict';
 
+const { MessageFlags } = require('discord.js');
 const interactionAutocomplete = require('../services/handlers/interaction-autocomplete');
 const interactionDispatch = require('../services/handlers/interaction-dispatch');
 const gameHandlers = require('../services/handlers/game-handlers');
@@ -64,7 +65,7 @@ function wireEventHandlers(ctx) {
                 !interaction.deferred
             ) {
                 await interaction
-                    .reply({ content: 'Technical difficulties, sir.', ephemeral: true })
+                    .reply({ content: 'Technical difficulties, sir.', flags: MessageFlags.Ephemeral })
                     .catch(() => { });
             }
         }

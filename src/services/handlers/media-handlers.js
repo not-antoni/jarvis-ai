@@ -16,7 +16,7 @@ try {
 
 async function handleSlashCommandClip(handler, interaction) {
     try {
-        await interaction.deferReply({ ephemeral: false });
+        await interaction.deferReply();
 
         const messageId = interaction.options.getString('message_id');
 

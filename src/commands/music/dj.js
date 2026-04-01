@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const database = require('../../services/database');
 const { isDjAdmin, isBlocked } = require('../../utils/dj-system');
 
@@ -103,7 +103,7 @@ module.exports = {
         if (!isDjAdmin(interaction.member, guildConfig)) {
             return interaction.reply({
                 content: '❌ You do not have permission to configure the DJ system.\nRequires: Admin, Server Owner, Bot Owner, or True Mod permissions.',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -116,7 +116,6 @@ module.exports = {
                 content: enabled
                     ? '🔒 **DJ Mode Enabled**: Only Admins and DJs can control music.'
                     : '🔓 **DJ Mode Disabled**: Everyone can control music (unless blocked).',
-                ephemeral: false
             });
         }
 
@@ -173,7 +172,7 @@ module.exports = {
             // Prevent blocking admins/owners
             const targetMember = await interaction.guild.members.fetch(target.id).catch(() => null);
             if (targetMember && isDjAdmin(targetMember, guildConfig)) {
-                return interaction.reply({ content: '❌ You cannot block an Admin/Mod.', ephemeral: true });
+                return interaction.reply({ content: '❌ You cannot block an Admin/Mod.', flags: MessageFlags.Ephemeral });
             }
 
             if (isBlocked(target.id, guildConfig)) {
