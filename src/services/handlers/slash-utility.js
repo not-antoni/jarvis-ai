@@ -6,77 +6,60 @@ const youtubeSearch = require('../youtube-search');
 const ytSearchUi = require('./yt-search-ui');
 const { formatUptime, getProcessUptimeSeconds } = require('../../utils/uptime');
 
+// Cache static system info once at startup (never changes during process lifetime)
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
+
+const _sysInfo = (() => {
+    let botVersion = 'Unknown';
+    try {
+        botVersion = require(path.join(process.cwd(), 'package.json')).version;
+    } catch (_) {}
+
+    let hostOs = `${os.type()} ${os.release()}`;
+    try {
+        if (fs.existsSync('/etc/os-release')) {
+            const match = fs.readFileSync('/etc/os-release', 'utf8').match(/PRETTY_NAME="([^"]+)"/);
+            if (match?.[1]) hostOs = match[1];
+        }
+    } catch (_) {}
+
+    let cpuModel = 'Unknown CPU';
+    try {
+        const cpus = os.cpus();
+        if (cpus?.[0]?.model) {
+            cpuModel = cpus[0].model;
+        } else if (fs.existsSync('/proc/cpuinfo')) {
+            const cpuinfo = fs.readFileSync('/proc/cpuinfo', 'utf8');
+            const m = cpuinfo.match(/model name\s*:\s*(.+)/i) || cpuinfo.match(/Hardware\s*:\s*(.+)/i) || cpuinfo.match(/Processor\s*:\s*(.+)/i);
+            if (m) cpuModel = m[1].trim();
+            else {
+                const cores = (cpuinfo.match(/processor\s*:/gi) || []).length;
+                if (cores > 0) cpuModel = `${cores}-core processor`;
+            }
+        }
+        if (cpuModel === 'Unknown CPU' || cpuModel === 'Unknown') {
+            try {
+                const { execSync } = require('child_process');
+                const out = execSync('lscpu 2>/dev/null', { encoding: 'utf8', timeout: 2000 });
+                const m = out.match(/Model name:\s*(.+)/i);
+                if (m) cpuModel = m[1].trim();
+            } catch (_) {}
+        }
+        if (cpuModel === 'Unknown CPU' || cpuModel === 'Unknown') cpuModel = `${os.arch()} processor`;
+    } catch (_) {
+        cpuModel = `${os.arch()} processor`;
+    }
+
+    return { botVersion, hostOs, cpuModel, totalMem: (os.totalmem() / 1024 / 1024 / 1024).toFixed(2) };
+})();
+
 async function handlePing(interaction) {
     const sent = await interaction.editReply({ content: 'Pinging system...', fetchReply: true });
     const roundtripLatency = sent.createdTimestamp - interaction.createdTimestamp;
     const apiLatency = Math.round(interaction.client.ws.ping);
-
-    const os = require('os');
-    const fs = require('fs');
-    const path = require('path');
-
-    let botVersion = 'Unknown';
-    try {
-        const pkg = require(path.join(process.cwd(), 'package.json'));
-        botVersion = pkg.version;
-    } catch (e) { console.debug('[Ping] Could not read package.json version:', e.message); }
-
-    // Get detailed OS info
-    let hostOs = `${os.type()} ${os.release()}`;
-    try {
-        if (fs.existsSync('/etc/os-release')) {
-            const fileContent = fs.readFileSync('/etc/os-release', 'utf8');
-            const match = fileContent.match(/PRETTY_NAME="([^"]+)"/);
-            if (match && match[1]) {
-                hostOs = match[1];
-            }
-        }
-    } catch (e) { console.debug('[Ping] Could not read /etc/os-release:', e.message); }
-
-    // Robust CPU detection with multiple fallbacks
-    let cpuModel = 'Unknown CPU';
-    try {
-        const cpus = os.cpus();
-        if (cpus && cpus.length > 0 && cpus[0].model) {
-            cpuModel = cpus[0].model;
-        } else if (fs.existsSync('/proc/cpuinfo')) {
-            // Fallback for ARM/UserLand environments
-            const cpuinfo = fs.readFileSync('/proc/cpuinfo', 'utf8');
-            const modelMatch = cpuinfo.match(/model name\s*:\s*(.+)/i) ||
-                              cpuinfo.match(/Hardware\s*:\s*(.+)/i) ||
-                              cpuinfo.match(/Processor\s*:\s*(.+)/i) ||
-                              cpuinfo.match(/CPU part\s*:\s*(.+)/i);
-            if (modelMatch) {
-                cpuModel = modelMatch[1].trim();
-            } else {
-                // Count cores as fallback
-                const coreCount = (cpuinfo.match(/processor\s*:/gi) || []).length;
-                cpuModel = coreCount > 0 ? `${coreCount}-core processor` : 'Unknown';
-            }
-        }
-
-        // If still unknown, try lscpu command
-        if (cpuModel === 'Unknown CPU' || cpuModel === 'Unknown') {
-            try {
-                const { execSync } = require('child_process');
-                const lscpuOutput = execSync('lscpu 2>/dev/null || cat /proc/cpuinfo 2>/dev/null', { encoding: 'utf8', timeout: 2000 });
-                const nameMatch = lscpuOutput.match(/Model name:\s*(.+)/i) ||
-                                 lscpuOutput.match(/Architecture:\s*(.+)/i);
-                if (nameMatch) {
-                    cpuModel = nameMatch[1].trim();
-                }
-            } catch (cmdErr) {}
-        }
-
-        // Final fallback: just show architecture
-        if (cpuModel === 'Unknown CPU' || cpuModel === 'Unknown') {
-            cpuModel = `${os.arch()} processor`;
-        }
-    } catch (e) {
-        cpuModel = `${os.arch()} processor`;
-    }
     const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
-    const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2);
 
     const uptime = formatUptime(getProcessUptimeSeconds());
 
@@ -84,13 +67,13 @@ async function handlePing(interaction) {
         .setTitle('🏓 Pong!')
         .setColor(0x3498db)
         .addFields(
-            { name: '🤖 Bot Version', value: `v${botVersion}`, inline: true },
+            { name: '🤖 Bot Version', value: `v${_sysInfo.botVersion}`, inline: true },
             { name: '🛠️ Node Runtime', value: `${process.version}`, inline: true },
             { name: '📶 Latency', value: `API: \`${apiLatency}ms\`\nRT: \`${roundtripLatency}ms\``, inline: true },
             { name: '⏱️ Uptime', value: `\`${uptime}\``, inline: true },
-            { name: '🧠 Memory', value: `${freeMem}GB / ${totalMem}GB Free`, inline: true },
-            { name: '⚙️ Processor', value: cpuModel, inline: true },
-            { name: '🐧 Host OS', value: hostOs, inline: true }
+            { name: '🧠 Memory', value: `${freeMem}GB / ${_sysInfo.totalMem}GB Free`, inline: true },
+            { name: '⚙️ Processor', value: _sysInfo.cpuModel, inline: true },
+            { name: '🐧 Host OS', value: _sysInfo.hostOs, inline: true }
         )
         .setFooter({ text: 'Jarvis Systems Online' })
         .setTimestamp();
