@@ -380,7 +380,9 @@ client.once(Events.ClientReady, async() => {
         console.warn('Failed to start meme sender:', e);
     }
 
-    console.log('Provider status on startup:', aiManager.getProviderStatus());
+    const providerStatus = aiManager.getProviderStatus();
+    const working = providerStatus.filter(p => !p.hasError && !p.isDisabled).length;
+    console.log(`Provider status on startup: ${working}/${providerStatus.length} models available`);
 });
 
 
