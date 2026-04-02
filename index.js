@@ -474,7 +474,7 @@ async function startBot() {
                     }
                 }
             }
-            // Start DNS auto-refresh (updates @ and www A records every 5 min)
+            // Start DNS auto-refresh (updates @ and www A/AAAA records every minute)
             cloudflareDomain.startDnsRefresh();
         } catch (cfErr) {
             console.log(`[Domain] Auto-config skipped: ${cfErr.message}`);

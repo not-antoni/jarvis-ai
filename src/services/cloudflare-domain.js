@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { isIP } = require('node:net');
 const { execSync, spawnSync } = require('child_process');
 const CLOUDFLARE_API_BASE = 'https://api.cloudflare.com/client/v4';
 const CONFIG_CACHE_FILE = path.join(process.cwd(), 'data', 'cloudflare-config.json');
@@ -35,6 +36,24 @@ function getNginxHttp2Syntax() {
         // Default to old syntax (safer for Linux Mint / Ubuntu LTS)
         return { listen: ' http2', directive: '' };
     }
+}
+function normalizeHostTarget(value) {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) { return ''; }
+    if (trimmed.startsWith('[')) {
+        const closingBracket = trimmed.indexOf(']');
+        if (closingBracket > 0) {
+            return trimmed.slice(1, closingBracket);
+        }
+    }
+    return trimmed;
+}
+function detectDnsRecordType(target) {
+    const normalizedTarget = normalizeHostTarget(target);
+    const family = isIP(normalizedTarget);
+    if (family === 4) { return 'A'; }
+    if (family === 6) { return 'AAAA'; }
+    return 'CNAME';
 }
 function canSudo() {
     try {
@@ -582,22 +601,31 @@ async function configureForSelfhost(target, subdomain = null) {
     const { domain } = config;
     if (!domain) {throw new Error('JARVIS_DOMAIN not configured');}
     if (!target) {throw new Error('Target IP or hostname required');}
-    const recordType = /^(\d{1,3}\.){3}\d{1,3}$/.test(target) ? 'A' : 'CNAME';
-    return { success: true, domain, target, recordType, records: await upsertDomainRecords(domain, recordType, target, subdomain) };
+    const normalizedTarget = normalizeHostTarget(target);
+    const recordType = detectDnsRecordType(normalizedTarget);
+    return {
+        success: true,
+        domain,
+        target: normalizedTarget,
+        recordType,
+        records: await upsertDomainRecords(domain, recordType, normalizedTarget, subdomain)
+    };
 }
 function isRunningOnRender() {
     return !!(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID);
 }
 function extractHostname(urlOrHost) {
-    if (!urlOrHost) { return null; }
-    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(urlOrHost)) {
-        return urlOrHost;
+    const rawValue = String(urlOrHost || '').trim();
+    if (!rawValue) { return null; }
+    const normalizedTarget = normalizeHostTarget(rawValue);
+    if (isIP(normalizedTarget)) {
+        return normalizedTarget;
     }
-    if (!urlOrHost.includes('://')) {
-        return urlOrHost.split(':')[0];
+    if (!rawValue.includes('://')) {
+        return rawValue.split(':')[0];
     }
     try {
-        return new URL(urlOrHost).hostname;
+        return normalizeHostTarget(new URL(rawValue).hostname);
     } catch {
         return null;
     }
@@ -618,8 +646,8 @@ function detectTarget() {
     }
     try {
         const { execSync } = require('child_process');
-        const ip = execSync('curl -s --max-time 3 ifconfig.me', { encoding: 'utf8' }).trim();
-        if (ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+        const ip = normalizeHostTarget(execSync('curl -s --max-time 3 https://ifconfig.me/ip', { encoding: 'utf8' }).trim());
+        if (ip && detectDnsRecordType(ip) !== 'CNAME') {
             return {
                 mode: 'selfhost',
                 target: ip
@@ -676,43 +704,67 @@ async function autoConfigure(options = {}) {
 }
 // ── DNS auto-refresh (runs in-process) ──────────────────────────────────────
 const DNS_REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute
-let _lastKnownIp = null;
+const PUBLIC_IP_SOURCES = {
+    A: ['https://api4.ipify.org', 'https://ipv4.icanhazip.com', 'https://ifconfig.me/ip'],
+    AAAA: ['https://api6.ipify.org', 'https://ipv6.icanhazip.com', 'https://ifconfig.me/ip']
+};
+let _lastKnownIps = { A: null, AAAA: null };
 let _dnsRefreshTimer = null;
 
-async function getPublicIp() {
-    const sources = ['https://api.ipify.org', 'https://ifconfig.me/ip', 'https://icanhazip.com'];
+async function getPublicIp(recordType = 'A') {
+    const normalizedRecordType = recordType === 'AAAA' ? 'AAAA' : 'A';
+    const sources = PUBLIC_IP_SOURCES[normalizedRecordType];
     for (const url of sources) {
         try {
             const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-            const ip = (await res.text()).trim();
-            if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) return ip;
+            const ip = normalizeHostTarget((await res.text()).trim());
+            if (detectDnsRecordType(ip) === normalizedRecordType) { return ip; }
         } catch {}
     }
     return null;
 }
 
-async function refreshDnsRecords() {
-    const config = getConfig();
+async function refreshDnsRecords(deps = {}) {
+    const config = deps.config || getConfig();
     if (!config.domain || !config.zoneId) return;
-    const authHeaders = getAuthHeaders();
+    const authHeaders = Object.prototype.hasOwnProperty.call(deps, 'authHeaders')
+        ? deps.authHeaders
+        : getAuthHeaders();
     if (!authHeaders) return;
+    const resolvePublicIp = deps.resolvePublicIp || getPublicIp;
+    const upsertRecord = deps.upsertDnsRecord || upsertDnsRecord;
+    const logger = deps.logger || console;
 
     try {
-        const ip = await getPublicIp();
-        if (!ip) return;
-        if (ip === _lastKnownIp) return;
-
         const names = [config.domain, `www.${config.domain}`];
-        for (const name of names) {
+        for (const recordType of ['A', 'AAAA']) {
             try {
-                await upsertDnsRecord(name, 'A', ip, { proxied: true });
-            } catch (err) {
-                console.warn(`[DNS] Failed to update ${name}:`, err.message);
-            }
+                const ip = normalizeHostTarget(await resolvePublicIp(recordType));
+                if (!ip || detectDnsRecordType(ip) !== recordType || ip === _lastKnownIps[recordType]) { continue; }
+
+                for (const name of names) {
+                    try {
+                        await upsertRecord(name, recordType, ip, { proxied: true });
+                    } catch (err) {
+                        logger.warn(`[DNS] Failed to update ${name} ${recordType}:`, err.message);
+                    }
+                }
+
+                if (_lastKnownIps[recordType]) {
+                    logger.log(`[DNS] ${recordType} changed ${_lastKnownIps[recordType]} → ${ip}, records updated`);
+                }
+                _lastKnownIps[recordType] = ip;
+            } catch {}
         }
-        if (_lastKnownIp) console.log(`[DNS] IP changed ${_lastKnownIp} → ${ip}, A records updated`);
-        _lastKnownIp = ip;
     } catch {}
+}
+
+function resetDnsRefreshState() {
+    _lastKnownIps = { A: null, AAAA: null };
+    if (_dnsRefreshTimer) {
+        clearInterval(_dnsRefreshTimer);
+        _dnsRefreshTimer = null;
+    }
 }
 
 function startDnsRefresh() {
@@ -734,4 +786,11 @@ module.exports = {
     ensureCloudflareIpsTimer,
     startDnsRefresh,
     stopDnsRefresh,
+    __testing: {
+        detectDnsRecordType,
+        extractHostname,
+        getPublicIp,
+        refreshDnsRecords,
+        resetDnsRefreshState,
+    }
 };
