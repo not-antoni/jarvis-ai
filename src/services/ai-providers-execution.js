@@ -665,7 +665,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                                     clearGlobal();
                                 })
                                 .catch(() => {
-                                    setTimeout(clearGlobal, clearAfter - 5 * 60 * 1000).unref?.();
+                                    setTimeout(clearGlobal, Math.max(0, clearAfter - 5 * 60 * 1000)).unref?.();
                                 });
                         },
                         5 * 60 * 1000
