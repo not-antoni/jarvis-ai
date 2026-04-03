@@ -71,8 +71,8 @@ class AIProviderManager {
         this.metrics = new Map();
         this.disabledProviders = new Map();
         this.roundRobinIndex = 0;
-        this.sessionStickiness = new LRUCache({ max: 10000, ttl: 60 * 1000 }); // userId -> provider
-        this.sessionStickinessMs = 60 * 1000; // 60 seconds
+        this.sessionStickiness = new LRUCache({ max: 10000, ttl: 15 * 1000 }); // userId -> provider
+        this.sessionStickinessMs = 15 * 1000; // 15 seconds
         this.selectedProviderType = config.ai?.provider || 'auto'; // 'auto' | 'openai' | 'groq' | 'openrouter' | 'google' | 'deepseek'
         // OpenRouter rolling outage guardrails
         this.openRouterGlobalFailure = false;
