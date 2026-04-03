@@ -150,16 +150,32 @@ function stripRefusalsAndIdentityBreaks(text) {
     out = out.replace(/\s*(?:However|That said|But seriously),?\s*(?:I (?:strongly |would )?(?:advise|recommend|suggest|encourage|urge)|please (?:don't|do not))[^.]*\.?\s*$/i, '');
     return out.trim();
 }
+function stripFullAsteriskWrap(text) {
+    if (!text || typeof text !== 'string') {return text;}
+    const trimmed = text.trim();
+    if (!trimmed.startsWith('*') || trimmed.startsWith('**')) {return text;}
+    if (!trimmed.endsWith('*') || trimmed.endsWith('**')) {return text;}
+    if (trimmed.length <= 2) {return text;}
+    const inner = trimmed.slice(1, -1);
+    // Only unwrap if there are no other asterisks inside (clear full-message wrap)
+    if (!inner.includes('*')) {return inner.trim();}
+    return text;
+}
 function stripAsteriskActions(text) {
     if (!text || typeof text !== 'string') {return text;}
     // Remove *action* patterns (e.g. *clears throat*, *adjusts tie*)
-    // but preserve markdown bold **word** and italic *word* used for emphasis
+    // Uses verb-based detection to avoid stripping emphasis like *very important*
+    const ACTION_VERB_RE = /^(?:adjusts?|backs?|bats?|beams?|blinks?|blushes?|bounces?|bows?|breathes?|brushes?|chuckles?|claps?|clears?|clenches?|coughs?|covers?|cracks?|cries|crosses|curtsies?|dances?|dives?|dons?|ducks?|exhales?|extends?|facepalms?|fidgets?|fixes?|flexes?|flinches?|flips?|floats?|frowns?|furrows?|gasps?|gestures?|giggles?|glances?|glares?|grabs?|grins?|groans?|gulps?|holds?|hugs?|inhales?|jumps?|kicks?|kneels?|laughs?|leans?|leaps?|lifts?|looks?|lowers?|mumbles?|mutters?|narrows?|nods?|nudges?|opens?|peeks?|places?|plays?|plops?|points?|pokes?|ponders?|pops?|pouts?|pulls?|punches?|pushes?|puts?|raises?|reaches?|rolls?|rubs?|runs?|salutes?|scratches?|shakes?|shifts?|shrugs?|shudders?|sighs?|sits?|slams?|slaps?|slides?|smacks?|smiles?|smirks?|snaps?|snickers?|sniffs?|snorts?|spins?|squints?|stands?|stares?|steps?|stiffens?|stops?|stretches?|strikes?|strokes?|stumbles?|swallows?|sweats?|takes?|taps?|thinks?|throws?|tightens?|tilts?|tips?|tosses?|touches?|tugs?|turns?|twirls?|twitches?|uncrosses?|unfolds?|wags?|walks?|waves?|whispers?|wiggles?|winks?|wipes?|yawns?)$/i;
     return text.replace(/\*[a-z][^*\n]{2,60}\*(?:\s*)/gi, (match) => {
-        // Keep if it looks like markdown emphasis (single word or short phrase without verbs)
         const inner = match.trim().slice(1, -1).trim();
         const words = inner.split(/\s+/);
-        // Action patterns typically have verbs — 2+ words or gerund-like
-        if (words.length >= 2 || /(?:ing|tion|ly)$/i.test(inner)) {
+        const firstWord = words[0];
+        // Single word: only strip known action verbs or gerunds
+        if (words.length === 1) {
+            return (/^[a-z]+ing$/i.test(inner) || ACTION_VERB_RE.test(inner)) ? '' : match;
+        }
+        // Multi-word: only strip if first word is an action verb or gerund
+        if (ACTION_VERB_RE.test(firstWord) || /^[a-z]+ing$/i.test(firstWord)) {
             return '';
         }
         return match;
@@ -216,7 +232,8 @@ function sanitizeAssistantMessage(text) {
     const layered = cleanThinkingOutput(sanitizeModelOutput(withoutCoT));
     const withoutPromptLeaks = stripLeadingPromptLeaks(layered);
     const withoutRefusals = stripRefusalsAndIdentityBreaks(withoutPromptLeaks);
-    const withoutActions = stripAsteriskActions(withoutRefusals);
+    const withoutFullWrap = stripFullAsteriskWrap(withoutRefusals);
+    const withoutActions = stripAsteriskActions(withoutFullWrap);
     const withoutPrefix = stripJarvisSpeakerPrefix(withoutActions);
     const withoutChannelArtifacts = hadChannelArtifacts
         ? stripTrailingChannelArtifacts(withoutPrefix)
