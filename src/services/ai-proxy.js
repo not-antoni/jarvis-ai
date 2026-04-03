@@ -622,8 +622,8 @@ function createProxyingFetch() {
         const baseRedirect = baseRequest.redirect;
         const baseDuplex = init && Object.prototype.hasOwnProperty.call(init, 'duplex') ? init.duplex : undefined;
 
-        const PROXY_ATTEMPT_TIMEOUT_MS = 10_000; // per-attempt ceiling — fail fast, fall back to direct
-        const PROXY_PHASE_BUDGET_MS = 10_000;  // try ONE proxy seriously, then fall back to direct
+        const PROXY_ATTEMPT_TIMEOUT_MS = 7_000; // covers p95 (3.9s) with headroom; fail fast beyond that
+        const PROXY_PHASE_BUDGET_MS = 7_000;   // try ONE proxy seriously, then fall back to direct
         const MAX_PROXY_ATTEMPTS = 1;          // don't cycle — all workers hit the same provider
 
         const buildRequestForUrl = (nextUrl, extraHeaders, signal) => {
