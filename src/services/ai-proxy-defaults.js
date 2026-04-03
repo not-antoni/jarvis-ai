@@ -14,6 +14,10 @@ const DEFAULT_BYPASS_HOSTS = [
     // Google Gemini rate limits are tied to the Google project/key,
     // so rotating Cloudflare workers only multiplies 429s instead of helping.
     'generativelanguage.googleapis.com',
+    // Groq rate limits by API key, not IP — proxy just adds latency.
+    'api.groq.com',
+    // NVIDIA NIM rate limits by API key — proxy just adds latency.
+    'integrate.api.nvidia.com',
     // Vercel AI Gateway rejects proxied requests (403) — must go direct.
     'ai-gateway.vercel.sh'
 ];

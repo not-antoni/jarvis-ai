@@ -622,8 +622,8 @@ function createProxyingFetch() {
         const baseRedirect = baseRequest.redirect;
         const baseDuplex = init && Object.prototype.hasOwnProperty.call(init, 'duplex') ? init.duplex : undefined;
 
-        const PROXY_ATTEMPT_TIMEOUT_MS = 18_000; // generous per-attempt ceiling (AI calls take 5-15s)
-        const PROXY_PHASE_BUDGET_MS = 18_000;  // try ONE proxy seriously, then fall back to direct
+        const PROXY_ATTEMPT_TIMEOUT_MS = 10_000; // per-attempt ceiling — fail fast, fall back to direct
+        const PROXY_PHASE_BUDGET_MS = 10_000;  // try ONE proxy seriously, then fall back to direct
         const MAX_PROXY_ATTEMPTS = 1;          // don't cycle — all workers hit the same provider
 
         const buildRequestForUrl = (nextUrl, extraHeaders, signal) => {
@@ -748,6 +748,23 @@ function createProxyingFetch() {
 }
 
 let _cachedFetch = null;
+let _warmInterval = null;
+
+function startWorkerWarming() {
+    if (_warmInterval) {return;}
+    const config = buildConfigFromEnv();
+    const urls = config.proxyUrls;
+    if (!urls.length || !config.enabled) {return;}
+
+    const WARM_INTERVAL_MS = 45_000; // ping every 45s — CF free workers cold-start after ~30s idle
+    _warmInterval = setInterval(() => {
+        for (const proxyBase of urls) {
+            // A GET with no ?url= returns 400 but still warms the worker
+            fetch(proxyBase, { method: 'HEAD', signal: AbortSignal.timeout(5000) }).catch(() => {});
+        }
+    }, WARM_INTERVAL_MS);
+    _warmInterval.unref(); // don't prevent process exit
+}
 
 function getAIFetch() {
     if (!_cachedFetch) {
@@ -756,6 +773,7 @@ function getAIFetch() {
         // (e.g. Google Generative AI) route through the proxy automatically.
         // Safe because baseFetch is captured at creation time, not call time.
         global.fetch = _cachedFetch;
+        startWorkerWarming();
     }
 
     return _cachedFetch;
