@@ -181,11 +181,39 @@ function unwrapJsonEnvelope(text) {
     } catch { /* not JSON, pass through */ }
     return text;
 }
+function stripChainOfThought(text) {
+    if (!text || typeof text !== 'string') {return text;}
+    const trimmed = text.trim();
+    // Detect CoT: starts with "User: <name>" and contains bullet reasoning "* Input:" or "* Context:"
+    if (!/^(?:[•\-*]\s*)?User:\s*\w/i.test(trimmed) ||
+        !/\*\s*(?:Input|Context|Role|Current constraints):/i.test(trimmed)) {
+        return text;
+    }
+    // The model outputs: ..."selected response"selected response (duplicated at end)
+    // Find all quoted strings, take the last one, then check for text after it
+    const allQuotes = [...trimmed.matchAll(/"([^"]{10,})"/g)];
+    if (allQuotes.length > 0) {
+        const lastQuoted = allQuotes[allQuotes.length - 1];
+        const afterQuote = trimmed.slice(lastQuoted.index + lastQuoted[0].length).trim();
+        if (afterQuote.length > 5) {return afterQuote;}
+        return lastQuoted[1].trim();
+    }
+    // Fallback: take text after the last bullet that isn't a question
+    const bullets = trimmed.split(/\s*\*\s+/);
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i].trim();
+        if (b.length > 5 && !/\?\s*(Yes|No)/i.test(b)) {
+            return b.replace(/^"([\s\S]+)"$/, '$1').trim();
+        }
+    }
+    return text;
+}
 function sanitizeAssistantMessage(text) {
     if (!text || typeof text !== 'string') {return text;}
     const unwrapped = unwrapJsonEnvelope(text);
-    const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(unwrapped);
-    const layered = cleanThinkingOutput(sanitizeModelOutput(unwrapped));
+    const withoutCoT = stripChainOfThought(unwrapped);
+    const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(withoutCoT);
+    const layered = cleanThinkingOutput(sanitizeModelOutput(withoutCoT));
     const withoutPromptLeaks = stripLeadingPromptLeaks(layered);
     const withoutRefusals = stripRefusalsAndIdentityBreaks(withoutPromptLeaks);
     const withoutActions = stripAsteriskActions(withoutRefusals);
@@ -298,7 +326,8 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             ],
             generationConfig: {
                 temperature: config.ai?.temperature ?? 0.7,
-                maxOutputTokens: maxTokens
+                maxOutputTokens: maxTokens,
+                thinkingConfig: { thinkingBudget: 0 }
             }
         });
                 } catch (geminiError) {
@@ -326,32 +355,34 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                         status: 400
                     });
                 }
-                let text = null;
-                try {
-                    text = typeof response?.text === 'function' ? response.text() : null;
-                } catch (textError) {
-                    console.warn(`Gemini text() extraction failed: ${textError.message}`);
-                }
-                if (!text || !text.trim()) {
-                    const fallbackParts =
-                        response?.candidates?.flatMap(
-                            candidate => candidate?.content?.parts || []
-                        ) || [];
-                    text = fallbackParts
-                        .map(part => {
-                            if (typeof part?.text === 'string') {
-                                return part.text;
-                            }
-                            if (part?.inlineData?.data) {
-                                return Buffer.from(part.inlineData.data, 'base64').toString(
-                                    'utf8'
-                                );
-                            }
-                            return null;
-                        })
-                        .filter(Boolean)
-                        .join('\n')
-                        .trim();
+                // Extract text from response parts, skipping thinking/thought parts
+                const allParts =
+                    response?.candidates?.flatMap(
+                        candidate => candidate?.content?.parts || []
+                    ) || [];
+                let text = allParts
+                    .filter(part => !part?.thought)
+                    .map(part => {
+                        if (typeof part?.text === 'string') {
+                            return part.text;
+                        }
+                        if (part?.inlineData?.data) {
+                            return Buffer.from(part.inlineData.data, 'base64').toString(
+                                'utf8'
+                            );
+                        }
+                        return null;
+                    })
+                    .filter(Boolean)
+                    .join('\n')
+                    .trim();
+                // Fallback to response.text() if parts extraction yielded nothing
+                if (!text) {
+                    try {
+                        text = typeof response?.text === 'function' ? response.text() : null;
+                    } catch (textError) {
+                        console.warn(`Gemini text() extraction failed: ${textError.message}`);
+                    }
                 }
                 if (!text) {
                     const debugInfo = finishReason ? ` (finishReason: ${finishReason})` : '';
