@@ -513,13 +513,10 @@ class MusicManager {
                 if (!state || state.connection !== connection) {
                     return;
                 }
-                if (attempt > VOICE_RECONNECT_ATTEMPTS) {
-                    await notifyAndLeave('⚠️ Voice connection error, leaving channel.');
-                    return;
-                }
-                const delayMs = VOICE_RECONNECT_DELAY_MS * Math.min(attempt, 4);
+                // Never give up -- keep trying with capped backoff
+                const delayMs = Math.min(VOICE_RECONNECT_DELAY_MS * attempt, 60_000);
                 console.warn(
-                    `[Voice] Recovery attempt ${attempt}/${VOICE_RECONNECT_ATTEMPTS} for guild ${guildId} (trigger=${trigger}, code=${closeCode ?? 'n/a'})`
+                    `[Voice] Recovery attempt ${attempt} for guild ${guildId} (trigger=${trigger}, code=${closeCode ?? 'n/a'}, next in ${delayMs}ms)`
                 );
                 await delay(delayMs);
                 const liveState = this.queues.get(guildId);
@@ -533,16 +530,12 @@ class MusicManager {
                 }
                 await entersState(connection, VoiceConnectionStatus.Ready, VOICE_READY_TIMEOUT_MS);
                 reconnectAttempts = 0;
-                console.log(`[Voice] Recovered voice connection for guild ${guildId}`);
+                console.log(`[Voice] Recovered voice connection for guild ${guildId} after ${attempt} attempt(s)`);
             } catch (error) {
                 console.warn(
-                    `[Voice] Recovery failed for guild ${guildId}:`,
+                    `[Voice] Recovery attempt ${attempt} failed for guild ${guildId}:`,
                     error?.message || error
                 );
-                if (reconnectAttempts >= VOICE_RECONNECT_ATTEMPTS) {
-                    await notifyAndLeave('⚠️ Voice connection error, leaving channel.');
-                    return;
-                }
             } finally {
                 recovering = false;
             }
@@ -656,7 +649,15 @@ class MusicManager {
             if (state?.textChannel) {
                 safeSend(state.textChannel, { content: '⚠️ Playback error.' }, this.client).catch(() => { });
             }
-            this.cleanup(guildId);
+            // Stay connected -- try next track or idle in VC
+            if (state) {
+                this.releaseCurrent(state);
+                if (state.queue.length > 0) {
+                    this.playNextAvailableFromQueue(guildId, state, { announce: 'channel' }).catch(e => {
+                        console.warn('[Voice] Failed to advance queue after player error:', e?.message || e);
+                    });
+                }
+            }
         });
         return player;
     }
