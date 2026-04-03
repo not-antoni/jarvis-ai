@@ -276,14 +276,15 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         const started = Date.now();
         const callOnce = async() => {
             if (provider.type === 'google') {
-    // Gemma models don't support systemInstruction — inject it into the user message instead
-    const isGemma = provider.model.toLowerCase().startsWith('gemma');
+    // Gemma 3 and below don't support systemInstruction — inject it into the user message instead
+    // Gemma 4+ supports native systemInstruction
+    const isGemmaLegacy = /^gemma-[1-3]/i.test(provider.model);
     const model = provider.client.getGenerativeModel(
-        isGemma
+        isGemmaLegacy
             ? { model: provider.model, safetySettings: GEMINI_SAFETY_OFF }
             : { model: provider.model, systemInstruction: systemPrompt, safetySettings: GEMINI_SAFETY_OFF }
     );
-    const effectiveUserPrompt = isGemma && systemPrompt
+    const effectiveUserPrompt = isGemmaLegacy && systemPrompt
         ? `${systemPrompt}\n\n${userPrompt}`
         : userPrompt;
     let result;

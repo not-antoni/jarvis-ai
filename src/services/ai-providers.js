@@ -105,7 +105,7 @@ class AIProviderManager {
         // Auto-discover all OPENROUTER_API_KEY, OPENROUTER_API_KEY2, etc.
         const openRouterKeys = discoverEnvKeys('OPENROUTER_API_KEY');
         const openRouterModels = [
-            'google/gemma-3-27b-it:free'
+            'google/gemma-4-31b-it'
         ];
         openRouterKeys.forEach((key, keyIndex) => {
             openRouterModels.forEach((model) => {
@@ -125,7 +125,7 @@ class AIProviderManager {
                     model,
                     type: 'openai-chat',
                     family: 'openrouter',
-                    costTier: 'free'
+                    costTier: 'paid'
                 });
             });
         });
@@ -236,7 +236,7 @@ class AIProviderManager {
             'gemini-3-pro-preview',
             'gemini-2.5-pro',
             'gemini-2.0-flash',
-            'gemma-3-27b-it',
+            'gemma-4-31b-it',
         ];
         googleKeys.forEach((key, keyIndex) => {
             googleModels.forEach((model) => {
