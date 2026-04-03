@@ -277,7 +277,8 @@ class AIProviderManager {
         // Auto-discover all NVIDIA_API_KEY, NVIDIA_API_KEY2, etc.
         const nvidiaKeys = discoverEnvKeys('NVIDIA_API_KEY');
         const nvidiaModels = [
-            'deepseek-ai/deepseek-v3.2' // Primary — set in env NVIDIA_MODEL to override
+            'google/gemma-4-31b-it',
+            'deepseek-ai/deepseek-v3.2'
         ];
         const nvidiaModelOverride = process.env.NVIDIA_MODEL;
         const resolvedNvidiaModels = nvidiaModelOverride ? [nvidiaModelOverride] : nvidiaModels;
