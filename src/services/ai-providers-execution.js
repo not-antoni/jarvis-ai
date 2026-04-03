@@ -324,11 +324,12 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                     parts: [{ text: effectiveUserPrompt }]
                 }
             ],
-            generationConfig: {
-                temperature: config.ai?.temperature ?? 0.7,
-                maxOutputTokens: maxTokens,
-                thinkingConfig: { thinkingBudget: 0 }
-            }
+            generationConfig: Object.assign(
+                { temperature: config.ai?.temperature ?? 0.7, maxOutputTokens: maxTokens },
+                // Disable thinking for Gemma models (useless for short roleplay replies)
+                // Don't set for Gemini 2.5/3.x — thinking can't be fully disabled on those
+                /^gemma/i.test(provider.model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}
+            )
         });
                 } catch (geminiError) {
                     const errorMessage = geminiError?.message || String(geminiError);
