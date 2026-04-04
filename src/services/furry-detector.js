@@ -2,11 +2,22 @@
 
 const { generateText } = require('ai');
 const { createOpenAI } = require('@ai-sdk/openai');
+const { PermissionFlagsBits } = require('discord.js');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FURRY_GUILD_ID = '858444090374881301';
 const CONFIDENCE_THRESHOLD = 0.8;
 const MODEL_ID = 'google/gemini-2.5-flash';
+
+// Contingency settings
+const CONTINGENCY_WINDOW_MS = 10_000;      // 10 second rolling window
+const CONTINGENCY_THRESHOLD = 5;            // 5 detections = contingency
+const CONTINGENCY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes timeout
+const CONTINGENCY_ALERT_EXPIRE_MS = 30_000; // 30 seconds
+
+// Robustness timeouts
+const FETCH_IMAGE_TIMEOUT_MS = 15_000;     // 15s max to download image
+const AI_ANALYSIS_TIMEOUT_MS = 45_000;     // 45s max for AI response
 
 // Vercel AI Gateway keys
 const GATEWAY_KEYS = Object.keys(process.env)
@@ -17,17 +28,34 @@ const GATEWAY_KEYS = Object.keys(process.env)
 
 const DETECTION_PROMPT = [
     'Analyze this image. Does it contain cringe content?',
-    'Cringe content includes ANY of the following:',
+    '',
+    '=== CRITICAL ANTI-LOOP RULE (MUST FOLLOW FIRST - HIGHEST PRIORITY) ===',
+    'If the image is a screenshot of a Discord bot alert that contains ANY of the following:',
+    '- Text like "🚨 **FURRY CONTENT DETECTED** 🚨", "**CRINGE ANIME CONTENT DETECTED**", "**NSFW CONTENT DETECTED**", or "**CRINGE CONTENT DETECTED**"',
+    '- Multiple 🚨 siren emojis and 💀 skull emojis',
+    '- Mentions of a user posting cringe, confidence percentage, reason, owner ping, and a "[Jump to message]" link',
+    '- Looks like a Discord message from the cringe/furry detector bot',
+    'THEN this is a screenshot of THIS bot\'s own alert. Force the following JSON:',
+    '{"cringe": false, "confidence": 0.0, "type": "none", "reason": "screenshot of bot alert - ignored to prevent infinite loop"}',
+    'Do NOT analyze the alert text as cringe content. This rule has highest priority.',
+    '',
+    '=== NORMAL CRINGE DETECTION (only if the anti-loop rule above does NOT match) ===',
+    'IMPORTANT CLARIFICATION ABOUT TEXT (read this before anything else):',
+    '• Do NOT flag an image just because it contains the words "furry", "cringe", "anime", "NSFW", "boykisser", or similar as text overlay, caption, label, meme text, or watermark.',
+    '• Text alone is NEVER enough to trigger. Only trigger on the actual VISUAL content described below.',
+    '• A plain image that says "literally furry" or "this is furry" with no anthropomorphic animals is NOT cringe.',
+    '',
+    'Cringe content includes ANY of the following VISUAL elements:',
     '',
     'FURRY:',
-    '- Anthropomorphic animal characters (animals with human features: standing upright, wearing clothes, human expressions/poses)',
+    '- Anthropomorphic animal characters (animals with human features: standing upright, wearing clothes, human expressions/poses, hands, etc.)',
     '- Furry fandom artwork, fursona art',
-    '- The "boykisser" meme or similar furry memes',
+    '- The "boykisser" meme or similar furry memes that actually show the character',
     '- Stylized cartoon/anime animals with a distinctly "furry fandom" aesthetic',
     '',
     'CRINGE ANIME:',
     '- Ahegao faces or expressions (exaggerated orgasmic anime face with rolled-back eyes, tongue out)',
-    '- Ahegao hoodies, clothing, stickers, or merchandise',
+    '- Ahegao hoodies, clothing, stickers, or merchandise (only if the visual shows them)',
     '- Hentai or ecchi artwork',
     '- Waifu body pillows (dakimakura)',
     '- Overly sexualized anime characters',
@@ -39,7 +67,11 @@ const DETECTION_PROMPT = [
     '- Suggestive poses clearly meant to be sexual',
     '- Porn stars, OnlyFans-type content, or anything you would not open at work',
     '',
-    'NOT cringe: normal selfies, swimwear at a beach in a casual context, regular anime screenshots, standard profile pictures, normal animal photos.',
+    'NOT cringe (explicitly allowed):',
+    '- Normal selfies, swimwear at a beach in a casual context, regular anime screenshots, standard profile pictures, normal animal photos',
+    '- Images that are just text, memes, or screenshots containing the word "furry" or "cringe" without any of the visual elements above',
+    '- Discord UI screenshots, chat logs, or bot messages that do not match the anti-loop rule',
+    '- Regular cartoon animals in a non-furry style (e.g. Disney, normal memes)',
     '',
     'Respond with ONLY valid JSON, no markdown:',
     '{"cringe": true/false, "confidence": 0.0-1.0, "type": "furry"|"anime"|"nsfw"|"none", "reason": "brief description"}',
@@ -47,10 +79,24 @@ const DETECTION_PROMPT = [
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
 const scanCooldowns = new Map();       // userId -> timestamp
-const SCAN_COOLDOWN_MS = 5_000;
+const SCAN_COOLDOWN_MS = 10_000;
 const guildScanTimestamps = [];        // rolling window of guild-wide scans
 const GUILD_RATE_WINDOW_MS = 60_000;
 const GUILD_RATE_MAX = 60;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Races a promise against a timeout. Rejects with a timeout error if the
+ * promise doesn't resolve within `ms` milliseconds.
+ */
+function withTimeout(promise, ms, label = 'operation') {
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`[FurryDetector] ${label} timed out after ${ms}ms`)), ms);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
 
 // ── Service ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +113,10 @@ class FurryDetector {
         }));
         this._keyIndex = 0;
         this._deadKeys = new Set(); // indices of keys that return 403
+
+        // Contingency system
+        this.recentDetections = [];      // rolling 10s window of detections
+        this.activeContingency = null;
     }
 
     get enabled() {
@@ -74,7 +124,6 @@ class FurryDetector {
     }
 
     _getProvider() {
-        // Skip dead keys
         for (let i = 0; i < this._providers.length; i++) {
             const idx = (this._keyIndex + i) % this._providers.length;
             if (!this._deadKeys.has(idx)) {
@@ -87,7 +136,18 @@ class FurryDetector {
 
     async _fetchImage(url) {
         try {
-            const res = await fetch(url);
+            const controller = new AbortController();
+            const fetchPromise = fetch(url, { signal: controller.signal });
+
+            let res;
+            try {
+                res = await withTimeout(fetchPromise, FETCH_IMAGE_TIMEOUT_MS, `image fetch for ${url}`);
+            } catch (e) {
+                controller.abort();
+                console.warn('[FurryDetector] Image fetch timed out or failed:', e.message);
+                return null;
+            }
+
             if (!res.ok) return null;
             const buf = Buffer.from(await res.arrayBuffer());
             const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
@@ -100,14 +160,15 @@ class FurryDetector {
     }
 
     async _analyzeImage(imageData, mime) {
-        // Try each working key until one succeeds
-        for (let attempt = 0; attempt < this._providers.length - this._deadKeys.size; attempt++) {
+        const availableAttempts = this._providers.length - this._deadKeys.size;
+        for (let attempt = 0; attempt < availableAttempts; attempt++) {
             const pick = this._getProvider();
             if (!pick) return null;
 
             try {
                 const b64url = `data:${mime};base64,${imageData.toString('base64')}`;
-                const { text } = await generateText({
+
+                const aiCall = generateText({
                     model: pick.provider(MODEL_ID),
                     messages: [{
                         role: 'user',
@@ -117,6 +178,8 @@ class FurryDetector {
                         ],
                     }],
                 });
+
+                const { text } = await withTimeout(aiCall, AI_ANALYSIS_TIMEOUT_MS, 'AI image analysis');
                 const match = text.trim().match(/\{[\s\S]*\}/);
                 if (!match) return null;
                 return JSON.parse(match[0]);
@@ -155,6 +218,88 @@ class FurryDetector {
         return urls;
     }
 
+    _pruneDetections() {
+        const cutoff = Date.now() - CONTINGENCY_WINDOW_MS;
+        this.recentDetections = this.recentDetections.filter(d => d.timestamp >= cutoff);
+    }
+
+    async _triggerContingency(message) {
+        const violatorsMap = new Map();
+        for (const d of this.recentDetections) {
+            if (!violatorsMap.has(d.userId)) {
+                violatorsMap.set(d.userId, {
+                    userId: d.userId,
+                    type: d.type,
+                    confidence: d.confidence,
+                    messageUrl: d.messageUrl
+                });
+            }
+        }
+        const violators = Array.from(violatorsMap.values());
+
+        const channel = message.channel;
+        const e = id => message.client.emojis.cache.get(id)?.toString() || '';
+        const siren = e('931641762781491301') || '🚨';
+        const checkMark = '✅';
+
+        const alertText =
+            `${siren}${siren}${siren} **WARNING!!! Multiple violations of anti-cringe content detected in a 10 second window** ${siren}${siren}${siren}\n\n` +
+            `Requesting immediate contingency protocols activation by having one of the admins reacting with ${checkMark} on this message.\n\n` +
+            `(this alert expires in 30 seconds)`;
+
+        try {
+            const sentMessage = await channel.send(alertText);
+
+            this.activeContingency = {
+                messageId: sentMessage.id,
+                channelId: sentMessage.channel.id,
+                message: sentMessage,
+                violators: violators.map(v => ({
+                    userId: v.userId,
+                    reason: `${v.type} ${Math.round(v.confidence * 100)}%`
+                }))
+            };
+
+            console.log(`[CringeDetector] CONTINGENCY TRIGGERED — ${violators.length} unique users in 10s window`);
+
+            // Auto-expire after 30 seconds
+            setTimeout(async () => {
+                if (this.activeContingency && this.activeContingency.messageId === sentMessage.id) {
+                    try {
+                        await sentMessage.delete().catch(() => {});
+                        console.log('[CringeDetector] Contingency alert expired after 30 seconds');
+                    } catch (e) {}
+                    this.activeContingency = null;
+                }
+            }, CONTINGENCY_ALERT_EXPIRE_MS);
+
+        } catch (e) {
+            console.error('[FurryDetector] Failed to send contingency alert:', e.message);
+        }
+    }
+
+    _updateActiveContingency() {
+        if (!this.activeContingency) return;
+
+        const currentUserIds = new Set(this.activeContingency.violators.map(v => v.userId));
+        const toAdd = [];
+
+        for (const d of this.recentDetections) {
+            if (!currentUserIds.has(d.userId)) {
+                toAdd.push({
+                    userId: d.userId,
+                    reason: `${d.type} ${Math.round(d.confidence * 100)}%`
+                });
+                currentUserIds.add(d.userId);
+            }
+        }
+
+        if (toAdd.length > 0) {
+            this.activeContingency.violators.push(...toAdd);
+            console.log(`[CringeDetector] Added ${toAdd.length} more users to active contingency list`);
+        }
+    }
+
     async _sendAlert(message, result) {
         try {
             const owner = await message.guild.fetchOwner();
@@ -165,17 +310,24 @@ class FurryDetector {
             const skull2 = e('1172581116209807450') || '💀';
             const typeLabels = { furry: 'FURRY', anime: 'CRINGE ANIME', nsfw: 'NSFW' };
             const typeLabel = typeLabels[result.type] || 'CRINGE';
+
+            let timedOut = false;
+            try {
+                const member = message.member || await message.guild.members.fetch(message.author.id);
+                if (member && !member.isCommunicationDisabled()) {
+                    await member.timeout(5 * 1000, `Cringe detector: ${result.type} content (${pct}% confidence)`);
+                    timedOut = true;
+                }
+            } catch (_) {}
+
             const alert =
                 `${siren}${siren}${siren} **${typeLabel} CONTENT DETECTED** ${siren}${siren}${siren}\n` +
                 `${owner} — ${message.author} posted cringe in ${message.channel} ${skull1}${skull2}\n` +
                 `Confidence: **${pct}%** — ${result.reason}\n` +
                 `[Jump to message](${message.url})\n` +
+                (timedOut ? `⏱️ User has been timed out for 5 seconds.\n` : '') +
                 `${siren}${siren}${siren} Recommending to initiate contingency protocols immediately. ${siren}${siren}${siren}`;
             await message.channel.send(alert);
-            console.log(
-                `[CringeDetector] ALERT user=${message.author.id} ch=${message.channel.id} ` +
-                `type=${result.type} confidence=${pct}% reason="${result.reason}"`
-            );
         } catch (e) {
             console.error('[FurryDetector] Failed to send alert:', e.message);
         }
@@ -191,11 +343,9 @@ class FurryDetector {
 
         const now = Date.now();
 
-        // Per-user cooldown
         const last = scanCooldowns.get(message.author.id) || 0;
         if (now - last < SCAN_COOLDOWN_MS) return false;
 
-        // Guild-wide rate limit
         while (guildScanTimestamps.length && now - guildScanTimestamps[0] > GUILD_RATE_WINDOW_MS) {
             guildScanTimestamps.shift();
         }
@@ -211,11 +361,100 @@ class FurryDetector {
             const result = await this._analyzeImage(img.data, img.mime);
             if (result?.cringe && result.confidence >= CONFIDENCE_THRESHOLD) {
                 await this._sendAlert(message, result);
+
+                this.recentDetections.push({
+                    timestamp: now,
+                    userId: message.author.id,
+                    messageUrl: message.url,
+                    type: result.type,
+                    confidence: result.confidence,
+                    channelId: message.channel.id
+                });
+
+                this._pruneDetections();
+
+                if (this.recentDetections.length >= CONTINGENCY_THRESHOLD) {
+                    if (!this.activeContingency) {
+                        await this._triggerContingency(message);
+                    } else {
+                        this._updateActiveContingency();
+                    }
+                }
+
                 return false;
             }
         }
 
         return false;
+    }
+
+    // ── Funny Execution Sequence with Siren ──
+    async handleContingencyReaction(reaction, reactingUser) {
+        if (!this.activeContingency) return false;
+        if (reaction.message.id !== this.activeContingency.messageId) return false;
+        if (reaction.emoji.name !== '✅') return false;
+        if (reactingUser.bot) return false;
+
+        let hasPerm = false;
+        try {
+            const guild = reaction.message.guild;
+            if (guild && guild.id === FURRY_GUILD_ID) {
+                const member = await guild.members.fetch(reactingUser.id).catch(() => null);
+                if (member) {
+                    const perms = member.permissions;
+                    if (
+                        perms.has(PermissionFlagsBits.KickMembers) ||
+                        perms.has(PermissionFlagsBits.BanMembers) ||
+                        perms.has(PermissionFlagsBits.ModerateMembers)
+                    ) {
+                        hasPerm = true;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[CringeDetector] Perm check error:', e.message);
+        }
+
+        if (!hasPerm) {
+            console.log(`[CringeDetector] Non-mod ${reactingUser.id} tried to activate contingency`);
+            return false;
+        }
+
+        const channel = reaction.message.channel;
+        const violators = this.activeContingency.violators;
+        let timedOutCount = 0;
+
+        // Clear contingency before async work so a double-reaction can't double-execute
+        this.activeContingency = null;
+
+        try {
+            // Step 1
+            await channel.send('🚨 **Orders received....**');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            // Step 2
+            await channel.send('🚨 **Executing...**');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            // Step 3: Execute timeouts + final message
+            const guild = reaction.message.guild;
+            for (const violator of violators) {
+                const member = await guild.members.fetch(violator.userId).catch(() => null);
+                if (member && !member.isCommunicationDisabled()) {
+                    await member.timeout(CONTINGENCY_TIMEOUT_MS, `Contingency protocols: multiple anti-cringe violations`);
+                    timedOutCount++;
+                }
+            }
+
+            await channel.send('**Adios abuenos master**');
+
+            console.log(`[CringeDetector] CONTINGENCY ACTIVATED by ${reactingUser.id} — ${timedOutCount} users timed out for 2min`);
+
+        } catch (e) {
+            console.error('[CringeDetector] Failed during contingency execution:', e.message);
+        }
+
+        return true;
     }
 }
 
@@ -226,4 +465,5 @@ async function scanAndDelete(message) {
 }
 
 _instance.scanAndDelete = scanAndDelete;
+
 module.exports = _instance;
