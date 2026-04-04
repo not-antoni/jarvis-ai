@@ -148,7 +148,7 @@ class FurryDetector {
                 `${owner} — ${message.author} posted a furry image in ${message.channel}\n` +
                 `Confidence: **${pct}%** — ${result.reason}\n` +
                 `[Jump to message](${message.url})\n` +
-                `<:siren:> Recommending to initiate contingency protocols immediately.`;
+                `<:siren:931641762781491301> Recommending to initiate contingency protocols immediately.`;
             await message.channel.send(alert);
             console.log(
                 `[FurryDetector] ALERT user=${message.author.id} ch=${message.channel.id} ` +
