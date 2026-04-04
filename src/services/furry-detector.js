@@ -30,8 +30,11 @@ const DETECTION_PROMPT = [
 ].join('\n');
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
-const scanCooldowns = new Map();
+const scanCooldowns = new Map();       // userId -> timestamp
 const SCAN_COOLDOWN_MS = 30_000;
+const guildScanTimestamps = [];        // rolling window of guild-wide scans
+const GUILD_RATE_WINDOW_MS = 60_000;   // 1 minute window
+const GUILD_RATE_MAX = 10;             // max 10 scans per minute guild-wide
 
 // ── Service ──────────────────────────────────────────────────────────────────
 
@@ -143,9 +146,19 @@ class FurryDetector {
         if (urls.length === 0) return false;
 
         const now = Date.now();
+
+        // Per-user cooldown
         const last = scanCooldowns.get(message.author.id) || 0;
         if (now - last < SCAN_COOLDOWN_MS) return false;
+
+        // Guild-wide rate limit — stop scanning if too many requests in the window
+        while (guildScanTimestamps.length && now - guildScanTimestamps[0] > GUILD_RATE_WINDOW_MS) {
+            guildScanTimestamps.shift();
+        }
+        if (guildScanTimestamps.length >= GUILD_RATE_MAX) return false;
+
         scanCooldowns.set(message.author.id, now);
+        guildScanTimestamps.push(now);
 
         for (const url of urls) {
             const img = await this._fetchImage(url);
