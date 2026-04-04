@@ -4,6 +4,7 @@ const { generateText } = require('ai');
 const { createOpenAI } = require('@ai-sdk/openai');
 const { PermissionFlagsBits, escapeMarkdown } = require('discord.js');
 const { sanitizePings } = require('../utils/sanitize');
+const { isOwner: isOwnerCheck } = require('../utils/owner-check');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FURRY_GUILD_ID = '858444090374881301';
@@ -11,14 +12,14 @@ const CONFIDENCE_THRESHOLD = 0.8;
 const MODEL_ID = 'google/gemini-2.5-flash';
 
 // Contingency settings
-const CONTINGENCY_WINDOW_MS = 60_000;      // 1 minute rolling window
-const CONTINGENCY_THRESHOLD = 3;            // 3 detections = contingency
+const CONTINGENCY_WINDOW_MS = 120_000;      // 2 minute rolling window
+const CONTINGENCY_THRESHOLD = 5;            // 5 detections = contingency
 const CONTINGENCY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes timeout
 const CONTINGENCY_ALERT_EXPIRE_MS = 60_000; // 1 minute
 
 // Robustness timeouts
-const FETCH_IMAGE_TIMEOUT_MS = 3_000;     // 3s max to download image
-const AI_ANALYSIS_TIMEOUT_MS = 10_000;     // 10s max for AI response
+const FETCH_IMAGE_TIMEOUT_MS = 4_000;     // 3s max to download image
+const AI_ANALYSIS_TIMEOUT_MS = 15_000;     // 15s max for AI response
 
 // Vercel AI Gateway keys
 const GATEWAY_KEYS = Object.keys(process.env)
@@ -101,6 +102,24 @@ function withTimeout(promise, ms, label = 'operation') {
     });
     return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
 }
+
+function matchesAkameIdentity(user, member = null) {
+    if (!user) return false;
+
+    const target = 'akame';
+    const candidateNames = [
+        user.username,
+        user.globalName,
+        user.displayName,
+        member?.displayName,
+        member?.nickname
+    ];
+
+    return candidateNames.some(name =>
+        typeof name === 'string' && name.trim().toLowerCase() === target
+    );
+}
+
 
 // ── Service ──────────────────────────────────────────────────────────────────
 
@@ -426,13 +445,17 @@ class FurryDetector {
             if (guild && guild.id === FURRY_GUILD_ID) {
                 const member = await guild.members.fetch(reactingUser.id).catch(() => null);
                 if (member) {
-                    const perms = member.permissions;
-                    if (
-                        perms.has(PermissionFlagsBits.KickMembers) ||
-                        perms.has(PermissionFlagsBits.BanMembers) ||
-                        perms.has(PermissionFlagsBits.ModerateMembers)
-                    ) {
+                    if (isOwnerCheck(member.id) || matchesAkameIdentity(reactingUser, member)) {
                         hasPerm = true;
+                    } else {
+                        const perms = member.permissions;
+                        if (
+                            perms.has(PermissionFlagsBits.KickMembers) ||
+                            perms.has(PermissionFlagsBits.BanMembers) ||
+                            perms.has(PermissionFlagsBits.ModerateMembers)
+                        ) {
+                            hasPerm = true;
+                        }
                     }
                 }
             }
@@ -468,8 +491,12 @@ class FurryDetector {
                 const member = await guild.members.fetch(violator.userId).catch(() => null);
                 const currentTimeoutEnd = member?.communicationDisabledUntilTimestamp || 0;
                 if (member && currentTimeoutEnd < contingencyEndsAt) {
-                    await member.timeout(CONTINGENCY_TIMEOUT_MS, `Contingency protocols: multiple anti-cringe violations`);
-                    timedOutCount++;
+                    try {
+                        await member.timeout(CONTINGENCY_TIMEOUT_MS, `Contingency protocols: multiple anti-cringe violations`);
+                        timedOutCount++;
+                    } catch (err) {
+                        console.warn(`[CringeDetector] Failed to timeout ${violator.userId}:`, err.message);
+                    }
                 }
             }
 
