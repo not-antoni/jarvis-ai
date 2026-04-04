@@ -92,10 +92,10 @@ test('same request benches a quota-exhausted Google credential group and fails o
                 }
             },
             {
-                name: 'Groq1-kimi-k2-instruct-0905',
+                name: 'Groq1-llama-3.3-70b-versatile',
                 family: 'groq',
                 type: 'openai-chat',
-                model: 'moonshotai/kimi-k2-instruct-0905',
+                model: 'llama-3.3-70b-versatile',
                 costTier: 'free',
                 credentialGroup: 'groq:1',
                 client: {
@@ -130,7 +130,7 @@ test('same request benches a quota-exhausted Google credential group and fails o
         1024
     );
 
-    assert.equal(response.provider, 'Groq1-kimi-k2-instruct-0905');
+    assert.equal(response.provider, 'Groq1-llama-3.3-70b-versatile');
     assert.equal(response.content, 'Recovered through Groq.');
     assert.equal(googleCalls, 1);
     assert.equal(groqCalls, 1);
@@ -184,10 +184,10 @@ test('executeGeneration fails open to auto when the forced family is already dis
                 }
             },
             {
-                name: 'Groq1-kimi-k2-instruct-0905',
+                name: 'Groq1-llama-3.3-70b-versatile',
                 family: 'groq',
                 type: 'openai-chat',
-                model: 'moonshotai/kimi-k2-instruct-0905',
+                model: 'llama-3.3-70b-versatile',
                 costTier: 'free',
                 credentialGroup: 'groq:1',
                 client: {
@@ -231,7 +231,7 @@ test('executeGeneration fails open to auto when the forced family is already dis
         1024
     );
 
-    assert.equal(response.provider, 'Groq1-kimi-k2-instruct-0905');
+    assert.equal(response.provider, 'Groq1-llama-3.3-70b-versatile');
     assert.equal(response.content, 'Forced family failed open.');
     assert.equal(groqCalls, 1);
 });
