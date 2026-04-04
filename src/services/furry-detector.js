@@ -33,8 +33,8 @@ const DETECTION_PROMPT = [
 const scanCooldowns = new Map();       // userId -> timestamp
 const SCAN_COOLDOWN_MS = 30_000;
 const guildScanTimestamps = [];        // rolling window of guild-wide scans
-const GUILD_RATE_WINDOW_MS = 60_000;   // 1 minute window
-const GUILD_RATE_MAX = 10;             // max 10 scans per minute guild-wide
+const GUILD_RATE_WINDOW_MS = 60_000;
+const GUILD_RATE_MAX = 10;
 
 // ── Service ──────────────────────────────────────────────────────────────────
 
@@ -42,25 +42,31 @@ class FurryDetector {
     constructor() {
         if (GATEWAY_KEYS.length === 0) {
             console.warn('[FurryDetector] No AI_GATEWAY_API_KEY found — furry detection disabled.');
-            this._providers = [];
         } else {
-            this._providers = GATEWAY_KEYS.map(k => createOpenAI({
-                apiKey: k,
-                baseURL: 'https://ai-gateway.vercel.sh/v1',
-            }));
-            console.log(`[FurryDetector] Loaded ${this._providers.length} Vercel AI Gateway key(s) — model=${MODEL_ID}`);
+            console.log(`[FurryDetector] Loaded ${GATEWAY_KEYS.length} Vercel AI Gateway key(s) — model=${MODEL_ID}`);
         }
+        this._providers = GATEWAY_KEYS.map(k => createOpenAI({
+            apiKey: k,
+            baseURL: 'https://ai-gateway.vercel.sh/v1',
+        }));
         this._keyIndex = 0;
+        this._deadKeys = new Set(); // indices of keys that return 403
     }
 
     get enabled() {
-        return this._providers.length > 0;
+        return this._providers.length > this._deadKeys.size;
     }
 
     _getProvider() {
-        const provider = this._providers[this._keyIndex % this._providers.length];
-        this._keyIndex++;
-        return provider;
+        // Skip dead keys
+        for (let i = 0; i < this._providers.length; i++) {
+            const idx = (this._keyIndex + i) % this._providers.length;
+            if (!this._deadKeys.has(idx)) {
+                this._keyIndex = idx + 1;
+                return { provider: this._providers[idx], index: idx };
+            }
+        }
+        return null;
     }
 
     async _fetchImage(url) {
@@ -78,26 +84,37 @@ class FurryDetector {
     }
 
     async _analyzeImage(imageData, mime) {
-        const gateway = this._getProvider();
-        try {
-            const b64url = `data:${mime};base64,${imageData.toString('base64')}`;
-            const { text } = await generateText({
-                model: gateway(MODEL_ID),
-                messages: [{
-                    role: 'user',
-                    content: [
-                        { type: 'text', text: DETECTION_PROMPT },
-                        { type: 'image', image: b64url },
-                    ],
-                }],
-            });
-            const match = text.trim().match(/\{[\s\S]*\}/);
-            if (!match) return null;
-            return JSON.parse(match[0]);
-        } catch (e) {
-            console.warn('[FurryDetector] Analysis error:', e.message);
-            return null;
+        // Try each working key until one succeeds
+        for (let attempt = 0; attempt < this._providers.length - this._deadKeys.size; attempt++) {
+            const pick = this._getProvider();
+            if (!pick) return null;
+
+            try {
+                const b64url = `data:${mime};base64,${imageData.toString('base64')}`;
+                const { text } = await generateText({
+                    model: pick.provider(MODEL_ID),
+                    messages: [{
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: DETECTION_PROMPT },
+                            { type: 'image', image: b64url },
+                        ],
+                    }],
+                });
+                const match = text.trim().match(/\{[\s\S]*\}/);
+                if (!match) return null;
+                return JSON.parse(match[0]);
+            } catch (e) {
+                if (/forbidden|403/i.test(e.message)) {
+                    this._deadKeys.add(pick.index);
+                    console.warn(`[FurryDetector] Key ${pick.index + 1} returned 403 — disabled (${this._providers.length - this._deadKeys.size} keys remaining)`);
+                    continue;
+                }
+                console.warn('[FurryDetector] Analysis error:', e.message);
+                return null;
+            }
         }
+        return null;
     }
 
     _extractImageUrls(message) {
