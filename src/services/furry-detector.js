@@ -143,9 +143,10 @@ class FurryDetector {
         try {
             const owner = await message.guild.fetchOwner();
             const pct = Math.round(result.confidence * 100);
-            const siren = '<:siren:931641762781491301>';
-            const skull1 = '<:skull:1308419713063325746>';
-            const skull2 = '<:skull:1172581116209807450>';
+            const e = id => message.client.emojis.cache.get(id)?.toString() || '';
+            const siren = e('931641762781491301') || '🚨';
+            const skull1 = e('1308419713063325746') || '💀';
+            const skull2 = e('1172581116209807450') || '💀';
             const alert =
                 `${siren}${siren}${siren} **FURRY CONTENT DETECTED** ${siren}${siren}${siren}\n` +
                 `${owner} — ${message.author} posted a furry image in ${message.channel} ${skull1}${skull2}\n` +
