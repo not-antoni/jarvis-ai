@@ -1,16 +1,16 @@
 'use strict';
 
 const { generateText } = require('ai');
-const { createGoogleGenerativeAI } = require('@ai-sdk/google');
+const { createOpenAI } = require('@ai-sdk/openai');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FURRY_GUILD_ID = '858444090374881301';
 const CONFIDENCE_THRESHOLD = 0.7;
-const MODEL_ID = 'gemini-2.0-flash';
+const MODEL_ID = 'google/gemini-2.5-flash-lite';
 
-// Rotate through available Google AI keys
-const GOOGLE_AI_KEYS = Object.keys(process.env)
-    .filter(k => /^GOOGLE_AI_API_KEY\d*$/.test(k))
+// Vercel AI Gateway keys
+const GATEWAY_KEYS = Object.keys(process.env)
+    .filter(k => /^AI_GATEWAY_API_KEY\d*$/.test(k))
     .sort()
     .map(k => process.env[k])
     .filter(Boolean);
@@ -40,12 +40,15 @@ const GUILD_RATE_MAX = 10;             // max 10 scans per minute guild-wide
 
 class FurryDetector {
     constructor() {
-        if (GOOGLE_AI_KEYS.length === 0) {
-            console.warn('[FurryDetector] No GOOGLE_AI_API_KEY found — furry detection disabled.');
+        if (GATEWAY_KEYS.length === 0) {
+            console.warn('[FurryDetector] No AI_GATEWAY_API_KEY found — furry detection disabled.');
             this._providers = [];
         } else {
-            this._providers = GOOGLE_AI_KEYS.map(k => createGoogleGenerativeAI({ apiKey: k }));
-            console.log(`[FurryDetector] Loaded ${this._providers.length} Google AI key(s) for guild ${FURRY_GUILD_ID}`);
+            this._providers = GATEWAY_KEYS.map(k => createOpenAI({
+                apiKey: k,
+                baseURL: 'https://ai-gateway.vercel.sh/v1',
+            }));
+            console.log(`[FurryDetector] Loaded ${this._providers.length} Vercel AI Gateway key(s) — model=${MODEL_ID}`);
         }
         this._keyIndex = 0;
     }
@@ -75,15 +78,16 @@ class FurryDetector {
     }
 
     async _analyzeImage(imageData, mime) {
-        const google = this._getProvider();
+        const gateway = this._getProvider();
         try {
+            const b64url = `data:${mime};base64,${imageData.toString('base64')}`;
             const { text } = await generateText({
-                model: google(MODEL_ID),
+                model: gateway(MODEL_ID),
                 messages: [{
                     role: 'user',
                     content: [
                         { type: 'text', text: DETECTION_PROMPT },
-                        { type: 'image', image: imageData, mimeType: mime },
+                        { type: 'image', image: b64url },
                     ],
                 }],
             });
@@ -151,7 +155,7 @@ class FurryDetector {
         const last = scanCooldowns.get(message.author.id) || 0;
         if (now - last < SCAN_COOLDOWN_MS) return false;
 
-        // Guild-wide rate limit — stop scanning if too many requests in the window
+        // Guild-wide rate limit
         while (guildScanTimestamps.length && now - guildScanTimestamps[0] > GUILD_RATE_WINDOW_MS) {
             guildScanTimestamps.shift();
         }
