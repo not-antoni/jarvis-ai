@@ -11,13 +11,13 @@ const MODEL_ID = 'google/gemini-2.5-flash';
 
 // Contingency settings
 const CONTINGENCY_WINDOW_MS = 10_000;      // 10 second rolling window
-const CONTINGENCY_THRESHOLD = 5;            // 5 detections = contingency
+const CONTINGENCY_THRESHOLD = 3;            // 3 detections = contingency
 const CONTINGENCY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes timeout
 const CONTINGENCY_ALERT_EXPIRE_MS = 30_000; // 30 seconds
 
 // Robustness timeouts
-const FETCH_IMAGE_TIMEOUT_MS = 15_000;     // 15s max to download image
-const AI_ANALYSIS_TIMEOUT_MS = 45_000;     // 45s max for AI response
+const FETCH_IMAGE_TIMEOUT_MS = 3_000;     // 3s max to download image
+const AI_ANALYSIS_TIMEOUT_MS = 10_000;     // 10s max for AI response
 
 // Vercel AI Gateway keys
 const GATEWAY_KEYS = Object.keys(process.env)
@@ -79,7 +79,7 @@ const DETECTION_PROMPT = [
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
 const scanCooldowns = new Map();       // userId -> timestamp
-const SCAN_COOLDOWN_MS = 10_000;
+const SCAN_COOLDOWN_MS = 3_000;
 const guildScanTimestamps = [];        // rolling window of guild-wide scans
 const GUILD_RATE_WINDOW_MS = 60_000;
 const GUILD_RATE_MAX = 60;
