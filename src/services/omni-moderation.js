@@ -1,10 +1,12 @@
 'use strict';
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { generateText } = require('ai');
+const { createGoogleGenerativeAI } = require('@ai-sdk/google');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FURRY_GUILD_ID = '858444090374881301';
 const CONFIDENCE_THRESHOLD = 0.7;
+const MODEL_ID = 'gemini-2.0-flash';
 
 // Rotate through available Google AI keys
 const GOOGLE_AI_KEYS = Object.keys(process.env)
@@ -28,8 +30,7 @@ const DETECTION_PROMPT = [
 ].join('\n');
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
-// Don't spam the API — max 1 scan per user per 30s
-const scanCooldowns = new Map(); // `userId` -> timestamp
+const scanCooldowns = new Map();
 const SCAN_COOLDOWN_MS = 30_000;
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -38,23 +39,22 @@ class FurryDetector {
     constructor() {
         if (GOOGLE_AI_KEYS.length === 0) {
             console.warn('[FurryDetector] No GOOGLE_AI_API_KEY found — furry detection disabled.');
-            this._clients = [];
+            this._providers = [];
         } else {
-            this._clients = GOOGLE_AI_KEYS.map(k => new GoogleGenerativeAI(k));
-            console.log(`[FurryDetector] Loaded ${this._clients.length} Google AI key(s) for guild ${FURRY_GUILD_ID}`);
+            this._providers = GOOGLE_AI_KEYS.map(k => createGoogleGenerativeAI({ apiKey: k }));
+            console.log(`[FurryDetector] Loaded ${this._providers.length} Google AI key(s) for guild ${FURRY_GUILD_ID}`);
         }
         this._keyIndex = 0;
     }
 
     get enabled() {
-        return this._clients.length > 0;
+        return this._providers.length > 0;
     }
 
-    /** Round-robin through available keys */
-    _getClient() {
-        const client = this._clients[this._keyIndex % this._clients.length];
+    _getProvider() {
+        const provider = this._providers[this._keyIndex % this._providers.length];
         this._keyIndex++;
-        return client;
+        return provider;
     }
 
     async _fetchImage(url) {
@@ -63,25 +63,28 @@ class FurryDetector {
             if (!res.ok) return null;
             const buf = Buffer.from(await res.arrayBuffer());
             const mime = (res.headers.get('content-type') || 'image/jpeg').split(';')[0].trim();
-            // Skip non-image types
             if (!mime.startsWith('image/')) return null;
-            return { b64: buf.toString('base64'), mime };
+            return { data: buf, mime };
         } catch (e) {
             console.warn('[FurryDetector] Failed to fetch image:', e.message);
             return null;
         }
     }
 
-    async _analyzeImage(b64, mime) {
-        const client = this._getClient();
-        const model = client.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    async _analyzeImage(imageData, mime) {
+        const google = this._getProvider();
         try {
-            const result = await model.generateContent([
-                DETECTION_PROMPT,
-                { inlineData: { data: b64, mimeType: mime } },
-            ]);
-            const text = result.response.text().trim();
-            const match = text.match(/\{[\s\S]*\}/);
+            const { text } = await generateText({
+                model: google(MODEL_ID),
+                messages: [{
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: DETECTION_PROMPT },
+                        { type: 'image', image: imageData, mimeType: mime },
+                    ],
+                }],
+            });
+            const match = text.trim().match(/\{[\s\S]*\}/);
             if (!match) return null;
             return JSON.parse(match[0]);
         } catch (e) {
@@ -90,7 +93,6 @@ class FurryDetector {
         }
     }
 
-    /** Collect all image URLs from a message (attachments, embeds, stickers) */
     _extractImageUrls(message) {
         const urls = [];
         for (const [, att] of message.attachments) {
@@ -132,10 +134,6 @@ class FurryDetector {
         }
     }
 
-    /**
-     * Scan a message for furry images. Returns false always (never blocks
-     * further message processing — this is a detector, not a filter).
-     */
     async scanMessage(message) {
         if (!this.enabled) return false;
         if (!message.guild || message.guild.id !== FURRY_GUILD_ID) return false;
@@ -144,7 +142,6 @@ class FurryDetector {
         const urls = this._extractImageUrls(message);
         if (urls.length === 0) return false;
 
-        // Per-user cooldown to avoid API spam
         const now = Date.now();
         const last = scanCooldowns.get(message.author.id) || 0;
         if (now - last < SCAN_COOLDOWN_MS) return false;
@@ -154,10 +151,10 @@ class FurryDetector {
             const img = await this._fetchImage(url);
             if (!img) continue;
 
-            const result = await this._analyzeImage(img.b64, img.mime);
+            const result = await this._analyzeImage(img.data, img.mime);
             if (result?.furry && result.confidence >= CONFIDENCE_THRESHOLD) {
                 await this._sendAlert(message, result);
-                return false; // still don't block message processing
+                return false;
             }
         }
 
@@ -165,7 +162,6 @@ class FurryDetector {
     }
 }
 
-// ── Export with same interface as old omni-moderation ─────────────────────────
 const _instance = new FurryDetector();
 
 async function scanAndDelete(message) {
