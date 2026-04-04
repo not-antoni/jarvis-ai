@@ -5,7 +5,7 @@ const { createOpenAI } = require('@ai-sdk/openai');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FURRY_GUILD_ID = '858444090374881301';
-const CONFIDENCE_THRESHOLD = 0.7;
+const CONFIDENCE_THRESHOLD = 0.8;
 const MODEL_ID = 'google/gemini-2.5-flash';
 
 // Vercel AI Gateway keys
