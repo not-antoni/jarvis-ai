@@ -2,7 +2,8 @@
 
 const { generateText } = require('ai');
 const { createOpenAI } = require('@ai-sdk/openai');
-const { PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits, escapeMarkdown } = require('discord.js');
+const { sanitizePings } = require('../utils/sanitize');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FURRY_GUILD_ID = '858444090374881301';
@@ -10,7 +11,7 @@ const CONFIDENCE_THRESHOLD = 0.8;
 const MODEL_ID = 'google/gemini-2.5-flash';
 
 // Contingency settings
-const CONTINGENCY_WINDOW_MS = 10_000;      // 10 second rolling window
+const CONTINGENCY_WINDOW_MS = 30_000;      // 30 second rolling window
 const CONTINGENCY_THRESHOLD = 3;            // 3 detections = contingency
 const CONTINGENCY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes timeout
 const CONTINGENCY_ALERT_EXPIRE_MS = 30_000; // 30 seconds
@@ -33,7 +34,7 @@ const DETECTION_PROMPT = [
     'If the image is a screenshot of a Discord bot alert that contains ANY of the following:',
     '- Text like "🚨 **FURRY CONTENT DETECTED** 🚨", "**CRINGE ANIME CONTENT DETECTED**", "**NSFW CONTENT DETECTED**", or "**CRINGE CONTENT DETECTED**"',
     '- Multiple 🚨 siren emojis and 💀 skull emojis',
-    '- Mentions of a user posting cringe, confidence percentage, reason, owner ping, and a "[Jump to message]" link',
+    '- A user posting cringe named by nickname or mention, confidence percentage, reason, owner ping, and a "[Jump to message]" link',
     '- Looks like a Discord message from the cringe/furry detector bot',
     'THEN this is a screenshot of THIS bot\'s own alert. Force the following JSON:',
     '{"cringe": false, "confidence": 0.0, "type": "none", "reason": "screenshot of bot alert - ignored to prevent infinite loop"}',
@@ -115,7 +116,7 @@ class FurryDetector {
         this._deadKeys = new Set(); // indices of keys that return 403
 
         // Contingency system
-        this.recentDetections = [];      // rolling 10s window of detections
+        this.recentDetections = [];      // rolling 30s window of detections
         this.activeContingency = null;
     }
 
@@ -243,7 +244,7 @@ class FurryDetector {
         const checkMark = '✅';
 
         const alertText =
-            `${siren}${siren}${siren} **WARNING!!! Multiple violations of anti-cringe content detected in a 10 second window** ${siren}${siren}${siren}\n\n` +
+            `${siren}${siren}${siren} **WARNING!!! Multiple violations of anti-cringe content detected in a 30 second window** ${siren}${siren}${siren}\n\n` +
             `Requesting immediate contingency protocols activation by having one of the admins reacting with ${checkMark} on this message.\n\n` +
             `(this alert expires in 30 seconds)`;
 
@@ -260,7 +261,7 @@ class FurryDetector {
                 }))
             };
 
-            console.log(`[CringeDetector] CONTINGENCY TRIGGERED — ${violators.length} unique users in 10s window`);
+            console.log(`[CringeDetector] CONTINGENCY TRIGGERED — ${violators.length} unique users in 30s window`);
 
             // Auto-expire after 30 seconds
             setTimeout(async () => {
@@ -303,6 +304,7 @@ class FurryDetector {
     async _sendAlert(message, result) {
         try {
             const owner = await message.guild.fetchOwner();
+            const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
             const pct = Math.round(result.confidence * 100);
             const e = id => message.client.emojis.cache.get(id)?.toString() || '';
             const siren = e('931641762781491301') || '🚨';
@@ -310,10 +312,13 @@ class FurryDetector {
             const skull2 = e('1172581116209807450') || '💀';
             const typeLabels = { furry: 'FURRY', anime: 'CRINGE ANIME', nsfw: 'NSFW' };
             const typeLabel = typeLabels[result.type] || 'CRINGE';
+            const offenderName = sanitizePings(
+                escapeMarkdown(member?.displayName || message.author.globalName || message.author.username || 'Unknown user')
+            );
+            const safeReason = sanitizePings(result.reason);
 
             let timedOut = false;
             try {
-                const member = message.member || await message.guild.members.fetch(message.author.id);
                 if (member && !member.isCommunicationDisabled()) {
                     await member.timeout(5 * 1000, `Cringe detector: ${result.type} content (${pct}% confidence)`);
                     timedOut = true;
@@ -322,12 +327,18 @@ class FurryDetector {
 
             const alert =
                 `${siren}${siren}${siren} **${typeLabel} CONTENT DETECTED** ${siren}${siren}${siren}\n` +
-                `${owner} — ${message.author} posted cringe in ${message.channel} ${skull1}${skull2}\n` +
-                `Confidence: **${pct}%** — ${result.reason}\n` +
+                `${owner} — **${offenderName}** posted cringe in ${message.channel} ${skull1}${skull2}\n` +
+                `Confidence: **${pct}%** — ${safeReason}\n` +
                 `[Jump to message](${message.url})\n` +
                 (timedOut ? `⏱️ User has been timed out for 5 seconds.\n` : '') +
                 `${siren}${siren}${siren} Recommending to initiate contingency protocols immediately. ${siren}${siren}${siren}`;
-            await message.channel.send(alert);
+            await message.channel.send({
+                content: alert,
+                allowedMentions: {
+                    parse: [],
+                    users: [owner.id]
+                }
+            });
         } catch (e) {
             console.error('[FurryDetector] Failed to send alert:', e.message);
         }
