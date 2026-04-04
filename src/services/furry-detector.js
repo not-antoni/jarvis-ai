@@ -8,18 +8,18 @@ const { isOwner: isOwnerCheck } = require('../utils/owner-check');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FURRY_GUILD_ID = '858444090374881301';
-const CONFIDENCE_THRESHOLD = 0.8;
+const CONFIDENCE_THRESHOLD = 0.92;
 const MODEL_ID = 'google/gemini-2.5-flash';
 
 // Contingency settings
-const CONTINGENCY_WINDOW_MS = 120_000;      // 2 minute rolling window
-const CONTINGENCY_THRESHOLD = 5;            // 5 detections = contingency
+const CONTINGENCY_WINDOW_MS = 120_000;       // 2 minute rolling window
+const CONTINGENCY_THRESHOLD = 3;             // 3 detections = contingency
 const CONTINGENCY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes timeout
-const CONTINGENCY_ALERT_EXPIRE_MS = 60_000; // 1 minute
+const CONTINGENCY_ALERT_EXPIRE_MS = 60_000;  // 1 minute
 
 // Robustness timeouts
-const FETCH_IMAGE_TIMEOUT_MS = 4_000;     // 3s max to download image
-const AI_ANALYSIS_TIMEOUT_MS = 15_000;     // 15s max for AI response
+const FETCH_IMAGE_TIMEOUT_MS = 4_000;        // 4s max to download image
+const AI_ANALYSIS_TIMEOUT_MS = 15_000;       // 15s max for AI response
 
 // Vercel AI Gateway keys
 const GATEWAY_KEYS = Object.keys(process.env)
@@ -46,6 +46,7 @@ const DETECTION_PROMPT = [
     '• Do NOT flag an image just because it contains the words "furry", "cringe", "anime", "NSFW", "boykisser", or similar as text overlay, caption, label, meme text, or watermark.',
     '• Text alone is NEVER enough to trigger. Only trigger on the actual VISUAL content described below.',
     '• A plain image that says "literally furry" or "this is furry" with no anthropomorphic animals is NOT cringe.',
+    '• Do not trigger on a normal animal photo unless it clearly has human-like clothing, posture, facial expression, props, or a furry-fandom aesthetic.',
     '',
     'Cringe content includes ANY of the following VISUAL elements:',
     '',
@@ -120,7 +121,6 @@ function matchesAkameIdentity(user, member = null) {
     );
 }
 
-
 // ── Service ──────────────────────────────────────────────────────────────────
 
 class FurryDetector {
@@ -130,15 +130,17 @@ class FurryDetector {
         } else {
             console.log(`[FurryDetector] Loaded ${GATEWAY_KEYS.length} Vercel AI Gateway key(s) — model=${MODEL_ID}`);
         }
+
         this._providers = GATEWAY_KEYS.map(k => createOpenAI({
             apiKey: k,
             baseURL: 'https://ai-gateway.vercel.sh/v1',
         }));
+
         this._keyIndex = 0;
         this._deadKeys = new Set(); // indices of keys that return 403
 
         // Contingency system
-        this.recentDetections = [];      // rolling 1 minute window of detections
+        this.recentDetections = []; // rolling 1 minute window of detections
         this.activeContingency = null;
     }
 
@@ -246,19 +248,70 @@ class FurryDetector {
         this.recentDetections = this.recentDetections.filter(d => d.timestamp >= cutoff);
     }
 
-    async _triggerContingency(message) {
-        const violatorsMap = new Map();
-        for (const d of this.recentDetections) {
-            if (!violatorsMap.has(d.userId)) {
-                violatorsMap.set(d.userId, {
-                    userId: d.userId,
-                    type: d.type,
-                    confidence: d.confidence,
-                    messageUrl: d.messageUrl
-                });
+    _buildContingencyViolatorEntry(detection) {
+        return {
+            userId: detection.userId,
+            type: detection.type,
+            confidence: detection.confidence,
+            messageUrl: detection.messageUrl,
+            channelId: detection.channelId,
+            timestamp: detection.timestamp,
+            reason: `${detection.type} ${Math.round(detection.confidence * 100)}%`
+        };
+    }
+
+    _mergeDetectionIntoActiveContingency(detection) {
+        if (!this.activeContingency) return false;
+
+        if (!this.activeContingency.violatorIds) {
+            this.activeContingency.violatorIds = new Set(
+                (this.activeContingency.violators || []).map(v => v.userId)
+            );
+        }
+
+        if (this.activeContingency.violatorIds.has(detection.userId)) {
+            return false;
+        }
+
+        this.activeContingency.violatorIds.add(detection.userId);
+        this.activeContingency.violators.push(this._buildContingencyViolatorEntry(detection));
+        return true;
+    }
+
+    _refreshActiveContingencyFromRecentDetections() {
+        if (!this.activeContingency) return 0;
+
+        let added = 0;
+        for (const detection of this.recentDetections) {
+            if (this._mergeDetectionIntoActiveContingency(detection)) {
+                added++;
             }
         }
-        const violators = Array.from(violatorsMap.values());
+        return added;
+    }
+
+    _collectContingencyViolators() {
+        const merged = new Map();
+
+        for (const detection of this.recentDetections) {
+            if (!merged.has(detection.userId)) {
+                merged.set(detection.userId, this._buildContingencyViolatorEntry(detection));
+            }
+        }
+
+        if (this.activeContingency?.violators?.length) {
+            for (const violator of this.activeContingency.violators) {
+                if (!merged.has(violator.userId)) {
+                    merged.set(violator.userId, { ...violator });
+                }
+            }
+        }
+
+        return Array.from(merged.values());
+    }
+
+    async _triggerContingency(message) {
+        const violators = this._collectContingencyViolators();
 
         const channel = message.channel;
         const e = id => message.client.emojis.cache.get(id)?.toString() || '';
@@ -277,8 +330,16 @@ class FurryDetector {
                 messageId: sentMessage.id,
                 channelId: sentMessage.channel.id,
                 message: sentMessage,
+                status: 'armed',
+                triggeredAt: Date.now(),
+                violatorIds: new Set(violators.map(v => v.userId)),
                 violators: violators.map(v => ({
                     userId: v.userId,
+                    type: v.type,
+                    confidence: v.confidence,
+                    messageUrl: v.messageUrl,
+                    channelId: v.channelId,
+                    timestamp: v.timestamp,
                     reason: `${v.type} ${Math.round(v.confidence * 100)}%`
                 }))
             };
@@ -288,6 +349,9 @@ class FurryDetector {
             // Auto-expire after 1 minute
             setTimeout(async () => {
                 if (this.activeContingency && this.activeContingency.messageId === sentMessage.id) {
+                    if (this.activeContingency.status === 'executing') {
+                        return;
+                    }
                     try {
                         await sentMessage.delete().catch(() => {});
                         console.log('[CringeDetector] Contingency alert expired after 1 minute');
@@ -304,22 +368,9 @@ class FurryDetector {
     _updateActiveContingency() {
         if (!this.activeContingency) return;
 
-        const currentUserIds = new Set(this.activeContingency.violators.map(v => v.userId));
-        const toAdd = [];
-
-        for (const d of this.recentDetections) {
-            if (!currentUserIds.has(d.userId)) {
-                toAdd.push({
-                    userId: d.userId,
-                    reason: `${d.type} ${Math.round(d.confidence * 100)}%`
-                });
-                currentUserIds.add(d.userId);
-            }
-        }
-
-        if (toAdd.length > 0) {
-            this.activeContingency.violators.push(...toAdd);
-            console.log(`[CringeDetector] Added ${toAdd.length} more users to active contingency list`);
+        const added = this._refreshActiveContingencyFromRecentDetections();
+        if (added > 0) {
+            console.log(`[CringeDetector] Added ${added} more users to active contingency list`);
         }
     }
 
@@ -399,29 +450,33 @@ class FurryDetector {
 
             const result = await this._analyzeImage(img.data, img.mime);
             if (result?.cringe && result.confidence >= CONFIDENCE_THRESHOLD) {
-                if (this.activeContingency) {
-                    await this._applyDetectionTimeout(message, result);
-                    console.log(`[CringeDetector] Suppressed individual alert for ${message.author.id} because contingency alert is active`);
-                } else {
-                    await this._sendAlert(message, result);
-                }
-
-                this.recentDetections.push({
+                const detection = {
                     timestamp: now,
                     userId: message.author.id,
                     messageUrl: message.url,
                     type: result.type,
                     confidence: result.confidence,
                     channelId: message.channel.id
-                });
+                };
 
+                if (this.activeContingency) {
+                    await this._applyDetectionTimeout(message, result);
+                    console.log(`[CringeDetector] Suppressed individual alert for ${message.author.id} because contingency alert is active`);
+                    this._mergeDetectionIntoActiveContingency(detection);
+                } else {
+                    await this._sendAlert(message, result);
+                }
+
+                this.recentDetections.push(detection);
                 this._pruneDetections();
+
+                if (this.activeContingency) {
+                    this._updateActiveContingency();
+                }
 
                 if (this.recentDetections.length >= CONTINGENCY_THRESHOLD) {
                     if (!this.activeContingency) {
                         await this._triggerContingency(message);
-                    } else {
-                        this._updateActiveContingency();
                     }
                 }
 
@@ -438,6 +493,7 @@ class FurryDetector {
         if (reaction.message.id !== this.activeContingency.messageId) return false;
         if (reaction.emoji.name !== '✅') return false;
         if (reactingUser.bot) return false;
+        if (this.activeContingency.status === 'executing') return false;
 
         let hasPerm = false;
         try {
@@ -469,19 +525,19 @@ class FurryDetector {
         }
 
         const channel = reaction.message.channel;
-        const violators = this.activeContingency.violators;
+        const contingency = this.activeContingency;
+        contingency.status = 'executing';
+        const siren = reaction.message.client.emojis.cache.get('931641762781491301')?.toString() || '🚨';
+        const violators = this._collectContingencyViolators();
         let timedOutCount = 0;
-
-        // Clear contingency before async work so a double-reaction can't double-execute
-        this.activeContingency = null;
 
         try {
             // Step 1
-            await channel.send('🚨 **Orders received....**');
+            await channel.send(`${siren}${siren}${siren} **ORDERS RECEIVED** ${siren}${siren}${siren}`);
             await new Promise(resolve => setTimeout(resolve, 5000));
 
             // Step 2
-            await channel.send('🚨 **Executing...**');
+            await channel.send(`${siren}${siren}${siren} **EXECUTING** ${siren}${siren}${siren}`);
             await new Promise(resolve => setTimeout(resolve, 5000));
 
             // Step 3: Execute timeouts + final message
@@ -506,6 +562,10 @@ class FurryDetector {
 
         } catch (e) {
             console.error('[CringeDetector] Failed during contingency execution:', e.message);
+        } finally {
+            if (this.activeContingency === contingency) {
+                this.activeContingency = null;
+            }
         }
 
         return true;
