@@ -343,9 +343,9 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             ],
             generationConfig: Object.assign(
                 { temperature: config.ai?.temperature ?? 0.7, maxOutputTokens: maxTokens },
-                // Disable thinking for Gemma models (useless for short roleplay replies)
-                // Don't set for Gemini 2.5/3.x — thinking can't be fully disabled on those
-                /^gemma/i.test(provider.model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}
+                // Disable thinking for Gemma 1-3 (useless for short roleplay replies)
+                // Gemma 4+ and Gemini 2.5/3.x don't support thinkingBudget
+                isGemmaLegacy ? { thinkingConfig: { thinkingBudget: 0 } } : {}
             )
         });
                 } catch (geminiError) {
