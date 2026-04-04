@@ -6,18 +6,31 @@
 /* eslint-disable no-console */
 
 require('dotenv').config();
-let _negativeTimeoutTraced = false;
+const _negativeTimeoutTraces = new Set();
 const _nativeSetTimeout = global.setTimeout;
+function isKnownVoiceTimerDrift(delayMs, stack) {
+    return (
+        delayMs >= -50 &&
+        typeof stack === 'string' &&
+        stack.includes('@discordjs/voice/dist/index.js') &&
+        stack.includes('prepareNextAudioFrame')
+    );
+}
 global.setTimeout = function tracedSetTimeout(callback, delay, ...args) {
     const numericDelay = Number(delay);
     if (Number.isFinite(numericDelay) && numericDelay < 0) {
-        if (!_negativeTimeoutTraced) {
-            _negativeTimeoutTraced = true;
-            console.warn(
-                new Error(
-                    `[TimerTrace] Negative setTimeout delay detected: ${numericDelay}ms`
-                ).stack
-            );
+        const trace = new Error(
+            `[TimerTrace] Negative setTimeout delay detected: ${numericDelay}ms`
+        ).stack || '';
+        if (!isKnownVoiceTimerDrift(numericDelay, trace)) {
+            const signature = trace
+                .split('\n')
+                .slice(1, 4)
+                .join('\n');
+            if (!_negativeTimeoutTraces.has(signature)) {
+                _negativeTimeoutTraces.add(signature);
+                console.warn(trace);
+            }
         }
         return _nativeSetTimeout.call(this, callback, 0, ...args);
     }
