@@ -463,9 +463,11 @@ class FurryDetector {
 
             // Step 3: Execute timeouts + final message
             const guild = reaction.message.guild;
+            const contingencyEndsAt = Date.now() + CONTINGENCY_TIMEOUT_MS;
             for (const violator of violators) {
                 const member = await guild.members.fetch(violator.userId).catch(() => null);
-                if (member && !member.isCommunicationDisabled()) {
+                const currentTimeoutEnd = member?.communicationDisabledUntilTimestamp || 0;
+                if (member && currentTimeoutEnd < contingencyEndsAt) {
                     await member.timeout(CONTINGENCY_TIMEOUT_MS, `Contingency protocols: multiple anti-cringe violations`);
                     timedOutCount++;
                 }
