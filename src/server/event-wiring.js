@@ -40,10 +40,10 @@ function wireEventHandlers(ctx) {
         try {
             // Partial messages won't have author — skip
             if (newMessage.partial) return;
-            const omniMod = require('../services/omni-moderation');
-            await omniMod.scanAndDelete(newMessage);
+            const furryDetector = require('../services/omni-moderation');
+            await furryDetector.scanAndDelete(newMessage);
         } catch (e) {
-            console.error('[OmniMod] messageUpdate scan error:', e.message);
+            console.error('[FurryDetector] messageUpdate scan error:', e.message);
         }
     });
 
