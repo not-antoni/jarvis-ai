@@ -11,17 +11,6 @@ const voiceChatService = require('../services/voice-chat-service');
 /**
  * Wire Discord client event handlers and process error/shutdown handlers.
  * Called from index.js after client creation.
- *
- * IMPORTANT — Partials:
- * The Discord gateway sends reaction events as partials when the message that
- * was reacted to is not already cached (e.g. older messages, or messages the
- * bot missed while offline). Without fetching the partial, reaction.message.id
- * is unreliable and handleContingencyReaction will silently never match.
- *
- * Make sure your Client is constructed with:
- *   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
- * in addition to the GuildMessageReactions intent. Without those two the
- * messageReactionAdd event won't fire for uncached messages at all.
  */
 function wireEventHandlers(ctx) {
     const {
@@ -44,60 +33,6 @@ function wireEventHandlers(ctx) {
 
     client.on('messageCreate', async message => {
         await messageProcessing.handleMessage(discordHandlers, message, client);
-    });
-
-    // Re-scan on messageUpdate to catch embeds that load after the initial message
-    client.on('messageUpdate', async (_oldMessage, newMessage) => {
-        try {
-            // Partial messages won't have author — skip
-            if (newMessage.partial) return;
-            const furryDetector = require('../services/furry-detector');
-            await furryDetector.scanAndDelete(newMessage);
-        } catch (e) {
-            console.error('[FurryDetector] messageUpdate scan error:', e.message);
-        }
-    });
-
-    // ─── Contingency Reaction Handler ────────────────────────────────────────
-    // Handles the ✅ reaction that admins add to activate contingency protocols.
-    // Reactions on old/uncached messages arrive as partials and MUST be fetched
-    // before use — otherwise reaction.message.id and emoji data are missing.
-    client.on('messageReactionAdd', async (reaction, user) => {
-        try {
-            // Skip non-✅ reactions immediately (cheap early-exit before any fetches)
-            if (reaction.emoji.name !== '✅') return;
-
-            // Fetch partials — Discord sends partial objects for uncached messages
-            if (reaction.partial) {
-                try {
-                    await reaction.fetch();
-                } catch (e) {
-                    console.warn('[FurryDetector] Failed to fetch partial reaction:', e.message);
-                    return;
-                }
-            }
-            if (reaction.message.partial) {
-                try {
-                    await reaction.message.fetch();
-                } catch (e) {
-                    console.warn('[FurryDetector] Failed to fetch partial reaction message:', e.message);
-                    return;
-                }
-            }
-            if (user.partial) {
-                try {
-                    await user.fetch();
-                } catch (e) {
-                    console.warn('[FurryDetector] Failed to fetch partial reacting user:', e.message);
-                    return;
-                }
-            }
-
-            const furryDetector = require('../services/furry-detector');
-            await furryDetector.handleContingencyReaction(reaction, user);
-        } catch (e) {
-            console.error('[FurryDetector] messageReactionAdd handler error:', e.message);
-        }
     });
 
     client.on('interactionCreate', async interaction => {
