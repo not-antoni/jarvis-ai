@@ -4,6 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const aiManager = require('./ai-providers');
 const database = require('./database');
 const vaultClient = require('./vault-client');
@@ -12,7 +13,10 @@ const youtubeSearch = require('./youtube-search');
 const { EmbedBuilder } = require('discord.js');
 const { buildStructuredMemoryBlock, sanitizeUserInput } = require('../utils/memory-sanitizer');
 const { buildSupportEmbed, buildHelpPayload } = require('./help-builder');
-const { isGarbageOutput } = require('../utils/garbage-detection');
+const {
+    isGarbageOutput,
+    isInternalRecoveryResponse
+} = require('../utils/garbage-detection');
 let userFeatures;
 try { userFeatures = require('./user-features'); } catch { userFeatures = null; }
 
@@ -358,7 +362,11 @@ class JarvisAI {
                     });
             }
             const allEntries =
-                allowsLongTermMemory && Array.isArray(secureMemories) ? secureMemories : [];
+                allowsLongTermMemory && Array.isArray(secureMemories)
+                    ? secureMemories.filter(
+                        entry => !isInternalRecoveryResponse(entry?.data?.jarvisResponse)
+                    )
+                    : [];
 
             // RAG: select a mix of recent + keyword-relevant memories
             const conversationEntries = selectRelevantMemories(allEntries, userInput, 10, 15);
@@ -368,7 +376,9 @@ class JarvisAI {
                 .slice(-3)
                 .map(entry => {
                     const resp = entry.data?.jarvisResponse;
-                    return typeof resp === 'string' ? resp : null;
+                    return typeof resp === 'string' && !isInternalRecoveryResponse(resp)
+                        ? resp
+                        : null;
                 })
                 .filter(Boolean);
 
@@ -406,7 +416,10 @@ class JarvisAI {
             }
 
             // FIX: Sanitize user input to prevent injection
-            const sanitizedInput = sanitizeUserInput(userInput);
+            const sanitizedInput = sanitizeUserInput(userInput, {
+                maxChars: config.ai.maxInputLength,
+                maxTokens: config.ai.maxInputTokens
+            });
             const contextPrefix = options.contextPrefix || '';
 
             const context = `[USER: ${userName}]
@@ -442,7 +455,23 @@ ${contextPrefix}${sanitizedInput}`;
 
             // Garbage/poison detection — catch degenerate token loops before they pollute history
             if (jarvisResponse && isGarbageOutput(jarvisResponse)) {
-                console.warn(`[GarbageDetection] Poisoned output detected for user ${userId}, discarding (${jarvisResponse.length} chars)`);
+                const providerName = aiResponse.provider || 'unknown-provider';
+                const sampleHash = crypto
+                    .createHash('sha1')
+                    .update(jarvisResponse)
+                    .digest('hex')
+                    .slice(0, 12);
+                const sample = jarvisResponse.replace(/\s+/g, ' ').slice(0, 120);
+                const poisonState = typeof aiManager.recordPoisonedOutput === 'function'
+                    ? aiManager.recordPoisonedOutput(providerName, jarvisResponse, {
+                        userId,
+                        hash: sampleHash,
+                        sample
+                    })
+                    : { count: 0, benched: false };
+                console.warn(
+                    `[GarbageDetection] Poisoned output detected for user ${userId} from ${providerName}, discarding (${jarvisResponse.length} chars, hash=${sampleHash}, count=${poisonState.count || 1}, benched=${poisonState.benched ? 'yes' : 'no'}, sample="${sample}")`
+                );
                 jarvisResponse = 'My neural pathways crossed, sir. Could you rephrase that?';
                 // Do NOT save this to history — return early with clean response
                 this.lastActivity = Date.now();
@@ -455,8 +484,11 @@ ${contextPrefix}${sanitizedInput}`;
                 const channelId = interaction.channelId || interaction.channel?.id || 'dm';
 
                 // Record this turn and check for loops
-                loopDetection.recordTurn(userId, channelId, jarvisResponse);
-                const loopCheck = loopDetection.checkForLoop(userId, channelId);
+                let loopCheck = { isLoop: false, confidence: 0 };
+                if (jarvisResponse && !isInternalRecoveryResponse(jarvisResponse)) {
+                    loopDetection.recordTurn(userId, channelId, jarvisResponse);
+                    loopCheck = loopDetection.checkForLoop(userId, channelId);
+                }
 
                 if (loopCheck.isLoop && loopCheck.confidence > 0.7) {
                     console.warn(
@@ -474,7 +506,7 @@ ${contextPrefix}${sanitizedInput}`;
 
             if (allowsLongTermMemory) {
                 const guildId = interaction.guild?.id || null;
-                if (jarvisResponse) {
+                if (jarvisResponse && !isInternalRecoveryResponse(jarvisResponse)) {
                     try {
                         await vaultClient.encryptMemory(userId, {
                             userName, userMessage: userInput, jarvisResponse,

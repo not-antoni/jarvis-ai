@@ -1,5 +1,10 @@
 'use strict';
 
+const { truncateTextToTokenLimit } = require('./token-estimator');
+
+const DEFAULT_MAX_USER_INPUT_CHARS = 2000;
+const DEFAULT_MAX_USER_INPUT_TOKENS = 1024;
+
 /**
  * Memory Sanitizer - Escape and structure memory injection
  * FIX for prompt injection vulnerabilities in memory context
@@ -100,8 +105,19 @@ function buildStructuredReplyContext(contextMessages = []) {
 /**
  * Sanitize user input to prevent injection
  */
-function sanitizeUserInput(text) {
+function sanitizeUserInput(text, options = {}) {
     if (!text || typeof text !== 'string') {return '';}
+
+    const maxChars = Math.max(
+        1,
+        Number(options.maxChars || DEFAULT_MAX_USER_INPUT_CHARS) ||
+            DEFAULT_MAX_USER_INPUT_CHARS
+    );
+    const maxTokens = Math.max(
+        1,
+        Number(options.maxTokens || DEFAULT_MAX_USER_INPUT_TOKENS) ||
+            DEFAULT_MAX_USER_INPUT_TOKENS
+    );
 
     // Remove null bytes
     let cleaned = text.replace(/\x00/g, '');
@@ -113,9 +129,11 @@ function sanitizeUserInput(text) {
         .replace(/###\s*(System|Instruction|Response|Assistant|Human)\s*:/gi, '$1:')
         .replace(/<<\s*SYS\s*>>|<<\s*\/SYS\s*>>/gi, '');
 
-    return cleaned
-        .slice(0, 1024)
+    cleaned = cleaned
+        .slice(0, maxChars)
         .trim();
+
+    return truncateTextToTokenLimit(cleaned, maxTokens).text.trim();
 }
 
 module.exports = {
@@ -124,4 +142,3 @@ module.exports = {
     buildStructuredReplyContext,
     sanitizeUserInput
 };
-

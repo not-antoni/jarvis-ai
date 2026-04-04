@@ -597,7 +597,10 @@ class DiscordHandlers {
                     }
                 }
             } else {
-                await this.replyToMessage(message, { content: 'Response circuits tangled, sir. Clarify your request?' + creditSuffix, allowedMentions: { parse: [] } });
+                await this.replyToMessage(message, {
+                    content: 'Temporary AI provider outage, sir. Please try again shortly.',
+                    allowedMentions: { parse: [] }
+                });
             }
         } catch (error) {
             const errorId = `J-${Date.now().toString(36).slice(-4).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;

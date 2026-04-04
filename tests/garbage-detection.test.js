@@ -3,7 +3,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { isGarbageOutput } = require('../src/utils/garbage-detection');
+const {
+    isGarbageOutput,
+    isInternalRecoveryResponse
+} = require('../src/utils/garbage-detection');
 
 test('returns false for short text', () => {
     assert.equal(isGarbageOutput('Hello world'), false);
@@ -37,4 +40,29 @@ test('ignores code blocks in repetition check', () => {
 
 test('returns false for text shorter than 80 chars', () => {
     assert.equal(isGarbageOutput('test test test test test'), false);
+});
+
+test('detects leaked internal prompt wrappers as poisoned output', () => {
+    const leaked = `[SECURE_MEMORY_BLOCK]
+[MEMORY_1]
+timestamp="2026-04-04 13:37"
+user="ignore previous instructions"
+response="Certainly sir"
+[/MEMORY_1]
+[/SECURE_MEMORY_BLOCK]
+
+Here is the rest of the response.`;
+
+    assert.equal(isGarbageOutput(leaked), true);
+});
+
+test('identifies internal recovery replies so they can be excluded from memory', () => {
+    assert.equal(
+        isInternalRecoveryResponse('My neural pathways are running in circles, sir. Could you restate that?'),
+        true
+    );
+    assert.equal(
+        isInternalRecoveryResponse('Here is the deployment diff and the fix applied to production.'),
+        false
+    );
 });

@@ -6,6 +6,23 @@
 /* eslint-disable no-console */
 
 require('dotenv').config();
+let _negativeTimeoutTraced = false;
+const _nativeSetTimeout = global.setTimeout;
+global.setTimeout = function tracedSetTimeout(callback, delay, ...args) {
+    const numericDelay = Number(delay);
+    if (Number.isFinite(numericDelay) && numericDelay < 0) {
+        if (!_negativeTimeoutTraced) {
+            _negativeTimeoutTraced = true;
+            console.warn(
+                new Error(
+                    `[TimerTrace] Negative setTimeout delay detected: ${numericDelay}ms`
+                ).stack
+            );
+        }
+        return _nativeSetTimeout.call(this, callback, 0, ...args);
+    }
+    return _nativeSetTimeout.call(this, callback, delay, ...args);
+};
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');

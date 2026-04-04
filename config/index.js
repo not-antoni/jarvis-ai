@@ -51,6 +51,17 @@ const agentPreferredProviders = (process.env.AGENT_PREFERRED_PROVIDERS || '')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
+function parsePositiveIntEnv(name, fallback, options = {}) {
+    const { min = 1, max = Number.POSITIVE_INFINITY } = options;
+    const raw = process.env[name];
+    const parsed = Number(raw);
+
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        return fallback;
+    }
+
+    return Math.min(max, Math.max(min, Math.floor(parsed)));
+}
 
 const baseIntents = [
     'Guilds',
@@ -138,8 +149,12 @@ const rawConfig = {
     // AI Provider Configuration
     ai: {
         cooldownMs: process.env.AI_COOLDOWN_MS ? Number(process.env.AI_COOLDOWN_MS) : 5000,
-        maxTokens: 1024,
-        maxInputLength: 1024,
+        maxTokens: parsePositiveIntEnv(
+            'AI_MAX_OUTPUT_TOKENS',
+            parsePositiveIntEnv('AI_MAX_TOKENS', 1024)
+        ),
+        maxInputLength: parsePositiveIntEnv('AI_MAX_INPUT_CHARS', 2000, { max: 2000 }),
+        maxInputTokens: parsePositiveIntEnv('AI_MAX_INPUT_TOKENS', 1024),
         temperature: 1,
         retryAttempts: 0,
         // Provider selection: "auto" for round-robin, or specific provider family
