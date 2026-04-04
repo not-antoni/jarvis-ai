@@ -50,7 +50,7 @@ test('auto session stickiness prefers groq family over google within free tier',
     const manager = withManager((instance) => {
         instance.providers = [
             { name: 'GoogleAI1-gemini-3.1-flash-lite-preview', family: 'google', costTier: 'free' },
-            { name: 'Groq1-kimi-k2-instruct-0905', family: 'groq', costTier: 'free' },
+            { name: 'Groq1-llama-3.3-70b-versatile', family: 'groq', costTier: 'free' },
             { name: 'GoogleAI2-gemini-3.1-flash-lite-preview', family: 'google', costTier: 'free' }
         ];
     });
@@ -58,14 +58,14 @@ test('auto session stickiness prefers groq family over google within free tier',
     const picked = manager._getSessionStickyProvider('user-1');
 
     assert.equal(picked?.family, 'groq');
-    assert.equal(picked?.name, 'Groq1-kimi-k2-instruct-0905');
+    assert.equal(picked?.name, 'Groq1-llama-3.3-70b-versatile');
 });
 
 test('ranked providers de-prioritize google behind groq in auto mode', () => {
     const manager = withManager((instance) => {
         instance.providers = [
             { name: 'GoogleAI1-gemini-3.1-flash-lite-preview', family: 'google', costTier: 'free' },
-            { name: 'Groq1-kimi-k2-instruct-0905', family: 'groq', costTier: 'free' },
+            { name: 'Groq1-llama-3.3-70b-versatile', family: 'groq', costTier: 'free' },
             { name: 'GoogleAI2-gemini-3.1-flash-lite-preview', family: 'google', costTier: 'free' }
         ];
     });
@@ -75,7 +75,7 @@ test('ranked providers de-prioritize google behind groq in auto mode', () => {
     assert.deepEqual(
         ranked.map(provider => provider.name),
         [
-            'Groq1-kimi-k2-instruct-0905',
+            'Groq1-llama-3.3-70b-versatile',
             'GoogleAI1-gemini-3.1-flash-lite-preview',
             'GoogleAI2-gemini-3.1-flash-lite-preview'
         ]
@@ -86,7 +86,7 @@ test('session stickiness drops cached providers once they are disabled', () => {
     const manager = withManager((instance) => {
         instance.providers = [
             {
-                name: 'Groq1-kimi-k2-instruct-0905',
+                name: 'Groq1-llama-3.3-70b-versatile',
                 family: 'groq',
                 costTier: 'free',
                 credentialGroup: 'groq:1'
@@ -99,7 +99,7 @@ test('session stickiness drops cached providers once they are disabled', () => {
             }
         ];
         instance.sessionStickiness.set('user-2', instance.providers[0]);
-        instance.disabledProviders.set('Groq1-kimi-k2-instruct-0905', Date.now() + 60_000);
+        instance.disabledProviders.set('Groq1-llama-3.3-70b-versatile', Date.now() + 60_000);
     });
 
     const picked = manager._getSessionStickyProvider('user-2');
@@ -118,7 +118,7 @@ test('forced provider mode fails open to auto when the selected family has no ac
                 credentialGroup: 'google:1'
             },
             {
-                name: 'Groq1-kimi-k2-instruct-0905',
+                name: 'Groq1-llama-3.3-70b-versatile',
                 family: 'groq',
                 costTier: 'free',
                 credentialGroup: 'groq:1'
@@ -131,7 +131,7 @@ test('forced provider mode fails open to auto when the selected family has no ac
 
     assert.deepEqual(
         available.map(provider => provider.name),
-        ['Groq1-kimi-k2-instruct-0905']
+        ['Groq1-llama-3.3-70b-versatile']
     );
 });
 
