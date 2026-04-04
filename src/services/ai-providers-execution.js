@@ -332,6 +332,10 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
     const effectiveUserPrompt = isGemmaLegacy && systemPrompt
         ? `${systemPrompt}\n\n${userPrompt}`
         : userPrompt;
+    // Thinking models (Gemini 2.5+, 3.x) use thinking tokens that count against
+    // maxOutputTokens — bump the budget so the actual reply isn't starved
+    const isThinkingModel = /^gemini-(2\.5|3[\.\-])/i.test(provider.model);
+    const effectiveMaxTokens = isThinkingModel ? Math.max(maxTokens * 8, 8192) : maxTokens;
     let result;
     try {
         result = await model.generateContent({
@@ -342,7 +346,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 }
             ],
             generationConfig: Object.assign(
-                { temperature: config.ai?.temperature ?? 0.7, maxOutputTokens: maxTokens },
+                { temperature: config.ai?.temperature ?? 0.7, maxOutputTokens: effectiveMaxTokens },
                 // Disable thinking for Gemma 1-3 (useless for short roleplay replies)
                 // Gemma 4+ and Gemini 2.5/3.x don't support thinkingBudget
                 isGemmaLegacy ? { thinkingConfig: { thinkingBudget: 0 } } : {}
