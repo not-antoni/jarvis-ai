@@ -50,7 +50,7 @@ const scanCooldowns = new Map();       // userId -> timestamp
 const SCAN_COOLDOWN_MS = 5_000;
 const guildScanTimestamps = [];        // rolling window of guild-wide scans
 const GUILD_RATE_WINDOW_MS = 60_000;
-const GUILD_RATE_MAX = 10;
+const GUILD_RATE_MAX = 60;
 
 // ── Service ──────────────────────────────────────────────────────────────────
 
