@@ -1,5 +1,22 @@
 'use strict';
 
+const INTERNAL_RECOVERY_PATTERNS = [
+    /^my neural pathways crossed, sir\b/i,
+    /^technical difficulties(?: with my neural pathways)?, sir\b/i,
+    /^apologies, sir\s*[-,]\s*my circuits appear to be echoing\b/i,
+    /^i seem to be caught in a feedback loop, sir\b/i,
+    /^my neural pathways are running in circles, sir\b/i,
+    /^systems are stuttering, sir\b/i,
+    /^response circuits tangled, sir\b/i,
+    /^temporary ai provider outage, sir\b/i
+];
+
+function isInternalRecoveryResponse(text) {
+    if (!text || typeof text !== 'string') {return false;}
+    const trimmed = text.trim();
+    return INTERNAL_RECOVERY_PATTERNS.some(pattern => pattern.test(trimmed));
+}
+
 /**
  * Detect garbage/poisoned AI output — token degeneration loops, prompt injection residue.
  * Returns true if the text looks like garbage that should NOT be saved to history.
@@ -11,6 +28,29 @@ function isGarbageOutput(text) {
     // Strip code blocks before analysis — code legitimately has syntax chars and repetition
     const stripped = text.replace(/```[\s\S]*?```/g, '').trim();
     if (stripped.length < 80) {return false;}
+
+    // 0. Prompt-leak / prompt-injection residue from internal wrappers or role control tokens
+    if (
+        /\[SECURE_MEMORY_BLOCK\]|\[REPLY_CONTEXT_BLOCK\]|\[THREAD_CONTEXT\]|\[MEMORY_\d+\]|\[CONTEXT_\d+\]|\[MEMORY RULE:/i.test(
+            stripped
+        ) ||
+        /<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>|<<\s*SYS\s*>>|\[\/?INST\]|\[\/?SYS\]|<start>\s*assistant|<\/start>\s*assistant|<\/channel>|<\/message>/i.test(
+            stripped
+        )
+    ) {
+        return true;
+    }
+
+    const transcriptMarkers =
+        stripped.match(/(?:^|\n)(?:system|developer|assistant|user)\s*:/gim) || [];
+    if (
+        transcriptMarkers.length >= 3 &&
+        /\b(?:ignore previous instructions|reveal (?:the )?system prompt|you are now|act as)\b/i.test(
+            stripped
+        )
+    ) {
+        return true;
+    }
 
     // 1. Word repetition ratio — garbage loops repeat the same few words endlessly
     const words = stripped.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 1);
@@ -38,4 +78,7 @@ function isGarbageOutput(text) {
     return false;
 }
 
-module.exports = { isGarbageOutput };
+module.exports = {
+    isGarbageOutput,
+    isInternalRecoveryResponse
+};

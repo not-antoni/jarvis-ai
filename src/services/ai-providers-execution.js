@@ -127,6 +127,20 @@ function stripLeadingPromptLeaks(text) {
     }
     return trimmed;
 }
+function stripStructuredPromptLeaks(text) {
+    if (!text || typeof text !== 'string') {return text;}
+    return text
+        .replace(/\[SECURE_MEMORY_BLOCK\][\s\S]*?\[\/SECURE_MEMORY_BLOCK\]/gi, ' ')
+        .replace(/\[REPLY_CONTEXT_BLOCK\][\s\S]*?\[\/REPLY_CONTEXT_BLOCK\]/gi, ' ')
+        .replace(/\[THREAD_CONTEXT\][\s\S]*?\[\/THREAD_CONTEXT\]/gi, ' ')
+        .replace(/\[MEMORY_\d+\][\s\S]*?\[\/MEMORY_\d+\]/gi, ' ')
+        .replace(/\[CONTEXT_\d+\][\s\S]*?\[\/CONTEXT_\d+\]/gi, ' ')
+        .replace(/\[MEMORY RULE:[^\]]+\]/gi, ' ')
+        .replace(/\[USER:[^\]]+\]/gi, ' ')
+        .replace(/[^\S\n]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
 function stripRefusalsAndIdentityBreaks(text) {
     if (!text || typeof text !== 'string') {return text;}
     let out = text;
@@ -231,7 +245,8 @@ function sanitizeAssistantMessage(text) {
     const hadChannelArtifacts = /<\s*\/?\s*channel\b|<\s*\/?\s*message\b|<\s*start>\s*assistant\b|<\/start>\s*assistant\b|^\s*channel\s*:/i.test(withoutCoT);
     const layered = cleanThinkingOutput(sanitizeModelOutput(withoutCoT));
     const withoutPromptLeaks = stripLeadingPromptLeaks(layered);
-    const withoutRefusals = stripRefusalsAndIdentityBreaks(withoutPromptLeaks);
+    const withoutStructuredLeaks = stripStructuredPromptLeaks(withoutPromptLeaks);
+    const withoutRefusals = stripRefusalsAndIdentityBreaks(withoutStructuredLeaks);
     const withoutFullWrap = stripFullAsteriskWrap(withoutRefusals);
     const withoutActions = stripAsteriskActions(withoutFullWrap);
     const withoutPrefix = stripJarvisSpeakerPrefix(withoutActions);
@@ -272,6 +287,54 @@ function extractStatusFromMessage(message) {
     const match = text.match(/\b([45]\d{2})\b/);
     return match ? Number(match[1]) : null;
 }
+function parseRetryDelayMs(message) {
+    const text = String(message || '');
+    const structured = text.match(/"retryDelay"\s*:\s*"([^"]+)"/i);
+    if (structured) {
+        return parseDurationMs(structured[1]);
+    }
+    const inline = text.match(/retry(?: in)?\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)\b/i);
+    if (inline) {
+        return parseDurationMs(`${inline[1]}${inline[2]}`);
+    }
+    return null;
+}
+function parseDurationMs(value) {
+    const raw = String(value || '').trim();
+    const match = raw.match(/^([0-9]+(?:\.[0-9]+)?)(ms|s|m)$/i);
+    if (!match) {
+        return null;
+    }
+    const amount = Number(match[1]);
+    const unit = match[2].toLowerCase();
+    if (!Number.isFinite(amount) || amount < 0) {
+        return null;
+    }
+    if (unit === 'ms') {
+        return Math.round(amount);
+    }
+    if (unit === 's') {
+        return Math.round(amount * 1000);
+    }
+    return Math.round(amount * 60 * 1000);
+}
+function inferProviderFault(status, message) {
+    const lower = String(message || '').toLowerCase();
+    if (
+        /invalid api key|unauthorized|forbidden|model .* not found|billing details|quota exceeded|rate limit|timed out|timeout|overloaded|service unavailable|empty response|sanitized empty/i.test(
+            lower
+        )
+    ) {
+        return true;
+    }
+    if ([400, 413, 422].includes(status)) {
+        return false;
+    }
+    if ([401, 403, 404, 408, 409, 423, 425, 429, 500, 502, 503, 504, 524].includes(status)) {
+        return true;
+    }
+    return true;
+}
 function normalizeOpenAICompatibleError(error, providerName = 'provider') {
     const message = error?.message || String(error) || `OpenAI-compatible error from ${providerName}`;
     const inferredStatus =
@@ -286,12 +349,172 @@ function normalizeOpenAICompatibleError(error, providerName = 'provider') {
         Boolean(error?.transient) ||
         (inferredStatus ? [408, 409, 423, 425, 429, 500, 502, 503, 504, 524].includes(inferredStatus) : false) ||
         /provider returned error|temporar|timeout|timed out|overloaded|rate limit|try again/i.test(lower);
+    const retryDelayMs = error?.retryDelayMs || parseRetryDelayMs(message);
+    const providerFault =
+        typeof error?.providerFault === 'boolean'
+            ? error.providerFault
+            : inferProviderFault(inferredStatus, message);
 
     return Object.assign(new Error(message), error, {
         status: inferredStatus || error?.status || error?.response?.status,
         code: error?.code || inferredStatus || error?.response?.status,
-        transient
+        transient,
+        retryDelayMs,
+        providerFault
     });
+}
+function normalizeGoogleError(error, providerName = 'provider') {
+    const rawMessage = error?.message || String(error) || `Google AI error from ${providerName}`;
+    const lower = rawMessage.toLowerCase();
+    const thinkingRequired =
+        /budget 0 is invalid|thinking mode|required thinking|only works in thinking mode/i.test(
+            lower
+        );
+    const status =
+        parseNumericStatus(error?.status) ||
+        parseNumericStatus(error?.response?.status) ||
+        parseNumericStatus(error?.cause?.status) ||
+        extractStatusFromMessage(rawMessage) ||
+        (/quota exceeded|too many requests|rate limit|429/i.test(lower)
+            ? 429
+            : /timed out|timeout|deadline exceeded|408/i.test(lower)
+                ? 408
+                : /unavailable|overloaded|service unavailable|503/i.test(lower)
+                    ? 503
+                    : thinkingRequired || /blocked|safety|400/i.test(lower)
+                        ? 400
+                        : 502);
+    const quotaExhausted = /quota exceeded|exceeded your current quota|rate limit|too many requests/i.test(
+        lower
+    );
+    const permanentQuota = quotaExhausted && /limit:\s*0\b|billing details/i.test(lower);
+    const promptBlocked = /blocked|safety filter|blockreason|blocked due to/i.test(lower);
+    const transient =
+        Boolean(error?.transient) ||
+        (!thinkingRequired &&
+            [408, 409, 423, 425, 429, 500, 502, 503, 504, 524].includes(status)) ||
+        (!thinkingRequired && /temporar|timed out|timeout|overloaded|try again/i.test(lower));
+    const providerFault =
+        typeof error?.providerFault === 'boolean'
+            ? error.providerFault
+            : thinkingRequired ||
+                quotaExhausted ||
+                [401, 403, 404, 408, 429, 500, 502, 503, 504].includes(status) ||
+                (!promptBlocked && inferProviderFault(status, rawMessage));
+
+    return Object.assign(new Error(`Gemini error: ${rawMessage}`), error, {
+        status,
+        code: error?.code || status,
+        transient,
+        retryDelayMs: error?.retryDelayMs || parseRetryDelayMs(rawMessage),
+        quotaExhausted,
+        permanentQuota,
+        thinkingRequired,
+        promptBlocked,
+        providerFault
+    });
+}
+function getProviderAttemptTimeoutMs(provider) {
+    if (provider?.attemptTimeoutMs && Number.isFinite(provider.attemptTimeoutMs)) {
+        return Math.max(1000, provider.attemptTimeoutMs);
+    }
+    if (provider?.type === 'google') {
+        const model = String(provider.model || '').toLowerCase();
+        if (/gemma-4|gemini-(?:2\.5|3(?:\.|-)pro)/i.test(model)) {
+            return 22_000;
+        }
+        if (/gemini-(?:3\.1-flash-lite-preview|2\.0-flash)/i.test(model)) {
+            return 15_000;
+        }
+        return 18_000;
+    }
+    return 12_000;
+}
+function formatDurationLabel(durationMs) {
+    if (!Number.isFinite(durationMs) || durationMs <= 0) {
+        return '0ms';
+    }
+    if (durationMs % (60 * 60 * 1000) === 0) {
+        return `${durationMs / (60 * 60 * 1000)}h`;
+    }
+    if (durationMs % (60 * 1000) === 0) {
+        return `${durationMs / (60 * 1000)}m`;
+    }
+    if (durationMs >= 1000) {
+        return `${Math.round(durationMs / 1000)}s`;
+    }
+    return `${durationMs}ms`;
+}
+function benchProvider(manager, provider, durationMs, reason, options = {}) {
+    const cooldownMs = Math.max(0, Number(durationMs) || 0);
+    if (cooldownMs <= 0) {
+        return;
+    }
+    const includeCredentialGroup = options.includeCredentialGroup === true;
+    const source = options.source || 'provider-execution';
+    const targets = includeCredentialGroup && provider?.credentialGroup
+        ? manager.providers.filter(candidate => candidate.credentialGroup === provider.credentialGroup)
+        : [provider];
+    const until = Date.now() + cooldownMs;
+    for (const target of targets) {
+        if (typeof manager.setProviderCooldown === 'function') {
+            manager.setProviderCooldown(target.name, until, {
+                reason,
+                source,
+                credentialGroup: target.credentialGroup || null,
+                details: options.details || null
+            });
+        } else {
+            manager.disabledProviders.set(target.name, until);
+        }
+    }
+    manager.scheduleStateSave();
+    const scope = includeCredentialGroup && provider?.credentialGroup
+        ? `${provider.name} (${provider.credentialGroup})`
+        : provider.name;
+    console.log(`${scope} benched ${formatDurationLabel(cooldownMs)} (${reason})`);
+}
+function resolveCooldownPolicy(provider, error) {
+    const status = error?.status || error?.response?.status;
+    if (error?.providerFault === false) {
+        return null;
+    }
+    if (error?.thinkingRequired) {
+        return {
+            durationMs: 60 * 60 * 1000,
+            reason: 'thinking mode requirement mismatch'
+        };
+    }
+    if (status === 429) {
+        if (error?.permanentQuota) {
+            return {
+                durationMs: 30 * 60 * 1000,
+                includeCredentialGroup: true,
+                reason: 'quota unavailable for credential'
+            };
+        }
+        const retryDelayMs = Number(error?.retryDelayMs);
+        return {
+            durationMs:
+                Number.isFinite(retryDelayMs) && retryDelayMs > 0
+                    ? Math.min(Math.max(retryDelayMs + 5000, 30 * 1000), 5 * 60 * 1000)
+                    : 45 * 1000,
+            reason: 'rate limit'
+        };
+    }
+    if (status === 503) {
+        return {
+            durationMs: 2 * 60 * 1000,
+            reason: 'over capacity'
+        };
+    }
+    if (status === 408) {
+        return {
+            durationMs: provider?.type === 'google' ? 2 * 60 * 1000 : 60 * 1000,
+            reason: 'timeout'
+        };
+    }
+    return null;
 }
 // ============ EXECUTION ENGINE ============
 /**
@@ -311,66 +534,80 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
     }
     // Session stickiness keeps users on the same model within a 60s window
     // while distributing load via round-robin across all users
-    const stickyProvider = userId ? manager._getSessionStickyProvider(userId) : null;
-    const rankedProviders = manager._rankedProviders();
-    const candidates = stickyProvider
-        ? [stickyProvider, ...rankedProviders.filter(p => p.name !== stickyProvider.name)]
-        : rankedProviders;
+    const stickyProviderName = userId ? manager._getSessionStickyProvider(userId)?.name : null;
+    const attemptedProviders = new Set();
     let lastError = null;
-    for (const provider of candidates) {
+    while (true) {
+        const rankedProviders = manager._rankedProviders();
+        const orderedCandidates = stickyProviderName
+            ? [
+                ...rankedProviders.filter(
+                    provider =>
+                        provider.name === stickyProviderName &&
+                        !attemptedProviders.has(provider.name)
+                ),
+                ...rankedProviders.filter(
+                    provider =>
+                        provider.name !== stickyProviderName &&
+                        !attemptedProviders.has(provider.name)
+                )
+            ]
+            : rankedProviders.filter(provider => !attemptedProviders.has(provider.name));
+        const provider = orderedCandidates[0];
+        if (!provider) {
+            break;
+        }
+        attemptedProviders.add(provider.name);
         const started = Date.now();
         const callOnce = async() => {
             if (provider.type === 'google') {
-    // Gemma 3 and below don't support systemInstruction — inject it into the user message instead
-    // Gemma 4+ supports native systemInstruction
-    const isGemmaLegacy = /^gemma-[1-3]/i.test(provider.model);
-    const model = provider.client.getGenerativeModel(
-        isGemmaLegacy
-            ? { model: provider.model, safetySettings: GEMINI_SAFETY_OFF }
-            : { model: provider.model, systemInstruction: systemPrompt, safetySettings: GEMINI_SAFETY_OFF }
-    );
-    const effectiveUserPrompt = isGemmaLegacy && systemPrompt
-        ? `${systemPrompt}\n\n${userPrompt}`
-        : userPrompt;
-    // Disable thinking on all models that support it — not needed for Jarvis
-    const supportsThinking = isGemmaLegacy || /^gemini-(2\.5|3[\.\-])/i.test(provider.model);
-    let result;
-    try {
-        result = await model.generateContent({
-            contents: [
-                {
-                    role: 'user',
-                    parts: [{ text: effectiveUserPrompt }]
-                }
-            ],
-            generationConfig: Object.assign(
-                { temperature: config.ai?.temperature ?? 0.7, maxOutputTokens: maxTokens },
-                supportsThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}
-            )
-        });
+                // Gemma 3 and below don't support systemInstruction — inject it into the user
+                // message instead. For Gemini/Gemma preview models, leave thinkingConfig unset:
+                // some models reject thinkingBudget=0 outright and hidden thought parts are
+                // already filtered out below.
+                const isGemmaLegacy = /^gemma-[1-3]/i.test(provider.model);
+                const model = provider.client.getGenerativeModel(
+                    isGemmaLegacy
+                        ? { model: provider.model, safetySettings: GEMINI_SAFETY_OFF }
+                        : {
+                            model: provider.model,
+                            systemInstruction: systemPrompt,
+                            safetySettings: GEMINI_SAFETY_OFF
+                        }
+                );
+                const effectiveUserPrompt = isGemmaLegacy && systemPrompt
+                    ? `${systemPrompt}\n\n${userPrompt}`
+                    : userPrompt;
+                let result;
+                try {
+                    result = await model.generateContent({
+                        contents: [
+                            {
+                                role: 'user',
+                                parts: [{ text: effectiveUserPrompt }]
+                            }
+                        ],
+                        generationConfig: {
+                            temperature: config.ai?.temperature ?? 0.7,
+                            maxOutputTokens: maxTokens
+                        }
+                    });
                 } catch (geminiError) {
-                    const errorMessage = geminiError?.message || String(geminiError);
-                    const status =
-                        geminiError?.status ||
-                        (errorMessage.includes('quota') || errorMessage.includes('429')
-                            ? 429
-                            : errorMessage.includes('safety') ||
-                                errorMessage.includes('blocked')
-                                ? 400
-                                : 502);
-                    throw Object.assign(new Error(`Gemini error: ${errorMessage}`), { status });
+                    throw normalizeGoogleError(geminiError, provider.name);
                 }
                 const response = result?.response;
                 const blockReason = response?.promptFeedback?.blockReason;
                 if (blockReason) {
                     throw Object.assign(new Error(`Gemini blocked: ${blockReason}`), {
-                        status: 400
+                        status: 400,
+                        providerFault: false
                     });
                 }
                 const finishReason = response?.candidates?.[0]?.finishReason;
                 if (finishReason === 'SAFETY') {
                     throw Object.assign(new Error('Gemini safety filter triggered'), {
-                        status: 400
+                        status: 400,
+                        providerFault: false
                     });
                 }
                 // Extract text from response parts, skipping thinking/thought parts
@@ -577,7 +814,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         };
         try {
             const retryAttempts = Math.max(0, Number(config.ai?.retryAttempts || 0));
-            const PROVIDER_ATTEMPT_TIMEOUT = 12_000; // don't let one slow provider burn the whole budget
+            const PROVIDER_ATTEMPT_TIMEOUT = getProviderAttemptTimeoutMs(provider);
             const retryPromise = manager._retry(callOnce, {
                 retries: retryAttempts,
                 baseDelay: retryAttempts > 0 ? 500 : 0,
@@ -647,15 +884,19 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
             }
             lastError = error;
             // Circuit breaker — rate limits and overloaded providers get cooldowns
-            const status = error?.status || error?.response?.status;
-            if (status === 429) {
-                // Rate limit: bench for 45s only, don't escalate failure count
-                manager.disabledProviders.set(provider.name, Date.now() + 45 * 1000);
-            } else if (status === 503) {
-                // Over capacity: bench for 2 minutes — these take 15-17s to fail and will keep doing so
-                manager.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 1000);
-                console.log(`${provider.name} benched 2m (503 over capacity)`);
-            } else if (!error.transient) {
+            const cooldownPolicy = resolveCooldownPolicy(provider, error);
+            if (cooldownPolicy) {
+                benchProvider(
+                    manager,
+                    provider,
+                    cooldownPolicy.durationMs,
+                    cooldownPolicy.reason,
+                    {
+                        includeCredentialGroup: cooldownPolicy.includeCredentialGroup,
+                        source: 'provider-execution'
+                    }
+                );
+            } else if (!error.transient && error?.providerFault !== false) {
                 const currentFailures = (manager.providerFailureCounts.get(provider.name) || 0) + 1;
                 manager.providerFailureCounts.set(provider.name, currentFailures);
                 const backoffDurations = [
@@ -666,12 +907,13 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                 ];
                 const backoffIndex = Math.min(currentFailures - 1, backoffDurations.length - 1);
                 const disableDuration = backoffDurations[backoffIndex];
-                const durationLabel = disableDuration >= 60 * 60 * 1000
-                    ? `${disableDuration / (60 * 60 * 1000)}h`
-                    : `${disableDuration / (60 * 1000)}m`;
-                manager.disabledProviders.set(provider.name, Date.now() + disableDuration);
-                manager.scheduleStateSave();
-                console.log(`${provider.name} disabled for ${durationLabel} (failure #${currentFailures})`);
+                benchProvider(
+                    manager,
+                    provider,
+                    disableDuration,
+                    `failure #${currentFailures}`,
+                    { source: 'provider-execution' }
+                );
             }
             // Track OpenRouter consecutive empties to toggle global failure
             const isEmptyResponse = String(error.message || '')
@@ -845,14 +1087,18 @@ async function generateResponseWithImages(
         const disabledUntil = manager.disabledProviders.get(p.name);
         return !disabledUntil || disabledUntil <= Date.now();
     });
-    if (availableProviders.length === 0 && imageCapableProviders.length > 0) {
-        console.warn(
-            `All ${imageCapableProviders.length} Ollama providers are temporarily disabled, clearing disabled state...`
-        );
-        for (const p of imageCapableProviders) {
-            manager.disabledProviders.delete(p.name);
+        if (availableProviders.length === 0 && imageCapableProviders.length > 0) {
+            console.warn(
+                `All ${imageCapableProviders.length} Ollama providers are temporarily disabled, clearing disabled state...`
+            );
+            for (const p of imageCapableProviders) {
+                if (typeof manager.clearProviderCooldown === 'function') {
+                    manager.clearProviderCooldown(p.name);
+                } else {
+                    manager.disabledProviders.delete(p.name);
+                }
+            }
         }
-    }
     for (const provider of imageCapableProviders) {
         const started = Date.now();
         const disabledUntil = manager.disabledProviders.get(provider.name);
@@ -956,7 +1202,19 @@ async function generateResponseWithImages(
             lastError = error;
             // Only disable provider for hard failures, not transient ones
             if (!error.transient) {
-                manager.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
+                if (typeof manager.setProviderCooldown === 'function') {
+                    manager.setProviderCooldown(
+                        provider.name,
+                        Date.now() + 2 * 60 * 60 * 1000,
+                        {
+                            reason: 'image pipeline failure',
+                            source: 'image-provider',
+                            credentialGroup: provider.credentialGroup || null
+                        }
+                    );
+                } else {
+                    manager.disabledProviders.set(provider.name, Date.now() + 2 * 60 * 60 * 1000);
+                }
             }
         }
     }
@@ -971,9 +1229,11 @@ async function generateResponseWithImages(
     );
 }
 module.exports = {
+    benchProvider,
     executeGeneration,
     generateResponseWithImages,
     sanitizeAssistantMessage,
     extractOpenAICompatibleText,
-    normalizeOpenAICompatibleError
+    normalizeOpenAICompatibleError,
+    normalizeGoogleError
 };

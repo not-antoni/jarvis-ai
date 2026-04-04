@@ -6,11 +6,25 @@ const { LRUCache } = require('lru-cache');
 const OpenAI = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../../config');
+const { parseBooleanEnv } = require('../utils/parse-bool-env');
 const { getAIFetch } = require('./ai-proxy');
 const aiFetch = getAIFetch();
 const fsp = fs.promises;
 const PROVIDER_STATE_PATH = path.join(__dirname, '..', '..', 'data', 'provider-state.json');
 const COST_PRIORITY = { free: 0, freemium: 1, paid: 2 };
+const GOOGLE_STABLE_MODELS = [
+    'gemini-2.5-pro',
+    'gemini-2.0-flash',
+    'gemma-4-31b-it'
+];
+const GOOGLE_PREVIEW_MODELS = [
+    'gemini-3.1-pro-preview',
+    'gemini-3.1-flash-lite-preview',
+    'gemini-3-pro-preview'
+];
+const POISON_QUARANTINE_THRESHOLD = 2;
+const POISON_QUARANTINE_WINDOW_MS = 10 * 60 * 1000;
+const POISON_QUARANTINE_DURATION_MS = 30 * 60 * 1000;
 const AUTO_FAMILY_PRIORITY = {
     groq: 0,
     cerebras: 1,
@@ -70,6 +84,7 @@ class AIProviderManager {
         this.providerErrors = new Map();
         this.metrics = new Map();
         this.disabledProviders = new Map();
+        this.disabledProviderMeta = new Map();
         this.roundRobinIndex = 0;
         this.sessionStickiness = new LRUCache({ max: 10000, ttl: 15 * 1000 }); // userId -> provider
         this.sessionStickinessMs = 15 * 1000; // 15 seconds
@@ -79,6 +94,7 @@ class AIProviderManager {
         this.openRouterFailureCount = 0;
         // Per-provider failure tracking for exponential backoff
         this.providerFailureCounts = new Map();
+        this.providerPoisonCounts = new Map();
         // Persistence (5s debounce to reduce I/O)
         this.stateSaveTimer = null;
         this.stateSaveDebounceMs = 5000;
@@ -125,7 +141,8 @@ class AIProviderManager {
                     model,
                     type: 'openai-chat',
                     family: 'openrouter',
-                    costTier: 'free'
+                    costTier: 'free',
+                    credentialGroup: `openrouter:${keyIndex + 1}`
                 });
             });
         });
@@ -151,7 +168,8 @@ class AIProviderManager {
                     model,
                     type: 'openai-chat',
                     family: 'groq',
-                    costTier: 'free'
+                    costTier: 'free',
+                    credentialGroup: `groq:${keyIndex + 1}`
                 });
             });
         });
@@ -175,7 +193,8 @@ class AIProviderManager {
                     model,
                     type: 'openai-chat',
                     family: 'cerebras',
-                    costTier: 'free'
+                    costTier: 'free',
+                    credentialGroup: `cerebras:${keyIndex + 1}`
                 });
             });
         });
@@ -198,7 +217,8 @@ class AIProviderManager {
                     model,
                     type: 'openai-chat',
                     family: 'mistral',
-                    costTier: 'paid'
+                    costTier: 'paid',
+                    credentialGroup: `mistral:${keyIndex + 1}`
                 });
             });
         });
@@ -222,7 +242,8 @@ class AIProviderManager {
                     model,
                     type: 'openai-chat',
                     family: 'sambanova',
-                    costTier: 'free'
+                    costTier: 'free',
+                    credentialGroup: `sambanova:${keyIndex + 1}`
                 });
             });
         });
@@ -230,14 +251,9 @@ class AIProviderManager {
         // Auto-discover all GOOGLE_AI_API_KEY, GOOGLE_AI_API_KEY2, etc.
         const googleKeys = discoverEnvKeys('GOOGLE_AI_API_KEY');
         // Each Google key gets multiple models — rate limits are per-model
-        const googleModels = [
-            'gemini-3.1-pro-preview',
-            'gemini-3.1-flash-lite-preview',
-            'gemini-3-pro-preview',
-            'gemini-2.5-pro',
-            'gemini-2.0-flash',
-            'gemma-4-31b-it',
-        ];
+        const googleModels = parseBooleanEnv(process.env.GOOGLE_AI_ENABLE_PREVIEW_MODELS, false)
+            ? [...GOOGLE_STABLE_MODELS, ...GOOGLE_PREVIEW_MODELS]
+            : GOOGLE_STABLE_MODELS;
         googleKeys.forEach((key, keyIndex) => {
             googleModels.forEach((model) => {
                 this.providers.push({
@@ -246,7 +262,8 @@ class AIProviderManager {
                     model,
                     type: 'google',
                     family: 'google',
-                    costTier: 'free'
+                    costTier: 'free',
+                    credentialGroup: `google:${keyIndex + 1}`
                 });
             });
         });
@@ -270,7 +287,8 @@ class AIProviderManager {
                 model: 'deepseek/deepseek-v3.2',
                 type: 'openai-chat',
                 family: 'deepseek',
-                costTier: 'paid'
+                costTier: 'paid',
+                credentialGroup: `deepseek:${index + 1}`
             });
         });
         // ---------- NVIDIA NIM (OpenAI-compatible) ----------
@@ -296,7 +314,8 @@ class AIProviderManager {
                     model,
                     type: 'openai-chat',
                     family: 'nvidia',
-                    costTier: 'freemium'
+                    costTier: 'freemium',
+                    credentialGroup: `nvidia:${keyIndex + 1}`
                 });
             });
         });
@@ -311,7 +330,8 @@ class AIProviderManager {
                 model: 'gpt-4o-mini', // ← actual model
                 type: 'openai-chat', // generic OpenAI-compatible flow
                 family: 'openai',
-                costTier: 'paid'
+                costTier: 'paid',
+                credentialGroup: 'openai:1'
             });
         }
         // ---------- Ollama providers ----------
@@ -328,6 +348,7 @@ class AIProviderManager {
                 type: 'ollama',
                 family: 'ollama',
                 costTier: 'free',
+                credentialGroup: `ollama:${index + 1}`,
                 supportsImages: true,
                 visionOnly: false
             });
@@ -405,6 +426,24 @@ class AIProviderManager {
                 }
             }
         }
+        if (data.disabledProviderMeta && typeof data.disabledProviderMeta === 'object') {
+            const now = Date.now();
+            for (const [name, meta] of Object.entries(data.disabledProviderMeta)) {
+                const disabledUntil = Number(meta?.disabledUntil || this.disabledProviders.get(name));
+                if (
+                    meta &&
+                    typeof meta === 'object' &&
+                    Number.isFinite(disabledUntil) &&
+                    disabledUntil > now &&
+                    this.providers.find(p => p.name === name)
+                ) {
+                    this.disabledProviderMeta.set(name, {
+                        ...meta,
+                        disabledUntil
+                    });
+                }
+            }
+        }
         if (data.providerErrors && typeof data.providerErrors === 'object') {
             for (const [name, errorInfo] of Object.entries(data.providerErrors)) {
                 if (
@@ -445,6 +484,7 @@ class AIProviderManager {
         const payload = {
             metrics: Object.fromEntries(this.metrics),
             disabledProviders: Object.fromEntries(this.disabledProviders),
+            disabledProviderMeta: Object.fromEntries(this.disabledProviderMeta),
             providerErrors: Object.fromEntries(this.providerErrors),
             openRouterGlobalFailure: this.openRouterGlobalFailure,
             openRouterFailureCount: this.openRouterFailureCount,
@@ -491,10 +531,102 @@ class AIProviderManager {
             await this.saveState();
         }, this.stateSaveDebounceMs);
     }
+    setProviderCooldown(name, disabledUntil, metadata = {}) {
+        const until = Number(disabledUntil);
+        if (!Number.isFinite(until) || until <= Date.now()) {
+            this.clearProviderCooldown(name);
+            return;
+        }
+        this.disabledProviders.set(name, until);
+        const provider = this.providers.find(candidate => candidate.name === name);
+        const previous = this.disabledProviderMeta.get(name) || {};
+        this.disabledProviderMeta.set(name, {
+            disabledUntil: until,
+            reason: metadata.reason ?? previous.reason ?? null,
+            source: metadata.source ?? previous.source ?? null,
+            credentialGroup:
+                metadata.credentialGroup ??
+                previous.credentialGroup ??
+                provider?.credentialGroup ??
+                null,
+            details: metadata.details ?? previous.details ?? null,
+            updatedAt: Date.now()
+        });
+    }
+    clearProviderCooldown(name) {
+        this.disabledProviders.delete(name);
+        this.disabledProviderMeta.delete(name);
+    }
+    getDisabledProviderMeta(name) {
+        const disabledUntil = this.disabledProviders.get(name);
+        if (!disabledUntil) {
+            return null;
+        }
+        const provider = this.providers.find(candidate => candidate.name === name);
+        const meta = this.disabledProviderMeta.get(name) || {};
+        return {
+            disabledUntil,
+            reason: meta.reason || null,
+            source: meta.source || null,
+            credentialGroup: meta.credentialGroup || provider?.credentialGroup || null,
+            details: meta.details || null,
+            updatedAt: meta.updatedAt || null
+        };
+    }
+    recordPoisonedOutput(providerName, output, options = {}) {
+        if (!providerName) {
+            return { count: 0, benched: false };
+        }
+        const now = Date.now();
+        const previous = this.providerPoisonCounts.get(providerName);
+        const count =
+            previous && now - previous.lastAt <= POISON_QUARANTINE_WINDOW_MS
+                ? previous.count + 1
+                : 1;
+        this.providerPoisonCounts.set(providerName, { count, lastAt: now });
+        this.providerErrors.set(providerName, {
+            error: `Poisoned output detected from ${providerName}`,
+            timestamp: now,
+            status: 'poison',
+            source: 'garbage-detection',
+            count,
+            hash: options.hash || null,
+            sample: options.sample || null
+        });
+        this.scheduleStateSave();
+
+        const provider = this.providers.find(candidate => candidate.name === providerName);
+        if (provider && count >= POISON_QUARANTINE_THRESHOLD) {
+            execution.benchProvider(
+                this,
+                provider,
+                POISON_QUARANTINE_DURATION_MS,
+                `poisoned output x${count}`,
+                {
+                    source: 'garbage-detection',
+                    details: {
+                        hash: options.hash || null,
+                        sample: options.sample || null,
+                        count
+                    }
+                }
+            );
+            this.providerPoisonCounts.delete(providerName);
+            return {
+                count,
+                benched: true,
+                durationMs: POISON_QUARANTINE_DURATION_MS
+            };
+        }
+        return { count, benched: false };
+    }
     _filterProvidersByType(providers, options = {}) {
         // By default, exclude moderationOnly providers from casual chat.
         // Set options.allowModerationOnly = true to include them (if any are configured).
         const allowModerationOnly = options.allowModerationOnly === true;
+        const providerType = String(
+            options.providerType || this.selectedProviderType || 'auto'
+        ).toLowerCase();
         let filtered = providers;
         // Filter out moderationOnly providers unless explicitly allowed
         if (!allowModerationOnly) {
@@ -505,10 +637,10 @@ class AIProviderManager {
         if (!options.allowVisionOnly) {
             filtered = filtered.filter(p => !p.visionOnly);
         }
-        if (this.selectedProviderType === 'auto') {return filtered;}
+        if (providerType === 'auto') {return filtered;}
         return filtered.filter(provider => {
             const providerName = provider.name.toLowerCase();
-            switch (this.selectedProviderType.toLowerCase()) {
+            switch (providerType) {
                 case 'openai':
                     return providerName === 'gpt5nano'; // preserved for compatibility with your UI
                 case 'groq':
@@ -531,7 +663,7 @@ class AIProviderManager {
                     return providerName.startsWith('ollama');
                 default:
                     console.warn(
-                        `Unknown provider type: ${this.selectedProviderType}, falling back to auto mode`
+                        `Unknown provider type: ${providerType}, falling back to auto mode`
                     );
                     return true;
             }
@@ -539,12 +671,23 @@ class AIProviderManager {
     }
     _availableProviders(options = {}) {
         const now = Date.now();
-        return this._filterProvidersByType(this.providers, options).filter(p => {
+        const filterActive = providerOptions => this._filterProvidersByType(this.providers, providerOptions).filter(p => {
             const disabledUntil = this.disabledProviders.get(p.name);
             if (disabledUntil && disabledUntil > now) {return false;}
             if (p.name.startsWith('OpenRouter') && this.openRouterGlobalFailure) {return false;}
             return true;
         });
+        const selectedProviders = filterActive(options);
+        if (selectedProviders.length > 0 || this.selectedProviderType === 'auto') {
+            return selectedProviders;
+        }
+        const failOpenProviders = filterActive({ ...options, providerType: 'auto' });
+        if (failOpenProviders.length > 0) {
+            console.warn(
+                `No active providers available for forced type "${this.selectedProviderType}", failing open to auto mode`
+            );
+        }
+        return failOpenProviders;
     }
     _rankedProviders(options = {}) {
         return this._availableProviders(options)
@@ -580,7 +723,13 @@ class AIProviderManager {
     _getSessionStickyProvider(userId, options = {}) {
         const cached = this.sessionStickiness.get(userId);
         if (cached) {
-            return cached;
+            const available = this._availableProviders(options).find(
+                provider => provider.name === cached.name
+            );
+            if (available) {
+                return available;
+            }
+            this.sessionStickiness.delete(userId);
         }
 
         // Session expired or doesn't exist - pick new one via round-robin
@@ -737,17 +886,21 @@ class AIProviderManager {
                 };
                 const total = metrics.successes + metrics.failures;
                 const disabledUntil = this.disabledProviders.get(p.name) || null;
+                const disabledMeta = this.getDisabledProviderMeta(p.name);
                 return {
                     name: p.name,
                     model: p.model,
                     type: p.type,
                     family: p.family || null,
+                    credentialGroup: p.credentialGroup || null,
                     costTier: p.costTier || 'unknown',
                     priority: resolveCostPriority(p),
                     hasError: this.providerErrors.has(p.name),
                     lastError: this.providerErrors.get(p.name) || null,
                     disabledUntil,
                     isDisabled: disabledUntil ? disabledUntil > now : false,
+                    disabledReason: disabledMeta?.reason || null,
+                    disabledSource: disabledMeta?.source || null,
                     metrics: {
                         successes: metrics.successes,
                         failures: metrics.failures,
@@ -773,6 +926,7 @@ class AIProviderManager {
             ...p,
             name: '[REDACTED]',
             model: '[REDACTED]',
+            credentialGroup: p.credentialGroup ? '[REDACTED]' : null,
             lastError: p.hasError ? '[REDACTED]' : null
         }));
     }
@@ -823,7 +977,7 @@ class AIProviderManager {
             if (now - (error?.timestamp || 0) > maxAge) {this.providerErrors.delete(name);}
         }
         for (const [name, disabledUntil] of this.disabledProviders.entries()) {
-            if (disabledUntil <= now) {this.disabledProviders.delete(name);}
+            if (disabledUntil <= now) {this.clearProviderCooldown(name);}
         }
         // LRU handles session stickiness expiry automatically
     }
@@ -836,9 +990,11 @@ class AIProviderManager {
         this.providerErrors.clear();
         this.metrics.clear();
         this.disabledProviders.clear();
+        this.disabledProviderMeta.clear();
         this.sessionStickiness.clear();
         this.openRouterGlobalFailure = false;
         this.openRouterFailureCount = 0;
+        this.providerPoisonCounts.clear();
         this.setupProviders();
         console.log(`Reinitialized ${this.providers.length} AI providers`);
         return this.providers.length;

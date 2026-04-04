@@ -575,10 +575,10 @@ async function handle(handler, interaction) {
         if (response === undefined || response === null) {
             console.warn(`[/jarvis] Empty response received; commandName=${commandName}`);
             try {
-                await interaction.editReply('Response circuits tangled, sir. Try again?');
+                await interaction.editReply('Temporary AI provider outage, sir. Please try again shortly.');
             } catch (error) {
                 console.error('[/jarvis] Failed to editReply, trying followUp:', error.code, error.message);
-                await interaction.followUp('Response circuits tangled, sir. Try again?');
+                await interaction.followUp('Temporary AI provider outage, sir. Please try again shortly.');
             }
             telemetryMetadata.reason = 'empty-response';
             return;
@@ -588,7 +588,7 @@ async function handle(handler, interaction) {
             const trimmed = response.trim();
             const safe = handler.sanitizePings(trimmed);
             if (!safe.length) {
-                await interaction.editReply('Response circuits tangled, sir. Try again?');
+                await interaction.editReply('Temporary AI provider outage, sir. Please try again shortly.');
                 return;
             }
 
