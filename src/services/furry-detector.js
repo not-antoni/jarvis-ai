@@ -8,12 +8,12 @@ const { isOwner: isOwnerCheck } = require('../utils/owner-check');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FURRY_GUILD_ID = '858444090374881301';
-const CONFIDENCE_THRESHOLD = 0.92;
+const CONFIDENCE_THRESHOLD = 0.90;
 const MODEL_ID = 'google/gemini-2.5-flash';
 
 // Contingency settings
-const CONTINGENCY_WINDOW_MS = 120_000;       // 2 minute rolling window
-const CONTINGENCY_THRESHOLD = 3;             // 3 detections = contingency
+const CONTINGENCY_WINDOW_MS = 60_000;       // 1 minute rolling window
+const CONTINGENCY_THRESHOLD = 5;             // 3 detections = contingency
 const CONTINGENCY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes timeout
 const CONTINGENCY_ALERT_EXPIRE_MS = 60_000;  // 1 minute
 
@@ -85,7 +85,7 @@ const DETECTION_PROMPT = [
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
 const scanCooldowns = new Map();       // userId -> timestamp
-const SCAN_COOLDOWN_MS = 3_000;
+const SCAN_COOLDOWN_MS = 5_000;
 const guildScanTimestamps = [];        // rolling window of guild-wide scans
 const GUILD_RATE_WINDOW_MS = 60_000;
 const GUILD_RATE_MAX = 60;
