@@ -32,10 +32,17 @@ const DETECTION_PROMPT = [
     '- Waifu body pillows (dakimakura)',
     '- Overly sexualized anime characters',
     '',
-    'NOT cringe: normal anime screenshots, standard anime profile pictures, regular animal photos, normal cartoon mascots.',
+    'NSFW / SOFT PORN:',
+    '- Revealing, sexually suggestive images or GIFs (real or drawn)',
+    '- Bikini/lingerie thirst traps, twerking, stripper-type content',
+    '- Barely censored nudity, see-through clothing, extreme cleavage',
+    '- Suggestive poses clearly meant to be sexual',
+    '- Porn stars, OnlyFans-type content, or anything you would not open at work',
+    '',
+    'NOT cringe: normal selfies, swimwear at a beach in a casual context, regular anime screenshots, standard profile pictures, normal animal photos.',
     '',
     'Respond with ONLY valid JSON, no markdown:',
-    '{"cringe": true/false, "confidence": 0.0-1.0, "type": "furry"|"anime"|"none", "reason": "brief description"}',
+    '{"cringe": true/false, "confidence": 0.0-1.0, "type": "furry"|"anime"|"nsfw"|"none", "reason": "brief description"}',
 ].join('\n');
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
@@ -156,7 +163,8 @@ class FurryDetector {
             const siren = e('931641762781491301') || '🚨';
             const skull1 = e('1308419713063325746') || '💀';
             const skull2 = e('1172581116209807450') || '💀';
-            const typeLabel = result.type === 'furry' ? 'FURRY' : result.type === 'anime' ? 'CRINGE ANIME' : 'CRINGE';
+            const typeLabels = { furry: 'FURRY', anime: 'CRINGE ANIME', nsfw: 'NSFW' };
+            const typeLabel = typeLabels[result.type] || 'CRINGE';
             const alert =
                 `${siren}${siren}${siren} **${typeLabel} CONTENT DETECTED** ${siren}${siren}${siren}\n` +
                 `${owner} — ${message.author} posted cringe in ${message.channel} ${skull1}${skull2}\n` +
