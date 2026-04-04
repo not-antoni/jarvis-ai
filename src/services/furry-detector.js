@@ -16,17 +16,26 @@ const GATEWAY_KEYS = Object.keys(process.env)
     .filter(Boolean);
 
 const DETECTION_PROMPT = [
-    'Analyze this image. Is it furry content?',
-    'Furry content includes:',
+    'Analyze this image. Does it contain cringe content?',
+    'Cringe content includes ANY of the following:',
+    '',
+    'FURRY:',
     '- Anthropomorphic animal characters (animals with human features: standing upright, wearing clothes, human expressions/poses)',
     '- Furry fandom artwork, fursona art',
     '- The "boykisser" meme or similar furry memes',
     '- Stylized cartoon/anime animals with a distinctly "furry fandom" aesthetic',
     '',
-    'NOT furry: normal photos of real animals, standard cartoon mascots, regular emoji/stickers of animals.',
+    'CRINGE ANIME:',
+    '- Ahegao faces or expressions (exaggerated orgasmic anime face with rolled-back eyes, tongue out)',
+    '- Ahegao hoodies, clothing, stickers, or merchandise',
+    '- Hentai or ecchi artwork',
+    '- Waifu body pillows (dakimakura)',
+    '- Overly sexualized anime characters',
+    '',
+    'NOT cringe: normal anime screenshots, standard anime profile pictures, regular animal photos, normal cartoon mascots.',
     '',
     'Respond with ONLY valid JSON, no markdown:',
-    '{"furry": true/false, "confidence": 0.0-1.0, "reason": "brief description"}',
+    '{"cringe": true/false, "confidence": 0.0-1.0, "type": "furry"|"anime"|"none", "reason": "brief description"}',
 ].join('\n');
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
@@ -147,16 +156,17 @@ class FurryDetector {
             const siren = e('931641762781491301') || '🚨';
             const skull1 = e('1308419713063325746') || '💀';
             const skull2 = e('1172581116209807450') || '💀';
+            const typeLabel = result.type === 'furry' ? 'FURRY' : result.type === 'anime' ? 'CRINGE ANIME' : 'CRINGE';
             const alert =
-                `${siren}${siren}${siren} **FURRY CONTENT DETECTED** ${siren}${siren}${siren}\n` +
-                `${owner} — ${message.author} posted a furry image in ${message.channel} ${skull1}${skull2}\n` +
+                `${siren}${siren}${siren} **${typeLabel} CONTENT DETECTED** ${siren}${siren}${siren}\n` +
+                `${owner} — ${message.author} posted cringe in ${message.channel} ${skull1}${skull2}\n` +
                 `Confidence: **${pct}%** — ${result.reason}\n` +
                 `[Jump to message](${message.url})\n` +
                 `${siren}${siren}${siren} Recommending to initiate contingency protocols immediately. ${siren}${siren}${siren}`;
             await message.channel.send(alert);
             console.log(
-                `[FurryDetector] ALERT user=${message.author.id} ch=${message.channel.id} ` +
-                `confidence=${pct}% reason="${result.reason}"`
+                `[CringeDetector] ALERT user=${message.author.id} ch=${message.channel.id} ` +
+                `type=${result.type} confidence=${pct}% reason="${result.reason}"`
             );
         } catch (e) {
             console.error('[FurryDetector] Failed to send alert:', e.message);
@@ -191,7 +201,7 @@ class FurryDetector {
             if (!img) continue;
 
             const result = await this._analyzeImage(img.data, img.mime);
-            if (result?.furry && result.confidence >= CONFIDENCE_THRESHOLD) {
+            if (result?.cringe && result.confidence >= CONFIDENCE_THRESHOLD) {
                 await this._sendAlert(message, result);
                 return false;
             }
