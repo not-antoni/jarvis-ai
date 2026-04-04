@@ -143,12 +143,15 @@ class FurryDetector {
         try {
             const owner = await message.guild.fetchOwner();
             const pct = Math.round(result.confidence * 100);
+            const siren = '<:siren:931641762781491301>';
+            const skull1 = '<:skull:1308419713063325746>';
+            const skull2 = '<:skull:1172581116209807450>';
             const alert =
-                `🚨 **Furry content detected**\n` +
-                `${owner} — ${message.author} posted a furry image in ${message.channel}\n` +
+                `${siren}${siren}${siren} **FURRY CONTENT DETECTED** ${siren}${siren}${siren}\n` +
+                `${owner} — ${message.author} posted a furry image in ${message.channel} ${skull1}${skull2}\n` +
                 `Confidence: **${pct}%** — ${result.reason}\n` +
                 `[Jump to message](${message.url})\n` +
-                `<:siren:931641762781491301> Recommending to initiate contingency protocols immediately.`;
+                `${siren}${siren}${siren} Recommending to initiate contingency protocols immediately. ${siren}${siren}${siren}`;
             await message.channel.send(alert);
             console.log(
                 `[FurryDetector] ALERT user=${message.author.id} ch=${message.channel.id} ` +
