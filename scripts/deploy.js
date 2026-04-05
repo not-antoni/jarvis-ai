@@ -4,30 +4,10 @@
  */
 
 const { MongoClient } = require('mongodb');
-
-function parseBooleanEnv(key, fallback = false) {
-    const value = process.env[key];
-    if (value == null) {
-        return Boolean(fallback);
-    }
-
-    const normalized = String(value).trim().toLowerCase();
-    if (!normalized) {
-        return Boolean(fallback);
-    }
-
-    if (['1', 'true', 'yes', 'on', 'enabled'].includes(normalized)) {
-        return true;
-    }
-    if (['0', 'false', 'no', 'off', 'disabled'].includes(normalized)) {
-        return false;
-    }
-
-    return Boolean(fallback);
-}
+const { parseBooleanEnv } = require('../src/utils/parse-bool-env');
 
 const localDbMode =
-    parseBooleanEnv('LOCAL_DB_MODE', false) || parseBooleanEnv('ALLOW_START_WITHOUT_DB', false);
+    parseBooleanEnv(process.env.LOCAL_DB_MODE, false) || parseBooleanEnv(process.env.ALLOW_START_WITHOUT_DB, false);
 
 const REQUIRED_ENV_VARS = localDbMode
     ? ['DISCORD_TOKEN', 'MASTER_KEY_BASE64']

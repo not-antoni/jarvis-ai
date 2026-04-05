@@ -17,20 +17,7 @@ if (!message.reference || !message.reference.messageId) {
 try {
     // Fetch the replied message
     const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-    
-    // Debug logging for timestamps
-    console.log('Timestamp debug:', {
-        clipCommandTime: message.createdAt.toLocaleTimeString(),
-        repliedMessageTime: repliedMessage.createdAt.toLocaleTimeString(),
-        repliedMessageTimestamp: repliedMessage.createdTimestamp,
-        messageTimestamp: message.createdTimestamp,
-        // Check if we're getting the right message
-        repliedMessageId: repliedMessage.id,
-        repliedMessageContent: `${repliedMessage.content.substring(0, 50)  }...`,
-        // Check message age
-        messageAge: Date.now() - repliedMessage.createdTimestamp
-    });
-    
+
     // Check if message contains images or emojis - if so, don't respond
     if (handler.hasImagesOrEmojis(repliedMessage)) {
         return true; // Handled silently - don't clip messages with images/emojis

@@ -18,21 +18,13 @@ const {
     createLiveAudioStream
 } = require('./ytDlp');
 const { ensureFfmpeg } = require('./ffmpeg');
+const { parseBooleanEnv } = require('./parse-bool-env');
 
 // videoId -> { stream, aborted, method, childProcess, source }
 const activeStreams = new Map();
 
-function readBooleanEnv(key, defaultValue) {
-    const raw = process.env[key];
-    if (!raw) {
-        return defaultValue;
-    }
-
-    return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase());
-}
-
-const FAST_START_MODE = readBooleanEnv('MUSIC_FAST_START_MODE', true);
-const DIRECT_STREAM_ENABLED = readBooleanEnv('MUSIC_DIRECT_STREAM_ENABLED', true);
+const FAST_START_MODE = parseBooleanEnv(process.env.MUSIC_FAST_START_MODE, true);
+const DIRECT_STREAM_ENABLED = parseBooleanEnv(process.env.MUSIC_DIRECT_STREAM_ENABLED, true);
 const DIRECT_STREAM_SOURCES = new Set(
     String(process.env.MUSIC_DIRECT_STREAM_SOURCES || 'youtube,soundcloud')
         .split(',')
@@ -53,7 +45,7 @@ const DIRECT_PREBUFFER_TIMEOUT_MS = Number(process.env.MUSIC_DIRECT_PREBUFFER_TI
 const DIRECT_OPUS_BITRATE = String(process.env.MUSIC_DIRECT_OPUS_BITRATE || '160k');
 const DIRECT_OPUS_COMPLEXITY = String(process.env.MUSIC_DIRECT_OPUS_COMPLEXITY || '8');
 const OUTPUT_HEADROOM_DB = Number(process.env.MUSIC_OUTPUT_HEADROOM_DB ?? '5');
-const OUTPUT_LIMITER_ENABLED = readBooleanEnv('MUSIC_OUTPUT_LIMITER_ENABLED', true);
+const OUTPUT_LIMITER_ENABLED = parseBooleanEnv(process.env.MUSIC_OUTPUT_LIMITER_ENABLED, true);
 
 function safeKill(proc) {
     try { if (proc && !proc.killed) {proc.kill('SIGKILL');} } catch (_e) { }
