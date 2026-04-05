@@ -8,7 +8,7 @@ const SUPPORT_SERVER_URL = 'https://discord.gg/ksXzuBtmK5';
 
 function buildSupportLinkRow() {
     const supportButton = new ButtonBuilder()
-        .setLabel('Join the Support Server')
+        .setLabel('Join A.G.I.S Operations')
         .setStyle(ButtonStyle.Link)
         .setURL(SUPPORT_SERVER_URL)
         .setEmoji('🤝');
@@ -18,8 +18,8 @@ function buildSupportLinkRow() {
 
 function buildSupportEmbed(includeGuide = false) {
     const embed = new EmbedBuilder()
-        .setTitle('Join Jarvis HQ ⚙️')
-        .setDescription('Need help or want updates? Join the official Jarvis Support Server!')
+        .setTitle('Join 💠 A.G.I.S Operations 💠')
+        .setDescription('Need help or want updates? Join the official support server!')
         .setURL(SUPPORT_SERVER_URL)
         .setColor('#00BFFF');
 
@@ -31,7 +31,7 @@ function buildSupportEmbed(includeGuide = false) {
                     value: [
                         '`/jarvis <prompt>` Ask Jarvis anything.',
                         '`/help` Quick reference & support invite.',
-                        '`/invite` Share the support server banner.'
+                        '`/invite` Share the A.G.I.S Operations invite.'
                     ].join('\n')
                 },
                 {
@@ -61,7 +61,7 @@ function buildSupportEmbed(includeGuide = false) {
             )
             .setFooter({ text: 'Use /invite any time to grab the support link for your team.' });
     } else {
-        embed.setFooter({ text: 'Share this link so everyone can reach Jarvis HQ when needed.' });
+        embed.setFooter({ text: 'Share this link so everyone can reach A.G.I.S Operations when needed.' });
     }
 
     return { embeds: [embed], components: [buildSupportLinkRow()] };
@@ -121,7 +121,7 @@ function buildHelpPayload(guildConfig = null) {
             )
             .setColor('#f59e0b');
     } else {
-        embed.setFooter({ text: 'Use /invite to share the support server link.' });
+        embed.setFooter({ text: 'Use /invite to share the A.G.I.S Operations link.' });
     }
 
     return {

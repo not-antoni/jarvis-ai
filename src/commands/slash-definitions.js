@@ -110,7 +110,7 @@ const allCommands = [
     ),
     withCtx(new SlashCommandBuilder()
         .setName('invite')
-        .setDescription('Grab the Jarvis HQ support server invite')
+        .setDescription('Grab the A.G.I.S Operations server invite')
     ),
     withCtx(new SlashCommandBuilder()
         .setName('profile')

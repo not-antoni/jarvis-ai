@@ -353,7 +353,7 @@ const LANDING_PAGE = `
             <p>Stop using boring bots. Jarvis does AI chat, voice conversations, music, and AutoMod — like an actual member of your server.</p>
             <div class="cta-buttons">
                 <a href="${BOT_INVITE}" class="btn btn-primary" target="_blank">➕ Add to Discord</a>
-                <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join Support Server</a>
+                <a href="${DISCORD_INVITE}" class="btn btn-secondary" target="_blank">Join A.G.I.S Operations</a>
             </div>
             <p class="cta-subtext">
                 <span>✓ Free forever</span>
@@ -636,13 +636,13 @@ const LANDING_PAGE = `
       <span>"how do i make jarvis brush my teeth"</span>
     </div>
     <p>
-      literally just join the support server or email
+      literally just join A.G.I.S Operations or email
       <a href="#" onclick="copyNoticeEmail(event)" style="color:#aaa;text-underline-offset:2px;">dev@jorvis.org</a>.
       thats it. thats the whole answer. every time.
     </p>
     <div class="notice-actions">
       <a href="https://discord.com/invite/ksXzuBtmK5" class="notice-btn notice-btn-primary" target="_blank" rel="noreferrer">
-        support server
+        A.G.I.S Operations
       </a>
       <button class="notice-btn notice-btn-secondary" onclick="dismissNotice()">
         ok fine
