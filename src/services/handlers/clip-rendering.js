@@ -619,6 +619,13 @@ function embedColorHex(embed) {
     return `#${embed.color.toString(16).padStart(6, '0')}`;
 }
 
+function truncateUrls(text, maxLen = 50) {
+    return text.replace(/https?:\/\/[^\s\])>]{1,}/g, url => {
+        if (url.length <= maxLen) {return url;}
+        return url.slice(0, maxLen - 1) + '\u2026';
+    });
+}
+
 function wrapText(ctx, text, maxWidth) {
     const lines = [];
     for (const rawLine of text.split('\n')) {
@@ -626,6 +633,20 @@ function wrapText(ctx, text, maxWidth) {
         const words = rawLine.split(/(\s+)/);
         let currentLine = '';
         for (const word of words) {
+            // Force-break words wider than maxWidth
+            if (ctx.measureText(word).width > maxWidth && !currentLine.trim()) {
+                let chunk = '';
+                for (const ch of word) {
+                    if (ctx.measureText(chunk + ch).width > maxWidth && chunk) {
+                        lines.push(chunk);
+                        chunk = ch;
+                    } else {
+                        chunk += ch;
+                    }
+                }
+                currentLine = chunk;
+                continue;
+            }
             const test = currentLine + word;
             if (ctx.measureText(test).width > maxWidth && currentLine.trim()) {
                 lines.push(currentLine);
@@ -650,7 +671,7 @@ function calculateEmbedHeight(ctx, embed, innerWidth) {
     }
     if (embed.description) {
         ctx.font = '14px Arial';
-        const descText = sanitizeMessageText(embed.description);
+        const descText = truncateUrls(sanitizeMessageText(embed.description));
         h += wrapText(ctx, descText, innerWidth).length * 19 + 4;
     }
     if (embed.fields?.length) {
@@ -660,7 +681,7 @@ function calculateEmbedHeight(ctx, embed, innerWidth) {
             ctx.font = 'bold 13px Arial';
             const nameLines = wrapText(ctx, field.name || '', innerWidth).length;
             ctx.font = '13px Arial';
-            const valLines = wrapText(ctx, sanitizeMessageText(field.value || ''), field.inline ? innerWidth * 0.3 : innerWidth).length;
+            const valLines = wrapText(ctx, truncateUrls(sanitizeMessageText(field.value || '')), field.inline ? innerWidth * 0.3 : innerWidth).length;
             const fieldH = nameLines * 17 + valLines * 17 + 8;
             if (field.inline) {
                 if (rowWidth + innerWidth * 0.33 > innerWidth) {
@@ -759,11 +780,31 @@ async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
 
     // Description
     if (embed.description) {
-        ctx.fillStyle = '#dbdee1';
         ctx.font = '14px Arial';
-        const descText = sanitizeMessageText(embed.description);
+        const descText = truncateUrls(sanitizeMessageText(embed.description));
         for (const line of wrapText(ctx, descText, innerWidth)) {
-            ctx.fillText(line, contentX, cursorY);
+            // Render URLs in blue, rest in normal color
+            const urlPattern = /https?:\/\/[^\s\])>]+[\u2026]?/g;
+            let lastIdx = 0;
+            let drawX = contentX;
+            let match;
+            while ((match = urlPattern.exec(line)) !== null) {
+                const before = line.slice(lastIdx, match.index);
+                if (before) {
+                    ctx.fillStyle = '#dbdee1';
+                    ctx.fillText(before, drawX, cursorY);
+                    drawX += ctx.measureText(before).width;
+                }
+                ctx.fillStyle = '#00a8fc';
+                ctx.fillText(match[0], drawX, cursorY);
+                drawX += ctx.measureText(match[0]).width;
+                lastIdx = match.index + match[0].length;
+            }
+            const remaining = line.slice(lastIdx);
+            if (remaining) {
+                ctx.fillStyle = '#dbdee1';
+                ctx.fillText(remaining, drawX, cursorY);
+            }
             cursorY += 19;
         }
         cursorY += 4;
@@ -797,7 +838,7 @@ async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
             }
             ctx.fillStyle = '#dbdee1';
             ctx.font = '13px Arial';
-            for (const line of wrapText(ctx, sanitizeMessageText(field.value || ''), fw)) {
+            for (const line of wrapText(ctx, truncateUrls(sanitizeMessageText(field.value || '')), fw)) {
                 ctx.fillText(line, fieldX, fy);
                 fy += 17;
             }

@@ -22,7 +22,7 @@ const commandDefinitions = [
     },
     {
         name: 'invite',
-        description: 'Grab the Jarvis HQ support server invite.',
+        description: 'Grab the A.G.I.S Operations server invite.',
         category: 'Core Systems',
         usage: '/invite',
         feature: 'invite',
