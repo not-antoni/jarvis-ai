@@ -203,7 +203,7 @@ const PRIVACY_POLICY = `
         <h2>What We Actually Collect</h2>
         <ul>
             <li><strong>Message Content</strong> – Only when you talk to Jarvis directly (mention him, run a command, etc.). He's not reading your server like a lurker. DMs are disabled — this is a server-only operation.</li>
-            <li><strong>Thread Context</strong> – When you talk to Jarvis in a Discord thread, he reads the last few messages in that thread so he can follow the conversation. This context is not stored — it's read on the fly and forgotten after he replies.</li>
+            <li><strong>Conversation Context</strong> – When you talk to Jarvis in a channel or thread, he reads the last few messages so he can follow the conversation. If you reply to someone's message while talking to Jarvis, he reads that message too for context. Messages from users who have opted out via <code>/opt out</code> are excluded from all of this — he literally skips them. None of this context is stored — it's read on the fly and forgotten after he replies.</li>
             <li><strong>Voice Transcriptions</strong> – When Jarvis is in a VC, he only processes audio from opted-in users and only reacts when you say his name. <strong>Raw audio is never recorded or stored.</strong> It goes straight to text, gets processed, and lives in your encrypted memory. That's it.</li>
             <li><strong>Conversation History ("Memories")</strong> – Your messages, his replies, timestamps, and basic identifiers so he actually remembers who you are. When you ask him something, he uses keyword matching to pull up the most relevant past conversations — not just the latest ones. This is what makes him useful instead of goldfish-brained.</li>
             <li><strong>Operational Metadata</strong> – Usage logs, event data, reliability stuff. Boring and temporary (TTL).</li>
@@ -248,7 +248,7 @@ const PRIVACY_POLICY = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 30, 2026</p>
+            <p>Effective Date: April 5, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}
@@ -293,13 +293,13 @@ const TERMS_OF_SERVICE = `
         <p>By using Jarvis ("we," "our," or "the bot"), you agree to these Terms. If you don't agree, that's fine — just don't use Jarvis. No hard feelings. (Some hard feelings.)</p>
 
         <h2>2. What Jarvis Actually Does</h2>
-        <p>Jarvis is a Discord assistant. He does AI chat (with keyword-smart memory recall and thread-aware conversations), voice conversations (speech-to-text, text-to-speech), music playback, AutoMod, and server stats. Some of his responses come from external AI services (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, OpenAI, NVIDIA NIM) because he's standing on some very tall shoulders.</p>
+        <p>Jarvis is a Discord assistant. He does AI chat (with keyword-smart memory recall and channel-aware conversations), voice conversations (speech-to-text, text-to-speech), music playback, AutoMod, and server stats. Some of his responses come from external AI services (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, OpenAI, NVIDIA NIM) because he's standing on some very tall shoulders.</p>
 
         <h2>3. Don't Be That Guy</h2>
         <p>Follow Discord's Terms of Service and Community Guidelines. Don't use Jarvis for spam, harassment, or anything illegal. He will not help you with that, and honestly neither will we.</p>
 
         <h2>4. Data — The Honest Version</h2>
-        <p>Jarvis only processes your messages when you actually talk to him — mentions, commands, or voice chat. DMs are disabled to prevent abuse. In threads, he reads recent thread messages for context but doesn't store them. In voice channels, he only listens to opted-in users and only reacts to his name. <strong>Raw audio is never recorded or stored;</strong> it's processed live for speech-to-text and immediately gone.</p>
+        <p>Jarvis only processes your messages when you actually talk to him — mentions, commands, or voice chat. DMs are disabled to prevent abuse. In channels and threads, he reads a few recent messages for conversational context but doesn't store them — and he skips messages from anyone who used <code>/opt out</code>. In voice channels, he only listens to opted-in users and only reacts to his name. <strong>Raw audio is never recorded or stored;</strong> it's processed live for speech-to-text and immediately gone.</p>
 
         <p>When Jarvis generates a response, <strong>your message is sent to one of several AI providers</strong> (OpenRouter, Groq, Cerebras, SambaNova, Mistral, Google Gemini, OpenAI, or NVIDIA) — whichever is available. They act as data processors to generate responses. Each provider operates under their own data and privacy policies — if a provider uses submitted data in any way, including for model training, that is governed by their terms, not ours. Links to their individual policies are in our <a href="/policy">Privacy Policy</a>. The resulting conversations are saved in your secure, encrypted database so he can actually remember context instead of acting like he's never met you. He uses keyword relevance to pull up the right memories — not just the last few things you said.</p>
 
@@ -334,7 +334,7 @@ const TERMS_OF_SERVICE = `
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
             </div>
-            <p>Effective Date: March 30, 2026</p>
+            <p>Effective Date: April 5, 2026</p>
         </div>
     </div>
 ${CONTACT_SCRIPT}
