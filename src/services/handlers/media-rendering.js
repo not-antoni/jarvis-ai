@@ -25,7 +25,7 @@ async function handleClipCommand(handler, message, client) {
             forceStatic: false
         });
 
-        let roleColor = '#ff6b6b';
+        let roleColor = '#f2f3f5';
         try {
             if (message.guild && repliedMessage.member) {
                 roleColor = handler.getUserRoleColor(repliedMessage.member);
