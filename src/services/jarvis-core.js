@@ -394,6 +394,7 @@ class JarvisAI {
             );
 
             // Thread context: if in a thread, include recent messages for multi-turn awareness
+            // Only includes messages from the bot or from users who haven't opted out
             let threadContext = '';
             try {
                 const channel = interaction.channel;
@@ -401,15 +402,23 @@ class JarvisAI {
                     const threadMsgs = await channel.messages.fetch({ limit: 6 });
                     const sorted = [...threadMsgs.values()]
                         .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-                        .slice(-5) // last 5 messages excluding current
+                        .slice(-5)
                         .filter(m => m.id !== interaction.id);
                     if (sorted.length > 0) {
-                        const lines = sorted.map(m => {
-                            const author = m.author?.id === interaction.client?.user?.id ? 'Jarvis' : (m.member?.displayName || m.author?.username || 'User');
+                        const lines = [];
+                        for (const m of sorted) {
+                            const isBotMsg = m.author?.id === interaction.client?.user?.id;
+                            if (!isBotMsg && m.author?.id !== userId) {
+                                const optedOut = await database.isUserOptedOut(m.author.id).catch(() => false);
+                                if (optedOut) {continue;}
+                            }
+                            const author = isBotMsg ? 'Jarvis' : (m.member?.displayName || m.author?.username || 'User');
                             const content = (m.content || '').slice(0, 200);
-                            return `${author}: ${content}`;
-                        });
-                        threadContext = `\n[THREAD_CONTEXT]\n${lines.join('\n')}\n[/THREAD_CONTEXT]\n`;
+                            lines.push(`${author}: ${content}`);
+                        }
+                        if (lines.length > 0) {
+                            threadContext = `\n[THREAD_CONTEXT]\n${lines.join('\n')}\n[/THREAD_CONTEXT]\n`;
+                        }
                     }
                 }
             } catch (e) {

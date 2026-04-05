@@ -422,6 +422,15 @@ class DatabaseManager {
             );
         return result;
     }
+    async isUserOptedOut(userId) {
+        if (!this.isConnected || !userId) {return false;}
+        try {
+            const profile = await this.db
+                .collection(config.database.collections.userProfiles)
+                .findOne({ userId }, { projection: { 'preferences.memoryOpt': 1 } });
+            return String(profile?.preferences?.memoryOpt ?? 'opt-in').toLowerCase() === 'opt-out';
+        } catch { return false; }
+    }
     async getPresenceMessages() {
         if (!this.isConnected || !this.db) {
             try {
