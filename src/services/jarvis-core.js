@@ -393,12 +393,12 @@ class JarvisAI {
                 userName
             );
 
-            // Thread context: if in a thread, include recent messages for multi-turn awareness
+            // Conversation context: read recent messages from the channel/thread for multi-turn awareness
             // Only includes messages from the bot or from users who haven't opted out
             let threadContext = '';
             try {
                 const channel = interaction.channel;
-                if (channel?.isThread?.() && channel.messages) {
+                if (channel?.messages) {
                     const threadMsgs = await channel.messages.fetch({ limit: 6 });
                     const sorted = [...threadMsgs.values()]
                         .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
