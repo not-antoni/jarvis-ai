@@ -559,7 +559,7 @@ async function handle(handler, interaction) {
             default: {
                 response = await handler.jarvis.handleUtilityCommand(
                     commandName,
-                    interaction.user.username,
+                    interaction.member?.displayName || interaction.user.displayName || interaction.user.username,
                     userId,
                     true,
                     interaction,

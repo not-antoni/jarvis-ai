@@ -312,9 +312,10 @@ class JarvisAI {
         }
 
         const userId = interaction.user ? interaction.user.id : interaction.author.id;
-        const userName = interaction.user
-            ? interaction.user.displayName || interaction.user.username
-            : interaction.author.username;
+        const userName = interaction.member?.displayName
+            || interaction.user?.displayName || interaction.user?.username
+            || interaction.author?.displayName || interaction.author?.username
+            || 'User';
 
         const gate = await this.gateDestructiveRequests(userInput);
         if (gate.blocked) {return gate.message;}
