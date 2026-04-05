@@ -87,22 +87,34 @@ const quoteContext = {
             }
         }
 
-        // Resolve user mentions since we're using raw content (not cleanContent)
         let text = await resolveMentions(content || '', interaction);
 
-        // Remove attachment URL from text if present (Fuzzy match for cdn/media mismatch)
+        // If no text content, extract text from embeds
+        if (!text.trim() && message.embeds.length > 0) {
+            const parts = [];
+            for (const embed of message.embeds) {
+                if (embed.author?.name) {parts.push(embed.author.name);}
+                if (embed.title) {parts.push(embed.title);}
+                if (embed.description) {parts.push(embed.description);}
+                if (embed.fields?.length) {
+                    for (const field of embed.fields) {
+                        if (field.name) {parts.push(field.name);}
+                        if (field.value) {parts.push(field.value);}
+                    }
+                }
+                if (embed.footer?.text) {parts.push(embed.footer.text);}
+            }
+            text = parts.join('\n');
+        }
+
+        // Remove attachment URL from text if present
         if (attachmentUrl) {
-            // Strip exact matches (CDN link, Page link)
             for (const url of urlsToStrip) {
                 text = text.replace(url, '');
             }
-
-            // If the text is JUST a URL (any URL) and we have an image, it's likely the source. Clean it.
             if (/^https?:\/\/[^\s]+$/.test(text.trim())) {
                 text = '';
             }
-
-            // Fuzzy remove for Discord CDN
             try {
                 const match = attachmentUrl.match(/\/(\d+)\/([^/?]+)/);
                 if (match) {
@@ -114,7 +126,6 @@ const quoteContext = {
             } catch (e) {
                 console.warn('Fuzzy strip failed', e);
             }
-
             text = text.trim();
         }
 

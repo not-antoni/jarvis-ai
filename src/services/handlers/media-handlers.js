@@ -41,7 +41,7 @@ async function handleSlashCommandClip(handler, interaction) {
             forceStatic: false
         });
 
-        let roleColor = '#ff6b6b';
+        let roleColor = '#f2f3f5';
         try {
             if (interaction.guild && targetMessage.member) {
                 roleColor = handler.getUserRoleColor(targetMessage.member);

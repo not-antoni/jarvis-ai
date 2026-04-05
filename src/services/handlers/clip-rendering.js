@@ -43,7 +43,7 @@ function buildUnicodeEmojiAsset(emoji) {
 function getUserRoleColor(member) {
     try {
         if (!member || !member.roles) {
-            return '#ff6b6b';
+            return '#f2f3f5';
         }
         const coloredRoles = member.roles.cache
             .filter(role => role.color !== 0 && role.name !== '@everyone')
@@ -52,10 +52,10 @@ function getUserRoleColor(member) {
             const topRole = coloredRoles.first();
             return `#${topRole.color.toString(16).padStart(6, '0')}`;
         }
-        return '#ff6b6b';
+        return '#f2f3f5';
     } catch (error) {
         console.warn('Failed to get role color:', error);
-        return '#ff6b6b';
+        return '#f2f3f5';
     }
 }
 
@@ -409,7 +409,7 @@ function calculateTextHeight(handler, text, maxWidth, customEmojis = [], mention
 }
 
 async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, customEmojis, mentions = []) {
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#dbdee1';
     ctx.font = '15px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -424,7 +424,7 @@ async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, c
         currentY += lineHeight;
         currentLineWidth = 0;
     };
-    const handleTextToken = (token, color = '#ffffff') => {
+    const handleTextToken = (token, color = '#dbdee1') => {
         if (!token) {return;}
         const { width } = ctx.measureText(token);
         if (currentLineWidth + width > maxWidth && currentLineWidth > 0) { advanceLine(); }
@@ -508,7 +508,7 @@ async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, c
                 if (!drawn) { handleTextToken(`:${segment.name}:`); }
             }
         } else {
-            processTokens(segment.text, segment.type === 'mention' ? '#8899ff' : '#ffffff');
+            processTokens(segment.text, segment.type === 'mention' ? '#c9cdfb' : '#dbdee1');
         }
     }
 }
@@ -604,13 +604,13 @@ async function findMessageAcrossChannels(interaction, messageId) {
 // ─── Embed rendering ─────────────────────────────────────────────────────────
 
 const EMBED_BAR_WIDTH = 4;
-const EMBED_BG_COLOR = '#2f3136';
+const EMBED_BG_COLOR = '#2b2d31';
 const EMBED_PADDING = 16;
 const EMBED_MAX_WIDTH = 520;
 const EMBED_RADIUS = 4;
 
 function embedColorHex(embed) {
-    if (embed.color == null) {return '#202225';}
+    if (embed.color == null) {return '#1e1f22';}
     return `#${embed.color.toString(16).padStart(6, '0')}`;
 }
 
@@ -725,16 +725,16 @@ async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
                 ctx.clip();
                 ctx.drawImage(iconImg, contentX, cursorY - 2, 20, 20);
                 ctx.restore();
-                ctx.fillStyle = '#ffffff';
+                ctx.fillStyle = '#f2f3f5';
                 ctx.font = 'bold 13px Arial';
                 ctx.fillText(truncateText(embed.author.name, 60), contentX + 26, cursorY);
             } catch (_) {
-                ctx.fillStyle = '#ffffff';
+                ctx.fillStyle = '#f2f3f5';
                 ctx.font = 'bold 13px Arial';
                 ctx.fillText(truncateText(embed.author.name, 60), contentX, cursorY);
             }
         } else {
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = '#f2f3f5';
             ctx.font = 'bold 13px Arial';
             ctx.fillText(truncateText(embed.author.name, 60), contentX, cursorY);
         }
@@ -743,7 +743,7 @@ async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
 
     // Title
     if (embed.title) {
-        ctx.fillStyle = embed.url ? '#00aff4' : '#ffffff';
+        ctx.fillStyle = embed.url ? '#00a8fc' : '#f2f3f5';
         ctx.font = 'bold 15px Arial';
         for (const line of wrapText(ctx, embed.title, innerWidth)) {
             ctx.fillText(line, contentX, cursorY);
@@ -754,7 +754,7 @@ async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
 
     // Description
     if (embed.description) {
-        ctx.fillStyle = '#dcddde';
+        ctx.fillStyle = '#dbdee1';
         ctx.font = '14px Arial';
         const descText = sanitizeMessageText(embed.description);
         for (const line of wrapText(ctx, descText, innerWidth)) {
@@ -784,13 +784,13 @@ async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
             }
             const fw = field.inline ? columnWidth - 8 : innerWidth;
             let fy = cursorY;
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = '#f2f3f5';
             ctx.font = 'bold 13px Arial';
             for (const line of wrapText(ctx, field.name || '', fw)) {
                 ctx.fillText(line, fieldX, fy);
                 fy += 17;
             }
-            ctx.fillStyle = '#dcddde';
+            ctx.fillStyle = '#dbdee1';
             ctx.font = '13px Arial';
             for (const line of wrapText(ctx, sanitizeMessageText(field.value || ''), fw)) {
                 ctx.fillText(line, fieldX, fy);
@@ -810,7 +810,7 @@ async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
     // Footer
     if (embed.footer?.text) {
         cursorY += 4;
-        ctx.fillStyle = '#72767d';
+        ctx.fillStyle = '#949ba4';
         ctx.font = '12px Arial';
         ctx.fillText(truncateText(embed.footer.text, 80), contentX, cursorY);
         cursorY += 18;
@@ -833,7 +833,7 @@ function calculateTotalEmbedHeight(ctx, embeds, maxWidth) {
 
 // ─── Main clip image creation ────────────────────────────────────────────────
 
-async function createClipImage(handler, text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null, embeds = null) {
+async function createClipImage(handler, text, username, avatarUrl, isBot = false, roleColor = '#f2f3f5', guild = null, client = null, message = null, user = null, attachments = null, embeds = null) {
     const isVerified = user ? isBotVerified(user) : false;
     const hasImages = attachments && attachments.size > 0;
     const imageUrls = extractImageUrls(text);
@@ -892,13 +892,13 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.textDrawingMode = 'path';
-    ctx.fillStyle = '#1a1a1e';
+    ctx.fillStyle = '#313338';
     ctx.fillRect(0, 0, width, totalHeight);
     const avatarSize = 48;
     const contentWidth = width - 80;
     const avatarX = 50;
     const avatarY = 20;
-    const avatarBackgroundColor = '#1a1a1e';
+    const avatarBackgroundColor = '#313338';
     const drawAvatarFallback = () => {
         ctx.save();
         ctx.beginPath();
@@ -961,10 +961,10 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
     const timestampWidth = ctx.measureText(timestamp).width;
     const availableWidth = width - currentX - 20;
     if (timestampWidth <= availableWidth) {
-        ctx.fillStyle = '#72767d';
+        ctx.fillStyle = '#949ba4';
         ctx.fillText(timestamp, currentX, textStartY + 1);
     } else {
-        ctx.fillStyle = '#72767d';
+        ctx.fillStyle = '#949ba4';
         ctx.fillText(timestamp, textStartX, textStartY + 18);
     }
     let drawY = textStartY + 20;
