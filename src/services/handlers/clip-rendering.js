@@ -601,11 +601,246 @@ async function findMessageAcrossChannels(interaction, messageId) {
     return null;
 }
 
+// ─── Embed rendering ─────────────────────────────────────────────────────────
+
+const EMBED_BAR_WIDTH = 4;
+const EMBED_BG_COLOR = '#2f3136';
+const EMBED_PADDING = 16;
+const EMBED_MAX_WIDTH = 520;
+const EMBED_RADIUS = 4;
+
+function embedColorHex(embed) {
+    if (embed.color == null) {return '#202225';}
+    return `#${embed.color.toString(16).padStart(6, '0')}`;
+}
+
+function wrapText(ctx, text, maxWidth) {
+    const lines = [];
+    for (const rawLine of text.split('\n')) {
+        if (!rawLine) {lines.push(''); continue;}
+        const words = rawLine.split(/(\s+)/);
+        let currentLine = '';
+        for (const word of words) {
+            const test = currentLine + word;
+            if (ctx.measureText(test).width > maxWidth && currentLine.trim()) {
+                lines.push(currentLine);
+                currentLine = word.trimStart();
+            } else {
+                currentLine = test;
+            }
+        }
+        if (currentLine) {lines.push(currentLine);}
+    }
+    return lines;
+}
+
+function calculateEmbedHeight(ctx, embed, innerWidth) {
+    let h = EMBED_PADDING; // top padding
+    if (embed.author?.name) {
+        h += 22;
+    }
+    if (embed.title) {
+        ctx.font = 'bold 15px Arial';
+        h += wrapText(ctx, embed.title, innerWidth).length * 20 + 4;
+    }
+    if (embed.description) {
+        ctx.font = '14px Arial';
+        const descText = sanitizeMessageText(embed.description);
+        h += wrapText(ctx, descText, innerWidth).length * 19 + 4;
+    }
+    if (embed.fields?.length) {
+        h += 8;
+        let rowWidth = 0;
+        for (const field of embed.fields) {
+            ctx.font = 'bold 13px Arial';
+            const nameLines = wrapText(ctx, field.name || '', innerWidth).length;
+            ctx.font = '13px Arial';
+            const valLines = wrapText(ctx, sanitizeMessageText(field.value || ''), field.inline ? innerWidth * 0.3 : innerWidth).length;
+            const fieldH = nameLines * 17 + valLines * 17 + 8;
+            if (field.inline) {
+                if (rowWidth + innerWidth * 0.33 > innerWidth) {
+                    rowWidth = 0;
+                }
+                if (rowWidth === 0) {h += fieldH;}
+                rowWidth += innerWidth * 0.33;
+            } else {
+                rowWidth = 0;
+                h += fieldH;
+            }
+        }
+    }
+    if (embed.footer?.text) {
+        h += 22;
+    }
+    h += EMBED_PADDING; // bottom padding
+    return h;
+}
+
+function drawRoundedRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+async function drawEmbed(ctx, embed, startX, startY, maxWidth) {
+    const embedWidth = Math.min(maxWidth, EMBED_MAX_WIDTH);
+    const innerWidth = embedWidth - EMBED_BAR_WIDTH - EMBED_PADDING * 2;
+    const embedHeight = calculateEmbedHeight(ctx, embed, innerWidth);
+    const barColor = embedColorHex(embed);
+
+    // Background
+    drawRoundedRect(ctx, startX, startY, embedWidth, embedHeight, EMBED_RADIUS);
+    ctx.fillStyle = EMBED_BG_COLOR;
+    ctx.fill();
+
+    // Colored left bar
+    ctx.fillStyle = barColor;
+    drawRoundedRect(ctx, startX, startY, EMBED_BAR_WIDTH, embedHeight, EMBED_RADIUS);
+    ctx.fill();
+    // Overlap a square to remove right-side rounding on the bar
+    ctx.fillRect(startX + EMBED_RADIUS, startY, EMBED_BAR_WIDTH - EMBED_RADIUS, embedHeight);
+
+    const contentX = startX + EMBED_BAR_WIDTH + EMBED_PADDING;
+    let cursorY = startY + EMBED_PADDING;
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    // Author
+    if (embed.author?.name) {
+        if (embed.author.iconURL) {
+            try {
+                const iconImg = await loadImageSafe(embed.author.iconURL);
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(contentX + 10, cursorY + 8, 10, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.drawImage(iconImg, contentX, cursorY - 2, 20, 20);
+                ctx.restore();
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 13px Arial';
+                ctx.fillText(truncateText(embed.author.name, 60), contentX + 26, cursorY);
+            } catch (_) {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 13px Arial';
+                ctx.fillText(truncateText(embed.author.name, 60), contentX, cursorY);
+            }
+        } else {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px Arial';
+            ctx.fillText(truncateText(embed.author.name, 60), contentX, cursorY);
+        }
+        cursorY += 22;
+    }
+
+    // Title
+    if (embed.title) {
+        ctx.fillStyle = embed.url ? '#00aff4' : '#ffffff';
+        ctx.font = 'bold 15px Arial';
+        for (const line of wrapText(ctx, embed.title, innerWidth)) {
+            ctx.fillText(line, contentX, cursorY);
+            cursorY += 20;
+        }
+        cursorY += 4;
+    }
+
+    // Description
+    if (embed.description) {
+        ctx.fillStyle = '#dcddde';
+        ctx.font = '14px Arial';
+        const descText = sanitizeMessageText(embed.description);
+        for (const line of wrapText(ctx, descText, innerWidth)) {
+            ctx.fillText(line, contentX, cursorY);
+            cursorY += 19;
+        }
+        cursorY += 4;
+    }
+
+    // Fields
+    if (embed.fields?.length) {
+        cursorY += 4;
+        let fieldX = contentX;
+        let maxFieldBottomY = cursorY;
+        const columnWidth = Math.floor(innerWidth * 0.33);
+        for (const field of embed.fields) {
+            if (field.inline) {
+                if (fieldX + columnWidth > contentX + innerWidth) {
+                    fieldX = contentX;
+                    cursorY = maxFieldBottomY + 4;
+                }
+            } else {
+                if (fieldX !== contentX) {
+                    cursorY = maxFieldBottomY + 4;
+                }
+                fieldX = contentX;
+            }
+            const fw = field.inline ? columnWidth - 8 : innerWidth;
+            let fy = cursorY;
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px Arial';
+            for (const line of wrapText(ctx, field.name || '', fw)) {
+                ctx.fillText(line, fieldX, fy);
+                fy += 17;
+            }
+            ctx.fillStyle = '#dcddde';
+            ctx.font = '13px Arial';
+            for (const line of wrapText(ctx, sanitizeMessageText(field.value || ''), fw)) {
+                ctx.fillText(line, fieldX, fy);
+                fy += 17;
+            }
+            if (fy > maxFieldBottomY) {maxFieldBottomY = fy;}
+            if (field.inline) {
+                fieldX += columnWidth;
+            } else {
+                cursorY = fy + 4;
+                maxFieldBottomY = cursorY;
+            }
+        }
+        cursorY = maxFieldBottomY;
+    }
+
+    // Footer
+    if (embed.footer?.text) {
+        cursorY += 4;
+        ctx.fillStyle = '#72767d';
+        ctx.font = '12px Arial';
+        ctx.fillText(truncateText(embed.footer.text, 80), contentX, cursorY);
+        cursorY += 18;
+    }
+
+    return embedHeight;
+}
+
+function calculateTotalEmbedHeight(ctx, embeds, maxWidth) {
+    if (!embeds?.length) {return 0;}
+    let total = 0;
+    const embedWidth = Math.min(maxWidth, EMBED_MAX_WIDTH);
+    const innerWidth = embedWidth - EMBED_BAR_WIDTH - EMBED_PADDING * 2;
+    for (const embed of embeds) {
+        if (!embed.description && !embed.title && !embed.author?.name && !embed.fields?.length && !embed.footer?.text) {continue;}
+        total += calculateEmbedHeight(ctx, embed, innerWidth) + 8;
+    }
+    return total;
+}
+
+// ─── Main clip image creation ────────────────────────────────────────────────
+
 async function createClipImage(handler, text, username, avatarUrl, isBot = false, roleColor = '#ff6b6b', guild = null, client = null, message = null, user = null, attachments = null, embeds = null) {
     const isVerified = user ? isBotVerified(user) : false;
     const hasImages = attachments && attachments.size > 0;
     const imageUrls = extractImageUrls(text);
-    const embedImageUrls = (embeds || []).flatMap(e => {
+    // Only pull embed images for embeds that have no text content (purely image embeds)
+    const textEmbeds = (embeds || []).filter(e => e.description || e.title || e.author?.name || e.fields?.length || e.footer?.text);
+    const imageOnlyEmbeds = (embeds || []).filter(e => !e.description && !e.title && !e.author?.name && !e.fields?.length && !e.footer?.text);
+    const embedImageUrls = imageOnlyEmbeds.flatMap(e => {
         const urls = [];
         if (e && e.image && e.image.url) {urls.push(e.image.url);}
         if (e && e.thumbnail && e.thumbnail.url) {urls.push(e.thumbnail.url);}
@@ -634,12 +869,9 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
     const unicodeEmojis = parseUnicodeEmojis(sanitizedText);
     const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
     const mentions = await parseMentions(handler, sanitizedText, guild, client);
-    if (allEmojis.length > 0) {
-        console.log('Found emojis:', allEmojis.map(e => ({ name: e.name, url: e.url, isUnicode: e.isUnicode })));
-    }
     const width = 800;
     const minHeight = 120;
-    const textHeight = calculateTextHeight(handler, sanitizedText, width - 180, allEmojis, mentions);
+    const textHeight = sanitizedText ? calculateTextHeight(handler, sanitizedText, width - 180, allEmojis, mentions) : 44;
     let actualImageHeight = 0;
     if (hasImages || allImageUrls.length > 0) {
         const tempCanvas = createCanvas(width, 1);
@@ -647,7 +879,11 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
         const imageEndY = await drawImages(tempCtx, attachments, allImageUrls, 0, 0, width - 180);
         actualImageHeight = imageEndY + 20;
     }
-    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + actualImageHeight + 40));
+    // Calculate embed height
+    const measCanvas = createCanvas(1, 1);
+    const measCtx = measCanvas.getContext('2d');
+    const embedHeight = calculateTotalEmbedHeight(measCtx, textEmbeds, width - 180);
+    const totalHeight = Math.ceil(Math.max(minHeight, textHeight + actualImageHeight + embedHeight + 40));
     const canvas = createCanvas(width, totalHeight);
     const ctx = canvas.getContext('2d');
     ctx.patternQuality = 'best';
@@ -731,13 +967,25 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
         ctx.fillStyle = '#72767d';
         ctx.fillText(timestamp, textStartX, textStartY + 18);
     }
-    ctx.font = '15px Arial';
-    const messageStartY = textStartY + 20;
-    await drawFormattedText(handler, ctx, sanitizedText, textStartX, messageStartY, maxTextWidth, allEmojis, mentions);
-    if (hasImages || allImageUrls.length > 0) {
+    let drawY = textStartY + 20;
+    // Draw message text (if any)
+    if (sanitizedText) {
+        ctx.font = '15px Arial';
+        await drawFormattedText(handler, ctx, sanitizedText, textStartX, drawY, maxTextWidth, allEmojis, mentions);
         const effectiveTextHeight = Math.max(0, textHeight - 44);
-        const imageY = messageStartY + effectiveTextHeight + 2;
-        await drawImages(ctx, attachments, allImageUrls, textStartX, imageY, maxTextWidth);
+        drawY += effectiveTextHeight + 2;
+    }
+    // Draw attached images
+    if (hasImages || allImageUrls.length > 0) {
+        const imageEndY = await drawImages(ctx, attachments, allImageUrls, textStartX, drawY, maxTextWidth);
+        drawY = imageEndY + 4;
+    }
+    // Draw embeds
+    if (textEmbeds.length > 0) {
+        for (const embed of textEmbeds) {
+            const h = await drawEmbed(ctx, embed, textStartX, drawY, maxTextWidth);
+            drawY += h + 8;
+        }
     }
     const buffer = canvas.toBuffer('image/png');
     const processedBuffer = await sharp(buffer)
