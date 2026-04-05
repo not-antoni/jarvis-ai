@@ -190,7 +190,7 @@ async function handleJarvis(interaction, jarvis) {
 }
 
 const makeUtilityHandler = cmd => (interaction, jarvis, userId, guildId) =>
-    jarvis.handleUtilityCommand(cmd, interaction.user.username, userId, true, interaction, guildId);
+    jarvis.handleUtilityCommand(cmd, interaction.member?.displayName || interaction.user.displayName || interaction.user.username, userId, true, interaction, guildId);
 const handleClear = makeUtilityHandler('reset');
 const handleHelp = makeUtilityHandler('help');
 const handleProfile = makeUtilityHandler('profile');

@@ -490,9 +490,10 @@ class DiscordHandlers {
             return;
         }
         try {
+            const callerDisplayName = message.member?.displayName || message.author.displayName || message.author.username;
             const utilityResponse = await this.jarvis.handleUtilityCommand(
                 cleanContent,
-                message.author.username,
+                callerDisplayName,
                 message.author.id,
                 false,
                 null,
