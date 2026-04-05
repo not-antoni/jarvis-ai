@@ -252,6 +252,7 @@ async function handle(handler, interaction) {
             subcommand: telemetrySubcommand,
             userId,
             guildId,
+            guildName: guild?.name || null,
             latencyMs: Date.now() - startedAt,
             status: telemetryStatus,
             error: telemetryError,

@@ -29,6 +29,7 @@ function recordCommandRun({
     subcommand = null,
     userId = null,
     guildId = null,
+    guildName = null,
     latencyMs = null,
     status = 'ok',
     error = null,
@@ -43,6 +44,7 @@ function recordCommandRun({
         subcommand,
         userId,
         guildId,
+        guildName,
         latencyMs,
         status: status === 'ok' ? 'ok' : 'error'
     };
