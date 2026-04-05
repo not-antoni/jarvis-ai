@@ -1,5 +1,6 @@
 const { ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder, ApplicationIntegrationType, InteractionContextType } = require('discord.js');
 const { generateQuoteImage } = require('../../utils/quote-generator');
+const { renderEmbedsToBuffer } = require('../../services/handlers/clip-rendering');
 
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -129,7 +130,17 @@ const quoteContext = {
             text = text.trim();
         }
 
-        if (!text && !attachmentUrl) {
+        // Render embeds as a visual image block (if no attachment image already)
+        let embedImageBuffer = null;
+        if (!attachmentUrl && message.embeds.length > 0) {
+            try {
+                embedImageBuffer = await renderEmbedsToBuffer(message.embeds);
+            } catch (e) {
+                console.warn('Embed rendering for quote failed:', e.message);
+            }
+        }
+
+        if (!text && !attachmentUrl && !embedImageBuffer) {
             await interaction.editReply('❌ Message has no content or image to quote.');
             return;
         }
@@ -142,7 +153,8 @@ const quoteContext = {
                 avatarUrl,
                 message.createdAt,
                 attachmentUrl,
-                author.username  // Pass actual username for grey display
+                author.username,
+                embedImageBuffer
             );
 
             const attachmentFile = new AttachmentBuilder(buffer, { name: 'quote.gif' });

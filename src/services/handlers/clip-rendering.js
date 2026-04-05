@@ -1014,6 +1014,31 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
     return processedBuffer;
 }
 
+async function renderEmbedsToBuffer(embeds, maxWidth = 520) {
+    const renderableEmbeds = (embeds || []).filter(e => e.description || e.title || e.author?.name || e.fields?.length || e.footer?.text);
+    if (!renderableEmbeds.length) {return null;}
+    const pad = 12;
+    const measCanvas = createCanvas(1, 1);
+    const measCtx = measCanvas.getContext('2d');
+    const embedWidth = Math.min(maxWidth, EMBED_MAX_WIDTH);
+    const innerWidth = embedWidth - EMBED_BAR_WIDTH - EMBED_PADDING * 2;
+    let totalHeight = pad;
+    for (const embed of renderableEmbeds) {
+        totalHeight += calculateEmbedHeight(measCtx, embed, innerWidth) + 8;
+    }
+    totalHeight += pad;
+    const canvas = createCanvas(embedWidth + pad * 2, totalHeight);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#313338';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    let cursorY = pad;
+    for (const embed of renderableEmbeds) {
+        const h = await drawEmbed(ctx, embed, pad, cursorY, embedWidth);
+        cursorY += h + 8;
+    }
+    return canvas.toBuffer('image/png');
+}
+
 module.exports = {
     createClipImage,
     findMessageAcrossChannels,
@@ -1031,5 +1056,6 @@ module.exports = {
     ensureDiscordEmojiSize,
     loadImageSafe,
     loadStaticImage,
-    resolveTenorStatic
+    resolveTenorStatic,
+    renderEmbedsToBuffer
 };

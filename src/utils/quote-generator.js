@@ -266,7 +266,7 @@ function loadTokenEmojiAssets(tokens) {
 /**
  * Generate Quote Image
  */
-async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attachmentImageUrl, actualUsername = null) {
+async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attachmentImageUrl, actualUsername = null, attachmentBuffer = null) {
     // Fixed canvas size - max Discord resolution
     const width = 1599;
     const height = 899;
@@ -286,9 +286,14 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
     const assetsToLoad = loadTokenEmojiAssets(tokens);
 
-    // Attachment
+    // Attachment (URL or pre-rendered buffer)
     let attachmentImage = null;
-    if (attachmentImageUrl) {
+    if (attachmentBuffer) {
+        assetsToLoad.push((async () => {
+            try { attachmentImage = await loadImage(attachmentBuffer); }
+            catch (e) { console.warn('Failed to load attachment buffer', e); }
+        })());
+    } else if (attachmentImageUrl) {
         assetsToLoad.push((async() => {
             try {
                 const isGif = attachmentImageUrl.split('?')[0].toLowerCase().endsWith('.gif');
