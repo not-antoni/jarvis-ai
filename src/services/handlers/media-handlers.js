@@ -31,13 +31,6 @@ async function handleSlashCommandClip(handler, interaction) {
             return true;
         }
 
-        console.log('Slash command timestamp debug:', {
-            slashCommandTime: interaction.createdAt.toLocaleTimeString(),
-            targetMessageTime: targetMessage.createdAt.toLocaleTimeString(),
-            targetMessageTimestamp: targetMessage.createdTimestamp,
-            interactionTimestamp: interaction.createdTimestamp
-        });
-
         const avatarUrl = targetMessage.member?.avatarURL({
             extension: 'png',
             size: 128,
@@ -69,7 +62,8 @@ async function handleSlashCommandClip(handler, interaction) {
             interaction.client,
             targetMessage,
             targetMessage.author,
-            targetMessage.attachments
+            targetMessage.attachments,
+            targetMessage.embeds
         );
 
         await handler.sendBufferOrLink(interaction, imageBuffer, 'clipped.png');
