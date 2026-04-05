@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const { pipeline } = require('stream/promises');
 const { ensureFfmpeg } = require('./ffmpeg');
 const { CLIENTS: DEFAULT_CLIENTS, FALLBACK_CLIENTS } = require('./youtubeClients');
+const { parseBooleanEnv } = require('./parse-bool-env');
 const UPDATE_RECORD_NAME = 'yt-dlp-update.json';
 const DEFAULT_UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const BINARY_NAMES = {
@@ -36,14 +37,7 @@ const DOCUMENTARY_OPENER =
     '🦁 Sir, with all due respect... are you listening to National Geographic documentaries?';
 const cache = new Map(); // videoId -> { path, refs, timer, lastAccess }
 const pendingDownloads = new Map(); // videoId -> { promise, cancel }
-function readBooleanEnv(key, defaultValue) {
-    const raw = process.env[key];
-    if (!raw) {
-        return defaultValue;
-    }
-    return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase());
-}
-const FAST_START_MODE = readBooleanEnv('MUSIC_FAST_START_MODE', true);
+const FAST_START_MODE = parseBooleanEnv(process.env.MUSIC_FAST_START_MODE, true);
 function resolveSource(source, videoUrl) {
     const normalized = String(source || '').trim().toLowerCase();
     let resolved = normalized;
