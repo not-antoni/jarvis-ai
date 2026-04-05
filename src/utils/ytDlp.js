@@ -549,7 +549,7 @@ async function createLiveAudioStream(videoId, videoUrl, options = {}) {
     const startedAt = Date.now();
     const binaryPath = await ensureBinary();
     const { cookieFile, extractorArgs } = await prepareCookiesAndExtractor(resolved);
-    const args = ['--force-ipv4', '--ignore-errors', '--no-playlist', '--no-progress', '-f', 'bestaudio/best', '-o', '-'];
+    const args = ['--force-ipv4', '--ignore-errors', '--no-warnings', '--no-playlist', '--no-progress', '-f', 'bestaudio/best', '-o', '-'];
     if (extractorArgs) { args.push('--extractor-args', extractorArgs); }
     if (cookieFile) { args.push('--cookies', cookieFile); }
     args.push(videoUrl);
@@ -602,6 +602,7 @@ async function createDownloadTask(videoId, videoUrl, options = {}) {
         const args = [
             '--force-ipv4',
             '--ignore-errors',
+            '--no-warnings',
             '--no-continue',
             '--no-overwrites',
             '--no-part',
