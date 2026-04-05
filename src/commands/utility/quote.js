@@ -90,24 +90,6 @@ const quoteContext = {
 
         let text = await resolveMentions(content || '', interaction);
 
-        // If no text content, extract text from embeds
-        if (!text.trim() && message.embeds.length > 0) {
-            const parts = [];
-            for (const embed of message.embeds) {
-                if (embed.author?.name) {parts.push(embed.author.name);}
-                if (embed.title) {parts.push(embed.title);}
-                if (embed.description) {parts.push(embed.description);}
-                if (embed.fields?.length) {
-                    for (const field of embed.fields) {
-                        if (field.name) {parts.push(field.name);}
-                        if (field.value) {parts.push(field.value);}
-                    }
-                }
-                if (embed.footer?.text) {parts.push(embed.footer.text);}
-            }
-            text = parts.join('\n');
-        }
-
         // Remove attachment URL from text if present
         if (attachmentUrl) {
             for (const url of urlsToStrip) {
@@ -138,6 +120,24 @@ const quoteContext = {
             } catch (e) {
                 console.warn('Embed rendering for quote failed:', e.message);
             }
+        }
+
+        // Only extract embed text as fallback if we couldn't render the embed as an image
+        if (!text.trim() && !embedImageBuffer && message.embeds.length > 0) {
+            const parts = [];
+            for (const embed of message.embeds) {
+                if (embed.author?.name) {parts.push(embed.author.name);}
+                if (embed.title) {parts.push(embed.title);}
+                if (embed.description) {parts.push(embed.description);}
+                if (embed.fields?.length) {
+                    for (const field of embed.fields) {
+                        if (field.name) {parts.push(field.name);}
+                        if (field.value) {parts.push(field.value);}
+                    }
+                }
+                if (embed.footer?.text) {parts.push(embed.footer.text);}
+            }
+            text = parts.join('\n');
         }
 
         if (!text && !attachmentUrl && !embedImageBuffer) {
