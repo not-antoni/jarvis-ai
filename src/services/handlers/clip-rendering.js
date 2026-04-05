@@ -297,15 +297,20 @@ async function parseMentions(handler, text, guild = null, client = null) {
 function drawVerifiedBadge(ctx, x, y, size = 16) {
     try {
         ctx.save();
-        ctx.fillStyle = '#ffffff';
+        // Blue circle background
+        ctx.fillStyle = '#5865f2';
         ctx.beginPath();
-        ctx.moveTo(x + size * 0.3, y + size * 0.5);
-        ctx.lineTo(x + size * 0.45, y + size * 0.65);
-        ctx.lineTo(x + size * 0.7, y + size * 0.35);
+        ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        // White checkmark
+        ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(x + size * 0.28, y + size * 0.5);
+        ctx.lineTo(x + size * 0.44, y + size * 0.66);
+        ctx.lineTo(x + size * 0.72, y + size * 0.34);
         ctx.stroke();
         ctx.restore();
     } catch (error) {
@@ -941,20 +946,23 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
     ctx.fillText(truncatedUsername, textStartX, textStartY);
     let currentX = textStartX + ctx.measureText(truncatedUsername).width + 4;
     if (isBot) {
-        const appTagWidth = 38;
-        const appTagHeight = 18;
+        const appTagHeight = 17;
+        const appTagRadius = 3;
         if (isVerified) {
-            const badgeSize = 18;
-            const badgeX = currentX;
-            drawVerifiedBadge(ctx, badgeX, textStartY, badgeSize);
-            currentX += badgeSize + 4;
+            const badgeSize = 17;
+            drawVerifiedBadge(ctx, currentX, textStartY, badgeSize);
+            currentX += badgeSize + 3;
         }
-        ctx.fillStyle = 'rgb(88, 101, 242)';
-        ctx.fillRect(currentX, textStartY, appTagWidth, appTagHeight);
+        ctx.font = 'bold 10px Arial';
+        const appTextWidth = ctx.measureText('APP').width;
+        const appTagWidth = appTextWidth + 8;
+        const tagY = textStartY + 1;
+        ctx.fillStyle = '#5865f2';
+        drawRoundedRect(ctx, currentX, tagY, appTagWidth, appTagHeight, appTagRadius);
+        ctx.fill();
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 11px Arial';
-        ctx.fillText('APP', currentX + 3, textStartY + 3);
-        currentX += appTagWidth + 4;
+        ctx.fillText('APP', currentX + 4, tagY + 4);
+        currentX += appTagWidth + 5;
     }
     const timestamp = message ? parseDiscordTimestamp(message) : '6:39 PM';
     ctx.font = '13px Arial';
