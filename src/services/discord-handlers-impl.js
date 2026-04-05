@@ -517,25 +517,34 @@ class DiscordHandlers {
             if (message.reference?.messageId) {
                 try {
                     const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-                    let repliedDisplayName = repliedMessage.author?.username || 'user';
-                    if (message.guild && repliedMessage.author?.id) {
-                        const repliedMember =
-                            repliedMessage.member ||
-                            (await message.guild.members.fetch(repliedMessage.author.id).catch(() => null));
-                        repliedDisplayName =
-                            repliedMember?.displayName ||
-                            repliedMessage.author?.globalName ||
-                            repliedMessage.author?.username ||
-                            'user';
-                    } else {
-                        repliedDisplayName =
-                            repliedMessage.author?.globalName || repliedMessage.author?.username || 'user';
-                    }
-                    const repliedText = (repliedMessage?.cleanContent || repliedMessage?.content || '').trim();
-                    if (repliedText) {
-                        const maxReplyContext = Math.min(300, Math.max(100, config.ai.maxInputLength - cleanContent.length - 50));
-                        const trimmedReply = repliedText.substring(0, maxReplyContext);
-                        repliedContext = `[Replied to ${repliedDisplayName}: "${trimmedReply}${repliedText.length > maxReplyContext ? '...' : ''}"]\n`;
+                    const repliedAuthorId = repliedMessage.author?.id;
+                    // Skip reply context if the replied-to user opted out (unless it's the bot or the caller themselves)
+                    const isBotReply = repliedAuthorId === message.client?.user?.id;
+                    const isSelfReply = repliedAuthorId === message.author?.id;
+                    const repliedOptedOut = !isBotReply && !isSelfReply && repliedAuthorId
+                        ? await database.isUserOptedOut(repliedAuthorId).catch(() => false)
+                        : false;
+                    if (!repliedOptedOut) {
+                        let repliedDisplayName = repliedMessage.author?.username || 'user';
+                        if (message.guild && repliedAuthorId) {
+                            const repliedMember =
+                                repliedMessage.member ||
+                                (await message.guild.members.fetch(repliedAuthorId).catch(() => null));
+                            repliedDisplayName =
+                                repliedMember?.displayName ||
+                                repliedMessage.author?.globalName ||
+                                repliedMessage.author?.username ||
+                                'user';
+                        } else {
+                            repliedDisplayName =
+                                repliedMessage.author?.globalName || repliedMessage.author?.username || 'user';
+                        }
+                        const repliedText = (repliedMessage?.cleanContent || repliedMessage?.content || '').trim();
+                        if (repliedText) {
+                            const maxReplyContext = Math.min(300, Math.max(100, config.ai.maxInputLength - cleanContent.length - 50));
+                            const trimmedReply = repliedText.substring(0, maxReplyContext);
+                            repliedContext = `[Replied to ${repliedDisplayName}: "${trimmedReply}${repliedText.length > maxReplyContext ? '...' : ''}"]\n`;
+                        }
                     }
                     if (imageAttachments.length === 0) {
                         imageAttachments = [...imageAttachments, ...extractImagesFromMessage(repliedMessage, 'fromReply')];
