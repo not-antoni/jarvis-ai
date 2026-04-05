@@ -18,7 +18,7 @@ const commandDefinitions = [
         category: 'Core Systems',
         usage: '/help',
         feature: 'coreChat',
-        ephemeral: true
+        ephemeral: false
     },
     {
         name: 'invite',
