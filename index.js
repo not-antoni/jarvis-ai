@@ -10,7 +10,6 @@ const _negativeTimeoutTraces = new Set();
 const _nativeSetTimeout = global.setTimeout;
 function isKnownVoiceTimerDrift(delayMs, stack) {
     return (
-        delayMs >= -50 &&
         typeof stack === 'string' &&
         stack.includes('@discordjs/voice/dist/index.js') &&
         stack.includes('prepareNextAudioFrame')
