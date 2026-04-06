@@ -2,7 +2,6 @@
 const execution = require('./ai-providers-execution');
 const fs = require('fs');
 const path = require('path');
-const { LRUCache } = require('lru-cache');
 const OpenAI = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const config = require('../../config');
@@ -86,8 +85,6 @@ class AIProviderManager {
         this.disabledProviders = new Map();
         this.disabledProviderMeta = new Map();
         this.roundRobinIndex = 0;
-        this.sessionStickiness = new LRUCache({ max: 10000, ttl: 15 * 1000 }); // userId -> provider
-        this.sessionStickinessMs = 15 * 1000; // 15 seconds
         this.selectedProviderType = config.ai?.provider || 'auto'; // 'auto' | 'openai' | 'groq' | 'openrouter' | 'google' | 'deepseek'
         // OpenRouter rolling outage guardrails
         this.openRouterGlobalFailure = false;
@@ -716,29 +713,6 @@ class AIProviderManager {
                 return score(mb) - score(ma);
             });
     }
-    /**
-     * Session stickiness — keeps user on same model for 60s to ensure consistency
-     */
-    _getSessionStickyProvider(userId, options = {}) {
-        const cached = this.sessionStickiness.get(userId);
-        if (cached) {
-            const available = this._availableProviders(options).find(
-                provider => provider.name === cached.name
-            );
-            if (available) {
-                return available;
-            }
-            this.sessionStickiness.delete(userId);
-        }
-
-        // Session expired or doesn't exist - pick new one via round-robin
-        const provider = this._getRoundRobinProvider(options);
-        if (provider) {
-            this.sessionStickiness.set(userId, provider);
-        }
-        return provider;
-    }
-
     _getRoundRobinProvider(options = {}) {
         const availableProviders = this._availableProviders(options);
         if (availableProviders.length === 0) {return null;}
@@ -990,7 +964,6 @@ class AIProviderManager {
         this.metrics.clear();
         this.disabledProviders.clear();
         this.disabledProviderMeta.clear();
-        this.sessionStickiness.clear();
         this.openRouterGlobalFailure = false;
         this.openRouterFailureCount = 0;
         this.providerPoisonCounts.clear();

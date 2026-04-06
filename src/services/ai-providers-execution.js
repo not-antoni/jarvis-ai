@@ -532,27 +532,11 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         }
         console.log(`Reinitialized ${manager.providers.length} AI providers`);
     }
-    // Session stickiness keeps users on the same model within a 60s window
-    // while distributing load via round-robin across all users
-    const stickyProviderName = userId ? manager._getSessionStickyProvider(userId)?.name : null;
     const attemptedProviders = new Set();
     let lastError = null;
     while (true) {
         const rankedProviders = manager._rankedProviders();
-        const orderedCandidates = stickyProviderName
-            ? [
-                ...rankedProviders.filter(
-                    provider =>
-                        provider.name === stickyProviderName &&
-                        !attemptedProviders.has(provider.name)
-                ),
-                ...rankedProviders.filter(
-                    provider =>
-                        provider.name !== stickyProviderName &&
-                        !attemptedProviders.has(provider.name)
-                )
-            ]
-            : rankedProviders.filter(provider => !attemptedProviders.has(provider.name));
+        const orderedCandidates = rankedProviders.filter(provider => !attemptedProviders.has(provider.name));
         const provider = orderedCandidates[0];
         if (!provider) {
             break;
