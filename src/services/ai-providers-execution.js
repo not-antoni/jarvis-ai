@@ -428,6 +428,10 @@ function getProviderAttemptTimeoutMs(provider) {
         }
         return 18_000;
     }
+    const family = String(provider?.family || '').toLowerCase();
+    if (family === 'cerebras' || family === 'sambanova') {
+        return 20_000;
+    }
     return 12_000;
 }
 function formatDurationLabel(durationMs) {
