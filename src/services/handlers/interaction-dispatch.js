@@ -368,6 +368,33 @@ async function handle(handler, interaction) {
             return;
         }
 
+        if (commandName === 'leave') {
+            shouldSetCooldown = true;
+            const voiceChat = require('../voice-chat-service');
+            try {
+                if (voiceChat.shouldSilentlyIgnoreLeave(guildId)) {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                    }
+                    await interaction.deleteReply().catch(() => {});
+                    telemetryMetadata.silent = true;
+                    return;
+                }
+
+                if (!interaction.deferred && !interaction.replied) {
+                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                }
+                const msg = voiceChat.leave(guildId);
+                await interaction.editReply(msg);
+            } catch (error) {
+                console.error('[/leave] Error:', error);
+                try {
+                    await interaction.editReply('Voice disconnect failed, sir.');
+                } catch {}
+            }
+            return;
+        }
+
         if (commandName === 'clip') {
             shouldSetCooldown = true;
             const handled = await mediaHandlers.handleSlashCommandClip(handler, interaction);
