@@ -222,7 +222,7 @@ class AIProviderManager {
         // Auto-discover all SAMBANOVA_API_KEY, SAMBANOVA_API_KEY2, etc.
         const sambanovaKeys = discoverEnvKeys('SAMBANOVA_API_KEY');
         const sambanovaModels = [
-            'Qwen3-235B',
+            'Meta-Llama-3.3-70B-Instruct',
         ];
         sambanovaKeys.forEach((key, keyIndex) => {
             sambanovaModels.forEach((model) => {
