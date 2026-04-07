@@ -5,12 +5,17 @@ require('dotenv').config();
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const { SLASH_EPHEMERAL_COMMANDS } = require('../src/core/command-registry');
 const voiceChat = require('../src/services/voice-chat-service');
 const { musicManager } = require('../src/core/musicManager');
 
 test('leave is silently ignored in the farming guild', () => {
     assert.equal(voiceChat.shouldSilentlyIgnoreLeave('858444090374881301'), true);
     assert.equal(voiceChat.shouldSilentlyIgnoreLeave('123456789012345678'), false);
+});
+
+test('leave is not marked as an ephemeral slash command', () => {
+    assert.equal(SLASH_EPHEMERAL_COMMANDS.has('leave'), false);
 });
 
 test('leave cleans up both music and voice session state', () => {

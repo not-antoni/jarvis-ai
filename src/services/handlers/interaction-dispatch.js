@@ -382,7 +382,7 @@ async function handle(handler, interaction) {
                 }
 
                 if (!interaction.deferred && !interaction.replied) {
-                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                    await interaction.deferReply();
                 }
                 const msg = voiceChat.leave(guildId);
                 await interaction.editReply(msg);
