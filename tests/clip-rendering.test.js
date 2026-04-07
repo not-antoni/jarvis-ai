@@ -21,19 +21,19 @@ test('fitTextToWidth keeps full nickname when width allows it', () => {
 
 test('splitTextWithEmojisAndMentions emits mention segments for raw user mentions', () => {
     const segments = _test.splitTextWithEmojisAndMentions(
-        '<@123456789012345678> found a bug',
+        '<@111111111111111111> found a bug',
         [],
         [{
-            full: '<@123456789012345678>',
-            userId: '123456789012345678',
-            display: '@jona23',
+            full: '<@111111111111111111>',
+            userId: '111111111111111111',
+            display: '@mentioned-user',
             start: 0,
             end: 21
         }]
     );
 
     assert.deepEqual(segments, [
-        { type: 'mention', text: '@jona23' },
+        { type: 'mention', text: '@mentioned-user' },
         { type: 'text', text: ' found a bug' }
     ]);
 });
