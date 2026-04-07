@@ -8,6 +8,11 @@ const { fetchBuffer } = require('../../utils/net-guard');
 const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
 const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
+const MENTION_PILL_BACKGROUND = 'rgba(88, 101, 242, 0.3)';
+const MENTION_PILL_TEXT = '#dee0fc';
+const MENTION_PILL_HORIZONTAL_PADDING = 4;
+const MENTION_PILL_HEIGHT = 18;
+const MENTION_PILL_RADIUS = 4;
 
 function envInt(name, fallback, min) { return Math.max(min, Number(process.env[name] || '') || fallback); }
 const MAX_REMOTE_IMAGE_BYTES = envInt('REMOTE_IMAGE_MAX_BYTES', 10 * 1024 * 1024, 1024 * 1024);
@@ -85,6 +90,30 @@ function isBotVerified(user) {
 function truncateText(text, maxLength) {
     if (text.length <= maxLength) {return text;}
     return `${text.substring(0, maxLength - 3)}...`;
+}
+
+function fitTextToWidth(ctx, text, maxWidth) {
+    const value = String(text || '');
+    if (!value || maxWidth <= 0) {return '';}
+    if (ctx.measureText(value).width <= maxWidth) {
+        return value;
+    }
+
+    const ellipsis = '...';
+    const ellipsisWidth = ctx.measureText(ellipsis).width;
+    if (ellipsisWidth >= maxWidth) {
+        return ellipsis;
+    }
+
+    let end = value.length;
+    while (end > 0) {
+        const candidate = `${value.slice(0, end)}${ellipsis}`;
+        if (ctx.measureText(candidate).width <= maxWidth) {
+            return candidate;
+        }
+        end--;
+    }
+    return ellipsis;
 }
 
 function parseDiscordTimestamp(message) {
@@ -258,12 +287,12 @@ function parseUnicodeEmojis(text) {
     return emojis;
 }
 
-async function parseMentions(handler, text, guild = null, client = null) {
+async function parseMentions(handler, text, guild = null, client = null, message = null) {
     const mentionRegex = /<@!?([0-9]{5,})>/g;
     const mentions = [];
     let match;
-    while ((match = mentionRegex.exec(text)) !== null) {
-        const userId = match[1];
+
+    const buildMentionEntry = async(userId, full, start, end) => {
         let display = '@unknown';
         try {
             let user = null;
@@ -283,14 +312,36 @@ async function parseMentions(handler, text, guild = null, client = null) {
             }
             display = `@${getSafeDisplayName(member, user || { username: userId })}`;
         } catch (_) {}
-        mentions.push({
-            full: match[0],
-            userId: userId,
-            display: display,
-            start: match.index,
-            end: match.index + match[0].length
-        });
+        mentions.push({ full, userId, display, start, end });
+    };
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+        const userId = match[1];
+        await buildMentionEntry(userId, match[0], match.index, match.index + match[0].length);
     }
+
+    if (mentions.length === 0 && message?.mentions?.users?.size) {
+        for (const [userId, user] of message.mentions.users.entries()) {
+            let member = null;
+            try {
+                member = message.mentions.members?.get(userId) || null;
+            } catch (_) {}
+            const candidateDisplays = Array.from(new Set([
+                `@${getSafeDisplayName(member, user)}`,
+                user?.username ? `@${user.username}` : null
+            ].filter(Boolean)));
+
+            for (const display of candidateDisplays) {
+                const escaped = display.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(escaped, 'g');
+                let fallbackMatch;
+                while ((fallbackMatch = regex.exec(text)) !== null) {
+                    await buildMentionEntry(userId, display, fallbackMatch.index, fallbackMatch.index + display.length);
+                }
+            }
+        }
+    }
+
     return mentions;
 }
 
@@ -405,6 +456,10 @@ function calculateTextHeight(handler, text, maxWidth, customEmojis = [], mention
                 if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) { advanceLine(); }
                 currentLineWidth += emojiAdvance;
             }
+        } else if (segment.type === 'mention') {
+            const pillWidth = tempCtx.measureText(segment.text).width + (MENTION_PILL_HORIZONTAL_PADDING * 2);
+            if (currentLineWidth + pillWidth > maxWidth && currentLineWidth > 0) { advanceLine(); }
+            currentLineWidth += pillWidth;
         } else {
             processTokens(segment.text);
         }
@@ -447,6 +502,22 @@ async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, c
             if (token === '\n') { advanceLine(); continue; }
             handleTextToken(token, color);
         }
+    };
+    const drawMention = text => {
+        const pillWidth = ctx.measureText(text).width + (MENTION_PILL_HORIZONTAL_PADDING * 2);
+        if (currentLineWidth + pillWidth > maxWidth && currentLineWidth > 0) {
+            advanceLine();
+        }
+        const drawX = startX + currentLineWidth;
+        const drawY = currentY + 1;
+        const previousFill = ctx.fillStyle;
+        ctx.fillStyle = MENTION_PILL_BACKGROUND;
+        drawRoundedRect(ctx, drawX, drawY, pillWidth, MENTION_PILL_HEIGHT, MENTION_PILL_RADIUS);
+        ctx.fill();
+        ctx.fillStyle = MENTION_PILL_TEXT;
+        ctx.fillText(text, drawX + MENTION_PILL_HORIZONTAL_PADDING, currentY);
+        ctx.fillStyle = previousFill;
+        currentLineWidth += pillWidth;
     };
     for (const segment of segments) {
         if (segment.type === 'emoji') {
@@ -512,6 +583,8 @@ async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, c
                 }
                 if (!drawn) { handleTextToken(`:${segment.name}:`); }
             }
+        } else if (segment.type === 'mention') {
+            drawMention(segment.text);
         } else {
             processTokens(segment.text, segment.type === 'mention' ? '#c9cdfb' : '#dbdee1');
         }
@@ -914,7 +987,7 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
     const customEmojis = await parseCustomEmojis(sanitizedText, guild);
     const unicodeEmojis = parseUnicodeEmojis(sanitizedText);
     const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
-    const mentions = await parseMentions(handler, sanitizedText, guild, client);
+    const mentions = await parseMentions(handler, sanitizedText, guild, client, message);
     const width = 800;
     const minHeight = 120;
     const textHeight = sanitizedText ? calculateTextHeight(handler, sanitizedText, width - 180, allEmojis, mentions) : 44;
@@ -979,13 +1052,13 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
     const textStartX = avatarX + avatarSize + 20;
     const textStartY = avatarY + 3;
     const maxTextWidth = contentWidth - (avatarSize + 20) - 30;
-    const truncatedUsername = truncateText(username, 20);
+    const usernameToDraw = fitTextToWidth(ctx, username, maxTextWidth);
     ctx.fillStyle = roleColor;
     ctx.font = 'bold 16px Arial';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(truncatedUsername, textStartX, textStartY);
-    let currentX = textStartX + ctx.measureText(truncatedUsername).width + 4;
+    ctx.fillText(usernameToDraw, textStartX, textStartY);
+    let currentX = textStartX + ctx.measureText(usernameToDraw).width + 4;
     if (isBot) {
         const appTagHeight = 17;
         const appTagRadius = 3;
@@ -1099,4 +1172,9 @@ module.exports = {
     loadStaticImage,
     resolveTenorStatic,
     renderEmbedsToBuffer
+    ,
+    _test: {
+        fitTextToWidth,
+        splitTextWithEmojisAndMentions
+    }
 };

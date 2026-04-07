@@ -8,6 +8,7 @@ const { sanitizeQuoteText } = require('./quote-text-sanitize');
 const { fetchBuffer } = require('./net-guard');
 
 const MAX_QUOTE_IMAGE_BYTES = 10 * 1024 * 1024;
+const MENTION_COLOR = '#c9cdfb';
 
 async function loadImageFromUrlSafe(url) {
     const fetched = await fetchBuffer(url, { method: 'GET' }, { maxBytes: MAX_QUOTE_IMAGE_BYTES });
@@ -135,12 +136,26 @@ function tokenizeText(text) {
     const tokens = [];
     const customEmojiRegex = /<a?:(\w+):(\d+)>/g;
     const unicodeEmojiRegex = emojiRegex();
+    const mentionRegex = /\u0001([^\u0002]+)\u0002/g;
 
     const customMatches = [...text.matchAll(customEmojiRegex)];
 
     const processPlain = (plainText) => {
         const subTokens = [];
-        const subMatches = [...plainText.matchAll(unicodeEmojiRegex)];
+        const subMatches = [
+            ...[...plainText.matchAll(unicodeEmojiRegex)].map(match => ({
+                type: 'unicode',
+                index: match.index,
+                length: match[0].length,
+                content: match[0]
+            })),
+            ...[...plainText.matchAll(mentionRegex)].map(match => ({
+                type: 'mention',
+                index: match.index,
+                length: match[0].length,
+                content: match[1]
+            }))
+        ].sort((a, b) => a.index - b.index);
         let lastIdx = 0;
 
         const addWords = (str) => {
@@ -159,8 +174,12 @@ function tokenizeText(text) {
             if (m.index > lastIdx) {
                 addWords(plainText.substring(lastIdx, m.index));
             }
-            subTokens.push({ type: 'unicode', content: m[0] });
-            lastIdx = m.index + m[0].length;
+            if (m.type === 'mention') {
+                subTokens.push({ type: 'mention', content: m.content });
+            } else {
+                subTokens.push({ type: 'unicode', content: m.content });
+            }
+            lastIdx = m.index + m.length;
         }
         if (lastIdx < plainText.length) {
             addWords(plainText.substring(lastIdx));
@@ -200,13 +219,13 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
         }
 
         let tokenWidth = 0;
-        if (token.type === 'text') {
+        if (token.type === 'text' || token.type === 'mention') {
             tokenWidth = ctx.measureText(token.content).width;
         } else {
             tokenWidth = fontSize * 1.1;
         }
 
-        if (token.type === 'text' && /^\s+$/.test(token.content)) {
+        if ((token.type === 'text' || token.type === 'mention') && /^\s+$/.test(token.content)) {
             if (currentLine.length === 0) {continue;}
             currentLine.push(token);
             currentWidth += tokenWidth;
@@ -215,7 +234,7 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
 
         if (currentWidth + tokenWidth > maxWidth && currentLine.length > 0) {
             lines.push(currentLine);
-            if (token.type === 'text' && /^\s+$/.test(token.content)) {
+            if ((token.type === 'text' || token.type === 'mention') && /^\s+$/.test(token.content)) {
                 currentLine = [];
                 currentWidth = 0;
             } else {
@@ -427,7 +446,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     lines.forEach((line) => {
         let lineWidth = 0;
         line.forEach(t => {
-            if (t.type === 'text') {lineWidth += ctx.measureText(t.content).width;}
+            if (t.type === 'text' || t.type === 'mention') {lineWidth += ctx.measureText(t.content).width;}
             else {lineWidth += finalFontSize * 1.1;}
         });
 
@@ -435,7 +454,8 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
         const baselineY = currentY + (lineHeight / 2);
 
         line.forEach(token => {
-            if (token.type === 'text') {
+            if (token.type === 'text' || token.type === 'mention') {
+                ctx.fillStyle = token.type === 'mention' ? MENTION_COLOR : '#ffffff';
                 ctx.fillText(token.content, currentX, baselineY);
                 currentX += ctx.measureText(token.content).width;
             } else if ((token.type === 'custom' || token.type === 'unicode') && token.image) {
@@ -443,6 +463,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
                 ctx.drawImage(token.image, currentX, baselineY - (size / 2), size, size);
                 currentX += size * 1.1;
             } else {
+                ctx.fillStyle = '#ffffff';
                 ctx.fillText(token.content || '', currentX, baselineY);
                 currentX += ctx.measureText(token.content || '').width;
             }
@@ -547,4 +568,9 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
     return canvas.toBuffer('image/png');
 }
 
-module.exports = { generateQuoteImage };
+module.exports = {
+    generateQuoteImage,
+    _test: {
+        tokenizeText
+    }
+};
