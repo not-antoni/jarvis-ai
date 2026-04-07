@@ -1,42 +1,19 @@
 const { ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder, ApplicationIntegrationType, InteractionContextType } = require('discord.js');
 const { generateQuoteImage } = require('../../utils/quote-generator');
 const { renderEmbedsToBuffer } = require('../../services/handlers/clip-rendering');
+const { resolveDiscordRichText } = require('../../utils/discord-rich-text');
 
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-async function resolveMentions(text, interaction) {
-    if (!text) {return text;}
-
-    // Resolve User Mentions <@ID> or <@!ID>
-    const userRegex = /<@!?(\d+)>/g;
-    const matches = [...text.matchAll(userRegex)];
-
-    for (const match of matches) {
-        const full = match[0];
-        const id = match[1];
-        try {
-            let name = null;
-            if (interaction.guild) {
-                try {
-                    const member = await interaction.guild.members.fetch(id);
-                    name = member.displayName;
-                } catch {
-                    // Member not in guild?
-                }
-            }
-            if (!name) {
-                const user = await interaction.client.users.fetch(id);
-                name = user.displayName || user.username;
-            }
-            // Replace all instances of this mention string
-            text = text.split(full).join(`@${name}`);
-        } catch (e) {
-            // Ignore fetch failures
-        }
-    }
-    return text;
+async function resolveMentions(text, interaction, message = null) {
+    return resolveDiscordRichText(text, {
+        guild: interaction.guild,
+        client: interaction.client,
+        mentions: message?.mentions,
+        style: true
+    });
 }
 
 const quoteContext = {
@@ -88,7 +65,7 @@ const quoteContext = {
             }
         }
 
-        let text = await resolveMentions(content || '', interaction);
+        let text = await resolveMentions(content || '', interaction, message);
 
         // Remove attachment URL from text if present
         if (attachmentUrl) {
