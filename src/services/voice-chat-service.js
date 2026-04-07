@@ -61,6 +61,7 @@ const PERSISTENT_CHANNELS = new Map(
         .map(pair => pair.trim().split(':'))
         .filter(([g, c]) => g && c)
 );
+const SILENT_LEAVE_GUILD_IDS = new Set(['858444090374881301']);
 
 // Prepended to voice input so the AI keeps replies spoken-friendly
 const VOICE_HINT = '[Voice chat — reply in 1-2 short spoken sentences. No markdown, no lists, no formatting. Be concise and conversational.]\n';
@@ -208,6 +209,14 @@ class VoiceChatService {
 
     }
 
+    shouldSilentlyIgnoreLeave(guildId) {
+        return SILENT_LEAVE_GUILD_IDS.has(String(guildId || ''));
+    }
+
+    _getVoiceConnection(guildId) {
+        return getVoiceConnection(guildId);
+    }
+
     _createSessionPlayer(guildId) {
         const player = createAudioPlayer({
             behaviors: {
@@ -314,6 +323,42 @@ class VoiceChatService {
         }
 
         return `Joined **${channel.name}**, listening for your commands.`;
+    }
+
+    leave(guildId) {
+        if (!guildId) {
+            return 'This command only works inside a server, sir.';
+        }
+
+        const normalizedGuildId = String(guildId);
+        let disconnected = false;
+
+        try {
+            const music = musicManager.get();
+            if (music.getState(normalizedGuildId)) {
+                music.cleanup(normalizedGuildId);
+                disconnected = true;
+            }
+        } catch (error) {
+            console.warn(`[VoiceChat] Failed to clean up music state for guild ${normalizedGuildId}:`, error?.message || error);
+        }
+
+        if (this.sessions.has(normalizedGuildId)) {
+            this._destroy(normalizedGuildId);
+            disconnected = true;
+        } else {
+            const connection = this._getVoiceConnection(normalizedGuildId);
+            if (connection) {
+                try {
+                    connection.destroy();
+                    disconnected = true;
+                } catch (error) {
+                    console.warn(`[VoiceChat] Failed to destroy raw VC connection for guild ${normalizedGuildId}:`, error?.message || error);
+                }
+            }
+        }
+
+        return disconnected ? 'Disconnected from voice, sir.' : 'I am not in a voice channel, sir.';
     }
 
     // ─── Auto-attach: listen whenever the bot is in a VC ──────────────────────

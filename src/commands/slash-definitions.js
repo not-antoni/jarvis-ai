@@ -544,6 +544,10 @@ const allCommands = [
         .setName('voice')
         .setDescription('Jarvis joins your voice channel and listens')
         .setContexts([InteractionContextType.Guild]),
+    new SlashCommandBuilder()
+        .setName('leave')
+        .setDescription('Jarvis disconnects from the current voice channel')
+        .setContexts([InteractionContextType.Guild]),
 
     ...musicCommandList.map(command => command.data),
     ...require('./utility/quote').map(c => c.data)

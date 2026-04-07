@@ -271,6 +271,22 @@ const commandDefinitions = [
         ephemeral: false
     },
     {
+        name: 'voice',
+        description: 'Join your current voice channel and listen for commands.',
+        category: 'Voice',
+        usage: '/voice',
+        feature: null,
+        ephemeral: false
+    },
+    {
+        name: 'leave',
+        description: 'Disconnect Jarvis from the current voice channel.',
+        category: 'Voice',
+        usage: '/leave',
+        feature: null,
+        ephemeral: true
+    },
+    {
         name: 'userinfo',
         description: 'Get detailed information about a member.',
         category: 'Utilities',
