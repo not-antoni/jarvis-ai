@@ -284,7 +284,7 @@ const commandDefinitions = [
         category: 'Voice',
         usage: '/leave',
         feature: null,
-        ephemeral: true
+        ephemeral: false
     },
     {
         name: 'userinfo',
