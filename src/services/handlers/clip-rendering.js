@@ -4,6 +4,13 @@ const { PermissionsBitField, UserFlags } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
 const sharp = require('sharp');
 const { fetchBuffer } = require('../../utils/net-guard');
+const {
+    escapeRegExp,
+    resolveChannelDisplay,
+    resolveDiscordRichText,
+    resolveRoleDisplay,
+    resolveUserDisplay
+} = require('../../utils/discord-rich-text');
 
 const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
@@ -156,6 +163,8 @@ function sanitizeMessageText(text) {
         .replace(/\r/g, '\n')
         .replace(/[\u2028\u2029]/g, '\n');
     sanitized = sanitized.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+    sanitized = sanitized.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1');
+    sanitized = sanitized.replace(/<(https?:\/\/[^>\s]+)>/g, '$1');
     sanitized = sanitized.replace(/```[^\n]*\n([\s\S]*?)```/g, '$1');
     sanitized = sanitized.replace(/```/g, '');
     sanitized = sanitized.replace(/\*\*(.*?)\*\*/g, '$1');
@@ -288,39 +297,46 @@ function parseUnicodeEmojis(text) {
 }
 
 async function parseMentions(handler, text, guild = null, client = null, message = null) {
-    const mentionRegex = /<@!?([0-9]{5,})>/g;
+    const styledMentionRegex = /\u0001([^\u0002]+)\u0002/g;
+    const userMentionRegex = /<@!?([0-9]{5,})>/g;
+    const roleMentionRegex = /<@&([0-9]{5,})>/g;
+    const channelMentionRegex = /<#([0-9]{5,})>/g;
+    const channelUrlRegex = /https?:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/channels\/(?:@me|\d{5,})\/(\d{5,})(?:\/\d{5,})?/g;
     const mentions = [];
     let match;
 
-    const buildMentionEntry = async(userId, full, start, end) => {
-        let display = '@unknown';
-        try {
-            let user = null;
-            let member = null;
-            if (guild) {
-                member = guild.members.cache.get(userId) || null;
-                if (!member) {
-                    try { member = await guild.members.fetch(userId); } catch (_) {}
-                }
-                user = member ? member.user : null;
-            }
-            if (!user && client) {
-                user = client.users.cache.get(userId) || null;
-                if (!user) {
-                    try { user = await client.users.fetch(userId); } catch (_) {}
-                }
-            }
-            display = `@${getSafeDisplayName(member, user || { username: userId })}`;
-        } catch (_) {}
-        mentions.push({ full, userId, display, start, end });
+    const overlapsExisting = (start, end) => mentions.some(entity => !(end <= entity.start || start >= entity.end));
+    const addMentionEntry = (full, display, start, end, id = null) => {
+        if (!display || overlapsExisting(start, end)) {return;}
+        mentions.push({ full, userId: id, display, start, end });
     };
 
-    while ((match = mentionRegex.exec(text)) !== null) {
-        const userId = match[1];
-        await buildMentionEntry(userId, match[0], match.index, match.index + match[0].length);
+    const buildMentionEntry = async(full, id, start, end, resolver) => {
+        const display = await resolver(id, { guild, client, mentions: message?.mentions });
+        addMentionEntry(full, display, start, end, id);
+    };
+
+    while ((match = styledMentionRegex.exec(text)) !== null) {
+        addMentionEntry(match[0], match[1], match.index, match.index + match[0].length);
     }
 
-    if (mentions.length === 0 && message?.mentions?.users?.size) {
+    while ((match = userMentionRegex.exec(text)) !== null) {
+        await buildMentionEntry(match[0], match[1], match.index, match.index + match[0].length, resolveUserDisplay);
+    }
+
+    while ((match = roleMentionRegex.exec(text)) !== null) {
+        await buildMentionEntry(match[0], match[1], match.index, match.index + match[0].length, resolveRoleDisplay);
+    }
+
+    while ((match = channelMentionRegex.exec(text)) !== null) {
+        await buildMentionEntry(match[0], match[1], match.index, match.index + match[0].length, resolveChannelDisplay);
+    }
+
+    while ((match = channelUrlRegex.exec(text)) !== null) {
+        await buildMentionEntry(match[0], match[1], match.index, match.index + match[0].length, resolveChannelDisplay);
+    }
+
+    if (message?.mentions?.users?.size) {
         for (const [userId, user] of message.mentions.users.entries()) {
             let member = null;
             try {
@@ -332,16 +348,38 @@ async function parseMentions(handler, text, guild = null, client = null, message
             ].filter(Boolean)));
 
             for (const display of candidateDisplays) {
-                const escaped = display.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(escaped, 'g');
+                const regex = new RegExp(escapeRegExp(display), 'g');
                 let fallbackMatch;
                 while ((fallbackMatch = regex.exec(text)) !== null) {
-                    await buildMentionEntry(userId, display, fallbackMatch.index, fallbackMatch.index + display.length);
+                    addMentionEntry(display, display, fallbackMatch.index, fallbackMatch.index + display.length, userId);
                 }
             }
         }
     }
 
+    if (message?.mentions?.roles?.size) {
+        for (const [roleId, role] of message.mentions.roles.entries()) {
+            const display = `@${role.name}`;
+            const regex = new RegExp(escapeRegExp(display), 'g');
+            let fallbackMatch;
+            while ((fallbackMatch = regex.exec(text)) !== null) {
+                addMentionEntry(display, display, fallbackMatch.index, fallbackMatch.index + display.length, roleId);
+            }
+        }
+    }
+
+    if (message?.mentions?.channels?.size) {
+        for (const [channelId, channel] of message.mentions.channels.entries()) {
+            const display = `#${channel.name}`;
+            const regex = new RegExp(escapeRegExp(display), 'g');
+            let fallbackMatch;
+            while ((fallbackMatch = regex.exec(text)) !== null) {
+                addMentionEntry(display, display, fallbackMatch.index, fallbackMatch.index + display.length, channelId);
+            }
+        }
+    }
+
+    mentions.sort((a, b) => a.start - b.start);
     return mentions;
 }
 
@@ -983,7 +1021,13 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
         cleanedText = cleanedText.replace(/[ \t]+\n/g, '\n');
         cleanedText = cleanedText.trimEnd();
     } catch (_) {}
-    const sanitizedText = sanitizeMessageText(cleanedText);
+    const resolvedText = await resolveDiscordRichText(cleanedText, {
+        guild,
+        client,
+        mentions: message?.mentions,
+        style: true
+    });
+    const sanitizedText = sanitizeMessageText(resolvedText);
     const customEmojis = await parseCustomEmojis(sanitizedText, guild);
     const unicodeEmojis = parseUnicodeEmojis(sanitizedText);
     const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
@@ -1175,6 +1219,7 @@ module.exports = {
     ,
     _test: {
         fitTextToWidth,
-        splitTextWithEmojisAndMentions
+        splitTextWithEmojisAndMentions,
+        sanitizeMessageText
     }
 };
