@@ -24,6 +24,11 @@ const GOOGLE_PREVIEW_MODELS = [
 const POISON_QUARANTINE_THRESHOLD = 2;
 const POISON_QUARANTINE_WINDOW_MS = 10 * 60 * 1000;
 const POISON_QUARANTINE_DURATION_MS = 30 * 60 * 1000;
+const DEFAULT_PROVIDER_LATENCY_MS = 1500;
+const AUTO_SCORE_LATENCY_CEILING_MS = 15 * 1000;
+const AUTO_HEALTH_MIN_TRIALS = 6;
+const AUTO_HEALTH_DEGRADED_TRIALS = 10;
+const AUTO_HEALTH_DEGRADED_LATENCY_MS = 12 * 1000;
 const AUTO_FAMILY_PRIORITY = {
     groq: 0,
     cerebras: 1,
@@ -76,6 +81,49 @@ function resolveAutoFamilyPriority(provider) {
         return AUTO_FAMILY_PRIORITY[family];
     }
     return Number.MAX_SAFE_INTEGER;
+}
+function getProviderMetricSnapshot(metric) {
+    const successes = Number(metric?.successes) || 0;
+    const failures = Number(metric?.failures) || 0;
+    const total = successes + failures;
+    const avgLatencyMs =
+        Number.isFinite(Number(metric?.avgLatencyMs)) && Number(metric?.avgLatencyMs) > 0
+            ? Number(metric.avgLatencyMs)
+            : DEFAULT_PROVIDER_LATENCY_MS;
+    return {
+        successes,
+        failures,
+        total,
+        avgLatencyMs,
+        successRate: total > 0 ? successes / total : 0
+    };
+}
+function computeProviderRankScore(metric) {
+    const experienceScore = Math.min(metric.total, 20) / 20;
+    const latencyScore = Math.max(
+        0,
+        1 - Math.min(metric.avgLatencyMs, AUTO_SCORE_LATENCY_CEILING_MS) / AUTO_SCORE_LATENCY_CEILING_MS
+    );
+    return metric.successRate * 0.45 + latencyScore * 0.45 + experienceScore * 0.10;
+}
+function resolveAutoHealthBucket(metric) {
+    if (metric.total === 0) {
+        return 1;
+    }
+    if (metric.successes === 0 && metric.failures >= AUTO_HEALTH_MIN_TRIALS) {
+        return 3;
+    }
+    if (metric.total >= AUTO_HEALTH_DEGRADED_TRIALS && metric.successRate < 0.10) {
+        return 3;
+    }
+    if (
+        metric.total >= AUTO_HEALTH_DEGRADED_TRIALS &&
+        metric.successRate < 0.50 &&
+        metric.avgLatencyMs >= AUTO_HEALTH_DEGRADED_LATENCY_MS
+    ) {
+        return 2;
+    }
+    return 0;
 }
 class AIProviderManager {
     constructor() {
@@ -451,11 +499,17 @@ class AIProviderManager {
                 }
             }
         }
-        if (typeof data.openRouterGlobalFailure === 'boolean') {
-            this.openRouterGlobalFailure = data.openRouterGlobalFailure;
+        if (data.openRouterGlobalFailure === true) {
+            // This flag only makes sense within the current process because the clear canary
+            // is scheduled in-memory. Restoring it across restarts can permanently exclude
+            // every OpenRouter lane until manual intervention.
+            console.warn('Ignoring persisted OpenRouter global failure from a previous run');
+            this.openRouterGlobalFailure = false;
+            this.openRouterFailureCount = 0;
+            this.scheduleStateSave();
         }
         // Restore numeric metrics
-        for (const key of ['openRouterFailureCount', 'totalTokensIn', 'totalTokensOut', 'totalRequests', 'successfulRequests', 'failedRequests']) {
+        for (const key of ['totalTokensIn', 'totalTokensOut', 'totalRequests', 'successfulRequests', 'failedRequests']) {
             if (typeof data[key] === 'number') { this[key] = data[key]; }
         }
     }
@@ -688,29 +742,23 @@ class AIProviderManager {
     _rankedProviders(options = {}) {
         return this._availableProviders(options)
             .sort((a, b) => {
-                const ma = this.metrics.get(a.name) || {
-                    successes: 0,
-                    failures: 0,
-                    avgLatencyMs: 1500
-                };
-                const mb = this.metrics.get(b.name) || {
-                    successes: 0,
-                    failures: 0,
-                    avgLatencyMs: 1500
-                };
-                const score = m => {
-                    const trials = m.successes + m.failures || 1;
-                    const successRate = m.successes / trials;
-                    const latencyScore = 1 / Math.max(m.avgLatencyMs, 1);
-                    return successRate * 0.7 + latencyScore * 0.3;
-                };
+                const ma = getProviderMetricSnapshot(this.metrics.get(a.name));
+                const mb = getProviderMetricSnapshot(this.metrics.get(b.name));
                 const priorityDelta = resolveCostPriority(a) - resolveCostPriority(b);
                 if (priorityDelta !== 0) {return priorityDelta;}
+                if (this.selectedProviderType === 'auto') {
+                    const healthDelta = resolveAutoHealthBucket(ma) - resolveAutoHealthBucket(mb);
+                    if (healthDelta !== 0) {return healthDelta;}
+                }
+                const scoreDelta = computeProviderRankScore(mb) - computeProviderRankScore(ma);
+                if (Math.abs(scoreDelta) > 0.0001) {
+                    return scoreDelta;
+                }
                 if (this.selectedProviderType === 'auto') {
                     const familyDelta = resolveAutoFamilyPriority(a) - resolveAutoFamilyPriority(b);
                     if (familyDelta !== 0) {return familyDelta;}
                 }
-                return score(mb) - score(ma);
+                return a.name.localeCompare(b.name);
             });
     }
     _getRoundRobinProvider(options = {}) {

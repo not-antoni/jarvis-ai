@@ -416,23 +416,32 @@ function normalizeGoogleError(error, providerName = 'provider') {
 }
 function getProviderAttemptTimeoutMs(provider) {
     if (provider?.attemptTimeoutMs && Number.isFinite(provider.attemptTimeoutMs)) {
-        return Math.max(1000, provider.attemptTimeoutMs);
+        return Math.max(250, provider.attemptTimeoutMs);
     }
     if (provider?.type === 'google') {
         const model = String(provider.model || '').toLowerCase();
         if (/gemma-4|gemini-(?:2\.5|3(?:\.|-)pro)/i.test(model)) {
-            return 22_000;
+            return 14_000;
         }
         if (/gemini-(?:3\.1-flash-lite-preview|2\.0-flash)/i.test(model)) {
-            return 15_000;
+            return 10_000;
         }
-        return 18_000;
+        return 12_000;
     }
     const family = String(provider?.family || '').toLowerCase();
     if (family === 'cerebras' || family === 'sambanova') {
-        return 20_000;
+        return 12_000;
     }
-    return 12_000;
+    return 8_000;
+}
+function getRequestBudgetMs(manager) {
+    if (Number.isFinite(Number(manager?.requestBudgetMs)) && Number(manager.requestBudgetMs) > 0) {
+        return Math.max(250, Number(manager.requestBudgetMs));
+    }
+    if (Number.isFinite(Number(config.ai?.requestBudgetMs)) && Number(config.ai.requestBudgetMs) > 0) {
+        return Math.max(250, Number(config.ai.requestBudgetMs));
+    }
+    return 18_000;
 }
 function formatDurationLabel(durationMs) {
     if (!Number.isFinite(durationMs) || durationMs <= 0) {
@@ -537,8 +546,22 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         console.log(`Reinitialized ${manager.providers.length} AI providers`);
     }
     const attemptedProviders = new Set();
+    const requestStartedAt = Date.now();
+    const requestBudgetMs = getRequestBudgetMs(manager);
     let lastError = null;
     while (true) {
+        const elapsedMs = Date.now() - requestStartedAt;
+        const remainingBudgetMs = requestBudgetMs - elapsedMs;
+        if (remainingBudgetMs < 250) {
+            lastError = Object.assign(
+                new Error(`AI failover budget exhausted after ${requestBudgetMs}ms`),
+                { status: 408, transient: true, providerFault: false }
+            );
+            console.warn(
+                `[AIProviderManager] Failover budget exhausted after ${elapsedMs}ms with ${attemptedProviders.size} attempted provider(s)`
+            );
+            break;
+        }
         const rankedProviders = manager._rankedProviders();
         const orderedCandidates = rankedProviders.filter(provider => !attemptedProviders.has(provider.name));
         const provider = orderedCandidates[0];
@@ -802,7 +825,10 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
         };
         try {
             const retryAttempts = Math.max(0, Number(config.ai?.retryAttempts || 0));
-            const PROVIDER_ATTEMPT_TIMEOUT = getProviderAttemptTimeoutMs(provider);
+            const PROVIDER_ATTEMPT_TIMEOUT = Math.max(
+                250,
+                Math.min(getProviderAttemptTimeoutMs(provider), remainingBudgetMs)
+            );
             const retryPromise = manager._retry(callOnce, {
                 retries: retryAttempts,
                 baseDelay: retryAttempts > 0 ? 500 : 0,
