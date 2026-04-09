@@ -118,7 +118,7 @@ class AIProviderManager {
         // Auto-discover all OPENROUTER_API_KEY, OPENROUTER_API_KEY2, etc.
         const openRouterKeys = discoverEnvKeys('OPENROUTER_API_KEY');
         const openRouterModels = [
-            'google/gemma-3-27b-it:free'
+            'google/gemma-4-31b-it:free'
         ];
         openRouterKeys.forEach((key, keyIndex) => {
             openRouterModels.forEach((model) => {
