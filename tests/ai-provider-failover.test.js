@@ -235,3 +235,124 @@ test('executeGeneration fails open to auto when the forced family is already dis
     assert.equal(response.content, 'Forced family failed open.');
     assert.equal(groqCalls, 1);
 });
+
+test('executeGeneration stops once the total failover budget is exhausted', async() => {
+    let slowCalls = 0;
+    let backupCalls = 0;
+    const manager = withManager((instance) => {
+        instance.requestBudgetMs = 950;
+        instance.providers = [
+            {
+                name: 'Cerebras1-qwen-3-235b-a22b-instruct-2507',
+                family: 'cerebras',
+                type: 'openai-chat',
+                model: 'qwen-3-235b-a22b-instruct-2507',
+                costTier: 'free',
+                credentialGroup: 'cerebras:1',
+                attemptTimeoutMs: 400,
+                client: {
+                    chat: {
+                        completions: {
+                            async create() {
+                                slowCalls += 1;
+                                return new Promise(resolve => {
+                                    setTimeout(() => resolve({
+                                        choices: [
+                                            {
+                                                message: { content: 'Too late.' },
+                                                finish_reason: 'stop'
+                                            }
+                                        ],
+                                        usage: {
+                                            prompt_tokens: 10,
+                                            completion_tokens: 4
+                                        }
+                                    }), 1000);
+                                });
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                name: 'Cerebras2-qwen-3-235b-a22b-instruct-2507',
+                family: 'cerebras',
+                type: 'openai-chat',
+                model: 'qwen-3-235b-a22b-instruct-2507',
+                costTier: 'free',
+                credentialGroup: 'cerebras:2',
+                attemptTimeoutMs: 400,
+                client: {
+                    chat: {
+                        completions: {
+                            async create() {
+                                slowCalls += 1;
+                                return new Promise(resolve => {
+                                    setTimeout(() => resolve({
+                                        choices: [
+                                            {
+                                                message: { content: 'Too late.' },
+                                                finish_reason: 'stop'
+                                            }
+                                        ],
+                                        usage: {
+                                            prompt_tokens: 10,
+                                            completion_tokens: 4
+                                        }
+                                    }), 1000);
+                                });
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                name: 'Cerebras3-qwen-3-235b-a22b-instruct-2507',
+                family: 'cerebras',
+                type: 'openai-chat',
+                model: 'qwen-3-235b-a22b-instruct-2507',
+                costTier: 'free',
+                credentialGroup: 'cerebras:3',
+                client: {
+                    chat: {
+                        completions: {
+                            async create() {
+                                backupCalls += 1;
+                                return {
+                                    choices: [
+                                        {
+                                            message: { content: 'Should not be reached.' },
+                                            finish_reason: 'stop'
+                                        }
+                                    ],
+                                    usage: {
+                                        prompt_tokens: 10,
+                                        completion_tokens: 4
+                                    }
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        ];
+    });
+
+    const started = Date.now();
+
+    await assert.rejects(
+        execution.executeGeneration(
+            manager,
+            'Stay concise.',
+            'Budget exhaustion test.',
+            1024
+        ),
+        /failover budget exhausted/i
+    );
+
+    const elapsed = Date.now() - started;
+
+    assert.equal(slowCalls, 2);
+    assert.equal(backupCalls, 0);
+    assert.equal(elapsed < 1500, true);
+});
