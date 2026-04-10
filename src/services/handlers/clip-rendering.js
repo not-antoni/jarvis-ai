@@ -11,6 +11,7 @@ const {
     resolveRoleDisplay,
     resolveUserDisplay
 } = require('../../utils/discord-rich-text');
+const emojiRegexFactory = require('emoji-regex');
 
 const DEFAULT_CUSTOM_EMOJI_SIZE = 128;
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
@@ -35,7 +36,7 @@ function unicodeEmojiToCodePoints(emoji) {
     const codePoints = [];
     for (const symbol of Array.from(emoji)) {
         const codePoint = symbol.codePointAt(0);
-        if (typeof codePoint === 'number') {
+        if (typeof codePoint === 'number' && codePoint !== 0xfe0f) {
             const hex = codePoint.toString(16).toLowerCase();
             codePoints.push(hex.padStart(codePoint > 0xffff ? hex.length : 4, '0'));
         }
@@ -275,21 +276,22 @@ async function parseCustomEmojis(text, guild = null) {
 }
 
 function parseUnicodeEmojis(text) {
-    const unicodeEmojiRegex = /[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F000}-\u{1FFFF}]/gu;
+    const unicodeEmojiRe = emojiRegexFactory();
     const emojis = [];
     let match;
-    while ((match = unicodeEmojiRegex.exec(text)) !== null) {
-        const asset = buildUnicodeEmojiAsset(match[0]);
+    while ((match = unicodeEmojiRe.exec(text)) !== null) {
+        const emoji = match[0];
+        const asset = buildUnicodeEmojiAsset(emoji);
         emojis.push({
-            full: match[0],
-            name: match[0],
+            full: emoji,
+            name: emoji,
             id: null,
             url: asset ? asset.svg : null,
             fallbackUrl: asset ? asset.png : null,
             isAnimated: false,
             emojiObject: null,
             start: match.index,
-            end: match.index + match[0].length,
+            end: match.index + emoji.length,
             isUnicode: true
         });
     }
@@ -579,6 +581,17 @@ async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, c
                             rendered = true;
                         } catch (fallbackError) {
                             console.warn('Fallback emoji asset also failed:', { name: segment.name, url: segment.fallbackUrl, error: fallbackError.message });
+                            if (segment.isUnicode && segment.full) {
+                                const rawCode = Array.from(segment.full).map(s => s.codePointAt(0).toString(16).toLowerCase()).join('-');
+                                const altUrl = `${TWEMOJI_PNG_BASE}/${rawCode}.png`;
+                                if (altUrl !== segment.fallbackUrl) {
+                                    try {
+                                        const altImg = await fetchEmojiImage(handler, altUrl);
+                                        ctx.drawImage(altImg, drawX, currentY, emojiSize, emojiSize);
+                                        rendered = true;
+                                    } catch (_) {}
+                                }
+                            }
                         }
                     } else if (segment.id) {
                         const alternativeUrl = ensureDiscordEmojiSize(`https://cdn.discordapp.com/emojis/${segment.id}.png`, DEFAULT_CUSTOM_EMOJI_SIZE);

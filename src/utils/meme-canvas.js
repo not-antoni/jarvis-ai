@@ -1,5 +1,6 @@
 const { createCanvas, loadImage } = require('canvas');
 const { LRUCache } = require('lru-cache');
+const emojiRegexFactory = require('emoji-regex');
 
 const TWEMOJI_SVG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg';
 const TWEMOJI_PNG_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72';
@@ -23,7 +24,7 @@ function unicodeEmojiToCodePoints(emoji) {
     const codePoints = [];
     for (const symbol of Array.from(emoji)) {
         const codePoint = symbol.codePointAt(0);
-        if (typeof codePoint === 'number') {
+        if (typeof codePoint === 'number' && codePoint !== 0xfe0f) {
             const hex = codePoint.toString(16).toLowerCase();
             const padded = codePoint > 0xffff ? hex : hex.padStart(4, '0');
             codePoints.push(padded);
@@ -157,21 +158,22 @@ async function createCaptionImage(imageBuffer, captionText) {
     const ctx = canvas.getContext('2d');
     ctx.font = `bold ${Math.max(32, Math.round(width / 14))}px "Impact", "Arial Black", sans-serif`;
 
-    const emojiRegex = /(<a?:\w+:(\d+)>|\p{Extended_Pictographic})/gu;
+    const unicodePart = emojiRegexFactory().source;
+    const emojiRe = new RegExp(`<a?:\\w+:(?<eid>\\d+)>|(?:${unicodePart})`, 'g');
     const tokens = [];
     let match;
     let lastIndex = 0;
-    while ((match = emojiRegex.exec(caption)) !== null) {
+    while ((match = emojiRe.exec(caption)) !== null) {
         if (match.index > lastIndex) {
             tokens.push({ type: 'text', value: caption.slice(lastIndex, match.index) });
         }
         tokens.push({
             type: 'emoji',
-            value: match[1],
-            id: match[2] || null,
-            animated: match[1].startsWith('<a:')
+            value: match[0],
+            id: match.groups?.eid || null,
+            animated: match[0].startsWith('<a:')
         });
-        lastIndex = emojiRegex.lastIndex;
+        lastIndex = emojiRe.lastIndex;
     }
     if (lastIndex < caption.length) {
         tokens.push({ type: 'text', value: caption.slice(lastIndex) });
@@ -252,6 +254,10 @@ async function createCaptionImage(imageBuffer, captionText) {
                 } else {
                     const asset = buildUnicodeEmojiAsset(segment.value);
                     candidateUrls = asset ? [asset.svg, asset.png] : [];
+                    const rawCode = [...segment.value].map(c => c.codePointAt(0).toString(16)).join('-');
+                    if (asset && rawCode !== unicodeEmojiToCodePoints(segment.value)) {
+                        candidateUrls.push(`${TWEMOJI_PNG_BASE}/${rawCode}.png`);
+                    }
                 }
                 let rendered = false;
                 for (const url of candidateUrls) {
