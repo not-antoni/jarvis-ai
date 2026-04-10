@@ -9,12 +9,19 @@ const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
 const { assertPublicHttpUrl } = require('../utils/net-guard');
 
-// Try to get ffprobe path from npm package, fall back to system
+// Prefer system ffprobe (7.x) over the ancient npm package (4.0.2 from 2018)
+// which can't handle modern TLS on Discord CDN URLs.
+const { execFileSync } = require('child_process');
 let ffprobePath = 'ffprobe';
 try {
-    ffprobePath = require('ffprobe-static').path;
-} catch (e) {
-    console.log('[UploadQueue] ffprobe-static not available, using system ffprobe');
+    execFileSync('ffprobe', ['-version'], { encoding: 'utf8', timeout: 3000 });
+} catch (_) {
+    try {
+        ffprobePath = require('ffprobe-static').path;
+        console.log('[UploadQueue] Using bundled ffprobe-static (may have issues with modern URLs)');
+    } catch (_e) {
+        console.log('[UploadQueue] No ffprobe found, duration probing will fail');
+    }
 }
 
 /**
