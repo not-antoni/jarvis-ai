@@ -355,6 +355,7 @@ class MusicManager {
         this.cancelPendingDownload(state);
         this.releaseCurrent(state);
         state.queue = [];
+        state.loopMode = 'off';
         state.skipInProgress = false;
         // Stop the player to interrupt active playback.
         try {
@@ -734,6 +735,7 @@ class MusicManager {
         this.cancelPendingDownload(state);
         this.releaseCurrent(state);
         state.queue = [];
+        state.loopMode = 'off';
         if (state.timeout) {
             clearTimeout(state.timeout);
             state.timeout = null;
