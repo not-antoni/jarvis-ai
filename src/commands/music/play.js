@@ -108,6 +108,14 @@ function buildYouTubeChoice(video) {
     return { name, value };
 }
 
+function buildUploadProcessingMessage(files) {
+    const count = Array.isArray(files) ? files.length : 0;
+    if (count === 1) {
+        return `📂 Processing upload: **${files[0].name}**\n${VOICE_HINT_MESSAGE}`;
+    }
+    return `📂 Processing **${count}** uploads...\n${VOICE_HINT_MESSAGE}`;
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
@@ -268,11 +276,7 @@ module.exports = {
                 return;
             }
 
-            if (files.length === 1) {
-                await interaction.reply(`📂 Processing upload: **${files[0].name}**`);
-            } else {
-                await interaction.reply(`📂 Processing **${files.length}** uploads...`);
-            }
+            await interaction.reply(buildUploadProcessingMessage(files));
 
             const uploadQueue = require('../../services/upload-queue');
             for (const file of files) {
@@ -286,12 +290,6 @@ module.exports = {
                     interaction
                 );
                 console.log(`[Play] File queued: ${file.name} - Position: ${position}`);
-            }
-
-            if (files.length > 1) {
-                await interaction.followUp({ content: `✅ All **${files.length}** files queued!\n${VOICE_HINT_MESSAGE}` });
-            } else {
-                await interaction.followUp({ content: VOICE_HINT_MESSAGE });
             }
             return;
         }
@@ -354,6 +352,7 @@ module.exports = {
         resolveAutocompleteSelection,
         buildSoundCloudChoice,
         buildYouTubeChoice,
+        buildUploadProcessingMessage,
         pruneAutocompleteSelections,
         autocompleteSelectionCache
     }
