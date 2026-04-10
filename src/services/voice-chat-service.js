@@ -45,6 +45,11 @@ const MIN_PCM_ENERGY     = 300;                // skip near-silent audio (RMS th
 const PROBE_COOLDOWN_MS  = 5_000;              // skip re-probing users who didn't say wake word recently
 const FFMPEG_TIMEOUT_MS  = 10_000;             // kill hung ffmpeg subprocesses
 const TTS_GAIN           = 2.8;                // boost synthesized speech over VC
+const OPUS_SAMPLE_RATE   = 48_000;
+const OPUS_CHANNELS      = 2;
+const OPUS_FRAME_SIZE    = 960;
+const MAX_OPUS_PACKET_BYTES = 4096;
+const MAX_CORRUPT_OPUS_PACKETS = 8;
 
 // Single-word noise the STT picks up from silence/background
 const NOISE_WORDS = new Set([
@@ -65,6 +70,10 @@ const SILENT_LEAVE_GUILD_IDS = new Set(['858444090374881301']);
 
 // Prepended to voice input so the AI keeps replies spoken-friendly
 const VOICE_HINT = '[Voice chat — reply in 1-2 short spoken sentences. No markdown, no lists, no formatting. Be concise and conversational.]\n';
+
+let opusDecoderFactory = null;
+let opusDecoderBackend = null;
+let opusDecoderLoadError = null;
 
 // ─── Text helpers ─────────────────────────────────────────────────────────────
 
@@ -180,6 +189,64 @@ function sliceWav16kMono(wavBuf, maxMs) {
     return wrapPcmAsWav(pcm.subarray(0, maxDataBytes), 16_000, 1, 16);
 }
 
+function isRecoverableOpusDecodeError(error) {
+    const message = String(error?.message || error || '').toLowerCase();
+    return message.includes('corrupt') ||
+        message.includes('invalid packet') ||
+        message.includes('buffer too small') ||
+        message.includes('memory access out of bounds');
+}
+
+function isFatalOpusDecodeError(error) {
+    return String(error?.message || error || '').toLowerCase().includes('memory access out of bounds');
+}
+
+function loadOpusDecoderFactory() {
+    if (opusDecoderFactory) return opusDecoderFactory;
+    if (opusDecoderLoadError) throw opusDecoderLoadError;
+
+    const failures = [];
+
+    try {
+        const { OpusEncoder } = require('@discordjs/opus');
+        opusDecoderBackend = '@discordjs/opus';
+        opusDecoderFactory = () => {
+            const decoder = new OpusEncoder(OPUS_SAMPLE_RATE, OPUS_CHANNELS);
+            return {
+                decode(packet) {
+                    return Buffer.from(decoder.decode(packet, OPUS_FRAME_SIZE));
+                },
+                destroy() {}
+            };
+        };
+        return opusDecoderFactory;
+    } catch (error) {
+        failures.push(`@discordjs/opus: ${error?.message || error}`);
+    }
+
+    try {
+        const OpusScript = require('opusscript');
+        opusDecoderBackend = 'opusscript(asm)';
+        opusDecoderFactory = () => {
+            const decoder = new OpusScript(OPUS_SAMPLE_RATE, OPUS_CHANNELS, undefined, { wasm: false });
+            return {
+                decode(packet) {
+                    return Buffer.from(decoder.decode(packet));
+                },
+                destroy() {
+                    decoder.delete();
+                }
+            };
+        };
+        return opusDecoderFactory;
+    } catch (error) {
+        failures.push(`opusscript: ${error?.message || error}`);
+    }
+
+    opusDecoderLoadError = new Error(`No Opus decoder available (${failures.join('; ')})`);
+    throw opusDecoderLoadError;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 class VoiceChatService {
@@ -200,13 +267,28 @@ class VoiceChatService {
             : nvidiaSpeech.sttEnabled
                 ? 'nvidia'
                 : 'off';
+        const opusStatus = this._getOpusDecoderBackend();
         if (openaiStt.enabled || nvidiaSpeech.enabled) {
             console.log(
                 `[VoiceChat] Ready — STT: ${sttStatus}, ` +
-                `TTS: ${nvidiaSpeech.ttsEnabled ? 'on' : 'off'}`
+                `TTS: ${nvidiaSpeech.ttsEnabled ? 'on' : 'off'}, ` +
+                `Opus: ${opusStatus}`
             );
         }
 
+    }
+
+    _getOpusDecoderBackend() {
+        try {
+            loadOpusDecoderFactory();
+            return opusDecoderBackend || 'unavailable';
+        } catch {
+            return 'unavailable';
+        }
+    }
+
+    _createOpusDecoder() {
+        return loadOpusDecoderFactory()();
     }
 
     shouldSilentlyIgnoreLeave(guildId) {
@@ -823,18 +905,27 @@ class VoiceChatService {
     // ─── Audio Helpers ────────────────────────────────────────────────────────
 
     _decodeOpus(packets) {
-        let dec = null;
+        let decoder = null;
         try {
-            const OpusEncoder = require('opusscript');
-            dec = new OpusEncoder(48000, 2);
+            decoder = this._createOpusDecoder();
             const frames = [];
+            let corruptPackets = 0;
             for (const pkt of packets) {
+                if (!Buffer.isBuffer(pkt) || pkt.length === 0 || pkt.length > MAX_OPUS_PACKET_BYTES) {
+                    corruptPackets++;
+                    if (corruptPackets >= MAX_CORRUPT_OPUS_PACKETS) return null;
+                    continue;
+                }
+
                 try {
-                    frames.push(Buffer.from(dec.decode(pkt)));
+                    const frame = decoder.decode(pkt);
+                    if (frame?.length) frames.push(Buffer.from(frame));
                 } catch (pktErr) {
-                    // WASM memory errors corrupt decoder state — stop decoding
-                    if (pktErr?.message?.includes('memory access out of bounds')) break;
-                    // Other per-packet errors: skip this packet, continue
+                    if (!isRecoverableOpusDecodeError(pktErr)) throw pktErr;
+                    corruptPackets++;
+                    if (isFatalOpusDecodeError(pktErr) || corruptPackets >= MAX_CORRUPT_OPUS_PACKETS) {
+                        return null;
+                    }
                 }
             }
             return frames.length ? Buffer.concat(frames) : null;
@@ -842,7 +933,7 @@ class VoiceChatService {
             console.error('[VoiceChat] Opus decode error:', err.message);
             return null;
         } finally {
-            try { dec?.delete(); } catch { /* */ }
+            try { decoder?.destroy(); } catch { /* */ }
         }
     }
 
