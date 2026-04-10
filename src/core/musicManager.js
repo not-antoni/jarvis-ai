@@ -524,6 +524,27 @@ class MusicManager {
                 if (!liveState || liveState.connection !== connection || leaving) {
                     return;
                 }
+
+                // After 3 failed rejoins, rebuild the connection entirely.
+                // rejoin() reuses the same (possibly dead) media server endpoint;
+                // a fresh joinVoiceChannel() lets Discord assign a new one.
+                if (attempt > 3) {
+                    const voiceChannel = liveState.voiceChannelId
+                        ? this.client.channels.cache.get(liveState.voiceChannelId)
+                        : null;
+                    if (voiceChannel) {
+                        console.warn(`[Voice] Recovery rebuilding connection for guild ${guildId} (attempt ${attempt})`);
+                        const newConnection = await this.createConnection(guildId, voiceChannel);
+                        liveState.connection = newConnection;
+                        if (liveState.player) {
+                            this.safeSubscribe(newConnection, liveState.player);
+                        }
+                        reconnectAttempts = 0;
+                        console.log(`[Voice] Recovery rebuilt connection for guild ${guildId}`);
+                        return;
+                    }
+                }
+
                 try {
                     connection.rejoin();
                 } catch (_error) {
@@ -706,6 +727,25 @@ class MusicManager {
                 if (attempt < VOICE_ENSURE_READY_RETRIES) {
                     await delay(VOICE_JOIN_RETRY_DELAY_MS * attempt);
                 }
+            }
+        }
+        // All rejoin attempts failed — rebuild the connection from scratch.
+        // This handles cases where the Discord media server is unreachable
+        // (DNS failure, server rotation, etc.) and rejoin keeps hitting the dead endpoint.
+        const voiceChannel = state.voiceChannelId
+            ? this.client.channels.cache.get(state.voiceChannelId)
+            : null;
+        if (voiceChannel) {
+            console.warn(`[Voice] Rebuilding connection for guild ${guildId} after ${VOICE_ENSURE_READY_RETRIES} failed rejoin attempts`);
+            try {
+                const newConnection = await this.createConnection(guildId, voiceChannel);
+                state.connection = newConnection;
+                if (state.player) {
+                    this.safeSubscribe(newConnection, state.player);
+                }
+                return;
+            } catch (rebuildError) {
+                console.warn('[Voice] Connection rebuild also failed:', rebuildError?.message || rebuildError);
             }
         }
         throw new Error('Voice connection is unstable right now. Please try again in a few seconds.');
