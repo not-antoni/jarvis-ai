@@ -33,11 +33,11 @@ module.exports = {
         }
 
         if (!newMode) {
-            await interaction.reply({ content: '⚠️ Nothing is playing right now.', flags: 64 });
+            await interaction.reply({ content: '⚠️ Nothing is playing right now.' });
             return;
         }
 
         const modeName = newMode === 'song' ? '🔂 Song' : newMode === 'queue' ? '🔁 Queue' : '❌ Off';
-        await interaction.reply({ content: `🔄 Loop mode: **${modeName}**`, flags: 64 });
+        await interaction.reply({ content: `🔄 Loop mode: **${modeName}**` });
     }
 };
