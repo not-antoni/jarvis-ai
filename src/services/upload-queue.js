@@ -62,7 +62,8 @@ async function getAudioDuration(url) {
         }
         return Math.floor(duration);
     } catch (e) {
-        console.warn('[UploadQueue] ffprobe failed:', e.message?.slice(0, 200));
+        const stderr = e.stderr?.trim();
+        console.warn('[UploadQueue] ffprobe failed:', e.message?.slice(0, 500), stderr ? `\n  stderr: ${stderr.slice(0, 300)}` : '');
         return 0;
     }
 }
