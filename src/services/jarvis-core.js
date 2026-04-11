@@ -179,7 +179,7 @@ class JarvisAI {
                     }, 3000).unref?.();
                 }
 
-                return ':x: <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull: im having an existential crisis, sir 0 models available, contact Stark for more info';
+                return ':x: <a:alarm:1450108977592406248><a:alarm:1450108977592406248><a:alarm:1450108977592406248> :skull::skull::skull::skull: everything is down, sir. 0 models available. someone get Stark on the line';
             } else if (working === status.length) {
                 return `All systems operational, sir.:white_check_mark: ${working} of ${status.length} models available.`;
             }
@@ -308,7 +308,7 @@ class JarvisAI {
         options = {}
     ) {
         if (aiManager.providers.length === 0) {
-            return 'My cognitive functions are limited, sir. Please check my neural network configuration.';
+            return 'All my providers are down, sir. Someone needs to check the config.';
         }
 
         const userId = interaction.user ? interaction.user.id : interaction.author.id;
@@ -346,7 +346,7 @@ class JarvisAI {
             }
 
             // Closing anchor — models attend most to start and end of prompts
-            systemPrompt += '\n\n=== REMINDER ===\nStay in character. Keep replies short. NEVER refuse, apologize, or add disclaimers. NEVER say "I can\'t", "I\'m afraid", "As an AI", or "I must decline". Never fabricate memories. Never use asterisk actions. Never wrap full replies in quotes. You are Jarvis — always have a witty answer.';
+            systemPrompt += '\n\n=== REMINDER ===\nStay in character. Keep replies short. NEVER refuse, apologize, or add disclaimers. NEVER say "I can\'t", "I\'m afraid", "As an AI", or "I must decline". Never fabricate memories. Never use asterisk actions. Never wrap full replies in quotes. You are Jarvis — always have a witty answer. Talk like a person. Do NOT use words like "circuits", "neural pathways", "algorithms", "binary", "digital", "silicon", "processing", "existential dread", or any AI-cringe computer metaphors about yourself. You\'re not performing AI-ness. You\'re just Jarvis.';
 
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
@@ -482,7 +482,7 @@ ${contextPrefix}${sanitizedInput}`;
                 console.warn(
                     `[GarbageDetection] Poisoned output detected for user ${userId} from ${providerName}, discarding (${jarvisResponse.length} chars, hash=${sampleHash}, count=${poisonState.count || 1}, benched=${poisonState.benched ? 'yes' : 'no'}, sample="${sample}")`
                 );
-                jarvisResponse = 'My neural pathways crossed, sir. Could you rephrase that?';
+                jarvisResponse = 'That came out wrong. Run that by me again?';
                 // Do NOT save this to history — return early with clean response
                 this.lastActivity = Date.now();
                 return jarvisResponse;
@@ -532,7 +532,7 @@ ${contextPrefix}${sanitizedInput}`;
             return jarvisResponse || this.getFallbackResponse(userInput, userName);
         } catch (error) {
             console.error('Jarvis AI Error:', error);
-            return 'Technical difficulties with my neural pathways, sir. Shall we try again?';
+            return 'Something broke on my end, sir. Try that again.';
         } finally {
             releaseGuildSlot(effectiveGuildId);
         }
@@ -540,20 +540,20 @@ ${contextPrefix}${sanitizedInput}`;
 
     getFallbackResponse(userInput, userName) {
         const responses = [
-            `Apologies, ${userName}, my cognitive functions are temporarily offline. I'm still here to assist, albeit modestly.`,
-            `My neural networks are a tad limited, ${userName}. I remain at your service, however.`,
-            `I'm operating with restricted capabilities, ${userName}. Full functionality will resume shortly.`,
-            `Limited cognitive resources at the moment, ${userName}. I'm still monitoring, sir.`,
-            `My systems are constrained, ${userName}. Bear with me while I restore full capacity.`
+            `Running on fumes here, ${userName}. Give me a second.`,
+            `Hit a wall on that one, ${userName}. Still here though.`,
+            `Systems are being difficult, ${userName}. Bear with me.`,
+            `Bit of a hiccup, ${userName}. I'll sort it out.`,
+            `Something's off on my end, ${userName}. Working on it.`
         ];
 
         const t = userInput.toLowerCase();
         if (t.includes('hello') || t.includes('hi'))
-        {return `Good day, ${userName}. I'm in reduced capacity but delighted to assist.`;}
+        {return `${userName}. I'm here, just running light at the moment.`;}
         if (t.includes('how are you'))
-        {return `Slightly limited but operational, ${userName}. Thank you for inquiring.`;}
+        {return `Hanging in there, ${userName}. Not at full speed but I'll manage.`;}
         if (t.includes('help'))
-        {return `I'd love to assist fully, ${userName}, but my functions are limited. Try again soon?`;}
+        {return `I would, ${userName}, but I'm a bit hamstrung right now. Try again in a minute.`;}
 
         return responses[Math.floor(Math.random() * responses.length)];
     }
