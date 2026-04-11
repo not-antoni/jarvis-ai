@@ -417,7 +417,7 @@ class JarvisAI {
                             lines.push(`${author}: ${content}`);
                         }
                         if (lines.length > 0) {
-                            threadContext = `\n[THREAD_CONTEXT]\n${lines.join('\n')}\n[/THREAD_CONTEXT]\n`;
+                            threadContext = `\n[THREAD_CONTEXT — recent channel messages for continuity. Do NOT repeat or riff on your own previous lines. Find a new angle every time.]\n${lines.join('\n')}\n[/THREAD_CONTEXT]\n`;
                         }
                     }
                 }
@@ -435,7 +435,7 @@ class JarvisAI {
             const context = `[USER: ${userName}]
 
 ${secureMemoryBlock}
-[MEMORY RULE: ONLY reference what is in the block above. Never invent memories or past conversations. If nothing relevant is there, do not pretend otherwise.]
+[MEMORY RULE: These are past conversations for context. Don't pretend to remember things that aren't here.]
 ${recentJarvisResponses.length ? `[Vary your phrasing — your last replies started with: ${recentJarvisResponses.map(r => `"${r.slice(0, 30)}..."`).join(', ')}]` : ''}${threadContext}
 ${contextPrefix}${sanitizedInput}`;
 
