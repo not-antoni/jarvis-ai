@@ -488,32 +488,6 @@ ${contextPrefix}${sanitizedInput}`;
                 return jarvisResponse;
             }
 
-            // Loop detection - check if we're stuck in a repetitive pattern
-            try {
-                const { loopDetection } = require('../core/loop-detection'); // cached by Node
-                const channelId = interaction.channelId || interaction.channel?.id || 'dm';
-
-                // Record this turn and check for loops
-                let loopCheck = { isLoop: false, confidence: 0 };
-                if (jarvisResponse && !isInternalRecoveryResponse(jarvisResponse)) {
-                    loopDetection.recordTurn(userId, channelId, jarvisResponse);
-                    loopCheck = loopDetection.checkForLoop(userId, channelId);
-                }
-
-                if (loopCheck.isLoop && loopCheck.confidence > 0.7) {
-                    console.warn(
-                        `[LoopDetection] Detected ${loopCheck.type} for user ${userId}: ${loopCheck.message}`
-                    );
-                    // Replace response with recovery prompt (don't show repetitive content)
-                    const recovery = loopDetection.getRecoveryPrompt(loopCheck.type);
-                    jarvisResponse = recovery;
-                    // Clear history to break the loop
-                    loopDetection.clearHistory(userId, channelId);
-                }
-            } catch (e) {
-                console.warn('[LoopDetection] Error:', e.message);
-            }
-
             if (allowsLongTermMemory) {
                 const guildId = interaction.guild?.id || null;
                 if (jarvisResponse && !isInternalRecoveryResponse(jarvisResponse)) {
