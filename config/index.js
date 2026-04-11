@@ -182,7 +182,7 @@ const rawConfig = {
     },
 
     // Wake Words
-    wakeWords: ['jarvis'],
+    wakeWords: ['jarvis', 'garmin', 'jar'],
 
     // Admin Configuration — MUST be set via env var, no hardcoded fallback
     admin: {
