@@ -607,17 +607,7 @@ class VoiceChatService {
             return false;
         }
 
-        if (config.wakeWords.some(w => containsWakeWord(lowerText, w))) {
-            return true;
-        }
-
-        try {
-            const userFeatures = require('./user-features');
-            return await userFeatures.matchesGuildWakeWord(session.guildId, lowerText)
-                || await userFeatures.matchesWakeWord(userId, lowerText);
-        } catch {
-            return false;
-        }
+        return config.wakeWords.some(w => containsWakeWord(lowerText, w));
     }
 
     async _transcribeSpeech(session, userId, wav, tag = 'full') {
@@ -757,51 +747,35 @@ class VoiceChatService {
             const wav = await this._toWav16k(pcm);
             if (!wav) return;
 
-            const isActiveSpeaker = session.activeSpeakerId === userId;
-            const hasImplicitFollowup = this._isActiveSpeakerFollowupAllowed(session, userId, capturedAt);
-            let explicitWakeWord = false;
             let text = null;
 
-            if (!hasImplicitFollowup) {
-                // Skip users who were just probed and didn't say the wake word
-                const cooldownKey = `${session.guildId}:${userId}`;
-                const lastFailedProbe = this._probeCooldowns.get(cooldownKey) || 0;
-                if (capturedAt - lastFailedProbe < PROBE_COOLDOWN_MS) {
-                    return;
-                }
+            // Always require "jarvis" — no implicit follow-ups
+            const cooldownKey = `${session.guildId}:${userId}`;
+            const lastFailedProbe = this._probeCooldowns.get(cooldownKey) || 0;
+            if (capturedAt - lastFailedProbe < PROBE_COOLDOWN_MS) {
+                return;
+            }
 
-                const probeWav = sliceWav16kMono(wav, WAKEWORD_PROBE_MS);
-                const probeText = await this._transcribeSpeech(session, userId, probeWav, 'wake-probe');
-                if (!probeText || isNoise(probeText)) {
-                    if (probeText) console.log(`[VoiceChat] Filtered noise: "${probeText}"`);
-                    this._probeCooldowns.set(cooldownKey, capturedAt);
-                    return;
-                }
+            const probeWav = sliceWav16kMono(wav, WAKEWORD_PROBE_MS);
+            const probeText = await this._transcribeSpeech(session, userId, probeWav, 'wake-probe');
+            if (!probeText || isNoise(probeText)) {
+                if (probeText) console.log(`[VoiceChat] Filtered noise: "${probeText}"`);
+                this._probeCooldowns.set(cooldownKey, capturedAt);
+                return;
+            }
 
-                explicitWakeWord = await this._isExplicitWakeWord(session, userId, probeText.toLowerCase());
-                if (!explicitWakeWord) {
-                    this._probeCooldowns.set(cooldownKey, capturedAt);
-                    console.log(
-                        `[VoiceChat] Ignored non-active speaker guild=${session.guildId} ` +
-                        `user=${userId} standby=${!session.activeSpeakerId}`
-                    );
-                    return;
-                }
-                // Wake word found — clear cooldown
-                this._probeCooldowns.delete(cooldownKey);
+            if (!await this._isExplicitWakeWord(session, userId, probeText.toLowerCase())) {
+                this._probeCooldowns.set(cooldownKey, capturedAt);
+                return;
+            }
+            this._probeCooldowns.delete(cooldownKey);
 
-                if (probeWav.length === wav.length) {
-                    text = probeText;
-                }
+            if (probeWav.length === wav.length) {
+                text = probeText;
             }
 
             if (!text) {
-                const tag = explicitWakeWord
-                    ? 'full-after-wake'
-                    : hasImplicitFollowup
-                        ? 'full-followup'
-                        : 'full';
-                text = await this._transcribeSpeech(session, userId, wav, tag);
+                text = await this._transcribeSpeech(session, userId, wav, 'full-after-wake');
             }
             if (!text || isNoise(text)) {
                 if (text) console.log(`[VoiceChat] Filtered noise: "${text}"`);
@@ -811,25 +785,7 @@ class VoiceChatService {
             const userInfo = await this._resolveUser(userId);
             console.log(`[VoiceChat] <${userInfo.displayName}> ${text}`);
 
-            if (!hasImplicitFollowup && !explicitWakeWord) {
-                explicitWakeWord = await this._isExplicitWakeWord(session, userId, text.toLowerCase());
-                if (!explicitWakeWord) {
-                    return;
-                }
-            }
-
-            if (hasImplicitFollowup) {
-                session.lastEngagementAt = capturedAt;
-                session.standbySince = 0;
-            } else {
-                this._activateSpeaker(
-                    session,
-                    userId,
-                    explicitWakeWord ? (isActiveSpeaker ? 'wake-word-renew' : 'wake-word') : 'engaged',
-                    capturedAt
-                );
-            }
-
+            this._activateSpeaker(session, userId, 'wake-word', capturedAt);
             this._enqueueResponse(session, userId, text);
         } catch (err) {
             console.error('[VoiceChat] Ingest error:', err.message);
