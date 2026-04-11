@@ -426,8 +426,6 @@ class AIProviderManager {
         if (cfWorkerUrl && cfWorkerToken) {
             console.log('Cloudflare Workers AI proxy configured (no model registered)');
         }
-        // Rank cheapest first by default
-        this.providers.sort((a, b) => resolveCostPriority(a) - resolveCostPriority(b));
         console.log(`Initialized ${this.providers.length} AI providers (${this.selectedProviderType})`);
     }
     loadState() {
@@ -764,19 +762,20 @@ class AIProviderManager {
             .sort((a, b) => {
                 const ma = getProviderMetricSnapshot(this.metrics.get(a.name));
                 const mb = getProviderMetricSnapshot(this.metrics.get(b.name));
-                const priorityDelta = resolveCostPriority(a) - resolveCostPriority(b);
-                if (priorityDelta !== 0) {return priorityDelta;}
+                // Health first — keep dead providers at the bottom
                 if (this.selectedProviderType === 'auto') {
                     const healthDelta = resolveAutoHealthBucket(ma) - resolveAutoHealthBucket(mb);
                     if (healthDelta !== 0) {return healthDelta;}
                 }
-                const scoreDelta = computeProviderRankScore(mb) - computeProviderRankScore(ma);
-                if (Math.abs(scoreDelta) > 0.0001) {
-                    return scoreDelta;
-                }
+                // Family priority (encodes operator preference order)
                 if (this.selectedProviderType === 'auto') {
                     const familyDelta = resolveAutoFamilyPriority(a) - resolveAutoFamilyPriority(b);
                     if (familyDelta !== 0) {return familyDelta;}
+                }
+                // Performance score (success rate + latency)
+                const scoreDelta = computeProviderRankScore(mb) - computeProviderRankScore(ma);
+                if (Math.abs(scoreDelta) > 0.0001) {
+                    return scoreDelta;
                 }
                 return a.name.localeCompare(b.name);
             });
@@ -785,11 +784,8 @@ class AIProviderManager {
         const availableProviders = this._availableProviders(options);
         if (availableProviders.length === 0) {return null;}
 
-        // Always prefer cheapest tier
-        const minPriority = Math.min(...availableProviders.map(p => resolveCostPriority(p)));
-        const cheapest = availableProviders.filter(p => resolveCostPriority(p) === minPriority);
-
-        let pool = cheapest.length ? cheapest : availableProviders;
+        // Prefer the best family priority but rotate across all providers
+        let pool = availableProviders;
         if (this.selectedProviderType === 'auto' && pool.length > 0) {
             const bestFamilyPriority = Math.min(...pool.map(resolveAutoFamilyPriority));
             const preferredFamily = pool.filter(
