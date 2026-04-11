@@ -38,8 +38,9 @@ const AUTO_FAMILY_PRIORITY = {
     google: 5,
     ollama: 6,
     nvidia: 7,
-    deepseek: 8,
-    openai: 9
+    bedrock: 8,
+    deepseek: 9,
+    openai: 10
 };
 function discoverEnvKeys(prefix) {
     const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -360,6 +361,25 @@ class AIProviderManager {
                     family: 'nvidia',
                     costTier: 'freemium',
                     credentialGroup: `nvidia:${keyIndex + 1}`
+                });
+            });
+        });
+        // ---------- AWS Bedrock providers (direct InvokeModel API) ----------
+        const bedrockKeys = discoverEnvKeys('BEDROCK_API_KEY');
+        const bedrockRegion = process.env.BEDROCK_REGION || 'us-east-1';
+        const bedrockModels = ['deepseek.v3.2'];
+        bedrockKeys.forEach((key, keyIndex) => {
+            bedrockModels.forEach((model) => {
+                const shortName = model.includes('/') ? model.split('/').pop() : model;
+                this.providers.push({
+                    name: `Bedrock${keyIndex + 1}-${shortName}`,
+                    apiKey: key,
+                    baseURL: `https://bedrock-runtime.${bedrockRegion}.amazonaws.com`,
+                    model,
+                    type: 'bedrock',
+                    family: 'bedrock',
+                    costTier: 'paid',
+                    credentialGroup: `bedrock:${keyIndex + 1}`
                 });
             });
         });

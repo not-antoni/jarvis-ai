@@ -732,6 +732,55 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                     }
                 };
             }
+            // ---------- AWS Bedrock InvokeModel handler ----------
+            if (provider.type === 'bedrock') {
+                const bedrockEndpoint = `${provider.baseURL}/model/${provider.model}/invoke`;
+                const response = await aiFetch(bedrockEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${provider.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: userPrompt }
+                        ],
+                        max_tokens: maxTokens,
+                        temperature: config.ai?.temperature ?? 0.7
+                    })
+                });
+                if (!response.ok) {
+                    const errorText = await response.text().catch(() => 'Unknown error');
+                    throw Object.assign(new Error(`Bedrock error: ${errorText}`), {
+                        status: response.status
+                    });
+                }
+                const bedrockResp = await response.json();
+                const choice = bedrockResp?.choices?.[0];
+                const text = extractOpenAICompatibleText(choice);
+                if (!text || !String(text).trim()) {
+                    throw Object.assign(
+                        new Error(`Empty response from ${provider.name}`),
+                        { status: 502, transient: true }
+                    );
+                }
+                const cleaned = sanitizeAssistantMessage(String(text));
+                if (!cleaned) {
+                    throw Object.assign(
+                        new Error(`Sanitized empty content from ${provider.name}`),
+                        { status: 502 }
+                    );
+                }
+                return {
+                    choices: [{ message: { content: cleaned } }],
+                    usage: {
+                        prompt_tokens: bedrockResp?.usage?.prompt_tokens || 0,
+                        completion_tokens: bedrockResp?.usage?.completion_tokens || 0
+                    }
+                };
+            }
             // ---------- Cloudflare Workers AI handler ----------
             if (provider.type === 'cloudflare-worker') {
                 const cfEndpoint = `${provider.workerUrl}/api/chat`;
