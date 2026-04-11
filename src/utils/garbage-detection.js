@@ -1,14 +1,18 @@
 'use strict';
 
 const INTERNAL_RECOVERY_PATTERNS = [
-    /^my neural pathways crossed, sir\b/i,
-    /^technical difficulties(?: with my neural pathways)?, sir\b/i,
-    /^apologies, sir\s*[-,]\s*my circuits appear to be echoing\b/i,
-    /^i seem to be caught in a feedback loop, sir\b/i,
-    /^my neural pathways are running in circles, sir\b/i,
-    /^systems are stuttering, sir\b/i,
-    /^response circuits tangled, sir\b/i,
-    /^temporary ai provider outage, sir\b/i
+    /^that came out wrong\b/i,
+    /^something broke on my end\b/i,
+    /^i just said that\b/i,
+    /^i'm going in circles\b/i,
+    /^i keep landing on the same answer\b/i,
+    /^tripped over myself there\b/i,
+    /^lost my train of thought\b/i,
+    /^running on fumes here\b/i,
+    /^hit a wall on that one\b/i,
+    /^systems are being difficult\b/i,
+    /^bit of a hiccup\b/i,
+    /^something's off on my end\b/i
 ];
 
 function isInternalRecoveryResponse(text) {
