@@ -4,7 +4,7 @@ const fs = require('fs');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const path = require('path');
-const { sanitizeQuoteText } = require('./quote-text-sanitize');
+const { sanitizeQuoteText, parseFormattedQuoteText, QSTYLE, QSTYLE_RE } = require('./quote-text-sanitize');
 const { fetchBuffer } = require('./net-guard');
 
 const MAX_QUOTE_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -220,7 +220,7 @@ function wrapTokens(ctx, tokens, maxWidth, fontSize) {
 
         let tokenWidth = 0;
         if (token.type === 'text' || token.type === 'mention') {
-            tokenWidth = ctx.measureText(token.content).width;
+            tokenWidth = ctx.measureText((token.content || '').replace(QSTYLE_RE, '')).width;
         } else {
             tokenWidth = fontSize * 1.1;
         }
@@ -300,7 +300,7 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
     // 1. Normalize Nitro fonts, sanitize Discord markdown, then tokenize.
     const normalizedText = normalizeNitroFonts(text || '');
-    const cleanText = sanitizeQuoteText(normalizedText);
+    const cleanText = parseFormattedQuoteText(normalizedText);
     const tokens = tokenizeText(cleanText);
 
     const assetsToLoad = loadTokenEmojiAssets(tokens);
@@ -443,10 +443,30 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
     ctx.fillStyle = '#ffffff';
 
+    const qStyle = { bold: false, italic: false, underline: false, strike: false, code: false, spoiler: false };
+    const isMarker = ch => ch >= '\uE001' && ch <= '\uE008';
+    const toggleQStyle = ch => {
+        if (ch === QSTYLE.BOLD) qStyle.bold = !qStyle.bold;
+        else if (ch === QSTYLE.ITALIC) qStyle.italic = !qStyle.italic;
+        else if (ch === QSTYLE.UNDERLINE) qStyle.underline = !qStyle.underline;
+        else if (ch === QSTYLE.STRIKE) qStyle.strike = !qStyle.strike;
+        else if (ch === QSTYLE.CODE) qStyle.code = !qStyle.code;
+        else if (ch === QSTYLE.SPOILER) qStyle.spoiler = !qStyle.spoiler;
+    };
+    const buildQFont = (size) => {
+        if (qStyle.code) return `${Math.round(size * 0.85)}px "Consolas", "Courier New", monospace`;
+        const parts = [];
+        if (qStyle.italic) parts.push('italic');
+        if (qStyle.bold) parts.push('bold');
+        parts.push(`${size}px`);
+        parts.push(fontStack);
+        return parts.join(' ');
+    };
+
     lines.forEach((line) => {
         let lineWidth = 0;
         line.forEach(t => {
-            if (t.type === 'text' || t.type === 'mention') {lineWidth += ctx.measureText(t.content).width;}
+            if (t.type === 'text' || t.type === 'mention') {lineWidth += ctx.measureText((t.content || '').replace(QSTYLE_RE, '')).width;}
             else {lineWidth += finalFontSize * 1.1;}
         });
 
@@ -455,17 +475,52 @@ async function generateQuoteImage(text, displayName, avatarUrl, timestamp, attac
 
         line.forEach(token => {
             if (token.type === 'text' || token.type === 'mention') {
-                ctx.fillStyle = token.type === 'mention' ? MENTION_COLOR : '#ffffff';
-                ctx.fillText(token.content, currentX, baselineY);
-                currentX += ctx.measureText(token.content).width;
+                const baseColor = token.type === 'mention' ? MENTION_COLOR : '#ffffff';
+                let run = '';
+                const flushRun = () => {
+                    if (!run) return;
+                    ctx.font = buildQFont(finalFontSize);
+                    ctx.fillStyle = qStyle.spoiler ? '#888888' : baseColor;
+                    const w = ctx.measureText(run).width;
+                    ctx.fillText(run, currentX, baselineY);
+                    if (qStyle.strike) {
+                        ctx.save();
+                        ctx.strokeStyle = ctx.fillStyle;
+                        ctx.lineWidth = Math.max(2, finalFontSize * 0.05);
+                        ctx.beginPath();
+                        ctx.moveTo(currentX, baselineY);
+                        ctx.lineTo(currentX + w, baselineY);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                    if (qStyle.underline) {
+                        ctx.save();
+                        ctx.strokeStyle = ctx.fillStyle;
+                        ctx.lineWidth = Math.max(2, finalFontSize * 0.05);
+                        ctx.beginPath();
+                        ctx.moveTo(currentX, baselineY + finalFontSize * 0.35);
+                        ctx.lineTo(currentX + w, baselineY + finalFontSize * 0.35);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                    currentX += w;
+                    run = '';
+                };
+                for (const ch of token.content) {
+                    if (isMarker(ch)) { flushRun(); toggleQStyle(ch); }
+                    else { run += ch; }
+                }
+                flushRun();
+                ctx.font = `${finalFontSize}px ${fontStack}`;
             } else if ((token.type === 'custom' || token.type === 'unicode') && token.image) {
                 const size = finalFontSize;
                 ctx.drawImage(token.image, currentX, baselineY - (size / 2), size, size);
                 currentX += size * 1.1;
             } else {
                 ctx.fillStyle = '#ffffff';
-                ctx.fillText(token.content || '', currentX, baselineY);
-                currentX += ctx.measureText(token.content || '').width;
+                const clean = (token.content || '').replace(QSTYLE_RE, '');
+                ctx.fillText(clean, currentX, baselineY);
+                currentX += ctx.measureText(clean).width;
             }
         });
         currentY += lineHeight;

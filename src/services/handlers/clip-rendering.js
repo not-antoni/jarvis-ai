@@ -22,6 +22,25 @@ const MENTION_PILL_HORIZONTAL_PADDING = 4;
 const MENTION_PILL_HEIGHT = 18;
 const MENTION_PILL_RADIUS = 4;
 
+// Discord-style formatting markers (Unicode Private Use Area)
+const STYLE = {
+    BOLD: '\uE001', ITALIC: '\uE002', UNDERLINE: '\uE003',
+    STRIKE: '\uE004', CODE: '\uE005', CODEBLOCK_START: '\uE006',
+    CODEBLOCK_END: '\uE007', SPOILER: '\uE008',
+};
+const STYLE_MARKERS_RE = /[\uE001-\uE008]/g;
+const STYLE_PLACEHOLDERS_RE = /[\uE010-\uE013]/g;
+function stripStyleMarkers(text) { return text ? text.replace(STYLE_MARKERS_RE, '') : ''; }
+
+const CODE_BG = '#2b2d31';
+const CODE_FG = '#b5b9bf';
+const INLINE_CODE_BG = '#383a40';
+const INLINE_CODE_RADIUS = 3;
+const CODE_PADDING = 8;
+const CODE_LINE_HEIGHT = 19;
+const CODE_FONT = '13px "Consolas", "Andale Mono", "Courier New", monospace';
+const CODE_BLOCK_RADIUS = 4;
+
 function envInt(name, fallback, min) { return Math.max(min, Number(process.env[name] || '') || fallback); }
 const MAX_REMOTE_IMAGE_BYTES = envInt('REMOTE_IMAGE_MAX_BYTES', 10 * 1024 * 1024, 1024 * 1024);
 
@@ -178,6 +197,59 @@ function sanitizeMessageText(text) {
     sanitized = sanitized.replace(/\n[ \t]+/g, '\n');
     sanitized = sanitized.replace(/[ \t]+\n/g, '\n');
     return sanitized.trimEnd();
+}
+
+function parseFormattedText(text) {
+    if (!text) {return '';}
+    let s = text
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .replace(/[\u2028\u2029]/g, '\n');
+    s = s.replace(/[\u200B-\u200D\u2060\uFEFF]/g, '');
+    s = s.replace(STYLE_MARKERS_RE, '');
+    s = s.replace(STYLE_PLACEHOLDERS_RE, '');
+    s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1');
+    s = s.replace(/<(https?:\/\/[^>\s]+)>/g, '$1');
+    const codeBlocks = [];
+    s = s.replace(/```[^\n]*\n([\s\S]*?)```/g, (_, content) => {
+        codeBlocks.push(content.replace(/\n$/, ''));
+        return `\uE010${codeBlocks.length - 1}\uE011`;
+    });
+    s = s.replace(/```([\s\S]*?)```/g, (_, content) => {
+        codeBlocks.push(content);
+        return `\uE010${codeBlocks.length - 1}\uE011`;
+    });
+    const inlineCodes = [];
+    s = s.replace(/`([^`\n]+)`/g, (_, content) => {
+        inlineCodes.push(content);
+        return `\uE012${inlineCodes.length - 1}\uE013`;
+    });
+    s = s.replace(/\*\*\*([\s\S]+?)\*\*\*/g, `${STYLE.BOLD}${STYLE.ITALIC}$1${STYLE.ITALIC}${STYLE.BOLD}`);
+    s = s.replace(/___([\s\S]+?)___/g, `${STYLE.UNDERLINE}${STYLE.ITALIC}$1${STYLE.ITALIC}${STYLE.UNDERLINE}`);
+    s = s.replace(/\*\*([\s\S]+?)\*\*/g, `${STYLE.BOLD}$1${STYLE.BOLD}`);
+    s = s.replace(/__([\s\S]+?)__/g, `${STYLE.UNDERLINE}$1${STYLE.UNDERLINE}`);
+    s = s.replace(/(?<!\*)\*(?!\*)([^*\n]+?)\*(?!\*)/g, `${STYLE.ITALIC}$1${STYLE.ITALIC}`);
+    s = s.replace(/(?<!_)_(?!_)([^_\n]+?)_(?!_)/g, `${STYLE.ITALIC}$1${STYLE.ITALIC}`);
+    s = s.replace(/~~([\s\S]+?)~~/g, `${STYLE.STRIKE}$1${STYLE.STRIKE}`);
+    s = s.replace(/\|\|([\s\S]+?)\|\|/g, `${STYLE.SPOILER}$1${STYLE.SPOILER}`);
+    s = s.replace(/[^\S\r\n]+/g, ' ');
+    s = s.replace(/\n[ \t]+/g, '\n');
+    s = s.replace(/[ \t]+\n/g, '\n');
+    s = s.replace(/\uE010(\d+)\uE011/g, (_, i) => `\n${STYLE.CODEBLOCK_START}${codeBlocks[Number(i)]}${STYLE.CODEBLOCK_END}\n`);
+    s = s.replace(/\uE012(\d+)\uE013/g, (_, i) => `${STYLE.CODE}${inlineCodes[Number(i)]}${STYLE.CODE}`);
+    s = s.replace(/\n{3,}/g, '\n\n');
+    return s.trimEnd();
+}
+
+function buildStyledFont(styles, baseSize = 15) {
+    const isMono = styles.code || styles.codeBlock;
+    if (isMono) {return CODE_FONT;}
+    const parts = [];
+    if (styles.italic) {parts.push('italic');}
+    if (styles.bold) {parts.push('bold');}
+    parts.push(`${baseSize}px`);
+    parts.push('Arial');
+    return parts.join(' ');
 }
 
 async function fetchEmojiImage(handler, url) {
@@ -456,56 +528,132 @@ function splitTextWithEmojisAndMentions(text, allEmojis, mentions) {
     return segments;
 }
 
+function measureCodeBlockHeight(ctx, content, maxWidth) {
+    ctx.font = CODE_FONT;
+    const innerWidth = maxWidth - CODE_PADDING * 2;
+    let lineCount = 1;
+    for (const rawLine of content.split('\n')) {
+        if (!rawLine) {lineCount++; continue;}
+        let lineW = 0;
+        for (const ch of rawLine) {
+            const w = ctx.measureText(ch).width;
+            if (lineW + w > innerWidth && lineW > 0) {lineCount++; lineW = 0;}
+            lineW += w;
+        }
+        if (rawLine !== content.split('\n').pop()) {lineCount++;}
+    }
+    return lineCount * CODE_LINE_HEIGHT + CODE_PADDING * 2 + 8;
+}
+
 function calculateTextHeight(handler, text, maxWidth, customEmojis = [], mentions = []) {
     const tempCanvas = createCanvas(1, 1);
     const tempCtx = tempCanvas.getContext('2d');
     tempCtx.font = '15px Arial';
-    const segments = splitTextWithEmojisAndMentions(text, customEmojis, mentions);
     const lineHeight = 22;
     const emojiSize = 18;
     const emojiSpacing = typeof handler.clipEmojiSpacing === 'number' ? handler.clipEmojiSpacing : 3;
     const emojiAdvance = emojiSize + emojiSpacing;
-    let lineCount = 1;
-    let currentLineWidth = 0;
-    const advanceLine = () => {
-        lineCount++;
-        currentLineWidth = 0;
-    };
-    const advanceToken = token => {
-        if (!token) {return;}
-        const { width } = tempCtx.measureText(token);
-        if (currentLineWidth + width > maxWidth && currentLineWidth > 0) { advanceLine(); }
-        currentLineWidth += width;
-    };
-    const processTokens = text => {
-        for (const token of text.split(/(\n|\s+)/)) {
-            if (!token) {continue;}
-            if (token === '\n') { advanceLine(); continue; }
-            advanceToken(token);
+    let totalHeight = 0;
+    const cbRe = new RegExp(`${escapeRegExp(STYLE.CODEBLOCK_START)}([\\s\\S]*?)${escapeRegExp(STYLE.CODEBLOCK_END)}`, 'g');
+    const blocks = [];
+    let lastEnd = 0;
+    let m;
+    while ((m = cbRe.exec(text)) !== null) {
+        if (m.index > lastEnd) {blocks.push({ type: 'normal', text: text.substring(lastEnd, m.index), offset: lastEnd });}
+        blocks.push({ type: 'codeblock', text: m[1], offset: m.index });
+        lastEnd = m.index + m[0].length;
+    }
+    if (lastEnd < text.length) {blocks.push({ type: 'normal', text: text.substring(lastEnd), offset: lastEnd });}
+    if (!blocks.length) {blocks.push({ type: 'normal', text, offset: 0 });}
+    for (const block of blocks) {
+        if (block.type === 'codeblock') {
+            totalHeight += measureCodeBlockHeight(tempCtx, block.text, maxWidth);
+            continue;
         }
-    };
-    for (const segment of segments) {
-        if (segment.type === 'emoji') {
-            if (segment.isUnicode && !segment.url) {
-                tempCtx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
-                const { width } = tempCtx.measureText(segment.name);
-                tempCtx.font = '15px Arial';
-                if (currentLineWidth + width > maxWidth && currentLineWidth > 0) { advanceLine(); }
-                currentLineWidth += width;
-            } else {
-                if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) { advanceLine(); }
-                currentLineWidth += emojiAdvance;
+        const blockEnd = block.offset + block.text.length;
+        const blockEmojis = customEmojis.concat(mentions.length ? [] : [])
+            .filter(e => e.start >= block.offset && e.end <= blockEnd)
+            .map(e => ({ ...e, start: e.start - block.offset, end: e.end - block.offset }));
+        const blockMentions = (mentions || [])
+            .filter(mt => mt.start >= block.offset && mt.end <= blockEnd)
+            .map(mt => ({ ...mt, start: mt.start - block.offset, end: mt.end - block.offset }));
+        const segments = splitTextWithEmojisAndMentions(block.text, blockEmojis, blockMentions);
+        tempCtx.font = '15px Arial';
+        let lineCount = 1;
+        let currentLineWidth = 0;
+        const advanceLine = () => { lineCount++; currentLineWidth = 0; };
+        const advanceToken = token => {
+            if (!token) {return;}
+            const clean = stripStyleMarkers(token);
+            if (!clean) {return;}
+            const { width } = tempCtx.measureText(clean);
+            if (currentLineWidth + width > maxWidth && currentLineWidth > 0) { advanceLine(); }
+            currentLineWidth += width;
+        };
+        const processTokens = segText => {
+            for (const token of segText.split(/(\n|\s+)/)) {
+                if (!token) {continue;}
+                if (token === '\n') { advanceLine(); continue; }
+                advanceToken(token);
             }
-        } else if (segment.type === 'mention') {
-            const pillWidth = tempCtx.measureText(segment.text).width + (MENTION_PILL_HORIZONTAL_PADDING * 2);
-            if (currentLineWidth + pillWidth > maxWidth && currentLineWidth > 0) { advanceLine(); }
-            currentLineWidth += pillWidth;
-        } else {
-            processTokens(segment.text);
+        };
+        for (const segment of segments) {
+            if (segment.type === 'emoji') {
+                if (segment.isUnicode && !segment.url) {
+                    tempCtx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
+                    const { width } = tempCtx.measureText(segment.name);
+                    tempCtx.font = '15px Arial';
+                    if (currentLineWidth + width > maxWidth && currentLineWidth > 0) { advanceLine(); }
+                    currentLineWidth += width;
+                } else {
+                    if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) { advanceLine(); }
+                    currentLineWidth += emojiAdvance;
+                }
+            } else if (segment.type === 'mention') {
+                const pillWidth = tempCtx.measureText(segment.text).width + (MENTION_PILL_HORIZONTAL_PADDING * 2);
+                if (currentLineWidth + pillWidth > maxWidth && currentLineWidth > 0) { advanceLine(); }
+                currentLineWidth += pillWidth;
+            } else {
+                processTokens(segment.text);
+            }
         }
+        totalHeight += lineCount * lineHeight;
     }
     const baseHeight = 44;
-    return baseHeight + (lineCount * lineHeight);
+    return baseHeight + totalHeight;
+}
+
+function drawCodeBlockSection(ctx, content, x, y, maxWidth) {
+    const innerWidth = maxWidth - CODE_PADDING * 2;
+    ctx.font = CODE_FONT;
+    const lines = [];
+    for (const rawLine of content.split('\n')) {
+        if (!rawLine) {lines.push(''); continue;}
+        let current = '';
+        for (const ch of rawLine) {
+            if (ctx.measureText(current + ch).width > innerWidth && current) {
+                lines.push(current);
+                current = ch;
+            } else {
+                current += ch;
+            }
+        }
+        lines.push(current);
+    }
+    const blockHeight = lines.length * CODE_LINE_HEIGHT + CODE_PADDING * 2;
+    ctx.fillStyle = CODE_BG;
+    drawRoundedRect(ctx, x, y, maxWidth, blockHeight, CODE_BLOCK_RADIUS);
+    ctx.fill();
+    ctx.fillStyle = CODE_FG;
+    ctx.font = CODE_FONT;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    let textY = y + CODE_PADDING;
+    for (const line of lines) {
+        ctx.fillText(line, x + CODE_PADDING, textY);
+        textY += CODE_LINE_HEIGHT;
+    }
+    return blockHeight + 4;
 }
 
 async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, customEmojis, mentions = []) {
@@ -518,36 +666,93 @@ async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, c
     const emojiSize = 18;
     const emojiSpacing = typeof handler.clipEmojiSpacing === 'number' ? handler.clipEmojiSpacing : 3;
     const emojiAdvance = emojiSize + emojiSpacing;
-    const segments = splitTextWithEmojisAndMentions(text, customEmojis, mentions);
-    let currentLineWidth = 0;
-    const advanceLine = () => {
-        currentY += lineHeight;
-        currentLineWidth = 0;
+
+    const cbRe = new RegExp(`${escapeRegExp(STYLE.CODEBLOCK_START)}([\\s\\S]*?)${escapeRegExp(STYLE.CODEBLOCK_END)}`, 'g');
+    const blocks = [];
+    let lastEnd = 0;
+    let cbMatch;
+    while ((cbMatch = cbRe.exec(text)) !== null) {
+        if (cbMatch.index > lastEnd) {blocks.push({ type: 'normal', text: text.substring(lastEnd, cbMatch.index), offset: lastEnd });}
+        blocks.push({ type: 'codeblock', text: cbMatch[1], offset: cbMatch.index });
+        lastEnd = cbMatch.index + cbMatch[0].length;
+    }
+    if (lastEnd < text.length) {blocks.push({ type: 'normal', text: text.substring(lastEnd), offset: lastEnd });}
+    if (!blocks.length) {blocks.push({ type: 'normal', text, offset: 0 });}
+
+    const styles = { bold: false, italic: false, underline: false, strike: false, code: false, spoiler: false };
+    const toggleStyle = ch => {
+        if (ch === STYLE.BOLD) {styles.bold = !styles.bold;}
+        else if (ch === STYLE.ITALIC) {styles.italic = !styles.italic;}
+        else if (ch === STYLE.UNDERLINE) {styles.underline = !styles.underline;}
+        else if (ch === STYLE.STRIKE) {styles.strike = !styles.strike;}
+        else if (ch === STYLE.CODE) {styles.code = !styles.code;}
+        else if (ch === STYLE.SPOILER) {styles.spoiler = !styles.spoiler;}
     };
-    const handleTextToken = (token, color = '#dbdee1') => {
+    const applyFont = () => { ctx.font = buildStyledFont(styles); };
+    let currentLineWidth = 0;
+    const advanceLine = () => { currentY += lineHeight; currentLineWidth = 0; };
+
+    const handleTextToken = (token, baseColor = '#dbdee1') => {
         if (!token) {return;}
-        const { width } = ctx.measureText(token);
+        let clean = '';
+        for (const ch of token) {
+            if (STYLE_MARKERS_RE.test(ch)) {toggleStyle(ch); STYLE_MARKERS_RE.lastIndex = 0;}
+            else {clean += ch;}
+        }
+        if (!clean) {return;}
+        applyFont();
+        const color = styles.spoiler ? '#4e4f54' : styles.code ? CODE_FG : baseColor;
+        const { width } = ctx.measureText(clean);
         if (currentLineWidth + width > maxWidth && currentLineWidth > 0) { advanceLine(); }
-        if (!/^\s+$/.test(token)) {
-            const previousFill = ctx.fillStyle;
+        const drawX = startX + currentLineWidth;
+        if (!/^\s+$/.test(clean)) {
+            if (styles.code) {
+                ctx.fillStyle = INLINE_CODE_BG;
+                drawRoundedRect(ctx, drawX - 3, currentY + 1, width + 6, lineHeight - 2, INLINE_CODE_RADIUS);
+                ctx.fill();
+            }
+            if (styles.spoiler) {
+                ctx.fillStyle = '#4e4f54';
+                drawRoundedRect(ctx, drawX - 2, currentY + 1, width + 4, lineHeight - 2, 3);
+                ctx.fill();
+            }
             ctx.fillStyle = color;
-            ctx.fillText(token, startX + currentLineWidth, currentY);
-            ctx.fillStyle = previousFill;
+            applyFont();
+            ctx.fillText(clean, drawX, currentY);
+            if (styles.strike) {
+                ctx.save();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(drawX, currentY + lineHeight * 0.45);
+                ctx.lineTo(drawX + width, currentY + lineHeight * 0.45);
+                ctx.stroke();
+                ctx.restore();
+            }
+            if (styles.underline) {
+                ctx.save();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(drawX, currentY + lineHeight - 5);
+                ctx.lineTo(drawX + width, currentY + lineHeight - 5);
+                ctx.stroke();
+                ctx.restore();
+            }
         }
         currentLineWidth += width;
     };
-    const processTokens = (text, color) => {
-        for (const token of text.split(/(\n|\s+)/)) {
+    const processTokens = (segText, baseColor) => {
+        for (const token of segText.split(/(\n|\s+)/)) {
             if (!token) {continue;}
             if (token === '\n') { advanceLine(); continue; }
-            handleTextToken(token, color);
+            handleTextToken(token, baseColor);
         }
     };
-    const drawMention = text => {
-        const pillWidth = ctx.measureText(text).width + (MENTION_PILL_HORIZONTAL_PADDING * 2);
-        if (currentLineWidth + pillWidth > maxWidth && currentLineWidth > 0) {
-            advanceLine();
-        }
+    const drawMention = mText => {
+        ctx.font = '15px Arial';
+        const pillWidth = ctx.measureText(mText).width + (MENTION_PILL_HORIZONTAL_PADDING * 2);
+        if (currentLineWidth + pillWidth > maxWidth && currentLineWidth > 0) { advanceLine(); }
         const drawX = startX + currentLineWidth;
         const drawY = currentY + 1;
         const previousFill = ctx.fillStyle;
@@ -555,89 +760,106 @@ async function drawFormattedText(handler, ctx, text, startX, startY, maxWidth, c
         drawRoundedRect(ctx, drawX, drawY, pillWidth, MENTION_PILL_HEIGHT, MENTION_PILL_RADIUS);
         ctx.fill();
         ctx.fillStyle = MENTION_PILL_TEXT;
-        ctx.fillText(text, drawX + MENTION_PILL_HORIZONTAL_PADDING, currentY);
+        ctx.fillText(mText, drawX + MENTION_PILL_HORIZONTAL_PADDING, currentY);
         ctx.fillStyle = previousFill;
         currentLineWidth += pillWidth;
     };
-    for (const segment of segments) {
-        if (segment.type === 'emoji') {
-            const hasImageAsset = Boolean(segment.url);
-            let rendered = false;
-            if (hasImageAsset) {
-                if (currentLineWidth + emojiSize > maxWidth && currentLineWidth > 0) {
-                    advanceLine();
-                }
-                const drawX = startX + currentLineWidth;
-                try {
-                    const emojiImg = await fetchEmojiImage(handler, segment.url);
-                    ctx.drawImage(emojiImg, drawX, currentY, emojiSize, emojiSize);
-                    rendered = true;
-                } catch (primaryError) {
-                    console.warn('Failed to load primary emoji asset:', { name: segment.name, url: segment.url, error: primaryError.message });
-                    if (segment.fallbackUrl) {
-                        try {
-                            const fallbackImg = await fetchEmojiImage(handler, segment.fallbackUrl);
-                            ctx.drawImage(fallbackImg, drawX, currentY, emojiSize, emojiSize);
-                            rendered = true;
-                        } catch (fallbackError) {
-                            console.warn('Fallback emoji asset also failed:', { name: segment.name, url: segment.fallbackUrl, error: fallbackError.message });
-                            if (segment.isUnicode && segment.full) {
-                                const rawCode = Array.from(segment.full).map(s => s.codePointAt(0).toString(16).toLowerCase()).join('-');
-                                const altUrl = `${TWEMOJI_PNG_BASE}/${rawCode}.png`;
-                                if (altUrl !== segment.fallbackUrl) {
-                                    try {
-                                        const altImg = await fetchEmojiImage(handler, altUrl);
-                                        ctx.drawImage(altImg, drawX, currentY, emojiSize, emojiSize);
-                                        rendered = true;
-                                    } catch (_) {}
-                                }
-                            }
-                        }
-                    } else if (segment.id) {
-                        const alternativeUrl = ensureDiscordEmojiSize(`https://cdn.discordapp.com/emojis/${segment.id}.png`, DEFAULT_CUSTOM_EMOJI_SIZE);
-                        if (alternativeUrl !== segment.url) {
-                            try {
-                                const fallbackImg = await fetchEmojiImage(handler, alternativeUrl);
-                                ctx.drawImage(fallbackImg, drawX, currentY, emojiSize, emojiSize);
-                                rendered = true;
-                            } catch (altError) {
-                                console.warn('Alternative emoji URL also failed:', { name: segment.name, url: alternativeUrl, error: altError.message });
+
+    const renderEmojiSegment = async (segment) => {
+        const hasImageAsset = Boolean(segment.url);
+        let rendered = false;
+        if (hasImageAsset) {
+            if (currentLineWidth + emojiSize > maxWidth && currentLineWidth > 0) { advanceLine(); }
+            const drawX = startX + currentLineWidth;
+            try {
+                const emojiImg = await fetchEmojiImage(handler, segment.url);
+                ctx.drawImage(emojiImg, drawX, currentY, emojiSize, emojiSize);
+                rendered = true;
+            } catch (primaryError) {
+                console.warn('Failed to load primary emoji asset:', { name: segment.name, url: segment.url, error: primaryError.message });
+                if (segment.fallbackUrl) {
+                    try {
+                        const fallbackImg = await fetchEmojiImage(handler, segment.fallbackUrl);
+                        ctx.drawImage(fallbackImg, drawX, currentY, emojiSize, emojiSize);
+                        rendered = true;
+                    } catch (fallbackError) {
+                        console.warn('Fallback emoji asset also failed:', { name: segment.name, url: segment.fallbackUrl, error: fallbackError.message });
+                        if (segment.isUnicode && segment.full) {
+                            const rawCode = Array.from(segment.full).map(s => s.codePointAt(0).toString(16).toLowerCase()).join('-');
+                            const altUrl = `${TWEMOJI_PNG_BASE}/${rawCode}.png`;
+                            if (altUrl !== segment.fallbackUrl) {
+                                try {
+                                    const altImg = await fetchEmojiImage(handler, altUrl);
+                                    ctx.drawImage(altImg, drawX, currentY, emojiSize, emojiSize);
+                                    rendered = true;
+                                } catch (_) {}
                             }
                         }
                     }
-                }
-                if (rendered) {
-                    currentLineWidth += emojiAdvance;
-                    continue;
+                } else if (segment.id) {
+                    const alternativeUrl = ensureDiscordEmojiSize(`https://cdn.discordapp.com/emojis/${segment.id}.png`, DEFAULT_CUSTOM_EMOJI_SIZE);
+                    if (alternativeUrl !== segment.url) {
+                        try {
+                            const fallbackImg = await fetchEmojiImage(handler, alternativeUrl);
+                            ctx.drawImage(fallbackImg, drawX, currentY, emojiSize, emojiSize);
+                            rendered = true;
+                        } catch (altError) {
+                            console.warn('Alternative emoji URL also failed:', { name: segment.name, url: alternativeUrl, error: altError.message });
+                        }
+                    }
                 }
             }
-            if (segment.isUnicode) {
-                const emojiText = segment.name;
-                ctx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
-                const textWidth = ctx.measureText(emojiText).width;
-                if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) { advanceLine(); }
-                ctx.fillText(emojiText, startX + currentLineWidth, currentY);
-                currentLineWidth += textWidth;
-                ctx.font = '15px Arial';
-            } else {
-                const drawEmojiAt = (img) => {
-                    if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) { advanceLine(); }
-                    ctx.drawImage(img, startX + currentLineWidth, currentY, emojiSize, emojiSize);
-                    currentLineWidth += emojiAdvance;
-                };
-                const urls = [segment.url];
-                if (segment.id) { urls.push(`https://cdn.discordapp.com/emojis/${segment.id}.png`); }
-                let drawn = false;
-                for (const url of urls) {
-                    if (drawn || !url) {continue;}
-                    try { drawEmojiAt(await loadImage(url)); drawn = true; } catch (_) {}
-                }
-                if (!drawn) { handleTextToken(`:${segment.name}:`); }
-            }
-        } else if (segment.type === 'mention') {
-            drawMention(segment.text);
+            if (rendered) { currentLineWidth += emojiAdvance; return; }
+        }
+        if (segment.isUnicode) {
+            const emojiText = segment.name;
+            ctx.font = '18px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", "EmojiSymbols", "EmojiOne Mozilla", "Twemoji Mozilla", "Segoe UI Symbol", sans-serif';
+            const textWidth = ctx.measureText(emojiText).width;
+            if (currentLineWidth + textWidth > maxWidth && currentLineWidth > 0) { advanceLine(); }
+            ctx.fillText(emojiText, startX + currentLineWidth, currentY);
+            currentLineWidth += textWidth;
+            applyFont();
         } else {
-            processTokens(segment.text, segment.type === 'mention' ? '#c9cdfb' : '#dbdee1');
+            const drawEmojiAt = (img) => {
+                if (currentLineWidth + emojiAdvance > maxWidth && currentLineWidth > 0) { advanceLine(); }
+                ctx.drawImage(img, startX + currentLineWidth, currentY, emojiSize, emojiSize);
+                currentLineWidth += emojiAdvance;
+            };
+            const urls = [segment.url];
+            if (segment.id) { urls.push(`https://cdn.discordapp.com/emojis/${segment.id}.png`); }
+            let drawn = false;
+            for (const url of urls) {
+                if (drawn || !url) {continue;}
+                try { drawEmojiAt(await loadImage(url)); drawn = true; } catch (_) {}
+            }
+            if (!drawn) { handleTextToken(`:${segment.name}:`); }
+        }
+    };
+
+    for (const block of blocks) {
+        if (block.type === 'codeblock') {
+            if (currentLineWidth > 0) { advanceLine(); }
+            currentY += drawCodeBlockSection(ctx, block.text, startX, currentY, maxWidth) + 2;
+            currentLineWidth = 0;
+            ctx.font = '15px Arial';
+            continue;
+        }
+        const blockEnd = block.offset + block.text.length;
+        const blockEmojis = customEmojis
+            .filter(e => e.start >= block.offset && e.end <= blockEnd)
+            .map(e => ({ ...e, start: e.start - block.offset, end: e.end - block.offset }));
+        const blockMentions = (mentions || [])
+            .filter(mt => mt.start >= block.offset && mt.end <= blockEnd)
+            .map(mt => ({ ...mt, start: mt.start - block.offset, end: mt.end - block.offset }));
+        const segments = splitTextWithEmojisAndMentions(block.text, blockEmojis, blockMentions);
+        for (const segment of segments) {
+            if (segment.type === 'emoji') {
+                await renderEmojiSegment(segment);
+            } else if (segment.type === 'mention') {
+                drawMention(segment.text);
+            } else {
+                processTokens(segment.text, '#dbdee1');
+            }
         }
     }
 }
@@ -1040,7 +1262,7 @@ async function createClipImage(handler, text, username, avatarUrl, isBot = false
         mentions: message?.mentions,
         style: true
     });
-    const sanitizedText = sanitizeMessageText(resolvedText);
+    const sanitizedText = parseFormattedText(resolvedText);
     const customEmojis = await parseCustomEmojis(sanitizedText, guild);
     const unicodeEmojis = parseUnicodeEmojis(sanitizedText);
     const allEmojis = [...customEmojis, ...unicodeEmojis].sort((a, b) => a.start - b.start);
@@ -1233,6 +1455,8 @@ module.exports = {
     _test: {
         fitTextToWidth,
         splitTextWithEmojisAndMentions,
-        sanitizeMessageText
+        sanitizeMessageText,
+        parseFormattedText,
+        stripStyleMarkers
     }
 };
