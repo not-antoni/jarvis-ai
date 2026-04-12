@@ -415,6 +415,7 @@ const LANDING_PAGE = `
             <a href="/tos">Terms</a>
             <a href="/policy">Privacy</a>
             <a href="#" onclick="copyContactEmail(event)">Contact</a>
+            <a href="https://github.com/not-antoni/jarvis-ai" target="_blank" rel="noopener noreferrer">GitHub</a>
         </div>
         <p class="footer-copy">© 2026 Jarvis • Powered by caffeine.</p>
     </footer>
