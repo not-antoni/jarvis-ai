@@ -247,6 +247,7 @@ const PRIVACY_POLICY = `
                 <a href="/tos">Terms</a>
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
+                <a href="https://github.com/not-antoni/jarvis-ai" target="_blank" rel="noopener noreferrer">GitHub</a>
             </div>
             <p>Effective Date: April 5, 2026</p>
         </div>
@@ -333,6 +334,7 @@ const TERMS_OF_SERVICE = `
                 <a href="/tos">Terms</a>
                 <a href="/policy">Privacy</a>
                 <a href="#" onclick="copyContactEmail(event)">Contact</a>
+                <a href="https://github.com/not-antoni/jarvis-ai" target="_blank" rel="noopener noreferrer">GitHub</a>
             </div>
             <p>Effective Date: April 5, 2026</p>
         </div>
