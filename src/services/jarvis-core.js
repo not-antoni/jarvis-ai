@@ -417,7 +417,7 @@ class JarvisAI {
                             lines.push(`${author}: ${content}`);
                         }
                         if (lines.length > 0) {
-                            threadContext = `\n[THREAD_CONTEXT]\n${lines.join('\n')}\n[/THREAD_CONTEXT]\n`;
+                            threadContext = `\n[THREAD_CONTEXT — do NOT repeat your own openers, phrasing, or structure from these messages. Every reply must feel completely different.]\n${lines.join('\n')}\n[/THREAD_CONTEXT]\n`;
                         }
                     }
                 }
