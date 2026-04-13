@@ -49,9 +49,9 @@ test('buildStructuredMemoryBlock wraps memories in structured format', () => {
         { userMessage: 'What is 2+2?', jarvisResponse: 'Four, sir.', createdAt: new Date().toISOString() }
     ];
     const result = buildStructuredMemoryBlock(memories);
-    assert.ok(result.includes('[MEMORY_1]'));
-    assert.ok(result.includes('[/MEMORY_1]'));
+    assert.ok(result.includes('[1]'));
     assert.ok(result.includes('Four, sir.'));
+    assert.ok(!result.includes('timestamp='));
 });
 
 test('buildStructuredMemoryBlock skips entries with no content', () => {
@@ -60,7 +60,8 @@ test('buildStructuredMemoryBlock skips entries with no content', () => {
         { userMessage: 'hello', jarvisResponse: 'hi' }
     ];
     const result = buildStructuredMemoryBlock(memories);
-    assert.ok(!result.includes('[MEMORY_1]') || result.includes('hello'));
+    assert.ok(result.includes('[2]'));
+    assert.ok(result.includes('hello'));
 });
 
 // sanitizeUserInput

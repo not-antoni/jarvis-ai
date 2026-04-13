@@ -2,20 +2,44 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+| Version | Supported |
+| ------- | --------- |
+| 1.1.x   | Yes       |
+| < 1.0   | No        |
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+Only the latest release gets security updates. If you're running an old version, update.
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+**Don't open a public issue.** Email **dev@jorvis.org** or use [GitHub's private vulnerability reporting](https://github.com/not-antoni/jarvis-ai/security/advisories/new).
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Include:
+- What you found
+- Steps to reproduce
+- Impact (what an attacker could do)
+- Your suggested fix, if you have one
+
+## What to expect
+
+- Acknowledgment within 48 hours
+- A fix or mitigation plan within a week for confirmed issues
+- Credit in the changelog unless you prefer to stay anonymous
+
+## Scope
+
+Things I care about:
+- Remote code execution
+- Privilege escalation (users gaining admin/owner abilities)
+- Data leaks (memory contents, API keys, user data)
+- Prompt injection that bypasses security controls
+- Authentication/authorization bypasses on the dashboard
+
+Out of scope:
+- Self-hosted misconfiguration (that's on you)
+- Rate limiting — it's a Discord bot, Discord handles that
+- Vulnerabilities in dependencies that don't actually affect this project's usage
+- Social engineering the bot through normal conversation (it's an AI, it'll get tricked sometimes)
+
+## Disclosure
+
+I'll coordinate disclosure with you. If you want to publish a writeup, just give me reasonable time to ship a fix first.

@@ -54,17 +54,7 @@ function buildStructuredMemoryBlock(memories, userName = 'User') {
 
             if (!userMsg && !jarvisResp) {return null;}
 
-            const timestamp = mem.createdAt
-                ? new Date(mem.createdAt).toLocaleString()
-                : 'unknown time';
-
-            return [
-                `[MEMORY_${idx + 1}]`,
-                `timestamp="${timestamp}"`,
-                `user="${userMsg}"`,
-                `response="${jarvisResp}"`,
-                `[/MEMORY_${idx + 1}]`
-            ].join('\n');
+            return `[${idx + 1}] user="${userMsg}" response="${jarvisResp}"`;
         })
         .filter(Boolean)
         .join('\n');

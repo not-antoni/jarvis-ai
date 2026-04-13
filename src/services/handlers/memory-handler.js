@@ -75,13 +75,12 @@ async function handleMemoryCommand(handler, interaction) {
         if (!isOptedOut && normalized.length) {
             const sorted = [...normalized].sort((a, b) => a.createdAt - b.createdAt);
             const dumpLines = sorted.map((entry, idx) => {
-                const ts = entry.createdAt.toISOString();
                 const prompt = entry.prompt || '(no prompt)';
                 const response = entry.reply || '(no response)';
-                return `[MEMORY_${idx + 1}] ${ts}\nUser (${entry.userName}): ${prompt}\nJarvis: ${response}`;
+                return `[${idx + 1}] User (${entry.userName}): ${prompt}\nJarvis: ${response}`;
             });
 
-            const fileContent = `=== JARVIS MEMORY DUMP ===\nUser: ${userName} (${userId})\nEntries: ${sorted.length}\nGenerated: ${new Date().toISOString()}\n${'='.repeat(40)}\n\n${dumpLines.join('\n\n' + '-'.repeat(40) + '\n\n')}`;
+            const fileContent = `JARVIS MEMORY DUMP\nUser: ${userName} (${userId})\nEntries: ${sorted.length}\nGenerated: ${new Date().toISOString()}\n\n${dumpLines.join('\n\n')}`;
 
             try {
                 const buffer = Buffer.from(fileContent, 'utf-8');
