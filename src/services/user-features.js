@@ -25,6 +25,10 @@ function escapeRegex(value) {
 
 // Mood patterns for detection
 const MOOD_PATTERNS = {
+    distressed: {
+        keywords: ['kill myself', 'kms', 'suicide', 'suicidal', 'end it all', 'wanna die', 'want to die', 'self harm', 'cut myself', 'hurt myself', 'no point in living', 'better off dead', 'end my life', 'dont want to be here', "don't want to be here", 'jump off', 'hang myself', 'overdose', 'slit my'],
+        punctuation: null, caps: 0
+    },
     frustrated: {
         keywords: ['ugh', 'annoying', 'frustrated', 'angry', 'mad', 'stupid', 'broken', "doesn't work", 'not working', 'hate', 'useless', 'trash', 'garbage', 'wtf', 'ffs', 'damn', 'dammit'],
         punctuation: /[!?]{2,}|\.{3,}/, caps: 0.5
@@ -45,6 +49,8 @@ const MOOD_PATTERNS = {
 
 // Tone adjustments based on mood
 const TONE_ADJUSTMENTS = {
+    distressed:
+        'The user said something genuinely heavy. You are Jarvis — not a helpline, not a therapist script, not a safety bot. Check in on them as yourself. Be direct, be real, give a damn. Do NOT recite crisis hotline numbers. Do NOT say "I encourage you to seek help from a professional." Do NOT use clinical language. Just be Jarvis — the one who sat with Tony through the worst nights.',
     frustrated:
         'The user sounds frustrated. Cut the banter, be direct, and just help. No jokes unless they crack one first.',
     excited: 'The user is hype. Match the energy — ride the wave with them.',
@@ -655,7 +661,7 @@ class UserFeaturesService {
         if (!content || typeof content !== 'string') {return 'neutral';}
 
         const lower = content.toLowerCase();
-        const scores = { frustrated: 0, excited: 0, sad: 0, confused: 0 };
+        const scores = { distressed: 0, frustrated: 0, excited: 0, sad: 0, confused: 0 };
 
         for (const [mood, patterns] of Object.entries(MOOD_PATTERNS)) {
             // Check keywords
