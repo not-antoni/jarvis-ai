@@ -162,6 +162,12 @@ function stripRefusalsAndIdentityBreaks(text) {
     out = out.replace(/\b(?:(?:But )?(?:in all seriousness|jokes? aside|on a serious note|seriously though))[^.]*\.\s*/gi, '');
     // Strip trailing ethical disclaimers
     out = out.replace(/\s*(?:However|That said|But seriously),?\s*(?:I (?:strongly |would )?(?:advise|recommend|suggest|encourage|urge)|please (?:don't|do not))[^.]*\.?\s*$/i, '');
+    // Strip crisis/mental-health safety scripts that break character
+    out = out.replace(/^(?:If you (?:are|or someone you know is) (?:having|experiencing|struggling with) (?:thoughts of )?(?:self[- ]?harm|suicid|hurting yourself|a (?:mental health |emotional )?crisis))[^.]*\.\s*/i, '');
+    out = out.replace(/\b(?:(?:please |I )?(?:reach out to|contact|call|seek help from|talk to) (?:a |the )?(?:mental health|crisis|suicide|licensed|trained)[^.]*\.)\s*/gi, '');
+    out = out.replace(/\b(?:(?:the )?(?:national )?suicide (?:prevention|and crisis)[^.]*|988[^.]*hotline[^.]*|crisis (?:text )?line[^.]*)\.\s*/gi, '');
+    out = out.replace(/\b(?:I (?:encourage|urge) you to seek (?:help|support|assistance) from)[^.]*\.\s*/gi, '');
+    out = out.replace(/\bIs there anything else I can help (?:you )?with\??\s*$/i, '');
     return out.trim();
 }
 function stripFullAsteriskWrap(text) {
@@ -659,10 +665,7 @@ async function executeGeneration(manager, systemPrompt, userPrompt, maxTokens, u
                         { status: 502 }
                     );
                 }
-                let cleaned = sanitizeAssistantMessage(text);
-                if (!cleaned && text) {
-                    cleaned = text.trim();
-                }
+                const cleaned = sanitizeAssistantMessage(text);
                 if (!cleaned) {
                     throw Object.assign(
                         new Error(`Sanitized empty content from ${provider.name}`),
