@@ -119,7 +119,6 @@ function wireEventHandlers(ctx) {
             serverStatsRefreshJob.stop();
             try { tempSweepJob.stop(); } catch (_) { }
             try { uptimeSnapshotJob.stop(); } catch (_) { }
-            try { require('../services/meme-sender').stop(); } catch (_) { }
             try { require('../services/user-features').stopReminderChecker(); } catch (_) { }
             try { voiceChatService.sessions.forEach((_, gid) => voiceChatService._destroy(gid)); } catch (_) { }
             // Flush debounced AI provider state before closing DB
