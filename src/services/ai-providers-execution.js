@@ -250,6 +250,12 @@ function stripMarkdownEmphasis(text) {
     out = out.replace(/\*{2}([^*]+)\*{2}/g, '$1');
     // Italic (*word*) → word — but not standalone * used as bullets
     out = out.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1');
+    // Underscore bold+italic (___word___) → word
+    out = out.replace(/_{3}([^_]+)_{3}/g, '$1');
+    // Underscore underline (__word__) → word
+    out = out.replace(/_{2}([^_]+)_{2}/g, '$1');
+    // Underscore italic (_word_) → word — not mid-word underscores like variable_name
+    out = out.replace(/(?<=\s|^)_([^_\n]+)_(?=\s|[.,!?;:]|$)/g, '$1');
     return out;
 }
 function sanitizeAssistantMessage(text) {
