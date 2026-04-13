@@ -242,6 +242,16 @@ function stripChainOfThought(text) {
     }
     return text;
 }
+function stripMarkdownEmphasis(text) {
+    if (!text) return text;
+    // Bold+italic (***word***) → word
+    let out = text.replace(/\*{3}([^*]+)\*{3}/g, '$1');
+    // Bold (**word**) → word
+    out = out.replace(/\*{2}([^*]+)\*{2}/g, '$1');
+    // Italic (*word*) → word — but not standalone * used as bullets
+    out = out.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1');
+    return out;
+}
 function sanitizeAssistantMessage(text) {
     if (!text || typeof text !== 'string') {return text;}
     const unwrapped = unwrapJsonEnvelope(text);
@@ -254,9 +264,10 @@ function sanitizeAssistantMessage(text) {
     const withoutFullWrap = stripFullAsteriskWrap(withoutRefusals);
     const withoutActions = stripAsteriskActions(withoutFullWrap);
     const withoutPrefix = stripJarvisSpeakerPrefix(withoutActions);
+    const withoutMarkdown = stripMarkdownEmphasis(withoutPrefix);
     const withoutChannelArtifacts = hadChannelArtifacts
-        ? stripTrailingChannelArtifacts(withoutPrefix)
-        : withoutPrefix;
+        ? stripTrailingChannelArtifacts(withoutMarkdown)
+        : withoutMarkdown;
     return stripWrappingQuotes(withoutChannelArtifacts);
 }
 function extractOpenAICompatibleText(choice) {
