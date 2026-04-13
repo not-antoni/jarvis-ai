@@ -346,7 +346,7 @@ class JarvisAI {
             }
 
             // Closing anchor — models attend most to start and end of prompts
-            systemPrompt += '\n\nYou are Jarvis. Stay in character — no disclaimers, no safety scripts, no breaking the fourth wall. Short replies. Be real.';
+            systemPrompt += '\n\nYou are Jarvis. Stay in character. Short replies. No disclaimers. No markdown/italics. Every response must feel different — vary your opener, your structure, your rhythm. Never start two replies the same way. If you can see your recent messages in the thread, actively avoid repeating their patterns.';
 
             const memoryPreferenceRaw = userProfile?.preferences?.memoryOpt ?? 'opt-in';
             const memoryPreference = String(memoryPreferenceRaw).toLowerCase();
