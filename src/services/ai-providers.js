@@ -30,17 +30,17 @@ const AUTO_HEALTH_MIN_TRIALS = 6;
 const AUTO_HEALTH_DEGRADED_TRIALS = 10;
 const AUTO_HEALTH_DEGRADED_LATENCY_MS = 12 * 1000;
 const AUTO_FAMILY_PRIORITY = {
-    groq: 0,
-    cerebras: 1,
-    sambanova: 2,
-    mistral: 3,
-    openrouter: 4,
-    google: 5,
-    ollama: 6,
-    nvidia: 7,
-    bedrock: 8,
-    deepseek: 9,
-    openai: 10
+    mistral: 0,
+    google: 1,
+    deepseek: 2,
+    cerebras: 3,
+    groq: 4,
+    sambanova: 5,
+    nvidia: 6,
+    openrouter: 7,
+    openai: 8,
+    ollama: 9,
+    bedrock: 10
 };
 function discoverEnvKeys(prefix) {
     const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
