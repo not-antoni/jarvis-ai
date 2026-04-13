@@ -48,13 +48,13 @@ function buildStructuredMemoryBlock(memories, userName = 'User') {
     }
 
     const memoryLines = memories
-        .map((mem, idx) => {
+        .map((mem) => {
             const userMsg = sanitizeMemoryContent(mem.userMessage || '');
             const jarvisResp = sanitizeMemoryContent(mem.jarvisResponse || '');
 
             if (!userMsg && !jarvisResp) {return null;}
 
-            return `[${idx + 1}] user="${userMsg}" response="${jarvisResp}"`;
+            return `U: ${userMsg} | J: ${jarvisResp}`;
         })
         .filter(Boolean)
         .join('\n');
