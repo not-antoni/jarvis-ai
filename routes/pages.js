@@ -594,19 +594,22 @@ const AGIS_PAGE = `
     <div class="content">
         <section class="anim d5">
             <h2>What even is AGIS</h2>
-            <p>AGIS is the umbrella for every bot and tool we make. Think of it as the framework that ties everything together. The actual framework part is still being figured out, but the name is locked in and that's what matters.</p>
-            <p>The community lives in <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a> on Discord. That's where people use Jarvis, break things, suggest features, and occasionally just hang out.</p>
+            <p>AGIS stands for Artificial General Intelligent System. The name came first. The actual framework came later. Or more accurately, it's still coming. The idea was always to build a collection of AI tools and bots that felt different from the usual stuff out there. Not corporate, not sterile, not another ChatGPT wrapper with a Discord skin on it.</p>
+            <p>Right now AGIS is a brand, a community, and the home of everything we build. The Discord server is called <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a> and that's where most of the action happens. People use the bots, report bugs, request features, and sometimes just hang out. It's less "official support server" and more "group chat where things occasionally get fixed."</p>
+            <p>The long term plan is to turn AGIS into an actual framework that other developers can use to build their own AI-powered bots and tools. That's still early days. But the foundation is being laid with every project we ship.</p>
         </section>
 
         <section class="anim d6">
             <h2>Meet Jarvis</h2>
-            <p>The first thing we built under AGIS. AI chat with actual personality, voice conversations, music, automod. He talks back, he remembers you, and he's got no filter. Over 50 models, zero corporate energy.</p>
+            <p>Jarvis is the first and flagship project under AGIS. He started in early 2025 as a small experiment in a friend's server and grew into a full AI assistant running on over 500 Discord servers. He does AI chat with real personality, voice conversations where you can literally talk to him out loud, music playback, server moderation, and a bunch of other things that keep getting added because the feature list never stops growing.</p>
+            <p>What makes Jarvis different is that he doesn't sound like a robot reading a script. He's got a personality modeled after the MCU Jarvis. Dry humor, British composure, actually helpful when you need him to be. He routes through 50+ AI models so he's almost never down, and he remembers your conversations using encrypted memory with keyword-based recall. He's not just responding to your last message. He knows who you are.</p>
+            <p>The whole project is open source. Every line of code is on <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">GitHub</a>. No hidden APIs, no black boxes, no "trust us" energy. You can read it, fork it, run your own instance if you want.</p>
             <a href="/" style="text-decoration:none;">
                 <div class="project-card">
                     <span class="project-icon">🤖</span>
                     <div class="project-info">
                         <h3>Jarvis</h3>
-                        <p>The flagship. He's got opinions and he's not afraid to share them.</p>
+                        <p>AI chat, voice, music, automod. 500+ servers. Free forever. He's got opinions and he's not afraid to share them.</p>
                         <span class="tag">live</span>
                     </div>
                 </div>
@@ -614,8 +617,22 @@ const AGIS_PAGE = `
         </section>
 
         <section class="anim d6">
+            <h2>The Person Behind It</h2>
+            <p>AGIS is a solo developer project. One person doing the coding, the infrastructure, the design, the support, and the occasional 3am debugging session when something breaks in production. There's no team page because there's no team. There's no about us because there's no us. Just one person who likes building things and figured out how to make AI tools that people actually enjoy using.</p>
+            <p>The project runs on cloud infrastructure, free API tiers, and stubbornness. It's not funded by anyone. There are no investors asking about monthly active users or revenue projections. The only metric that matters is whether people like using it, and so far the answer seems to be yes.</p>
+        </section>
+
+        <section class="anim d6">
+            <h2>How It's Built</h2>
+            <p>The tech stack is Node.js and Discord.js at the core. AI responses route through a custom multi-provider system that load-balances across Google Gemini, Mistral, DeepSeek, Meta Llama, Qwen, Gemma, GPT, and a bunch of others. If one provider is slow or down, the system automatically fails over to the next one. Users don't notice and they don't have to care. That was the whole point of building it this way.</p>
+            <p>Voice uses speech-to-text and text-to-speech pipelines that process audio in real time. Nothing is recorded or stored. Memory runs on encrypted databases with keyword-based retrieval so Jarvis can actually remember conversations instead of starting fresh every time someone talks to him. AutoMod uses AI-powered content analysis to catch spam, toxicity, and sketchy links without requiring server admins to babysit their channels.</p>
+            <p>Everything is open source and the repo is actively maintained. Commits happen almost daily. The project moves fast because there's no bureaucracy slowing it down.</p>
+        </section>
+
+        <section class="anim d6">
             <h2>What's next</h2>
-            <p>More bots, more tools, maybe an actual framework someday. We're building in public and figuring it out as we go. If that sounds fun, come hang out.</p>
+            <p>More bots, more tools, and eventually the actual AGIS framework that lets other developers build on top of what we've made. The immediate roadmap includes expanding Jarvis's capabilities, improving the multi-provider AI system, and growing the community. Longer term, the goal is to make AGIS a real platform that other people can use to ship their own AI-powered projects without starting from zero.</p>
+            <p>If any of that sounds interesting, the best way to stay in the loop is to join <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a> on Discord. That's where everything gets announced first, where features get discussed before they're built, and where you can talk to Jarvis directly and see what all the fuss is about.</p>
         </section>
     </div>
 

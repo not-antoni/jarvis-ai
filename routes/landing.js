@@ -659,15 +659,36 @@ const LANDING_PAGE = `
 
         <section class="about-section" id="about">
             <h2>About AGIS</h2>
-            <p>AGIS stands for Artificial General Intelligent System. It's an independent brand and framework created by a solo developer. Jarvis is the first project built under AGIS, and right now it's the main one.</p>
-            <p>This isn't a startup with funding rounds and a slide deck. It's one person building AI tools that people actually use every day. Jarvis runs on over 500 Discord servers, handles thousands of conversations, and is completely free. No premium tiers, no paywalls, no bait-and-switch.</p>
-            <p>The AGIS community lives on Discord in a server called <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a>. That's where users hang out, report bugs, suggest features, and occasionally just talk to Jarvis for fun. The whole project is <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">open source on GitHub</a>.</p>
+            <p>AGIS stands for Artificial General Intelligent System. It started as a name for a framework that didn't exist yet. The name stuck, the framework is still a work in progress, but the things built under it are very real and used by thousands of people every day.</p>
+            <p>Jarvis is the first and main project under AGIS. He started as a joke bot in a friend's Discord server and turned into something way bigger than expected. Now he's running on over 500 servers, talking to people across the world, handling voice calls, playing music, moderating servers, and doing it all for free. There's no premium version. There's no "upgrade to unlock this feature." Everything just works out of the box.</p>
+            <p>The whole thing is built and maintained by one person. No team, no investors, no company behind it. Just someone who wanted to make a Discord bot that didn't feel like talking to a customer service chatbot. The goal was always to make something that felt like an actual member of your server, not a tool you tolerate because it's useful.</p>
+            <p>All of the code is <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">open source on GitHub</a>. You can read every line, fork it, break it, fix it, whatever you want. Transparency isn't a marketing word here, it's just how the project works.</p>
+        </section>
+
+        <section class="about-section">
+            <h2>The Community</h2>
+            <p>AGIS Operations is the Discord server where everything happens. That's where people who use Jarvis hang out, report bugs when something breaks, suggest features they want to see, and sometimes just talk to Jarvis because they're bored. It's not a corporate community with rules about staying on topic. It's more like a group chat that happens to also be the support server.</p>
+            <p>Feature requests actually get built. Bug reports actually get fixed. If something is broken at 2am, someone is probably already looking at it. The whole project moves fast because there's no approval process or ticket system. Someone says "this is broken" and it gets patched.</p>
+            <p><a href="${DISCORD_INVITE}" target="_blank">Come join</a> if that sounds like your kind of thing.</p>
+        </section>
+
+        <section class="about-section">
+            <h2>Why It's Free</h2>
+            <p>People ask this a lot. Jarvis uses over 50 AI models from providers like Google, Mistral, DeepSeek, Meta, and others. Most of those providers offer generous free tiers for developers. The infrastructure runs on cloud credits and the occasional prayer. It works because the project is lean and the person running it would rather keep it free than charge people for something that should just exist.</p>
+            <p>There's no catch. No data selling, no ads, no "free trial that expires." If that ever changes, you'll hear about it first. But honestly, the plan is to keep it this way.</p>
+        </section>
+
+        <section class="about-section">
+            <h2>How the AI Works</h2>
+            <p>Jarvis doesn't run on one model. He routes through 50+ models from different providers and picks whichever one is healthy and available at that moment. If one provider goes down, he switches to another one automatically. You don't notice and you don't have to care. The whole system is built around redundancy because no single AI provider has 100% uptime and pretending otherwise is a recipe for a dead bot.</p>
+            <p>He also has memory. Not the "I remember the last 5 messages" kind. Jarvis stores conversations in an encrypted database and uses keyword relevance to pull up context from past interactions. So if you talked to him about something three weeks ago, he might actually remember. It's not perfect, but it's a lot better than starting from scratch every time.</p>
+            <p>Voice works the same way. You join a voice channel, run a command, and he listens for his name. When you say "Jarvis" and then talk, he processes what you said in real time, generates a response, and speaks it back. No audio is ever recorded or stored. It goes in, gets transcribed, and disappears.</p>
         </section>
 
         <section class="about-section">
             <h2>Contact</h2>
-            <p>For questions, partnerships, or anything else: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
-            <p>Or just join the <a href="${DISCORD_INVITE}" target="_blank">Discord</a> and say hi. That works too.</p>
+            <p>For questions, partnerships, press, or anything else you can reach out at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>. Response times vary depending on what's on fire that day, but emails do get read.</p>
+            <p>If you just want to talk, the fastest way is the <a href="${DISCORD_INVITE}" target="_blank">Discord server</a>. You'll probably get a response within minutes there, either from the developer or from Jarvis himself. He's always online. He doesn't sleep. That's either impressive or concerning depending on how you look at it.</p>
         </section>
 
     </main>
