@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const cookieParser = require('cookie-parser');
+const compression = require('compression');
 const appContext = require('../core/app-context');
 const tempFiles = require('../utils/temp-files');
 const { getPublicConfig } = require('../utils/public-config');
@@ -91,6 +92,7 @@ function createExpressApp({ webhookRouter, database }) {
     const app = express();
     app.disable('x-powered-by');
     app.set('trust proxy', ip => isIpInRanges(ip, TRUSTED_PROXY_RANGES));
+    app.use(compression());
 
     // ---- Helmet ----
     // BIMI logo — must be publicly accessible before helmet locks headers down
