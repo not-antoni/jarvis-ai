@@ -660,7 +660,7 @@ const LANDING_PAGE = `
         <section class="about-section" id="about">
             <h2>About AGIS</h2>
             <p>AGIS stands for Artificial General Intelligent System. It's an independent brand and framework created by a solo developer. Jarvis is the first project built under AGIS, and right now it's the main one.</p>
-            <p>This isn't a startup with funding rounds and a slide deck. It's one person building AI tools that people actually use every day. Jarvis runs on over 1,000 Discord servers, handles thousands of conversations, and is completely free. No premium tiers, no paywalls, no bait-and-switch.</p>
+            <p>This isn't a startup with funding rounds and a slide deck. It's one person building AI tools that people actually use every day. Jarvis runs on over 500 Discord servers, handles thousands of conversations, and is completely free. No premium tiers, no paywalls, no bait-and-switch.</p>
             <p>The AGIS community lives on Discord in a server called <a href="${DISCORD_INVITE}" target="_blank">AGIS Operations</a>. That's where users hang out, report bugs, suggest features, and occasionally just talk to Jarvis for fun. The whole project is <a href="https://github.com/not-antoni/jarvis-ai" target="_blank">open source on GitHub</a>.</p>
         </section>
 
