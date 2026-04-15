@@ -11,6 +11,17 @@ const SITE_BASE_URL = publicConfig.baseUrl;
 const GA_MEASUREMENT_ID = publicConfig.gaMeasurementId;
 const CONTACT_EMAIL = 'dev@jorvis.org';
 
+let _appContext = null;
+function setAppContext(ctx) { _appContext = ctx; }
+function getServerCount() {
+    try {
+        const count = _appContext?.getClient()?.guilds?.cache?.size || 0;
+        if (count >= 1000) return (count / 1000).toFixed(1) + 'K+';
+        if (count > 0) return count + '+';
+    } catch {}
+    return '';
+}
+
 const LANDING_PAGE = `
 <!DOCTYPE html>
 <html lang="en">
@@ -373,7 +384,7 @@ const LANDING_PAGE = `
                     <div class="stat-label">Commands</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number" id="serverCount">&nbsp;</div>
+                    <div class="stat-number" id="serverCount">%%SERVER_COUNT%%</div>
                     <div class="stat-label">Servers</div>
                 </div>
                 <div class="stat-item">
@@ -459,41 +470,29 @@ const LANDING_PAGE = `
         }
 
         // Fetch real server count (retry once if cache not ready yet)
-        async function fetchStats(retries) {
+        // Live-update server count in case it changed since SSR
+        (async () => {
             try {
                 const res = await fetch('/api/stats');
                 const data = await res.json();
                 if (data.guildCount > 0) {
                     const count = data.guildCount;
-                    let formatted;
-                    if (count >= 1000) formatted = (count / 1000).toFixed(1) + 'K+';
-                    else formatted = count + '+';
-                    document.getElementById('serverCount').textContent = formatted;
-                } else if (retries > 0) {
-                    setTimeout(() => fetchStats(retries - 1), 5000);
-                } else {
-                    document.getElementById('serverCount').textContent = '—';
+                    const el = document.getElementById('serverCount');
+                    el.textContent = count >= 1000 ? (count / 1000).toFixed(1) + 'K+' : count + '+';
                 }
-            } catch (e) {
-                if (retries > 0) setTimeout(() => fetchStats(retries - 1), 5000);
-                else document.getElementById('serverCount').textContent = '—';
-            }
-        }
-
-        fetchStats(2);
+            } catch {}
+        })();
     </script>
 </body>
 </html>
 `;
 
-// Landing page
-router.get('/', (req, res) => {
-    res.type('html').send(LANDING_PAGE);
-});
+function serveLanding(req, res) {
+    res.type('html').send(LANDING_PAGE.replace('%%SERVER_COUNT%%', getServerCount()));
+}
 
-// /home alias for landing page
-router.get('/home', (req, res) => {
-    res.type('html').send(LANDING_PAGE);
-});
+router.get('/', serveLanding);
+router.get('/home', serveLanding);
 
 module.exports = router;
+module.exports.setAppContext = setAppContext;

@@ -260,6 +260,9 @@ ${pages.map(p => `  <url>
 
     // Landing page
     const landingRouter = require('../../routes/landing');
+    if (typeof landingRouter.setAppContext === 'function') {
+        landingRouter.setAppContext(appContext);
+    }
     app.use('/', landingRouter);
 
     // ---- Command metrics ----
