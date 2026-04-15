@@ -377,7 +377,7 @@ const LANDING_PAGE = `
             <div class="stats-grid">
                 <div class="stat-item">
                     <div class="stat-number">50+</div>
-                    <div class="stat-label">AI Models</div>
+                    <div class="stat-label">Models</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-number">30+</div>
