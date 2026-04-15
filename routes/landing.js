@@ -565,10 +565,14 @@ const LANDING_PAGE = `
                 top: 100%;
                 left: 0; right: 0;
                 background: #000;
-                border-bottom: 1px solid rgba(255,255,255,0.06);
+                border: 1px solid rgba(255,255,255,0.08);
+                border-top: none;
+                border-radius: 0 0 10px 10px;
                 flex-direction: column;
                 padding: 1rem 5%;
                 gap: 0.75rem;
+                z-index: 100;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.6);
             }
             .nav-links.open { display: flex; }
             nav { position: relative; }
